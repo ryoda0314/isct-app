@@ -1,0 +1,301 @@
+{
+  "timestamp": 1772487575870,
+  "courses": {
+    "MEC.C201": {
+      "per": "木1-4",
+      "day": "木",
+      "periodStart": 1,
+      "periodEnd": 4,
+      "room": "M-B07(H101)",
+      "quarter": "1Q"
+    },
+    "MEC.A211": {
+      "per": "月5-8",
+      "day": "月",
+      "periodStart": 5,
+      "periodEnd": 8,
+      "room": "W241",
+      "quarter": "1Q"
+    },
+    "MEC.A202": {
+      "per": "木5-8",
+      "day": "木",
+      "periodStart": 5,
+      "periodEnd": 8,
+      "room": "M-B07(H101)",
+      "quarter": "1Q"
+    },
+    "MEC.A201": {
+      "per": "水1-4",
+      "day": "水",
+      "periodStart": 1,
+      "periodEnd": 4,
+      "room": "M-278(H121)",
+      "quarter": "1Q"
+    },
+    "MEC.I212": {
+      "per": "金1-4",
+      "day": "金",
+      "periodStart": 1,
+      "periodEnd": 4,
+      "room": "W541",
+      "quarter": "2Q"
+    },
+    "MEC.H202": {
+      "per": "木3-8",
+      "day": "木",
+      "periodStart": 3,
+      "periodEnd": 8,
+      "room": "W241",
+      "quarter": "2Q"
+    },
+    "MEC.E201": {
+      "per": "火5-8",
+      "day": "火",
+      "periodStart": 5,
+      "periodEnd": 8,
+      "room": "M-B07(H101)",
+      "quarter": "2Q"
+    },
+    "MEC.B201": {
+      "per": "月5-8",
+      "day": "月",
+      "periodStart": 5,
+      "periodEnd": 8,
+      "room": "S222",
+      "quarter": "2Q"
+    },
+    "MEC.A212": {
+      "per": "金5-8",
+      "day": "金",
+      "periodStart": 5,
+      "periodEnd": 8,
+      "room": "W531",
+      "quarter": "2Q"
+    },
+    "MEC.I211": {
+      "per": "火1-4",
+      "day": "火",
+      "periodStart": 1,
+      "periodEnd": 4,
+      "room": "S222",
+      "quarter": "3Q"
+    },
+    "MEC.H203": {
+      "per": "金5-10",
+      "day": "金",
+      "periodStart": 5,
+      "periodEnd": 10,
+      "room": "H203",
+      "quarter": "3Q"
+    },
+    "MEC.F201": {
+      "per": "木5-8",
+      "day": "木",
+      "periodStart": 5,
+      "periodEnd": 8,
+      "room": "M-278(H121)",
+      "quarter": "3Q"
+    },
+    "MEC.D201": {
+      "per": "月5-8",
+      "day": "月",
+      "periodStart": 5,
+      "periodEnd": 8,
+      "room": "N-13",
+      "quarter": "3Q"
+    },
+    "MEC.C211": {
+      "per": "金1-4",
+      "day": "金",
+      "periodStart": 1,
+      "periodEnd": 4,
+      "room": "H212",
+      "quarter": "3Q"
+    },
+    "MEC.B221": {
+      "per": "火5-8",
+      "day": "火",
+      "periodStart": 5,
+      "periodEnd": 8,
+      "room": null,
+      "quarter": "3Q"
+    },
+    "MEC.P211:B": {
+      "per": "月5-8",
+      "day": "月",
+      "periodStart": 5,
+      "periodEnd": 8,
+      "room": null,
+      "quarter": "4Q"
+    },
+    "MEC.P211": {
+      "per": "金5-8",
+      "day": "金",
+      "periodStart": 5,
+      "periodEnd": 8,
+      "room": null,
+      "quarter": "4Q"
+    },
+    "MEC.B222": {
+      "per": "木5-8",
+      "day": "木",
+      "periodStart": 5,
+      "periodEnd": 8,
+      "room": "M-124",
+      "quarter": "4Q"
+    },
+    "LAL.S201:S16": {
+      "per": "火1-2",
+      "day": "火",
+      "periodStart": 1,
+      "periodEnd": 2,
+      "room": "S201",
+      "quarter": "1Q"
+    },
+    "LAL.S201": {
+      "per": "火1-2",
+      "day": "火",
+      "periodStart": 1,
+      "periodEnd": 2,
+      "room": "S201",
+      "quarter": "1Q"
+    },
+    "LAL.S202:S16": {
+      "per": "火1-2",
+      "day": "火",
+      "periodStart": 1,
+      "periodEnd": 2,
+      "room": "S202",
+      "quarter": "2Q"
+    },
+    "LAL.S202": {
+      "per": "火1-2",
+      "day": "火",
+      "periodStart": 1,
+      "periodEnd": 2,
+      "room": "S202",
+      "quarter": "2Q"
+    },
+    "LAL.S203:S38": {
+      "per": "水1-2",
+      "day": "水",
+      "periodStart": 1,
+      "periodEnd": 2,
+      "room": "S223",
+      "quarter": "3Q"
+    },
+    "LAL.S203": {
+      "per": "水1-2",
+      "day": "水",
+      "periodStart": 1,
+      "periodEnd": 2,
+      "room": "S223",
+      "quarter": "3Q"
+    },
+    "LAL.S204:S38": {
+      "per": "水1-2",
+      "day": "水",
+      "periodStart": 1,
+      "periodEnd": 2,
+      "room": "S224",
+      "quarter": "4Q"
+    },
+    "LAL.S204": {
+      "per": "水1-2",
+      "day": "水",
+      "periodStart": 1,
+      "periodEnd": 2,
+      "room": "S224",
+      "quarter": "4Q"
+    },
+    "LAE.E211:14-RW": {
+      "per": "月3-4",
+      "day": "月",
+      "periodStart": 3,
+      "periodEnd": 4,
+      "room": "W331",
+      "quarter": "1Q"
+    },
+    "LAE.E211": {
+      "per": "月3-4",
+      "day": "月",
+      "periodStart": 3,
+      "periodEnd": 4,
+      "room": "W331",
+      "quarter": "1Q"
+    },
+    "LAE.E212:14-RW": {
+      "per": "月3-4",
+      "day": "月",
+      "periodStart": 3,
+      "periodEnd": 4,
+      "room": "W331",
+      "quarter": "2Q"
+    },
+    "LAE.E212": {
+      "per": "月3-4",
+      "day": "月",
+      "periodStart": 3,
+      "periodEnd": 4,
+      "room": "W331",
+      "quarter": "2Q"
+    },
+    "LAE.E213:29-LS": {
+      "per": "木3-4",
+      "day": "木",
+      "periodStart": 3,
+      "periodEnd": 4,
+      "room": "M-B107(H104)",
+      "quarter": "3Q"
+    },
+    "LAE.E213": {
+      "per": "木3-4",
+      "day": "木",
+      "periodStart": 3,
+      "periodEnd": 4,
+      "room": "M-B107(H104)",
+      "quarter": "3Q"
+    },
+    "LAE.E214:29-LS": {
+      "per": "木3-4",
+      "day": "木",
+      "periodStart": 3,
+      "periodEnd": 4,
+      "room": "M-B43(H106)",
+      "quarter": "4Q"
+    },
+    "LAE.E214": {
+      "per": "木3-4",
+      "day": "木",
+      "periodStart": 3,
+      "periodEnd": 4,
+      "room": "M-B43(H106)",
+      "quarter": "4Q"
+    },
+    "LAH.H206": {
+      "per": "月1-2",
+      "day": "月",
+      "periodStart": 1,
+      "periodEnd": 2,
+      "room": "S221",
+      "quarter": "2Q"
+    },
+    "LAH.S213": {
+      "per": "月1-2",
+      "day": "月",
+      "periodStart": 1,
+      "periodEnd": 2,
+      "room": "M-278(H121)",
+      "quarter": "3Q"
+    },
+    "ENT.V206": {
+      "per": null,
+      "day": null,
+      "periodStart": null,
+      "periodEnd": null,
+      "room": null,
+      "quarter": "4Q"
+    }
+  }
+}
