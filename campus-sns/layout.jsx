@@ -15,7 +15,7 @@ const SideItem=({icon,label,on,click,badge})=>(
 
 const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,courses=[],depts=[],user={},quarter})=>{
   const [moreOpen,setMoreOpen]=useState(false);
-  const extras=["calendar","grades","pomo","events","reviews","bmarks","search"];
+  const extras=["grades","pomo","events","reviews","bmarks"];
   const isExtra=extras.includes(view);
   return(
   <div style={{width:180,background:T.bg2,display:"flex",flexDirection:"column",borderRight:`1px solid ${T.bd}`,flexShrink:0,overflowY:"auto"}}>
@@ -27,6 +27,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,courses=[],dep
       <SideItem icon={I.mail} label="DM" on={view==="dm"} click={()=>setView("dm")}/>
       <SideItem icon={I.bell} label="通知" on={view==="notif"} click={()=>setView("notif")} badge={unreadN}/>
       <SideItem icon={I.search} label="検索" on={view==="search"} click={()=>setView("search")}/>
+      <SideItem icon={I.cal} label="カレンダー" on={view==="calendar"} click={()=>setView("calendar")}/>
       <SideItem icon={I.more} label="ツール" on={moreOpen||isExtra} click={()=>setMoreOpen(p=>!p)}/>
     </div>
     {depts.length>0&&<>
@@ -62,7 +63,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,courses=[],dep
           <button onClick={()=>setMoreOpen(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.x}</button>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          {[{id:"calendar",i:I.cal,l:"カレンダー",c:T.accent},{id:"grades",i:I.grad,l:"成績・出席",c:T.accentSoft},{id:"pomo",i:I.play,l:"ポモドーロ",c:T.green},{id:"events",i:I.event,l:"イベント",c:T.orange},{id:"reviews",i:I.star,l:"授業レビュー",c:"#c6a236"},{id:"bmarks",i:I.bmark,l:"ブックマーク",c:T.txD},{id:"search",i:I.search,l:"検索",c:T.txD}].map(n=>
+          {[{id:"grades",i:I.grad,l:"成績・出席",c:T.accentSoft},{id:"pomo",i:I.play,l:"ポモドーロ",c:T.green},{id:"events",i:I.event,l:"イベント",c:T.orange},{id:"reviews",i:I.star,l:"授業レビュー",c:"#c6a236"},{id:"bmarks",i:I.bmark,l:"ブックマーク",c:T.txD}].map(n=>
             <button key={n.id} onClick={()=>{setView(n.id);setMoreOpen(false);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,padding:"16px 8px",borderRadius:12,border:view===n.id?`2px solid ${n.c}`:`1px solid ${T.bd}`,background:view===n.id?`${n.c}10`:T.bg3,cursor:"pointer",transition:"all .12s"}}>
               <span style={{color:n.c,display:"flex"}}>{n.i}</span>
               <span style={{fontSize:12,fontWeight:view===n.id?600:400,color:view===n.id?T.txH:T.tx}}>{n.l}</span>

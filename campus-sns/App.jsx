@@ -7,7 +7,7 @@ import { useCurrentUser, setCurrentUserFromAPI } from "./hooks/useCurrentUser.js
 import { usePresence } from "./hooks/usePresence.js";
 import { useCourseMembers } from "./hooks/useCourseMembers.js";
 import { useMobile } from "./utils.jsx";
-import { Av } from "./shared.jsx";
+import { Av, Loader } from "./shared.jsx";
 import { DSide, DChan, MNav, MoreMenu } from "./layout.jsx";
 import { HomeView } from "./views/HomeView.jsx";
 import { TTView, CSelect } from "./views/TTView.jsx";
@@ -36,7 +36,7 @@ export default function App(){
   const [dark,setDark]=useState(true);
   updateT(dark);
   const [appState,setAppState]=useState("loading");
-  const [quarter,setQuarter]=useState(2);
+  const [quarter,setQuarter]=useState(()=>{try{const v=localStorage.getItem("quarter");return v?Number(v):2;}catch{return 2;}});
   const [qDataLive,setQDataLive]=useState(null);
   const qd=(qDataLive&&qDataLive[quarter])||QData[quarter]||{C:[],TT:[]};
   const [allCourses,setAllCourses]=useState([]);
@@ -89,6 +89,7 @@ export default function App(){
     return()=>{if(refreshRef.current)clearInterval(refreshRef.current)};
   },[]);
 
+  useEffect(()=>{try{localStorage.setItem("quarter",String(quarter));}catch{}},[quarter]);
   const onSetupComplete=async()=>{await fetchData();setAppState("ready");refreshRef.current=setInterval(fetchData,15*60*1000);};
 
   const cc=allCourses.find(c=>c.id===cid);
@@ -134,7 +135,7 @@ export default function App(){
   };
 
   // --- LOADING / SETUP ---
-  if(appState==="loading") return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",width:"100vw",background:T.bg,color:T.txD,fontFamily:"'Inter',sans-serif"}}><p>読み込み中...</p></div>;
+  if(appState==="loading") return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",width:"100vw",background:T.bg,color:T.txD,fontFamily:"'Inter',sans-serif"}}><Loader msg="読み込み中" size="lg"/></div>;
   if(appState==="setup") return <div style={{display:"flex",height:"100vh",width:"100vw",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}><SetupView onComplete={onSetupComplete} onSkip={()=>setAppState("ready")} mob={mob}/></div>;
 
   // --- DESKTOP ---
@@ -152,8 +153,8 @@ export default function App(){
         {view==="dept"&&cd&&<DChan dept={cd} ch={ch} setCh={setCh} online={online}/>}
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
           <DTop title={dTitle()} color={view==="course"&&cc?cc.col:view==="dept"&&cd?cd.col:undefined}/>
-          {view==="home"&&<HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses} user={user} myEvents={myEvents}/>}
-          {view==="timetable"&&<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob={false} quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses}/>}
+          {view==="home"&&<HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet}/>}
+          {view==="timetable"&&<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob={false} quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet}/>}
           {view==="tasks"&&<AsgnView asgn={asgn} setAsgn={setAsgn} mob={false} myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden}/>}
           {view==="course"&&cc&&courseContent()}
           {view==="dept"&&cd&&deptContent()}
@@ -178,8 +179,8 @@ export default function App(){
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100vh",width:"100vw",maxWidth:480,margin:"0 auto",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        {view==="home"&&<><MHdr title="TokioConnect" right={<button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses} user={user} myEvents={myEvents}/></>}
-        {view==="timetable"&&<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses}/>}
+        {view==="home"&&<><MHdr title="TokioConnect" right={<button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet}/></>}
+        {view==="timetable"&&<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet}/>}
         {view==="tasks"&&<><MHdr title="課題管理"/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden}/></>}
         {view==="courseSelect"&&<><MHdr title="コース・学系"/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={allCourses} depts={userDepts} setDid={setDid}/></>}
         {view==="course"&&cc&&<><MHdr title={<><span style={{color:cc.col}}>{cc.code}</span><span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{cc.name}</span></>} back={()=>setView("courseSelect")} right={<button style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.more}</button>}/><MTabs ch={ch} setCh={setCh}/>{courseContent()}</>}

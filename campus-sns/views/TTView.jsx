@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
-export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefresh,courses=[]})=>{
+export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefresh,courses=[],hiddenSet=new Set()})=>{
   const days=["月","火","水","木","金"],daysFull=["Monday","Tuesday","Wednesday","Thursday","Friday"],dayJP=["月曜日","火曜日","水曜日","木曜日","金曜日"];
   const pds=["1","2","3","4","5"],pdLabel=["1限","2限","3限","4限","5限"],pdTimes=["8:50–10:30","10:45–12:25","13:20–15:00","15:15–16:55","17:10–18:50"];
   const curC=qd.C,curTT=qd.TT;
-  const cnt=cid=>asgn.filter(a=>a.cid===cid&&a.st!=="completed").length;
+  const cnt=cid=>asgn.filter(a=>a.cid===cid&&a.st!=="completed"&&!hiddenSet.has(a.id)).length;
   const [qOpen,setQOpen]=useState(false);
   const [refreshing,setRefreshing]=useState(false);
   const handleRefresh=async()=>{if(!onRefresh||refreshing)return;setRefreshing(true);try{await onRefresh();}finally{setRefreshing(false);}};

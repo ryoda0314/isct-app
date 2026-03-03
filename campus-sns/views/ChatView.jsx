@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { fTs } from "../utils.jsx";
-import { Av, Tx } from "../shared.jsx";
+import { Av, Tx, Loader } from "../shared.jsx";
 import { useChat } from "../hooks/useChat.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
 
@@ -28,7 +28,7 @@ export const ChatView=({course,dept,mob})=>{
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"8px 0"}}>
-        {loading&&<div style={{textAlign:"center",padding:20,color:T.txD,fontSize:13}}>読み込み中...</div>}
+        {loading&&<Loader msg="メッセージを読み込み中" size="sm"/>}
         {grp.map(m=>{const u=resolveUser(m);return(
           <div key={m.id} style={{padding:m.hdr?"5px 14px 2px":"1px 14px 1px 56px"}}>
             {m.hdr?<div style={{display:"flex",gap:8}}><Av u={u} sz={32}/><div><div style={{display:"flex",alignItems:"baseline",gap:4}}><span style={{fontWeight:600,color:u?.col,fontSize:13}}>{u?.name}</span><span style={{fontSize:10,color:T.txD}}>{fTs(m.ts)}</span></div><p style={{margin:"2px 0 0",color:T.tx,fontSize:14,lineHeight:1.5}}><Tx>{m.text}</Tx></p></div></div>

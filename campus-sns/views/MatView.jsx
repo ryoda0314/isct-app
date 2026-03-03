@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
-import { Tag } from "../shared.jsx";
+import { Tag, Loader } from "../shared.jsx";
 import { useCourseMaterials } from "../hooks/useCourseMaterials.js";
 import { useSharedMaterials } from "../hooks/useSharedMaterials.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
@@ -155,7 +155,7 @@ const PdfViewer=({url,mob})=>{
   const zoomOut=()=>setZoom(z=>Math.max(z-0.25,0.5));
 
   if(err) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:T.txD,fontSize:13,padding:40}}>{err}</div>;
-  if(!pdf) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:T.txD,fontSize:13,padding:40}}>{loadMsg}</div>;
+  if(!pdf) return <Loader msg={loadMsg} size="md"/>;
 
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -299,7 +299,7 @@ const LectureMaterials=({sections,totalFiles,loading,mob,onSelect})=>{
     ?sections.map(s=>({...s,materials:s.materials.filter(m=>(m.name||'').toLowerCase().includes(search.toLowerCase())||(m.filename||'').toLowerCase().includes(search.toLowerCase()))})).filter(s=>s.materials.length>0)
     :sections;
 
-  if(loading) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40}}><div style={{textAlign:"center",color:T.txD,fontSize:13}}>教材を読み込み中...</div></div>;
+  if(loading) return <Loader msg="教材を読み込み中"/>;
 
   return(
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:12}}>
@@ -362,7 +362,7 @@ const SharedMaterials=({courseId,mob,onSelect})=>{
   const onDragOver=e=>e.preventDefault();
   const onDrop=e=>{e.preventDefault();dragCounter.current=0;setDrag(false);stageFiles(e.dataTransfer.files);};
 
-  if(loading) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40}}><div style={{textAlign:"center",color:T.txD,fontSize:13}}>共有資料を読み込み中...</div></div>;
+  if(loading) return <Loader msg="共有資料を読み込み中"/>;
 
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",position:"relative"}}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { T } from '../theme.js';
 import { I } from '../icons.jsx';
-import { Av, Tx } from '../shared.jsx';
+import { Av, Tx, Loader } from '../shared.jsx';
 import { fT, fTs } from '../utils.jsx';
 import { useCurrentUser } from '../hooks/useCurrentUser.js';
 import { useDMList, useDMMessages, useDMSend } from '../hooks/useDM.js';
@@ -62,7 +62,7 @@ export const DMView=({mob,setView})=>{
   return(
     <div style={{flex:1,overflowY:"auto",padding:12}}>
       <div style={{fontSize:12,fontWeight:700,color:T.txD,marginBottom:8}}>ダイレクトメッセージ</div>
-      {loading&&<div style={{textAlign:"center",padding:20,color:T.txD,fontSize:13}}>読み込み中...</div>}
+      {loading&&<Loader msg="DMを読み込み中" size="sm"/>}
       {conversations.map(conv=>{
         const wu={name:conv.withName||'?',av:conv.withAvatar||'?',col:conv.withColor||'#888'};
         const last=conv.msgs[conv.msgs.length-1];

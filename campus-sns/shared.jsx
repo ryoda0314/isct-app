@@ -48,4 +48,37 @@ const Tag=({children,color=T.accent})=><span style={{display:"inline-flex",align
 const Bar=({p,h=4,c})=><div style={{flex:1,height:h,borderRadius:h,background:T.bg4}}><div style={{height:"100%",borderRadius:h,background:c||(p>=100?T.green:T.accent),width:`${Math.min(p,100)}%`,transition:"width .3s"}}/></div>;
 const Btn=({children,on,onClick,style:s})=><button onClick={onClick} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:5,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:500,borderRadius:6,padding:"5px 10px",fontSize:13,background:on?T.accent:"transparent",color:on?"#fff":T.txD,transition:"all .12s",...s}}>{children}</button>;
 
-export { useKatex, Tx, Av, Tag, Bar, Btn };
+/* ─── Animated Loader ─── */
+let _loaderCssInjected=false;
+const injectLoaderCss=()=>{
+  if(_loaderCssInjected||typeof document==="undefined")return;
+  _loaderCssInjected=true;
+  const s=document.createElement("style");
+  s.textContent=`
+@keyframes ldSpin{to{transform:rotate(360deg)}}
+@keyframes ldPulse{0%,80%,100%{transform:scale(0);opacity:.4}40%{transform:scale(1);opacity:1}}
+@keyframes ldFade{0%,100%{opacity:.4}50%{opacity:1}}`;
+  document.head.appendChild(s);
+};
+const Loader=({msg,size="md"})=>{
+  injectLoaderCss();
+  const sz=size==="sm"?{ring:20,dot:5,gap:4,font:12}:size==="lg"?{ring:36,dot:8,gap:6,font:14}:{ring:28,dot:6,gap:5,font:13};
+  return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:14,padding:size==="sm"?16:40,flex:1}}>
+      <div style={{position:"relative",width:sz.ring,height:sz.ring}}>
+        <div style={{position:"absolute",inset:0,border:`2.5px solid ${T.bd}`,borderRadius:"50%"}}/>
+        <div style={{position:"absolute",inset:0,border:"2.5px solid transparent",borderTopColor:T.accent,borderRadius:"50%",animation:"ldSpin .8s cubic-bezier(.45,.05,.55,.95) infinite"}}/>
+      </div>
+      {msg&&(
+        <div style={{display:"flex",alignItems:"center",gap:2}}>
+          <span style={{color:T.txD,fontSize:sz.font,fontWeight:500}}>{msg}</span>
+          <span style={{display:"inline-flex",gap:sz.gap-1,marginLeft:2}}>
+            {[0,1,2].map(i=><span key={i} style={{width:sz.dot,height:sz.dot,borderRadius:"50%",background:T.txD,animation:`ldPulse 1.2s ${i*.15}s ease-in-out infinite`}}/>)}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export { useKatex, Tx, Av, Tag, Bar, Btn, Loader };
