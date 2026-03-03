@@ -69,3 +69,23 @@ alter table notifications disable row level security;
 alter publication supabase_realtime add table messages;
 alter publication supabase_realtime add table dm_messages;
 alter publication supabase_realtime add table notifications;
+
+-- 8. shared_materials: ユーザー共有資料
+create table if not exists shared_materials (
+  id              bigint generated always as identity primary key,
+  course_id       text not null,
+  moodle_user_id  bigint not null references profiles(moodle_id),
+  filename        text not null,
+  filesize        bigint default 0,
+  mimetype        text,
+  category        text not null default 'notes',  -- past_exam, notes, exercise, other
+  storage_path    text not null,
+  created_at      timestamptz default now()
+);
+create index if not exists idx_shared_materials_course on shared_materials(course_id, created_at desc);
+alter table shared_materials disable row level security;
+alter publication supabase_realtime add table shared_materials;
+
+-- Storage bucket for shared materials
+insert into storage.buckets (id, name, public) values ('shared-materials', 'shared-materials', true)
+on conflict do nothing;

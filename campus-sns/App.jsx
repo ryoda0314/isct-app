@@ -5,6 +5,7 @@ import { QData, ASGN0, MYTK0, EVENTS0, GRADES0, ATT0, REVIEWS0, MYEVENTS0, DEPTS
 import { useNotifications } from "./hooks/useNotifications.js";
 import { useCurrentUser, setCurrentUserFromAPI } from "./hooks/useCurrentUser.js";
 import { usePresence } from "./hooks/usePresence.js";
+import { useCourseMembers } from "./hooks/useCourseMembers.js";
 import { useMobile } from "./utils.jsx";
 import { Av } from "./shared.jsx";
 import { DSide, DChan, MNav, MoreMenu } from "./layout.jsx";
@@ -102,6 +103,7 @@ export default function App(){
   const {unreadCount:unreadN}=useNotifications();
   const presenceRoom=view==="course"&&cc?`course:${cc.id}`:view==="dept"&&cd?`dept:${cd.prefix}`:null;
   const {online}=usePresence(presenceRoom,{id:user.moodleId||user.id,name:user.name,col:user.col});
+  const members=useCourseMembers(cc?.moodleId);
   const navCrs=id=>{setCid(id);setView("course");setCh("assignments");};
   const togBmark=pid=>setBmarks(p=>p.includes(pid)?p.filter(x=>x!==pid):[...p,pid]);
   const togTheme=()=>setDark(p=>!p);
