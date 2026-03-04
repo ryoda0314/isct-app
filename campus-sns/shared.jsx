@@ -13,6 +13,17 @@ const useKatex=()=>{
   return ready;
 };
 
+// --- Leaflet Loader ---
+const useLeaflet=()=>{
+  const [ready,setReady]=useState(typeof window!=="undefined"&&!!window.L);
+  useEffect(()=>{
+    if(window.L){setReady(true);return;}
+    const css=document.createElement("link");css.rel="stylesheet";css.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";document.head.appendChild(css);
+    const js=document.createElement("script");js.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";js.onload=()=>setReady(true);document.head.appendChild(js);
+  },[]);
+  return ready;
+};
+
 // --- TeX Text Component ---
 // Supports $$...$$ (display) and $...$ (inline), plus @mentions
 const Tx=({children,style:s})=>{
@@ -43,7 +54,8 @@ const Tx=({children,style:s})=>{
   return <span style={s}>{parts.map((p,i)=>p.startsWith("@")?<span key={i} style={{color:"#6375f0",fontWeight:600}}>{p}</span>:p)}</span>;
 };
 
-const Av=({u,sz=32,st})=><div style={{position:"relative",flexShrink:0}}><div style={{width:sz,height:sz,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:sz*.36,fontWeight:700,color:"#fff",background:u?.col||T.accent,userSelect:"none"}}>{u?.av||"?"}</div>{st&&u?.st&&<div style={{position:"absolute",bottom:-1,right:-1,width:sz*.28,height:sz*.28,borderRadius:"50%",border:`2px solid ${T.bg}`,background:u.st==="online"?T.on:u.st==="idle"?T.idle:T.off}}/>}</div>;
+const _isImg=v=>v&&(v.startsWith("data:")||v.startsWith("http")||v.startsWith("/"));
+const Av=({u,sz=32,st})=>{const av=u?.av,img=_isImg(av);return <div style={{position:"relative",flexShrink:0}}>{img?<img src={av} style={{width:sz,height:sz,borderRadius:"50%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{width:sz,height:sz,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:sz*.36,fontWeight:700,color:"#fff",background:u?.col||T.accent,userSelect:"none"}}>{av||"?"}</div>}{st&&u?.st&&<div style={{position:"absolute",bottom:-1,right:-1,width:sz*.28,height:sz*.28,borderRadius:"50%",border:`2px solid ${T.bg}`,background:u.st==="online"?T.on:u.st==="idle"?T.idle:T.off}}/>}</div>;};
 const Tag=({children,color=T.accent})=><span style={{display:"inline-flex",alignItems:"center",padding:"2px 7px",borderRadius:4,fontSize:11,fontWeight:600,color,background:`${color}16`,whiteSpace:"nowrap",gap:3}}>{children}</span>;
 const Bar=({p,h=4,c})=><div style={{flex:1,height:h,borderRadius:h,background:T.bg4}}><div style={{height:"100%",borderRadius:h,background:c||(p>=100?T.green:T.accent),width:`${Math.min(p,100)}%`,transition:"width .3s"}}/></div>;
 const Btn=({children,on,onClick,style:s})=><button onClick={onClick} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:5,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:500,borderRadius:6,padding:"5px 10px",fontSize:13,background:on?T.accent:"transparent",color:on?"#fff":T.txD,transition:"all .12s",...s}}>{children}</button>;
@@ -81,4 +93,4 @@ const Loader=({msg,size="md"})=>{
   );
 };
 
-export { useKatex, Tx, Av, Tag, Bar, Btn, Loader };
+export { useKatex, useLeaflet, Tx, Av, Tag, Bar, Btn, Loader };

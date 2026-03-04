@@ -1,5 +1,5 @@
 {
-  "timestamp": 1772521907286,
+  "timestamp": 1772641019435,
   "courses": {
     "MEC.C201": {
       "per": "木1-4",
@@ -14,7 +14,7 @@
       "day": "月",
       "periodStart": 5,
       "periodEnd": 8,
-      "room": "W241",
+      "room": "W2-401(W241)",
       "quarter": "1Q"
     },
     "MEC.A202": {
@@ -38,7 +38,7 @@
       "day": "金",
       "periodStart": 1,
       "periodEnd": 4,
-      "room": "W541",
+      "room": "WL1-401(W541)",
       "quarter": "2Q"
     },
     "MEC.H202": {
@@ -46,7 +46,7 @@
       "day": "木",
       "periodStart": 3,
       "periodEnd": 8,
-      "room": "W241",
+      "room": "W2-401(W241)",
       "quarter": "2Q"
     },
     "MEC.E201": {
@@ -62,7 +62,7 @@
       "day": "月",
       "periodStart": 5,
       "periodEnd": 8,
-      "room": "S222",
+      "room": "S2-203(S222)",
       "quarter": "2Q"
     },
     "MEC.A212": {
@@ -70,7 +70,7 @@
       "day": "金",
       "periodStart": 5,
       "periodEnd": 8,
-      "room": "W531",
+      "room": "WL1-301(W531)",
       "quarter": "2Q"
     },
     "MEC.I211": {
@@ -78,7 +78,7 @@
       "day": "火",
       "periodStart": 1,
       "periodEnd": 4,
-      "room": "S222",
+      "room": "S2-203(S222)",
       "quarter": "3Q"
     },
     "MEC.H203": {
@@ -86,7 +86,7 @@
       "day": "金",
       "periodStart": 5,
       "periodEnd": 10,
-      "room": "H203",
+      "room": "I1-256(I121)",
       "quarter": "3Q"
     },
     "MEC.F201": {
@@ -102,7 +102,7 @@
       "day": "月",
       "periodStart": 5,
       "periodEnd": 8,
-      "room": "N-13",
+      "room": "WL1-301",
       "quarter": "3Q"
     },
     "MEC.C211": {
@@ -110,7 +110,7 @@
       "day": "金",
       "periodStart": 1,
       "periodEnd": 4,
-      "room": "H212",
+      "room": "WL1-301",
       "quarter": "3Q"
     },
     "MEC.B221": {
@@ -118,15 +118,15 @@
       "day": "火",
       "periodStart": 5,
       "periodEnd": 8,
-      "room": null,
+      "room": "I1-256(I121)",
       "quarter": "3Q"
     },
     "MEC.P211:B": {
-      "per": "月5-8",
-      "day": "月",
+      "per": "金5-8",
+      "day": "金",
       "periodStart": 5,
       "periodEnd": 8,
-      "room": null,
+      "room": "E201",
       "quarter": "4Q"
     },
     "MEC.P211": {
@@ -134,7 +134,7 @@
       "day": "金",
       "periodStart": 5,
       "periodEnd": 8,
-      "room": null,
+      "room": "E201",
       "quarter": "4Q"
     },
     "MEC.B222": {
@@ -182,7 +182,7 @@
       "day": "水",
       "periodStart": 1,
       "periodEnd": 2,
-      "room": "S223",
+      "room": "S2-202(S223)",
       "quarter": "3Q"
     },
     "LAL.S203": {
@@ -190,7 +190,7 @@
       "day": "水",
       "periodStart": 1,
       "periodEnd": 2,
-      "room": "S223",
+      "room": "S2-202(S223)",
       "quarter": "3Q"
     },
     "LAL.S204:S38": {
@@ -198,7 +198,7 @@
       "day": "水",
       "periodStart": 1,
       "periodEnd": 2,
-      "room": "S224",
+      "room": "S2-201(S224)",
       "quarter": "4Q"
     },
     "LAL.S204": {
@@ -206,7 +206,7 @@
       "day": "水",
       "periodStart": 1,
       "periodEnd": 2,
-      "room": "S224",
+      "room": "S2-201(S224)",
       "quarter": "4Q"
     },
     "LAE.E211:14-RW": {
@@ -214,7 +214,7 @@
       "day": "月",
       "periodStart": 3,
       "periodEnd": 4,
-      "room": "W331",
+      "room": "W3-301(W331)",
       "quarter": "1Q"
     },
     "LAE.E211": {
@@ -222,7 +222,7 @@
       "day": "月",
       "periodStart": 3,
       "periodEnd": 4,
-      "room": "W331",
+      "room": "W3-301(W331)",
       "quarter": "1Q"
     },
     "LAE.E212:14-RW": {
@@ -230,7 +230,7 @@
       "day": "月",
       "periodStart": 3,
       "periodEnd": 4,
-      "room": "W331",
+      "room": "W3-301(W331)",
       "quarter": "2Q"
     },
     "LAE.E212": {
@@ -238,7 +238,7 @@
       "day": "月",
       "periodStart": 3,
       "periodEnd": 4,
-      "room": "W331",
+      "room": "W3-301(W331)",
       "quarter": "2Q"
     },
     "LAE.E213:29-LS": {
@@ -278,7 +278,7 @@
       "day": "月",
       "periodStart": 1,
       "periodEnd": 2,
-      "room": "S221",
+      "room": "S2-204(S221)",
       "quarter": "2Q"
     },
     "LAH.S213": {

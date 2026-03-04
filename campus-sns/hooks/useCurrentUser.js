@@ -1,11 +1,21 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { ME } from '../data.js';
 
 let cached = null;
 let listeners = new Set();
 
+// localStorage に保存されたアバター設定を読み込む
+function loadPref() {
+  try {
+    const v = localStorage.getItem("userPref");
+    return v ? JSON.parse(v) : {};
+  } catch { return {}; }
+}
+
+let pref = loadPref();
+
 function notify() {
-  listeners.forEach(fn => fn(cached));
+  listeners.forEach(fn => fn({ ...cached, ...pref }));
 }
 
 export function setCurrentUserFromAPI(d) {
@@ -14,12 +24,21 @@ export function setCurrentUserFromAPI(d) {
   notify();
 }
 
+// アバター（av, col）などユーザー設定をローカルに保存・反映
+export function updateUserPref(patch) {
+  pref = { ...pref, ...patch };
+  try { localStorage.setItem("userPref", JSON.stringify(pref)); } catch {}
+  notify();
+}
+
 export function useCurrentUser() {
-  const [user, setUser] = useState(cached || ME);
+  const base = cached || ME;
+  const [user, setUser] = useState({ ...base, ...pref });
 
   useEffect(() => {
-    listeners.add(setUser);
-    if (cached) { setUser(cached); return () => listeners.delete(setUser); }
+    const handler = (u) => setUser(u);
+    listeners.add(handler);
+    if (cached) { handler({ ...cached, ...pref }); return () => listeners.delete(handler); }
     (async () => {
       try {
         const r = await fetch('/api/auth/me');
@@ -28,7 +47,7 @@ export function useCurrentUser() {
         setCurrentUserFromAPI(d);
       } catch {}
     })();
-    return () => listeners.delete(setUser);
+    return () => listeners.delete(handler);
   }, []);
 
   return user;

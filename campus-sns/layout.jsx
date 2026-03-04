@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { T } from "./theme.js";
 import { I } from "./icons.jsx";
 import { Av } from "./shared.jsx";
-
 // ============================================================
 
 const SideItem=({icon,label,on,click,badge})=>(
@@ -15,11 +14,11 @@ const SideItem=({icon,label,on,click,badge})=>(
 
 const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,courses=[],depts=[],user={},quarter})=>{
   const [moreOpen,setMoreOpen]=useState(false);
-  const extras=["grades","pomo","events","reviews","bmarks"];
+  const extras=["grades","pomo","events","reviews","bmarks","location"];
   const isExtra=extras.includes(view);
   return(
   <div style={{width:180,background:T.bg2,display:"flex",flexDirection:"column",borderRight:`1px solid ${T.bd}`,flexShrink:0,overflowY:"auto"}}>
-    <div style={{padding:"12px 10px 8px",fontWeight:800,fontSize:15,color:T.txH,letterSpacing:-.3}}>TokioConnect</div>
+    <div style={{padding:"12px 10px 8px",fontWeight:800,fontSize:15,color:T.txH,letterSpacing:-.3}}>ScienceTokyo App</div>
     <div style={{padding:"0 6px"}}>
       <SideItem icon={I.home} label="ホーム" on={view==="home"} click={()=>setView("home")}/>
       <SideItem icon={I.cal} label="時間割" on={view==="timetable"} click={()=>setView("timetable")}/>
@@ -28,6 +27,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,courses=[],dep
       <SideItem icon={I.bell} label="通知" on={view==="notif"} click={()=>setView("notif")} badge={unreadN}/>
       <SideItem icon={I.search} label="検索" on={view==="search"} click={()=>setView("search")}/>
       <SideItem icon={I.cal} label="カレンダー" on={view==="calendar"} click={()=>setView("calendar")}/>
+      <SideItem icon={I.map} label="キャンパスナビ" on={view==="navigation"} click={()=>setView("navigation")}/>
       <SideItem icon={I.more} label="ツール" on={moreOpen||isExtra} click={()=>setMoreOpen(p=>!p)}/>
     </div>
     {depts.length>0&&<>
@@ -63,7 +63,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,courses=[],dep
           <button onClick={()=>setMoreOpen(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.x}</button>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          {[{id:"grades",i:I.grad,l:"成績・出席",c:T.accentSoft},{id:"pomo",i:I.play,l:"ポモドーロ",c:T.green},{id:"events",i:I.event,l:"イベント",c:T.orange},{id:"reviews",i:I.star,l:"授業レビュー",c:"#c6a236"},{id:"bmarks",i:I.bmark,l:"ブックマーク",c:T.txD}].map(n=>
+          {[{id:"grades",i:I.grad,l:"成績・出席",c:T.accentSoft},{id:"pomo",i:I.play,l:"ポモドーロ",c:T.green},{id:"events",i:I.event,l:"イベント",c:T.orange},{id:"reviews",i:I.star,l:"授業レビュー",c:"#c6a236"},{id:"bmarks",i:I.bmark,l:"ブックマーク",c:T.txD},{id:"location",i:I.pin,l:"友達の居場所",c:T.green}].map(n=>
             <button key={n.id} onClick={()=>{setView(n.id);setMoreOpen(false);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,padding:"16px 8px",borderRadius:12,border:view===n.id?`2px solid ${n.c}`:`1px solid ${T.bd}`,background:view===n.id?`${n.c}10`:T.bg3,cursor:"pointer",transition:"all .12s"}}>
               <span style={{color:n.c,display:"flex"}}>{n.i}</span>
               <span style={{fontSize:12,fontWeight:view===n.id?600:400,color:view===n.id?T.txH:T.tx}}>{n.l}</span>
@@ -126,7 +126,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[]})=>{
 // ============================================================
 
 const MNav=({view,setView,ac,unreadN})=>{
-  const moreViews=["dm","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile"];
+  const moreViews=["dm","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","location","navigation"];
   const isMore=moreViews.includes(view);
   return(
   <nav style={{display:"flex",height:54,background:T.bg2,borderTop:`1px solid ${T.bd}`,flexShrink:0}}>
@@ -141,7 +141,7 @@ const MNav=({view,setView,ac,unreadN})=>{
 
 const MoreMenu=({setView,unreadN})=>(
   <div style={{flex:1,overflowY:"auto",padding:12}}>
-    {[{id:"dm",i:I.mail,l:"ダイレクトメッセージ"},{id:"notif",i:I.bell,l:"通知",b:unreadN},{id:"calendar",i:I.cal,l:"カレンダー"},{id:"grades",i:I.grad,l:"成績・出席"},{id:"pomo",i:I.play,l:"ポモドーロタイマー"},{id:"events",i:I.event,l:"イベント"},{id:"reviews",i:I.star,l:"授業レビュー"},{id:"bmarks",i:I.bmark,l:"ブックマーク"},{id:"search",i:I.search,l:"検索"},{id:"profile",i:I.user1,l:"プロフィール・設定"}].map(n=>(
+    {[{id:"dm",i:I.mail,l:"ダイレクトメッセージ"},{id:"notif",i:I.bell,l:"通知",b:unreadN},{id:"calendar",i:I.cal,l:"カレンダー"},{id:"grades",i:I.grad,l:"成績・出席"},{id:"pomo",i:I.play,l:"ポモドーロタイマー"},{id:"events",i:I.event,l:"イベント"},{id:"reviews",i:I.star,l:"授業レビュー"},{id:"bmarks",i:I.bmark,l:"ブックマーク"},{id:"search",i:I.search,l:"検索"},{id:"location",i:I.pin,l:"友達の居場所"},{id:"navigation",i:I.tgt,l:"キャンパスナビ"},{id:"profile",i:I.user1,l:"プロフィール・設定"}].map(n=>(
       <div key={n.id} onClick={()=>setView(n.id)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6,cursor:"pointer"}}>
         <span style={{color:T.txD,display:"flex"}}>{n.i}</span>
         <span style={{flex:1,fontSize:14,color:T.txH,fontWeight:500}}>{n.l}</span>

@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "TokioConnect",
+  title: "ScienceTokyo App",
 };
 
 export default function RootLayout({ children }) {

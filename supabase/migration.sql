@@ -1,5 +1,5 @@
 -- =============================================================
--- Supabase Migration: TokioConnect リアルタイム機能
+-- Supabase Migration: ScienceTokyo App リアルタイム機能
 -- Supabase Dashboard の SQL Editor で実行
 -- =============================================================
 

@@ -1,34 +1,378 @@
+import { useState, useEffect, useRef } from "react";
 import { T } from '../theme.js';
 import { I } from '../icons.jsx';
 import { Av } from '../shared.jsx';
+import { updateUserPref } from '../hooks/useCurrentUser.js';
 
-export const ProfileView=({mob,togTheme,dark,asgn,att,courses=[],user={}})=>{
+/* ─── 画像 → 正方形クロップ → data URI ─── */
+const AV_SZ=160;
+const cropImg=(file)=>new Promise((res,rej)=>{
+  const rd=new FileReader();
+  rd.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const s=Math.min(img.width,img.height);
+      const c=document.createElement("canvas");
+      c.width=AV_SZ;c.height=AV_SZ;
+      c.getContext("2d").drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,AV_SZ,AV_SZ);
+      res(c.toDataURL("image/jpeg",0.85));
+    };
+    img.onerror=()=>rej("画像の読み込みに失敗");
+    img.src=rd.result;
+  };
+  rd.onerror=()=>rej("ファイルの読み込みに失敗");
+  rd.readAsDataURL(file);
+});
+
+/* ─── プリセットアバター SVG ─── */
+const sv=(body,bg)=>`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160"><rect width="160" height="160" rx="80" fill="${bg}"/>${body}</svg>`)}`;
+const PERSON='<circle cx="80" cy="62" r="26" fill="#fff" opacity=".85"/><ellipse cx="80" cy="128" rx="40" ry="30" fill="#fff" opacity=".85"/>';
+const PRESETS=[
+  sv(PERSON,"#6375f0"), sv(PERSON,"#3dae72"), sv(PERSON,"#e5534b"),
+  sv(PERSON,"#7c3aed"), sv(PERSON,"#0ea5e9"), sv(PERSON,"#ec4899"),
+  // 猫
+  sv('<circle cx="80" cy="82" r="30" fill="#fff" opacity=".9"/><circle cx="68" cy="76" r="4" fill="#333"/><circle cx="92" cy="76" r="4" fill="#333"/><ellipse cx="80" cy="86" rx="5" ry="3" fill="#f9a"/><polygon points="58,50 54,20 76,44" fill="#fff" opacity=".9"/><polygon points="102,50 106,20 84,44" fill="#fff" opacity=".9"/>',"#f59e0b"),
+  // 犬
+  sv('<circle cx="80" cy="82" r="30" fill="#fff" opacity=".9"/><circle cx="68" cy="76" r="4" fill="#333"/><circle cx="92" cy="76" r="4" fill="#333"/><ellipse cx="80" cy="88" rx="6" ry="3.5" fill="#333"/><ellipse cx="52" cy="58" rx="14" ry="22" fill="#fff" opacity=".8" transform="rotate(-15 52 58)"/><ellipse cx="108" cy="58" rx="14" ry="22" fill="#fff" opacity=".8" transform="rotate(15 108 58)"/>',"#92400e"),
+  // ロボ
+  sv('<rect x="54" y="52" width="52" height="48" rx="10" fill="#fff" opacity=".9"/><rect x="66" y="66" width="10" height="10" rx="2" fill="#333"/><rect x="84" y="66" width="10" height="10" rx="2" fill="#333"/><rect x="70" y="84" width="20" height="5" rx="2.5" fill="#333"/><rect x="74" y="38" width="12" height="16" rx="4" fill="#fff" opacity=".7"/>',"#6366f1"),
+  // 星
+  sv('<polygon points="80,30 92,62 128,62 100,84 110,118 80,98 50,118 60,84 32,62 68,62" fill="#fff" opacity=".9"/>',"#eab308"),
+  // 木
+  sv('<rect x="73" y="100" width="14" height="32" rx="3" fill="#92400e"/><circle cx="80" cy="68" r="34" fill="#22c55e" opacity=".9"/><circle cx="66" cy="56" r="18" fill="#4ade80" opacity=".6"/>',"#bbf7d0"),
+  // 山
+  sv('<polygon points="80,34 126,116 34,116" fill="#fff" opacity=".85"/><polygon points="108,56 140,116 76,116" fill="#fff" opacity=".6"/><polygon points="80,34 90,50 70,50" fill="#e2e8f0"/>',"#3b82f6"),
+];
+
+/* ─── 共通パーツ ─── */
+const Toggle=({on,onTog})=>{
+  const h=e=>{e.stopPropagation();onTog();};
+  return <div onClick={h} style={{width:42,height:24,borderRadius:12,background:on?T.green:T.bg4,cursor:"pointer",padding:2,transition:"background .2s",flexShrink:0}}>
+    <div style={{width:20,height:20,borderRadius:10,background:"#fff",transform:on?"translateX(18px)":"translateX(0)",transition:"transform .2s",boxShadow:"0 1px 4px rgba(0,0,0,.25)"}}/>
+  </div>;
+};
+
+const GHead=({children})=>(
+  <div style={{fontSize:12,fontWeight:600,color:T.txD,textTransform:"uppercase",letterSpacing:.5,padding:"16px 4px 6px"}}>{children}</div>
+);
+
+// グループカード — iOS設定風に複数行をまとめる
+const GCard=({children})=>(
+  <div style={{borderRadius:12,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>{children}</div>
+);
+
+const GRow=({icon,label,sub,right,onClick,last,danger})=>(
+  <div onClick={onClick}
+    style={{display:"flex",alignItems:"center",gap:10,padding:"11px 14px",cursor:onClick?"pointer":"default",transition:"background .1s",...(!last?{borderBottom:`1px solid ${T.bd}`}:{})}}
+    onMouseEnter={e=>{if(onClick)e.currentTarget.style.background=T.hover;}}
+    onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
+    {icon&&<span style={{color:danger?T.red:T.txD,display:"flex",flexShrink:0}}>{icon}</span>}
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{fontSize:14,color:danger?T.red:T.txH,fontWeight:danger?600:400}}>{label}</div>
+      {sub&&<div style={{fontSize:11,color:T.txD,marginTop:1}}>{sub}</div>}
+    </div>
+    {right}
+    {onClick&&!right&&<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>}
+  </div>
+);
+
+const Badge=({ok,label})=>(
+  <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:ok?`${T.green}18`:`${T.orange}18`,color:ok?T.green:T.orange}}>{label}</span>
+);
+
+const Inp=({label,hint,...props})=>(
+  <div>
+    <div style={{fontSize:11,fontWeight:600,color:T.txD,marginBottom:4}}>{label}</div>
+    <input {...props} style={{width:"100%",padding:"9px 11px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,outline:"none",...(props.style||{})}}/>
+    {hint&&<div style={{fontSize:10,color:T.txD,marginTop:3}}>{hint}</div>}
+  </div>
+);
+
+const PwInp=({label,hint,show,onTogShow,...props})=>(
+  <div>
+    <div style={{fontSize:11,fontWeight:600,color:T.txD,marginBottom:4}}>{label}</div>
+    <div style={{position:"relative"}}>
+      <input {...props} type={show?"text":"password"} style={{width:"100%",padding:"9px 11px",paddingRight:38,borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,outline:"none",...(props.style||{})}}/>
+      <button onClick={e=>{e.stopPropagation();onTogShow();}} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:show?T.accent:T.txD,cursor:"pointer",display:"flex",padding:2}}>{I.eye}</button>
+    </div>
+    {hint&&<div style={{fontSize:10,color:T.txD,marginTop:3}}>{hint}</div>}
+  </div>
+);
+
+/* ─── 認証フォーム（共通化） ─── */
+const CredForm=({form,setForm,showPw,showTotp,setShowPw,setShowTotp,onSave,saving,btnLabel})=>(
+  <div style={{display:"grid",gap:10,padding:"12px 14px"}}>
+    <Inp label="Science Tokyo ID" value={form.userId} onChange={e=>setForm(p=>({...p,userId:e.target.value}))} placeholder="例: 24B00000" autoComplete="username"/>
+    <PwInp label="パスワード" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} placeholder="ポータルのパスワード" autoComplete="current-password" show={showPw} onTogShow={()=>setShowPw(p=>!p)}/>
+    <PwInp label="TOTPシークレットキー" value={form.totpSecret} onChange={e=>setForm(p=>({...p,totpSecret:e.target.value.replace(/\s/g,"").toUpperCase()}))} placeholder="例: TT5SOVTA4BFN4IND" show={showTotp} onTogShow={()=>setShowTotp(p=>!p)} style={{fontFamily:"monospace"}} hint="アプリ認証設定時に表示されたシークレットキー"/>
+    <button onClick={onSave} disabled={saving}
+      style={{padding:"10px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:saving?"wait":"pointer",opacity:saving?.6:1,transition:"opacity .15s"}}>
+      {saving?"接続中...":btnLabel}
+    </button>
+  </div>
+);
+
+/* ─── メイン ─── */
+export const ProfileView=({mob,togTheme,dark,asgn,att,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings})=>{
   const done=asgn.filter(a=>a.st==="completed").length;
   const total=asgn.length;
   const attAll=Object.values(att);
   const attRate=attAll.length?Math.round(attAll.reduce((s,a)=>s+a.attended,0)/attAll.reduce((s,a)=>s+a.total,0)*100):0;
+
+  const [credOpen,setCredOpen]=useState(false);
+  const [notifOpen,setNotifOpen]=useState(false);
+  const [cacheCleared,setCacheCleared]=useState(false);
+  const [avEdit,setAvEdit]=useState(false);
+  const [uploading,setUploading]=useState(false);
+  const fileRef=useRef(null);
+  const isImgAv=user.av&&(user.av.startsWith("data:")||user.av.startsWith("http")||user.av.startsWith("/"));
+
+  const handleFile=async(e)=>{
+    const f=e.target.files?.[0];
+    if(!f)return;
+    if(!f.type.startsWith("image/")){alert("画像ファイルを選択してください");return;}
+    setUploading(true);
+    try{
+      const uri=await cropImg(f);
+      updateUserPref({av:uri});
+    }catch(err){alert(typeof err==="string"?err:err.message);}
+    setUploading(false);
+    if(fileRef.current)fileRef.current.value="";
+  };
+
+  // 認証情報
+  const [credStatus,setCredStatus]=useState(null);
+  const [credForm,setCredForm]=useState({userId:"",password:"",totpSecret:""});
+  const [credSaving,setCredSaving]=useState(false);
+  const [credMsg,setCredMsg]=useState(null);
+  const [credDeleting,setCredDeleting]=useState(false);
+  const [showPw,setShowPw]=useState(false);
+  const [showTotp,setShowTotp]=useState(false);
+
+  // 表示設定
+  const [fontSize,setFontSize]=useState(()=>{try{return localStorage.getItem("fontSize")||"medium";}catch{return "medium";}});
+  const saveFontSize=v=>{setFontSize(v);try{localStorage.setItem("fontSize",v);}catch{}};
+
+  useEffect(()=>{
+    (async()=>{try{const r=await fetch("/api/auth/status");if(r.ok)setCredStatus(await r.json());}catch{}})();
+  },[]);
+
+  const handleCredSave=async()=>{
+    const {userId,password,totpSecret}=credForm;
+    if(!userId||!password||!totpSecret){setCredMsg({type:"err",text:"全ての項目を入力してください"});return;}
+    setCredSaving(true);setCredMsg(null);
+    try{
+      const r=await fetch("/api/auth/setup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId,password,totpSecret})});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.detail||d.error||"保存に失敗しました");
+      setCredMsg({type:"ok",text:"認証情報を保存しました"});
+      setCredStatus({hasCredentials:true,isAuthenticated:true});
+      setCredForm({userId:"",password:"",totpSecret:""});
+      setCredOpen(false);
+    }catch(e){setCredMsg({type:"err",text:e.message});}
+    setCredSaving(false);
+  };
+
+  const handleCredDelete=async()=>{
+    if(!confirm("認証情報を削除しますか？\n再度ログインが必要になります。"))return;
+    setCredDeleting(true);setCredMsg(null);
+    try{
+      await fetch("/api/auth/credentials",{method:"DELETE"});
+      setCredStatus({hasCredentials:false,isAuthenticated:false});
+      setCredMsg({type:"ok",text:"認証情報を削除しました"});
+    }catch{setCredMsg({type:"err",text:"削除に失敗しました"});}
+    setCredDeleting(false);
+  };
+
+  const handleClearCache=()=>{
+    try{
+      ["wxLoc","quarter","hiddenAsgn","notifEnabled","notifSettings","fontSize"].forEach(k=>localStorage.removeItem(k));
+      setCacheCleared(true);setTimeout(()=>setCacheCleared(false),2000);
+    }catch{}
+  };
+
+  const mw=mob?undefined:520;
+
   return(
-    <div style={{flex:1,overflowY:"auto",padding:mob?12:20}}>
-      <div style={{textAlign:"center",padding:"20px 0 16px"}}>
-        <Av u={user} sz={64} st/><div style={{fontWeight:700,color:T.txH,fontSize:18,marginTop:8}}>{user.name||"ユーザー"}</div>
-        {user.dept&&<div style={{fontSize:13,color:T.txD}}>{user.dept}{user.yr?` · B${user.yr}`:""}</div>}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16}}>
-        <div style={{padding:10,borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,textAlign:"center"}}><div style={{fontSize:20,fontWeight:700,color:T.green}}>{done}/{total}</div><div style={{fontSize:11,color:T.txD}}>課題提出</div></div>
-        <div style={{padding:10,borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,textAlign:"center"}}><div style={{fontSize:20,fontWeight:700,color:T.accent}}>{attRate}%</div><div style={{fontSize:11,color:T.txD}}>出席率</div></div>
-        <div style={{padding:10,borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,textAlign:"center"}}><div style={{fontSize:20,fontWeight:700,color:T.orange}}>{courses.length}</div><div style={{fontSize:11,color:T.txD}}>履修科目</div></div>
-      </div>
-      <div style={{fontWeight:700,color:T.txH,fontSize:14,marginBottom:8}}>設定</div>
-      <div onClick={togTheme} style={{display:"flex",alignItems:"center",gap:10,padding:12,borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6,cursor:"pointer"}}>
-        <span style={{color:T.txD,display:"flex"}}>{dark?I.moon:I.sun}</span>
-        <span style={{flex:1,fontSize:14,color:T.txH}}>テーマ</span>
-        <span style={{fontSize:12,color:T.accentSoft}}>{dark?"ダーク":"ライト"}</span>
-      </div>
-      <div style={{display:"flex",alignItems:"center",gap:10,padding:12,borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6}}>
-        <span style={{color:T.txD,display:"flex"}}>{I.bell}</span><span style={{flex:1,fontSize:14,color:T.txH}}>通知設定</span><span style={{fontSize:12,color:T.txD}}>ON</span>
-      </div>
-      <div style={{display:"flex",alignItems:"center",gap:10,padding:12,borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6}}>
-        <span style={{color:T.txD,display:"flex"}}>{I.setting}</span><span style={{flex:1,fontSize:14,color:T.txH}}>アカウント設定</span>
+    <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+      <div style={{maxWidth:mw,margin:"0 auto",padding:mob?"12px 14px":"20px 24px"}}>
+
+        {/* ═══ プロフィールカード ═══ */}
+        <div style={{padding:"20px 16px",borderRadius:14,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:14}}>
+            {/* アバター — タップで編集 */}
+            <div style={{position:"relative",cursor:"pointer",flexShrink:0}} onClick={()=>setAvEdit(p=>!p)}>
+              <Av u={user} sz={56} st/>
+              <div style={{position:"absolute",bottom:-2,right:-2,width:20,height:20,borderRadius:10,background:T.accent,border:`2px solid ${T.bg2}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </div>
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:18,fontWeight:700,color:T.txH}}>{user.name||"ユーザー"}</div>
+              <div style={{fontSize:12,color:T.txD,marginTop:2}}>
+                {[user.dept,user.yr?`B${user.yr}`:null,user.moodleId].filter(Boolean).join(" · ")}
+              </div>
+            </div>
+          </div>
+
+          {/* ── アバター編集パネル ── */}
+          {avEdit&&<div style={{marginTop:14,borderTop:`1px solid ${T.bd}`,paddingTop:14}}>
+            <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleFile}/>
+
+            {/* 現在のアバタープレビュー */}
+            <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
+              <Av u={user} sz={72}/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:600,color:T.txH,marginBottom:6}}>アイコンを変更</div>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>fileRef.current?.click()} disabled={uploading}
+                    style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.accent}`,background:"transparent",color:T.accent,fontSize:12,fontWeight:600,cursor:uploading?"wait":"pointer",opacity:uploading?.5:1}}>
+                    {uploading?"処理中...":"画像をアップロード"}
+                  </button>
+                  {isImgAv&&<button onClick={()=>updateUserPref({av:""})}
+                    style={{padding:"6px 10px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",color:T.txD,fontSize:12,cursor:"pointer"}}>
+                    削除
+                  </button>}
+                </div>
+                <div style={{fontSize:10,color:T.txD,marginTop:4}}>JPG・PNG・WebP 対応（円形にクロップされます）</div>
+              </div>
+            </div>
+
+            {/* プリセット画像 */}
+            <div style={{fontSize:11,fontWeight:600,color:T.txD,marginBottom:8}}>プリセットから選ぶ</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(52px,1fr))",gap:6,marginBottom:14}}>
+              {PRESETS.map((src,i)=>{
+                const sel=user.av===src;
+                return <button key={i} onClick={()=>updateUserPref({av:src})}
+                  style={{width:"100%",aspectRatio:"1",borderRadius:"50%",border:`3px solid ${sel?T.accent:"transparent"}`,background:T.bg3,cursor:"pointer",padding:0,overflow:"hidden",transition:"border .12s, transform .12s",transform:sel?"scale(1.08)":"scale(1)",outline:"none"}}
+                  onMouseEnter={e=>{if(!sel)e.currentTarget.style.borderColor=T.bdL;}}
+                  onMouseLeave={e=>{if(!sel)e.currentTarget.style.borderColor="transparent";}}>
+                  <img src={src} style={{width:"100%",height:"100%",borderRadius:"50%",objectFit:"cover",display:"block"}} alt=""/>
+                </button>;
+              })}
+            </div>
+
+            {/* フォールバック色（画像なし時のイニシャル背景色） */}
+            {!isImgAv&&<>
+              <div style={{fontSize:11,fontWeight:600,color:T.txD,marginBottom:6}}>カラー（イニシャルアイコン用）</div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+                {["#6375f0","#3dae72","#e5534b","#d4843e","#c6a236","#7c3aed","#0ea5e9","#ec4899","#14b8a6","#f97316","#6b7280"].map(c=>(
+                  <div key={c} onClick={()=>updateUserPref({col:c})}
+                    style={{width:28,height:28,borderRadius:"50%",background:c,cursor:"pointer",border:user.col===c?`3px solid ${T.txH}`:"3px solid transparent",transition:"all .12s",transform:user.col===c?"scale(1.1)":"scale(1)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    {user.col===c&&<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                  </div>
+                ))}
+              </div>
+            </>}
+
+            <button onClick={()=>setAvEdit(false)}
+              style={{width:"100%",padding:"9px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+              完了
+            </button>
+          </div>}
+
+          {/* ミニ統計 */}
+          {!avEdit&&<div style={{display:"flex",gap:0,marginTop:14,borderTop:`1px solid ${T.bd}`,paddingTop:12}}>
+            {[
+              {v:`${done}/${total}`,l:"課題提出",c:T.green},
+              {v:`${attRate}%`,l:"出席率",c:T.accent},
+              {v:courses.length,l:"履修科目",c:T.orange},
+            ].map((s,i)=>(
+              <div key={i} style={{flex:1,textAlign:"center",...(i<2?{borderRight:`1px solid ${T.bd}`}:{})}}>
+                <div style={{fontSize:18,fontWeight:700,color:s.c}}>{s.v}</div>
+                <div style={{fontSize:10,color:T.txD,marginTop:1}}>{s.l}</div>
+              </div>
+            ))}
+          </div>}
+        </div>
+
+        {/* ═══ T2SCHOLA接続 ═══ */}
+        <GHead>T2SCHOLA接続</GHead>
+        <GCard>
+          <GRow last icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>}
+            label="認証情報" sub={credStatus?.hasCredentials?"ID・パスワード・TOTPキー 設定済み":"未設定 — タップして設定"}
+            onClick={()=>setCredOpen(p=>!p)}
+            right={credStatus&&<Badge ok={credStatus.hasCredentials} label={credStatus.hasCredentials?"接続中":"未接続"}/>}/>
+        </GCard>
+
+        {credOpen&&<div style={{marginTop:6,borderRadius:12,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
+          {credMsg&&<div style={{margin:"10px 14px 0",padding:"8px 10px",borderRadius:8,background:credMsg.type==="ok"?`${T.green}14`:`${T.red}14`,color:credMsg.type==="ok"?T.green:T.red,fontSize:12,fontWeight:500}}>{credMsg.text}</div>}
+
+          {credStatus?.hasCredentials&&!credStatus._editing?<div style={{padding:"14px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:10,borderRadius:8,background:`${T.green}08`,border:`1px solid ${T.green}20`,marginBottom:10}}>
+              <div style={{width:8,height:8,borderRadius:4,background:T.green,flexShrink:0}}/>
+              <span style={{fontSize:12,color:T.green,fontWeight:600}}>T2SCHOLAに接続済み</span>
+            </div>
+            <div style={{fontSize:12,color:T.txD,marginBottom:12,lineHeight:1.5}}>認証情報はAES-256-GCMで暗号化保存されています。</div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setCredStatus(p=>({...p,_editing:true}))}
+                style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                再設定
+              </button>
+              <button onClick={handleCredDelete} disabled={credDeleting}
+                style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${T.red}30`,background:`${T.red}08`,color:T.red,fontSize:13,fontWeight:600,cursor:credDeleting?"wait":"pointer",opacity:credDeleting?.5:1}}>
+                {credDeleting?"削除中...":"削除"}
+              </button>
+            </div>
+          </div>:<>
+            {credStatus?.hasCredentials&&<div style={{padding:"10px 14px 0"}}>
+              <button onClick={()=>setCredStatus(p=>({...p,_editing:false}))}
+                style={{background:"none",border:"none",color:T.txD,fontSize:12,cursor:"pointer",padding:0}}>← 戻る</button>
+            </div>}
+            <CredForm form={credForm} setForm={setCredForm} showPw={showPw} showTotp={showTotp} setShowPw={setShowPw} setShowTotp={setShowTotp} onSave={handleCredSave} saving={credSaving} btnLabel={credStatus?.hasCredentials?"認証情報を更新":"ログインして接続"}/>
+            {!credStatus?.hasCredentials&&<div style={{padding:"0 14px 12px",fontSize:10,color:T.txD,lineHeight:1.5}}>認証情報はこのPC内に暗号化して保存されます。外部には送信されません。</div>}
+          </>}
+        </div>}
+
+        {/* ═══ 一般 ═══ */}
+        <GHead>一般</GHead>
+        <GCard>
+          <GRow icon={dark?I.moon:I.sun} label="テーマ" onClick={togTheme}
+            right={<span style={{fontSize:13,fontWeight:600,color:T.accentSoft}}>{dark?"ダーク":"ライト"}</span>}/>
+          <GRow icon={I.bell} label="通知" onClick={()=>setNotifOpen(p=>!p)}
+            right={<Toggle on={notifEnabled} onTog={()=>setNotifEnabled(p=>!p)}/>}/>
+          {notifOpen&&notifEnabled&&<>
+            {[
+              {k:"course",l:"授業・お知らせ"},
+              {k:"deadline",l:"締切リマインダー"},
+              {k:"dm",l:"DM"},
+              {k:"event",l:"イベント"},
+            ].map((n,i,arr)=>(
+              <div key={n.k} style={{display:"flex",alignItems:"center",padding:"9px 14px 9px 44px",...(i<arr.length-1?{borderBottom:`1px solid ${T.bd}`}:{})}}>
+                <span style={{flex:1,fontSize:13,color:T.tx}}>{n.l}</span>
+                <Toggle on={notifSettings[n.k]} onTog={()=>setNotifSettings(p=>({...p,[n.k]:!p[n.k]}))}/>
+              </div>
+            ))}
+          </>}
+          <GRow last icon={I.eye} label="フォントサイズ"
+            right={<div style={{display:"flex",gap:4}}>
+              {[{id:"small",l:"小"},{id:"medium",l:"中"},{id:"large",l:"大"}].map(f=>(
+                <button key={f.id} onClick={e=>{e.stopPropagation();saveFontSize(f.id);}}
+                  style={{padding:"4px 12px",borderRadius:6,border:`1px solid ${fontSize===f.id?T.accent:T.bd}`,background:fontSize===f.id?`${T.accent}14`:"transparent",color:fontSize===f.id?T.accent:T.txD,fontSize:12,fontWeight:fontSize===f.id?700:500,cursor:"pointer",transition:"all .12s"}}>
+                  {f.l}
+                </button>
+              ))}
+            </div>}/>
+        </GCard>
+
+        {/* ═══ その他 ═══ */}
+        <GHead>その他</GHead>
+        <GCard>
+          <GRow icon={I.reset} label={cacheCleared?"キャッシュクリア完了":"キャッシュをクリア"}
+            sub="ローカル設定をリセット"
+            onClick={handleClearCache}
+            right={cacheCleared&&<span style={{color:T.green,display:"flex"}}>{I.chk}</span>}/>
+          <GRow last danger
+            icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>}
+            label="ログアウト"
+            onClick={()=>{if(confirm("ログアウトしますか？")){try{fetch("/api/auth/logout",{method:"POST"}).then(()=>location.reload());}catch{location.reload();}}}}/>
+        </GCard>
+
+        {/* フッター */}
+        <div style={{textAlign:"center",padding:"24px 0 36px",color:T.txD,fontSize:11}}>
+          <div style={{fontWeight:500}}>ScienceTokyo App v1.0.0</div>
+          <div style={{marginTop:2}}>© 2026 Institute of Science Tokyo</div>
+        </div>
       </div>
     </div>
   );

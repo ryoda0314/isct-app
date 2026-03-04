@@ -35,17 +35,29 @@ export async function GET() {
     const moodleAsgn = await fetchAssignments(wstoken, moodleIds);
     let assignments = transformAssignments(moodleAsgn, courseIdMap);
 
-    assignments = await Promise.all(
-      assignments.map(async asgn => {
-        try {
-          const status = await fetchSubmissionStatus(wstoken, asgn.moodleId);
-          return updateAssignmentStatus(asgn, status);
-        } catch (e) {
-          console.error(`[All] Failed to fetch submission status for ${asgn.id} (moodle:${asgn.moodleId}):`, e.message);
-          return asgn;
-        }
-      })
-    );
+    // Fetch submission status with concurrency limit to avoid overwhelming Moodle
+    const CONCURRENCY = 3;
+    let statusFailed = 0;
+    for (let i = 0; i < assignments.length; i += CONCURRENCY) {
+      const batch = assignments.slice(i, i + CONCURRENCY);
+      const results = await Promise.all(
+        batch.map(async asgn => {
+          try {
+            const status = await fetchSubmissionStatus(wstoken, asgn.moodleId);
+            console.log(`[All] Submission status for ${asgn.id}: submission=${JSON.stringify(status?.lastattempt?.submission?.status ?? 'N/A')}`);
+            return updateAssignmentStatus(asgn, status);
+          } catch (e) {
+            statusFailed++;
+            console.error(`[All] Failed to fetch submission status for ${asgn.id} (moodle:${asgn.moodleId}):`, e.message);
+            return asgn;
+          }
+        })
+      );
+      assignments.splice(i, CONCURRENCY, ...results);
+    }
+    if (statusFailed > 0) {
+      console.warn(`[All] ${statusFailed}/${assignments.length} submission status fetches failed`);
+    }
 
     return NextResponse.json({ qData, courses, assignments, user: { userid, fullname } });
   } catch (err) {
