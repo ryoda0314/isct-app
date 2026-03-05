@@ -1,16 +1,26 @@
 import { useState, useEffect, useRef } from 'react';
 import { T } from '../theme.js';
 import { I } from '../icons.jsx';
-import { Av, Loader } from '../shared.jsx';
+import { Av, Loader, useQRCode } from '../shared.jsx';
 import { fT } from '../utils.jsx';
 
-export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM})=>{
+export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM,userId,lookupById})=>{
   const [tab,setTab]=useState('list');
   const [searchQ,setSearchQ]=useState('');
   const [results,setResults]=useState([]);
   const [searching,setSearching]=useState(false);
   const [actionLoading,setActionLoading]=useState(null);
   const debounceRef=useRef(null);
+  const [lookupId,setLookupId]=useState('');
+  const [lookupResult,setLookupResult]=useState(null);
+  const [lookupLoading,setLookupLoading]=useState(false);
+  const [copied,setCopied]=useState(false);
+  const [scanning,setScanning]=useState(false);
+  const [qrDataUrl,setQrDataUrl]=useState(null);
+  const qrReady=useQRCode();
+  const videoRef=useRef(null);
+  const streamRef=useRef(null);
+  const scanRef=useRef(null);
 
   // Debounced search
   useEffect(()=>{
@@ -25,6 +35,53 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
     },300);
     return()=>clearTimeout(debounceRef.current);
   },[searchQ,tab,searchUsers]);
+
+  // QR code generation
+  useEffect(()=>{
+    if(!qrReady||!userId||tab!=='qr')return;
+    try{const qr=window.qrcode(0,'M');qr.addData(`ISCT:${userId}`);qr.make();setQrDataUrl(qr.createDataURL(6,0));}catch{}
+  },[qrReady,userId,tab]);
+
+  // Cleanup scanner on unmount
+  useEffect(()=>()=>{
+    if(scanRef.current)cancelAnimationFrame(scanRef.current);
+    if(streamRef.current)streamRef.current.getTracks().forEach(t=>t.stop());
+  },[]);
+
+  const doLookup=async(id)=>{
+    const v=id||lookupId;if(!v?.trim())return;
+    setLookupLoading(true);setLookupResult(null);
+    const r=await lookupById(v.trim());
+    setLookupResult(r||'not_found');
+    setLookupLoading(false);
+  };
+
+  const copyId=()=>{navigator.clipboard.writeText(String(userId));setCopied(true);setTimeout(()=>setCopied(false),2000);};
+
+  const stopScan=()=>{
+    if(scanRef.current)cancelAnimationFrame(scanRef.current);
+    if(streamRef.current){streamRef.current.getTracks().forEach(t=>t.stop());streamRef.current=null;}
+    setScanning(false);
+  };
+
+  const startScan=async()=>{
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+      streamRef.current=stream;setScanning(true);
+      setTimeout(()=>{
+        if(videoRef.current){videoRef.current.srcObject=stream;videoRef.current.play();}
+        if(typeof BarcodeDetector!=='undefined'){
+          const det=new BarcodeDetector({formats:['qr_code']});
+          const tick=async()=>{
+            if(!videoRef.current||!streamRef.current)return;
+            try{const bs=await det.detect(videoRef.current);for(const b of bs){if(b.rawValue?.startsWith('ISCT:')){const fid=b.rawValue.slice(5);stopScan();setLookupId(fid);doLookup(fid);return;}}}catch{}
+            scanRef.current=requestAnimationFrame(tick);
+          };
+          scanRef.current=requestAnimationFrame(tick);
+        }
+      },100);
+    }catch{setScanning(false);}
+  };
 
   const doAction=async(key,fn)=>{
     setActionLoading(key);
@@ -48,6 +105,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
           {id:'list',l:'友達',cnt:friends.length},
           {id:'requests',l:'申請',cnt:pendingCount},
           {id:'search',l:'検索'},
+          {id:'qr',l:'QR/ID'},
         ].map(t=>
           <button key={t.id} onClick={()=>setTab(t.id)} style={{display:"flex",alignItems:"center",gap:4,padding:"8px 14px",border:"none",borderBottom:tab===t.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",cursor:"pointer"}}>
             <span style={{fontSize:13,fontWeight:tab===t.id?600:400,color:tab===t.id?T.txH:T.txD}}>{t.l}</span>
@@ -164,6 +222,53 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
             <div style={{display:"flex",justifyContent:"center",marginBottom:8}}><span style={{color:T.txD,display:"flex"}}>{I.search}</span></div>
             <div style={{fontSize:13,color:T.txD,lineHeight:1.5}}>名前を入力してユーザーを検索</div>
           </div>}
+        </div>
+      </div>}
+
+      {/* QR/ID */}
+      {tab==='qr'&&<div style={{flex:1,overflowY:"auto",padding:12}}>
+        <div style={{maxWidth:340,margin:"0 auto"}}>
+          {/* Own QR code */}
+          <div style={{textAlign:"center",padding:20,background:T.bg2,borderRadius:12,border:`1px solid ${T.bd}`,marginBottom:12}}>
+            <div style={{fontSize:12,fontWeight:700,color:T.txD,marginBottom:12}}>あなたのQRコード</div>
+            {qrDataUrl?<img src={qrDataUrl} alt="QR" style={{width:180,height:180,borderRadius:8,imageRendering:"pixelated"}}/>:<div style={{width:180,height:180,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg3,borderRadius:8}}><span style={{fontSize:12,color:T.txD}}>読み込み中...</span></div>}
+            <div style={{marginTop:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              <span style={{fontSize:13,color:T.txH,fontWeight:600}}>ID: {userId}</span>
+              <button onClick={copyId} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${T.bd}`,background:copied?T.green:"transparent",color:copied?"#fff":T.txD,fontSize:11,fontWeight:600,cursor:"pointer"}}>{copied?"コピー済":"コピー"}</button>
+            </div>
+          </div>
+
+          {/* QR Scanner */}
+          {scanning?<div style={{marginBottom:12}}>
+            <video ref={videoRef} style={{width:"100%",borderRadius:10,background:"#000"}} playsInline muted/>
+            <button onClick={stopScan} style={{width:"100%",marginTop:8,padding:"10px 0",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg2,color:T.txH,fontSize:13,fontWeight:600,cursor:"pointer"}}>スキャンを停止</button>
+            {typeof BarcodeDetector==='undefined'&&<div style={{fontSize:11,color:T.txD,textAlign:"center",marginTop:6}}>このブラウザはQRスキャンに対応していません。IDを手動入力してください。</div>}
+          </div>:<button onClick={startScan} style={{width:"100%",marginBottom:12,padding:"12px 0",borderRadius:10,border:`1px solid ${T.accent}30`,background:`${T.accent}10`,color:T.accent,fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+            {I.search}<span>QRコードをスキャン</span>
+          </button>}
+
+          {/* Manual ID input */}
+          <div style={{background:T.bg2,borderRadius:12,border:`1px solid ${T.bd}`,padding:16}}>
+            <div style={{fontSize:12,fontWeight:700,color:T.txD,marginBottom:8}}>IDで友達追加</div>
+            <div style={{display:"flex",gap:6}}>
+              <input value={lookupId} onChange={e=>setLookupId(e.target.value)} onKeyDown={e=>e.key==='Enter'&&doLookup()} placeholder="友達のIDを入力" style={{flex:1,padding:"8px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
+              <button onClick={()=>doLookup()} disabled={lookupLoading||!lookupId.trim()} style={{padding:"8px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",opacity:lookupLoading||!lookupId.trim()?0.5:1}}>検索</button>
+            </div>
+            {lookupLoading&&<div style={{marginTop:8}}><Loader msg="検索中" size="sm"/></div>}
+            {lookupResult&&lookupResult!=='not_found'&&<div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",marginTop:10,borderTop:`1px solid ${T.bd}`}}>
+              <Av u={{name:lookupResult.name,av:lookupResult.avatar,col:lookupResult.color}} sz={40}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:14,fontWeight:600,color:T.txH}}>{lookupResult.name}</div>
+                {lookupResult.dept&&<div style={{fontSize:11,color:T.txD}}>{lookupResult.dept}</div>}
+              </div>
+              {lookupResult.friendship?.status==='accepted'&&<span style={{fontSize:11,fontWeight:600,color:T.green,padding:"4px 10px",borderRadius:6,background:`${T.green}14`}}>友達</span>}
+              {lookupResult.friendship?.status==='pending'&&<span style={{fontSize:11,fontWeight:500,color:T.txD,padding:"4px 10px",borderRadius:6,background:T.bg3}}>申請中</span>}
+              {!lookupResult.friendship&&<button onClick={()=>doAction(`send_qr_${lookupResult.moodleId}`,()=>sendRequest(lookupResult.moodleId))} disabled={actionLoading===`send_qr_${lookupResult.moodleId}`} style={{padding:"6px 14px",borderRadius:7,border:"none",background:T.accent,cursor:"pointer"}}>
+                <span style={{fontSize:12,fontWeight:600,color:"#fff"}}>申請する</span>
+              </button>}
+            </div>}
+            {lookupResult==='not_found'&&<div style={{marginTop:8,padding:8,borderRadius:8,background:`${T.red}14`,fontSize:12,color:T.red,textAlign:"center"}}>ユーザーが見つかりません</div>}
+          </div>
         </div>
       </div>}
     </div>

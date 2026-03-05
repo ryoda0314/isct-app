@@ -13,6 +13,16 @@ const useKatex=()=>{
   return ready;
 };
 
+// --- QR Code Generator Loader ---
+const useQRCode=()=>{
+  const [ready,setReady]=useState(typeof window!=="undefined"&&!!window.qrcode);
+  useEffect(()=>{
+    if(window.qrcode){setReady(true);return;}
+    const js=document.createElement("script");js.src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js";js.onload=()=>setReady(true);document.head.appendChild(js);
+  },[]);
+  return ready;
+};
+
 // --- Leaflet Loader ---
 const useLeaflet=()=>{
   const [ready,setReady]=useState(typeof window!=="undefined"&&!!window.L);
@@ -93,4 +103,4 @@ const Loader=({msg,size="md"})=>{
   );
 };
 
-export { useKatex, useLeaflet, Tx, Av, Tag, Bar, Btn, Loader };
+export { useKatex, useLeaflet, useQRCode, Tx, Av, Tag, Bar, Btn, Loader };

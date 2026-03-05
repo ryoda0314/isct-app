@@ -82,11 +82,17 @@ export function useFriends() {
     return r.ok ? await r.json() : [];
   }, []);
 
+  const lookupById = useCallback(async (id) => {
+    if (!id) return null;
+    const r = await fetch(`/api/friends?type=lookup&id=${encodeURIComponent(id)}`);
+    return r.ok ? await r.json() : null;
+  }, []);
+
   return {
     friends, pending, sent, loading,
     pendingCount: pending.length,
     friendIds, isFriend,
     sendRequest, acceptRequest, rejectRequest, unfriend,
-    searchUsers, refetch: fetchAll,
+    searchUsers, lookupById, refetch: fetchAll,
   };
 }

@@ -147,6 +147,40 @@ export async function GET(request) {
       return NextResponse.json(results);
     }
 
+    if (type === 'lookup') {
+      const id = searchParams.get('id');
+      if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+      const numId = Number(id);
+      if (!numId || numId === userid) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+
+      const { data: profile } = await sb
+        .from('profiles')
+        .select('*')
+        .eq('moodle_id', numId)
+        .single();
+
+      if (!profile) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+      const { data: fData } = await sb
+        .from('friendships')
+        .select('*')
+        .or(
+          `and(requester_id.eq.${userid},addressee_id.eq.${numId}),and(requester_id.eq.${numId},addressee_id.eq.${userid})`
+        );
+
+      const f = fData?.[0];
+      const friendship = f ? { status: f.status, id: f.id, isSender: f.requester_id === userid } : null;
+
+      return NextResponse.json({
+        moodleId: profile.moodle_id,
+        name: profile.name,
+        avatar: profile.avatar,
+        color: profile.color,
+        dept: profile.dept,
+        friendship,
+      });
+    }
+
     return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
