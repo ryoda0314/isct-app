@@ -89,3 +89,19 @@ alter publication supabase_realtime add table shared_materials;
 -- Storage bucket for shared materials
 insert into storage.buckets (id, name, public) values ('shared-materials', 'shared-materials', true)
 on conflict do nothing;
+
+-- 9. friendships: 友達関係
+create table if not exists friendships (
+  id           bigint generated always as identity primary key,
+  requester_id bigint not null references profiles(moodle_id),
+  addressee_id bigint not null references profiles(moodle_id),
+  status       text not null default 'pending',  -- pending, accepted, rejected, blocked
+  created_at   timestamptz default now(),
+  updated_at   timestamptz default now(),
+  unique(requester_id, addressee_id),
+  check(requester_id != addressee_id)
+);
+create index if not exists idx_friendships_requester on friendships(requester_id, status);
+create index if not exists idx_friendships_addressee on friendships(addressee_id, status);
+alter table friendships disable row level security;
+alter publication supabase_realtime add table friendships;

@@ -615,8 +615,9 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob})=>{
 };
 
 /* ── メインビュー ── */
-export const LocationView=({mob,user={}})=>{
-  const {peers,myLoc,setMyLoc}=useLocationSharing({id:user.moodleId||user.id,name:user.name,col:user.col,av:user.av});
+export const LocationView=({mob,user={},friendIds})=>{
+  const {peers:allPeers,myLoc,setMyLoc}=useLocationSharing({id:user.moodleId||user.id,name:user.name,col:user.col,av:user.av});
+  const peers=friendIds?allPeers.filter(p=>friendIds.has(Number(p.id))):allPeers;
   const mySpot=getSpot(myLoc);
   const [tab,setTab]=useState("list"); // "list" | "map" | "spots"
 

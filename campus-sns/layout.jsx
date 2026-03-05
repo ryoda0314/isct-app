@@ -12,7 +12,7 @@ const SideItem=({icon,label,on,click,badge})=>(
   </button>
 );
 
-const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,courses=[],depts=[],user={},quarter})=>{
+const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,courses=[],depts=[],user={},quarter,pendingFriendCount=0})=>{
   const [moreOpen,setMoreOpen]=useState(false);
   const extras=["grades","pomo","events","reviews","bmarks","location"];
   const isExtra=extras.includes(view);
@@ -24,6 +24,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,courses=[],dep
       <SideItem icon={I.cal} label="時間割" on={view==="timetable"} click={()=>setView("timetable")}/>
       <SideItem icon={I.tasks} label="課題" on={view==="tasks"} click={()=>setView("tasks")} badge={ac}/>
       <SideItem icon={I.mail} label="DM" on={view==="dm"} click={()=>setView("dm")}/>
+      <SideItem icon={I.users} label="友達" on={view==="friends"} click={()=>setView("friends")} badge={pendingFriendCount}/>
       <SideItem icon={I.bell} label="通知" on={view==="notif"} click={()=>setView("notif")} badge={unreadN}/>
       <SideItem icon={I.search} label="検索" on={view==="search"} click={()=>setView("search")}/>
       <SideItem icon={I.cal} label="カレンダー" on={view==="calendar"} click={()=>setView("calendar")}/>
@@ -126,7 +127,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[]})=>{
 // ============================================================
 
 const MNav=({view,setView,ac,unreadN})=>{
-  const moreViews=["dm","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","location","navigation"];
+  const moreViews=["dm","friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","location","navigation"];
   const isMore=moreViews.includes(view);
   return(
   <nav style={{display:"flex",height:54,background:T.bg2,borderTop:`1px solid ${T.bd}`,flexShrink:0}}>
@@ -139,9 +140,9 @@ const MNav=({view,setView,ac,unreadN})=>{
 
 // --- More Menu (mobile) ---
 
-const MoreMenu=({setView,unreadN})=>(
+const MoreMenu=({setView,unreadN,pendingFriendCount=0})=>(
   <div style={{flex:1,overflowY:"auto",padding:12}}>
-    {[{id:"dm",i:I.mail,l:"ダイレクトメッセージ"},{id:"notif",i:I.bell,l:"通知",b:unreadN},{id:"calendar",i:I.cal,l:"カレンダー"},{id:"grades",i:I.grad,l:"成績・出席"},{id:"pomo",i:I.play,l:"ポモドーロタイマー"},{id:"events",i:I.event,l:"イベント"},{id:"reviews",i:I.star,l:"授業レビュー"},{id:"bmarks",i:I.bmark,l:"ブックマーク"},{id:"search",i:I.search,l:"検索"},{id:"location",i:I.pin,l:"友達の居場所"},{id:"navigation",i:I.tgt,l:"キャンパスナビ"},{id:"profile",i:I.user1,l:"プロフィール・設定"}].map(n=>(
+    {[{id:"dm",i:I.mail,l:"ダイレクトメッセージ"},{id:"friends",i:I.users,l:"友達",b:pendingFriendCount},{id:"notif",i:I.bell,l:"通知",b:unreadN},{id:"calendar",i:I.cal,l:"カレンダー"},{id:"grades",i:I.grad,l:"成績・出席"},{id:"pomo",i:I.play,l:"ポモドーロタイマー"},{id:"events",i:I.event,l:"イベント"},{id:"reviews",i:I.star,l:"授業レビュー"},{id:"bmarks",i:I.bmark,l:"ブックマーク"},{id:"search",i:I.search,l:"検索"},{id:"location",i:I.pin,l:"友達の居場所"},{id:"navigation",i:I.tgt,l:"キャンパスナビ"},{id:"profile",i:I.user1,l:"プロフィール・設定"}].map(n=>(
       <div key={n.id} onClick={()=>setView(n.id)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6,cursor:"pointer"}}>
         <span style={{color:T.txD,display:"flex"}}>{n.i}</span>
         <span style={{flex:1,fontSize:14,color:T.txH,fontWeight:500}}>{n.l}</span>
