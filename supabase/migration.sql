@@ -55,12 +55,18 @@ create table if not exists notifications (
 );
 create index if not exists idx_notifications_user on notifications(moodle_user_id, created_at desc);
 
--- 6. RLS無効（学内ツールのため）
-alter table profiles disable row level security;
-alter table messages disable row level security;
-alter table dm_conversations disable row level security;
-alter table dm_messages disable row level security;
-alter table notifications disable row level security;
+-- 6. RLS: anon は SELECT のみ（リアルタイム購読用）、書き込みは service_role 経由のみ
+alter table profiles enable row level security;
+alter table messages enable row level security;
+alter table dm_conversations enable row level security;
+alter table dm_messages enable row level security;
+alter table notifications enable row level security;
+
+create policy "anon_select_profiles" on profiles for select to anon using (true);
+create policy "anon_select_messages" on messages for select to anon using (true);
+create policy "anon_select_dm_conversations" on dm_conversations for select to anon using (true);
+create policy "anon_select_dm_messages" on dm_messages for select to anon using (true);
+create policy "anon_select_notifications" on notifications for select to anon using (true);
 
 -- 7. Realtime有効化
 -- Supabase Dashboard → Database → Replication で以下を有効化:
@@ -83,7 +89,8 @@ create table if not exists shared_materials (
   created_at      timestamptz default now()
 );
 create index if not exists idx_shared_materials_course on shared_materials(course_id, created_at desc);
-alter table shared_materials disable row level security;
+alter table shared_materials enable row level security;
+create policy "anon_select_shared_materials" on shared_materials for select to anon using (true);
 alter publication supabase_realtime add table shared_materials;
 
 -- Storage bucket for shared materials
@@ -103,5 +110,6 @@ create table if not exists friendships (
 );
 create index if not exists idx_friendships_requester on friendships(requester_id, status);
 create index if not exists idx_friendships_addressee on friendships(addressee_id, status);
-alter table friendships disable row level security;
+alter table friendships enable row level security;
+create policy "anon_select_friendships" on friendships for select to anon using (true);
 alter publication supabase_realtime add table friendships;

@@ -39,7 +39,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
   // QR code generation
   useEffect(()=>{
     if(!qrReady||!userId||tab!=='qr')return;
-    try{const qr=window.qrcode(0,'M');qr.addData(`ISCT:${userId}`);qr.make();setQrDataUrl(qr.createDataURL(6,0));}catch{}
+    try{const qr=window.qrcode(0,'M');qr.addData(`ISCT:${userId}`);qr.make();setQrDataUrl(qr.createDataURL(8,4));}catch{}
   },[qrReady,userId,tab]);
 
   // Cleanup scanner on unmount
@@ -231,7 +231,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
           {/* Own QR code */}
           <div style={{textAlign:"center",padding:20,background:T.bg2,borderRadius:12,border:`1px solid ${T.bd}`,marginBottom:12}}>
             <div style={{fontSize:12,fontWeight:700,color:T.txD,marginBottom:12}}>あなたのQRコード</div>
-            {qrDataUrl?<img src={qrDataUrl} alt="QR" style={{width:180,height:180,borderRadius:8,imageRendering:"pixelated"}}/>:<div style={{width:180,height:180,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg3,borderRadius:8}}><span style={{fontSize:12,color:T.txD}}>読み込み中...</span></div>}
+            {qrDataUrl?<div style={{display:"inline-block",padding:12,background:"#fff",borderRadius:12}}><img src={qrDataUrl} alt="QR" style={{width:180,height:180,display:"block",imageRendering:"pixelated"}}/></div>:<div style={{width:204,height:204,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg3,borderRadius:12}}><span style={{fontSize:12,color:T.txD}}>読み込み中...</span></div>}
             <div style={{marginTop:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
               <span style={{fontSize:13,color:T.txH,fontWeight:600}}>ID: {userId}</span>
               <button onClick={copyId} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${T.bd}`,background:copied?T.green:"transparent",color:copied?"#fff":T.txD,fontSize:11,fontWeight:600,cursor:"pointer"}}>{copied?"コピー済":"コピー"}</button>

@@ -4,6 +4,9 @@ import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 export async function GET(request) {
   try {
+    if (!isAuthenticated()) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
     const { searchParams } = new URL(request.url);
     const courseId = searchParams.get('course_id');
     if (!courseId) return NextResponse.json({ error: 'course_id required' }, { status: 400 });

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getToken } from '../../../../../lib/auth/token-manager.js';
+import { getToken, isAuthenticated } from '../../../../../lib/auth/token-manager.js';
 import { LMS_BASE } from '../../../../../lib/config.js';
 
 /**
@@ -9,6 +9,10 @@ import { LMS_BASE } from '../../../../../lib/config.js';
  */
 export async function GET(request) {
   try {
+    if (!isAuthenticated()) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const fileurl = searchParams.get('url');
     if (!fileurl) {
