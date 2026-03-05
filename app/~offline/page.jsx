@@ -4,7 +4,7 @@ export default function OfflinePage() {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', minHeight: '100vh',
+      justifyContent: 'center', minHeight: '100dvh',
       background: '#111113', color: '#dddde0', fontFamily: 'Inter, sans-serif',
       padding: 24,
     }}>

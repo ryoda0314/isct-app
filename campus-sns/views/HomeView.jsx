@@ -281,7 +281,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
             <span style={{fontWeight:700,color:T.txH,fontSize:14}}>直近の締切</span>
             <button onClick={()=>setView("tasks")} style={{background:"none",border:"none",color:T.accentSoft,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:2}}>すべて {I.arr}</button>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"1fr 1fr",gap:6}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr",gap:6}}>
             {upcoming.map(a=>{const co=courses.find(x=>x.id===a.cid),dl=uDue(a.due),p=pDone(a.subs);return(
               <div key={a.id} onClick={()=>setView("tasks")} style={{padding:"8px 10px",borderRadius:8,background:dl.u?`${dl.c}08`:T.bg2,border:`1px solid ${dl.u?`${dl.c}20`:T.bd}`,borderLeft:`3px solid ${dl.c}`,cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}>

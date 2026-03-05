@@ -113,3 +113,44 @@ create index if not exists idx_friendships_addressee on friendships(addressee_id
 alter table friendships enable row level security;
 create policy "anon_select_friendships" on friendships for select to anon using (true);
 alter publication supabase_realtime add table friendships;
+
+-- 10. groups: グループ
+create table if not exists groups (
+  id         bigint generated always as identity primary key,
+  name       text not null,
+  avatar     text,          -- 1文字アバター
+  color      text,          -- テーマカラー (#hex)
+  creator_id bigint not null references profiles(moodle_id),
+  created_at timestamptz default now()
+);
+
+-- 11. group_members: グループメンバー
+create table if not exists group_members (
+  id        bigint generated always as identity primary key,
+  group_id  bigint not null references groups(id) on delete cascade,
+  user_id   bigint not null references profiles(moodle_id),
+  joined_at timestamptz default now(),
+  unique(group_id, user_id)
+);
+create index if not exists idx_group_members_user on group_members(user_id);
+
+-- 12. group_messages: グループメッセージ
+create table if not exists group_messages (
+  id         bigint generated always as identity primary key,
+  group_id   bigint not null references groups(id) on delete cascade,
+  sender_id  bigint not null references profiles(moodle_id),
+  text       text not null,
+  created_at timestamptz default now()
+);
+create index if not exists idx_group_messages_group on group_messages(group_id, created_at desc);
+
+alter table groups enable row level security;
+alter table group_members enable row level security;
+alter table group_messages enable row level security;
+
+create policy "anon_select_groups" on groups for select to anon using (true);
+create policy "anon_select_group_members" on group_members for select to anon using (true);
+create policy "anon_select_group_messages" on group_messages for select to anon using (true);
+
+alter publication supabase_realtime add table group_members;
+alter publication supabase_realtime add table group_messages;

@@ -30,6 +30,7 @@ import { LocationView } from "./views/LocationView.jsx";
 import { NavigationView } from "./views/NavigationView.jsx";
 import { FriendsView } from "./views/FriendsView.jsx";
 import { useFriends } from "./hooks/useFriends.js";
+import { useGroups } from "./hooks/useGroups.js";
 
 const API="";
 
@@ -119,8 +120,10 @@ export default function App(){
   const navCrs=id=>{setCid(id);setView("course");setCh("assignments");};
   const goToBuilding=(destId,origId)=>{if(destId){setNavDest(destId);setNavOrig(origId||null);setView("navigation");}};
   const togBmark=pid=>setBmarks(p=>p.includes(pid)?p.filter(x=>x!==pid):[...p,pid]);
+  const {groups:groupList,createGroup,leaveGroup}=useGroups();
   const startDMFromFriend=(fid,name,avatar,color)=>{setView("dm");};
-  const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById};
+  const openGroupChat=(g)=>{setView("dm");};
+  const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat};
   const togTheme=()=>setDark(p=>!p);
 
   // --- Header for mobile ---
@@ -149,8 +152,8 @@ export default function App(){
   };
 
   // --- LOADING / SETUP ---
-  if(appState==="loading") return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",width:"100vw",background:T.bg,color:T.txD,fontFamily:"'Inter',sans-serif"}}><Loader msg="読み込み中" size="lg"/></div>;
-  if(appState==="setup") return <div style={{display:"flex",height:"100vh",width:"100vw",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}><SetupView onComplete={onSetupComplete} onSkip={()=>setAppState("ready")} mob={mob}/></div>;
+  if(appState==="loading") return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100dvh",width:"100vw",background:T.bg,color:T.txD,fontFamily:"'Inter',sans-serif"}}><Loader msg="読み込み中" size="lg"/></div>;
+  if(appState==="setup") return <div style={{display:"flex",height:"100dvh",width:"100vw",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}><SetupView onComplete={onSetupComplete} onSkip={()=>setAppState("ready")} mob={mob}/></div>;
 
   // --- DESKTOP ---
   if(!mob){
@@ -161,7 +164,7 @@ export default function App(){
       return titles[view]||"";
     };
     return(
-      <div style={{display:"flex",height:"100vh",width:"100vw",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
+      <div style={{display:"flex",height:"100dvh",width:"100vw",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
         <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} courses={allCourses} depts={userDepts} user={user} quarter={quarter} pendingFriendCount={pendingFriendCount}/>
         {view==="course"&&cc&&<DChan course={cc} ch={ch} setCh={setCh} online={online} members={members}/>}
         {view==="dept"&&cd&&<DChan dept={cd} ch={ch} setCh={setCh} online={online}/>}
@@ -173,7 +176,7 @@ export default function App(){
           {view==="course"&&cc&&courseContent()}
           {view==="dept"&&cd&&deptContent()}
           {view==="friends"&&<FriendsView mob={false} setView={setView} {...friendProps}/>}
-          {view==="dm"&&<DMView mob={false} setView={setView} friends={friendList}/>}
+          {view==="dm"&&<DMView mob={false} setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup}/>}
           {view==="notif"&&<NotifView mob={false}/>}
           {view==="grades"&&<GradeView grades={grades} att={att} mob={false} courses={allCourses}/>}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
@@ -194,7 +197,7 @@ export default function App(){
   // --- MOBILE ---
   const mBack=()=>setView("moreMenu");
   return(
-    <div style={{display:"flex",flexDirection:"column",height:"100vh",width:"100vw",maxWidth:480,margin:"0 auto",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
+    <div style={{display:"flex",flexDirection:"column",height:"100dvh",width:"100vw",maxWidth:480,margin:"0 auto",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         {view==="home"&&<><MHdr title="ScienceTokyo App" right={<button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} goToBuilding={goToBuilding}/></>}
         {view==="timetable"&&<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding}/>}
@@ -204,7 +207,7 @@ export default function App(){
         {view==="dept"&&cd&&<><MHdr title={<><span style={{color:cd.col}}>{cd.prefix}</span><span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{cd.name}</span></>} back={()=>setView("courseSelect")}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:"タイムライン",i:I.feed},{id:"chat",l:"チャット",i:I.chat}].map(t=><button key={t.id} onClick={()=>setCh(t.id)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===t.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===t.id?T.txH:T.txD,fontSize:13,fontWeight:ch===t.id?600:400,cursor:"pointer"}}>{t.i}<span>{t.l}</span></button>)}</div>{deptContent()}</>}
         {view==="moreMenu"&&<><MHdr title="その他"/><MoreMenu setView={setView} unreadN={unreadN} pendingFriendCount={pendingFriendCount}/></>}
         {view==="friends"&&<><MHdr title="友達" back={mBack}/><FriendsView mob setView={setView} {...friendProps}/></>}
-        {view==="dm"&&<><MHdr title="DM" back={mBack}/><DMView mob setView={setView} friends={friendList}/></>}
+        {view==="dm"&&<><MHdr title="DM" back={mBack}/><DMView mob setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup}/></>}
         {view==="notif"&&<><MHdr title="通知" back={mBack}/><NotifView mob/></>}
         {view==="grades"&&<><MHdr title="成績・出席" back={mBack}/><GradeView grades={grades} att={att} mob courses={allCourses}/></>}
         {view==="pomo"&&<><MHdr title="ポモドーロ" back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
