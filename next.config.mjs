@@ -10,7 +10,7 @@ const withPWA = withPWAInit({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // puppeteer etc. should not be bundled into client
-  serverExternalPackages: ['puppeteer', 'otplib'],
+  serverExternalPackages: ['puppeteer', 'puppeteer-core', '@sparticuz/chromium', 'otplib'],
 };
 
 export default withPWA(nextConfig);
