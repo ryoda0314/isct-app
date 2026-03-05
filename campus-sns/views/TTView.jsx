@@ -60,9 +60,12 @@ export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefr
         <div style={{padding:mob?"6px 6px 5px":"10px 10px 8px",display:"flex",flexDirection:"column",height:"100%",justifyContent:"center"}}>
           <div style={{fontWeight:800,color:co.col,fontSize:mob?9:13,letterSpacing:.5,lineHeight:1}}>{mob?co.code.split(".")[1]:co.code}</div>
           <div style={{fontSize:mob?8:12,color:T.txH,marginTop:mob?2:4,lineHeight:1.3,fontWeight:600,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{co.name}</div>
-          <div style={{fontSize:mob?8:10,color:T.txD,marginTop:mob?2:4,display:"flex",alignItems:"center",gap:3,opacity:.8}}>
-            <svg width={mob?7:9} height={mob?7:9} viewBox="0 0 24 24" fill={T.txD} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
-            <span>{co.room}{co.bldg&&co.building?<span onClick={e=>{e.stopPropagation();goToBuilding?.(co.building);}} style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:3,padding:"0px 4px",borderRadius:4,background:`${T.accent}18`,color:T.accent,fontWeight:700,cursor:"pointer",verticalAlign:"middle"}}><svg width={mob?7:8} height={mob?7:8} viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>{co.bldg}</span>:co.bldg?` (${co.bldg})`:""}</span>
+          <div style={{fontSize:mob?8:10,color:T.txD,marginTop:mob?2:4,opacity:.8}}>
+            <div style={{display:"flex",alignItems:"center",gap:3}}>
+              <svg width={mob?7:9} height={mob?7:9} viewBox="0 0 24 24" fill={T.txD} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+              <span>{co.room?.replace(/\s*\(.*?\)/g,"")}{co.bldg&&!co.building?` (${co.bldg})`:""}</span>
+            </div>
+            {co.bldg&&co.building&&<div onClick={e=>{e.stopPropagation();goToBuilding(co.building);}} style={{display:"inline-flex",alignItems:"center",gap:2,marginTop:2,padding:"0px 4px",borderRadius:4,background:"#14b8a620",color:"#14b8a6",fontWeight:700,cursor:"pointer",fontSize:mob?7:9}}><svg width={mob?7:8} height={mob?7:8} viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>{co.bldg}</div>}
           </div>
         </div>
         {n>0&&<div style={{position:"absolute",top:mob?3:6,right:mob?3:6,minWidth:mob?15:20,height:mob?15:20,borderRadius:10,background:T.red,color:"#fff",fontSize:mob?8:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px",boxShadow:`0 2px 6px ${T.red}60`}}>{n}</div>}
@@ -102,9 +105,12 @@ export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefr
                   <div style={{padding:"6px 5px 5px",display:"flex",flexDirection:"column",height:"100%",justifyContent:"center"}}>
                     <div style={{fontWeight:800,color:co.col,fontSize:9,letterSpacing:.3,lineHeight:1}}>{co.code.split(".")[1]}</div>
                     <div style={{fontSize:9,color:T.txH,marginTop:2,lineHeight:1.25,fontWeight:600,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{co.name}</div>
-                    <div style={{fontSize:8,color:T.txD,marginTop:2,display:"flex",alignItems:"center",gap:2}}>
-                      <svg width="7" height="7" viewBox="0 0 24 24" fill={T.txD} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
-                      {co.room}{co.bldg&&co.building?<span onClick={e=>{e.stopPropagation();goToBuilding?.(co.building);}} style={{display:"inline-flex",alignItems:"center",gap:1,marginLeft:2,padding:"0px 3px",borderRadius:3,background:`${T.accent}18`,color:T.accent,fontWeight:700,cursor:"pointer",verticalAlign:"middle"}}><svg width="6" height="6" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>{co.bldg}</span>:co.bldg?` (${co.bldg})`:""}
+                    <div style={{fontSize:8,color:T.txD,marginTop:2}}>
+                      <div style={{display:"flex",alignItems:"center",gap:2}}>
+                        <svg width="7" height="7" viewBox="0 0 24 24" fill={T.txD} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+                        {co.room?.replace(/\s*\(.*?\)/g,"")}{co.bldg&&!co.building?` (${co.bldg})`:""}
+                      </div>
+                      {co.bldg&&co.building&&<div onClick={e=>{e.stopPropagation();goToBuilding(co.building);}} style={{display:"inline-flex",alignItems:"center",gap:1,marginTop:1,padding:"0px 3px",borderRadius:3,background:"#14b8a620",color:"#14b8a6",fontWeight:700,cursor:"pointer",fontSize:7}}><svg width="6" height="6" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>{co.bldg}</div>}
                     </div>
                   </div>
                   {n>0&&<div style={{position:"absolute",top:2,right:2,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px",boxShadow:`0 2px 6px ${T.red}60`}}>{n}</div>}
@@ -120,7 +126,7 @@ export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefr
               <div style={{width:6,height:6,borderRadius:3,background:co.col,flexShrink:0}}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:12,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{co.name}</div>
-                <div style={{fontSize:10,color:T.txD}}>{co.code} · {co.per} · {co.room}{co.bldg&&co.building?<span onClick={e=>{e.stopPropagation();goToBuilding?.(co.building);}} style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:3,padding:"0px 4px",borderRadius:4,background:`${T.accent}18`,color:T.accent,fontSize:10,fontWeight:700,cursor:"pointer",verticalAlign:"middle"}}><svg width="7" height="7" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>{co.bldg}</span>:co.bldg?` (${co.bldg})`:""}</div>
+                <div style={{fontSize:10,color:T.txD}}>{co.code} · {co.per} · {co.room?.replace(/\s*\(.*?\)/g,"")}{co.bldg&&!co.building?` (${co.bldg})`:""} {co.bldg&&co.building&&<span onClick={e=>{e.stopPropagation();goToBuilding(co.building);}} style={{display:"inline-flex",alignItems:"center",gap:2,padding:"0px 4px",borderRadius:4,background:"#14b8a620",color:"#14b8a6",fontSize:10,fontWeight:700,cursor:"pointer",verticalAlign:"middle"}}><svg width="7" height="7" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>{co.bldg}</span>}</div>
               </div>
               {n>0&&<span style={{fontSize:10,fontWeight:700,color:T.red}}>{n}件</span>}
             </div>
@@ -179,7 +185,7 @@ export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefr
               <div style={{fontWeight:600,color:T.txH,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{co.name}</div>
               <div style={{fontSize:11,color:T.txD,marginTop:2,display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
                 <span style={{background:T.bg3,padding:"1px 6px",borderRadius:4,fontSize:10}}>{co.code}</span>
-                <span>{co.per}</span><span>·</span><span>{co.room}{co.bldg&&co.building?<span onClick={e=>{e.stopPropagation();goToBuilding?.(co.building);}} style={{display:"inline-flex",alignItems:"center",gap:2,marginLeft:3,padding:"1px 5px",borderRadius:4,background:`${T.accent}18`,color:T.accent,fontSize:10,fontWeight:700,cursor:"pointer",verticalAlign:"middle"}}><svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>{co.bldg}</span>:co.bldg?` (${co.bldg})`:""}</span>
+                <span>{co.per}</span><span>·</span><span>{co.room?.replace(/\s*\(.*?\)/g,"")}{co.bldg&&!co.building?` (${co.bldg})`:""}</span>{co.bldg&&co.building&&<span onClick={e=>{e.stopPropagation();goToBuilding(co.building);}} style={{display:"inline-flex",alignItems:"center",gap:2,padding:"1px 5px",borderRadius:4,background:"#14b8a620",color:"#14b8a6",fontSize:10,fontWeight:700,cursor:"pointer"}}><svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>{co.bldg}</span>}
               </div>
             </div>
             {n>0&&<div style={{padding:"4px 10px",borderRadius:12,background:`${T.red}15`,color:T.red,fontSize:11,fontWeight:700,flexShrink:0,border:`1px solid ${T.red}30`}}>課題 {n}</div>}
