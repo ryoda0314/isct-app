@@ -768,7 +768,6 @@ export const EDGES = [
   ["wp_mmaodic1", "wp_mmbq79yl"],
   ["wp_mmbq79yl", "wp_mmaodpo7"],
   ["wp_mmaobv4d", "wp_mmbq71t9"],
-  ["wp_mmbq71t9", "wp_mmaqgi3p"],
   ["wp_mmaqgf6g", "wp_mmbq79yl"],
   ["wp_mmaobpz5", "wp_mmbqq66e"],
   ["wp_mmbqsa96", "wp_mmbqq66e"],
@@ -1056,6 +1055,10 @@ export const EDGES = [
   ["wp_mmc3e8yc", "ent_3"],
   ["wp_mmc3e8yc", "wp_mmaod6ki"],
   ["wp_mmc3e8yc", "wp_mmaovkux"],
+  ["wp_mmaobpz5", "wp_mmaogt4q"],
+  ["wp_mmaqgi3p", "wp_mmbq71t9"],
+  ["wp_mmaqgi3p", "wp_mmaogt4q"],
+  ["wp_mmbq71t9", "wp_mmaogt4q"],
 ];
 
 export function useLocationSharing(userInfo) {
