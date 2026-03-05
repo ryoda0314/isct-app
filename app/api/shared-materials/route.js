@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getToken, isAuthenticated } from '../../../lib/auth/token-manager.js';
+import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 export async function GET(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+
     const { searchParams } = new URL(request.url);
     const courseId = searchParams.get('course_id');
     if (!courseId) return NextResponse.json({ error: 'course_id required' }, { status: 400 });
@@ -21,7 +21,6 @@ export async function GET(request) {
 
     if (error) throw error;
 
-    // Build public URLs for each file
     const files = (data || []).map(row => {
       const { data: urlData } = sb.storage
         .from('shared-materials')
@@ -31,16 +30,15 @@ export async function GET(request) {
 
     return NextResponse.json(files);
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
 export async function POST(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const { userid, fullname } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userid, fullname } = auth;
 
     const formData = await request.formData();
     const file = formData.get('file');
@@ -53,13 +51,11 @@ export async function POST(request) {
 
     const sb = getSupabaseAdmin();
 
-    // Ensure profile exists with real name
     await sb.from('profiles').upsert(
       { moodle_id: userid, name: fullname || `User ${userid}` },
       { onConflict: 'moodle_id', ignoreDuplicates: true }
     );
 
-    // Upload to Supabase Storage (ASCII-safe path; original name kept in metadata)
     const ts = Date.now();
     const ext = (file.name.match(/\.[^.]+$/) || [''])[0];
     const storagePath = `${courseId}/${ts}${ext}`;
@@ -74,7 +70,6 @@ export async function POST(request) {
 
     if (uploadErr) throw uploadErr;
 
-    // Insert metadata
     const { data: row, error: insertErr } = await sb
       .from('shared_materials')
       .insert({
@@ -91,7 +86,6 @@ export async function POST(request) {
 
     if (insertErr) throw insertErr;
 
-    // Attach public URL
     const { data: urlData } = sb.storage
       .from('shared-materials')
       .getPublicUrl(storagePath);
@@ -100,22 +94,21 @@ export async function POST(request) {
     return NextResponse.json(row);
   } catch (err) {
     console.error('[shared-materials]', err.message);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
 export async function DELETE(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const { userid } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userid } = auth;
+
     const { id } = await request.json();
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
     const sb = getSupabaseAdmin();
 
-    // Fetch row and verify ownership
     const { data: row, error: fetchErr } = await sb
       .from('shared_materials')
       .select('id, moodle_user_id, storage_path')
@@ -125,16 +118,14 @@ export async function DELETE(request) {
     if (fetchErr || !row) return NextResponse.json({ error: 'not found' }, { status: 404 });
     if (row.moodle_user_id !== userid) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
-    // Delete from Storage
     await sb.storage.from('shared-materials').remove([row.storage_path]);
 
-    // Delete metadata
     const { error: delErr } = await sb.from('shared_materials').delete().eq('id', id);
     if (delErr) throw delErr;
 
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[shared-materials delete]', err.message);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

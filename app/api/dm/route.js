@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getToken, isAuthenticated } from '../../../lib/auth/token-manager.js';
+import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 // GET: list DM conversations for current user
-export async function GET() {
+export async function GET(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const { userid } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userid } = auth;
     const sb = getSupabaseAdmin();
 
     const { data, error } = await sb
@@ -51,17 +50,17 @@ export async function GET() {
 
     return NextResponse.json(convos);
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
 // POST: send a DM
 export async function POST(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const { userid } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userid } = auth;
+
     const { to_user_id, text, conversation_id } = await request.json();
     if (!text?.trim()) {
       return NextResponse.json({ error: 'text required' }, { status: 400 });
@@ -69,13 +68,24 @@ export async function POST(request) {
 
     const sb = getSupabaseAdmin();
 
-    // Ensure profile exists
     await sb.from('profiles').upsert(
       { moodle_id: userid, name: `User ${userid}` },
       { onConflict: 'moodle_id', ignoreDuplicates: true }
     );
 
     let convId = conversation_id;
+
+    // If conversation_id is provided, verify user is a participant
+    if (convId) {
+      const { data: conv } = await sb
+        .from('dm_conversations')
+        .select('id, user1_id, user2_id')
+        .eq('id', convId)
+        .single();
+      if (!conv || (conv.user1_id !== userid && conv.user2_id !== userid)) {
+        return NextResponse.json({ error: 'Not a participant' }, { status: 403 });
+      }
+    }
 
     // Find or create conversation
     if (!convId && to_user_id) {
@@ -115,6 +125,6 @@ export async function POST(request) {
     if (error) throw error;
     return NextResponse.json({ ...data, conversation_id: convId });
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

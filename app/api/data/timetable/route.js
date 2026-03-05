@@ -1,16 +1,18 @@
 import { NextResponse } from 'next/server';
-import { getToken } from '../../../../lib/auth/token-manager.js';
+import { requireAuth } from '../../../../lib/auth/require-auth.js';
 import { fetchUserCourses } from '../../../../lib/api/courses.js';
 import { fetchScheduleForCourses } from '../../../../lib/api/syllabus-scraper.js';
 import { transformCourses, groupByQuarter } from '../../../../lib/transform/course-transform.js';
 import { buildTimetable } from '../../../../lib/transform/timetable-builder.js';
 
-export async function GET() {
+export async function GET(request) {
   try {
-    const { wstoken, userid } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { wstoken, userid } = auth;
+
     const raw = await fetchUserCourses(wstoken, userid);
 
-    // Fetch schedule data from ISCT syllabus site (cached for 7 days)
     let scheduleMap = {};
     try {
       scheduleMap = await fetchScheduleForCourses(raw);
@@ -28,6 +30,6 @@ export async function GET() {
 
     return NextResponse.json({ qData, allCourses: courses });
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

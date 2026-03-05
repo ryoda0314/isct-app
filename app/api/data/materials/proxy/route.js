@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getToken, isAuthenticated } from '../../../../../lib/auth/token-manager.js';
-import { LMS_BASE } from '../../../../../lib/config.js';
+import { requireAuth } from '../../../../../lib/auth/require-auth.js';
 
 /**
  * Proxy endpoint for Moodle file downloads.
@@ -9,9 +8,8 @@ import { LMS_BASE } from '../../../../../lib/config.js';
  */
 export async function GET(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
 
     const { searchParams } = new URL(request.url);
     const fileurl = searchParams.get('url');
@@ -19,16 +17,22 @@ export async function GET(request) {
       return NextResponse.json({ error: 'url required' }, { status: 400 });
     }
 
-    // Security: only allow fetching from the LMS domain
-    if (!fileurl.startsWith(LMS_BASE) && !fileurl.startsWith('https://lms.s.isct.ac.jp/')) {
+    // Security: parse URL and validate hostname to prevent SSRF
+    let parsed;
+    try {
+      parsed = new URL(fileurl);
+    } catch {
+      return NextResponse.json({ error: 'invalid url' }, { status: 400 });
+    }
+    if (parsed.hostname !== 'lms.s.isct.ac.jp') {
       return NextResponse.json({ error: 'invalid url domain' }, { status: 403 });
     }
 
-    const { wstoken } = await getToken();
+    const { wstoken } = auth;
     const sep = fileurl.includes('?') ? '&' : '?';
     const fullUrl = `${fileurl}${sep}token=${wstoken}`;
 
-    const resp = await fetch(fullUrl);
+    const resp = await fetch(fullUrl, { redirect: 'error' });
     if (!resp.ok) {
       return NextResponse.json({ error: `upstream ${resp.status}` }, { status: resp.status });
     }
@@ -46,6 +50,6 @@ export async function GET(request) {
     });
   } catch (err) {
     console.error('[materials/proxy]', err.message);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getToken, isAuthenticated } from '../../../lib/auth/token-manager.js';
+import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 // GET: list friends, pending requests, sent requests, or search users
 export async function GET(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const { userid } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userid } = auth;
     const sb = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'friends';
@@ -183,17 +182,16 @@ export async function GET(request) {
 
     return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
 // POST: send friend request
 export async function POST(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const { userid, fullname } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userid, fullname } = auth;
     const { to_user_id } = await request.json();
 
     if (!to_user_id || to_user_id === userid) {
@@ -274,17 +272,16 @@ export async function POST(request) {
 
     return NextResponse.json({ ok: true, status: 'pending' });
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
 // PATCH: accept or reject friend request
 export async function PATCH(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const { userid } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userid } = auth;
     const { friendship_id, action } = await request.json();
 
     if (!friendship_id || !['accept', 'reject'].includes(action)) {
@@ -326,17 +323,16 @@ export async function PATCH(request) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
 // DELETE: unfriend
 export async function DELETE(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const { userid } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userid } = auth;
     const { friend_id } = await request.json();
 
     if (!friend_id) {
@@ -356,6 +352,6 @@ export async function DELETE(request) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

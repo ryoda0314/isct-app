@@ -1,17 +1,15 @@
 import { NextResponse } from 'next/server';
-import { getToken, isAuthenticated } from '../../../lib/auth/token-manager.js';
+import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 // GET: list groups for current user
-export async function GET() {
+export async function GET(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const { userid } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userid } = auth;
     const sb = getSupabaseAdmin();
 
-    // Get group IDs where user is a member
     const { data: memberships, error: mErr } = await sb
       .from('group_members')
       .select('group_id')
@@ -21,7 +19,6 @@ export async function GET() {
     const groupIds = (memberships || []).map(m => m.group_id);
     if (groupIds.length === 0) return NextResponse.json([]);
 
-    // Get groups
     const { data: groups, error: gErr } = await sb
       .from('groups')
       .select('*')
@@ -29,13 +26,11 @@ export async function GET() {
       .order('created_at', { ascending: false });
     if (gErr) throw gErr;
 
-    // Get all members for these groups
     const { data: allMembers } = await sb
       .from('group_members')
       .select('group_id, user_id')
       .in('group_id', groupIds);
 
-    // Get profiles for all members
     const allUserIds = [...new Set((allMembers || []).map(m => m.user_id))];
     let profiles = {};
     if (allUserIds.length > 0) {
@@ -43,7 +38,6 @@ export async function GET() {
       if (pData) pData.forEach(p => { profiles[p.moodle_id] = p; });
     }
 
-    // Get last message for each group
     const lastMsgs = {};
     for (const gid of groupIds) {
       const { data: msgs } = await sb
@@ -78,17 +72,17 @@ export async function GET() {
 
     return NextResponse.json(result);
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
 // POST: create a group
 export async function POST(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const { userid } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userid } = auth;
+
     const { name, member_ids } = await request.json();
 
     if (!name?.trim()) {
@@ -100,18 +94,15 @@ export async function POST(request) {
 
     const sb = getSupabaseAdmin();
 
-    // Ensure own profile exists
     await sb.from('profiles').upsert(
       { moodle_id: userid, name: `User ${userid}` },
       { onConflict: 'moodle_id', ignoreDuplicates: true }
     );
 
-    // Generate a color for the group
     const colors = ['#6375f0', '#3dae72', '#e5534b', '#d4843e', '#c6a236', '#8b5cf6', '#ec4899', '#14b8a6'];
     const color = colors[Math.floor(Math.random() * colors.length)];
     const avatar = name.trim().charAt(0);
 
-    // Create group
     const { data: group, error: gErr } = await sb
       .from('groups')
       .insert({ name: name.trim(), avatar, color, creator_id: userid })
@@ -119,7 +110,6 @@ export async function POST(request) {
       .single();
     if (gErr) throw gErr;
 
-    // Add members (creator + selected friends)
     const uniqueIds = [...new Set([userid, ...member_ids])];
     const memberRows = uniqueIds.map(uid => ({ group_id: group.id, user_id: uid }));
     const { error: mErr } = await sb.from('group_members').insert(memberRows);
@@ -127,17 +117,17 @@ export async function POST(request) {
 
     return NextResponse.json({ ok: true, group_id: group.id });
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
 // DELETE: leave group
 export async function DELETE(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const { userid } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userid } = auth;
+
     const { group_id } = await request.json();
 
     if (!group_id) {
@@ -146,10 +136,8 @@ export async function DELETE(request) {
 
     const sb = getSupabaseAdmin();
 
-    // Remove user from group
     await sb.from('group_members').delete().eq('group_id', group_id).eq('user_id', userid);
 
-    // If no members left, delete the group
     const { data: remaining } = await sb.from('group_members').select('id').eq('group_id', group_id).limit(1);
     if (!remaining || remaining.length === 0) {
       await sb.from('groups').delete().eq('id', group_id);
@@ -157,6 +145,6 @@ export async function DELETE(request) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getToken, isAuthenticated } from '../../../lib/auth/token-manager.js';
+import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 // GET: list notifications for current user
-export async function GET() {
+export async function GET(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const { userid } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userid } = auth;
     const sb = getSupabaseAdmin();
 
     const { data, error } = await sb
@@ -21,17 +20,17 @@ export async function GET() {
     if (error) throw error;
     return NextResponse.json(data);
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
 // PATCH: mark notifications as read
 export async function PATCH(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const { userid } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userid } = auth;
+
     const { id, all } = await request.json();
     const sb = getSupabaseAdmin();
 
@@ -53,6 +52,6 @@ export async function PATCH(request) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

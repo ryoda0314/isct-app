@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
-import { getToken } from '../../../../lib/auth/token-manager.js';
+import { requireAuth } from '../../../../lib/auth/require-auth.js';
 import { fetchUserCourses } from '../../../../lib/api/courses.js';
 import { fetchAssignments, fetchSubmissionStatus } from '../../../../lib/api/assignments.js';
 import { transformCourses } from '../../../../lib/transform/course-transform.js';
 import { transformAssignments, updateAssignmentStatus } from '../../../../lib/transform/assignment-transform.js';
 
-export async function GET() {
+export async function GET(request) {
   try {
-    const { wstoken, userid } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { wstoken, userid } = auth;
+
     const raw = await fetchUserCourses(wstoken, userid);
     const courses = transformCourses(raw);
 
@@ -32,6 +35,6 @@ export async function GET() {
 
     return NextResponse.json({ assignments });
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

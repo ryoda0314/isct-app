@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getToken, isAuthenticated } from '../../../lib/auth/token-manager.js';
+import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 export async function GET(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+
     const { searchParams } = new URL(request.url);
     const courseId = searchParams.get('course_id');
     if (!courseId) return NextResponse.json({ error: 'course_id required' }, { status: 400 });
@@ -22,16 +22,16 @@ export async function GET(request) {
     if (error) throw error;
     return NextResponse.json(data);
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
 export async function POST(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const { userid } = await getToken();
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userid } = auth;
+
     const { course_id, text } = await request.json();
     if (!course_id || !text?.trim()) {
       return NextResponse.json({ error: 'course_id and text required' }, { status: 400 });
@@ -39,7 +39,6 @@ export async function POST(request) {
 
     const sb = getSupabaseAdmin();
 
-    // Ensure profile exists
     await sb.from('profiles').upsert(
       { moodle_id: userid, name: `User ${userid}` },
       { onConflict: 'moodle_id', ignoreDuplicates: true }
@@ -54,6 +53,6 @@ export async function POST(request) {
     if (error) throw error;
     return NextResponse.json(data);
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

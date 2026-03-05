@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getToken, isAuthenticated } from '../../../../lib/auth/token-manager.js';
+import { requireAuth } from '../../../../lib/auth/require-auth.js';
 
-export async function GET() {
+export async function GET(request) {
   try {
-    if (!isAuthenticated()) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-    const { userid, fullname } = await getToken();
-    return NextResponse.json({ userid, fullname });
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    return NextResponse.json({ userid: auth.userid, fullname: auth.fullname });
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

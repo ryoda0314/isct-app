@@ -74,9 +74,11 @@ export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefr
   /* --- mobile: grid (rows=periods, cols=days) with vertical scroll --- */
   if(mob){
     return(<>
-      <header style={{display:"flex",alignItems:"center",gap:8,padding:"0 12px",height:46,borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}>
-        <h1 style={{flex:1,margin:0,fontSize:16,fontWeight:700,color:T.txH,display:"flex",alignItems:"center",gap:6}}>時間割 <QDrop/></h1>
-        <RefreshBtn/>
+      <header style={{display:"flex",alignItems:"center",gap:8,padding:"env(safe-area-inset-top) 12px 0",minHeight:46,borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,width:"100%",height:46}}>
+          <h1 style={{flex:1,margin:0,fontSize:16,fontWeight:700,color:T.txH,display:"flex",alignItems:"center",gap:6}}>時間割 <QDrop/></h1>
+          <RefreshBtn/>
+        </div>
       </header>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:8}}>
         <div style={{display:"grid",gridTemplateColumns:"32px repeat(5,1fr)",gap:2}}>
