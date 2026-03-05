@@ -73,6 +73,9 @@ export async function POST(request) {
     if (!group_id || !text?.trim()) {
       return NextResponse.json({ error: 'group_id and text required' }, { status: 400 });
     }
+    if (text.length > 2000) {
+      return NextResponse.json({ error: 'Text too long' }, { status: 400 });
+    }
 
     const sb = getSupabaseAdmin();
 

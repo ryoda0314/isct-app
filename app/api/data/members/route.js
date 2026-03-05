@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../../lib/auth/require-auth.js';
 import { fetchEnrolledUsers } from '../../../../lib/api/courses.js';
+import { isEnrolledInCourse } from '../../../../lib/auth/course-enrollment.js';
 
 export async function GET(request) {
   try {
@@ -13,7 +14,13 @@ export async function GET(request) {
       return NextResponse.json({ error: 'courseid required' }, { status: 400 });
     }
 
-    const { wstoken } = auth;
+    const { wstoken, userid } = auth;
+
+    // H3: Verify course enrollment
+    if (!await isEnrolledInCourse(wstoken, userid, courseid)) {
+      return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
+    }
+
     const users = await fetchEnrolledUsers(wstoken, Number(courseid));
 
     const members = users.map(u => ({

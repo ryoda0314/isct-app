@@ -1,15 +1,16 @@
 # セキュリティ監査レポート -- ISCT Campus SNS
 
 **監査日:** 2026-03-05
+**最終更新:** 2026-03-06
 
 ## 総合サマリー
 
 | 深刻度 | 件数 | ステータス |
 |--------|------|-----------|
-| CRITICAL | 5 | **対応済み** |
-| HIGH | 7 | H1,H2,H5,H7 対応済み / H3,H4,H6 未対応 |
-| MEDIUM | 8 | M7 対応済み / その他 未対応 |
-| LOW | 4 | 未対応 |
+| CRITICAL | 5 | **全件対応済み** |
+| HIGH | 7 | **全件対応済み** |
+| MEDIUM | 8 | **全件対応済み** |
+| LOW | 4 | L1 受容 / L2,L3,L4 **対応済み** |
 | **合計** | **24** | |
 
 ---
@@ -55,22 +56,25 @@
 - **内容:** `conversation_id` を指定すれば非参加者でもDMにメッセージ挿入可能。
 - **対策:** `conversation_id` 指定時にuser1_id/user2_idとの一致を検証。
 
-### H3. IDOR -- コース登録確認なし（メッセージ・教材・メンバー）
+### H3. IDOR -- コース登録確認なし（メッセージ・教材・メンバー） ✅ 対応済み
 - **場所:** `app/api/messages/route.js`, `app/api/shared-materials/route.js`, `app/api/data/members/route.js`
 - **内容:** 未登録コースのメッセージ閲覧・投稿、教材DL、メンバー一覧取得が可能。
+- **対策:** `lib/auth/course-enrollment.js` でMoodle APIによるコース登録確認を実装（10分キャッシュ）。全コース関連APIルートに検証を追加。
 
-### H4. ファイルアップロードにサイズ・種類の検証なし
+### H4. ファイルアップロードにサイズ・種類の検証なし ✅ 対応済み
 - **場所:** `app/api/shared-materials/route.js:38-105`
 - **内容:** `.html`等どんなファイルでもアップロード可能。公開URLからストアドXSS成立。
+- **対策:** 最大10MBのサイズ制限と、危険な拡張子（`.html`, `.js`, `.svg`, `.exe` 等16種）のブロックリストを追加。
 
 ### H5. SSRF / トークン漏洩（プロキシのドメインチェック不備） ✅ 対応済み
 - **場所:** `app/api/data/materials/proxy/route.js:17-31`
 - **内容:** `startsWith` によるドメインチェックが回避可能。リダイレクト経由でwstoken漏洩。
 - **対策:** `new URL()` でホスト名をパースして厳密に検証。`redirect: 'error'` でリダイレクトを無効化。
 
-### H6. 暗号化パスフレーズが推測可能
+### H6. 暗号化パスフレーズが推測可能 ✅ 対応済み
 - **場所:** `lib/config.js:7-11`
 - **内容:** `CRED_SECRET` 未設定時、`hostname:username:campus-sns-v1` から導出。推測で復号可能。
+- **対策:** 新規インストールではランダムな秘密鍵を自動生成・永続化（`data/.cred-secret`）。既存環境はレガシー導出で後方互換を維持しつつ警告を表示。`.gitignore` に `.cred-secret` を追加。
 
 ### H7. `data/credentials.enc` が `.gitignore` に未記載 ✅ 対応済み
 - **場所:** `.gitignore`
@@ -81,43 +85,63 @@
 
 ## MEDIUM（中）
 
-### M1. Content-Security-Policy ヘッダー未設定
+### M1. Content-Security-Policy ヘッダー未設定 ✅ 対応済み
 - **場所:** `middleware.js`
+- **対策:** CSP ヘッダーを追加。`default-src 'self'`, `connect-src` に Supabase と LMS ドメインを許可、`frame-ancestors 'none'` 等。
 
-### M2. HSTS (Strict-Transport-Security) 未設定
+### M2. HSTS (Strict-Transport-Security) 未設定 ✅ 対応済み
 - **場所:** `middleware.js`
+- **対策:** `Strict-Transport-Security: max-age=63072000; includeSubDomains` を追加。
 
-### M3. CSRF保護なし
+### M3. CSRF保護なし ✅ 対応済み
 - **場所:** 全APIルート（POST/PATCH/DELETE）
+- **対策:** middleware で Origin ヘッダーと Host の一致を検証。不一致の場合は 403 を返却。
 
-### M4. レート制限なし
+### M4. レート制限なし ✅ 対応済み
 - **場所:** 全APIルート（auth, message, upload全て）
+- **対策:** middleware にインメモリ固定ウィンドウ式レート制限を追加（120リクエスト/分/IP）。
 
-### M5. PBKDF2 イテレーション 100,000回（OWASP推奨は600,000回以上）
+### M5. PBKDF2 イテレーション 100,000回（OWASP推奨は600,000回以上） ✅ 対応済み
 - **場所:** `lib/credentials.js:6`
+- **対策:** イテレーション回数を 600,000 に増加。保存時に `kdf_iterations` フィールドを記録し、旧データ（100k）との後方互換を維持。
 
-### M6. 公開Storageバケット（全アップロードファイルが公開URL）
+### M6. 公開Storageバケット（全アップロードファイルが公開URL） ✅ 対応済み
 - **場所:** `supabase/migration.sql:97-98`
+- **対策:** API側で `getPublicUrl()` → `createSignedUrl()` (1時間有効) に変更。`supabase/private-bucket.sql` でバケットを非公開に変更するSQLを用意（要手動実行）。
 
 ### M7. エラーメッセージに `err.message` をそのまま返却 ✅ 対応済み
 - **場所:** 全APIルート
 - **対策:** 全ルートで `err.message` を `'Internal error'` に統一。
 
-### M8. テキスト入力の最大長チェックなし
+### M8. テキスト入力の最大長チェックなし ✅ 対応済み
 - **場所:** dm, messages, groups の各APIルート
+- **対策:** メッセージ本文 2,000文字、グループ名 100文字の上限を追加。
 
 ---
 
 ## LOW（低）
 
-### L1. TOTP SecretとPasswordが同一ファイルに暗号化保存
+### L1. TOTP SecretとPasswordが同一ファイルに暗号化保存 ⚠️ 受容
 - **場所:** `lib/credentials.js`
+- **理由:** 単一ユーザーのローカルアプリであり、分離によるセキュリティ上のメリットが限定的。AES-256-GCM + PBKDF2 600k回で十分な保護。
 
-### L2. トークンTTL 4時間はやや長い
-- **場所:** `lib/auth/token-manager.js:11`
+### L2. トークンTTL 4時間はやや長い ✅ 対応済み
+- **場所:** `lib/auth/token-manager.js:12`
+- **対策:** TTL を 4時間 → 2時間に短縮。セッションCookieの `maxAge` も連動して変更。
 
-### L3. Circuit Breakerが自動リセットしない
+### L3. Circuit Breakerが自動リセットしない ✅ 対応済み
 - **場所:** `lib/auth/token-manager.js:20-22`
+- **対策:** 60秒後に `failCount` を自動リセットするタイマーを追加。`invalidateToken()` でもタイマーをクリア。
 
-### L4. `X-XSS-Protection: 1` は非推奨（逆にリスク）
+### L4. `X-XSS-Protection: 1` は非推奨（逆にリスク） ✅ 対応済み
 - **場所:** `middleware.js:8`
+- **対策:** `X-XSS-Protection` ヘッダーを削除。CSP で代替。
+
+---
+
+## 手動対応が必要な項目
+
+以下はSupabase Dashboard上で手動実行が必要です:
+
+1. **RLSポリシー更新** (C2): `supabase/enable-rls.sql` を SQL Editor で実行
+2. **Storageバケット非公開化** (M6): `supabase/private-bucket.sql` を SQL Editor で実行

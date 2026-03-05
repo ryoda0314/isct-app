@@ -1,15 +1,24 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
+import { isEnrolledInCourse } from '../../../lib/auth/course-enrollment.js';
+
+const MAX_TEXT_LENGTH = 2000;
 
 export async function GET(request) {
   try {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
+    const { wstoken, userid } = auth;
 
     const { searchParams } = new URL(request.url);
     const courseId = searchParams.get('course_id');
     if (!courseId) return NextResponse.json({ error: 'course_id required' }, { status: 400 });
+
+    // H3: Verify course enrollment
+    if (!await isEnrolledInCourse(wstoken, userid, courseId)) {
+      return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
+    }
 
     const sb = getSupabaseAdmin();
     const { data, error } = await sb
@@ -30,11 +39,21 @@ export async function POST(request) {
   try {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
-    const { userid } = auth;
+    const { wstoken, userid } = auth;
 
     const { course_id, text } = await request.json();
     if (!course_id || !text?.trim()) {
       return NextResponse.json({ error: 'course_id and text required' }, { status: 400 });
+    }
+
+    // M8: Text length limit
+    if (text.length > MAX_TEXT_LENGTH) {
+      return NextResponse.json({ error: 'Text too long' }, { status: 400 });
+    }
+
+    // H3: Verify course enrollment
+    if (!await isEnrolledInCourse(wstoken, userid, course_id)) {
+      return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
     }
 
     const sb = getSupabaseAdmin();

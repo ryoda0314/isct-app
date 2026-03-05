@@ -1,15 +1,30 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
+import { isEnrolledInCourse } from '../../../lib/auth/course-enrollment.js';
+
+// H4: File upload restrictions
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const BLOCKED_EXTENSIONS = new Set([
+  '.html', '.htm', '.xhtml', '.js', '.jsx', '.ts', '.tsx',
+  '.svg', '.xml', '.php', '.asp', '.aspx', '.jsp',
+  '.exe', '.bat', '.cmd', '.sh', '.ps1', '.msi',
+]);
 
 export async function GET(request) {
   try {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
+    const { wstoken, userid } = auth;
 
     const { searchParams } = new URL(request.url);
     const courseId = searchParams.get('course_id');
     if (!courseId) return NextResponse.json({ error: 'course_id required' }, { status: 400 });
+
+    // H3: Verify course enrollment
+    if (!await isEnrolledInCourse(wstoken, userid, courseId)) {
+      return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
+    }
 
     const sb = getSupabaseAdmin();
     const { data, error } = await sb
@@ -21,12 +36,13 @@ export async function GET(request) {
 
     if (error) throw error;
 
-    const files = (data || []).map(row => {
-      const { data: urlData } = sb.storage
+    // M6: Use signed URLs instead of public URLs
+    const files = await Promise.all((data || []).map(async (row) => {
+      const { data: urlData } = await sb.storage
         .from('shared-materials')
-        .getPublicUrl(row.storage_path);
-      return { ...row, url: urlData?.publicUrl || '' };
-    });
+        .createSignedUrl(row.storage_path, 3600);
+      return { ...row, url: urlData?.signedUrl || '' };
+    }));
 
     return NextResponse.json(files);
   } catch (err) {
@@ -38,7 +54,7 @@ export async function POST(request) {
   try {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
-    const { userid, fullname } = auth;
+    const { wstoken, userid, fullname } = auth;
 
     const formData = await request.formData();
     const file = formData.get('file');
@@ -49,6 +65,22 @@ export async function POST(request) {
       return NextResponse.json({ error: 'file and course_id required' }, { status: 400 });
     }
 
+    // H4: Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: 'File too large (max 10MB)' }, { status: 400 });
+    }
+
+    // H4: Validate file extension
+    const ext = (file.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+    if (BLOCKED_EXTENSIONS.has(ext)) {
+      return NextResponse.json({ error: 'File type not allowed' }, { status: 400 });
+    }
+
+    // H3: Verify course enrollment
+    if (!await isEnrolledInCourse(wstoken, userid, courseId)) {
+      return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
+    }
+
     const sb = getSupabaseAdmin();
 
     await sb.from('profiles').upsert(
@@ -57,7 +89,6 @@ export async function POST(request) {
     );
 
     const ts = Date.now();
-    const ext = (file.name.match(/\.[^.]+$/) || [''])[0];
     const storagePath = `${courseId}/${ts}${ext}`;
     const buf = Buffer.from(await file.arrayBuffer());
 
@@ -86,10 +117,11 @@ export async function POST(request) {
 
     if (insertErr) throw insertErr;
 
-    const { data: urlData } = sb.storage
+    // M6: Use signed URL
+    const { data: urlData } = await sb.storage
       .from('shared-materials')
-      .getPublicUrl(storagePath);
-    row.url = urlData?.publicUrl || '';
+      .createSignedUrl(storagePath, 3600);
+    row.url = urlData?.signedUrl || '';
 
     return NextResponse.json(row);
   } catch (err) {

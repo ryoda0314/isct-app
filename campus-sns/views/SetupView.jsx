@@ -60,8 +60,8 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
 
         {/* Logo / Header */}
         <div style={{textAlign:"center",marginBottom:32}}>
-          <div style={{width:56,height:56,borderRadius:16,background:`${T.accent}18`,display:"inline-flex",alignItems:"center",justifyContent:"center",marginBottom:12}}>
-            <span style={{fontSize:24,fontWeight:800,color:T.accent}}>ST</span>
+          <div style={{width:52,height:52,borderRadius:"50%",background:`linear-gradient(135deg, ${T.accent}, ${T.accent}cc)`,display:"inline-flex",alignItems:"center",justifyContent:"center",marginBottom:12,color:"#fff"}}>
+            {I.grad||<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/></svg>}
           </div>
           <h1 style={{fontSize:22,fontWeight:800,color:T.txH,margin:"0 0 6px",letterSpacing:-.3}}>ScienceTokyo App</h1>
           <p style={{fontSize:13,color:T.txD,margin:0}}>LMSから時間割・課題を自動取得</p>
@@ -77,7 +77,7 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
               style={{width:"100%",padding:"12px 14px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:16,outline:"none",boxSizing:"border-box"}}
               value={userId}
               onChange={e=>setUserId(e.target.value)}
-              placeholder="24B00000"
+              placeholder="abcd1234"
               autoComplete="username"
               autoCapitalize="none"
             />
@@ -95,7 +95,7 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
                 autoComplete="current-password"
               />
               <button onClick={()=>setShowPw(p=>!p)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>
-                {showPw?I.eye||"👁":I.eyeOff||"👁‍🗨"}
+                {showPw?I.eye:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 01-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>}
               </button>
             </div>
           </div>

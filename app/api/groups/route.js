@@ -88,6 +88,9 @@ export async function POST(request) {
     if (!name?.trim()) {
       return NextResponse.json({ error: 'name required' }, { status: 400 });
     }
+    if (name.trim().length > 100) {
+      return NextResponse.json({ error: 'Name too long' }, { status: 400 });
+    }
     if (!member_ids || !Array.isArray(member_ids) || member_ids.length === 0) {
       return NextResponse.json({ error: 'member_ids required' }, { status: 400 });
     }
