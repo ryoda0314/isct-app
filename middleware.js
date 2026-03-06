@@ -69,8 +69,8 @@ export function middleware(request) {
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com",
+      "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
       "img-src 'self' https: data: blob:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lms.s.isct.ac.jp",
       "font-src 'self' data:",
