@@ -2,22 +2,26 @@ import { NextResponse } from 'next/server';
 
 // M4: In-memory rate limiter (fixed window)
 const hits = new Map();
+const WINDOW_MS = 60_000;
+const MAX_HITS = 120;
+
+// Periodic cleanup every 5 minutes to prevent unbounded growth
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of hits) {
+    if (now - v.s > WINDOW_MS) hits.delete(k);
+  }
+}, 5 * 60 * 1000);
+
 function checkRateLimit(ip) {
   const now = Date.now();
-  const windowMs = 60_000;
-  const max = 120;
   let rec = hits.get(ip);
-  if (!rec || now - rec.s > windowMs) {
+  if (!rec || now - rec.s > WINDOW_MS) {
     rec = { s: now, c: 0 };
     hits.set(ip, rec);
   }
   rec.c++;
-  if (hits.size > 5000) {
-    for (const [k, v] of hits) {
-      if (now - v.s > windowMs) hits.delete(k);
-    }
-  }
-  return rec.c <= max;
+  return rec.c <= MAX_HITS;
 }
 
 export function middleware(request) {

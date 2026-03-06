@@ -68,6 +68,7 @@ export default function App(){
   const fetchData=async()=>{
     try{
       const r=await fetch(`${API}/api/data/all`);
+      if(r.status===401){setAppState("setup");return;}
       if(!r.ok) return;
       const d=await r.json();
       if(d.qData) setQDataLive(d.qData);
