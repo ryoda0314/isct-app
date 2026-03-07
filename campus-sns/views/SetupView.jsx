@@ -8,7 +8,7 @@ const API = "";
 // 完全独立のフルスクリーンページ（ボトムバーなし）
 const PAGE={position:"fixed",inset:0,display:"flex",flexDirection:"column",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",zIndex:9999};
 
-export const SetupView = ({ onComplete, onSkip, mob }) => {
+export const SetupView = ({ onComplete, onSkip, onDemo, mob }) => {
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [totpSecret, setTotpSecret] = useState("");
@@ -22,6 +22,12 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
   const handleSubmit = async () => {
     if (!userId || !password || !totpSecret) {
       setError("全ての項目を入力してください");
+      return;
+    }
+    // テストアカウント
+    if (userId === "test" && password === "test" && totpSecret === "TEST") {
+      if (yearGroup) updateUserPref({ yearGroup });
+      onDemo();
       return;
     }
     setLoading(true);

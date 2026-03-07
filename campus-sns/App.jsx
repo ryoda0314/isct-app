@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { T, updateT } from "./theme.js";
 import { I } from "./icons.jsx";
 import { QData, ASGN0, MYTK0, EVENTS0, GRADES0, ATT0, REVIEWS0, MYEVENTS0, DEPTS } from "./data.js";
+import { DEMO_COURSES, DEMO_QDATA, DEMO_ASGN, DEMO_GRADES, DEMO_ATT, DEMO_USER, DEMO_EVENTS, DEMO_REVIEWS, DEMO_MY_EVENTS, DEMO_TASKS } from "./demoData.js";
 import { useNotifications } from "./hooks/useNotifications.js";
 import { useCurrentUser, setCurrentUserFromAPI } from "./hooks/useCurrentUser.js";
 import { usePresence } from "./hooks/usePresence.js";
@@ -55,9 +56,9 @@ export default function App(){
   const saveHidden=ids=>{setHiddenAsgn(ids);try{localStorage.setItem("hiddenAsgn",JSON.stringify(ids));}catch{}};
   const [myTasks,setMyTasks]=useState(MYTK0);
   const [bmarks,setBmarks]=useState([]);
-  const [events]=useState(EVENTS0);
-  const [grades]=useState(GRADES0);
-  const [att]=useState(ATT0);
+  const [events,setEvents]=useState(EVENTS0);
+  const [grades,setGrades]=useState(GRADES0);
+  const [att,setAtt]=useState(ATT0);
   const [reviews,setReviews]=useState(REVIEWS0);
   const [myEvents,setMyEvents]=useState(MYEVENTS0);
   const [pomo,setPomo]=useState({running:false,sec:25*60,mode:"work",sessions:0});
@@ -102,6 +103,7 @@ export default function App(){
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
   useEffect(()=>{try{localStorage.setItem("notifSettings",JSON.stringify(notifSettings));}catch{}},[notifSettings]);
   const onSetupComplete=async()=>{await fetchData();setAppState("ready");refreshRef.current=setInterval(fetchData,15*60*1000);};
+  const onDemo=()=>{setAllCourses(DEMO_COURSES);setQDataLive(DEMO_QDATA);setAsgn(DEMO_ASGN.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setGrades(DEMO_GRADES);setAtt(DEMO_ATT);setCurrentUserFromAPI(DEMO_USER);setCid(DEMO_COURSES[0].id);setAppState("ready");};
 
   const cc=allCourses.find(c=>c.id===cid);
   const userDepts=useMemo(()=>{
@@ -165,7 +167,7 @@ export default function App(){
 
   // --- LOADING / SETUP ---
   if(appState==="loading") return <div style={{position:"fixed",inset:0,display:"flex",flexDirection:"column",background:T.bg,color:T.txD,fontFamily:"'Inter',sans-serif",zIndex:9999}}>{mob&&<div style={{paddingTop:"env(safe-area-inset-top)",background:T.bg2,flexShrink:0}}><div style={{height:46,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:16,fontWeight:700,color:T.txH}}>ScienceTokyo App</span></div></div>}<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><Loader msg="読み込み中" size="lg"/></div>{mob&&<div style={{paddingBottom:"env(safe-area-inset-bottom)",background:T.bg,flexShrink:0}}/>}<style>{`html,body{background:${T.bg};margin:0}`}</style></div>;
-  if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={()=>{setMockMode(true);setAppState("ready");}} mob={mob} dark={dark}/>;
+  if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={()=>{setMockMode(true);setAppState("ready");}} onDemo={onDemo} mob={mob} dark={dark}/>;
 
   // --- DESKTOP ---
   if(!mob){
