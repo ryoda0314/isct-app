@@ -84,6 +84,7 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
     <div style={{display:"flex",flexDirection:"column",flex:1,height:"100%"}}>
       <Header/>
       <div style={{flex:1,overflow:"auto",WebkitOverflowScrolling:"touch"}}>
+        <div style={{minHeight:"100%",display:"flex",flexDirection:"column",justifyContent:"center"}}>
         <div style={{padding:mob?"20px 24px":"40px",maxWidth:400,width:"100%",margin:"0 auto",boxSizing:"border-box"}}>
 
           {/* Subtitle */}
@@ -152,6 +153,7 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
           <p style={{fontSize:11,color:T.txD,textAlign:"center",lineHeight:1.6,margin:"16px 0 0"}}>
             認証情報はAES-256-GCMで暗号化して保存されます
           </p>
+        </div>
         </div>
       </div>
       <div style={{paddingBottom:"env(safe-area-inset-bottom)",flexShrink:0}}/>
