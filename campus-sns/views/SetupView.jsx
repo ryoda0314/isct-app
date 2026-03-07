@@ -100,10 +100,15 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
             </div>
             <div style={{marginTop:16}}>
               <label style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:8,display:"block"}}>学年グループ</label>
-              <div style={{display:"flex",gap:8}}>
-                {["23B","24B","25B"].map(yg=>(
-                  <button key={yg} onClick={()=>setYearGroup(yearGroup===yg?null:yg)} style={{flex:1,padding:"10px 0",borderRadius:10,border:`1px solid ${yearGroup===yg?T.accent:T.bd}`,background:yearGroup===yg?`${T.accent}18`:T.bg3,color:yearGroup===yg?T.accent:T.txD,fontSize:15,fontWeight:yearGroup===yg?700:500,cursor:"pointer",transition:"all .15s"}}>{yg}</button>
-                ))}
+              <div style={{display:"flex",gap:6,marginBottom:8}}>
+                {["22","23","24","25","26"].map(y=>{const sel=yearGroup&&yearGroup.slice(0,-1)===y;return(
+                  <button key={y} onClick={()=>{const t=yearGroup?yearGroup.slice(-1):"B";setYearGroup(sel?null:y+t);}} style={{flex:1,padding:"10px 0",borderRadius:10,border:`1px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}18`:T.bg3,color:sel?T.accent:T.txD,fontSize:15,fontWeight:sel?700:500,cursor:"pointer",transition:"all .15s"}}>{y}</button>
+                );})}
+              </div>
+              <div style={{display:"flex",gap:6}}>
+                {[["B","学部"],["M","修士"],["D","博士"],["R","研究生"]].map(([k,l])=>{const sel=yearGroup&&yearGroup.endsWith(k);return(
+                  <button key={k} onClick={()=>{if(!yearGroup)return;setYearGroup(yearGroup.slice(0,-1)+k);}} style={{flex:1,padding:"8px 0",borderRadius:10,border:`1px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}18`:T.bg3,color:sel?T.accent:T.txD,fontSize:13,fontWeight:sel?700:500,cursor:yearGroup?"pointer":"default",opacity:yearGroup?1:.4,transition:"all .15s"}}>{l}</button>
+                );})}
               </div>
             </div>
             <button onClick={handleSubmit} disabled={!canSubmit} style={{width:"100%",padding:"14px 0",borderRadius:12,border:"none",background:canSubmit?T.accent:`${T.accent}40`,color:"#fff",fontSize:15,fontWeight:700,cursor:canSubmit?"pointer":"default",marginTop:24,transition:"opacity .15s"}}>ログインして接続</button>

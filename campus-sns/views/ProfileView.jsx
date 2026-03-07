@@ -328,13 +328,24 @@ export const ProfileView=({mob,togTheme,dark,asgn,att,courses=[],user={},notifEn
         <GHead>一般</GHead>
         <GCard>
           <GRow icon={I.users} label="学年グループ" sub="タイムライン投稿に自動タグ付け"
-            right={<div style={{display:"flex",gap:4}}>
-              {["23B","24B","25B"].map(yg=>(
-                <button key={yg} onClick={e=>{e.stopPropagation();updateUserPref({yearGroup:user.yearGroup===yg?null:yg});}}
-                  style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${user.yearGroup===yg?T.accent:T.bd}`,background:user.yearGroup===yg?`${T.accent}14`:"transparent",color:user.yearGroup===yg?T.accent:T.txD,fontSize:12,fontWeight:user.yearGroup===yg?700:500,cursor:"pointer",transition:"all .12s"}}>
-                  {yg}
-                </button>
-              ))}
+            right={<div style={{display:"flex",gap:3,alignItems:"center"}}>
+              <div style={{display:"flex",gap:2}}>
+                {["22","23","24","25","26"].map(y=>{const sel=user.yearGroup&&user.yearGroup.slice(0,-1)===y;return(
+                  <button key={y} onClick={e=>{e.stopPropagation();const t=user.yearGroup?user.yearGroup.slice(-1):"B";updateUserPref({yearGroup:sel?null:y+t});}}
+                    style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}14`:"transparent",color:sel?T.accent:T.txD,fontSize:11,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
+                    {y}
+                  </button>
+                );})}
+              </div>
+              <div style={{width:1,height:16,background:T.bd,margin:"0 2px"}}/>
+              <div style={{display:"flex",gap:2}}>
+                {[["B","B"],["M","M"],["D","D"],["R","R"]].map(([k,l])=>{const sel=user.yearGroup&&user.yearGroup.endsWith(k);return(
+                  <button key={k} onClick={e=>{e.stopPropagation();if(!user.yearGroup)return;updateUserPref({yearGroup:user.yearGroup.slice(0,-1)+k});}}
+                    style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}14`:"transparent",color:sel?T.accent:T.txD,fontSize:11,fontWeight:sel?700:500,cursor:user.yearGroup?"pointer":"default",opacity:user.yearGroup?1:.4,transition:"all .12s"}}>
+                    {l}
+                  </button>
+                );})}
+              </div>
             </div>}/>
           <GRow icon={dark?I.moon:I.sun} label="テーマ" onClick={togTheme}
             right={<span style={{fontSize:13,fontWeight:600,color:T.accentSoft}}>{dark?"ダーク":"ライト"}</span>}/>
