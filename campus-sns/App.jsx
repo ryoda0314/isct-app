@@ -153,7 +153,7 @@ export default function App(){
   };
 
   // --- LOADING / SETUP ---
-  if(appState==="loading") return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100dvh",width:"100vw",background:T.bg,color:T.txD,fontFamily:"'Inter',sans-serif"}}><Loader msg="読み込み中" size="lg"/></div>;
+  if(appState==="loading") return <div style={{display:"flex",flexDirection:"column",height:"100dvh",width:"100vw",background:T.bg,color:T.txD,fontFamily:"'Inter',sans-serif"}}>{mob&&<div style={{paddingTop:"env(safe-area-inset-top)",background:T.bg2,flexShrink:0}}><div style={{height:46,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:16,fontWeight:700,color:T.txH}}>ScienceTokyo App</span></div></div>}<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><Loader msg="読み込み中" size="lg"/></div></div>;
   if(appState==="setup") return <div style={{display:"flex",height:"100dvh",width:"100vw",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}><SetupView onComplete={onSetupComplete} onSkip={()=>setAppState("ready")} mob={mob}/></div>;
 
   // --- DESKTOP ---
@@ -198,7 +198,7 @@ export default function App(){
   // --- MOBILE ---
   const mBack=()=>setView("moreMenu");
   return(
-    <div style={{display:"flex",flexDirection:"column",height:"100dvh",width:"100vw",maxWidth:480,margin:"0 auto",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
+    <div style={{display:"flex",flexDirection:"column",height:"100dvh",width:"100vw",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         {view==="home"&&<><MHdr title="ScienceTokyo App" right={<button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} goToBuilding={goToBuilding}/></>}
         {view==="timetable"&&<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding}/>}
