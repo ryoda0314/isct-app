@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { isDemoMode } from '../demoMode.js';
+import { DEMO_NOTIFICATIONS } from '../demoData.js';
 
 export function useNotifications() {
   const [notifications, setNotifications] = useState([]);
@@ -7,6 +9,11 @@ export function useNotifications() {
   const idsRef = useRef(new Set());
 
   const fetchNotifs = useCallback(async () => {
+    if (isDemoMode()) {
+      setNotifications(DEMO_NOTIFICATIONS);
+      setLoading(false);
+      return;
+    }
     try {
       const r = await fetch('/api/notifications');
       if (!r.ok) return;
@@ -29,6 +36,7 @@ export function useNotifications() {
 
   // Realtime subscription
   useEffect(() => {
+    if (isDemoMode()) return;
     const sb = getSupabaseClient();
     const channel = sb
       .channel('notifications')

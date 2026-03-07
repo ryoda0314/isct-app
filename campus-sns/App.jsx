@@ -3,6 +3,7 @@ import { T, updateT } from "./theme.js";
 import { I } from "./icons.jsx";
 import { QData, ASGN0, MYTK0, EVENTS0, GRADES0, ATT0, REVIEWS0, MYEVENTS0, DEPTS } from "./data.js";
 import { DEMO_COURSES, DEMO_QDATA, DEMO_ASGN, DEMO_GRADES, DEMO_ATT, DEMO_USER, DEMO_EVENTS, DEMO_REVIEWS, DEMO_MY_EVENTS, DEMO_TASKS } from "./demoData.js";
+import { setDemoMode } from "./demoMode.js";
 import { useNotifications } from "./hooks/useNotifications.js";
 import { useCurrentUser, setCurrentUserFromAPI } from "./hooks/useCurrentUser.js";
 import { usePresence } from "./hooks/usePresence.js";
@@ -103,7 +104,7 @@ export default function App(){
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
   useEffect(()=>{try{localStorage.setItem("notifSettings",JSON.stringify(notifSettings));}catch{}},[notifSettings]);
   const onSetupComplete=async()=>{await fetchData();setAppState("ready");refreshRef.current=setInterval(fetchData,15*60*1000);};
-  const onDemo=()=>{setAllCourses(DEMO_COURSES);setQDataLive(DEMO_QDATA);setAsgn(DEMO_ASGN.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setGrades(DEMO_GRADES);setAtt(DEMO_ATT);setCurrentUserFromAPI(DEMO_USER);setCid(DEMO_COURSES[0].id);setAppState("ready");};
+  const onDemo=()=>{setDemoMode(true);setAllCourses(DEMO_COURSES);setQDataLive(DEMO_QDATA);setAsgn(DEMO_ASGN.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setGrades(DEMO_GRADES);setAtt(DEMO_ATT);setCurrentUserFromAPI(DEMO_USER);setCid(DEMO_COURSES[0].id);setAppState("ready");};
 
   const cc=allCourses.find(c=>c.id===cid);
   const userDepts=useMemo(()=>{
@@ -129,7 +130,7 @@ export default function App(){
   const openGroupChat=(g)=>{setView("dm");};
   const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat};
   const togTheme=()=>setDark(p=>!p);
-  const onLogout=async()=>{try{await fetch("/api/auth/logout",{method:"POST"});}catch{}if(refreshRef.current)clearInterval(refreshRef.current);setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setView("home");setMockMode(false);setAppState("setup");};
+  const onLogout=async()=>{setDemoMode(false);try{await fetch("/api/auth/logout",{method:"POST"});}catch{}if(refreshRef.current)clearInterval(refreshRef.current);setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setView("home");setMockMode(false);setAppState("setup");};
 
   // Lock screen for mock mode
   const LockedView=({title})=><div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,gap:12}}>

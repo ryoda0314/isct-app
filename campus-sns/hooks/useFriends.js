@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { isDemoMode } from '../demoMode.js';
+import { DEMO_FRIENDS, DEMO_FRIEND_PENDING, DEMO_FRIEND_SENT } from '../demoData.js';
 
 export function useFriends() {
   const [friends, setFriends] = useState([]);
@@ -8,6 +10,13 @@ export function useFriends() {
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
+    if (isDemoMode()) {
+      setFriends(DEMO_FRIENDS);
+      setPending(DEMO_FRIEND_PENDING);
+      setSent(DEMO_FRIEND_SENT);
+      setLoading(false);
+      return;
+    }
     try {
       const [fR, pR, sR] = await Promise.all([
         fetch('/api/friends?type=friends'),
@@ -25,6 +34,7 @@ export function useFriends() {
 
   // Realtime subscription
   useEffect(() => {
+    if (isDemoMode()) return;
     const sb = getSupabaseClient();
     const channel = sb
       .channel('friendships_changes')

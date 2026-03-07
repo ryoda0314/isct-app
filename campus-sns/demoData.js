@@ -107,7 +107,87 @@ const DEMO_TASKS = [
   { id: "tk_3", t: "図書館で参考書を借りる", d: true, due: null },
 ];
 
+// ── 友達 ──
+const DEMO_FRIENDS = [
+  { friendId: 10001, name: "山田花子", avatar: "H", color: "#e5534b", dept: "情報工学系" },
+  { friendId: 10002, name: "鈴木一郎", avatar: "I", color: "#6375f0", dept: "数理・計算科学系" },
+  { friendId: 10003, name: "田中美咲", avatar: "M", color: "#3dae72", dept: "情報工学系" },
+  { friendId: 10004, name: "佐藤健太", avatar: "K", color: "#d4843e", dept: "電気電子系" },
+  { friendId: 10005, name: "高橋優", avatar: "Y", color: "#a855c7", dept: "機械系" },
+];
+const DEMO_FRIEND_PENDING = [
+  { id: 501, fromId: 10006, toId: 99999, name: "伊藤翔太", avatar: "S", color: "#2d9d8f", dept: "情報通信系", isSender: false, status: "pending" },
+];
+const DEMO_FRIEND_SENT = [
+  { id: 502, fromId: 99999, toId: 10007, name: "渡辺結衣", avatar: "Y", color: "#c75d8e", dept: "応用化学系", isSender: true, status: "pending" },
+];
+
+// ── DM 会話 ──
+const DEMO_DM_CONVERSATIONS = [
+  {
+    id: 301, withId: 10001, withName: "山田花子", withAvatar: "H", withColor: "#e5534b",
+    msgs: [
+      { id: 1001, senderId: 10001, uid: 10001, text: "明日のアルゴリズムの課題、もう始めた？", ts: d(-1, 14, 30) },
+      { id: 1002, senderId: 99999, uid: 99999, text: "まだ…今日から始める予定", ts: d(-1, 14, 35) },
+      { id: 1003, senderId: 10001, uid: 10001, text: "ヒープソートの計算量の証明が分からなくて😭", ts: d(-1, 14, 38) },
+      { id: 1004, senderId: 99999, uid: 99999, text: "それなら一緒に図書館で勉強しない？", ts: d(-1, 14, 42) },
+      { id: 1005, senderId: 10001, uid: 10001, text: "いいね！16時に南2号館の前で！", ts: d(-1, 14, 45) },
+    ],
+  },
+  {
+    id: 302, withId: 10002, withName: "鈴木一郎", withAvatar: "I", withColor: "#6375f0",
+    msgs: [
+      { id: 1006, senderId: 10002, uid: 10002, text: "線形代数の問題セット5の問3って分かる？", ts: d(0, 10, 15) },
+      { id: 1007, senderId: 99999, uid: 99999, text: "固有ベクトルのやつ？あれは対角化してから考えるとわかりやすいよ", ts: d(0, 10, 22) },
+      { id: 1008, senderId: 10002, uid: 10002, text: "ありがとう！やってみる", ts: d(0, 10, 25) },
+    ],
+  },
+  {
+    id: 303, withId: 10003, withName: "田中美咲", withAvatar: "M", withColor: "#3dae72",
+    msgs: [
+      { id: 1009, senderId: 10003, uid: 10003, text: "実験レポート、参考文献何使った？", ts: d(-2, 20, 0) },
+      { id: 1010, senderId: 99999, uid: 99999, text: "パタヘネの教科書とWikipediaのRISC-Vの記事", ts: d(-2, 20, 10) },
+    ],
+  },
+];
+
+// ── グループ ──
+const DEMO_GROUPS = [
+  {
+    id: 401, name: "CSC 勉強会", avatar: null, color: "#a855c7", memberCount: 4,
+    members: [
+      { id: 99999, name: "テスト太郎", avatar: "T", color: "#888" },
+      { id: 10001, name: "山田花子", avatar: "H", color: "#e5534b" },
+      { id: 10002, name: "鈴木一郎", avatar: "I", color: "#6375f0" },
+      { id: 10003, name: "田中美咲", avatar: "M", color: "#3dae72" },
+    ],
+    lastMessage: { senderName: "山田花子", text: "今週の土曜、空いてる？", ts: d(-1, 18, 0) },
+  },
+  {
+    id: 402, name: "立志プロジェクトA班", avatar: null, color: "#c75d8e", memberCount: 3,
+    members: [
+      { id: 99999, name: "テスト太郎", avatar: "T", color: "#888" },
+      { id: 10004, name: "佐藤健太", avatar: "K", color: "#d4843e" },
+      { id: 10005, name: "高橋優", avatar: "Y", color: "#a855c7" },
+    ],
+    lastMessage: { senderName: "佐藤健太", text: "スライドの分担決めよう", ts: d(-3, 15, 0) },
+  },
+];
+
+// ── 通知 ──
+const DEMO_NOTIFICATIONS = [
+  { id: 601, type: "deadline", text: "「実験レポート第2回」の締切が明日です", cid: "mc_105", ts: d(0, 9, 0), read: false },
+  { id: 602, type: "course", text: "「データ構造とアルゴリズム」に新しい教材がアップロードされました", cid: "mc_101", ts: d(0, 8, 0), read: false },
+  { id: 603, type: "deadline", text: "「第3回レポート: ソートアルゴリズムの比較」の締切が2日後です", cid: "mc_101", ts: d(-1, 9, 0), read: false },
+  { id: 604, type: "dm", text: "山田花子さんからメッセージが届きました", cid: null, ts: d(-1, 14, 45), read: true },
+  { id: 605, type: "course", text: "「確率と統計」の小テスト3が公開されました", cid: "mc_106", ts: d(-2, 12, 0), read: true },
+  { id: 606, type: "event", text: "「プログラミングコンテスト 2026 Spring」の参加登録が開始しました", cid: null, ts: d(-3, 10, 0), read: true },
+  { id: 607, type: "course", text: "「コンピュータアーキテクチャ」の小テスト2の成績が公開されました", cid: "mc_107", ts: d(-4, 16, 0), read: true },
+];
+
 export {
   DEMO_COURSES, DEMO_QDATA, DEMO_ASGN, DEMO_GRADES, DEMO_ATT,
-  DEMO_USER, DEMO_EVENTS, DEMO_REVIEWS, DEMO_MY_EVENTS, DEMO_TASKS
+  DEMO_USER, DEMO_EVENTS, DEMO_REVIEWS, DEMO_MY_EVENTS, DEMO_TASKS,
+  DEMO_FRIENDS, DEMO_FRIEND_PENDING, DEMO_FRIEND_SENT,
+  DEMO_DM_CONVERSATIONS, DEMO_GROUPS, DEMO_NOTIFICATIONS
 };

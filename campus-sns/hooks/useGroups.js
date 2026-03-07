@@ -1,11 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { isDemoMode } from '../demoMode.js';
+import { DEMO_GROUPS } from '../demoData.js';
 
 export function useGroups() {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchGroups = useCallback(async () => {
+    if (isDemoMode()) {
+      setGroups(DEMO_GROUPS);
+      setLoading(false);
+      return;
+    }
     try {
       const r = await fetch('/api/groups');
       if (!r.ok) return;
@@ -19,6 +26,7 @@ export function useGroups() {
 
   // Realtime: listen for group_members changes (join/leave)
   useEffect(() => {
+    if (isDemoMode()) return;
     const sb = getSupabaseClient();
     const channel = sb
       .channel('group_members_changes')

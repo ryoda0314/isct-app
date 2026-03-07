@@ -1,11 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { isDemoMode } from '../demoMode.js';
+import { DEMO_DM_CONVERSATIONS } from '../demoData.js';
 
 export function useDMList(userId) {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchConvos = useCallback(async () => {
+    if (isDemoMode()) {
+      setConversations(DEMO_DM_CONVERSATIONS);
+      setLoading(false);
+      return;
+    }
     try {
       const r = await fetch('/api/dm');
       if (!r.ok) return;
@@ -22,6 +29,7 @@ export function useDMList(userId) {
 
   // Realtime: listen for new DM messages
   useEffect(() => {
+    if (isDemoMode()) return;
     const sb = getSupabaseClient();
     const channel = sb
       .channel('dm_messages_list')
@@ -30,7 +38,6 @@ export function useDMList(userId) {
         schema: 'public',
         table: 'dm_messages',
       }, () => {
-        // Re-fetch to get updated conversation list with new messages
         fetchConvos();
       })
       .subscribe();
