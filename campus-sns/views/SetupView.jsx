@@ -102,7 +102,7 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
         </div>
       </div>
       <div style={{paddingBottom:"env(safe-area-inset-bottom)",background:T.bg,flexShrink:0}}/>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{overscroll-behavior:none}input,textarea{font-size:16px}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{background:${T.bg};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}input,textarea{font-size:16px}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}`}</style>
     </div>
   );
 };
