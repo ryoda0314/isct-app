@@ -153,7 +153,7 @@ export default function App(){
   };
 
   // --- LOADING / SETUP ---
-  if(appState==="loading") return <div style={{display:"flex",flexDirection:"column",height:"100dvh",width:"100vw",background:T.bg,color:T.txD,fontFamily:"'Inter',sans-serif"}}>{mob&&<div style={{paddingTop:"env(safe-area-inset-top)",background:T.bg2,flexShrink:0}}><div style={{height:46,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:16,fontWeight:700,color:T.txH}}>ScienceTokyo App</span></div></div>}<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><Loader msg="読み込み中" size="lg"/></div></div>;
+  if(appState==="loading") return <div style={{display:"flex",flexDirection:"column",height:"100dvh",width:"100vw",background:T.bg,color:T.txD,fontFamily:"'Inter',sans-serif"}}>{mob&&<div style={{paddingTop:"env(safe-area-inset-top)",background:T.bg2,flexShrink:0}}><div style={{height:46,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:16,fontWeight:700,color:T.txH}}>ScienceTokyo App</span></div></div>}<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><Loader msg="読み込み中" size="lg"/></div>{mob&&<div style={{paddingBottom:"env(safe-area-inset-bottom)",flexShrink:0}}/>}</div>;
   if(appState==="setup") return <div style={{display:"flex",height:"100dvh",width:"100vw",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}><SetupView onComplete={onSetupComplete} onSkip={()=>setAppState("ready")} mob={mob}/></div>;
 
   // --- DESKTOP ---
