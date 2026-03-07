@@ -16,7 +16,7 @@ const DAY_NAMES=["日","月","火","水","木","金","土"];
 
 export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvents=[],quarter,hiddenSet=new Set(),qd,goToBuilding})=>{
   const [now,setNow]=useState(()=>new Date());
-  const [wx,setWx]=useState(null);
+  const [wx,setWx]=useState(()=>{try{const v=localStorage.getItem("wxCache");if(v){const d=JSON.parse(v);if(Date.now()-d._ts<30*60*1000)return d;}return null;}catch{return null;}});
   const [loc,setLoc]=useState(()=>{try{const v=localStorage.getItem("wxLoc");return v?JSON.parse(v):DEF_LOC;}catch{return DEF_LOC;}});
   const [locOpen,setLocOpen]=useState(false);
   const [locQ,setLocQ]=useState("");
@@ -51,7 +51,9 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               }
             }
           }
-          setWx({temp:Math.round(d.current.temperature_2m),code:d.current.weather_code,hi:dy.temperature_2m_max?Math.round(dy.temperature_2m_max[0]):null,lo:dy.temperature_2m_min?Math.round(dy.temperature_2m_min[0]):null,rain:dy.precipitation_probability_max?dy.precipitation_probability_max[0]:null,hourly});
+          const wxData={temp:Math.round(d.current.temperature_2m),code:d.current.weather_code,hi:dy.temperature_2m_max?Math.round(dy.temperature_2m_max[0]):null,lo:dy.temperature_2m_min?Math.round(dy.temperature_2m_min[0]):null,rain:dy.precipitation_probability_max?dy.precipitation_probability_max[0]:null,hourly};
+          setWx(wxData);
+          try{localStorage.setItem("wxCache",JSON.stringify({...wxData,_ts:Date.now()}));}catch{}
         }
       }catch{}
     })();

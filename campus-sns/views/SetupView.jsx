@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
+import { updateUserPref } from "../hooks/useCurrentUser.js";
 
 const API = "";
 
@@ -11,6 +12,7 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [totpSecret, setTotpSecret] = useState("");
+  const [yearGroup, setYearGroup] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [step, setStep] = useState(0);
@@ -32,6 +34,7 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.detail || data.error);
+      if (yearGroup) updateUserPref({ yearGroup });
       onComplete();
     } catch (err) {
       setError(err.message);
@@ -93,6 +96,14 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
                 <label style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:6,display:"block"}}>TOTPシークレットキー</label>
                 <input style={{width:"100%",padding:"12px 14px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:16,outline:"none",boxSizing:"border-box",fontFamily:"monospace",letterSpacing:1}} value={totpSecret} onChange={e=>setTotpSecret(e.target.value.replace(/\s/g,"").toUpperCase())} placeholder="TT5SOVTA4BFN4IND" autoCapitalize="characters" autoComplete="off"/>
                 <p style={{fontSize:11,color:T.txD,margin:"6px 0 0",lineHeight:1.5}}>2段階認証のアプリ設定時に表示されたキー</p>
+              </div>
+            </div>
+            <div style={{marginTop:16}}>
+              <label style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:8,display:"block"}}>学年グループ</label>
+              <div style={{display:"flex",gap:8}}>
+                {["23B","24B","25B"].map(yg=>(
+                  <button key={yg} onClick={()=>setYearGroup(yearGroup===yg?null:yg)} style={{flex:1,padding:"10px 0",borderRadius:10,border:`1px solid ${yearGroup===yg?T.accent:T.bd}`,background:yearGroup===yg?`${T.accent}18`:T.bg3,color:yearGroup===yg?T.accent:T.txD,fontSize:15,fontWeight:yearGroup===yg?700:500,cursor:"pointer",transition:"all .15s"}}>{yg}</button>
+                ))}
               </div>
             </div>
             <button onClick={handleSubmit} disabled={!canSubmit} style={{width:"100%",padding:"14px 0",borderRadius:12,border:"none",background:canSubmit?T.accent:`${T.accent}40`,color:"#fff",fontSize:15,fontWeight:700,cursor:canSubmit?"pointer":"default",marginTop:24,transition:"opacity .15s"}}>ログインして接続</button>

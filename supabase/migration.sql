@@ -154,3 +154,19 @@ create policy "anon_select_group_messages" on group_messages for select to anon 
 
 alter publication supabase_realtime add table group_members;
 alter publication supabase_realtime add table group_messages;
+
+-- 13. posts: コースタイムライン投稿
+create table if not exists posts (
+  id              bigint generated always as identity primary key,
+  course_id       text not null,
+  moodle_user_id  bigint not null references profiles(moodle_id),
+  text            text not null,
+  type            text not null default 'discussion',  -- question, material, info, discussion, poll, anon
+  year_group      text,                                -- 学年グループ (e.g. '23B','24B','25B') null=全体
+  likes           bigint[] default '{}',               -- いいねしたユーザーの moodle_id 配列
+  created_at      timestamptz default now()
+);
+create index if not exists idx_posts_course on posts(course_id, created_at desc);
+alter table posts enable row level security;
+create policy "anon_select_posts" on posts for select to anon using (true);
+alter publication supabase_realtime add table posts;

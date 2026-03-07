@@ -327,6 +327,15 @@ export const ProfileView=({mob,togTheme,dark,asgn,att,courses=[],user={},notifEn
         {/* ═══ 一般 ═══ */}
         <GHead>一般</GHead>
         <GCard>
+          <GRow icon={I.users} label="学年グループ" sub="タイムライン投稿に自動タグ付け"
+            right={<div style={{display:"flex",gap:4}}>
+              {["23B","24B","25B"].map(yg=>(
+                <button key={yg} onClick={e=>{e.stopPropagation();updateUserPref({yearGroup:user.yearGroup===yg?null:yg});}}
+                  style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${user.yearGroup===yg?T.accent:T.bd}`,background:user.yearGroup===yg?`${T.accent}14`:"transparent",color:user.yearGroup===yg?T.accent:T.txD,fontSize:12,fontWeight:user.yearGroup===yg?700:500,cursor:"pointer",transition:"all .12s"}}>
+                  {yg}
+                </button>
+              ))}
+            </div>}/>
           <GRow icon={dark?I.moon:I.sun} label="テーマ" onClick={togTheme}
             right={<span style={{fontSize:13,fontWeight:600,color:T.accentSoft}}>{dark?"ダーク":"ライト"}</span>}/>
           <GRow icon={I.bell} label="通知" onClick={()=>setNotifOpen(p=>!p)}

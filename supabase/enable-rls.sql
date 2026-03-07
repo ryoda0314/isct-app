@@ -67,6 +67,15 @@ do $$ begin
   end if;
 end $$;
 
--- 9. storage: shared-materials バケットの読み取りポリシー
+-- 9. posts (コースタイムライン: リアルタイム購読のため SELECT 許可)
+do $$ begin
+  if exists (select 1 from information_schema.tables where table_name = 'posts') then
+    execute 'alter table posts enable row level security';
+    execute 'drop policy if exists "anon_select_posts" on posts';
+    execute 'create policy "anon_select_posts" on posts for select to anon using (true)';
+  end if;
+end $$;
+
+-- 10. storage: shared-materials バケットの読み取りポリシー
 create policy "anon_read_shared_materials_storage" on storage.objects
   for select to anon using (bucket_id = 'shared-materials');
