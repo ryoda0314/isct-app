@@ -153,7 +153,7 @@ export default function App(){
   };
 
   // --- LOADING / SETUP ---
-  if(appState==="loading") return <div style={{display:"flex",flexDirection:"column",height:"100dvh",width:"100vw",background:T.bg,color:T.txD,fontFamily:"'Inter',sans-serif"}}>{mob&&<div style={{paddingTop:"env(safe-area-inset-top)",background:T.bg2,flexShrink:0}}><div style={{height:46,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:16,fontWeight:700,color:T.txH}}>ScienceTokyo App</span></div></div>}<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><Loader msg="読み込み中" size="lg"/></div>{mob&&<div style={{paddingBottom:"env(safe-area-inset-bottom)",flexShrink:0}}/>}</div>;
+  if(appState==="loading") return <div style={{position:"fixed",inset:0,display:"flex",flexDirection:"column",background:T.bg,color:T.txD,fontFamily:"'Inter',sans-serif",zIndex:9999}}>{mob&&<div style={{paddingTop:"env(safe-area-inset-top)",background:T.bg2,flexShrink:0}}><div style={{height:46,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:16,fontWeight:700,color:T.txH}}>ScienceTokyo App</span></div></div>}<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><Loader msg="読み込み中" size="lg"/></div>{mob&&<div style={{paddingBottom:"env(safe-area-inset-bottom)",background:T.bg,flexShrink:0}}/>}<style>{`html,body{background:${T.bg};margin:0}`}</style></div>;
   if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={()=>setAppState("ready")} mob={mob} dark={dark}/>;
 
   // --- DESKTOP ---
