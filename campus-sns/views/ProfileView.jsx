@@ -113,7 +113,7 @@ const CredForm=({form,setForm,showPw,showTotp,setShowPw,setShowTotp,onSave,savin
 );
 
 /* ─── メイン ─── */
-export const ProfileView=({mob,togTheme,dark,asgn,att,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings})=>{
+export const ProfileView=({mob,togTheme,dark,asgn,att,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout})=>{
   const done=asgn.filter(a=>a.st==="completed").length;
   const total=asgn.length;
   const attAll=Object.values(att);
@@ -374,7 +374,7 @@ export const ProfileView=({mob,togTheme,dark,asgn,att,courses=[],user={},notifEn
           <GRow last danger
             icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>}
             label="ログアウト"
-            onClick={()=>{if(confirm("ログアウトしますか？")){try{fetch("/api/auth/logout",{method:"POST"}).then(()=>location.reload());}catch{location.reload();}}}}/>
+            onClick={()=>{if(confirm("ログアウトしますか？")){onLogout();}}}/>
         </GCard>
 
         {/* フッター */}
