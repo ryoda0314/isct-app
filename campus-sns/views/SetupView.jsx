@@ -17,6 +17,7 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
   const [error, setError] = useState(null);
   const [step, setStep] = useState(0);
   const [showPw, setShowPw] = useState(false);
+  const [showYG, setShowYG] = useState(false);
 
   const handleSubmit = async () => {
     if (!userId || !password || !totpSecret) {
@@ -100,16 +101,24 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
             </div>
             <div style={{marginTop:16}}>
               <label style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:8,display:"block"}}>学年グループ</label>
-              <div style={{display:"flex",gap:6,marginBottom:8}}>
-                {["22","23","24","25","26"].map(y=>{const sel=yearGroup&&yearGroup.slice(0,-1)===y;return(
-                  <button key={y} onClick={()=>{const t=yearGroup?yearGroup.slice(-1):"B";setYearGroup(sel?null:y+t);}} style={{flex:1,padding:"10px 0",borderRadius:10,border:`1px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}18`:T.bg3,color:sel?T.accent:T.txD,fontSize:15,fontWeight:sel?700:500,cursor:"pointer",transition:"all .15s"}}>{y}</button>
-                );})}
+              <div onClick={()=>setShowYG(p=>!p)} style={{padding:"12px 14px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:15,color:yearGroup?T.txH:T.txD}}>{yearGroup||"選択してください"}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{transform:showYG?"rotate(180deg)":"none",transition:"transform .15s"}}><polyline points="6 9 12 15 18 9"/></svg>
               </div>
-              <div style={{display:"flex",gap:6}}>
-                {[["B","学部"],["M","修士"],["D","博士"],["R","研究生"]].map(([k,l])=>{const sel=yearGroup&&yearGroup.endsWith(k);return(
-                  <button key={k} onClick={()=>{if(!yearGroup)return;setYearGroup(yearGroup.slice(0,-1)+k);}} style={{flex:1,padding:"8px 0",borderRadius:10,border:`1px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}18`:T.bg3,color:sel?T.accent:T.txD,fontSize:13,fontWeight:sel?700:500,cursor:yearGroup?"pointer":"default",opacity:yearGroup?1:.4,transition:"all .15s"}}>{l}</button>
-                );})}
-              </div>
+              {showYG&&<div style={{marginTop:8,padding:14,borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3}}>
+                <div style={{fontSize:11,color:T.txD,marginBottom:6,fontWeight:500}}>入学年度</div>
+                <div style={{display:"flex",gap:6,marginBottom:10}}>
+                  {["22","23","24","25","26"].map(y=>{const sel=yearGroup&&yearGroup.slice(0,-1)===y;return(
+                    <button key={y} onClick={()=>{const t=yearGroup?yearGroup.slice(-1):"B";setYearGroup(sel?null:y+t);}} style={{flex:1,padding:"10px 0",borderRadius:8,border:`1px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}18`:"transparent",color:sel?T.accent:T.txD,fontSize:15,fontWeight:sel?700:500,cursor:"pointer",transition:"all .15s"}}>{y}</button>
+                  );})}
+                </div>
+                <div style={{fontSize:11,color:T.txD,marginBottom:6,fontWeight:500}}>課程</div>
+                <div style={{display:"flex",gap:6}}>
+                  {[["B","学部"],["M","修士"],["D","博士"],["R","研究生"]].map(([k,l])=>{const sel=yearGroup&&yearGroup.endsWith(k);return(
+                    <button key={k} onClick={()=>{if(!yearGroup)return;setYearGroup(yearGroup.slice(0,-1)+k);}} style={{flex:1,padding:"8px 0",borderRadius:8,border:`1px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}18`:"transparent",color:sel?T.accent:T.txD,fontSize:13,fontWeight:sel?700:500,cursor:yearGroup?"pointer":"default",opacity:yearGroup?1:.4,transition:"all .15s"}}>{l}</button>
+                  );})}
+                </div>
+              </div>}
             </div>
             <button onClick={handleSubmit} disabled={!canSubmit} style={{width:"100%",padding:"14px 0",borderRadius:12,border:"none",background:canSubmit?T.accent:`${T.accent}40`,color:"#fff",fontSize:15,fontWeight:700,cursor:canSubmit?"pointer":"default",marginTop:24,transition:"opacity .15s"}}>ログインして接続</button>
             <button onClick={onSkip} style={{background:"none",border:"none",color:T.txD,fontSize:13,cursor:"pointer",marginTop:16,textAlign:"center",padding:8,width:"100%"}}>スキップ（モックデータで表示）</button>

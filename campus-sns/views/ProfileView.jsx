@@ -121,6 +121,7 @@ export const ProfileView=({mob,togTheme,dark,asgn,att,courses=[],user={},notifEn
 
   const [credOpen,setCredOpen]=useState(false);
   const [notifOpen,setNotifOpen]=useState(false);
+  const [ygOpen,setYgOpen]=useState(false);
   const [cacheCleared,setCacheCleared]=useState(false);
   const [avEdit,setAvEdit]=useState(false);
   const [uploading,setUploading]=useState(false);
@@ -328,25 +329,32 @@ export const ProfileView=({mob,togTheme,dark,asgn,att,courses=[],user={},notifEn
         <GHead>一般</GHead>
         <GCard>
           <GRow icon={I.users} label="学年グループ" sub="タイムライン投稿に自動タグ付け"
-            right={<div style={{display:"flex",gap:3,alignItems:"center"}}>
-              <div style={{display:"flex",gap:2}}>
+            onClick={()=>setYgOpen(p=>!p)}
+            right={<span style={{fontSize:13,fontWeight:600,color:user.yearGroup?T.accent:T.txD}}>{user.yearGroup||"未設定"}</span>}/>
+          {ygOpen&&<div style={{padding:"8px 14px 12px",display:"flex",flexDirection:"column",gap:8}}>
+            <div>
+              <div style={{fontSize:11,color:T.txD,marginBottom:6,fontWeight:500}}>入学年度</div>
+              <div style={{display:"flex",gap:6}}>
                 {["22","23","24","25","26"].map(y=>{const sel=user.yearGroup&&user.yearGroup.slice(0,-1)===y;return(
                   <button key={y} onClick={e=>{e.stopPropagation();const t=user.yearGroup?user.yearGroup.slice(-1):"B";updateUserPref({yearGroup:sel?null:y+t});}}
-                    style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}14`:"transparent",color:sel?T.accent:T.txD,fontSize:11,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
+                    style={{flex:1,padding:"8px 0",borderRadius:8,border:`1px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}14`:"transparent",color:sel?T.accent:T.txD,fontSize:13,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
                     {y}
                   </button>
                 );})}
               </div>
-              <div style={{width:1,height:16,background:T.bd,margin:"0 2px"}}/>
-              <div style={{display:"flex",gap:2}}>
-                {[["B","B"],["M","M"],["D","D"],["R","R"]].map(([k,l])=>{const sel=user.yearGroup&&user.yearGroup.endsWith(k);return(
+            </div>
+            <div>
+              <div style={{fontSize:11,color:T.txD,marginBottom:6,fontWeight:500}}>課程</div>
+              <div style={{display:"flex",gap:6}}>
+                {[["B","学部"],["M","修士"],["D","博士"],["R","研究生"]].map(([k,l])=>{const sel=user.yearGroup&&user.yearGroup.endsWith(k);return(
                   <button key={k} onClick={e=>{e.stopPropagation();if(!user.yearGroup)return;updateUserPref({yearGroup:user.yearGroup.slice(0,-1)+k});}}
-                    style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}14`:"transparent",color:sel?T.accent:T.txD,fontSize:11,fontWeight:sel?700:500,cursor:user.yearGroup?"pointer":"default",opacity:user.yearGroup?1:.4,transition:"all .12s"}}>
+                    style={{flex:1,padding:"8px 0",borderRadius:8,border:`1px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}14`:"transparent",color:sel?T.accent:T.txD,fontSize:13,fontWeight:sel?700:500,cursor:user.yearGroup?"pointer":"default",opacity:user.yearGroup?1:.4,transition:"all .12s"}}>
                     {l}
                   </button>
                 );})}
               </div>
-            </div>}/>
+            </div>
+          </div>}
           <GRow icon={dark?I.moon:I.sun} label="テーマ" onClick={togTheme}
             right={<span style={{fontSize:13,fontWeight:600,color:T.accentSoft}}>{dark?"ダーク":"ライト"}</span>}/>
           <GRow icon={I.bell} label="通知" onClick={()=>setNotifOpen(p=>!p)}
