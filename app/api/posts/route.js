@@ -86,11 +86,21 @@ export async function POST(request) {
     const row = { course_id, moodle_user_id: userid, text: text.trim(), type };
     if (year_group) row.year_group = year_group;
 
-    const { data, error } = await sb
+    let { data, error } = await sb
       .from('posts')
       .insert(row)
       .select('*, profiles(name, avatar, color)')
       .single();
+
+    // Retry without year_group if column doesn't exist yet
+    if (error?.message?.includes('year_group') && year_group) {
+      delete row.year_group;
+      ({ data, error } = await sb
+        .from('posts')
+        .insert(row)
+        .select('*, profiles(name, avatar, color)')
+        .single());
+    }
 
     if (error) {
       console.error('[Posts POST] insert:', error.message, error.details, error.hint);

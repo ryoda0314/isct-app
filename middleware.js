@@ -73,7 +73,7 @@ export function middleware(request) {
       "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
       "img-src 'self' https: data: blob:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lms.s.isct.ac.jp https://api.open-meteo.com https://geocoding-api.open-meteo.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com",
-      "font-src 'self' data: https://fonts.gstatic.com",
+      "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
