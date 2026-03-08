@@ -32,6 +32,7 @@ export async function GET(request) {
     if (error) throw error;
     return NextResponse.json(data);
   } catch (err) {
+    console.error('[Messages GET]', err);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -73,6 +74,7 @@ export async function POST(request) {
     if (error) throw error;
     return NextResponse.json(data);
   } catch (err) {
+    console.error('[Messages POST]', err);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

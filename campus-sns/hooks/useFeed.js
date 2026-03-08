@@ -22,7 +22,7 @@ export function useFeed(courseId) {
     (async () => {
       try {
         const r = await fetch(`/api/posts?course_id=${courseId}`);
-        if (!r.ok) { setLoading(false); return; }
+        if (!r.ok) { console.error('[useFeed GET]', r.status, await r.text()); setLoading(false); return; }
         const data = await r.json();
         const mapped = data.map(p => ({
           id: p.id,
@@ -132,8 +132,10 @@ export function useFeed(courseId) {
             color: p.profiles?.color,
           } : post
         ));
+      } else {
+        console.error('[useFeed POST]', r.status, await r.text());
       }
-    } catch {}
+    } catch (e) { console.error('[useFeed POST error]', e); }
   }, [courseId]);
 
   // Toggle like (optimistic)

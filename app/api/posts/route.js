@@ -32,6 +32,7 @@ export async function GET(request) {
     if (error) throw error;
     return NextResponse.json(data);
   } catch (err) {
+    console.error('[Posts GET]', err);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -76,6 +77,7 @@ export async function POST(request) {
     if (error) throw error;
     return NextResponse.json(data);
   } catch (err) {
+    console.error('[Posts POST]', err);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -116,6 +118,7 @@ export async function PATCH(request) {
     if (error) throw error;
     return NextResponse.json(data);
   } catch (err) {
+    console.error('[Posts PATCH]', err);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
