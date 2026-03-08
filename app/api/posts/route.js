@@ -5,6 +5,7 @@ import { isEnrolledInCourse } from '../../../lib/auth/course-enrollment.js';
 
 const MAX_TEXT_LENGTH = 5000;
 const VALID_TYPES = ['question', 'material', 'info', 'discussion', 'poll', 'anon'];
+const toMoodleId = (id) => id?.startsWith('mc_') ? id.slice(3) : id;
 
 export async function GET(request) {
   try {
@@ -16,7 +17,7 @@ export async function GET(request) {
     const courseId = searchParams.get('course_id');
     if (!courseId) return NextResponse.json({ error: 'course_id required' }, { status: 400 });
 
-    if (!await isEnrolledInCourse(wstoken, userid, courseId)) {
+    if (!await isEnrolledInCourse(wstoken, userid, toMoodleId(courseId))) {
       return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
     }
 
@@ -52,7 +53,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
     }
 
-    if (!await isEnrolledInCourse(wstoken, userid, course_id)) {
+    if (!await isEnrolledInCourse(wstoken, userid, toMoodleId(course_id))) {
       return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
     }
 

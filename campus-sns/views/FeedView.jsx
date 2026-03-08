@@ -16,8 +16,8 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
   const tm=tMap();
 
   const filtered=useMemo(()=>{
-    const ug=user.yearGroup;
-    return posts.filter(p=>p.yearGroup===ug);
+    const ug=user.yearGroup||null;
+    return posts.filter(p=>!p.yearGroup||p.yearGroup===ug);
   },[posts,user.yearGroup]);
 
   const send=()=>{

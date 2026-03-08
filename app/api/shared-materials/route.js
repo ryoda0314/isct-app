@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { isEnrolledInCourse } from '../../../lib/auth/course-enrollment.js';
+const toMoodleId = (id) => id?.startsWith('mc_') ? id.slice(3) : id;
 
 // H4: File upload restrictions
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -22,7 +23,7 @@ export async function GET(request) {
     if (!courseId) return NextResponse.json({ error: 'course_id required' }, { status: 400 });
 
     // H3: Verify course enrollment
-    if (!await isEnrolledInCourse(wstoken, userid, courseId)) {
+    if (!await isEnrolledInCourse(wstoken, userid, toMoodleId(courseId))) {
       return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
     }
 
@@ -77,7 +78,7 @@ export async function POST(request) {
     }
 
     // H3: Verify course enrollment
-    if (!await isEnrolledInCourse(wstoken, userid, courseId)) {
+    if (!await isEnrolledInCourse(wstoken, userid, toMoodleId(courseId))) {
       return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
     }
 
