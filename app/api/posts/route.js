@@ -51,7 +51,7 @@ export async function POST(request) {
   try {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
-    const { wstoken, userid } = auth;
+    const { wstoken, userid, fullname } = auth;
 
     const { course_id, text, type = 'discussion', year_group = null } = await request.json();
     if (!course_id || !text?.trim()) {
@@ -77,9 +77,10 @@ export async function POST(request) {
 
     const sb = getSupabaseAdmin();
 
+    const profileData = { moodle_id: userid, name: fullname || `User ${userid}` };
     const { error: profileErr } = await sb.from('profiles').upsert(
-      { moodle_id: userid, name: `User ${userid}` },
-      { onConflict: 'moodle_id', ignoreDuplicates: true }
+      profileData,
+      { onConflict: 'moodle_id', ignoreDuplicates: false }
     );
     if (profileErr) console.error('[Posts POST] profile upsert:', profileErr.message);
 
