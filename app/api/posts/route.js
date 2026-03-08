@@ -37,7 +37,7 @@ export async function GET(request) {
     const sb = getSupabaseAdmin();
     let query = sb
       .from('posts')
-      .select('*, profiles(name, avatar, color)')
+      .select('*, profiles(name, avatar, color), comments(count)')
       .eq('course_id', courseId)
       .order('created_at', { ascending: false })
       .limit(limit + 1);
@@ -53,8 +53,13 @@ export async function GET(request) {
       return NextResponse.json({ error: `DB query failed: ${error.message}` }, { status: 500 });
     }
 
+    // Flatten comment count from [{count: N}] to comment_count: N
     const hasMore = data.length > limit;
-    const posts = hasMore ? data.slice(0, limit) : data;
+    const posts = (hasMore ? data.slice(0, limit) : data).map(p => ({
+      ...p,
+      comment_count: p.comments?.[0]?.count || 0,
+      comments: undefined,
+    }));
     return NextResponse.json({ posts, hasMore });
   } catch (err) {
     console.error('[Posts GET]', err);
