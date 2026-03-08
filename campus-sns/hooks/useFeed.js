@@ -2,10 +2,34 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { isDemoMode } from '../demoMode.js';
 import { DEMO_POSTS } from '../demoData.js';
+import { showToast } from './useToast.js';
+
+const PAGE_SIZE = 20;
+
+const mapPost = (p) => ({
+  id: p.id,
+  uid: p.moodle_user_id,
+  text: p.text,
+  type: p.type,
+  yearGroup: p.year_group || null,
+  likes: p.likes || [],
+  commentCount: p.comment_count || 0,
+  ts: new Date(p.created_at),
+  name: p.profiles?.name,
+  avatar: p.profiles?.avatar,
+  color: p.profiles?.color,
+  editedAt: p.edited_at ? new Date(p.edited_at) : null,
+  pollOptions: p.poll_options || null,
+  pollVotes: p.poll_votes || {},
+  reactions: p.reactions || {},
+  attachments: p.attachments || null,
+});
 
 export function useFeed(courseId) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const idsRef = useRef(new Set());
 
   // Fetch initial posts
@@ -21,21 +45,13 @@ export function useFeed(courseId) {
 
     (async () => {
       try {
-        const r = await fetch(`/api/posts?course_id=${courseId}`);
+        const r = await fetch(`/api/posts?course_id=${courseId}&limit=${PAGE_SIZE}`);
         if (!r.ok) { console.error('[useFeed GET]', r.status, await r.text()); setLoading(false); return; }
-        const data = await r.json();
-        const mapped = data.map(p => ({
-          id: p.id,
-          uid: p.moodle_user_id,
-          text: p.text,
-          type: p.type,
-          yearGroup: p.year_group || null,
-          likes: p.likes || [],
-          ts: new Date(p.created_at),
-          name: p.profiles?.name,
-          avatar: p.profiles?.avatar,
-          color: p.profiles?.color,
-        }));
+        const res = await r.json();
+        // Support both old format (array) and new format ({posts, hasMore})
+        const data = Array.isArray(res) ? res : res.posts || [];
+        setHasMore(Array.isArray(res) ? false : !!res.hasMore);
+        const mapped = data.map(mapPost);
         mapped.forEach(p => idsRef.current.add(p.id));
         setPosts(mapped);
       } catch (e) { console.error('[useFeed fetch error]', e); }
@@ -43,7 +59,26 @@ export function useFeed(courseId) {
     })();
   }, [courseId]);
 
-  // Realtime subscription for INSERT
+  // Load more (pagination)
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || !posts.length) return;
+    setLoadingMore(true);
+    const oldest = posts[posts.length - 1];
+    try {
+      const r = await fetch(`/api/posts?course_id=${courseId}&limit=${PAGE_SIZE}&before=${oldest.ts.toISOString()}`);
+      if (r.ok) {
+        const res = await r.json();
+        const data = Array.isArray(res) ? res : res.posts || [];
+        setHasMore(Array.isArray(res) ? false : !!res.hasMore);
+        const mapped = data.map(mapPost).filter(p => !idsRef.current.has(p.id));
+        mapped.forEach(p => idsRef.current.add(p.id));
+        setPosts(prev => [...prev, ...mapped]);
+      }
+    } catch (e) { console.error('[useFeed loadMore]', e); }
+    setLoadingMore(false);
+  }, [courseId, posts, loadingMore, hasMore]);
+
+  // Realtime subscription for INSERT, UPDATE, DELETE
   useEffect(() => {
     if (!courseId || isDemoMode()) return;
     const sb = getSupabaseClient();
@@ -65,10 +100,16 @@ export function useFeed(courseId) {
           type: p.type,
           yearGroup: p.year_group || null,
           likes: p.likes || [],
+          commentCount: 0,
           ts: new Date(p.created_at),
           name: null,
           avatar: null,
           color: null,
+          editedAt: null,
+          pollOptions: p.poll_options || null,
+          pollVotes: p.poll_votes || {},
+          reactions: p.reactions || {},
+          attachments: p.attachments || null,
         }, ...prev]);
       })
       .on('postgres_changes', {
@@ -79,16 +120,35 @@ export function useFeed(courseId) {
       }, (payload) => {
         const p = payload.new;
         setPosts(prev => prev.map(post =>
-          post.id === p.id ? { ...post, likes: p.likes || [] } : post
+          post.id === p.id ? {
+            ...post,
+            likes: p.likes || [],
+            text: p.text,
+            editedAt: p.edited_at ? new Date(p.edited_at) : null,
+            pollVotes: p.poll_votes || {},
+            reactions: p.reactions || {},
+          } : post
         ));
+      })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'posts',
+        filter: `course_id=eq.${courseId}`,
+      }, (payload) => {
+        const id = payload.old?.id;
+        if (id) {
+          idsRef.current.delete(id);
+          setPosts(prev => prev.filter(p => p.id !== id));
+        }
       })
       .subscribe();
 
     return () => { sb.removeChannel(channel); };
   }, [courseId]);
 
-  // Send post (optimistic)
-  const sendPost = useCallback(async (text, type, currentUser) => {
+  // Send post (optimistic) — supports poll_options for polls
+  const sendPost = useCallback(async (text, type, currentUser, extra = {}) => {
     if (!text.trim() || !courseId) return;
     const yg = currentUser?.yearGroup || null;
     const tempId = `temp_${Date.now()}`;
@@ -99,10 +159,16 @@ export function useFeed(courseId) {
       type: type || 'discussion',
       yearGroup: yg,
       likes: [],
+      commentCount: 0,
       ts: new Date(),
       name: type === 'anon' ? '匿名' : currentUser?.name,
       avatar: type === 'anon' ? '?' : currentUser?.av,
       color: type === 'anon' ? '#68687a' : currentUser?.col,
+      editedAt: null,
+      pollOptions: extra.pollOptions || null,
+      pollVotes: {},
+      reactions: {},
+      attachments: null,
     };
     idsRef.current.add(tempId);
     setPosts(prev => [optimistic, ...prev]);
@@ -110,32 +176,41 @@ export function useFeed(courseId) {
     try {
       const body = { course_id: courseId, text: text.trim(), type: type || 'discussion' };
       if (yg) body.year_group = yg;
-      const r = await fetch('/api/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+      if (extra.pollOptions) body.poll_options = extra.pollOptions;
+
+      let r;
+      if (extra.files && extra.files.length > 0) {
+        // Use FormData for file uploads
+        const fd = new FormData();
+        fd.append('json', JSON.stringify(body));
+        extra.files.forEach(f => fd.append('files', f));
+        r = await fetch('/api/posts', { method: 'POST', body: fd });
+      } else {
+        r = await fetch('/api/posts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      }
+
       if (r.ok) {
         const p = await r.json();
         idsRef.current.add(p.id);
         setPosts(prev => prev.map(post =>
-          post.id === tempId ? {
-            id: p.id,
-            uid: p.moodle_user_id,
-            text: p.text,
-            type: p.type,
-            yearGroup: p.year_group || null,
-            likes: p.likes || [],
-            ts: new Date(p.created_at),
-            name: p.profiles?.name,
-            avatar: p.profiles?.avatar,
-            color: p.profiles?.color,
-          } : post
+          post.id === tempId ? mapPost(p) : post
         ));
       } else {
         console.error('[useFeed POST]', r.status, await r.text());
+        setPosts(prev => prev.filter(p => p.id !== tempId));
+        idsRef.current.delete(tempId);
+        showToast('投稿に失敗しました');
       }
-    } catch (e) { console.error('[useFeed POST error]', e); }
+    } catch (e) {
+      console.error('[useFeed POST error]', e);
+      setPosts(prev => prev.filter(p => p.id !== tempId));
+      idsRef.current.delete(tempId);
+      showToast('投稿に失敗しました');
+    }
   }, [courseId]);
 
   // Toggle like (optimistic)
@@ -147,13 +222,117 @@ export function useFeed(courseId) {
     }));
 
     try {
-      await fetch('/api/posts', {
+      const r = await fetch('/api/posts', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ post_id: postId, action: 'like' }),
       });
-    } catch {}
+      if (!r.ok) showToast('いいねに失敗しました');
+    } catch { showToast('いいねに失敗しました'); }
   }, []);
 
-  return { posts, loading, sendPost, toggleLike };
+  // Delete post (optimistic)
+  const deletePost = useCallback(async (postId) => {
+    const backup = posts;
+    setPosts(prev => prev.filter(p => p.id !== postId));
+    idsRef.current.delete(postId);
+
+    try {
+      const r = await fetch('/api/posts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: postId }),
+      });
+      if (!r.ok) {
+        setPosts(backup);
+        idsRef.current.add(postId);
+        showToast('削除に失敗しました');
+      }
+    } catch {
+      setPosts(backup);
+      idsRef.current.add(postId);
+      showToast('削除に失敗しました');
+    }
+  }, [posts]);
+
+  // Edit post (optimistic)
+  const editPost = useCallback(async (postId, newText) => {
+    const backup = posts;
+    setPosts(prev => prev.map(p =>
+      p.id === postId ? { ...p, text: newText, editedAt: new Date() } : p
+    ));
+
+    try {
+      const r = await fetch('/api/posts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: postId, action: 'edit', text: newText }),
+      });
+      if (!r.ok) {
+        setPosts(backup);
+        showToast('編集に失敗しました');
+      }
+    } catch {
+      setPosts(backup);
+      showToast('編集に失敗しました');
+    }
+  }, [posts]);
+
+  // Vote on poll (optimistic)
+  const votePoll = useCallback(async (postId, option, userId) => {
+    setPosts(prev => prev.map(p => {
+      if (p.id !== postId) return p;
+      const votes = { ...p.pollVotes };
+      // Remove user from all options first
+      Object.keys(votes).forEach(k => {
+        votes[k] = (votes[k] || []).filter(id => id !== userId);
+      });
+      // Add to chosen option
+      votes[option] = [...(votes[option] || []), userId];
+      return { ...p, pollVotes: votes };
+    }));
+
+    try {
+      const r = await fetch('/api/posts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: postId, action: 'vote', option }),
+      });
+      if (!r.ok) showToast('投票に失敗しました');
+    } catch { showToast('投票に失敗しました'); }
+  }, []);
+
+  // React with emoji (optimistic)
+  const reactPost = useCallback(async (postId, emoji, userId) => {
+    setPosts(prev => prev.map(p => {
+      if (p.id !== postId) return p;
+      const reactions = { ...p.reactions };
+      const arr = reactions[emoji] || [];
+      if (arr.includes(userId)) {
+        reactions[emoji] = arr.filter(id => id !== userId);
+        if (reactions[emoji].length === 0) delete reactions[emoji];
+      } else {
+        reactions[emoji] = [...arr, userId];
+      }
+      return { ...p, reactions };
+    }));
+
+    try {
+      const r = await fetch('/api/posts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: postId, action: 'react', emoji }),
+      });
+      if (!r.ok) showToast('リアクションに失敗しました');
+    } catch { showToast('リアクションに失敗しました'); }
+  }, []);
+
+  // Update comment count locally
+  const updateCommentCount = useCallback((postId, delta) => {
+    setPosts(prev => prev.map(p =>
+      p.id === postId ? { ...p, commentCount: (p.commentCount || 0) + delta } : p
+    ));
+  }, []);
+
+  return { posts, loading, loadingMore, hasMore, sendPost, loadMore, toggleLike, deletePost, editPost, votePoll, reactPost, updateCommentCount };
 }

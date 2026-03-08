@@ -33,6 +33,8 @@ import { NavigationView } from "./views/NavigationView.jsx";
 import { FriendsView } from "./views/FriendsView.jsx";
 import { useFriends } from "./hooks/useFriends.js";
 import { useGroups } from "./hooks/useGroups.js";
+import { Toasts } from "./hooks/useToast.js";
+import { useBookmarks } from "./hooks/useBookmarks.js";
 
 const API="";
 
@@ -56,7 +58,7 @@ export default function App(){
   const [hiddenAsgn,setHiddenAsgn]=useState(()=>{try{return JSON.parse(localStorage.getItem("hiddenAsgn"))||[];}catch{return[];}});
   const saveHidden=ids=>{setHiddenAsgn(ids);try{localStorage.setItem("hiddenAsgn",JSON.stringify(ids));}catch{}};
   const [myTasks,setMyTasks]=useState(MYTK0);
-  const [bmarks,setBmarks]=useState([]);
+  const {bmarks,toggle:togBmark}=useBookmarks();
   const [events,setEvents]=useState(EVENTS0);
   const [grades,setGrades]=useState(GRADES0);
   const [att,setAtt]=useState(ATT0);
@@ -124,7 +126,7 @@ export default function App(){
   const [navOrig,setNavOrig]=useState(null);
   const navCrs=id=>{setCid(id);setView("course");setCh("assignments");};
   const goToBuilding=(destId,origId)=>{if(destId){setNavDest(destId);setNavOrig(origId||null);setView("navigation");}};
-  const togBmark=pid=>setBmarks(p=>p.includes(pid)?p.filter(x=>x!==pid):[...p,pid]);
+  // togBmark is now from useBookmarks()
   const {groups:groupList,createGroup,leaveGroup}=useGroups();
   const startDMFromFriend=(fid,name,avatar,color)=>{setView("dm");};
   const openGroupChat=(g)=>{setView("dm");};
@@ -204,6 +206,7 @@ export default function App(){
           {view==="location"&&(L?<LockedView title="友達の居場所"/>:<LocationView mob={false} user={user} friendIds={friendIds}/>)}
           {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/>}
         </div>
+        <Toasts/>
         <style>{`*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${T.bd};border-radius:3px}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit}`}</style>
       </div>
     );
@@ -236,6 +239,7 @@ export default function App(){
         {view==="navigation"&&<><MHdr title="キャンパスナビ" back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
       </div>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN}/>
+      <Toasts/>
       <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{background:${T.bg};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}`}</style>
     </div>
   );

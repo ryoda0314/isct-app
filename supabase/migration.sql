@@ -171,7 +171,43 @@ alter table posts enable row level security;
 create policy "anon_select_posts" on posts for select to anon using (true);
 alter publication supabase_realtime add table posts;
 
--- 14. user_tokens: サーバーレス環境でのトークン永続化
+-- 14. comments: 投稿へのコメント
+create table if not exists comments (
+  id              bigint generated always as identity primary key,
+  post_id         bigint not null references posts(id) on delete cascade,
+  moodle_user_id  bigint not null references profiles(moodle_id),
+  text            text not null,
+  created_at      timestamptz default now()
+);
+create index if not exists idx_comments_post on comments(post_id, created_at asc);
+alter table comments enable row level security;
+create policy "anon_select_comments" on comments for select to anon using (true);
+alter publication supabase_realtime add table comments;
+
+-- 15. bookmarks: 投稿ブックマーク
+create table if not exists bookmarks (
+  id              bigint generated always as identity primary key,
+  moodle_user_id  bigint not null references profiles(moodle_id),
+  post_id         bigint not null references posts(id) on delete cascade,
+  created_at      timestamptz default now(),
+  unique(moodle_user_id, post_id)
+);
+create index if not exists idx_bookmarks_user on bookmarks(moodle_user_id);
+alter table bookmarks enable row level security;
+create policy "anon_select_bookmarks" on bookmarks for select to anon using (true);
+
+-- 16. posts 拡張カラム
+alter table posts add column if not exists poll_options jsonb;
+alter table posts add column if not exists poll_votes jsonb default '{}';
+alter table posts add column if not exists edited_at timestamptz;
+alter table posts add column if not exists reactions jsonb default '{}';
+alter table posts add column if not exists attachments jsonb;
+
+-- 17. 添付ファイル用ストレージ
+insert into storage.buckets (id, name, public) values ('post-attachments', 'post-attachments', true)
+on conflict do nothing;
+
+-- 18. user_tokens: サーバーレス環境でのトークン永続化
 create table if not exists user_tokens (
   login_id        text primary key,
   wstoken         text not null,
