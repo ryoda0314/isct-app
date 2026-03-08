@@ -60,10 +60,11 @@ export async function POST(request) {
 
     const sb = getSupabaseAdmin();
 
-    await sb.from('profiles').upsert(
+    const { error: profileErr } = await sb.from('profiles').upsert(
       { moodle_id: userid, name: `User ${userid}` },
       { onConflict: 'moodle_id', ignoreDuplicates: true }
     );
+    if (profileErr) console.error('[Messages POST] profile upsert:', profileErr.message);
 
     const { data, error } = await sb
       .from('messages')
@@ -71,7 +72,10 @@ export async function POST(request) {
       .select('*, profiles(name, avatar, color)')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[Messages POST] insert:', error.message, error.details, error.hint);
+      throw error;
+    }
     return NextResponse.json(data);
   } catch (err) {
     console.error('[Messages POST]', err);

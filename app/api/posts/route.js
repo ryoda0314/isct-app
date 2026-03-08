@@ -60,10 +60,11 @@ export async function POST(request) {
 
     const sb = getSupabaseAdmin();
 
-    await sb.from('profiles').upsert(
+    const { error: profileErr } = await sb.from('profiles').upsert(
       { moodle_id: userid, name: `User ${userid}` },
       { onConflict: 'moodle_id', ignoreDuplicates: true }
     );
+    if (profileErr) console.error('[Posts POST] profile upsert:', profileErr.message);
 
     const row = { course_id, moodle_user_id: userid, text: text.trim(), type };
     if (year_group) row.year_group = year_group;
@@ -74,7 +75,10 @@ export async function POST(request) {
       .select('*, profiles(name, avatar, color)')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[Posts POST] insert:', error.message, error.details, error.hint);
+      throw error;
+    }
     return NextResponse.json(data);
   } catch (err) {
     console.error('[Posts POST]', err);
