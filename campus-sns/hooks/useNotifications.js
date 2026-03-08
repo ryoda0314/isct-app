@@ -56,6 +56,10 @@ export function useNotifications() {
           ts: new Date(n.created_at),
           read: n.read,
         }, ...prev]);
+        // Browser push notification
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          try { new Notification('ScienceTokyo App', { body: n.text, icon: '/favicon.ico' }); } catch {}
+        }
       })
       .on('postgres_changes', {
         event: 'UPDATE',

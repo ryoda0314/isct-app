@@ -217,3 +217,22 @@ create table if not exists user_tokens (
 );
 alter table user_tokens enable row level security;
 -- anon アクセス不可 (service_role のみ)
+
+-- 19. 投稿ピン留め
+alter table posts add column if not exists pinned boolean default false;
+
+-- 20. DM既読管理
+alter table dm_conversations add column if not exists last_read jsonb default '{}';
+-- last_read: {"user1_id": "2024-01-01T00:00:00Z", "user2_id": "2024-01-01T00:00:00Z"}
+
+-- 21. イベントRSVP
+create table if not exists event_rsvps (
+  id              bigint generated always as identity primary key,
+  event_id        text not null,
+  moodle_user_id  bigint not null references profiles(moodle_id),
+  status          text not null default 'going',  -- going, maybe, not_going
+  created_at      timestamptz default now(),
+  unique(event_id, moodle_user_id)
+);
+alter table event_rsvps enable row level security;
+create policy "anon_select_event_rsvps" on event_rsvps for select to anon using (true);

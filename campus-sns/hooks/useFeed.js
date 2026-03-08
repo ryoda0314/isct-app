@@ -23,10 +23,12 @@ const mapPost = (p) => ({
   pollVotes: p.poll_votes || {},
   reactions: p.reactions || {},
   attachments: p.attachments || null,
+  pinned: p.pinned || false,
 });
 
 export function useFeed(courseId) {
   const [posts, setPosts] = useState([]);
+  const [pinnedPosts, setPinnedPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -37,6 +39,7 @@ export function useFeed(courseId) {
     if (!courseId) return;
     if (isDemoMode()) {
       setPosts(DEMO_POSTS[courseId] || []);
+      setPinnedPosts([]);
       setLoading(false);
       return;
     }
@@ -54,6 +57,12 @@ export function useFeed(courseId) {
         const mapped = data.map(mapPost);
         mapped.forEach(p => idsRef.current.add(p.id));
         setPosts(mapped);
+
+        // Pinned posts
+        const pinData = res.pinnedPosts || [];
+        const mappedPinned = pinData.map(mapPost);
+        mappedPinned.forEach(p => idsRef.current.add(p.id));
+        setPinnedPosts(mappedPinned);
       } catch (e) { console.error('[useFeed fetch error]', e); }
       setLoading(false);
     })();
@@ -110,6 +119,7 @@ export function useFeed(courseId) {
           pollVotes: p.poll_votes || {},
           reactions: p.reactions || {},
           attachments: p.attachments || null,
+          pinned: p.pinned || false,
         }, ...prev]);
       })
       .on('postgres_changes', {
@@ -119,7 +129,7 @@ export function useFeed(courseId) {
         filter: `course_id=eq.${courseId}`,
       }, (payload) => {
         const p = payload.new;
-        setPosts(prev => prev.map(post =>
+        const updater = post =>
           post.id === p.id ? {
             ...post,
             likes: p.likes || [],
@@ -127,8 +137,10 @@ export function useFeed(courseId) {
             editedAt: p.edited_at ? new Date(p.edited_at) : null,
             pollVotes: p.poll_votes || {},
             reactions: p.reactions || {},
-          } : post
-        ));
+            pinned: p.pinned || false,
+          } : post;
+        setPosts(prev => prev.map(updater));
+        setPinnedPosts(prev => prev.map(updater));
       })
       .on('postgres_changes', {
         event: 'DELETE',
@@ -140,6 +152,7 @@ export function useFeed(courseId) {
         if (id) {
           idsRef.current.delete(id);
           setPosts(prev => prev.filter(p => p.id !== id));
+          setPinnedPosts(prev => prev.filter(p => p.id !== id));
         }
       })
       .subscribe();
@@ -169,6 +182,7 @@ export function useFeed(courseId) {
       pollVotes: {},
       reactions: {},
       attachments: null,
+      pinned: false,
     };
     idsRef.current.add(tempId);
     setPosts(prev => [optimistic, ...prev]);
@@ -235,6 +249,7 @@ export function useFeed(courseId) {
   const deletePost = useCallback(async (postId) => {
     const backup = posts;
     setPosts(prev => prev.filter(p => p.id !== postId));
+    setPinnedPosts(prev => prev.filter(p => p.id !== postId));
     idsRef.current.delete(postId);
 
     try {
@@ -327,6 +342,40 @@ export function useFeed(courseId) {
     } catch { showToast('リアクションに失敗しました'); }
   }, []);
 
+  // Pin/unpin post (optimistic)
+  const pinPost = useCallback(async (postId) => {
+    // Toggle pinned state
+    setPosts(prev => {
+      const post = prev.find(p => p.id === postId);
+      if (!post) return prev;
+      if (post.pinned) {
+        // Unpinning: move back to regular
+        return prev.map(p => p.id === postId ? { ...p, pinned: false } : p);
+      } else {
+        // Pinning: mark as pinned
+        return prev.map(p => p.id === postId ? { ...p, pinned: true } : p);
+      }
+    });
+    setPinnedPosts(prev => {
+      const existing = prev.find(p => p.id === postId);
+      if (existing) {
+        // Was pinned, remove from pinned list
+        return prev.filter(p => p.id !== postId);
+      }
+      // Not yet in pinned list - find it from posts state... we'll let the realtime sync handle it
+      return prev;
+    });
+
+    try {
+      const r = await fetch('/api/posts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: postId, action: 'pin' }),
+      });
+      if (!r.ok) showToast('ピン留めに失敗しました');
+    } catch { showToast('ピン留めに失敗しました'); }
+  }, []);
+
   // Update comment count locally
   const updateCommentCount = useCallback((postId, delta) => {
     setPosts(prev => prev.map(p =>
@@ -334,5 +383,21 @@ export function useFeed(courseId) {
     ));
   }, []);
 
-  return { posts, loading, loadingMore, hasMore, sendPost, loadMore, toggleLike, deletePost, editPost, votePoll, reactPost, updateCommentCount };
+  // Search posts
+  const searchPosts = useCallback(async (query) => {
+    if (!query?.trim() || !courseId) return;
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/posts?course_id=${courseId}&search=${encodeURIComponent(query)}`);
+      if (r.ok) {
+        const res = await r.json();
+        const data = res.posts || [];
+        setHasMore(false);
+        setPosts(data.map(mapPost));
+      }
+    } catch (e) { console.error('[useFeed search]', e); }
+    setLoading(false);
+  }, [courseId]);
+
+  return { posts, pinnedPosts, loading, loadingMore, hasMore, sendPost, loadMore, toggleLike, deletePost, editPost, votePoll, reactPost, pinPost, updateCommentCount, searchPosts };
 }

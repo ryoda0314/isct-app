@@ -35,6 +35,7 @@ import { useFriends } from "./hooks/useFriends.js";
 import { useGroups } from "./hooks/useGroups.js";
 import { Toasts } from "./hooks/useToast.js";
 import { useBookmarks } from "./hooks/useBookmarks.js";
+import { useUnreadDM } from "./hooks/useUnreadDM.js";
 
 const API="";
 
@@ -42,7 +43,17 @@ const API="";
 export default function App(){
   const mob=useMobile();
   const user=useCurrentUser();
-  const [dark,setDark]=useState(true);
+  const [darkPref,setDarkPref]=useState(()=>{try{return localStorage.getItem("themePref")||"dark";}catch{return "dark";}});
+  const [sysDark,setSysDark]=useState(()=>typeof window!=="undefined"&&window.matchMedia?.("(prefers-color-scheme: dark)").matches);
+  useEffect(()=>{
+    const mq=window.matchMedia?.("(prefers-color-scheme: dark)");
+    if(!mq) return;
+    const h=e=>setSysDark(e.matches);
+    mq.addEventListener("change",h);
+    return()=>mq.removeEventListener("change",h);
+  },[]);
+  useEffect(()=>{try{localStorage.setItem("themePref",darkPref);}catch{}},[darkPref]);
+  const dark=darkPref==="auto"?sysDark:darkPref==="dark";
   updateT(dark);
   const [appState,setAppState]=useState("loading");
   const [mockMode,setMockMode]=useState(false);
@@ -118,6 +129,7 @@ export default function App(){
   const hiddenSet=useMemo(()=>new Set(hiddenAsgn),[hiddenAsgn]);
   const ac=asgn.filter(a=>a.st!=="completed"&&qCourseIds.has(a.cid)&&!hiddenSet.has(a.id)).length;
   const {unreadCount:unreadN}=useNotifications();
+  const {unreadDM:dmUnread,markDMSeen}=useUnreadDM(user?.moodleId||user?.id);
   const {friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,friendIds,isFriend,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,lookupById}=useFriends();
   const presenceRoom=view==="course"&&cc?`course:${cc.id}`:view==="dept"&&cd?`dept:${cd.prefix}`:null;
   const {online}=usePresence(presenceRoom,{id:user.moodleId||user.id,name:user.name,col:user.col});
@@ -131,7 +143,7 @@ export default function App(){
   const startDMFromFriend=(fid,name,avatar,color)=>{setView("dm");};
   const openGroupChat=(g)=>{setView("dm");};
   const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat};
-  const togTheme=()=>setDark(p=>!p);
+  const togTheme=()=>setDarkPref(p=>p==="dark"?"light":"dark");
   const onLogout=async()=>{setDemoMode(false);try{await fetch("/api/auth/logout",{method:"POST"});}catch{}if(refreshRef.current)clearInterval(refreshRef.current);setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setView("home");setMockMode(false);setAppState("setup");};
 
   // Lock screen for mock mode
@@ -182,7 +194,7 @@ export default function App(){
     };
     return(
       <div style={{display:"flex",height:"100dvh",width:"100vw",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
-        <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} courses={allCourses} depts={userDepts} user={user} quarter={quarter} pendingFriendCount={pendingFriendCount}/>
+        <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} dmUnread={dmUnread} courses={allCourses} depts={userDepts} user={user} quarter={quarter} pendingFriendCount={pendingFriendCount}/>
         {view==="course"&&cc&&<DChan course={cc} ch={ch} setCh={setCh} online={online} members={members}/>}
         {view==="dept"&&cd&&<DChan dept={cd} ch={ch} setCh={setCh} online={online}/>}
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
@@ -193,7 +205,7 @@ export default function App(){
           {view==="course"&&(L?<LockedView title="コース"/>:cc&&courseContent())}
           {view==="dept"&&(L?<LockedView title="学系"/>:cd&&deptContent())}
           {view==="friends"&&(L?<LockedView title="友達"/>:<FriendsView mob={false} setView={setView} {...friendProps}/>)}
-          {view==="dm"&&(L?<LockedView title="DM"/>:<DMView mob={false} setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup}/>)}
+          {view==="dm"&&(L?<LockedView title="DM"/>:<DMView mob={false} setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen}/>)}
           {view==="notif"&&(L?<LockedView title="通知"/>:<NotifView mob={false}/>)}
           {view==="grades"&&(L?<LockedView title="成績・出席"/>:<GradeView grades={grades} att={att} mob={false} courses={allCourses}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
@@ -202,7 +214,7 @@ export default function App(){
           {view==="reviews"&&(L?<LockedView title="授業レビュー"/>:<ReviewView reviews={reviews} setReviews={setReviews} mob={false} courses={allCourses}/>)}
           {view==="bmarks"&&(L?<LockedView title="ブックマーク"/>:<BookmarkView bmarks={bmarks} mob={false} setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/>)}
           {view==="search"&&(L?<LockedView title="検索"/>:<SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses}/>)}
-          {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} asgn={asgn} att={att} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout}/>}
+          {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} darkPref={darkPref} setDarkPref={setDarkPref} asgn={asgn} att={att} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout}/>}
           {view==="location"&&(L?<LockedView title="友達の居場所"/>:<LocationView mob={false} user={user} friendIds={friendIds}/>)}
           {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/>}
         </div>
@@ -223,9 +235,9 @@ export default function App(){
         {view==="courseSelect"&&(L?<><MHdr title="コース・学系"/><LockedView title="コース"/></>:<><MHdr title="コース・学系"/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={allCourses} depts={userDepts} setDid={setDid}/></>)}
         {view==="course"&&(L?<><MHdr title="コース" back={()=>setView("courseSelect")}/><LockedView title="コース"/></>:cc&&<><MHdr title={<><span style={{color:cc.col}}>{cc.code}</span><span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{cc.name}</span></>} back={()=>setView("courseSelect")} right={<button style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.more}</button>}/><MTabs ch={ch} setCh={setCh}/>{courseContent()}</>)}
         {view==="dept"&&(L?<><MHdr title="学系" back={()=>setView("courseSelect")}/><LockedView title="学系"/></>:cd&&<><MHdr title={<><span style={{color:cd.col}}>{cd.prefix}</span><span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{cd.name}</span></>} back={()=>setView("courseSelect")}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:"タイムライン",i:I.feed},{id:"chat",l:"チャット",i:I.chat}].map(t=><button key={t.id} onClick={()=>setCh(t.id)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===t.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===t.id?T.txH:T.txD,fontSize:13,fontWeight:ch===t.id?600:400,cursor:"pointer"}}>{t.i}<span>{t.l}</span></button>)}</div>{deptContent()}</>)}
-        {view==="moreMenu"&&<><MHdr title="その他"/><MoreMenu setView={setView} unreadN={unreadN} pendingFriendCount={pendingFriendCount}/></>}
+        {view==="moreMenu"&&<><MHdr title="その他"/><MoreMenu setView={setView} unreadN={unreadN} pendingFriendCount={pendingFriendCount} dmUnread={dmUnread}/></>}
         {view==="friends"&&(L?<><MHdr title="友達" back={mBack}/><LockedView title="友達"/></>:<><MHdr title="友達" back={mBack}/><FriendsView mob setView={setView} {...friendProps}/></>)}
-        {view==="dm"&&(L?<><MHdr title="DM" back={mBack}/><LockedView title="DM"/></>:<><MHdr title="DM" back={mBack}/><DMView mob setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup}/></>)}
+        {view==="dm"&&(L?<><MHdr title="DM" back={mBack}/><LockedView title="DM"/></>:<><MHdr title="DM" back={mBack}/><DMView mob setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen}/></>)}
         {view==="notif"&&(L?<><MHdr title="通知" back={mBack}/><LockedView title="通知"/></>:<><MHdr title="通知" back={mBack}/><NotifView mob/></>)}
         {view==="grades"&&(L?<><MHdr title="成績・出席" back={mBack}/><LockedView title="成績・出席"/></>:<><MHdr title="成績・出席" back={mBack}/><GradeView grades={grades} att={att} mob courses={allCourses}/></>)}
         {view==="pomo"&&<><MHdr title="ポモドーロ" back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
@@ -234,7 +246,7 @@ export default function App(){
         {view==="reviews"&&(L?<><MHdr title="授業レビュー" back={mBack}/><LockedView title="授業レビュー"/></>:<><MHdr title="授業レビュー" back={mBack}/><ReviewView reviews={reviews} setReviews={setReviews} mob courses={allCourses}/></>)}
         {view==="bmarks"&&(L?<><MHdr title="ブックマーク" back={mBack}/><LockedView title="ブックマーク"/></>:<><MHdr title="ブックマーク" back={mBack}/><BookmarkView bmarks={bmarks} mob setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/></>)}
         {view==="search"&&(L?<><MHdr title="検索" back={mBack}/><LockedView title="検索"/></>:<><MHdr title="検索" back={mBack}/><SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses}/></>)}
-        {view==="profile"&&<><MHdr title="プロフィール" back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} asgn={asgn} att={att} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout}/></>}
+        {view==="profile"&&<><MHdr title="プロフィール" back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} darkPref={darkPref} setDarkPref={setDarkPref} asgn={asgn} att={att} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout}/></>}
         {view==="location"&&(L?<><MHdr title="友達の居場所" back={mBack}/><LockedView title="友達の居場所"/></>:<><MHdr title="友達の居場所" back={mBack}/><LocationView mob user={user} friendIds={friendIds}/></>)}
         {view==="navigation"&&<><MHdr title="キャンパスナビ" back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
       </div>

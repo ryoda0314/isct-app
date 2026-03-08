@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { isEnrolledInCourse } from '../../../lib/auth/course-enrollment.js';
+import { notifyMentions } from '../../../lib/mentions.js';
 
 const MAX_TEXT_LENGTH = 5000;
 const VALID_TYPES = ['question', 'material', 'info', 'discussion', 'poll', 'anon'];
@@ -33,17 +34,46 @@ export async function GET(request) {
 
     const limit = Math.min(parseInt(searchParams.get('limit')) || 20, 50);
     const before = searchParams.get('before');
+    const search = searchParams.get('search');
 
     const sb = getSupabaseAdmin();
+
+    // Fetch pinned posts (only on initial load, not pagination)
+    let pinnedPosts = [];
+    if (!before) {
+      const { data: pinned } = await sb
+        .from('posts')
+        .select('*, profiles(name, avatar, color), comments(count)')
+        .eq('course_id', courseId)
+        .eq('pinned', true)
+        .order('created_at', { ascending: false })
+        .limit(3);
+      if (pinned) {
+        pinnedPosts = pinned.map(p => ({
+          ...p,
+          comment_count: p.comments?.[0]?.count || 0,
+          comments: undefined,
+        }));
+      }
+    }
+
     let query = sb
       .from('posts')
       .select('*, profiles(name, avatar, color), comments(count)')
       .eq('course_id', courseId)
-      .order('created_at', { ascending: false })
-      .limit(limit + 1);
+      .order('created_at', { ascending: false });
 
-    if (before) {
-      query = query.lt('created_at', before);
+    // Exclude pinned from regular list
+    query = query.or('pinned.is.null,pinned.eq.false');
+
+    if (search) {
+      query = query.ilike('text', `%${search}%`);
+      query = query.limit(50);
+    } else {
+      query = query.limit(limit + 1);
+      if (before) {
+        query = query.lt('created_at', before);
+      }
     }
 
     const { data, error } = await query;
@@ -53,6 +83,15 @@ export async function GET(request) {
       return NextResponse.json({ error: `DB query failed: ${error.message}` }, { status: 500 });
     }
 
+    if (search) {
+      const posts = data.map(p => ({
+        ...p,
+        comment_count: p.comments?.[0]?.count || 0,
+        comments: undefined,
+      }));
+      return NextResponse.json({ posts, pinnedPosts: [], hasMore: false });
+    }
+
     // Flatten comment count from [{count: N}] to comment_count: N
     const hasMore = data.length > limit;
     const posts = (hasMore ? data.slice(0, limit) : data).map(p => ({
@@ -60,7 +99,7 @@ export async function GET(request) {
       comment_count: p.comments?.[0]?.count || 0,
       comments: undefined,
     }));
-    return NextResponse.json({ posts, hasMore });
+    return NextResponse.json({ posts, pinnedPosts, hasMore });
   } catch (err) {
     console.error('[Posts GET]', err);
     return NextResponse.json({ error: `Internal error: ${err.message}` }, { status: 500 });
@@ -196,6 +235,12 @@ export async function POST(request) {
       console.error('[Posts POST] insert:', error.message, error.details, error.hint);
       return NextResponse.json({ error: `Insert failed: ${error.message}` }, { status: 500 });
     }
+
+    // Notify mentioned users (non-blocking)
+    if (type !== 'anon') {
+      try { await notifyMentions(text, userid, fullname, course_id, '投稿'); } catch (e) { console.error('[Posts POST] mentions:', e); }
+    }
+
     return NextResponse.json(data);
   } catch (err) {
     console.error('[Posts POST]', err);
@@ -335,6 +380,28 @@ export async function PATCH(request) {
       const { data, error } = await sb
         .from('posts')
         .update({ reactions })
+        .eq('id', post_id)
+        .select('*, profiles(name, avatar, color)')
+        .single();
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(data);
+    }
+
+    // --- PIN ---
+    if (action === 'pin') {
+      const { data: post, error: fetchErr } = await sb
+        .from('posts')
+        .select('moodle_user_id, pinned')
+        .eq('id', post_id)
+        .single();
+
+      if (fetchErr || !post) return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      if (post.moodle_user_id !== userid) return NextResponse.json({ error: 'Not your post' }, { status: 403 });
+
+      const { data, error } = await sb
+        .from('posts')
+        .update({ pinned: !post.pinned })
         .eq('id', post_id)
         .select('*, profiles(name, avatar, color)')
         .single();

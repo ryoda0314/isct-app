@@ -113,7 +113,7 @@ const CredForm=({form,setForm,showPw,showTotp,setShowPw,setShowTotp,onSave,savin
 );
 
 /* ─── メイン ─── */
-export const ProfileView=({mob,togTheme,dark,asgn,att,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout})=>{
+export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,att,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout})=>{
   const done=asgn.filter(a=>a.st==="completed").length;
   const total=asgn.length;
   const attAll=Object.values(att);
@@ -355,8 +355,15 @@ export const ProfileView=({mob,togTheme,dark,asgn,att,courses=[],user={},notifEn
               </div>
             </div>
           </div>}
-          <GRow icon={dark?I.moon:I.sun} label="テーマ" onClick={togTheme}
-            right={<span style={{fontSize:13,fontWeight:600,color:T.accentSoft}}>{dark?"ダーク":"ライト"}</span>}/>
+          <GRow icon={dark?I.moon:I.sun} label="テーマ"
+            right={<div style={{display:"flex",gap:4}}>
+              {[{id:"dark",l:"ダーク"},{id:"light",l:"ライト"},{id:"auto",l:"自動"}].map(f=>(
+                <button key={f.id} onClick={e=>{e.stopPropagation();setDarkPref?.(f.id);}}
+                  style={{padding:"4px 12px",borderRadius:6,border:`1px solid ${darkPref===f.id?T.accent:T.bd}`,background:darkPref===f.id?`${T.accent}14`:"transparent",color:darkPref===f.id?T.accent:T.txD,fontSize:12,fontWeight:darkPref===f.id?700:500,cursor:"pointer",transition:"all .12s"}}>
+                  {f.l}
+                </button>
+              ))}
+            </div>}/>
           <GRow icon={I.bell} label="通知" onClick={()=>setNotifOpen(p=>!p)}
             right={<Toggle on={notifEnabled} onTog={()=>setNotifEnabled(p=>!p)}/>}/>
           {notifOpen&&notifEnabled&&<>
@@ -371,6 +378,17 @@ export const ProfileView=({mob,togTheme,dark,asgn,att,courses=[],user={},notifEn
                 <Toggle on={notifSettings[n.k]} onTog={()=>setNotifSettings(p=>({...p,[n.k]:!p[n.k]}))}/>
               </div>
             ))}
+            {typeof Notification!=="undefined"&&<div style={{padding:"8px 14px 10px 44px",borderTop:`1px solid ${T.bd}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{flex:1,fontSize:12,color:T.txD}}>
+                  {Notification.permission==="granted"?"デスクトップ通知: 許可済み":Notification.permission==="denied"?"デスクトップ通知: ブロック中":"デスクトップ通知を有効にする"}
+                </span>
+                {Notification.permission==="default"&&<button onClick={()=>Notification.requestPermission().then(()=>setNotifOpen(p=>p))}
+                  style={{padding:"4px 12px",borderRadius:6,border:`1px solid ${T.accent}`,background:`${T.accent}14`,color:T.accent,fontSize:11,fontWeight:600,cursor:"pointer"}}>許可</button>}
+                {Notification.permission==="granted"&&<span style={{color:T.green,fontSize:11,fontWeight:600}}>✓</span>}
+                {Notification.permission==="denied"&&<span style={{color:T.red,fontSize:11,fontWeight:600}}>✕</span>}
+              </div>
+            </div>}
           </>}
           <GRow last icon={I.eye} label="フォントサイズ"
             right={<div style={{display:"flex",gap:4}}>
@@ -386,6 +404,13 @@ export const ProfileView=({mob,togTheme,dark,asgn,att,courses=[],user={},notifEn
         {/* ═══ その他 ═══ */}
         <GHead>その他</GHead>
         <GCard>
+          <GRow icon={I.dl} label="データエクスポート"
+            sub="課題・成績・設定をJSONで保存"
+            onClick={()=>{
+              const data={exportedAt:new Date().toISOString(),user:{name:user.name,dept:user.dept,yearGroup:user.yearGroup},assignments:asgn,grades:Object.entries(att).map(([k,v])=>({course:k,...v})),courses:courses.map(c=>({id:c.id,code:c.code,name:c.name})),settings:{notifEnabled,notifSettings,fontSize}};
+              const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+              const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`sciencetokyo-export-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(url);
+            }}/>
           <GRow icon={I.reset} label={cacheCleared?"キャッシュクリア完了":"キャッシュをクリア"}
             sub="ローカル設定をリセット"
             onClick={handleClearCache}

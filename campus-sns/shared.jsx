@@ -54,14 +54,16 @@ const Tx=({children,style:s})=>{
       });
       // @mentions
       out=out.replace(/@(\S+)/g,'<span style="color:#6375f0;font-weight:600">@$1</span>');
+      // #hashtags
+      out=out.replace(/#([^\s#]+)/g,'<span class="hashtag" style="color:#6375f0;font-weight:500;cursor:pointer" data-tag="$1">#$1</span>');
       return out;
     }catch{return null;}
   },[children,k]);
   if(!children)return null;
   if(html)return <span style={s} dangerouslySetInnerHTML={{__html:html}}/>;
-  // fallback: no katex yet, just render with mentions
-  const parts=(children+"").split(/(@\S+)/g);
-  return <span style={s}>{parts.map((p,i)=>p.startsWith("@")?<span key={i} style={{color:"#6375f0",fontWeight:600}}>{p}</span>:p)}</span>;
+  // fallback: no katex yet, just render with mentions and hashtags
+  const parts=(children+"").split(/([@#]\S+)/g);
+  return <span style={s}>{parts.map((p,i)=>p.startsWith("@")?<span key={i} style={{color:"#6375f0",fontWeight:600}}>{p}</span>:p.startsWith("#")?<span key={i} style={{color:"#6375f0",fontWeight:500,cursor:"pointer"}}>{p}</span>:p)}</span>;
 };
 
 const _isImg=v=>v&&(v.startsWith("data:")||v.startsWith("http")||v.startsWith("/"));

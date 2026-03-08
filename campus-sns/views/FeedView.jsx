@@ -6,14 +6,48 @@ import { Av, Tag, Tx, Btn, Loader } from "../shared.jsx";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
 import { useFeed } from "../hooks/useFeed.js";
 import { useComments } from "../hooks/useComments.js";
+import { useCourseMembers } from "../hooks/useCourseMembers.js";
+import { showToast } from "../hooks/useToast.js";
 
 const EMOJIS=["👍","❤️","😂","😢","🔥","👏"];
 
+// Mention suggestion dropdown
+const MentionSuggest=({text,cursorPos,members,onSelect})=>{
+  const match=useMemo(()=>{
+    if(!text||cursorPos<=0||!members.length) return null;
+    const before=text.slice(0,cursorPos);
+    const m=before.match(/@(\S*)$/);
+    return m?{query:m[1].toLowerCase(),start:m.index,len:m[0].length}:null;
+  },[text,cursorPos,members]);
+
+  const filtered=useMemo(()=>{
+    if(!match) return [];
+    return members.filter(m=>m.name?.toLowerCase().includes(match.query)).slice(0,5);
+  },[match,members]);
+
+  if(!filtered.length) return null;
+
+  return(
+    <div style={{position:"absolute",left:0,right:0,bottom:"100%",zIndex:200,background:T.bg2,border:`1px solid ${T.bd}`,borderRadius:8,boxShadow:"0 4px 12px rgba(0,0,0,.3)",maxHeight:180,overflowY:"auto",marginBottom:4}}>
+      {filtered.map(m=>(
+        <div key={m.id} onClick={()=>onSelect(m.name,match.start,match.len)}
+          style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",cursor:"pointer",fontSize:13,color:T.txH}}
+          onMouseEnter={e=>e.currentTarget.style.background=T.bg3}
+          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          <Av u={{name:m.name,col:m.col}} sz={24}/>
+          <span>{m.name}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // Inline comment section for a single post
-const CommentSection=({postId,user,onCountChange})=>{
+const CommentSection=({postId,user,onCountChange,members})=>{
   const {comments,loading,sendComment,deleteComment}=useComments(postId);
   const [txt,setTxt]=useState("");
   const prevCount=React.useRef(0);
+  const [cursor,setCursor]=useState(0);
 
   React.useEffect(()=>{
     if(comments.length!==prevCount.current){
@@ -26,6 +60,14 @@ const CommentSection=({postId,user,onCountChange})=>{
     if(!txt.trim())return;
     sendComment(txt,user);
     setTxt("");
+  };
+
+  const insertMention=(name,start,len)=>{
+    const before=txt.slice(0,start);
+    const after=txt.slice(start+len);
+    const newTxt=before+`@${name} `+after;
+    setTxt(newTxt);
+    setCursor(start+name.length+2);
   };
 
   return(
@@ -50,8 +92,10 @@ const CommentSection=({postId,user,onCountChange})=>{
           </div>
         );
       })}
-      <div style={{display:"flex",gap:6,alignItems:"center",marginTop:4}}>
-        <input value={txt} onChange={e=>setTxt(e.target.value)}
+      <div style={{display:"flex",gap:6,alignItems:"center",marginTop:4,position:"relative"}}>
+        <MentionSuggest text={txt} cursorPos={cursor} members={members||[]} onSelect={insertMention}/>
+        <input value={txt} onChange={e=>{setTxt(e.target.value);setCursor(e.target.selectionStart);}}
+          onSelect={e=>setCursor(e.target.selectionStart)}
           onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
           placeholder="コメントを入力..."
           style={{flex:1,padding:"6px 10px",borderRadius:16,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
@@ -95,8 +139,6 @@ const PollView=({options,votes,userId,onVote})=>{
 const ReactionBar=({reactions,userId,onReact,likes,onLike})=>{
   const [showPicker,setShowPicker]=useState(false);
   const liked=likes.includes(userId);
-  const hasReactions=Object.keys(reactions).length>0;
-
   return(
     <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap",position:"relative"}}>
       {/* Heart / like */}
@@ -170,7 +212,8 @@ const Attachments=({items})=>{
 export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
   const user=useCurrentUser();
   const roomId=course?.id||`dept:${dept?.prefix}`;
-  const {posts,loading,loadingMore,hasMore,sendPost,loadMore,toggleLike,deletePost,editPost,votePoll,reactPost,updateCommentCount}=useFeed(roomId);
+  const {posts,pinnedPosts,loading,loadingMore,hasMore,sendPost,loadMore,toggleLike,deletePost,editPost,votePoll,reactPost,pinPost,updateCommentCount}=useFeed(roomId);
+  const members=useCourseMembers(course?.moodleId);
   const [txt,setTxt]=useState("");
   const [type,setType]=useState("discussion");
   const [composing,setComposing]=useState(false);
@@ -183,6 +226,11 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
   // File attachments
   const [files,setFiles]=useState([]);
   const fileRef=useRef(null);
+  // Search & filter
+  const [searchQ,setSearchQ]=useState("");
+  const [filterType,setFilterType]=useState(null);
+  // Mention autocomplete cursor tracking
+  const [cursor,setCursor]=useState(0);
   const tm=tMap();
 
   // Infinite scroll sentinel
@@ -199,10 +247,26 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
 
   const userId=user.moodleId||user.id;
 
+  // Filter posts: year group + search + type
   const filtered=useMemo(()=>{
     const ug=user.yearGroup||null;
-    return posts.filter(p=>!p.yearGroup||p.yearGroup===ug);
-  },[posts,user.yearGroup]);
+    let result=posts.filter(p=>!p.yearGroup||p.yearGroup===ug);
+    if(searchQ){
+      const q=searchQ.toLowerCase();
+      result=result.filter(p=>p.text.toLowerCase().includes(q)||(p.name||"").toLowerCase().includes(q));
+    }
+    if(filterType){
+      result=result.filter(p=>p.type===filterType);
+    }
+    return result;
+  },[posts,user.yearGroup,searchQ,filterType]);
+
+  // Also filter pinned posts
+  const filteredPinned=useMemo(()=>{
+    if(searchQ||filterType) return []; // hide pinned section during search/filter
+    const ug=user.yearGroup||null;
+    return pinnedPosts.filter(p=>!p.yearGroup||p.yearGroup===ug);
+  },[pinnedPosts,user.yearGroup,searchQ,filterType]);
 
   const send=()=>{
     if(!txt.trim()) return;
@@ -252,6 +316,127 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
     setFiles(f);
   };
 
+  const insertMention=(name,start,len)=>{
+    const before=txt.slice(0,start);
+    const after=txt.slice(start+len);
+    const newTxt=before+`@${name} `+after;
+    setTxt(newTxt);
+    setCursor(start+name.length+2);
+  };
+
+  // Render a single post
+  const renderPost=(p,key)=>{
+    const u=resolveUser(p);
+    const ti=tm[p.type];
+    const own=isOwnPost(p);
+    const expanded=expandedPost===p.id;
+    const isEditing=editingPost===p.id;
+    return(
+      <div key={key||p.id} style={{padding:"14px 16px",borderBottom:`1px solid ${T.bd}`}}>
+        {/* Pin indicator */}
+        {p.pinned&&<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:6,paddingLeft:44,fontSize:11,color:T.accent,fontWeight:600}}>
+          <span style={{display:"flex"}}>{I.pin}</span>ピン留め
+        </div>}
+        {/* Header */}
+        <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:6}}>
+          <Av u={u} sz={34}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+              <span style={{fontWeight:600,fontSize:13,color:u.col||T.txH}}>{u.name}</span>
+              {ti&&<Tag color={ti.c}>{ti.l}</Tag>}
+              {p.yearGroup&&<span style={{padding:"1px 6px",borderRadius:8,fontSize:10,fontWeight:600,background:T.accent+"18",color:T.accent,border:`1px solid ${T.accent}33`}}>{p.yearGroup}</span>}
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:11,color:T.txD}}>{fT(p.ts)}</span>
+              {p.editedAt&&<span style={{fontSize:10,color:T.txD,fontStyle:"italic"}}>（編集済み）</span>}
+            </div>
+          </div>
+          {/* More menu for own posts */}
+          {own&&<div style={{position:"relative"}}>
+            <div onClick={e=>{e.stopPropagation();setMenuPost(menuPost===p.id?null:p.id);}}
+              style={{cursor:"pointer",color:T.txD,display:"flex",padding:4}}>
+              {I.more}
+            </div>
+            {menuPost===p.id&&<div onClick={e=>e.stopPropagation()} style={{
+              position:"absolute",right:0,top:28,zIndex:100,
+              background:T.bg2,border:`1px solid ${T.bd}`,borderRadius:8,
+              boxShadow:"0 4px 12px rgba(0,0,0,.3)",overflow:"hidden",minWidth:100,
+            }}>
+              <div onClick={()=>startEdit(p)}
+                style={{padding:"8px 14px",fontSize:13,color:T.txH,cursor:"pointer",whiteSpace:"nowrap"}}
+                onMouseEnter={e=>e.currentTarget.style.background=T.bg3}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                編集
+              </div>
+              <div onClick={()=>{pinPost(p.id);setMenuPost(null);}}
+                style={{padding:"8px 14px",fontSize:13,color:T.accent,cursor:"pointer",whiteSpace:"nowrap"}}
+                onMouseEnter={e=>e.currentTarget.style.background=T.bg3}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                {p.pinned?"ピン解除":"ピン留め"}
+              </div>
+              <div onClick={()=>{deletePost(p.id);setMenuPost(null);}}
+                style={{padding:"8px 14px",fontSize:13,color:T.red,cursor:"pointer",whiteSpace:"nowrap"}}
+                onMouseEnter={e=>e.currentTarget.style.background=T.bg3}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                削除
+              </div>
+            </div>}
+          </div>}
+        </div>
+        {/* Body */}
+        <div style={{paddingLeft:44,marginBottom:8}}>
+          {isEditing?(
+            <div>
+              <textarea value={editText} onChange={e=>setEditText(e.target.value)}
+                style={{width:"100%",minHeight:48,padding:8,borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,resize:"vertical",outline:"none",fontFamily:"inherit"}}/>
+              <div style={{display:"flex",gap:6,marginTop:4}}>
+                <Btn on onClick={()=>saveEdit(p.id)} style={{borderRadius:10,fontSize:12}}>保存</Btn>
+                <Btn onClick={()=>{setEditingPost(null);setEditText("");}} style={{borderRadius:10,fontSize:12}}>キャンセル</Btn>
+              </div>
+            </div>
+          ):(
+            <p style={{margin:0,color:T.tx,fontSize:14,lineHeight:1.6,whiteSpace:"pre-wrap"}}><Tx>{p.text}</Tx></p>
+          )}
+          {/* Poll */}
+          {p.type==="poll"&&p.pollOptions&&(
+            <PollView options={p.pollOptions} votes={p.pollVotes||{}} userId={userId} onVote={opt=>votePoll(p.id,opt,userId)}/>
+          )}
+          {/* Attachments */}
+          <Attachments items={p.attachments}/>
+        </div>
+        {/* Actions */}
+        <div style={{paddingLeft:44,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+          <ReactionBar
+            reactions={p.reactions||{}}
+            userId={userId}
+            onReact={emoji=>reactPost(p.id,emoji,userId)}
+            likes={p.likes}
+            onLike={()=>toggleLike(p.id,userId)}
+          />
+          {/* Comment toggle */}
+          <div onClick={()=>setExpandedPost(expanded?null:p.id)} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",color:expanded?T.accent:T.txD,fontSize:12}}>
+            <span style={{display:"flex"}}>{I.reply}</span>
+            {(p.commentCount||0)>0&&<span>{p.commentCount}</span>}
+          </div>
+          {togBmark&&<div onClick={()=>togBmark(p.id)} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",color:bmarks.includes(p.id)?T.accent:T.txD,fontSize:12}}>
+            <span style={{display:"flex"}}>{I.bmark}</span>
+          </div>}
+          {/* Share */}
+          <div onClick={async()=>{
+            const text=`${u.name}: ${p.text.slice(0,100)}${p.text.length>100?"...":""}`;
+            if(navigator.share){try{await navigator.share({title:"投稿を共有",text});return;}catch{}}
+            try{await navigator.clipboard.writeText(p.text);showToast("テキストをコピーしました");}catch{showToast("コピーに失敗しました");}
+          }} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",color:T.txD,fontSize:12,opacity:.7}}
+            onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.7}>
+            <span style={{display:"flex"}}>{I.send}</span>
+          </div>
+        </div>
+        {/* Comment section */}
+        {expanded&&<CommentSection postId={p.id} user={user} onCountChange={delta=>updateCommentCount(p.id,delta)} members={members}/>}
+      </div>
+    );
+  };
+
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       {/* Composer */}
@@ -261,8 +446,11 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
           {mob&&!composing?
             <div onClick={()=>setComposing(true)} style={{flex:1,padding:"8px 12px",borderRadius:18,background:T.bg3,border:`1px solid ${T.bd}`,color:T.txD,fontSize:13,cursor:"pointer"}}>投稿する...</div>
           :
-            <div style={{flex:1}}>
-              <textarea value={txt} onChange={e=>setTxt(e.target.value)} placeholder="みんなに共有しよう..." autoFocus={mob&&composing} style={{width:"100%",minHeight:mob?60:48,padding:10,borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,resize:"vertical",outline:"none",fontFamily:"inherit"}}/>
+            <div style={{flex:1,position:"relative"}}>
+              <MentionSuggest text={txt} cursorPos={cursor} members={members} onSelect={insertMention}/>
+              <textarea value={txt} onChange={e=>{setTxt(e.target.value);setCursor(e.target.selectionStart);}}
+                onSelect={e=>setCursor(e.target.selectionStart)}
+                placeholder="みんなに共有しよう..." autoFocus={mob&&composing} style={{width:"100%",minHeight:mob?60:48,padding:10,borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,resize:"vertical",outline:"none",fontFamily:"inherit"}}/>
               {/* Poll options when type=poll */}
               {type==="poll"&&(
                 <div style={{marginTop:6,display:"flex",flexDirection:"column",gap:4}}>
@@ -310,104 +498,37 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
         </div>
       </div>
 
+      {/* Search & filter bar */}
+      <div style={{padding:"6px 16px",borderBottom:`1px solid ${T.bd}`,display:"flex",gap:6,alignItems:"center",flexShrink:0,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:4,flex:1,minWidth:120,padding:"4px 10px",borderRadius:8,background:T.bg3,border:`1px solid ${T.bd}`}}>
+          <span style={{color:T.txD,display:"flex"}}>{I.search}</span>
+          <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="投稿を検索..."
+            style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
+          {searchQ&&<span onClick={()=>setSearchQ("")} style={{cursor:"pointer",color:T.txD,display:"flex"}}>{I.x}</span>}
+        </div>
+        {Object.entries(tm).map(([k,v])=>
+          <div key={k} onClick={()=>setFilterType(filterType===k?null:k)}
+            style={{padding:"3px 8px",borderRadius:10,fontSize:10,fontWeight:600,cursor:"pointer",
+              background:filterType===k?v.c+"22":"transparent",color:filterType===k?v.c:T.txD,
+              border:`1px solid ${filterType===k?v.c+"44":"transparent"}`}}>
+            {v.l}
+          </div>
+        )}
+      </div>
+
       {/* Feed list */}
-      <div ref={scrollRef} style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}} onClick={()=>setMenuPost(null)}>
+      <div ref={scrollRef} style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}} onClick={e=>{setMenuPost(null);const tag=e.target.closest?.('.hashtag')?.dataset?.tag;if(tag)setSearchQ(`#${tag}`);}}>
         {loading&&<Loader msg="投稿を読み込み中" size="sm"/>}
-        {!loading&&filtered.length===0&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>まだ投稿がありません</div>}
-        {filtered.map(p=>{
-          const u=resolveUser(p);
-          const ti=tm[p.type];
-          const own=isOwnPost(p);
-          const expanded=expandedPost===p.id;
-          const isEditing=editingPost===p.id;
-          return(
-            <div key={p.id} style={{padding:"14px 16px",borderBottom:`1px solid ${T.bd}`}}>
-              {/* Header */}
-              <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:6}}>
-                <Av u={u} sz={34}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                    <span style={{fontWeight:600,fontSize:13,color:u.col||T.txH}}>{u.name}</span>
-                    {ti&&<Tag color={ti.c}>{ti.l}</Tag>}
-                    {p.yearGroup&&<span style={{padding:"1px 6px",borderRadius:8,fontSize:10,fontWeight:600,background:T.accent+"18",color:T.accent,border:`1px solid ${T.accent}33`}}>{p.yearGroup}</span>}
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{fontSize:11,color:T.txD}}>{fT(p.ts)}</span>
-                    {p.editedAt&&<span style={{fontSize:10,color:T.txD,fontStyle:"italic"}}>（編集済み）</span>}
-                  </div>
-                </div>
-                {/* More menu for own posts */}
-                {own&&<div style={{position:"relative"}}>
-                  <div onClick={e=>{e.stopPropagation();setMenuPost(menuPost===p.id?null:p.id);}}
-                    style={{cursor:"pointer",color:T.txD,display:"flex",padding:4}}>
-                    {I.more}
-                  </div>
-                  {menuPost===p.id&&<div onClick={e=>e.stopPropagation()} style={{
-                    position:"absolute",right:0,top:28,zIndex:100,
-                    background:T.bg2,border:`1px solid ${T.bd}`,borderRadius:8,
-                    boxShadow:"0 4px 12px rgba(0,0,0,.3)",overflow:"hidden",minWidth:100,
-                  }}>
-                    <div onClick={()=>startEdit(p)}
-                      style={{padding:"8px 14px",fontSize:13,color:T.txH,cursor:"pointer",whiteSpace:"nowrap"}}
-                      onMouseEnter={e=>e.currentTarget.style.background=T.bg3}
-                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                      編集
-                    </div>
-                    <div onClick={()=>{deletePost(p.id);setMenuPost(null);}}
-                      style={{padding:"8px 14px",fontSize:13,color:T.red,cursor:"pointer",whiteSpace:"nowrap"}}
-                      onMouseEnter={e=>e.currentTarget.style.background=T.bg3}
-                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                      削除
-                    </div>
-                  </div>}
-                </div>}
-              </div>
-              {/* Body */}
-              <div style={{paddingLeft:44,marginBottom:8}}>
-                {isEditing?(
-                  <div>
-                    <textarea value={editText} onChange={e=>setEditText(e.target.value)}
-                      style={{width:"100%",minHeight:48,padding:8,borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,resize:"vertical",outline:"none",fontFamily:"inherit"}}/>
-                    <div style={{display:"flex",gap:6,marginTop:4}}>
-                      <Btn on onClick={()=>saveEdit(p.id)} style={{borderRadius:10,fontSize:12}}>保存</Btn>
-                      <Btn onClick={()=>{setEditingPost(null);setEditText("");}} style={{borderRadius:10,fontSize:12}}>キャンセル</Btn>
-                    </div>
-                  </div>
-                ):(
-                  <p style={{margin:0,color:T.tx,fontSize:14,lineHeight:1.6,whiteSpace:"pre-wrap"}}><Tx>{p.text}</Tx></p>
-                )}
-                {/* Poll */}
-                {p.type==="poll"&&p.pollOptions&&(
-                  <PollView options={p.pollOptions} votes={p.pollVotes||{}} userId={userId} onVote={opt=>votePoll(p.id,opt,userId)}/>
-                )}
-                {/* Attachments */}
-                <Attachments items={p.attachments}/>
-              </div>
-              {/* Actions */}
-              <div style={{paddingLeft:44,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
-                <ReactionBar
-                  reactions={p.reactions||{}}
-                  userId={userId}
-                  onReact={emoji=>reactPost(p.id,emoji,userId)}
-                  likes={p.likes}
-                  onLike={()=>toggleLike(p.id,userId)}
-                />
-                {/* Comment toggle */}
-                <div onClick={()=>setExpandedPost(expanded?null:p.id)} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",color:expanded?T.accent:T.txD,fontSize:12}}>
-                  <span style={{display:"flex"}}>{I.reply}</span>
-                  {(p.commentCount||0)>0&&<span>{p.commentCount}</span>}
-                </div>
-                {togBmark&&<div onClick={()=>togBmark(p.id)} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",color:bmarks.includes(p.id)?T.accent:T.txD,fontSize:12}}>
-                  <span style={{display:"flex"}}>{I.bmark}</span>
-                </div>}
-              </div>
-              {/* Comment section */}
-              {expanded&&<CommentSection postId={p.id} user={user} onCountChange={delta=>updateCommentCount(p.id,delta)}/>}
-            </div>
-          );
-        })}
+        {!loading&&filtered.length===0&&filteredPinned.length===0&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{searchQ||filterType?"該当する投稿がありません":"まだ投稿がありません"}</div>}
+
+        {/* Pinned posts */}
+        {filteredPinned.map(p=>renderPost(p,`pin_${p.id}`))}
+
+        {/* Regular posts */}
+        {filtered.map(p=>renderPost(p))}
+
         {/* Infinite scroll sentinel */}
-        {hasMore&&<div ref={sentinelRef} style={{padding:16,textAlign:"center"}}>
+        {hasMore&&!searchQ&&!filterType&&<div ref={sentinelRef} style={{padding:16,textAlign:"center"}}>
           {loadingMore?<Loader msg="読み込み中" size="sm"/>:<div style={{color:T.txD,fontSize:12}}>スクロールして続きを読み込む</div>}
         </div>}
       </div>

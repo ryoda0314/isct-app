@@ -5,14 +5,16 @@ import { fTs } from "../utils.jsx";
 import { Av, Tx, Loader } from "../shared.jsx";
 import { useChat } from "../hooks/useChat.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
+import { useTyping } from "../hooks/useTyping.js";
 
 export const ChatView=({course,dept,mob})=>{
   const user=useCurrentUser();
   const roomId=course?.id||`dept:${dept?.prefix}`;
   const {messages,loading,sendMessage}=useChat(roomId);
+  const {typingUsers,setTyping}=useTyping(roomId,{id:user?.moodleId||user?.id,name:user?.name});
   const [inp,setInp]=useState("");const ref=useRef(null);
   useEffect(()=>{ref.current?.scrollIntoView({behavior:"smooth"});},[messages.length]);
-  const send=()=>{if(!inp.trim())return;sendMessage(inp,user);setInp("");};
+  const send=()=>{if(!inp.trim())return;sendMessage(inp,user);setInp("");setTyping(false);};
 
   // Group consecutive messages from same user within 5 min
   const grp=[];messages.forEach((m,i)=>{const p=messages[i-1];grp.push({...m,hdr:!(p&&p.uid===m.uid&&(m.ts-p.ts)<3e5)});});
@@ -20,7 +22,6 @@ export const ChatView=({course,dept,mob})=>{
   // Resolve display info: prefer DB profile, fall back to static data
   const resolveUser=(m)=>{
     if(m.name) return {name:m.name,av:m.avatar,col:m.color};
-    // profile lookup removed (was static dummy data)
     if(m.uid===user.moodleId||m.uid===user.id) return {name:user.name,av:user.av,col:user.col};
     return {name:`User ${m.uid}`,av:"?",col:"#888"};
   };
@@ -37,10 +38,14 @@ export const ChatView=({course,dept,mob})=>{
         );})}
         <div ref={ref}/>
       </div>
+      {/* Typing indicator */}
+      {typingUsers.length>0&&<div style={{padding:"2px 14px",fontSize:11,color:T.txD,fontStyle:"italic"}}>
+        {typingUsers.join("、")}が入力中...
+      </div>}
       <div style={{padding:"8px 10px",borderTop:`1px solid ${T.bd}`,background:T.bg2}}>
         <div style={{display:"flex",alignItems:"center",gap:6,padding:"3px 3px 3px 12px",borderRadius:mob?20:8,background:T.bg3,border:`1px solid ${T.bd}`}}>
           <span style={{color:T.txD,display:"flex",cursor:"pointer"}}>{I.plus}</span>
-          <input value={inp} onChange={e=>setInp(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(e.preventDefault(),send())} placeholder="メッセージ..." style={{flex:1,padding:"8px 0",border:"none",background:"transparent",color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
+          <input value={inp} onChange={e=>{setInp(e.target.value);setTyping(!!e.target.value.trim());}} onKeyDown={e=>e.key==="Enter"&&(e.preventDefault(),send())} placeholder="メッセージ..." style={{flex:1,padding:"8px 0",border:"none",background:"transparent",color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
           <button onClick={send} style={{width:34,height:34,borderRadius:mob?"50%":6,border:"none",background:inp.trim()?T.accent:"transparent",color:inp.trim()?"#fff":T.txD,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>{I.send}</button>
         </div>
       </div>

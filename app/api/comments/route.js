@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { isEnrolledInCourse } from '../../../lib/auth/course-enrollment.js';
+import { notifyMentions } from '../../../lib/mentions.js';
 
 const MAX_TEXT_LENGTH = 2000;
 const toMoodleId = (id) => id?.startsWith('mc_') ? id.slice(3) : id;
@@ -88,6 +89,10 @@ export async function POST(request) {
       console.error('[Comments POST]', error.message);
       return NextResponse.json({ error: `Insert failed: ${error.message}` }, { status: 500 });
     }
+
+    // Notify mentioned users (non-blocking)
+    try { await notifyMentions(text, userid, fullname, post.course_id, 'コメント'); } catch (e) { console.error('[Comments POST] mentions:', e); }
+
     return NextResponse.json(data);
   } catch (err) {
     console.error('[Comments POST]', err);

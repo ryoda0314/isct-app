@@ -6,8 +6,9 @@ import { fT, fTs } from '../utils.jsx';
 import { useCurrentUser } from '../hooks/useCurrentUser.js';
 import { useDMList, useDMMessages, useDMSend } from '../hooks/useDM.js';
 import { useGroupMessages, useGroupSend } from '../hooks/useGroupChat.js';
+import { useTyping } from '../hooks/useTyping.js';
 
-export const DMView=({mob,setView,friends=[],groups=[],leaveGroup})=>{
+export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen})=>{
   const user=useCurrentUser();
   const {conversations,loading}=useDMList(user?.moodleId);
   const [sel,setSel]=useState(null); // {type:'dm'|'group', ...}
@@ -16,6 +17,8 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup})=>{
   const ref=useRef(null);
   const sendDM=useDMSend();
   const sendGrpMsg=useGroupSend();
+  const typingRoom=sel?(sel.type==='group'?`grp:${sel.id}`:`dm:${sel.id}`):null;
+  const {typingUsers,setTyping}=useTyping(typingRoom,{id:user?.moodleId||user?.id,name:user?.name});
 
   // DM messages (only active when sel.type==='dm')
   const {messages:dmMsgs,setMessages:initDMMsgs}=useDMMessages(sel?.type==='dm'?sel.id:null);
@@ -24,9 +27,15 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup})=>{
 
   const messages=sel?.type==='group'?grpMsgs:dmMsgs;
 
+  // Mark conversation as read on server
+  const markRead=async(convId)=>{
+    if(!convId) return;
+    try{await fetch('/api/dm',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversation_id:convId})});}catch{}
+  };
+
   const startNewDM=async(friendId,name,avatar,color)=>{
     const existing=conversations.find(c=>c.withId===friendId);
-    if(existing){setSel({type:'dm',...existing});setShowPicker(false);return;}
+    if(existing){setSel({type:'dm',...existing});setShowPicker(false);markRead(existing.id);return;}
     setSel({type:'dm',id:null,withId:friendId,withName:name,withAvatar:avatar,withColor:color,msgs:[]});
     setShowPicker(false);
   };
@@ -59,10 +68,14 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup})=>{
   /* ── Chat view (DM or Group) ── */
   if(sel){
     const isGroup=sel.type==='group';
-    const headerName=isGroup?sel.name:(conversations.find(c=>c.id===sel.id)||sel).withName||'?';
+    const convData=conversations.find(c=>c.id===sel.id)||sel;
+    const headerName=isGroup?sel.name:convData.withName||'?';
     const headerAv=isGroup
       ?{name:sel.name,av:sel.avatar||sel.name?.[0],col:sel.color||T.accent}
-      :{name:headerName,av:(conversations.find(c=>c.id===sel.id)||sel).withAvatar||'?',col:(conversations.find(c=>c.id===sel.id)||sel).withColor||'#888'};
+      :{name:headerName,av:convData.withAvatar||'?',col:convData.withColor||'#888'};
+    // Read receipt: check if the other user has read up to a certain timestamp
+    const otherLastRead=!isGroup&&convData.lastRead?convData.lastRead[String(convData.withId)]:null;
+    const isRead=(msgTs)=>otherLastRead&&new Date(otherLastRead)>=new Date(msgTs);
 
     return(
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -90,17 +103,24 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup})=>{
                 {isGroup&&!me&&<div style={{fontSize:11,fontWeight:600,color:m.color||T.txD,marginBottom:2,marginLeft:2}}>{m.name}</div>}
                 <div style={{padding:"8px 12px",borderRadius:me?"14px 14px 4px 14px":"14px 14px 14px 4px",background:me?T.accent:T.bg3,color:me?"#fff":T.txH,fontSize:14}}>
                   <Tx>{m.text}</Tx>
-                  <div style={{fontSize:10,color:me?"rgba(255,255,255,.6)":T.txD,textAlign:"right",marginTop:2}}>{fTs(m.ts)}</div>
+                  <div style={{fontSize:10,color:me?"rgba(255,255,255,.6)":T.txD,textAlign:"right",marginTop:2,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:3}}>
+                    <span>{fTs(m.ts)}</span>
+                    {me&&!isGroup&&<span style={{fontSize:9,opacity:isRead(m.ts)?.9:.5}}>{isRead(m.ts)?"✓✓":"✓"}</span>}
+                  </div>
                 </div>
               </div>
             </div>;
           })}
           <div ref={ref}/>
         </div>
+        {/* Typing indicator */}
+        {typingUsers.length>0&&<div style={{padding:"2px 14px",fontSize:11,color:T.txD,fontStyle:"italic"}}>
+          {typingUsers.join("、")}が入力中...
+        </div>}
         <div style={{padding:"8px 10px",borderTop:`1px solid ${T.bd}`,background:T.bg2}}>
           <div style={{display:"flex",gap:6,alignItems:"center",padding:"3px 3px 3px 12px",borderRadius:20,background:T.bg3,border:`1px solid ${T.bd}`}}>
-            <input value={inp} onChange={e=>setInp(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(e.preventDefault(),sendMsg())} placeholder="メッセージ..." style={{flex:1,padding:"8px 0",border:"none",background:"transparent",color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
-            <button onClick={sendMsg} style={{width:34,height:34,borderRadius:"50%",border:"none",background:inp.trim()?T.accent:"transparent",color:inp.trim()?"#fff":T.txD,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>{I.send}</button>
+            <input value={inp} onChange={e=>{setInp(e.target.value);setTyping(!!e.target.value.trim());}} onKeyDown={e=>e.key==="Enter"&&(e.preventDefault(),sendMsg())} placeholder="メッセージ..." style={{flex:1,padding:"8px 0",border:"none",background:"transparent",color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
+            <button onClick={()=>{sendMsg();setTyping(false);}} style={{width:34,height:34,borderRadius:"50%",border:"none",background:inp.trim()?T.accent:"transparent",color:inp.trim()?"#fff":T.txD,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>{I.send}</button>
           </div>
         </div>
       </div>
@@ -164,7 +184,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup})=>{
         const wu={name:conv.withName||'?',av:conv.withAvatar||'?',col:conv.withColor||'#888'};
         const last=conv.msgs[conv.msgs.length-1];
         return(
-          <div key={conv.id} onClick={()=>setSel({type:'dm',...conv})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6,cursor:"pointer"}}>
+          <div key={conv.id} onClick={()=>{setSel({type:'dm',...conv});markDMSeen?.(conv.id);markRead(conv.id);}} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6,cursor:"pointer"}}>
             <Av u={wu} sz={36} st/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{wu.name}</div><div style={{fontSize:12,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{last?.text}</div></div>
             <span style={{fontSize:10,color:T.txD}}>{last?fT(last.ts):""}</span>
           </div>
