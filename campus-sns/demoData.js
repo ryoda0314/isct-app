@@ -185,9 +185,30 @@ const DEMO_NOTIFICATIONS = [
   { id: 607, type: "course", text: "「コンピュータアーキテクチャ」の小テスト2の成績が公開されました", cid: "mc_107", ts: d(-4, 16, 0), read: true },
 ];
 
+// ── フィード投稿 ──
+const DEMO_POSTS = {
+  "mc_101": [
+    { id: 701, uid: 10001, text: "動的計画法の漸化式の立て方がいまいち分からない…コツありますか？", type: "question", yearGroup: "25B", likes: [10002, 10003], ts: d(0, 11, 30), name: "山田花子", avatar: "H", color: "#e5534b" },
+    { id: 702, uid: 10002, text: "小さいケースで手計算→パターンを見つけてテーブルに落とす、が王道だと思う", type: "discussion", yearGroup: "25B", likes: [10001, 99999, 10003], ts: d(0, 11, 45), name: "鈴木一郎", avatar: "I", color: "#6375f0" },
+    { id: 703, uid: 99999, text: "第3回レポート、ソートの比較はランダム入力だけでなくソート済み入力も試した方がいいですよ", type: "info", yearGroup: "25B", likes: [10001], ts: d(-1, 16, 0), name: "テスト太郎", avatar: "T", color: "#888" },
+    { id: 704, uid: 10003, text: "ヒープソートの計算量 O(n log n) の証明、教科書のp.142がわかりやすかったです", type: "material", yearGroup: "25B", likes: [10001, 10002], ts: d(-1, 20, 15), name: "田中美咲", avatar: "M", color: "#3dae72" },
+    { id: 705, uid: 10004, text: "来週の小テスト範囲ってどこまでですか？", type: "question", yearGroup: "25B", likes: [], ts: d(-2, 9, 0), name: "佐藤健太", avatar: "K", color: "#d4843e" },
+    { id: 706, uid: 0, text: "正直この授業の課題量多すぎない？毎週レポートはきつい", type: "anon", yearGroup: "25B", likes: [10001, 10002, 10003, 10005], ts: d(-3, 22, 0), name: "匿名", avatar: "?", color: "#68687a" },
+  ],
+  "mc_102": [
+    { id: 711, uid: 10002, text: "固有値分解の計算、3x3以上になると大変すぎる", type: "discussion", yearGroup: "25B", likes: [99999], ts: d(0, 10, 0), name: "鈴木一郎", avatar: "I", color: "#6375f0" },
+    { id: 712, uid: 99999, text: "対角化の条件まとめノート作ったので共有します。固有値が全部異なれば対角化可能！", type: "material", yearGroup: "25B", likes: [10001, 10002, 10005], ts: d(-1, 14, 0), name: "テスト太郎", avatar: "T", color: "#888" },
+  ],
+  "mc_105": [
+    { id: 721, uid: 10003, text: "実験レポート、参考文献のフォーマットってIEEEスタイルでいいですよね？", type: "question", yearGroup: "25B", likes: [99999], ts: d(0, 15, 30), name: "田中美咲", avatar: "M", color: "#3dae72" },
+    { id: 722, uid: 99999, text: "TAさんに確認したらIEEEでOKとのことです", type: "info", yearGroup: "25B", likes: [10003, 10001], ts: d(0, 16, 10), name: "テスト太郎", avatar: "T", color: "#888" },
+  ],
+};
+
 export {
   DEMO_COURSES, DEMO_QDATA, DEMO_ASGN, DEMO_GRADES, DEMO_ATT,
   DEMO_USER, DEMO_EVENTS, DEMO_REVIEWS, DEMO_MY_EVENTS, DEMO_TASKS,
   DEMO_FRIENDS, DEMO_FRIEND_PENDING, DEMO_FRIEND_SENT,
-  DEMO_DM_CONVERSATIONS, DEMO_GROUPS, DEMO_NOTIFICATIONS
+  DEMO_DM_CONVERSATIONS, DEMO_GROUPS, DEMO_NOTIFICATIONS,
+  DEMO_POSTS
 };

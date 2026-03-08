@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { isDemoMode } from '../demoMode.js';
+import { DEMO_POSTS } from '../demoData.js';
 
 export function useFeed(courseId) {
   const [posts, setPosts] = useState([]);
@@ -9,13 +11,18 @@ export function useFeed(courseId) {
   // Fetch initial posts
   useEffect(() => {
     if (!courseId) return;
+    if (isDemoMode()) {
+      setPosts(DEMO_POSTS[courseId] || []);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     idsRef.current = new Set();
 
     (async () => {
       try {
         const r = await fetch(`/api/posts?course_id=${courseId}`);
-        if (!r.ok) return;
+        if (!r.ok) { setLoading(false); return; }
         const data = await r.json();
         const mapped = data.map(p => ({
           id: p.id,
@@ -38,7 +45,7 @@ export function useFeed(courseId) {
 
   // Realtime subscription for INSERT
   useEffect(() => {
-    if (!courseId) return;
+    if (!courseId || isDemoMode()) return;
     const sb = getSupabaseClient();
     const channel = sb
       .channel(`feed:${courseId}`)

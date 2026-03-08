@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { isDemoMode } from '../demoMode.js';
 
 export function useChat(courseId) {
   const [messages, setMessages] = useState([]);
@@ -9,13 +10,18 @@ export function useChat(courseId) {
   // Fetch initial messages
   useEffect(() => {
     if (!courseId) return;
+    if (isDemoMode()) {
+      setMessages([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     idsRef.current = new Set();
 
     (async () => {
       try {
         const r = await fetch(`/api/messages?course_id=${courseId}`);
-        if (!r.ok) return;
+        if (!r.ok) { setLoading(false); return; }
         const data = await r.json();
         const msgs = data.map(m => ({
           id: m.id,
@@ -35,7 +41,7 @@ export function useChat(courseId) {
 
   // Realtime subscription
   useEffect(() => {
-    if (!courseId) return;
+    if (!courseId || isDemoMode()) return;
     const sb = getSupabaseClient();
     const channel = sb
       .channel(`chat:${courseId}`)
