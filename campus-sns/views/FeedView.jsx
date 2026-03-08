@@ -22,10 +22,10 @@ const CommentSection=({postId,user,onCountChange})=>{
     }
   },[comments.length]);
 
-  const send=async()=>{
+  const send=()=>{
     if(!txt.trim())return;
-    const ok=await sendComment(txt,user);
-    if(ok) setTxt("");
+    sendComment(txt,user);
+    setTxt("");
   };
 
   return(

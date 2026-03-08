@@ -81,7 +81,7 @@ export function useComments(postId) {
 
   // Send comment (optimistic)
   const sendComment = useCallback(async (text, currentUser) => {
-    if (!text.trim() || !postId) return;
+    if (!text.trim() || !postId) return false;
     const tempId = `temp_${Date.now()}`;
     const optimistic = {
       id: tempId,
