@@ -170,3 +170,14 @@ create index if not exists idx_posts_course on posts(course_id, created_at desc)
 alter table posts enable row level security;
 create policy "anon_select_posts" on posts for select to anon using (true);
 alter publication supabase_realtime add table posts;
+
+-- 14. user_tokens: サーバーレス環境でのトークン永続化
+create table if not exists user_tokens (
+  login_id        text primary key,
+  wstoken         text not null,
+  moodle_user_id  bigint not null,
+  fullname        text,
+  updated_at      timestamptz default now()
+);
+alter table user_tokens enable row level security;
+-- anon アクセス不可 (service_role のみ)
