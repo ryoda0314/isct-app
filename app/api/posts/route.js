@@ -17,7 +17,14 @@ export async function GET(request) {
     const courseId = searchParams.get('course_id');
     if (!courseId) return NextResponse.json({ error: 'course_id required' }, { status: 400 });
 
-    if (!await isEnrolledInCourse(wstoken, userid, toMoodleId(courseId))) {
+    let enrolled;
+    try {
+      enrolled = await isEnrolledInCourse(wstoken, userid, toMoodleId(courseId));
+    } catch (e) {
+      console.error('[Posts GET] enrollment check failed:', e.message);
+      return NextResponse.json({ error: `Enrollment check failed: ${e.message}` }, { status: 500 });
+    }
+    if (!enrolled) {
       return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
     }
 
@@ -29,11 +36,14 @@ export async function GET(request) {
       .order('created_at', { ascending: false })
       .limit(50);
 
-    if (error) throw error;
+    if (error) {
+      console.error('[Posts GET] query:', error.message, error.details, error.hint);
+      return NextResponse.json({ error: `DB query failed: ${error.message}` }, { status: 500 });
+    }
     return NextResponse.json(data);
   } catch (err) {
     console.error('[Posts GET]', err);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    return NextResponse.json({ error: `Internal error: ${err.message}` }, { status: 500 });
   }
 }
 
@@ -54,7 +64,14 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
     }
 
-    if (!await isEnrolledInCourse(wstoken, userid, toMoodleId(course_id))) {
+    let enrolled;
+    try {
+      enrolled = await isEnrolledInCourse(wstoken, userid, toMoodleId(course_id));
+    } catch (e) {
+      console.error('[Posts POST] enrollment check failed:', e.message);
+      return NextResponse.json({ error: `Enrollment check failed: ${e.message}` }, { status: 500 });
+    }
+    if (!enrolled) {
       return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
     }
 
@@ -77,12 +94,12 @@ export async function POST(request) {
 
     if (error) {
       console.error('[Posts POST] insert:', error.message, error.details, error.hint);
-      throw error;
+      return NextResponse.json({ error: `Insert failed: ${error.message}` }, { status: 500 });
     }
     return NextResponse.json(data);
   } catch (err) {
     console.error('[Posts POST]', err);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    return NextResponse.json({ error: `Internal error: ${err.message}` }, { status: 500 });
   }
 }
 
@@ -104,7 +121,10 @@ export async function PATCH(request) {
       .eq('id', post_id)
       .single();
 
-    if (fetchErr) throw fetchErr;
+    if (fetchErr) {
+      console.error('[Posts PATCH] fetch:', fetchErr.message);
+      return NextResponse.json({ error: `Fetch failed: ${fetchErr.message}` }, { status: 500 });
+    }
 
     const likes = post.likes || [];
     const already = likes.includes(userid);
@@ -119,10 +139,13 @@ export async function PATCH(request) {
       .select('*, profiles(name, avatar, color)')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[Posts PATCH] update:', error.message);
+      return NextResponse.json({ error: `Update failed: ${error.message}` }, { status: 500 });
+    }
     return NextResponse.json(data);
   } catch (err) {
     console.error('[Posts PATCH]', err);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    return NextResponse.json({ error: `Internal error: ${err.message}` }, { status: 500 });
   }
 }

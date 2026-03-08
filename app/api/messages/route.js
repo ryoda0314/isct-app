@@ -16,8 +16,14 @@ export async function GET(request) {
     const courseId = searchParams.get('course_id');
     if (!courseId) return NextResponse.json({ error: 'course_id required' }, { status: 400 });
 
-    // H3: Verify course enrollment
-    if (!await isEnrolledInCourse(wstoken, userid, toMoodleId(courseId))) {
+    let enrolled;
+    try {
+      enrolled = await isEnrolledInCourse(wstoken, userid, toMoodleId(courseId));
+    } catch (e) {
+      console.error('[Messages GET] enrollment check failed:', e.message);
+      return NextResponse.json({ error: `Enrollment check failed: ${e.message}` }, { status: 500 });
+    }
+    if (!enrolled) {
       return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
     }
 
@@ -29,11 +35,14 @@ export async function GET(request) {
       .order('created_at', { ascending: true })
       .limit(200);
 
-    if (error) throw error;
+    if (error) {
+      console.error('[Messages GET] query:', error.message, error.details, error.hint);
+      return NextResponse.json({ error: `DB query failed: ${error.message}` }, { status: 500 });
+    }
     return NextResponse.json(data);
   } catch (err) {
     console.error('[Messages GET]', err);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    return NextResponse.json({ error: `Internal error: ${err.message}` }, { status: 500 });
   }
 }
 
@@ -48,13 +57,18 @@ export async function POST(request) {
       return NextResponse.json({ error: 'course_id and text required' }, { status: 400 });
     }
 
-    // M8: Text length limit
     if (text.length > MAX_TEXT_LENGTH) {
       return NextResponse.json({ error: 'Text too long' }, { status: 400 });
     }
 
-    // H3: Verify course enrollment
-    if (!await isEnrolledInCourse(wstoken, userid, toMoodleId(course_id))) {
+    let enrolled;
+    try {
+      enrolled = await isEnrolledInCourse(wstoken, userid, toMoodleId(course_id));
+    } catch (e) {
+      console.error('[Messages POST] enrollment check failed:', e.message);
+      return NextResponse.json({ error: `Enrollment check failed: ${e.message}` }, { status: 500 });
+    }
+    if (!enrolled) {
       return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
     }
 
@@ -74,11 +88,11 @@ export async function POST(request) {
 
     if (error) {
       console.error('[Messages POST] insert:', error.message, error.details, error.hint);
-      throw error;
+      return NextResponse.json({ error: `Insert failed: ${error.message}` }, { status: 500 });
     }
     return NextResponse.json(data);
   } catch (err) {
     console.error('[Messages POST]', err);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    return NextResponse.json({ error: `Internal error: ${err.message}` }, { status: 500 });
   }
 }

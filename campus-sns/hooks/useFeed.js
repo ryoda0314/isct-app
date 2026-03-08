@@ -38,7 +38,7 @@ export function useFeed(courseId) {
         }));
         mapped.forEach(p => idsRef.current.add(p.id));
         setPosts(mapped);
-      } catch {}
+      } catch (e) { console.error('[useFeed fetch error]', e); }
       setLoading(false);
     })();
   }, [courseId]);
