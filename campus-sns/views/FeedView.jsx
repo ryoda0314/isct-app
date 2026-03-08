@@ -6,22 +6,19 @@ import { Av, Tag, Tx, Btn, Loader } from "../shared.jsx";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
 import { useFeed } from "../hooks/useFeed.js";
 
-const DEG_TYPES=[{k:"B",l:"学部"},{k:"M",l:"修士"},{k:"D",l:"博士"},{k:"R",l:"研究生"}];
-
 export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
   const user=useCurrentUser();
   const roomId=course?.id||`dept:${dept?.prefix}`;
   const {posts,loading,sendPost,toggleLike}=useFeed(roomId);
   const [txt,setTxt]=useState("");
   const [type,setType]=useState("discussion");
-  const [filterYG,setFilterYG]=useState(null);
   const [composing,setComposing]=useState(false);
   const tm=tMap();
 
   const filtered=useMemo(()=>{
-    if(!filterYG) return posts;
-    return posts.filter(p=>!p.yearGroup||p.yearGroup.endsWith(filterYG));
-  },[posts,filterYG]);
+    const ug=user.yearGroup;
+    return posts.filter(p=>p.yearGroup===ug);
+  },[posts,user.yearGroup]);
 
   const send=()=>{
     if(!txt.trim())return;
@@ -40,14 +37,6 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
 
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      {/* Year group filter tabs */}
-      <div style={{display:"flex",gap:0,borderBottom:`1px solid ${T.bd}`,background:T.bg2,overflowX:"auto",flexShrink:0}}>
-        <div onClick={()=>setFilterYG(null)} style={{padding:"8px 14px",fontSize:12,fontWeight:filterYG===null?700:500,color:filterYG===null?T.accent:T.txD,borderBottom:filterYG===null?`2px solid ${T.accent}`:"2px solid transparent",cursor:"pointer",whiteSpace:"nowrap"}}>全体</div>
-        {DEG_TYPES.map(d=>
-          <div key={d.k} onClick={()=>setFilterYG(d.k)} style={{padding:"8px 14px",fontSize:12,fontWeight:filterYG===d.k?700:500,color:filterYG===d.k?T.accent:T.txD,borderBottom:filterYG===d.k?`2px solid ${T.accent}`:"2px solid transparent",cursor:"pointer",whiteSpace:"nowrap"}}>{d.l}</div>
-        )}
-      </div>
-
       {/* Composer */}
       <div style={{padding:mob?12:14,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>
         <div style={{display:"flex",gap:8,alignItems:mob&&!composing?"center":"flex-start"}}>
@@ -77,7 +66,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
       {/* Feed list */}
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
         {loading&&<Loader msg="投稿を読み込み中" size="sm"/>}
-        {!loading&&filtered.length===0&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{filterYG?`${filterYG} の投稿はまだありません`:"まだ投稿がありません"}</div>}
+        {!loading&&filtered.length===0&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>まだ投稿がありません</div>}
         {filtered.map(p=>{
           const u=resolveUser(p);
           const liked=p.likes.includes(user.moodleId)||p.likes.includes(user.id);
