@@ -50,17 +50,22 @@ const findNearestNavSpot=(lat,lng)=>{
   return {spot:best,distance:bestDist};
 };
 
-/* ── SpotSelector (Google Maps style inline) ── */
+/* ── SpotSelector (search-first, category tabs) ── */
 const SpotSelector=({value,onChange,placeholder,accent})=>{
   const [open,setOpen]=useState(false);
   const [q,setQ]=useState("");
+  const [openCat,setOpenCat]=useState(null);
   const sel=NAV_SPOTS.find(s=>s.id===value);
 
-  const filtered=q.trim()?NAV_SPOTS.filter(s=>s.label.includes(q)||s.short.includes(q)||s.id.includes(q.toLowerCase())):NAV_SPOTS;
-  const grouped=SPOT_CATS.map(cat=>({...cat,spots:filtered.filter(s=>s.cat===cat.id)})).filter(g=>g.spots.length>0);
+  const searching=q.trim().length>0;
+  const filtered=searching?NAV_SPOTS.filter(s=>s.label.includes(q)||s.short.includes(q)||s.id.includes(q.toLowerCase())):[];
+  const searchGrouped=searching?SPOT_CATS.map(cat=>({...cat,spots:filtered.filter(s=>s.cat===cat.id)})).filter(g=>g.spots.length>0):[];
+  const catSpots=openCat?NAV_SPOTS.filter(s=>s.cat===openCat):[];
+  const QUICK_IDS=["taki","eki","lib","main","coop","gym","w5"];
+  const quickSpots=QUICK_IDS.map(id=>NAV_SPOTS.find(s=>s.id===id)).filter(Boolean);
 
   return <div style={{position:"relative",flex:1,minWidth:0}}>
-    <button onClick={()=>{setOpen(p=>!p);setQ("");}} style={{width:"100%",display:"flex",alignItems:"center",gap:6,padding:"9px 10px",borderRadius:8,border:"none",background:open?T.bg3:"transparent",cursor:"pointer",textAlign:"left",transition:"background .12s"}} onMouseEnter={e=>{if(!open)e.currentTarget.style.background=T.bg3}} onMouseLeave={e=>{if(!open)e.currentTarget.style.background="transparent"}}>
+    <button onClick={()=>{setOpen(p=>!p);setQ("");setOpenCat(null);}} style={{width:"100%",display:"flex",alignItems:"center",gap:6,padding:"9px 10px",borderRadius:8,border:"none",background:open?T.bg3:"transparent",cursor:"pointer",textAlign:"left",transition:"background .12s"}} onMouseEnter={e=>{if(!open)e.currentTarget.style.background=T.bg3}} onMouseLeave={e=>{if(!open)e.currentTarget.style.background="transparent"}}>
       {sel?<span style={{fontSize:13,fontWeight:600,color:T.txH,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sel.label}</span>
       :<span style={{fontSize:13,color:T.txD,flex:1}}>{placeholder}</span>}
     </button>
@@ -70,17 +75,33 @@ const SpotSelector=({value,onChange,placeholder,accent})=>{
         <div style={{padding:"10px 10px 6px"}}>
           <div style={{position:"relative"}}>
             <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",display:"flex",color:T.txD,pointerEvents:"none"}}>{I.search}</span>
-            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="建物名を検索..." autoFocus style={{width:"100%",padding:"9px 10px 9px 34px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,outline:"none",boxSizing:"border-box"}}/>
+            <input value={q} onChange={e=>{setQ(e.target.value);setOpenCat(null);}} placeholder="建物名を検索..." autoFocus style={{width:"100%",padding:"9px 10px 9px 34px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,outline:"none",boxSizing:"border-box"}}/>
           </div>
         </div>
-        <div style={{maxHeight:260,overflowY:"auto",padding:"0 6px 6px"}}>
+        <div style={{maxHeight:280,overflowY:"auto",padding:"0 6px 6px"}}>
           {value&&<button onClick={()=>{onChange(null);setOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,border:"none",background:`${T.red}10`,cursor:"pointer",textAlign:"left",marginBottom:4}}>
             <span style={{display:"flex",color:T.red}}>{I.x}</span>
             <span style={{fontSize:12,fontWeight:500,color:T.red}}>選択を解除</span>
           </button>}
-          {grouped.map(g=><div key={g.id}>
-            <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5,padding:"8px 10px 3px"}}>{g.label}</div>
-            {g.spots.map(s=>{
+          {searching?<>
+            {searchGrouped.map(g=><div key={g.id}>
+              <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5,padding:"8px 10px 3px"}}>{g.label}</div>
+              {g.spots.map(s=>{
+                const on=s.id===value;
+                return <button key={s.id} onClick={()=>{onChange(s.id);setOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:on?`${accent}18`:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>{if(!on)e.currentTarget.style.background=T.hover}} onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent"}}>
+                  <div style={{width:20,height:20,borderRadius:5,background:on?s.col:`${s.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:on?"#fff":s.col}}>{s.short}</span></div>
+                  <span style={{fontSize:12,fontWeight:on?600:400,color:on?T.txH:T.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{s.label}</span>
+                  {on&&<span style={{display:"flex",color:accent,flexShrink:0}}>{I.chk}</span>}
+                </button>;
+              })}
+            </div>)}
+            {searchGrouped.length===0&&<div style={{padding:"16px 0",fontSize:12,color:T.txD,textAlign:"center"}}>見つかりません</div>}
+          </>:openCat?<>
+            <button onClick={()=>setOpenCat(null)} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",color:T.txD,fontSize:11,marginBottom:2}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              戻る
+            </button>
+            {catSpots.map(s=>{
               const on=s.id===value;
               return <button key={s.id} onClick={()=>{onChange(s.id);setOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:on?`${accent}18`:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>{if(!on)e.currentTarget.style.background=T.hover}} onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent"}}>
                 <div style={{width:20,height:20,borderRadius:5,background:on?s.col:`${s.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:on?"#fff":s.col}}>{s.short}</span></div>
@@ -88,8 +109,25 @@ const SpotSelector=({value,onChange,placeholder,accent})=>{
                 {on&&<span style={{display:"flex",color:accent,flexShrink:0}}>{I.chk}</span>}
               </button>;
             })}
-          </div>)}
-          {grouped.length===0&&<div style={{padding:"16px 0",fontSize:12,color:T.txD,textAlign:"center"}}>見つかりません</div>}
+          </>:<>
+            <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5,padding:"6px 10px 3px"}}>よく使う</div>
+            {quickSpots.map(s=>{
+              const on=s.id===value;
+              return <button key={s.id} onClick={()=>{onChange(s.id);setOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:on?`${accent}18`:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>{if(!on)e.currentTarget.style.background=T.hover}} onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent"}}>
+                <div style={{width:20,height:20,borderRadius:5,background:on?s.col:`${s.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:on?"#fff":s.col}}>{s.short}</span></div>
+                <span style={{fontSize:12,fontWeight:on?600:400,color:on?T.txH:T.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{s.label}</span>
+                {on&&<span style={{display:"flex",color:accent,flexShrink:0}}>{I.chk}</span>}
+              </button>;
+            })}
+            <div style={{height:1,background:T.bd,margin:"6px 10px"}}/>
+            {SPOT_CATS.filter(cat=>NAV_SPOTS.some(s=>s.cat===cat.id)).map(cat=>{
+              const count=NAV_SPOTS.filter(s=>s.cat===cat.id).length;
+              return <button key={cat.id} onClick={()=>setOpenCat(cat.id)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"10px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <span style={{fontSize:13,fontWeight:500,color:T.txH}}>{cat.label}</span>
+                <span style={{fontSize:11,color:T.txD}}>{count}件 ›</span>
+              </button>;
+            })}
+          </>}
         </div>
       </div>
     </>}
