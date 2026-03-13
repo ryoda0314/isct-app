@@ -51,7 +51,7 @@ const findNearestNavSpot=(lat,lng)=>{
 };
 
 /* ── SpotSelector (search-first, category tabs) ── */
-const SpotSelector=({value,onChange,placeholder,accent})=>{
+const SpotSelector=({value,onChange,placeholder,accent,onGps,gpsLoading})=>{
   const [open,setOpen]=useState(false);
   const [q,setQ]=useState("");
   const [openCat,setOpenCat]=useState(null);
@@ -110,6 +110,10 @@ const SpotSelector=({value,onChange,placeholder,accent})=>{
               </button>;
             })}
           </>:<>
+            {onGps&&<button onClick={()=>{onGps();setOpen(false);}} disabled={gpsLoading} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"#4285f410",cursor:gpsLoading?"wait":"pointer",textAlign:"left",marginBottom:4}} onMouseEnter={e=>e.currentTarget.style.background="#4285f420"} onMouseLeave={e=>e.currentTarget.style.background="#4285f410"}>
+              <div style={{width:20,height:20,borderRadius:5,background:"#4285f430",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{I.tgt}</div>
+              <span style={{fontSize:12,fontWeight:500,color:"#4285f4"}}>{gpsLoading?"取得中...":"現在地"}</span>
+            </button>}
             <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5,padding:"6px 10px 3px"}}>よく使う</div>
             {quickSpots.map(s=>{
               const on=s.id===value;
@@ -307,7 +311,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       {/* Inputs */}
       <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
         <div style={{borderBottom:`1px solid ${T.bd}`}}>
-          <SpotSelector value={origin} onChange={v=>{setOrigin(v);setSelectMode(null);}} placeholder="出発地を選択" accent="#34a853"/>
+          <SpotSelector value={origin} onChange={v=>{setOrigin(v);setSelectMode(null);}} placeholder="出発地を選択" accent="#34a853" onGps={getGpsOrigin} gpsLoading={gpsLoading}/>
         </div>
         <SpotSelector value={destination} onChange={v=>{setDestination(v);setSelectMode(null);}} placeholder="目的地を選択" accent={T.accent}/>
       </div>
