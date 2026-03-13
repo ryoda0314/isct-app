@@ -139,7 +139,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     if(!leafletReady||!mapRef.current||mapInst.current)return;
     const L=window.L;
     const map=L.map(mapRef.current,{center:[CAMPUS_CENTER.lat,CAMPUS_CENTER.lng],zoom:CAMPUS_ZOOM,zoomControl:false,attributionControl:false});
-    L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg",{maxZoom:22,maxNativeZoom:18}).addTo(map);
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:22,maxNativeZoom:19}).addTo(map);
     overlayRef.current=L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:22,maxNativeZoom:19,pane:"overlayPane",opacity:0.35}).addTo(map);
     L.control.zoom({position:"bottomright"}).addTo(map);
     mapInst.current=map;

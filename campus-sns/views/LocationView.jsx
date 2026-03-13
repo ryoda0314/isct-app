@@ -82,15 +82,15 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob,gpsPos})=>{
       zoomControl:false,
       attributionControl:false,
     });
-    L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg",{
-      maxZoom:22,maxNativeZoom:18,
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{
+      maxZoom:22,maxNativeZoom:19,
     }).addTo(map);
     overlayRef.current=L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{
       maxZoom:22,maxNativeZoom:19,pane:"overlayPane",opacity:0.35,
     }).addTo(map);
     L.control.zoom({position:"bottomright"}).addTo(map);
     L.control.attribution({position:"bottomleft",prefix:false})
-      .addAttribution('&copy; 国土地理院')
+      .addAttribution('&copy; Esri, Maxar, Earthstar Geographics')
       .addTo(map);
     mapInst.current=map;
     return()=>{map.remove();mapInst.current=null;};
