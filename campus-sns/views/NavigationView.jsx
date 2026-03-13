@@ -1,9 +1,54 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { useLeaflet, Loader } from "../shared.jsx";
-import { CAMPUS_CENTER, CAMPUS_ZOOM, SPOT_CATS } from "../hooks/useLocationSharing.js";
+import { CAMPUS_CENTER, CAMPUS_ZOOM, SPOTS, SPOT_CATS, ENTRANCES, AREAS } from "../hooks/useLocationSharing.js";
 import { useNavigation, NAV_SPOTS } from "../hooks/useNavigation.js";
+
+const NON_GEO_NAV=new Set(["suzu","home_loc","commute","off_campus"]);
+const haversineNav=(lat1,lng1,lat2,lng2)=>{
+  const R=6371e3,toRad=d=>d*Math.PI/180;
+  const dLat=toRad(lat2-lat1),dLng=toRad(lng2-lng1);
+  const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+};
+const pointInPolyNav=(lat,lng,poly)=>{
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const [yi,xi]=poly[i],[yj,xj]=poly[j];
+    if((yi>lat)!==(yj>lat)&&lng<(xj-xi)*(lat-yi)/(yj-yi)+xi)inside=!inside;
+  }
+  return inside;
+};
+const findNearestNavSpot=(lat,lng)=>{
+  // 1) ポリゴン判定: AREAS内のポリゴンに含まれるか
+  for(const [id,poly] of Object.entries(AREAS)){
+    if(NON_GEO_NAV.has(id)||poly.length<3)continue;
+    if(pointInPolyNav(lat,lng,poly)){
+      const spot=NAV_SPOTS.find(s=>s.id===id);
+      if(spot)return {spot,distance:0};
+    }
+  }
+  // 2) 入口ベース: 最も近い入口の建物を優先
+  let bestEntSpot=null,bestEntDist=Infinity;
+  for(const ent of ENTRANCES){
+    if(!ent.spot||NON_GEO_NAV.has(ent.spot))continue;
+    const d=haversineNav(lat,lng,ent.lat,ent.lng);
+    if(d<bestEntDist){bestEntDist=d;bestEntSpot=ent.spot;}
+  }
+  if(bestEntSpot&&bestEntDist<100){
+    const spot=NAV_SPOTS.find(s=>s.id===bestEntSpot);
+    if(spot)return {spot,distance:bestEntDist};
+  }
+  // 3) フォールバック: 入口データがない建物は中心点で判定
+  let best=null,bestDist=Infinity;
+  for(const s of NAV_SPOTS){
+    if(!s.id||s.lat==null||NON_GEO_NAV.has(s.id))continue;
+    const d=haversineNav(lat,lng,s.lat,s.lng);
+    if(d<bestDist){bestDist=d;best=s;}
+  }
+  return {spot:best,distance:bestDist};
+};
 
 /* ── SpotSelector (Google Maps style inline) ── */
 const SpotSelector=({value,onChange,placeholder,accent})=>{
@@ -61,6 +106,24 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const {origin,setOrigin,destination,setDestination,route,swap}=useNavigation();
   const [selectMode,setSelectMode]=useState(null);
   const [panelMin,setPanelMin]=useState(false);
+  const [gpsPos,setGpsPos]=useState(null);
+  const [gpsLoading,setGpsLoading]=useState(false);
+
+  const getGpsOrigin=useCallback(()=>{
+    if(!navigator.geolocation)return;
+    setGpsLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos)=>{
+        const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+        setGpsPos({lat,lng,accuracy});
+        const {spot,distance}=findNearestNavSpot(lat,lng);
+        if(spot&&distance<1500) setOrigin(spot.id);
+        setGpsLoading(false);
+      },
+      ()=>setGpsLoading(false),
+      {enableHighAccuracy:true,timeout:10000,maximumAge:30000}
+    );
+  },[setOrigin]);
 
   // Accept initial origin+destination from external navigation (e.g. TTView/HomeView building click)
   useEffect(()=>{
@@ -76,7 +139,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     if(!leafletReady||!mapRef.current||mapInst.current)return;
     const L=window.L;
     const map=L.map(mapRef.current,{center:[CAMPUS_CENTER.lat,CAMPUS_CENTER.lng],zoom:CAMPUS_ZOOM,zoomControl:false,attributionControl:false});
-    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:22,maxNativeZoom:19}).addTo(map);
+    L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg",{maxZoom:22,maxNativeZoom:18}).addTo(map);
     overlayRef.current=L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:22,maxNativeZoom:19,pane:"overlayPane",opacity:0.35}).addTo(map);
     L.control.zoom({position:"bottomright"}).addTo(map);
     mapInst.current=map;
@@ -157,10 +220,22 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       layersRef.current.push(m);
     }
 
+    // GPS位置マーカー
+    if(gpsPos){
+      const gpsDot=L.divIcon({className:"",html:`<div style="position:relative"><div style="position:absolute;inset:-10px;border-radius:50%;background:#4285f420;border:1.5px solid #4285f440;animation:locPulse 2s ease-in-out infinite"></div><div style="width:12px;height:12px;border-radius:50%;background:#4285f4;border:2.5px solid #fff;box-shadow:0 0 6px rgba(66,133,244,.5)"></div></div>`,iconSize:[12,12],iconAnchor:[6,6]});
+      const gm=L.marker([gpsPos.lat,gpsPos.lng],{icon:gpsDot,zIndexOffset:900}).addTo(map);
+      gm.bindTooltip(`<b>現在地</b>`,{direction:"top",offset:[0,-10],className:"nav-tip"});
+      layersRef.current.push(gm);
+      if(gpsPos.accuracy&&gpsPos.accuracy<500){
+        const circle=L.circle([gpsPos.lat,gpsPos.lng],{radius:gpsPos.accuracy,color:"#4285f4",fillColor:"#4285f4",fillOpacity:0.08,weight:1,opacity:0.3}).addTo(map);
+        layersRef.current.push(circle);
+      }
+    }
+
     if(!route&&originSpot&&destSpot){
       map.fitBounds(L.latLngBounds([[originSpot.lat,originSpot.lng],[destSpot.lat,destSpot.lng]]).pad(0.3));
     }
-  },[leafletReady,origin,destination,route]);
+  },[leafletReady,origin,destination,route,gpsPos]);
 
   if(!leafletReady)return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><Loader msg="マップを読み込み中" size="md"/></div>;
 
@@ -199,8 +274,11 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         <SpotSelector value={destination} onChange={v=>{setDestination(v);setSelectMode(null);}} placeholder="目的地を選択" accent={T.accent}/>
       </div>
 
-      {/* Swap button */}
-      <div style={{display:"flex",alignItems:"center",flexShrink:0,paddingLeft:4}}>
+      {/* Swap + GPS buttons */}
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,flexShrink:0,paddingLeft:4}}>
+        <button onClick={getGpsOrigin} disabled={gpsLoading} style={{display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:"50%",border:`1px solid ${gpsPos?"#4285f440":T.bd}`,background:gpsPos?"#4285f410":"transparent",cursor:gpsLoading?"wait":"pointer",color:gpsPos?"#4285f4":T.txD,transition:"all .15s",opacity:gpsLoading?0.5:1}} onMouseEnter={e=>{e.currentTarget.style.background=gpsPos?"#4285f420":T.bg3;e.currentTarget.style.color=gpsPos?"#4285f4":T.txH;}} onMouseLeave={e=>{e.currentTarget.style.background=gpsPos?"#4285f410":"transparent";e.currentTarget.style.color=gpsPos?"#4285f4":T.txD;}} title="現在地を出発地に設定">
+          {I.tgt}
+        </button>
         <button onClick={swap} style={{display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:"50%",border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",color:T.txD,transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.background=T.bg3;e.currentTarget.style.color=T.txH;}} onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.txD;}} title="入れ替え">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="7 3 7 21"/><polyline points="4 6 7 3 10 6"/><polyline points="17 21 17 3"/><polyline points="14 18 17 21 20 18"/></svg>
         </button>
@@ -308,7 +386,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   </div>;
 
   return <div style={{flex:1,position:"relative",overflow:"hidden"}}>
-    <style>{tipStyle}{`@keyframes navSlideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <style>{tipStyle}{`@keyframes navSlideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes locPulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.5)}}`}</style>
     {/* Full-screen map */}
     <div ref={mapRef} style={{position:"absolute",inset:0}}/>
     {/* Floating UI */}

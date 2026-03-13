@@ -1,13 +1,43 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { Av, useLeaflet, Loader } from "../shared.jsx";
-import { useLocationSharing, SPOTS, SPOT_CATS, getSpot, CAMPUS_CENTER, CAMPUS_ZOOM, WAYPOINTS, EDGES, ENTRANCES } from "../hooks/useLocationSharing.js";
+import { useLocationSharing, SPOTS, SPOT_CATS, getSpot, CAMPUS_CENTER, CAMPUS_ZOOM, WAYPOINTS, EDGES, ENTRANCES, AREAS } from "../hooks/useLocationSharing.js";
 
-const NON_GEO=new Set(["suzu","home_loc","commute","off_campus"]);
+const NON_GEO=new Set(["suzu","home_loc","commute","off_campus","road"]);
+
+/* ── GPS → 最寄りスポット検索（ポリゴン→入口→中心点） ── */
+const haversine=(lat1,lng1,lat2,lng2)=>{
+  const R=6371e3,toRad=d=>d*Math.PI/180;
+  const dLat=toRad(lat2-lat1),dLng=toRad(lng2-lng1);
+  const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+};
+// Ray-casting法によるポリゴン内判定
+const pointInPolygon=(lat,lng,poly)=>{
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const [yi,xi]=poly[i],[yj,xj]=poly[j];
+    if((yi>lat)!==(yj>lat)&&lng<(xj-xi)*(lat-yi)/(yj-yi)+xi)inside=!inside;
+  }
+  return inside;
+};
+const findNearestSpot=(lat,lng)=>{
+  // 1) ポリゴン判定: AREAS内のポリゴンに含まれるか
+  for(const [id,poly] of Object.entries(AREAS)){
+    if(NON_GEO.has(id)||poly.length<3)continue;
+    if(pointInPolygon(lat,lng,poly)){
+      const spot=SPOTS.find(s=>s.id===id);
+      if(spot)return {spot,distance:0};
+    }
+  }
+  // 2) ポリゴン外 → 道
+  const roadSpot=SPOTS.find(s=>s.id==="road");
+  return {spot:roadSpot,distance:-1};
+};
 
 /* ── マップタブ ── */
-const MapTab=({peers,myLoc,mySpot,grouped,mob})=>{
+const MapTab=({peers,myLoc,mySpot,grouped,mob,gpsPos})=>{
   const leafletReady=useLeaflet();
   const mapRef=useRef(null);
   const mapInst=useRef(null);
@@ -36,6 +66,11 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob})=>{
   const [newEnts,setNewEnts]=useState([]); // 新規追加した入口 [{spot,lat,lng}, ...]
   const [entDragEdits,setEntDragEdits]=useState({}); // idx→{lat,lng} 既存ENTRANCES+newEntsのドラッグ修正
   const [entCopied,setEntCopied]=useState(false);
+  // 建物範囲（ポリゴン）編集
+  const [areaEditMode,setAreaEditMode]=useState(false);
+  const [areaEdits,setAreaEdits]=useState({}); // spotId → [[lat,lng], ...]
+  const [areaCopied,setAreaCopied]=useState(false);
+  const [areaSelSpot,setAreaSelSpot]=useState(null); // 選択中の建物ID
 
   // init map
   useEffect(()=>{
@@ -47,15 +82,15 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob})=>{
       zoomControl:false,
       attributionControl:false,
     });
-    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{
-      maxZoom:22,maxNativeZoom:19,
+    L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg",{
+      maxZoom:22,maxNativeZoom:18,
     }).addTo(map);
     overlayRef.current=L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{
       maxZoom:22,maxNativeZoom:19,pane:"overlayPane",opacity:0.35,
     }).addTo(map);
     L.control.zoom({position:"bottomright"}).addTo(map);
     L.control.attribution({position:"bottomleft",prefix:false})
-      .addAttribution('&copy; Esri, Maxar, Earthstar Geographics')
+      .addAttribution('&copy; 国土地理院')
       .addTo(map);
     mapInst.current=map;
     return()=>{map.remove();mapInst.current=null;};
@@ -96,6 +131,88 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob})=>{
       return;
     }
 
+    // ── 範囲編集モード ──
+    if(areaEditMode){
+      SPOTS.forEach(s=>{
+        if(!s.id||s.lat==null)return;
+        const verts=areaEdits[s.id]||[]; // [[lat,lng], ...]
+        const isSel=areaSelSpot===s.id;
+        // ポリゴン描画（頂点が3つ以上ある場合）
+        if(verts.length>=3){
+          const poly=L.polygon(verts,{
+            color:isSel?"#60a0ff":s.col,fillColor:isSel?"#60a0ff":s.col,
+            fillOpacity:isSel?0.25:0.12,weight:isSel?2.5:1.5,opacity:isSel?0.9:0.5,
+            interactive:true,
+          }).addTo(map);
+          poly.on("click",(ev)=>{L.DomEvent.stopPropagation(ev);setAreaSelSpot(s.id);});
+          markersRef.current.push(poly);
+        }else if(verts.length===2){
+          // 2頂点: 線で表示
+          const line=L.polyline(verts,{color:isSel?"#60a0ff":s.col,weight:isSel?2.5:1.5,opacity:isSel?0.9:0.5,dashArray:"4,4"}).addTo(map);
+          line.on("click",(ev)=>{L.DomEvent.stopPropagation(ev);setAreaSelSpot(s.id);});
+          markersRef.current.push(line);
+        }else if(verts.length===1){
+          // 1頂点: ドットで表示
+          const dot=L.circleMarker(verts[0],{radius:4,color:isSel?"#60a0ff":s.col,fillColor:isSel?"#60a0ff":s.col,fillOpacity:0.5,weight:2}).addTo(map);
+          dot.on("click",(ev)=>{L.DomEvent.stopPropagation(ev);setAreaSelSpot(s.id);});
+          markersRef.current.push(dot);
+        }
+        // 建物ラベル
+        const icon=L.divIcon({
+          className:"",
+          html:`<div style="display:flex;align-items:center;gap:3px;padding:2px 6px;border-radius:6px;background:${isSel?"#60a0ff":s.col};box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;transform:translate(-50%,-50%);border:${isSel?"2px solid #fff":"1.5px solid transparent"}">
+            <span style="font-size:7px;font-weight:700;color:#fff">${s.short}</span>
+            <span style="font-size:9px;font-weight:500;color:rgba(255,255,255,.8)">${verts.length}pt</span>
+          </div>`,
+          iconSize:[0,0],iconAnchor:[0,0],
+        });
+        const m=L.marker([s.lat,s.lng],{icon}).addTo(map);
+        m.on("click",()=>setAreaSelSpot(s.id));
+        markersRef.current.push(m);
+        // 選択中: 各頂点をドラッグ可能なマーカーで表示
+        if(isSel){
+          verts.forEach((v,vi)=>{
+            const handleIcon=L.divIcon({
+              className:"",
+              html:`<div style="width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid #60a0ff;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab;transform:translate(-50%,-50%)"><span style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:8px;font-weight:700;color:#60a0ff;text-shadow:0 0 3px #000">${vi+1}</span></div>`,
+              iconSize:[0,0],iconAnchor:[0,0],
+            });
+            const handle=L.marker(v,{icon:handleIcon,draggable:true}).addTo(map);
+            handle.on("dragend",()=>{
+              const ll=handle.getLatLng();
+              setAreaEdits(prev=>{
+                const nv=[...(prev[s.id]||[])];
+                nv[vi]=[parseFloat(ll.lat.toFixed(6)),parseFloat(ll.lng.toFixed(6))];
+                return {...prev,[s.id]:nv};
+              });
+            });
+            // 右クリックで頂点削除
+            handle.on("contextmenu",(ev)=>{
+              L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
+              setAreaEdits(prev=>{
+                const nv=[...(prev[s.id]||[])].filter((_,i)=>i!==vi);
+                return {...prev,[s.id]:nv};
+              });
+            });
+            markersRef.current.push(handle);
+          });
+        }
+      });
+      // マップクリック: 選択中の建物に頂点追加 / 未選択なら選択解除
+      const onMapClick=(e)=>{
+        if(areaSelSpot){
+          const lat=parseFloat(e.latlng.lat.toFixed(6));
+          const lng=parseFloat(e.latlng.lng.toFixed(6));
+          setAreaEdits(prev=>({...prev,[areaSelSpot]:[...(prev[areaSelSpot]||[]),[lat,lng]]}));
+        }else{
+          setAreaSelSpot(null);
+        }
+      };
+      map.on("click",onMapClick);
+      markersRef.current.push({remove:()=>map.off("click",onMapClick)});
+      return;
+    }
+
     // ── 通常モード ──
     // peer markers grouped by spot
     const geoGroups=Object.values(grouped).filter(g=>g.spot.lat!=null&&g.spot.lng!=null);
@@ -125,6 +242,26 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob})=>{
       const m=L.marker([mySpot.lat,mySpot.lng],{icon:myIcon}).addTo(map);
       m.bindTooltip(`<b>自分</b><span style="color:${T.txD}"> — ${mySpot.label}</span>`,{className:"spot-tip",direction:"top",offset:[0,-6]});
       markersRef.current.push(m);
+    }
+
+    // GPS位置マーカー（実際の現在地）
+    if(gpsPos){
+      const gpsPulse=L.divIcon({
+        className:"",
+        html:`<div style="position:relative;transform:translate(-50%,-50%)">
+          <div style="position:absolute;inset:-12px;border-radius:50%;background:#4285f420;border:1.5px solid #4285f440;animation:locPulse 2s ease-in-out infinite"></div>
+          <div style="width:14px;height:14px;border-radius:50%;background:#4285f4;border:3px solid #fff;box-shadow:0 0 6px rgba(66,133,244,.5)"></div>
+        </div>`,
+        iconSize:[0,0],iconAnchor:[0,0],
+      });
+      const gm=L.marker([gpsPos.lat,gpsPos.lng],{icon:gpsPulse,zIndexOffset:1000}).addTo(map);
+      gm.bindTooltip(`<b>現在地</b><br/><span style="color:${T.txD}">GPS精度: ${gpsPos.accuracy?Math.round(gpsPos.accuracy)+"m":"不明"}</span>`,{className:"spot-tip",direction:"top",offset:[0,-10]});
+      markersRef.current.push(gm);
+      // 精度円
+      if(gpsPos.accuracy&&gpsPos.accuracy<500){
+        const circle=L.circle([gpsPos.lat,gpsPos.lng],{radius:gpsPos.accuracy,color:"#4285f4",fillColor:"#4285f4",fillOpacity:0.08,weight:1,opacity:0.3}).addTo(map);
+        markersRef.current.push(circle);
+      }
     }
 
     // all geo spots as faint dots (no users)
@@ -351,7 +488,7 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob})=>{
         markersRef.current.push({remove:()=>map.off("click",onClick)});
       }
     }
-  },[leafletReady,peers,myLoc,grouped,editMode,edits,showPaths,wpEditMode,wpEdits,newWps,edgeEditMode,edgeFrom,newEdges,edgeType,deletedEdges,showEnts,entEditMode,newEnts,entDragEdits]);
+  },[leafletReady,peers,myLoc,grouped,editMode,edits,showPaths,wpEditMode,wpEdits,newWps,edgeEditMode,edgeFrom,newEdges,edgeType,deletedEdges,showEnts,entEditMode,newEnts,entDragEdits,gpsPos,areaEditMode,areaSelSpot,areaEdits]);
 
   // 変更をコード形式でコピー
   const copyEdits=()=>{
@@ -388,6 +525,17 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob})=>{
     navigator.clipboard.writeText(lines);
     setEdgeCopied(true);
     setTimeout(()=>setEdgeCopied(false),2000);
+  };
+
+  // 範囲（ポリゴン）変更をコピー（オブジェクト形式）
+  const copyAreaEdits=()=>{
+    const entries=Object.entries(areaEdits).filter(([,v])=>v.length>0).map(([id,verts])=>{
+      const pts=verts.map(v=>`[${v[0]},${v[1]}]`).join(",");
+      return `  "${id}": [${pts}],`;
+    }).join("\n");
+    navigator.clipboard.writeText(`{\n${entries}\n}`);
+    setAreaCopied(true);
+    setTimeout(()=>setAreaCopied(false),2000);
   };
 
   // 入口変更をコピー（ENTRANCES配列形式）
@@ -451,6 +599,9 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob})=>{
         {showEnts&&<button onClick={()=>setEntEditMode(e=>!e)} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:entEditMode?"#4de8b0":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${entEditMode?"#4de8b0":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
           <span style={{fontSize:11,fontWeight:600,color:entEditMode?"#000":T.txH}}>{entEditMode?"入口編集中":"入口編集"}</span>
         </button>}
+        <button onClick={()=>{setAreaEditMode(e=>!e);if(areaEditMode)setAreaSelSpot(null);}} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:areaEditMode?"#60a0ff":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${areaEditMode?"#60a0ff":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
+          <span style={{fontSize:11,fontWeight:600,color:areaEditMode?"#fff":T.txH}}>{areaEditMode?"範囲編集中":"範囲"}</span>
+        </button>
         <button onClick={()=>{setEditMode(e=>!e);setSelSpot(null);}} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:editMode?"#e8b63a":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${editMode?"#e8b63a":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
           <span style={{fontSize:11,fontWeight:600,color:editMode?"#000":T.txH}}>{editMode?"編集中":"座標を編集"}</span>
         </button>
@@ -475,6 +626,38 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob})=>{
           <span style={{fontSize:11,fontWeight:700,color:"#000"}}>{entCopied?"コピーしました":"入口座標をコピー"}</span>
         </button>
         <button onClick={()=>{setNewEnts([]);setEntDragEdits({});}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"5px",borderRadius:7,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",marginTop:4}}>
+          <span style={{fontSize:10,fontWeight:500,color:T.txD}}>リセット</span>
+        </button>
+      </div>}
+
+      {/* 範囲編集パネル */}
+      {areaEditMode&&<div style={{position:"absolute",top:46,right:10,zIndex:1000,width:mob?220:270,borderRadius:10,background:`${T.bg2}f0`,backdropFilter:"blur(8px)",border:`1px solid #60a0ff`,boxShadow:"0 4px 16px rgba(0,0,0,.4)",padding:10,maxHeight:380,display:"flex",flexDirection:"column"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#60a0ff",marginBottom:6}}>建物範囲（ポリゴン）{areaSelSpot?` — ${SPOTS.find(s=>s.id===areaSelSpot)?.label||areaSelSpot}`:""}</div>
+        {areaSelSpot&&<div style={{marginBottom:8,padding:"6px 8px",borderRadius:8,background:"#60a0ff10",border:"1px solid #60a0ff30"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+            <span style={{fontSize:10,fontWeight:600,color:"#60a0ff"}}>{(areaEdits[areaSelSpot]||[]).length}頂点</span>
+            <div style={{display:"flex",gap:4}}>
+              {(areaEdits[areaSelSpot]||[]).length>0&&<button onClick={()=>setAreaEdits(prev=>{const nv=[...(prev[areaSelSpot]||[])];nv.pop();return{...prev,[areaSelSpot]:nv};})} style={{fontSize:9,fontWeight:600,color:"#ff6060",background:"#ff606014",border:"1px solid #ff606030",borderRadius:5,padding:"2px 6px",cursor:"pointer"}}>末尾削除</button>}
+              {(areaEdits[areaSelSpot]||[]).length>0&&<button onClick={()=>setAreaEdits(prev=>({...prev,[areaSelSpot]:[]})) } style={{fontSize:9,fontWeight:600,color:"#ff6060",background:"#ff606014",border:"1px solid #ff606030",borderRadius:5,padding:"2px 6px",cursor:"pointer"}}>全削除</button>}
+            </div>
+          </div>
+          <div style={{fontSize:9,color:T.txD,lineHeight:1.4}}>マップクリックで頂点追加。ドラッグで移動。右クリックで削除。</div>
+        </div>}
+        <div style={{flex:1,overflowY:"auto",maxHeight:200}}>
+          {SPOTS.filter(s=>s.id&&s.lat!=null).map(s=>{
+            const verts=areaEdits[s.id]||[];
+            const isSel=areaSelSpot===s.id;
+            return <div key={s.id} onClick={()=>setAreaSelSpot(s.id)} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 6px",borderRadius:6,borderBottom:`1px solid ${T.bd}`,cursor:"pointer",background:isSel?"#60a0ff14":"transparent",transition:"background .1s"}}>
+              <div style={{width:14,height:14,borderRadius:3,background:s.col,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:5,fontWeight:700,color:"#fff"}}>{s.short}</span></div>
+              <div style={{flex:1,fontSize:10,fontWeight:isSel?700:500,color:isSel?"#60a0ff":T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.label}</div>
+              <span style={{fontSize:9,fontWeight:600,color:verts.length>0?"#60a0ff":T.txD,fontFamily:"monospace"}}>{verts.length}pt</span>
+            </div>;
+          })}
+        </div>
+        {Object.values(areaEdits).some(v=>v.length>0)&&<button onClick={copyAreaEdits} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4,width:"100%",padding:"7px",borderRadius:7,border:"none",background:areaCopied?"#4db88a":"#60a0ff",cursor:"pointer",marginTop:8,transition:"background .15s"}}>
+          <span style={{fontSize:11,fontWeight:700,color:"#fff"}}>{areaCopied?"コピーしました":"ポリゴンデータをコピー"}</span>
+        </button>}
+        <button onClick={()=>{setAreaEdits({});setAreaSelSpot(null);}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"5px",borderRadius:7,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",marginTop:4}}>
           <span style={{fontSize:10,fontWeight:500,color:T.txD}}>リセット</span>
         </button>
       </div>}
@@ -620,6 +803,37 @@ export const LocationView=({mob,user={},friendIds})=>{
   const peers=friendIds?allPeers.filter(p=>friendIds.has(Number(p.id))):allPeers;
   const mySpot=getSpot(myLoc);
   const [tab,setTab]=useState("list"); // "list" | "map" | "spots"
+  const [gpsPos,setGpsPos]=useState(null); // {lat,lng,accuracy}
+  const [gpsStatus,setGpsStatus]=useState("idle"); // "idle"|"loading"|"done"|"error"
+  const [gpsMsg,setGpsMsg]=useState("");
+
+  const getGps=useCallback(()=>{
+    if(!navigator.geolocation){setGpsStatus("error");setGpsMsg("この端末では位置情報を使えません");return;}
+    setGpsStatus("loading");setGpsMsg("");
+    navigator.geolocation.getCurrentPosition(
+      (pos)=>{
+        const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+        setGpsPos({lat,lng,accuracy});
+        const {spot,distance}=findNearestSpot(lat,lng);
+        const campusDist=haversine(lat,lng,CAMPUS_CENTER.lat,CAMPUS_CENTER.lng);
+        if(campusDist>1500){
+          setGpsMsg("キャンパス外のようです");
+        }else if(spot){
+          setMyLoc(spot.id);
+          setGpsMsg(distance===0?`${spot.label}（建物内）に設定しました`:distance===-1?"屋外（道）に設定しました":`${spot.label}（${Math.round(distance)}m）に設定しました`);
+        }
+        setGpsStatus("done");
+        setTab("map");
+      },
+      (err)=>{
+        setGpsStatus("error");
+        if(err.code===1)setGpsMsg("位置情報の許可が必要です");
+        else if(err.code===2)setGpsMsg("位置情報を取得できません");
+        else setGpsMsg("タイムアウトしました");
+      },
+      {enableHighAccuracy:true,timeout:10000,maximumAge:30000}
+    );
+  },[setMyLoc]);
 
   // グループ化
   const grouped={};
@@ -652,6 +866,14 @@ export const LocationView=({mob,user={},friendIds})=>{
             <button onClick={()=>{if(myLoc)setMyLoc("");else setTab("spots");}} style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${myLoc?`${T.red}40`:`${T.green}40`}`,background:myLoc?`${T.red}10`:`${T.green}10`,cursor:"pointer",transition:"all .15s"}}>
               <span style={{fontSize:12,fontWeight:600,color:myLoc?T.red:T.green}}>{myLoc?"停止":"共有する"}</span>
             </button>
+          </div>
+          {/* GPS 現在地取得 */}
+          <div style={{display:"flex",alignItems:"center",gap:8,marginTop:8}}>
+            <button onClick={getGps} disabled={gpsStatus==="loading"} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,border:`1px solid ${T.accent}30`,background:`${T.accent}08`,cursor:gpsStatus==="loading"?"wait":"pointer",transition:"all .15s",opacity:gpsStatus==="loading"?0.6:1}} onMouseEnter={e=>{if(gpsStatus!=="loading")e.currentTarget.style.background=`${T.accent}16`;}} onMouseLeave={e=>e.currentTarget.style.background=`${T.accent}08`}>
+              <span style={{display:"flex",color:T.accent}}>{I.tgt}</span>
+              <span style={{fontSize:12,fontWeight:600,color:T.accent}}>{gpsStatus==="loading"?"取得中…":"現在地を取得"}</span>
+            </button>
+            {gpsMsg&&<span style={{fontSize:11,color:gpsStatus==="error"?T.red:T.green,fontWeight:500}}>{gpsMsg}</span>}
           </div>
         </div>
       </div>
@@ -697,7 +919,7 @@ export const LocationView=({mob,user={},friendIds})=>{
       </div>}
 
       {/* ── 地図タブ ── */}
-      {tab==="map"&&<MapTab peers={peers} myLoc={myLoc} mySpot={mySpot} grouped={grouped} mob={mob}/>}
+      {tab==="map"&&<MapTab peers={peers} myLoc={myLoc} mySpot={mySpot} grouped={grouped} mob={mob} gpsPos={gpsPos}/>}
 
       {/* ── 場所選択グリッド ── */}
       {tab==="spots"&&<div style={{padding:"10px 16px",flex:1,overflowY:"auto"}}>
