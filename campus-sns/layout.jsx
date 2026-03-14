@@ -126,15 +126,19 @@ const DChan=({course,dept,ch,setCh,online=[],members=[]})=>{
 // MOBILE: Bottom Nav
 // ============================================================
 
+const NAV_H=54;
+
 const MNav=({view,setView,ac,unreadN})=>{
   const moreViews=["dm","friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","location","navigation"];
   const isMore=moreViews.includes(view);
   return(
-  <nav style={{display:"flex",flexWrap:"wrap",background:T.bg2,borderTop:`1px solid ${T.bd}`,flexShrink:0}}>
-    {[{id:"home",i:I.home,l:"ホーム"},{id:"timetable",i:I.cal,l:"時間割"},{id:"tasks",i:I.tasks,l:"課題",b:ac},{id:"courseSelect",i:I.chat,l:"コース"},{id:"moreMenu",i:I.more,l:"その他",b:unreadN}].map(n=>{
-      const on=n.id==="courseSelect"?view==="course"||view==="courseSelect"||view==="dept":n.id==="moreMenu"?isMore:view===n.id;
-      return <button key={n.id} onClick={()=>setView(n.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,border:"none",background:"transparent",color:on?T.accent:T.txD,cursor:"pointer",padding:0,position:"relative",height:54}}><div style={{position:"relative"}}>{n.i}{n.b>0&&<span style={{position:"absolute",top:-4,right:-7,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{n.b}</span>}</div><span style={{fontSize:9,fontWeight:on?600:400}}>{n.l}</span></button>;
-    })}
+  <nav style={{position:"fixed",bottom:0,left:0,right:0,background:T.bg2,borderTop:`1px solid ${T.bd}`,paddingBottom:"env(safe-area-inset-bottom)",zIndex:100}}>
+    <div style={{display:"flex",height:NAV_H}}>
+      {[{id:"home",i:I.home,l:"ホーム"},{id:"timetable",i:I.cal,l:"時間割"},{id:"tasks",i:I.tasks,l:"課題",b:ac},{id:"courseSelect",i:I.chat,l:"コース"},{id:"moreMenu",i:I.more,l:"その他",b:unreadN}].map(n=>{
+        const on=n.id==="courseSelect"?view==="course"||view==="courseSelect"||view==="dept":n.id==="moreMenu"?isMore:view===n.id;
+        return <button key={n.id} onClick={()=>setView(n.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,border:"none",background:"transparent",color:on?T.accent:T.txD,cursor:"pointer",padding:0,position:"relative"}}><div style={{position:"relative"}}>{n.i}{n.b>0&&<span style={{position:"absolute",top:-4,right:-7,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{n.b}</span>}</div><span style={{fontSize:9,fontWeight:on?600:400}}>{n.l}</span></button>;
+      })}
+    </div>
   </nav>);
 };
 
@@ -153,4 +157,4 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0})=>(
   </div>
 );
 
-export { SideItem, DSide, DChan, MNav, MoreMenu };
+export { SideItem, DSide, DChan, MNav, NAV_H, MoreMenu };

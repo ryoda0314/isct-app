@@ -10,7 +10,7 @@ import { usePresence } from "./hooks/usePresence.js";
 import { useCourseMembers } from "./hooks/useCourseMembers.js";
 import { useMobile } from "./utils.jsx";
 import { Av, Loader } from "./shared.jsx";
-import { DSide, DChan, MNav, MoreMenu } from "./layout.jsx";
+import { DSide, DChan, MNav, NAV_H, MoreMenu } from "./layout.jsx";
 import { HomeView } from "./views/HomeView.jsx";
 import { TTView, CSelect } from "./views/TTView.jsx";
 import { AsgnView } from "./views/AsgnView.jsx";
@@ -250,9 +250,10 @@ export default function App(){
         {view==="location"&&(L?<><MHdr title="友達の居場所" back={mBack}/><LockedView title="友達の居場所"/></>:<><MHdr title="友達の居場所" back={mBack}/><LocationView mob user={user} friendIds={friendIds}/></>)}
         {view==="navigation"&&<><MHdr title="キャンパスナビ" back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
       </div>
+      <div style={{height:NAV_H,flexShrink:0}}/>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN}/>
       <Toasts/>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}`}</style>
     </div>
   );
 }
