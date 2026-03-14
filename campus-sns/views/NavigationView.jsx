@@ -302,11 +302,37 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     // Route polyline
     if(route&&route.coords.length>1){
       const latlngs=route.coords.map(c=>[c.lat,c.lng]);
-      const glow=L.polyline(latlngs,{color:"#4de8b0",weight:12,opacity:0.15,lineCap:"round",lineJoin:"round"}).addTo(map);
-      const shadow=L.polyline(latlngs,{color:"#000",weight:7,opacity:0.3,lineCap:"round",lineJoin:"round"}).addTo(map);
-      const line=L.polyline(latlngs,{color:"#4de8b0",weight:5,opacity:0.95,lineCap:"round",lineJoin:"round"}).addTo(map);
-      layersRef.current.push(glow,shadow,line);
-      map.fitBounds(line.getBounds().pad(0.25));
+
+      // 案内中: GPSに最も近いルート上の点で分割 → 通過済み=グレー, 残り=緑
+      if(guiding&&gpsPos){
+        let bestIdx=0,bestDist=Infinity;
+        for(let i=0;i<latlngs.length;i++){
+          const d=haversineNav(gpsPos.lat,gpsPos.lng,latlngs[i][0],latlngs[i][1]);
+          if(d<bestDist){bestDist=d;bestIdx=i;}
+        }
+        // 通過済み部分（先頭〜最寄り点）
+        const passed=latlngs.slice(0,bestIdx+1);
+        // 残り部分（最寄り点〜ゴール）
+        const remaining=latlngs.slice(bestIdx);
+
+        if(passed.length>1){
+          const pg=L.polyline(passed,{color:"#888",weight:5,opacity:0.4,lineCap:"round",lineJoin:"round",dashArray:"6 8"}).addTo(map);
+          layersRef.current.push(pg);
+        }
+        if(remaining.length>1){
+          const rGlow=L.polyline(remaining,{color:"#4de8b0",weight:12,opacity:0.15,lineCap:"round",lineJoin:"round"}).addTo(map);
+          const rShadow=L.polyline(remaining,{color:"#000",weight:7,opacity:0.3,lineCap:"round",lineJoin:"round"}).addTo(map);
+          const rLine=L.polyline(remaining,{color:"#4de8b0",weight:5,opacity:0.95,lineCap:"round",lineJoin:"round"}).addTo(map);
+          layersRef.current.push(rGlow,rShadow,rLine);
+        }
+      }else{
+        // 通常表示
+        const glow=L.polyline(latlngs,{color:"#4de8b0",weight:12,opacity:0.15,lineCap:"round",lineJoin:"round"}).addTo(map);
+        const shadow=L.polyline(latlngs,{color:"#000",weight:7,opacity:0.3,lineCap:"round",lineJoin:"round"}).addTo(map);
+        const line=L.polyline(latlngs,{color:"#4de8b0",weight:5,opacity:0.95,lineCap:"round",lineJoin:"round"}).addTo(map);
+        layersRef.current.push(glow,shadow,line);
+        map.fitBounds(line.getBounds().pad(0.25));
+      }
     }
 
     // Origin marker — green pin style
@@ -354,7 +380,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     if(!route&&originSpot&&destSpot){
       map.fitBounds(L.latLngBounds([[originSpot.lat,originSpot.lng],[destSpot.lat,destSpot.lng]]).pad(0.3));
     }
-  },[leafletReady,origin,destination,route,gpsPos,heading]);
+  },[leafletReady,origin,destination,route,gpsPos,heading,guiding]);
 
   if(!leafletReady)return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><Loader msg="マップを読み込み中" size="md"/></div>;
 
