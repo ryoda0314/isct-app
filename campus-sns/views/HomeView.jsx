@@ -5,9 +5,23 @@ import { NOW, uDue, pDone } from "../utils.jsx";
 import { Av, Tag } from "../shared.jsx";
 import { useLocationSharing, getSpot } from "../hooks/useLocationSharing.js";
 
-// [label, icon, tint] — tint is used for subtle bg gradient
-const WX={0:["晴れ","☀","#f59e0b"],1:["晴れ","🌤","#f59e0b"],2:["くもり","⛅","#6b7280"],3:["くもり","☁","#6b7280"],45:["霧","🌫","#9ca3af"],48:["霧","🌫","#9ca3af"],51:["小雨","🌦","#3b82f6"],53:["雨","🌧","#3b82f6"],55:["雨","🌧","#3b82f6"],61:["雨","🌧","#3b82f6"],63:["雨","🌧","#2563eb"],65:["大雨","🌧","#1d4ed8"],71:["雪","❄","#93c5fd"],73:["雪","❄","#93c5fd"],75:["大雪","❄","#60a5fa"],80:["にわか雨","🌦","#3b82f6"],81:["にわか雨","🌧","#2563eb"],95:["雷雨","⛈","#7c3aed"],96:["雷雨","⛈","#7c3aed"],99:["雷雨","⛈","#6d28d9"]};
-const wxInfo=c=>WX[c]||["--","🌡","#6b7280"];
+// SVG weather icons — clean, consistent style
+const WxIcon=({type,sz=20})=>{const s={width:sz,height:sz,display:"inline-block",verticalAlign:"middle",flexShrink:0};
+  const sun=<svg style={s} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="5" fill="#f59e0b" opacity=".85"/><g stroke="#f59e0b" strokeWidth="2" strokeLinecap="round">{[[12,1,12,3],[12,21,12,23],[4.22,4.22,5.64,5.64],[18.36,18.36,19.78,19.78],[1,12,3,12],[21,12,23,12],[4.22,19.78,5.64,18.36],[18.36,5.64,19.78,4.22]].map(([x1,y1,x2,y2],i)=><line key={i} x1={x1} y1={y1} x2={x2} y2={y2}/>)}</g></svg>;
+  const cloud=<svg style={s} viewBox="0 0 24 24" fill="none"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" fill="#94a3b8" opacity=".7" stroke="#64748b" strokeWidth="1.5" strokeLinejoin="round"/></svg>;
+  const partCloud=<svg style={s} viewBox="0 0 24 24" fill="none"><circle cx="9" cy="9" r="4" fill="#f59e0b" opacity=".8"/><g stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round">{[[9,2,9,3.5],[9,14.5,9,16],[3.05,3.05,4.11,4.11],[13.89,13.89,14.95,14.95],[2,9,3.5,9],[14.5,9,16,9],[3.05,14.95,4.11,13.89],[13.89,4.11,14.95,3.05]].map(([x1,y1,x2,y2],i)=><line key={i} x1={x1} y1={y1} x2={x2} y2={y2}/>)}</g><path d="M19 14h-1A6.5 6.5 0 008 16.5 4 4 0 008 22h11a4 4 0 000-8z" fill="#94a3b8" opacity=".7" stroke="#64748b" strokeWidth="1.5" strokeLinejoin="round"/></svg>;
+  const rain=<svg style={s} viewBox="0 0 24 24" fill="none"><path d="M18 8h-1.26A8 8 0 109 18h9a5 5 0 000-10z" fill="#93c5fd" opacity=".5" stroke="#3b82f6" strokeWidth="1.5" strokeLinejoin="round"/><g stroke="#3b82f6" strokeWidth="1.8" strokeLinecap="round"><line x1="8" y1="20" x2="7" y2="23"/><line x1="12" y1="20" x2="11" y2="23"/><line x1="16" y1="20" x2="15" y2="23"/></g></svg>;
+  const heavyRain=<svg style={s} viewBox="0 0 24 24" fill="none"><path d="M18 7h-1.26A8 8 0 109 17h9a5 5 0 000-10z" fill="#93c5fd" opacity=".6" stroke="#2563eb" strokeWidth="1.5" strokeLinejoin="round"/><g stroke="#2563eb" strokeWidth="2" strokeLinecap="round"><line x1="7" y1="19" x2="5.5" y2="23"/><line x1="10.5" y1="19" x2="9" y2="23"/><line x1="14" y1="19" x2="12.5" y2="23"/><line x1="17.5" y1="19" x2="16" y2="23"/></g></svg>;
+  const drizzle=<svg style={s} viewBox="0 0 24 24" fill="none"><circle cx="8" cy="7" r="3.5" fill="#f59e0b" opacity=".7"/><path d="M18 12h-1A6 6 0 008 14a4 4 0 004 6h6a4 4 0 000-8z" fill="#93c5fd" opacity=".45" stroke="#3b82f6" strokeWidth="1.5" strokeLinejoin="round"/><g stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round"><line x1="10" y1="21" x2="9.5" y2="23"/><line x1="14" y1="21" x2="13.5" y2="23"/></g></svg>;
+  const fog=<svg style={s} viewBox="0 0 24 24" fill="none"><g stroke="#9ca3af" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="3" y1="16" x2="21" y2="16"/><line x1="7" y1="20" x2="17" y2="20"/></g></svg>;
+  const snow=<svg style={s} viewBox="0 0 24 24" fill="none"><path d="M18 8h-1.26A8 8 0 109 18h9a5 5 0 000-10z" fill="#e0e7ff" opacity=".5" stroke="#93c5fd" strokeWidth="1.5" strokeLinejoin="round"/><g fill="#60a5fa">{[[8,21],[12,20],[16,21],[10,23],[14,23]].map(([cx,cy],i)=><circle key={i} cx={cx} cy={cy} r="1.2"/>)}</g></svg>;
+  const thunder=<svg style={s} viewBox="0 0 24 24" fill="none"><path d="M18 6h-1.26A8 8 0 109 16h9a5 5 0 000-10z" fill="#c4b5fd" opacity=".5" stroke="#7c3aed" strokeWidth="1.5" strokeLinejoin="round"/><path d="M13 16l-2 4h3l-2 4" stroke="#eab308" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+  const m={sun,partCloud,cloud,rain,heavyRain,drizzle,fog,snow,thunder};
+  return m[type]||sun;
+};
+// [label, iconType, tint]
+const WX={0:["晴れ","sun","#f59e0b"],1:["晴れ","partCloud","#f59e0b"],2:["くもり","partCloud","#6b7280"],3:["くもり","cloud","#6b7280"],45:["霧","fog","#9ca3af"],48:["霧","fog","#9ca3af"],51:["小雨","drizzle","#3b82f6"],53:["雨","rain","#3b82f6"],55:["雨","rain","#3b82f6"],61:["雨","rain","#3b82f6"],63:["雨","rain","#2563eb"],65:["大雨","heavyRain","#1d4ed8"],71:["雪","snow","#93c5fd"],73:["雪","snow","#93c5fd"],75:["大雪","snow","#60a5fa"],80:["にわか雨","drizzle","#3b82f6"],81:["にわか雨","rain","#2563eb"],95:["雷雨","thunder","#7c3aed"],96:["雷雨","thunder","#7c3aed"],99:["雷雨","thunder","#6d28d9"]};
+const wxInfo=c=>WX[c]||["--","sun","#6b7280"];
 
 const DEF_LOC={name:"東京",lat:35.68,lon:139.77};
 const PD=[{s:[8,50],e:[10,30],l:"1限"},{s:[10,45],e:[12,25],l:"2限"},{s:[13,20],e:[15,0],l:"3限"},{s:[15,15],e:[16,55],l:"4限"},{s:[17,10],e:[18,50],l:"5限"}];
@@ -117,7 +131,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
             <div style={{borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden",display:"flex",alignItems:"stretch"}}>
               {/* 現在の天気 */}
               <div onClick={()=>{setLocOpen(p=>!p);setLocQ("");setLocRes([]);}} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",cursor:"pointer",background:`linear-gradient(135deg,${tint}14,${tint}06)`}}>
-                <span style={{fontSize:26,lineHeight:1}}>{curIcon}</span>
+                <WxIcon type={curIcon} sz={28}/>
                 <span style={{fontSize:20,fontWeight:800,color:T.txH,lineHeight:1}}>{wx.temp}°</span>
                 <div style={{display:"flex",flexDirection:"column",gap:1}}>
                   <span style={{fontSize:10,color:T.txD}}>{wx.hi!=null&&<span style={{color:T.red}}>↑{wx.hi}°</span>}{" "}{wx.lo!=null&&<span style={{color:T.accent}}>↓{wx.lo}°</span>}</span>
@@ -129,14 +143,14 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               </div>
               {/* 時間別（デスクトップ: 横に並べる） */}
               {!mob&&<div style={{display:"flex",borderLeft:`1px solid ${T.bd}`}}>
-                {wx.hourly?.slice(0,5).map((h,i,a)=>{const [,icon]=wxInfo(h.code);
+                {wx.hourly?.slice(0,5).map((h,i,a)=>{const [,iconType]=wxInfo(h.code);
                   const hr=h.h;const period=hr<6?"深夜":hr<12?"朝":hr<18?"昼":"夜";
                   const pCol=hr<6?"#8b5cf6":hr<12?"#f59e0b":hr<18?"#3b82f6":"#6366f1";
                   const lbl=i===0?"Now":h.isNextDay?`翌${hr}`:`${hr}時`;
                   return(
                   <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"4px 7px",minWidth:34,flexShrink:0,borderRight:i<a.length-1?`1px solid ${T.bd}`:"none",background:i===0?`${T.accent}10`:"transparent"}}>
                     <span style={{fontSize:i===0?9:8,fontWeight:700,color:i===0?T.accent:T.txD,whiteSpace:"nowrap"}}>{lbl}</span>
-                    <span style={{fontSize:13,lineHeight:1,margin:"1px 0"}}>{icon}</span>
+                    <WxIcon type={iconType} sz={16}/>
                     <span style={{fontSize:9,fontWeight:700,color:T.txH}}>{h.temp}°</span>
                     {h.rain!=null&&h.rain>0?<span style={{fontSize:7,fontWeight:600,color:h.rain>50?T.accent:T.txD}}>{h.rain}%</span>
                     :<span style={{fontSize:7,fontWeight:500,color:pCol,opacity:.7}}>{period}</span>}
@@ -146,14 +160,14 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
             </div>
             {/* 時間別（モバイル: 下段に表示） */}
             {mob&&<div style={{display:"flex",overflowX:"auto",scrollbarWidth:"none",msOverflowStyle:"none",borderTop:`1px solid ${T.bd}`}}>
-              {wx.hourly?.slice(0,6).map((h,i,a)=>{const [,icon]=wxInfo(h.code);
+              {wx.hourly?.slice(0,6).map((h,i,a)=>{const [,iconType]=wxInfo(h.code);
                 const hr=h.h;const period=hr<6?"深夜":hr<12?"朝":hr<18?"昼":"夜";
                 const pCol=hr<6?"#8b5cf6":hr<12?"#f59e0b":hr<18?"#3b82f6":"#6366f1";
                 const lbl=i===0?"Now":h.isNextDay?`翌${hr}:00`:`${hr}:00`;
                 return(
                 <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"4px 8px",minWidth:38,flexShrink:0,borderRight:i<a.length-1?`1px solid ${T.bd}`:"none",background:i===0?`${T.accent}10`:"transparent"}}>
                   <span style={{fontSize:i===0?9:8,fontWeight:700,color:i===0?T.accent:T.txD,whiteSpace:"nowrap"}}>{lbl}</span>
-                  <span style={{fontSize:14,lineHeight:1,margin:"2px 0"}}>{icon}</span>
+                  <WxIcon type={iconType} sz={18}/>
                   <span style={{fontSize:10,fontWeight:700,color:T.txH}}>{h.temp}°</span>
                   {h.rain!=null&&h.rain>0?<span style={{fontSize:7,fontWeight:600,color:h.rain>50?T.accent:T.txD}}>{h.rain}%</span>
                   :<span style={{fontSize:7,fontWeight:500,color:pCol,opacity:.7}}>{period}</span>}
