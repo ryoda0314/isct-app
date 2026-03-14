@@ -245,7 +245,15 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   // Accept initial origin+destination from external navigation (e.g. TTView/HomeView building click)
   useEffect(()=>{
     if(initialDest){
-      if(initialOrig) setOrigin(initialOrig);
+      if(initialOrig){setOrigin(initialOrig);}
+      else if(navigator.geolocation){
+        setGpsLoading(true);
+        navigator.geolocation.getCurrentPosition(
+          pos=>{const ns=findNearestNavSpot(pos.coords.latitude,pos.coords.longitude);if(ns)setOrigin(ns.spot.id);setGpsPos([pos.coords.latitude,pos.coords.longitude]);setGpsLoading(false);},
+          ()=>setGpsLoading(false),
+          {enableHighAccuracy:true,timeout:10000,maximumAge:30000}
+        );
+      }
       setDestination(initialDest);
       onDestUsed?.();
     }
