@@ -28,7 +28,7 @@ export default function RootLayout({ children }) {
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body style={{ margin: 0, background: "#111113" }}>{children}</body>
+      <body style={{ margin: 0, background: "#1a1a1f" }}>{children}</body>
     </html>
   );
 }
