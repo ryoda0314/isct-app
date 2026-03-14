@@ -194,20 +194,6 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
         </div>
       </div>
 
-      {/* ── クイックリンク ── */}
-      <div style={{padding:"0 16px 6px",display:"flex",gap:6,overflowX:"auto",scrollbarWidth:"none",msOverflowStyle:"none"}}>
-        {[
-          {l:"OCW-i",u:"https://www.ocw.titech.ac.jp",c:"#2196f3",s:"OC"},
-          {l:"学務Web",u:"https://gakumu-web1.jim.titech.ac.jp",c:"#4caf50",s:"学"},
-          {l:"Portal",u:"https://portal.titech.ac.jp",c:"#9c27b0",s:"P"},
-          {l:"Library",u:"https://www.libra.titech.ac.jp",c:"#ff9800",s:"Li"},
-        ].map(lk=>(
-          <a key={lk.l} href={lk.u} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,background:`${lk.c}12`,border:`1px solid ${lk.c}30`,textDecoration:"none",flexShrink:0,cursor:"pointer",transition:"all .12s"}} onMouseEnter={e=>{e.currentTarget.style.background=`${lk.c}22`;e.currentTarget.style.borderColor=lk.c;}} onMouseLeave={e=>{e.currentTarget.style.background=`${lk.c}12`;e.currentTarget.style.borderColor=`${lk.c}30`;}}>
-            <div style={{width:18,height:18,borderRadius:4,background:lk.c,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:8,fontWeight:800,color:"#fff",lineHeight:1}}>{lk.s}</span></div>
-            <span style={{fontSize:12,fontWeight:700,color:T.txH,whiteSpace:"nowrap"}}>{lk.l}</span>
-          </a>
-        ))}
-      </div>
 
       {/* ── メインコンテンツ: 40:60 ── */}
       <div style={{padding:"4px 16px 8px",display:mob?"block":"flex",gap:14,alignItems:"flex-start"}}>

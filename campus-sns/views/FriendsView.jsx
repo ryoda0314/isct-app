@@ -274,7 +274,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
           onMouseEnter={e=>{e.currentTarget.style.background=`${T.green}14`;e.currentTarget.style.borderColor=`${T.green}40`;e.currentTarget.style.color=T.green;}}
           onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.borderColor=T.bd;e.currentTarget.style.color=T.txH;}}
           title="グループ作成">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 19v-1a4 4 0 00-4-4H5a4 4 0 00-4 4v1"/><circle cx="7.5" cy="7" r="3.5"/><path d="M22 19v-1a3 3 0 00-2.3-2.9"/><path d="M15.5 3.1a3.5 3.5 0 010 6.8"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
         </button>}
         <button onClick={()=>setAddOpen(true)}
           style={{position:"relative",width:34,height:34,borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txH,flexShrink:0,transition:"all .15s"}}
