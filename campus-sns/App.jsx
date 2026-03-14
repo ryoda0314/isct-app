@@ -227,9 +227,8 @@ export default function App(){
   // --- MOBILE ---
   const mBack=()=>setView("moreMenu");
   return(
-    <div className="mob-shell" style={{display:"flex",flexDirection:"column",width:"100vw",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
-      <div style={{position:"fixed",top:50,left:0,background:"red",color:"#fff",fontSize:11,zIndex:9999,padding:"2px 6px",borderRadius:"0 4px 4px 0"}} ref={el=>{if(el&&typeof window!=="undefined"){const u=()=>{el.textContent=`innerH:${window.innerHeight} screen:${screen.height} shell:${el.parentElement?.offsetHeight} body:${document.body.offsetHeight} html:${document.documentElement.offsetHeight}`;};u();window.addEventListener("resize",u);}}}/>
-      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+    <div className="mob-shell" style={{display:"flex",flexDirection:"column",width:"100vw",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0}}>
         {view==="home"&&<><MHdr title="ScienceTokyo App" right={<button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} goToBuilding={goToBuilding}/></>}
         {view==="timetable"&&(L?<><MHdr title="時間割"/><LockedView title="時間割"/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding}/>)}
         {view==="tasks"&&(L?<><MHdr title="課題管理"/><LockedView title="課題管理"/></>:<><MHdr title="課題管理"/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden}/></>)}
@@ -252,8 +251,9 @@ export default function App(){
         {view==="navigation"&&<><MHdr title="キャンパスナビ" back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
       </div>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN}/>
+      <div className="mob-safe-bottom" style={{background:T.bg2,flexShrink:0}}/>
       <Toasts/>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body,#__next{height:100%;background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}.mob-shell{height:100vh;height:100dvh;height:-webkit-fill-available}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden;background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}.mob-shell{height:calc(100vh + env(safe-area-inset-bottom,0px));overflow:hidden}.mob-safe-bottom{height:env(safe-area-inset-bottom,0px)}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}`}</style>
     </div>
   );
 }
