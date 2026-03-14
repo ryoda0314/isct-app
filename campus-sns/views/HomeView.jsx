@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { NOW, uDue, pDone } from "../utils.jsx";
-import { Av, Tag } from "../shared.jsx";
+import { Tag } from "../shared.jsx";
 import { useLocationSharing, getSpot } from "../hooks/useLocationSharing.js";
 
 // SVG weather icons — clean, consistent style
@@ -113,56 +113,54 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
 
   return(
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-      {/* ── Hero: 日付+挨拶 左 / 天気 右 ── */}
-      <div style={{padding:"10px 16px 6px",display:"flex",gap:12,alignItems:"center",justifyContent:"space-between"}}>
-        {/* 左: 日付 + 挨拶 */}
-        <div style={{minWidth:0,display:"flex",flexDirection:"column",gap:2}}>
-          <div style={{fontSize:mob?18:22,fontWeight:800,color:T.txH,letterSpacing:-.3}}>{now.getMonth()+1}月{now.getDate()}日（{DAY_NAMES[now.getDay()]}）</div>
-          <div style={{display:"flex",alignItems:"center",gap:5}}>
-            <Av u={user} sz={18}/>
-            <span style={{fontSize:15,fontWeight:700,color:T.txH}}>{now.getHours()}:{String(now.getMinutes()).padStart(2,"0")}</span>
-            <span style={{fontSize:11,color:T.txD}}>·</span>
-            <span style={{fontSize:11,color:T.tx,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>おかえり{user.name?`、${user.name}さん`:""}</span>
+      {/* ── Hero: 挨拶 + 天気 ── */}
+      <div style={{padding:"10px 16px 6px"}}>
+        {/* 日時 + 天気カード */}
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          {/* 日時 */}
+          <div style={{flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center"}}>
+            <span style={{fontSize:mob?26:32,fontWeight:800,color:T.txH,lineHeight:1,letterSpacing:-1}}>{now.getMonth()+1}/{now.getDate()}</span>
+            <span style={{fontSize:11,fontWeight:600,color:T.txD,marginTop:3}}>{DAY_NAMES[now.getDay()]}曜日</span>
+            <span style={{fontSize:12,fontWeight:700,color:T.accent,marginTop:2}}>{now.getHours()}:{String(now.getMinutes()).padStart(2,"0")}</span>
           </div>
-        </div>
-        {/* 右: 天気 */}
-        {wx&&(()=>{const tint=wxInfo(wx.code)[2];const [,curIcon,]=wxInfo(wx.code);const [wxLabel]=wxInfo(wx.code);return(
-          <div style={{position:"relative",flexShrink:0}}>
+          {/* 天気 */}
+          {wx?(()=>{const tint=wxInfo(wx.code)[2];const [,curIcon,]=wxInfo(wx.code);const [wxLabel]=wxInfo(wx.code);return(
+          <div style={{position:"relative",flex:1,minWidth:0}}>
             <div onClick={()=>{setLocOpen(p=>!p);setLocQ("");setLocRes([]);}} style={{borderRadius:14,overflow:"hidden",cursor:"pointer",background:`linear-gradient(145deg,${tint}18,${tint}08,${T.bg2})`,border:`1px solid ${tint}25`,boxShadow:`0 2px 12px ${tint}12`}}>
               {/* 現在の天気 — メイン */}
-              <div style={{display:"flex",alignItems:"center",gap:10,padding:mob?"10px 14px":"10px 16px"}}>
-                <div style={{position:"relative",width:mob?36:42,height:mob?36:42,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:12,background:`${tint}15`}}>
-                  <WxIcon type={curIcon} sz={mob?26:30}/>
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px"}}>
+                <div style={{width:42,height:42,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:12,background:`${tint}15`,flexShrink:0}}>
+                  <WxIcon type={curIcon} sz={28}/>
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:1}}>
                   <div style={{display:"flex",alignItems:"baseline",gap:6}}>
-                    <span style={{fontSize:mob?22:24,fontWeight:800,color:T.txH,lineHeight:1,letterSpacing:-.5}}>{wx.temp}°</span>
-                    <span style={{fontSize:11,fontWeight:600,color:tint,opacity:.9}}>{wxLabel}</span>
+                    <span style={{fontSize:24,fontWeight:800,color:T.txH,lineHeight:1,letterSpacing:-.5}}>{wx.temp}°</span>
+                    <span style={{fontSize:12,fontWeight:600,color:tint,opacity:.9}}>{wxLabel}</span>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:6,marginTop:1}}>
-                    {wx.hi!=null&&<span style={{fontSize:10,fontWeight:600,color:T.txD}}><span style={{color:"#ef6b5e"}}>↑</span>{wx.hi}°</span>}
-                    {wx.lo!=null&&<span style={{fontSize:10,fontWeight:600,color:T.txD}}><span style={{color:"#60a5fa"}}>↓</span>{wx.lo}°</span>}
-                    <span style={{fontSize:10,fontWeight:600,color:T.txD,opacity:.6}}>{loc.name}</span>
-                    {wx.rain!=null&&wx.rain>0&&<span style={{fontSize:10,fontWeight:700,color:wx.rain>50?T.accent:T.txD,background:wx.rain>50?`${T.accent}15`:"transparent",padding:wx.rain>50?"0 4px":"0",borderRadius:3}}>
-                      <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" style={{verticalAlign:"middle",marginRight:1,opacity:.7}}><path d="M12 2C8 8 4 13 4 16a8 8 0 0016 0c0-3-4-8-8-14z"/></svg>
+                    {wx.hi!=null&&<span style={{fontSize:11,fontWeight:600,color:T.txD}}><span style={{color:"#ef6b5e"}}>↑</span>{wx.hi}°</span>}
+                    {wx.lo!=null&&<span style={{fontSize:11,fontWeight:600,color:T.txD}}><span style={{color:"#60a5fa"}}>↓</span>{wx.lo}°</span>}
+                    {wx.rain!=null&&wx.rain>0&&<span style={{fontSize:11,fontWeight:700,color:wx.rain>50?T.accent:T.txD,background:wx.rain>50?`${T.accent}15`:"transparent",padding:wx.rain>50?"0 4px":"0",borderRadius:3}}>
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" style={{verticalAlign:"middle",marginRight:1,opacity:.7}}><path d="M12 2C8 8 4 13 4 16a8 8 0 0016 0c0-3-4-8-8-14z"/></svg>
                       {wx.rain}%
                     </span>}
                   </div>
+                </div>
+                <div style={{marginLeft:"auto",display:"flex",flexDirection:"column",alignItems:"flex-end",justifyContent:"center",flexShrink:0,paddingLeft:8}}>
+                  <span style={{fontSize:12,fontWeight:700,color:T.txH,opacity:.7,whiteSpace:"nowrap"}}>{loc.name}</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{opacity:.4,marginTop:2}}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
                 </div>
               </div>
               {/* 時間別予報 */}
               {wx.hourly?.length>0&&<div style={{display:"flex",overflowX:"auto",scrollbarWidth:"none",msOverflowStyle:"none",padding:"0 6px 8px",gap:2}} onClick={e=>e.stopPropagation()}>
                 {wx.hourly.slice(0,mob?6:5).map((h,i)=>{const [,iconType]=wxInfo(h.code);
-                  const hr=h.h;const period=hr<6?"深夜":hr<12?"朝":hr<18?"昼":"夜";
-                  const pCol=hr<6?"#8b5cf6":hr<12?"#f59e0b":hr<18?"#3b82f6":"#6366f1";
-                  const lbl=i===0?"Now":h.isNextDay?`翌${hr}`:mob?`${hr}:00`:`${hr}時`;
+                  const lbl=i===0?"Now":h.isNextDay?`翌${h.h}`:mob?`${h.h}:00`:`${h.h}時`;
                   return(
                   <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:mob?"5px 8px":"4px 7px",minWidth:mob?38:34,flexShrink:0,borderRadius:8,background:i===0?`${tint}14`:"transparent"}}>
                     <span style={{fontSize:i===0?9:8,fontWeight:700,color:i===0?tint:T.txD,whiteSpace:"nowrap",marginBottom:2}}>{lbl}</span>
                     <WxIcon type={iconType} sz={mob?18:16}/>
                     <span style={{fontSize:mob?10:9,fontWeight:700,color:T.txH,marginTop:2}}>{h.temp}°</span>
-                    {h.rain!=null&&h.rain>0?<span style={{fontSize:7,fontWeight:600,color:h.rain>50?T.accent:T.txD}}>{h.rain}%</span>
-                    :<span style={{fontSize:7,fontWeight:500,color:pCol,opacity:.6}}>{period}</span>}
+                    {h.rain!=null&&h.rain>0&&<span style={{fontSize:7,fontWeight:600,color:h.rain>50?T.accent:T.txD}}>{h.rain}%</span>}
                   </div>
                 );})}
               </div>}
@@ -192,7 +190,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               </div>
             </>}
           </div>
-        );})()}
+        );})():null}
+        </div>
       </div>
 
       {/* ── クイックリンク ── */}
