@@ -228,6 +228,7 @@ export default function App(){
   const mBack=()=>setView("moreMenu");
   return(
     <div className="mob-shell" style={{display:"flex",flexDirection:"column",width:"100vw",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
+      <div style={{position:"fixed",top:50,left:0,background:"red",color:"#fff",fontSize:11,zIndex:9999,padding:"2px 6px",borderRadius:"0 4px 4px 0"}} ref={el=>{if(el&&typeof window!=="undefined"){const u=()=>{el.textContent=`innerH:${window.innerHeight} screen:${screen.height} shell:${el.parentElement?.offsetHeight} body:${document.body.offsetHeight} html:${document.documentElement.offsetHeight}`;};u();window.addEventListener("resize",u);}}}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         {view==="home"&&<><MHdr title="ScienceTokyo App" right={<button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} goToBuilding={goToBuilding}/></>}
         {view==="timetable"&&(L?<><MHdr title="時間割"/><LockedView title="時間割"/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding}/>)}
