@@ -150,6 +150,81 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const [panelMin,setPanelMin]=useState(false);
   const [gpsPos,setGpsPos]=useState(null);
   const [gpsLoading,setGpsLoading]=useState(false);
+  // 案内モード（GPS追従+コンパス）
+  const [guiding,setGuiding]=useState(false);
+  const [heading,setHeading]=useState(null);
+  const headingRef=useRef(null);
+  const watchIdRef=useRef(null);
+
+  // GPS常時追従
+  const startWatch=useCallback(()=>{
+    if(!navigator.geolocation||watchIdRef.current!=null)return;
+    const id=navigator.geolocation.watchPosition(
+      (pos)=>{
+        const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+        setGpsPos({lat,lng,accuracy});
+        const {spot,distance}=findNearestNavSpot(lat,lng);
+        if(spot&&distance<1500)setOrigin(spot.id);
+      },
+      ()=>{},
+      {enableHighAccuracy:true,timeout:10000,maximumAge:5000}
+    );
+    watchIdRef.current=id;
+  },[setOrigin]);
+  const stopWatch=useCallback(()=>{
+    if(watchIdRef.current!=null){navigator.geolocation.clearWatch(watchIdRef.current);watchIdRef.current=null;}
+  },[]);
+  useEffect(()=>()=>stopWatch(),[]);
+
+  // コンパス
+  useEffect(()=>{
+    if(!guiding){setHeading(null);return;}
+    const handler=(e)=>{
+      let h=null;
+      if(e.webkitCompassHeading!=null)h=e.webkitCompassHeading;
+      else if(e.alpha!=null)h=(360-e.alpha)%360;
+      if(h!=null){headingRef.current=h;setHeading(h);}
+    };
+    if(typeof DeviceOrientationEvent!=="undefined"&&typeof DeviceOrientationEvent.requestPermission==="function"){
+      DeviceOrientationEvent.requestPermission().then(r=>{
+        if(r==="granted")window.addEventListener("deviceorientation",handler,true);
+        else setGuiding(false);
+      }).catch(()=>setGuiding(false));
+    }else{
+      window.addEventListener("deviceorientation",handler,true);
+    }
+    return()=>window.removeEventListener("deviceorientation",handler,true);
+  },[guiding]);
+
+  // 案内モード: GPS追従でマップ中央を追従
+  useEffect(()=>{
+    if(guiding&&gpsPos&&mapInst.current){
+      const zoom=Math.max(mapInst.current.getZoom(),18);
+      mapInst.current.setView([gpsPos.lat,gpsPos.lng],zoom,{animate:true,duration:0.3});
+    }
+  },[guiding,gpsPos]);
+
+  // 案内開始/終了
+  const startGuiding=useCallback(()=>{
+    setGuiding(true);
+    setPanelMin(true);
+    startWatch();
+    // 現在地にズームイン
+    if(gpsPos&&mapInst.current){
+      mapInst.current.flyTo([gpsPos.lat,gpsPos.lng],18,{duration:0.8});
+    }else if(mapInst.current){
+      // GPSまだ無い場合は取得後にズーム
+      navigator.geolocation?.getCurrentPosition((pos)=>{
+        const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+        setGpsPos({lat,lng,accuracy});
+        mapInst.current?.flyTo([lat,lng],18,{duration:0.8});
+      },()=>{},{enableHighAccuracy:true,timeout:10000});
+    }
+  },[startWatch,gpsPos]);
+  const stopGuiding=useCallback(()=>{
+    setGuiding(false);
+    stopWatch();
+  },[stopWatch]);
 
   const getGpsOrigin=useCallback(()=>{
     if(!navigator.geolocation)return;
@@ -264,7 +339,9 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
 
     // GPS位置マーカー
     if(gpsPos){
-      const gpsDot=L.divIcon({className:"",html:`<div style="position:relative"><div style="position:absolute;inset:-10px;border-radius:50%;background:#4285f420;border:1.5px solid #4285f440;animation:locPulse 2s ease-in-out infinite"></div><div style="width:12px;height:12px;border-radius:50%;background:#4285f4;border:2.5px solid #fff;box-shadow:0 0 6px rgba(66,133,244,.5)"></div></div>`,iconSize:[12,12],iconAnchor:[6,6]});
+      const hd=headingRef.current;
+      const arrowHtml=hd!=null?`<div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%) rotate(${hd}deg);transform-origin:center 24px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:12px solid #4285f4;filter:drop-shadow(0 0 3px rgba(66,133,244,.6))"></div>`:"";
+      const gpsDot=L.divIcon({className:"",html:`<div style="position:relative">${arrowHtml}<div style="position:absolute;inset:-10px;border-radius:50%;background:#4285f420;border:1.5px solid #4285f440;animation:locPulse 2s ease-in-out infinite"></div><div style="width:12px;height:12px;border-radius:50%;background:#4285f4;border:2.5px solid #fff;box-shadow:0 0 6px rgba(66,133,244,.5)"></div></div>`,iconSize:[12,12],iconAnchor:[6,6]});
       const gm=L.marker([gpsPos.lat,gpsPos.lng],{icon:gpsDot,zIndexOffset:900}).addTo(map);
       gm.bindTooltip(`<b>現在地</b>`,{direction:"top",offset:[0,-10],className:"nav-tip"});
       layersRef.current.push(gm);
@@ -277,7 +354,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     if(!route&&originSpot&&destSpot){
       map.fitBounds(L.latLngBounds([[originSpot.lat,originSpot.lng],[destSpot.lat,destSpot.lng]]).pad(0.3));
     }
-  },[leafletReady,origin,destination,route,gpsPos]);
+  },[leafletReady,origin,destination,route,gpsPos,heading]);
 
   if(!leafletReady)return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><Loader msg="マップを読み込み中" size="md"/></div>;
 
@@ -380,6 +457,14 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
       </button>
     </div>
+    {/* 案内を開始ボタン */}
+    {!guiding&&<button onClick={startGuiding} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"12px 0",marginTop:10,borderRadius:12,border:"none",background:"linear-gradient(135deg,#4de8b0,#34a853)",cursor:"pointer",transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=".85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+      <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>案内を開始</span>
+    </button>}
+    {guiding&&<button onClick={stopGuiding} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"12px 0",marginTop:10,borderRadius:12,border:`1.5px solid ${T.red}40`,background:`${T.red}12`,cursor:"pointer",transition:"opacity .15s"}}>
+      <span style={{fontSize:14,fontWeight:700,color:T.red}}>案内を終了</span>
+    </button>}
   </div>;
 
   /* ── Minimized route pill ── */
@@ -428,13 +513,27 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   </div>;
 
   return <div style={{flex:1,position:"relative",overflow:"hidden"}}>
-    <style>{tipStyle}{`@keyframes navSlideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes locPulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.5)}}`}</style>
+    <style>{tipStyle}{`
+@keyframes navSlideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes locPulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.5)}}
+.nav-guiding .leaflet-control-container{transform:rotate(${heading!=null?heading:0}deg)!important;transition:transform .15s ease-out!important}
+.nav-guiding .leaflet-tooltip{transform:rotate(${heading!=null?heading:0}deg)!important}
+    `}</style>
     {/* Full-screen map */}
-    <div ref={mapRef} style={{position:"absolute",inset:0}}/>
+    <div ref={mapRef} className={guiding?"nav-guiding":""} style={{position:"absolute",inset:0,transition:guiding?"transform .15s ease-out":"none",transform:guiding&&heading!=null?`rotate(${-heading}deg)`:"none",transformOrigin:"center center"}}/>
     {/* Floating UI */}
-    {searchCard}
+    {!guiding&&searchCard}
     {routeCard}
     {routePill}
     {noRouteCard}
+    {/* 案内中: 終了ボタン（searchCardが非表示のため） */}
+    {guiding&&<div style={{position:"absolute",top:mob?10:14,left:mob?10:14,right:mob?10:"auto",width:mob?"auto":320,zIndex:1000}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:T.bg2,borderRadius:14,boxShadow:"0 4px 20px rgba(0,0,0,.4)",border:`1px solid #4de8b060`}}>
+        <div style={{width:8,height:8,borderRadius:"50%",background:"#4de8b0",animation:"locPulse 1.5s infinite",flexShrink:0}}/>
+        <span style={{fontSize:13,fontWeight:700,color:"#4de8b0",flex:1}}>案内中</span>
+        {route&&<span style={{fontSize:12,fontWeight:600,color:T.txH}}>{route.distance}m / {route.minutes}分</span>}
+        <button onClick={stopGuiding} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${T.red}40`,background:`${T.red}10`,cursor:"pointer",fontSize:11,fontWeight:600,color:T.red}}>終了</button>
+      </div>
+    </div>}
   </div>;
 };
