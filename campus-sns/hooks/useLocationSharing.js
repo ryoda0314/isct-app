@@ -105,6 +105,11 @@ export const SPOTS = [
   { id: "gym", label: "体育館", short: "体", col: "#e5534b", cat: "facility", lat: 35.60537, lng: 139.68234 },
   { id: "ground", label: "グラウンド", short: "G", col: "#3dae72", cat: "facility", lat: 35.60517, lng: 139.68143 },
   { id: "pool", label: "プール", short: "泳", col: "#3ca8d0", cat: "facility", lat: 35.60536, lng: 139.68222 },
+  // 屋外スポット（同種が複数あるため連番管理）
+  // ベンチ:       { id: "bench_1",  label: "ベンチ（Taki横）",       short: "B1",  col: "#8bc34a", cat: "outdoor", lat: ???, lng: ??? },
+  // 駐輪場:       { id: "park_1",   label: "駐輪場（西）",           short: "P1",  col: "#78909c", cat: "outdoor", lat: ???, lng: ??? },
+  // 自販機(飲料): { id: "vend_d1",  label: "自販機・飲料（本館前）", short: "VD1", col: "#42a5f5", cat: "outdoor", lat: ???, lng: ??? },
+  // 自販機(食品): { id: "vend_f1",  label: "自販機・食品（本館前）", short: "VF1", col: "#ff8a65", cat: "outdoor", lat: ???, lng: ??? },
   // その他
   { id: "eki", label: "大岡山駅", short: "駅", col: "#e07050", cat: "other", lat: 35.60720, lng: 139.68570 },
   { id: "home_loc", label: "自宅", short: "自", col: "#56b6c2", cat: "other", lat: null, lng: null },
@@ -122,6 +127,7 @@ export const SPOT_CATS = [
   { id: "ishikawa", label: "石川台地区" },
   { id: "area", label: "すずかけ台" },
   { id: "facility", label: "施設" },
+  { id: "outdoor", label: "屋外スポット" },
   { id: "other", label: "その他" },
 ];
 

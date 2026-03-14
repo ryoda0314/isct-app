@@ -71,6 +71,17 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob,gpsPos})=>{
   const [areaEdits,setAreaEdits]=useState({}); // spotId → [[lat,lng], ...]
   const [areaCopied,setAreaCopied]=useState(false);
   const [areaSelSpot,setAreaSelSpot]=useState(null); // 選択中の建物ID
+  // 屋外スポット仮登録
+  const [spotRegMode,setSpotRegMode]=useState(false);
+  const [spotRegs,setSpotRegs]=useState(()=>{try{return JSON.parse(localStorage.getItem("spotRegs")||"[]")}catch{return []}});
+  const [spotRegCopied,setSpotRegCopied]=useState(false);
+  const saveSpotRegs=useCallback((regs)=>{setSpotRegs(regs);localStorage.setItem("spotRegs",JSON.stringify(regs));},[]);
+  const SPOT_TYPES=[
+    {id:"bench",label:"ベンチ",prefix:"B",col:"#8bc34a"},
+    {id:"park",label:"駐輪場",prefix:"P",col:"#78909c"},
+    {id:"vend_d",label:"自販機・飲料",prefix:"VD",col:"#42a5f5"},
+    {id:"vend_f",label:"自販機・食品",prefix:"VF",col:"#ff8a65"},
+  ];
 
   // init map
   useEffect(()=>{
@@ -488,7 +499,21 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob,gpsPos})=>{
         markersRef.current.push({remove:()=>map.off("click",onClick)});
       }
     }
-  },[leafletReady,peers,myLoc,grouped,editMode,edits,showPaths,wpEditMode,wpEdits,newWps,edgeEditMode,edgeFrom,newEdges,edgeType,deletedEdges,showEnts,entEditMode,newEnts,entDragEdits,gpsPos,areaEditMode,areaSelSpot,areaEdits]);
+    // 仮登録スポットのマーカー
+    if(spotRegMode){
+      spotRegs.forEach((r,i)=>{
+        const t=SPOT_TYPES.find(x=>x.id===r.type);
+        const dot=L.divIcon({
+          className:"",
+          html:`<div style="width:18px;height:18px;border-radius:50%;background:${t?.col||"#888"};border:2px solid #fff;display:flex;align-items:center;justify-content:center;transform:translate(-50%,-50%);font-size:7px;font-weight:700;color:#fff">${t?.prefix||"?"}${i+1}</div>`,
+          iconSize:[0,0],iconAnchor:[0,0],
+        });
+        const m=L.marker([r.lat,r.lng],{icon:dot}).addTo(map);
+        m.bindTooltip(`${r.memo||t?.label||""}`,{className:"spot-tip",direction:"top",offset:[0,-10]});
+        markersRef.current.push(m);
+      });
+    }
+  },[leafletReady,peers,myLoc,grouped,editMode,edits,showPaths,wpEditMode,wpEdits,newWps,edgeEditMode,edgeFrom,newEdges,edgeType,deletedEdges,showEnts,entEditMode,newEnts,entDragEdits,gpsPos,areaEditMode,areaSelSpot,areaEdits,spotRegMode,spotRegs]);
 
   // 変更をコード形式でコピー
   const copyEdits=()=>{
@@ -605,7 +630,54 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob,gpsPos})=>{
         <button onClick={()=>{setEditMode(e=>!e);setSelSpot(null);}} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:editMode?"#e8b63a":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${editMode?"#e8b63a":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
           <span style={{fontSize:11,fontWeight:600,color:editMode?"#000":T.txH}}>{editMode?"編集中":"座標を編集"}</span>
         </button>
+        <button onClick={()=>setSpotRegMode(e=>!e)} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:spotRegMode?"#8bc34a":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${spotRegMode?"#8bc34a":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
+          <span style={{fontSize:11,fontWeight:600,color:spotRegMode?"#000":T.txH}}>{spotRegMode?`登録中(${spotRegs.length})`:"スポット登録"}</span>
+        </button>
       </div>
+
+      {/* スポット仮登録パネル */}
+      {spotRegMode&&<div style={{position:"absolute",bottom:50,left:10,right:10,zIndex:1000,borderRadius:12,background:`${T.bg2}f0`,backdropFilter:"blur(8px)",border:`1px solid #8bc34a`,boxShadow:"0 4px 16px rgba(0,0,0,.4)",padding:12}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#8bc34a",marginBottom:8}}>屋外スポット仮登録</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+          {SPOT_TYPES.map(t=><button key={t.id} onClick={()=>{
+            if(!navigator.geolocation){alert("位置情報を使えません");return;}
+            navigator.geolocation.getCurrentPosition(pos=>{
+              const memo=prompt(`${t.label}のメモ（場所の説明）`,"");
+              if(memo===null)return;
+              const reg={type:t.id,lat:parseFloat(pos.coords.latitude.toFixed(5)),lng:parseFloat(pos.coords.longitude.toFixed(5)),memo:memo||t.label,ts:Date.now()};
+              saveSpotRegs([...spotRegs,reg]);
+            },()=>alert("位置情報を取得できません"),{enableHighAccuracy:true,timeout:10000});
+          }} style={{display:"flex",alignItems:"center",gap:5,padding:"7px 12px",borderRadius:8,border:`1.5px solid ${t.col}`,background:`${t.col}18`,cursor:"pointer"}}>
+            <div style={{width:14,height:14,borderRadius:"50%",background:t.col}}/>
+            <span style={{fontSize:11,fontWeight:600,color:t.col}}>{t.label}</span>
+          </button>)}
+        </div>
+        {spotRegs.length>0&&<>
+          <div style={{maxHeight:120,overflowY:"auto",marginBottom:8}}>
+            {spotRegs.map((r,i)=>{
+              const t=SPOT_TYPES.find(x=>x.id===r.type);
+              return <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",borderBottom:`1px solid ${T.bd}`}}>
+                <div style={{width:14,height:14,borderRadius:"50%",background:t?.col||"#888",flexShrink:0}}/>
+                <span style={{fontSize:11,color:T.txH,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.memo}</span>
+                <span style={{fontSize:9,color:T.txD,flexShrink:0}}>{r.lat},{r.lng}</span>
+                <button onClick={()=>saveSpotRegs(spotRegs.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:12,padding:"0 2px"}}>x</button>
+              </div>;
+            })}
+          </div>
+          <div style={{display:"flex",gap:6}}>
+            <button onClick={()=>{
+              const lines=spotRegs.map((r,i)=>{
+                const t=SPOT_TYPES.find(x=>x.id===r.type);
+                const n=spotRegs.slice(0,i+1).filter(x=>x.type===r.type).length;
+                return `  { id: "${r.type}_${n}", label: "${t?.label||r.type}（${r.memo}）", short: "${t?.prefix||"?"}${n}", col: "${t?.col||"#888"}", cat: "outdoor", lat: ${r.lat}, lng: ${r.lng} },`;
+              }).join("\n");
+              navigator.clipboard.writeText(lines);
+              setSpotRegCopied(true);setTimeout(()=>setSpotRegCopied(false),2000);
+            }} style={{flex:1,padding:"7px 0",borderRadius:8,border:`1px solid #8bc34a`,background:"#8bc34a20",cursor:"pointer",fontSize:11,fontWeight:600,color:"#8bc34a"}}>{spotRegCopied?"Copied!":"コードをコピー"}</button>
+            <button onClick={()=>{if(confirm("全て削除しますか？"))saveSpotRegs([]);}} style={{padding:"7px 12px",borderRadius:8,border:`1px solid ${T.red}`,background:`${T.red}10`,cursor:"pointer",fontSize:11,fontWeight:600,color:T.red}}>全削除</button>
+          </div>
+        </>}
+      </div>}
 
       {/* 入口編集パネル */}
       {entEditMode&&entEditCount>0&&<div style={{position:"absolute",top:46,right:10,zIndex:1000,width:mob?220:260,borderRadius:10,background:`${T.bg2}f0`,backdropFilter:"blur(8px)",border:`1px solid #4de8b0`,boxShadow:"0 4px 16px rgba(0,0,0,.4)",padding:10,maxHeight:300,overflowY:"auto"}}>
