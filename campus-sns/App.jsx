@@ -32,9 +32,11 @@ import { LocationView } from "./views/LocationView.jsx";
 import { NavigationView } from "./views/NavigationView.jsx";
 import { FriendsView } from "./views/FriendsView.jsx";
 import { EncounterView } from "./views/EncounterView.jsx";
+import { CircleView } from "./views/CircleView.jsx";
 import { useFriends } from "./hooks/useFriends.js";
 import { useEncounter } from "./hooks/useEncounter.js";
 import { useGroups } from "./hooks/useGroups.js";
+import { useCircles } from "./hooks/useCircles.js";
 import { Toasts } from "./hooks/useToast.js";
 import { useBookmarks } from "./hooks/useBookmarks.js";
 import { useUnreadDM } from "./hooks/useUnreadDM.js";
@@ -119,7 +121,7 @@ export default function App(){
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
   useEffect(()=>{try{localStorage.setItem("notifSettings",JSON.stringify(notifSettings));}catch{}},[notifSettings]);
   const onSetupComplete=async()=>{await fetchData();setAppState("ready");refreshRef.current=setInterval(fetchData,15*60*1000);};
-  const onDemo=()=>{setDemoMode(true);setAllCourses(DEMO_COURSES);setQDataLive(DEMO_QDATA);setAsgn(DEMO_ASGN.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setGrades(DEMO_GRADES);setAtt(DEMO_ATT);setCurrentUserFromAPI(DEMO_USER);setCid(DEMO_COURSES[0].id);setAppState("ready");};
+  const onDemo=()=>{setDemoMode(true);setAllCourses(DEMO_COURSES);setQDataLive(DEMO_QDATA);setAsgn(DEMO_ASGN.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setGrades(DEMO_GRADES);setAtt(DEMO_ATT);setCurrentUserFromAPI(DEMO_USER);setCid(DEMO_COURSES[0].id);circleInit();setAppState("ready");};
 
   const cc=allCourses.find(c=>c.id===cid);
   const userDepts=useMemo(()=>{
@@ -142,6 +144,7 @@ export default function App(){
   const goToBuilding=(destId,origId)=>{if(destId){setNavDest(destId);setNavOrig(origId||null);setView("navigation");}};
   // togBmark is now from useBookmarks()
   const {groups:groupList,createGroup,leaveGroup}=useGroups();
+  const {circles:circleList,messages:circleMsgs,discover:circleDiscover,sendMessage:circleSend,createCircle,joinCircle,leaveCircle,addChannel:circleAddCh,deleteChannel:circleDelCh,pinMessage:circlePin,init:circleInit}=useCircles();
   const [mySpotId,setMySpotId]=useState(()=>{try{return localStorage.getItem("myLocation")||"";}catch{return"";}});
   useEffect(()=>{const h=()=>{try{setMySpotId(localStorage.getItem("myLocation")||"");}catch{}};window.addEventListener("storage",h);const iv=setInterval(()=>{try{const v=localStorage.getItem("myLocation")||"";setMySpotId(p=>p!==v?v:p);}catch{}},5000);return()=>{window.removeEventListener("storage",h);clearInterval(iv);};},[]);
   const {nearby,myCard,setMyCard,inbox:encInbox,collection:encColl,openCard:encOpen,clearCollection:encClearColl,stats:encStats}=useEncounter(user,mySpotId);
@@ -191,7 +194,7 @@ export default function App(){
 
   // --- DESKTOP ---
   if(!mob){
-    const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績・出席",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",location:"友達の居場所",navigation:"キャンパスナビ",friends:"友達",encounter:"すれ違い通信"};
+    const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績・出席",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",location:"友達の居場所",navigation:"キャンパスナビ",friends:"友達",encounter:"すれ違い通信",circles:"サークル"};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:"タイムライン",chat:"チャット",assignments:"課題",materials:"教材",reviews:"レビュー"}[ch]}</>;
       if(view==="dept"&&cd) return <><span style={{color:cd.col}}>{cd.prefix}</span> {cd.name} — {{timeline:"タイムライン",chat:"チャット"}[ch]||""}</>;
@@ -210,7 +213,7 @@ export default function App(){
           {view==="course"&&(L?<LockedView title="コース"/>:cc&&courseContent())}
           {view==="dept"&&(L?<LockedView title="学系"/>:cd&&deptContent())}
           {view==="friends"&&(L?<LockedView title="友達"/>:<FriendsView mob={false} setView={setView} {...friendProps}/>)}
-          {view==="dm"&&(L?<LockedView title="DM"/>:<DMView mob={false} setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen}/>)}
+          {view==="dm"&&(L?<LockedView title="DM"/>:<DMView mob={false} setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/>)}
           {view==="notif"&&(L?<LockedView title="通知"/>:<NotifView mob={false}/>)}
           {view==="grades"&&(L?<LockedView title="成績・出席"/>:<GradeView grades={grades} att={att} mob={false} courses={allCourses}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
@@ -223,6 +226,7 @@ export default function App(){
           {view==="location"&&(L?<LockedView title="友達の居場所"/>:<LocationView mob={false} user={user} friendIds={friendIds}/>)}
           {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/>}
           {view==="encounter"&&(L?<LockedView title="すれ違い通信"/>:<EncounterView mob={false} nearby={nearby} myCard={myCard} setMyCard={setMyCard} inbox={encInbox} collection={encColl} openCard={encOpen} clearCollection={encClearColl} stats={encStats} courses={allCourses}/>)}
+          {view==="circles"&&<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin}/>}
         </div>
         <Toasts/>
         <style>{`*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${T.bd};border-radius:3px}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit}`}</style>
@@ -243,7 +247,7 @@ export default function App(){
         {view==="dept"&&(L?<><MHdr title="学系" back={()=>setView("courseSelect")}/><LockedView title="学系"/></>:cd&&<><MHdr title={<><span style={{color:cd.col}}>{cd.prefix}</span><span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{cd.name}</span></>} back={()=>setView("courseSelect")}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:"タイムライン",i:I.feed},{id:"chat",l:"チャット",i:I.chat}].map(t=><button key={t.id} onClick={()=>setCh(t.id)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===t.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===t.id?T.txH:T.txD,fontSize:13,fontWeight:ch===t.id?600:400,cursor:"pointer"}}>{t.i}<span>{t.l}</span></button>)}</div>{deptContent()}</>)}
         {view==="moreMenu"&&<><MHdr title="その他"/><MoreMenu setView={setView} unreadN={unreadN} pendingFriendCount={pendingFriendCount} dmUnread={dmUnread}/></>}
         {view==="friends"&&(L?<><MHdr title="友達" back={mBack}/><LockedView title="友達"/></>:<><MHdr title="友達" back={mBack}/><FriendsView mob setView={setView} {...friendProps}/></>)}
-        {view==="dm"&&(L?<><MHdr title="DM" back={mBack}/><LockedView title="DM"/></>:<><MHdr title="DM" back={mBack}/><DMView mob setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen}/></>)}
+        {view==="dm"&&(L?<><MHdr title="DM"/><LockedView title="DM"/></>:<><MHdr title="DM"/><DMView mob setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/></>)}
         {view==="notif"&&(L?<><MHdr title="通知" back={mBack}/><LockedView title="通知"/></>:<><MHdr title="通知" back={mBack}/><NotifView mob/></>)}
         {view==="grades"&&(L?<><MHdr title="成績・出席" back={mBack}/><LockedView title="成績・出席"/></>:<><MHdr title="成績・出席" back={mBack}/><GradeView grades={grades} att={att} mob courses={allCourses}/></>)}
         {view==="pomo"&&<><MHdr title="ポモドーロ" back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
@@ -256,6 +260,7 @@ export default function App(){
         {view==="location"&&(L?<><MHdr title="友達の居場所" back={mBack}/><LockedView title="友達の居場所"/></>:<><MHdr title="友達の居場所" back={mBack}/><LocationView mob user={user} friendIds={friendIds}/></>)}
         {view==="navigation"&&<><MHdr title="キャンパスナビ" back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
         {view==="encounter"&&(L?<><MHdr title="すれ違い通信" back={mBack}/><LockedView title="すれ違い通信"/></>:<><MHdr title="すれ違い通信" back={mBack}/><EncounterView mob nearby={nearby} myCard={myCard} setMyCard={setMyCard} inbox={encInbox} collection={encColl} openCard={encOpen} clearCollection={encClearColl} stats={encStats} courses={allCourses}/></>)}
+        {view==="circles"&&<><MHdr title="サークル" back={mBack}/><CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin}/></>}
       </div>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread}/>
       <div style={{height:14,background:T.bg2,flexShrink:0}}/>

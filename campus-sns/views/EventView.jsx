@@ -56,7 +56,7 @@ export const EventView=({events,mob})=>{
         <div key={ev.id} style={{padding:12,borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:8,borderLeft:`3px solid ${ec?.c||T.accent}`}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><Tag color={ec?.c}>{ec?.l}</Tag><span style={{fontSize:12,color:T.txD}}>{fDS(ev.date)}</span></div>
           <div style={{fontWeight:600,color:T.txH,fontSize:15}}>{ev.title}</div>
-          <div style={{fontSize:12,color:T.txD,marginTop:2}}>{fTs(ev.date)}〜{fTs(ev.end)} · {ev.loc}</div>
+          <div style={{fontSize:12,color:T.txD,marginTop:2}}>{fTs(ev.date)}{ev.end&&`〜${fTs(ev.end)}`} · {ev.loc}</div>
           <div style={{fontSize:13,color:T.tx,marginTop:4}}><Tx>{ev.desc}</Tx></div>
           {/* RSVP buttons */}
           <div style={{display:"flex",gap:6,marginTop:8}}>

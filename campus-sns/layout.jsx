@@ -28,6 +28,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
       <SideItem icon={I.bell} label="通知" on={view==="notif"} click={()=>setView("notif")} badge={unreadN}/>
       <SideItem icon={I.search} label="検索" on={view==="search"} click={()=>setView("search")}/>
       <SideItem icon={I.cal} label="カレンダー" on={view==="calendar"} click={()=>setView("calendar")}/>
+      <SideItem icon={I.circle} label="サークル" on={view==="circles"} click={()=>setView("circles")}/>
       <SideItem icon={I.map} label="キャンパスナビ" on={view==="navigation"} click={()=>setView("navigation")}/>
       <SideItem icon={I.more} label="ツール" on={moreOpen||isExtra} click={()=>setMoreOpen(p=>!p)}/>
     </div>
@@ -127,7 +128,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[]})=>{
 // ============================================================
 
 const MNav=({view,setView,ac,unreadN,dmUnread})=>{
-  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept"];
+  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles"];
   const isMore=moreViews.includes(view);
   return(
   <nav style={{display:"flex",background:T.bg2,borderTop:`1px solid ${T.bd}`,flexShrink:0}}>
@@ -144,6 +145,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0})=>{
   const sections=[
     {title:"コミュニケーション",items:[
       {id:"dm",i:I.mail,l:"ダイレクトメッセージ",b:dmUnread},
+      {id:"circles",i:I.circle,l:"サークル"},
       {id:"friends",i:I.users,l:"友達",b:pendingFriendCount},
       {id:"notif",i:I.bell,l:"通知",b:unreadN},
     ]},

@@ -82,9 +82,9 @@ const DEMO_USER = {
 
 // ── イベント ──
 const DEMO_EVENTS = [
-  { id: "ev_1", title: "プログラミングコンテスト 2026 Spring", desc: "情報理工学院主催。チーム参加可。", cat: "contest", date: d(14, 13, 0), loc: "W6-31", col: "#6375f0" },
-  { id: "ev_2", title: "研究室公開 Week", desc: "各研究室の紹介と見学ツアー。", cat: "open_lab", date: d(21, 10, 0), loc: "各号館", col: "#a855c7" },
-  { id: "ev_3", title: "就活ガイダンス（学部3年向け）", desc: "キャリア支援課による就活準備セミナー。", cat: "career", date: d(10, 15, 0), loc: "WL1-301", col: "#d4843e" },
+  { id: "ev_1", title: "プログラミングコンテスト 2026 Spring", desc: "情報理工学院主催。チーム参加可。", cat: "contest", date: d(14, 13, 0), end: d(14, 17, 0), loc: "W6-31", col: "#6375f0" },
+  { id: "ev_2", title: "研究室公開 Week", desc: "各研究室の紹介と見学ツアー。", cat: "open_lab", date: d(21, 10, 0), end: d(21, 16, 0), loc: "各号館", col: "#a855c7" },
+  { id: "ev_3", title: "就活ガイダンス（学部3年向け）", desc: "キャリア支援課による就活準備セミナー。", cat: "career", date: d(10, 15, 0), end: d(10, 16, 30), loc: "WL1-301", col: "#d4843e" },
 ];
 
 // ── レビュー ──
@@ -174,6 +174,92 @@ const DEMO_GROUPS = [
   },
 ];
 
+// ── サークル（Discord的サーバー） ──
+const DEMO_CIRCLES = [
+  {
+    id: "cir_1", name: "プログラミング研究会", icon: "P", color: "#6375f0",
+    desc: "競プロ・Web開発・AI など幅広くやってます。初心者歓迎！",
+    memberCount: 24, role: "admin",
+    channels: [
+      { id: "ch_1_1", name: "general", type: "text" },
+      { id: "ch_1_2", name: "announcements", type: "text" },
+      { id: "ch_1_3", name: "competitive-programming", type: "text" },
+      { id: "ch_1_4", name: "web-dev", type: "text" },
+      { id: "ch_1_5", name: "random", type: "text" },
+    ],
+    members: [
+      { id: 99999, name: "テスト太郎", avatar: "T", color: "#888", role: "admin" },
+      { id: 10001, name: "山田花子", avatar: "H", color: "#e5534b", role: "admin" },
+      { id: 10002, name: "鈴木一郎", avatar: "I", color: "#6375f0", role: "member" },
+      { id: 10003, name: "田中美咲", avatar: "M", color: "#3dae72", role: "member" },
+      { id: 10004, name: "佐藤健太", avatar: "K", color: "#d4843e", role: "member" },
+      { id: 10005, name: "高橋優", avatar: "Y", color: "#a855c7", role: "member" },
+    ],
+  },
+  {
+    id: "cir_2", name: "テニスサークル", icon: "🎾", color: "#3dae72",
+    desc: "毎週火・木の放課後に大岡山コートで練習しています。",
+    memberCount: 38, role: "member",
+    channels: [
+      { id: "ch_2_1", name: "general", type: "text" },
+      { id: "ch_2_2", name: "announcements", type: "text" },
+      { id: "ch_2_3", name: "practice-schedule", type: "text" },
+      { id: "ch_2_4", name: "off-topic", type: "text" },
+    ],
+    members: [
+      { id: 10005, name: "高橋優", avatar: "Y", color: "#a855c7", role: "admin" },
+      { id: 99999, name: "テスト太郎", avatar: "T", color: "#888", role: "member" },
+      { id: 10001, name: "山田花子", avatar: "H", color: "#e5534b", role: "member" },
+      { id: 10004, name: "佐藤健太", avatar: "K", color: "#d4843e", role: "member" },
+    ],
+  },
+  {
+    id: "cir_3", name: "映画同好会", icon: "🎬", color: "#d4843e",
+    desc: "月1で映画鑑賞会を開催。ジャンル問わず語り合いましょう。",
+    memberCount: 15, role: "member",
+    channels: [
+      { id: "ch_3_1", name: "general", type: "text" },
+      { id: "ch_3_2", name: "recommendations", type: "text" },
+      { id: "ch_3_3", name: "screening-schedule", type: "text" },
+    ],
+    members: [
+      { id: 10003, name: "田中美咲", avatar: "M", color: "#3dae72", role: "admin" },
+      { id: 99999, name: "テスト太郎", avatar: "T", color: "#888", role: "member" },
+      { id: 10002, name: "鈴木一郎", avatar: "I", color: "#6375f0", role: "member" },
+    ],
+  },
+];
+
+const DEMO_CIRCLE_MESSAGES = {
+  "ch_1_1": [
+    { id: "cm_1", uid: 10001, name: "山田花子", avatar: "H", color: "#e5534b", text: "今週の土曜、もくもく会やりませんか？", ts: new Date(Date.now() - 3600000*5) },
+    { id: "cm_2", uid: 10002, name: "鈴木一郎", avatar: "I", color: "#6375f0", text: "いいね！参加します", ts: new Date(Date.now() - 3600000*4) },
+    { id: "cm_3", uid: 99999, name: "テスト太郎", avatar: "T", color: "#888", text: "自分も行きます！場所は南3号館でいいですか？", ts: new Date(Date.now() - 3600000*3) },
+    { id: "cm_4", uid: 10003, name: "田中美咲", avatar: "M", color: "#3dae72", text: "南3号館の115教室、空いてるか確認しておきますね", ts: new Date(Date.now() - 3600000*2) },
+    { id: "cm_5", uid: 10001, name: "山田花子", avatar: "H", color: "#e5534b", text: "ありがとう！13時集合で👍", ts: new Date(Date.now() - 3600000) },
+  ],
+  "ch_1_2": [
+    { id: "cm_10", uid: 10001, name: "山田花子", avatar: "H", color: "#e5534b", text: "@everyone 次回の勉強会は3/22(土) 13:00〜 南3号館115教室です。テーマは「Reactのパフォーマンス最適化」です。", ts: new Date(Date.now() - 86400000*2), pinned: true },
+    { id: "cm_11", uid: 10001, name: "山田花子", avatar: "H", color: "#e5534b", text: "新メンバーが3人加入しました！よろしくお願いします🎉", ts: new Date(Date.now() - 86400000) },
+  ],
+  "ch_1_3": [
+    { id: "cm_20", uid: 10002, name: "鈴木一郎", avatar: "I", color: "#6375f0", text: "AtCoder ABC345、参加する人いますか？", ts: new Date(Date.now() - 7200000) },
+    { id: "cm_21", uid: 10004, name: "佐藤健太", avatar: "K", color: "#d4843e", text: "参加します！前回のD問題の解説も聞きたい", ts: new Date(Date.now() - 5400000) },
+    { id: "cm_22", uid: 10002, name: "鈴木一郎", avatar: "I", color: "#6375f0", text: "了解、コンテスト後にバーチャルで復習会やろう", ts: new Date(Date.now() - 3600000) },
+  ],
+  "ch_2_1": [
+    { id: "cm_30", uid: 10005, name: "高橋優", avatar: "Y", color: "#a855c7", text: "来週の練習、雨予報なので体育館に変更します", ts: new Date(Date.now() - 7200000) },
+    { id: "cm_31", uid: 10004, name: "佐藤健太", avatar: "K", color: "#d4843e", text: "了解です！ラケット持っていきます", ts: new Date(Date.now() - 3600000) },
+  ],
+};
+
+const DEMO_DISCOVER_CIRCLES = [
+  { id: "cir_d1", name: "ロボット技術研究会", icon: "🤖", color: "#2d9d8f", desc: "ロボットの設計・制作を行う技術系サークルです。ロボコン出場を目指しています。", memberCount: 32 },
+  { id: "cir_d2", name: "軽音楽部", icon: "🎸", color: "#c678dd", desc: "バンド活動中心。学園祭ライブに向けて練習中！", memberCount: 45 },
+  { id: "cir_d3", name: "数学研究会", icon: "∑", color: "#c6a236", desc: "数学好きが集まって問題を解いたり議論したりするサークル。", memberCount: 18 },
+  { id: "cir_d4", name: "写真部", icon: "📷", color: "#e5534b", desc: "キャンパスや街の風景を撮影。月1で撮影会を開催。", memberCount: 22 },
+];
+
 // ── 通知 ──
 const DEMO_NOTIFICATIONS = [
   { id: 601, type: "deadline", text: "「実験レポート第2回」の締切が明日です", cid: "mc_105", ts: d(0, 9, 0), read: false },
@@ -210,5 +296,5 @@ export {
   DEMO_USER, DEMO_EVENTS, DEMO_REVIEWS, DEMO_MY_EVENTS, DEMO_TASKS,
   DEMO_FRIENDS, DEMO_FRIEND_PENDING, DEMO_FRIEND_SENT,
   DEMO_DM_CONVERSATIONS, DEMO_GROUPS, DEMO_NOTIFICATIONS,
-  DEMO_POSTS
+  DEMO_POSTS, DEMO_CIRCLES, DEMO_CIRCLE_MESSAGES, DEMO_DISCOVER_CIRCLES
 };

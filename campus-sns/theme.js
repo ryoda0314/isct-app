@@ -10,12 +10,12 @@ const DARK = {
 };
 
 const LIGHT = {
-  bg:"#f5f5f7", bg2:"#ffffff", bg3:"#eeeef0", bg4:"#e4e4e8",
-  hover:"#dddde2", accent:"#5563d8", accentSoft:"#6b7bf0",
-  green:"#2d9462", red:"#d44040", orange:"#c07030", yellow:"#a88a2a",
-  tx:"#555566", txH:"#1a1a22", txD:"#8888a0",
-  bd:"#d8d8e0", bdL:"#c8c8d4",
-  on:"#2d9462", idle:"#a88a2a", off:"#aaaabc",
+  bg:"#f6f6f8", bg2:"#ffffff", bg3:"#ededf0", bg4:"#e3e3e8",
+  hover:"#dcdce2", accent:"#4f5bd5", accentSoft:"#6b7bf0",
+  green:"#2a9058", red:"#d43d3d", orange:"#d08030", yellow:"#b89420",
+  tx:"#4a4a56", txH:"#18181e", txD:"#84849a",
+  bd:"#d6d6de", bdL:"#c6c6d2",
+  on:"#2a9058", idle:"#b89420", off:"#a8a8b8",
 };
 
 const ThemeCtx = createContext();

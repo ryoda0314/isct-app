@@ -19,7 +19,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
   const [showDoneTk,setShowDoneTk]=useState(false);
   const [qOpen,setQOpen]=useState(false);
   const [showHidden,setShowHidden]=useState(false);
-  const [calMode,setCalMode]=useState("month");
+  const [calMode,setCalMode]=useState("timeline");
   const [calMonth,setCalMonth]=useState(()=>({y:NOW.getFullYear(),m:NOW.getMonth()}));
   const [selDay,setSelDay]=useState(null);
   const showTabs=!course;

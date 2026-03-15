@@ -8,12 +8,15 @@ import { useDMList, useDMMessages, useDMSend } from '../hooks/useDM.js';
 import { useGroupMessages, useGroupSend } from '../hooks/useGroupChat.js';
 import { useTyping } from '../hooks/useTyping.js';
 
-export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen})=>{
+export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,createGroup})=>{
   const user=useCurrentUser();
   const {conversations,loading}=useDMList(user?.moodleId);
   const [sel,setSel]=useState(null); // {type:'dm'|'group', ...}
   const [inp,setInp]=useState("");
   const [showPicker,setShowPicker]=useState(false);
+  const [showNewGroup,setShowNewGroup]=useState(false);
+  const [grpName,setGrpName]=useState("");
+  const [grpSel,setGrpSel]=useState([]);
   const ref=useRef(null);
   const sendDM=useDMSend();
   const sendGrpMsg=useGroupSend();
@@ -127,13 +130,13 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen})=>
     );
   }
 
-  // Friend picker overlay
+  // Friend picker overlay (for new DM)
   if(showPicker){
     return(
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderBottom:`1px solid ${T.bd}`,background:T.bg2}}>
           <button onClick={()=>setShowPicker(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.back}</button>
-          <span style={{fontWeight:600,color:T.txH,fontSize:14}}>友達を選択</span>
+          <span style={{fontWeight:600,color:T.txH,fontSize:14}}>DMを送る相手を選択</span>
         </div>
         <div style={{flex:1,overflowY:"auto",padding:12}}>
           {friends.length===0&&<div style={{textAlign:"center",padding:20,color:T.txD,fontSize:13}}>友達がいません</div>}
@@ -148,15 +151,59 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen})=>
     );
   }
 
+  // Group creation overlay
+  if(showNewGroup){
+    const toggleGrpMember=(fid)=>setGrpSel(p=>p.includes(fid)?p.filter(x=>x!==fid):[...p,fid]);
+    const doCreate=async()=>{
+      if(!grpName.trim()||grpSel.length===0)return;
+      if(createGroup) await createGroup(grpName.trim(),grpSel);
+      setShowNewGroup(false);setGrpName("");setGrpSel([]);
+    };
+    return(
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderBottom:`1px solid ${T.bd}`,background:T.bg2}}>
+          <button onClick={()=>{setShowNewGroup(false);setGrpName("");setGrpSel([]);}} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.back}</button>
+          <span style={{fontWeight:600,color:T.txH,fontSize:14}}>グループ作成</span>
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:12}}>
+          <div style={{marginBottom:12}}>
+            <input value={grpName} onChange={e=>setGrpName(e.target.value)} placeholder="グループ名" style={{width:"100%",padding:"10px 12px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
+          </div>
+          <div style={{fontSize:12,fontWeight:700,color:T.txD,marginBottom:8}}>メンバーを選択 {grpSel.length>0&&<span style={{color:T.accent}}>({grpSel.length}人)</span>}</div>
+          {friends.length===0&&<div style={{textAlign:"center",padding:20,color:T.txD,fontSize:13}}>友達がいません</div>}
+          {friends.map(f=>{
+            const u={name:f.name,av:f.avatar,col:f.color};
+            const on=grpSel.includes(f.friendId);
+            return <div key={f.friendId} onClick={()=>toggleGrpMember(f.friendId)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:on?`${T.accent}10`:T.bg2,border:`1px solid ${on?T.accent+'50':T.bd}`,marginBottom:6,cursor:"pointer"}}>
+              <Av u={u} sz={36}/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{f.name}</div>{f.dept&&<div style={{fontSize:11,color:T.txD}}>{f.dept}</div>}</div>
+              <div style={{width:22,height:22,borderRadius:6,border:`2px solid ${on?T.accent:T.bd}`,background:on?T.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>{on&&I.chk}</div>
+            </div>;
+          })}
+        </div>
+        <div style={{padding:"10px 12px",borderTop:`1px solid ${T.bd}`,background:T.bg2}}>
+          <button onClick={doCreate} disabled={!grpName.trim()||grpSel.length===0} style={{width:"100%",padding:"12px 0",borderRadius:10,border:"none",background:grpName.trim()&&grpSel.length>0?T.accent:T.bg3,color:grpName.trim()&&grpSel.length>0?"#fff":T.txD,fontSize:14,fontWeight:600,cursor:grpName.trim()&&grpSel.length>0?"pointer":"default"}}>作成</button>
+        </div>
+      </div>
+    );
+  }
+
   /* ── Conversation list ── */
   return(
     <div style={{flex:1,overflowY:"auto",padding:12}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-        <div style={{fontSize:12,fontWeight:700,color:T.txD}}>ダイレクトメッセージ</div>
-        {friends.length>0&&<button onClick={()=>setShowPicker(true)} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:7,border:`1px solid ${T.accent}30`,background:`${T.accent}10`,cursor:"pointer"}}>
+      {/* Action buttons */}
+      <div style={{display:"flex",gap:8,marginBottom:12}}>
+        <button onClick={()=>setShowPicker(true)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"10px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer"}}>
+          <span style={{color:T.accent,display:"flex"}}>{I.pen}</span>
+          <span style={{fontSize:12,fontWeight:600,color:T.txH}}>新しいDM</span>
+        </button>
+        <button onClick={()=>setView("friends")} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"10px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer"}}>
+          <span style={{color:T.accent,display:"flex"}}>{I.users}</span>
+          <span style={{fontSize:12,fontWeight:600,color:T.txH}}>友達一覧</span>
+        </button>
+        <button onClick={()=>setShowNewGroup(true)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"10px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer"}}>
           <span style={{color:T.accent,display:"flex"}}>{I.plus}</span>
-          <span style={{fontSize:11,fontWeight:600,color:T.accent}}>新しいDM</span>
-        </button>}
+          <span style={{fontSize:12,fontWeight:600,color:T.txH}}>グループ</span>
+        </button>
       </div>
       {loading&&<Loader msg="DMを読み込み中" size="sm"/>}
 
