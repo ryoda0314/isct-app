@@ -348,17 +348,11 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       if(inGroup){
         const gInfo=SPOT_GROUPS.find(g=>g.prefix===spotGroup);
         const col=gInfo?.col||s.col;
-        const pinHtml=`<div style="position:relative;width:28px;height:38px">
-          <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:8px;height:8px;border-radius:50%;background:rgba(0,0,0,.2);filter:blur(2px)"></div>
-          <div style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:24px;height:24px;border-radius:50%;background:${col};border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center">
-            <span style="font-size:8px;font-weight:800;color:#fff">${s.short}</span>
-          </div>
-        </div>`;
-        const icon=L.divIcon({className:"",html:pinHtml,iconSize:[28,38],iconAnchor:[14,38]});
-        const m=L.marker([s.lat,s.lng],{icon,interactive:true,zIndexOffset:500}).addTo(map);
+        const lbl=s.label.replace(/^[^（(]*[（(]/,"").replace(/[）)]$/,"")||s.short;
+        const mkIcon=(showLabel)=>L.divIcon({className:"",html:`<div style="position:relative;display:flex;flex-direction:column;align-items:center">${showLabel?`<div style="background:${col};color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:8px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);border:2px solid #fff">${lbl}</div><div style="width:2px;height:6px;background:#fff;opacity:.7"></div>`:""}<div style="width:${showLabel?6:14}px;height:${showLabel?6:14}px;border-radius:50%;background:${col};border:${showLabel?"1.5":"2.5"}px solid #fff;box-shadow:0 ${showLabel?1:2}px ${showLabel?4:8}px rgba(0,0,0,.${showLabel?3:4})"></div></div>`,iconSize:[0,0],iconAnchor:[0,showLabel?40:7]});
+        const m=L.marker([s.lat,s.lng],{icon:mkIcon(map.getZoom()>=17),interactive:true,zIndexOffset:500}).addTo(map);
+        m._mkIcon=mkIcon;
         m.on("click",()=>{setDestination(s.id);setSpotGroup(null);setNavPhase("detail");});
-        const lbl=s.label.replace(/^[^（(]*[（(]/,"").replace(/[）)]$/,"");
-        m.bindTooltip(lbl||s.label,{direction:"top",offset:[0,-40],className:"nav-tip",permanent:true});
         layersRef.current.push(m);
         groupBounds.push([s.lat,s.lng]);
       } else {
@@ -382,6 +376,16 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     if(isGroupPhase&&groupBounds.length>0){
       if(groupBounds.length===1)map.flyTo(groupBounds[0],18,{duration:.4});
       else map.fitBounds(L.latLngBounds(groupBounds).pad(0.3));
+    }
+
+    // Zoom-dependent label toggle for group pins
+    if(isGroupPhase){
+      const onZoom=()=>{
+        const show=map.getZoom()>=17;
+        layersRef.current.forEach(m=>{if(m._mkIcon)m.setIcon(m._mkIcon(show));});
+      };
+      map.on("zoomend",onZoom);
+      layersRef.current.push({remove:()=>map.off("zoomend",onZoom)});
     }
 
     // Route polyline
