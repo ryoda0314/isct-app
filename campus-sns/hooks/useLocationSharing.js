@@ -169,7 +169,7 @@ export const SPOTS = [
   { id: "vend_d_11", label: "自販機・飲料（事務局前自動販売機）", short: "VD11", col: "#42a5f5", cat: "outdoor", lat: 35.60524, lng: 139.68443 },
   { id: "bench_20", label: "ベンチ（ベンチ）", short: "B20", col: "#8bc34a", cat: "outdoor", lat: 35.60664, lng: 139.68421 },
   // その他
-  { id: "eki", label: "大岡山駅", short: "駅", col: "#e07050", cat: "other", lat: 35.60720, lng: 139.68570 },
+  { id: "eki", label: "大岡山駅", short: "駅", col: "#e07050", cat: "other", lat: 35.60731, lng: 139.68542 },
   { id: "home_loc", label: "自宅", short: "自", col: "#56b6c2", cat: "other", lat: null, lng: null },
   { id: "commute", label: "通学中", short: "移", col: "#61afef", cat: "other", lat: null, lng: null },
   { id: "off_campus", label: "キャンパス外", short: "外", col: "#8888a0", cat: "other", lat: null, lng: null },

@@ -88,10 +88,15 @@ const SpotSelector=({value,onChange,onSelectGroup,placeholder,accent,onGps,gpsLo
   const quickSpots=QUICK_IDS.map(id=>NAV_SPOTS.find(s=>s.id===id)).filter(Boolean);
 
   return <div style={{position:"relative",flex:1,minWidth:0}}>
-    <button onClick={()=>{setOpen(p=>!p);setQ("");setOpenCat(null);}} style={{width:"100%",display:"flex",alignItems:"center",gap:6,padding:"9px 10px",borderRadius:8,border:"none",background:open?T.bg3:"transparent",cursor:"pointer",textAlign:"left",transition:"background .12s"}} onMouseEnter={e=>{if(!open)e.currentTarget.style.background=T.bg3}} onMouseLeave={e=>{if(!open)e.currentTarget.style.background="transparent"}}>
-      {sel?<span style={{fontSize:13,fontWeight:600,color:T.txH,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sel.label}</span>
-      :<span style={{fontSize:13,color:T.txD,flex:1}}>{placeholder}</span>}
-    </button>
+    <div style={{position:"relative",width:"100%"}} onMouseEnter={e=>{const x=e.currentTarget.querySelector('[data-clear]');if(x)x.style.opacity='1';}} onMouseLeave={e=>{const x=e.currentTarget.querySelector('[data-clear]');if(x)x.style.opacity='0';}}>
+      <button onClick={()=>{setOpen(p=>!p);setQ("");setOpenCat(null);}} style={{width:"100%",display:"flex",alignItems:"center",gap:6,padding:"9px 10px",paddingRight:sel?30:10,borderRadius:8,border:"none",background:open?T.bg3:"transparent",cursor:"pointer",textAlign:"left",transition:"background .12s"}} onMouseEnter={e=>{if(!open)e.currentTarget.style.background=T.bg3}} onMouseLeave={e=>{if(!open)e.currentTarget.style.background="transparent"}}>
+        {sel?<span style={{fontSize:13,fontWeight:600,color:T.txH,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sel.label}</span>
+        :<span style={{fontSize:13,color:T.txD,flex:1}}>{placeholder}</span>}
+      </button>
+      {sel&&<button data-clear onClick={e=>{e.stopPropagation();onChange(null);setOpen(false);}} style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",display:"flex",alignItems:"center",justifyContent:"center",width:20,height:20,borderRadius:"50%",border:"none",background:`${T.red}18`,cursor:"pointer",opacity:0,transition:"opacity .15s",padding:0}}>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.red} strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>}
+    </div>
     {open&&<>
       <div onClick={()=>setOpen(false)} style={{position:"fixed",inset:0,zIndex:2000}}/>
       <div style={{position:"absolute",top:"100%",left:-44,right:-12,marginTop:6,background:T.bg2,border:`1px solid ${T.bdL}`,borderRadius:14,boxShadow:"0 16px 48px rgba(0,0,0,.55)",zIndex:2001,overflow:"hidden"}}>
@@ -182,7 +187,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const {origin,setOrigin,destination,setDestination,route,swap}=useNavigation();
   const [selectMode,setSelectMode]=useState(null);
   const [panelMin,setPanelMin]=useState(false);
-  const [navPhase,setNavPhase]=useState("search"); // "search" | "group" | "detail" | "route"
+  const [searchMin,setSearchMin]=useState(true);
+  const [navPhase,setNavPhase]=useState(initialDest?"route":"search"); // "search" | "group" | "detail" | "route"
   const [spotGroup,setSpotGroup]=useState(null); // e.g. "bench", "park"
   const [gpsPos,setGpsPos]=useState(null);
   const [gpsLoading,setGpsLoading]=useState(false);
@@ -289,7 +295,13 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         if(navigator.geolocation){
           setGpsLoading(true);
           navigator.geolocation.getCurrentPosition(
-            pos=>{const ns=findNearestNavSpot(pos.coords.latitude,pos.coords.longitude);if(ns)setOrigin(ns.spot.id);setGpsPos([pos.coords.latitude,pos.coords.longitude]);setGpsLoading(false);setNavPhase("route");},
+            pos=>{
+              const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+              setGpsPos({lat,lng,accuracy});
+              const ns=findNearestNavSpot(lat,lng);
+              if(ns&&ns.distance<1500)setOrigin(ns.spot.id);
+              setGpsLoading(false);setNavPhase("route");
+            },
             ()=>{setGpsLoading(false);setNavPhase("route");},
             {enableHighAccuracy:true,timeout:10000,maximumAge:30000}
           );
@@ -311,6 +323,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     overlayRef.current=L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:22,maxNativeZoom:19,pane:"overlayPane",opacity:0.35}).addTo(map);
     L.control.zoom({position:"bottomright"}).addTo(map);
     mapInst.current=map;
+    map.on("click",()=>{if(navPhaseRef.current==="search")setSearchMin(true);});
     return()=>{map.remove();mapInst.current=null;};
   },[leafletReady]);
 
@@ -349,7 +362,10 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         const gInfo=SPOT_GROUPS.find(g=>g.prefix===spotGroup);
         const col=gInfo?.col||s.col;
         const lbl=s.label.replace(/^[^（(]*[（(]/,"").replace(/[）)]$/,"")||s.short;
-        const mkIcon=(showLabel)=>L.divIcon({className:"",html:`<div style="position:relative;display:flex;flex-direction:column;align-items:center">${showLabel?`<div style="background:${col};color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:8px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);border:2px solid #fff">${lbl}</div><div style="width:2px;height:6px;background:#fff;opacity:.7"></div>`:""}<div style="width:${showLabel?6:14}px;height:${showLabel?6:14}px;border-radius:50%;background:${col};border:${showLabel?"1.5":"2.5"}px solid #fff;box-shadow:0 ${showLabel?1:2}px ${showLabel?4:8}px rgba(0,0,0,.${showLabel?3:4})"></div></div>`,iconSize:[0,0],iconAnchor:[0,showLabel?40:7]});
+        const mkIcon=(showLabel,anim=false,delay=0)=>L.divIcon({className:"",html:showLabel
+          ?`<div style="position:relative;display:flex;flex-direction:column;align-items:center;${anim?`animation:navPinPop .35s cubic-bezier(.34,1.56,.64,1) ${delay}ms both`:""}"><div style="background:${col};color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:8px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);border:2px solid #fff">${lbl}</div><div style="width:2px;height:6px;background:#fff;opacity:.7"></div><div style="width:6px;height:6px;border-radius:50%;background:${col};border:1.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)"></div></div>`
+          :`<div style="position:relative;display:flex;flex-direction:column;align-items:center"><div style="width:14px;height:14px;border-radius:50%;background:${col};border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);${anim?`animation:navPinDot .3s cubic-bezier(.34,1.56,.64,1) ${delay}ms both`:""}"></div></div>`,
+          iconSize:[0,0],iconAnchor:[0,showLabel?40:7]});
         const m=L.marker([s.lat,s.lng],{icon:mkIcon(map.getZoom()>=17),interactive:true,zIndexOffset:500}).addTo(map);
         m._mkIcon=mkIcon;
         m.on("click",()=>{setDestination(s.id);setSpotGroup(null);setNavPhase("detail");});
@@ -380,9 +396,16 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
 
     // Zoom-dependent label toggle for group pins
     if(isGroupPhase){
+      let prevShow=map.getZoom()>=17;
       const onZoom=()=>{
         const show=map.getZoom()>=17;
-        layersRef.current.forEach(m=>{if(m._mkIcon)m.setIcon(m._mkIcon(show));});
+        if(show===prevShow)return;
+        prevShow=show;
+        const center=map.getCenter();
+        const pins=layersRef.current.filter(m=>m._mkIcon);
+        const dists=pins.map(m=>{const ll=m.getLatLng();return Math.hypot(ll.lat-center.lat,ll.lng-center.lng);});
+        const maxD=Math.max(...dists)||1;
+        pins.forEach((m,i)=>{m.setIcon(m._mkIcon(show,true,Math.round((dists[i]/maxD)*200)));});
       };
       map.on("zoomend",onZoom);
       layersRef.current.push({remove:()=>map.off("zoomend",onZoom)});
@@ -477,6 +500,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
 
   /* ── Inline search for search phase ── */
   const [searchQ,setSearchQ]=useState("");
+  const [openCatInline,setOpenCatInline]=useState(null);
 
   if(!leafletReady)return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><Loader msg="マップを読み込み中" size="md"/></div>;
 
@@ -500,7 +524,12 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const quickSpotsInline=QUICK_IDS_INLINE.map(id=>NAV_SPOTS.find(s=>s.id===id)).filter(Boolean);
 
   const stopProp=e=>{e.stopPropagation();};
-  const searchCard=navPhase==="search"?
+  const searchCard=navPhase==="search"&&searchMin?
+    <div onClick={()=>setSearchMin(false)} style={{position:"absolute",top:mob?10:14,left:mob?10:14,right:mob?10:"auto",width:mob?"auto":360,zIndex:1000,display:"flex",alignItems:"center",gap:10,padding:"12px 16px",background:T.bg2,borderRadius:16,border:`1px solid ${T.bdL}`,boxShadow:"0 4px 24px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.2)",cursor:"pointer",transition:"box-shadow .15s"}}>
+      <span style={{display:"flex",color:T.txD}}>{I.search}</span>
+      <span style={{fontSize:14,color:T.txD,flex:1}}>スポットを検索...</span>
+    </div>
+  :navPhase==="search"?
     /* ── Phase 1: Search (直接入力可能) ── */
     <div style={cardBase} onMouseDown={stopProp} onDoubleClick={stopProp} onKeyDown={stopProp} onKeyUp={stopProp}>
       <div style={{padding:"10px 10px 6px"}}>
@@ -540,11 +569,33 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
           ))}
           <div style={{height:1,background:T.bd,margin:"6px 10px"}}/>
           {SPOT_CATS.filter(cat=>NAV_SPOTS.some(s=>s.cat===cat.id)).map(cat=>{
-            const count=NAV_SPOTS.filter(s=>s.cat===cat.id).length;
-            return <button key={cat.id} onClick={()=>{/* カテゴリ展開はSpotSelectorドロップダウンで対応 */}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"10px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <span style={{fontSize:13,fontWeight:500,color:T.txH}}>{cat.label}</span>
-              <span style={{fontSize:11,color:T.txD}}>{count}件 ›</span>
-            </button>;
+            const catSpots=NAV_SPOTS.filter(s=>s.cat===cat.id&&!isGroupableSpot(s));
+            const catGroups=SPOT_GROUPS.filter(g=>NAV_SPOTS.some(s=>s.cat===cat.id&&s.id.startsWith(g.prefix+"_")));
+            const isOpen=openCatInline===cat.id;
+            return <div key={cat.id}>
+              <button onClick={()=>setOpenCatInline(isOpen?null:cat.id)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"10px 10px",borderRadius:8,border:"none",background:isOpen?T.bg3:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>{if(!isOpen)e.currentTarget.style.background=T.hover}} onMouseLeave={e=>{if(!isOpen)e.currentTarget.style.background=isOpen?T.bg3:"transparent"}}>
+                <span style={{fontSize:13,fontWeight:500,color:T.txH}}>{cat.label}</span>
+                <span style={{fontSize:11,color:T.txD}}>{catSpots.length+catGroups.length}件 {isOpen?"▾":"›"}</span>
+              </button>
+              {isOpen&&<div style={{padding:"0 4px 4px"}}>
+                {catGroups.map(g=>{
+                  const cnt=NAV_SPOTS.filter(s=>s.id.startsWith(g.prefix+"_")).length;
+                  return <button key={g.prefix} onClick={()=>{setSpotGroup(g.prefix);setNavPhase("group");setSearchQ("");setOpenCatInline(null);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <div style={{width:20,height:20,borderRadius:6,background:`${g.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill={g.col} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+                    </div>
+                    <span style={{fontSize:12,fontWeight:400,color:T.tx,flex:1}}>{g.label}</span>
+                    <span style={{fontSize:10,color:T.txD}}>{cnt}件 ›</span>
+                  </button>;
+                })}
+                {catSpots.map(s=>(
+                  <button key={s.id} onClick={()=>{setDestination(s.id);setSpotGroup(null);setNavPhase("detail");setSearchQ("");setOpenCatInline(null);if(mapInst.current)mapInst.current.flyTo([s.lat,s.lng],18,{duration:.5});}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <div style={{width:20,height:20,borderRadius:5,background:`${s.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:s.col}}>{s.short}</span></div>
+                    <span style={{fontSize:12,fontWeight:400,color:T.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{s.label}</span>
+                  </button>
+                ))}
+              </div>}
+            </div>;
           })}
         </>}
       </div>
@@ -568,7 +619,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     </div>
   :navPhase==="detail"?
     /* ── Phase 2: Spot detail + navigate button ── */
-    <div style={cardBase}>
+    <div style={{...cardBase,top:"auto",bottom:mob?10:14}}>
       <div style={{padding:14}}>
         {destSpotInfo&&<>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
@@ -587,7 +638,13 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
             if(navigator.geolocation){
               setGpsLoading(true);
               navigator.geolocation.getCurrentPosition(
-                pos=>{const ns=findNearestNavSpot(pos.coords.latitude,pos.coords.longitude);if(ns)setOrigin(ns.spot.id);setGpsPos([pos.coords.latitude,pos.coords.longitude]);setGpsLoading(false);},
+                pos=>{
+                  const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+                  setGpsPos({lat,lng,accuracy});
+                  const ns=findNearestNavSpot(lat,lng);
+                  if(ns&&ns.distance<1500)setOrigin(ns.spot.id);
+                  setGpsLoading(false);
+                },
                 ()=>setGpsLoading(false),
                 {enableHighAccuracy:true,timeout:10000,maximumAge:30000}
               );
@@ -733,6 +790,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   return <div style={{flex:1,position:"relative",overflow:"hidden"}}>
     <style>{tipStyle}{`
 @keyframes navSlideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes navPinPop{0%{opacity:0;transform:scale(.3) translateY(8px)}60%{opacity:1;transform:scale(1.08) translateY(-1px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes navPinDot{0%{transform:scale(.5)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
 @keyframes locPulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.5)}}
 .nav-guiding .leaflet-control-container{transform:rotate(${heading!=null?heading:0}deg)!important;transition:transform .15s ease-out!important}
 .nav-guiding .leaflet-tooltip{transform:rotate(${heading!=null?heading:0}deg)!important}
