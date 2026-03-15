@@ -8,10 +8,12 @@ import { useTyping } from '../hooks/useTyping.js';
 
 /* ── Mobile Header ── */
 const Hdr = ({ title, back, right }) => (
-  <header style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', minHeight: 46, borderBottom: `1px solid ${T.bd}`, flexShrink: 0, background: T.bg2 }}>
-    {back && <button onClick={back} style={{ background: 'none', border: 'none', color: T.txD, cursor: 'pointer', display: 'flex', padding: 4, flexShrink: 0 }}>{I.back}</button>}
-    <h1 style={{ flex: 1, margin: 0, fontSize: 16, fontWeight: 700, color: T.txH, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>{title}</h1>
-    {right}
+  <header style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 'env(safe-area-inset-top) 12px 0', minHeight: 46, borderBottom: `1px solid ${T.bd}`, flexShrink: 0, background: T.bg2 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 46 }}>
+      {back && <button onClick={back} style={{ background: 'none', border: 'none', color: T.txD, cursor: 'pointer', display: 'flex', padding: 4, flexShrink: 0 }}>{I.back}</button>}
+      <h1 style={{ flex: 1, margin: 0, fontSize: 16, fontWeight: 700, color: T.txH, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>{title}</h1>
+      {right}
+    </div>
   </header>
 );
 
