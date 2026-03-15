@@ -174,7 +174,7 @@ const DEMO_GROUPS = [
   },
 ];
 
-// ── サークル（Discord的サーバー） ──
+// ── サークル ──
 const DEMO_CIRCLES = [
   {
     id: "cir_1", name: "プログラミング研究会", icon: "P", color: "#6375f0",
@@ -195,6 +195,18 @@ const DEMO_CIRCLES = [
       { id: 10004, name: "佐藤健太", avatar: "K", color: "#d4843e", role: "member" },
       { id: 10005, name: "高橋優", avatar: "Y", color: "#a855c7", role: "member" },
     ],
+    announcements: [
+      { id: "ann_1", text: "次回の勉強会は3/22(土) 13:00〜 南3号館115教室です。テーマは「Reactのパフォーマンス最適化」", by: "山田花子", ts: d(-2, 10, 0) },
+      { id: "ann_2", text: "新メンバーが3人加入しました！よろしくお願いします", by: "山田花子", ts: d(-1, 14, 0) },
+    ],
+    events: [
+      { id: "cev_1", title: "もくもく会", date: d(5, 13, 0), location: "南3号館 115教室", desc: "各自の開発を進める自習会。質問し合いましょう！", going: [99999, 10001, 10002, 10003] },
+      { id: "cev_2", title: "React勉強会", date: d(7, 13, 0), location: "南3号館 115教室", desc: "Reactのパフォーマンス最適化について", going: [99999, 10001] },
+      { id: "cev_3", title: "春合宿", date: d(21, 10, 0), location: "河口湖セミナーハウス", desc: "2泊3日の開発合宿。チーム開発を行います。", going: [10001, 10002, 10004, 10005] },
+    ],
+    recruit: [
+      { id: "rec_1", title: "Web開発チームメンバー募集", desc: "学園祭のWebサイトを一緒に作りませんか？React/Next.js経験者歓迎", spots: 3, applied: 1, deadline: d(14, 23, 59) },
+    ],
   },
   {
     id: "cir_2", name: "テニスサークル", icon: "🎾", color: "#3dae72",
@@ -212,6 +224,14 @@ const DEMO_CIRCLES = [
       { id: 10001, name: "山田花子", avatar: "H", color: "#e5534b", role: "member" },
       { id: 10004, name: "佐藤健太", avatar: "K", color: "#d4843e", role: "member" },
     ],
+    announcements: [
+      { id: "ann_3", text: "来週の練習は雨予報のため体育館に変更します", by: "高橋優", ts: d(-1, 9, 0) },
+    ],
+    events: [
+      { id: "cev_4", title: "練習試合 vs 電通大", date: d(10, 14, 0), location: "大岡山コート", desc: "電通大テニス部との練習試合", going: [10005, 10004] },
+      { id: "cev_5", title: "新歓コンパ", date: d(18, 18, 0), location: "大岡山駅周辺", desc: "新入生歓迎会！", going: [10005, 99999, 10001, 10004] },
+    ],
+    recruit: [],
   },
   {
     id: "cir_3", name: "映画同好会", icon: "🎬", color: "#d4843e",
@@ -226,6 +246,15 @@ const DEMO_CIRCLES = [
       { id: 10003, name: "田中美咲", avatar: "M", color: "#3dae72", role: "admin" },
       { id: 99999, name: "テスト太郎", avatar: "T", color: "#888", role: "member" },
       { id: 10002, name: "鈴木一郎", avatar: "I", color: "#6375f0", role: "member" },
+    ],
+    announcements: [
+      { id: "ann_4", text: "次回の鑑賞会は「君たちはどう生きるか」です。3/29(土) 14:00〜", by: "田中美咲", ts: d(-3, 11, 0) },
+    ],
+    events: [
+      { id: "cev_6", title: "映画鑑賞会「君たちはどう生きるか」", date: d(14, 14, 0), location: "西8号館 視聴覚室", desc: "鑑賞後にディスカッション", going: [10003, 99999, 10002] },
+    ],
+    recruit: [
+      { id: "rec_2", title: "映画レビューブログ執筆者募集", desc: "サークルブログに映画レビューを書いてくれる方を募集中", spots: 2, applied: 0, deadline: d(30, 23, 59) },
     ],
   },
 ];

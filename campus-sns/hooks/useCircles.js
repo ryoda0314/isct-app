@@ -90,6 +90,10 @@ export function useCircles() {
     }));
   }, []);
 
+  const updateCircle = useCallback((circleId, updates) => {
+    setCircles(prev => prev.map(c => c.id === circleId ? { ...c, ...updates } : c));
+  }, []);
+
   const pinMessage = useCallback((channelId, messageId) => {
     setMessages(prev => {
       const ch = prev[channelId] || [];
@@ -100,5 +104,5 @@ export function useCircles() {
     });
   }, []);
 
-  return { circles, messages, discover, sendMessage, createCircle, joinCircle, leaveCircle, addChannel, deleteChannel, pinMessage, init };
+  return { circles, messages, discover, sendMessage, createCircle, joinCircle, leaveCircle, addChannel, deleteChannel, pinMessage, updateCircle, init };
 }
