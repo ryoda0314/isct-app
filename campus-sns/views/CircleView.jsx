@@ -176,6 +176,8 @@ const ADMIN_PAGES = [
   { id: 'events',   icon: I.event || I.cal, color: '#3dae72', label: 'イベント管理',   sub: '作成・編集・参加者' },
   { id: 'recruit',  icon: I.mega,           color: '#a855c7', label: '募集管理',       sub: '作成・編集・開閉' },
   { id: 'members',  icon: I.users,          color: '#c75d8e', label: 'メンバー管理',   sub: '権限変更・除名' },
+  { id: 'applications', icon: I.inbox,     color: '#2d9d8f', label: '参加申請',       sub: '承認・却下' },
+  { id: 'fees',     icon: I.yen,           color: '#c6a236', label: '会費管理',       sub: 'プラン・回収・期間' },
   { id: 'danger',   icon: I.x,             color: '#e5534b', label: '危険な操作',     sub: 'サークル削除' },
 ];
 
@@ -187,7 +189,7 @@ const AdminSection = ({ sc, updateCircle, setEditAppear, addChannel, deleteChann
   const btnPrimary = (enabled) => ({ width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: enabled ? T.accent : T.bg4, color: enabled ? '#fff' : T.txD, fontSize: 14, fontWeight: 600, cursor: enabled ? 'pointer' : 'default' });
   const btnDel = { background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: T.red, opacity: 0.5, display: 'flex' };
 
-  const counts = { channels: sc.channels?.length || 0, announce: sc.announcements?.length || 0, events: sc.events?.length || 0, recruit: sc.recruit?.length || 0, members: sc.members?.length || 0 };
+  const counts = { channels: sc.channels?.length || 0, announce: sc.announcements?.length || 0, events: sc.events?.length || 0, recruit: sc.recruit?.length || 0, members: sc.members?.length || 0, applications: sc.applications?.filter(a => a.status === 'pending').length || 0, fees: sc.feePlans?.length || 0 };
 
   /* ── Admin Menu (top level) ── */
   if (!page) return (
@@ -248,6 +250,12 @@ const AdminSection = ({ sc, updateCircle, setEditAppear, addChannel, deleteChann
 
   /* ── メンバー管理 ── */
   if (page === 'members') return <AdminMembers sc={sc} updateCircle={updateCircle} uid={uid} SubHdr={SubHdr} cardS={cardS} btnDel={btnDel} />;
+
+  /* ── 参加申請 ── */
+  if (page === 'applications') return <AdminApplications sc={sc} updateCircle={updateCircle} user={user} SubHdr={SubHdr} cardS={cardS} btnPrimary={btnPrimary} btnDel={btnDel} />;
+
+  /* ── 会費管理 ── */
+  if (page === 'fees') return <AdminFees sc={sc} updateCircle={updateCircle} user={user} SubHdr={SubHdr} cardS={cardS} btnPrimary={btnPrimary} btnDel={btnDel} />;
 
   /* ── 危険な操作 ── */
   if (page === 'danger') return <AdminDanger sc={sc} leaveCircle={leaveCircle} backToList={backToList} SubHdr={SubHdr} />;
@@ -781,6 +789,710 @@ const AdminDanger = ({ sc, leaveCircle, backToList, SubHdr }) => {
         )}
       </div>
     </div>
+  </div>);
+};
+
+/* ── 参加申請管理 ── */
+const AdminApplications = ({ sc, updateCircle, user, SubHdr, cardS, btnPrimary, btnDel }) => {
+  const [tab, setTab] = useState('pending');
+  const apps = sc.applications || [];
+  const pending = apps.filter(a => a.status === 'pending');
+  const approved = apps.filter(a => a.status === 'approved');
+  const rejected = apps.filter(a => a.status === 'rejected');
+  const list = tab === 'pending' ? pending : tab === 'approved' ? approved : rejected;
+
+  const approve = (id) => {
+    updateCircle(sc.id, { applications: apps.map(a => a.id === id ? { ...a, status: 'approved', reviewedBy: user?.name || '管理者', reviewedAt: new Date() } : a) });
+  };
+  const reject = (id, reason) => {
+    updateCircle(sc.id, { applications: apps.map(a => a.id === id ? { ...a, status: 'rejected', rejectReason: reason || '', reviewedBy: user?.name || '管理者', reviewedAt: new Date() } : a) });
+  };
+  const [rejectId, setRejectId] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  // 参加方式設定
+  const [joinMode, setJoinMode] = useState(sc.joinMode || 'open');
+  const saveJoinMode = (mode) => { setJoinMode(mode); updateCircle(sc.id, { joinMode: mode }); };
+
+  const tabS = (active) => ({ flex: 1, padding: '8px 0', border: 'none', borderBottom: active ? `2px solid ${T.accent}` : '2px solid transparent', background: 'transparent', color: active ? T.accent : T.txD, fontSize: 13, fontWeight: active ? 700 : 400, cursor: 'pointer' });
+
+  return (<div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <SubHdr />
+    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px 24px' }}>
+      {/* 参加方式設定 */}
+      <div style={{ ...cardS, marginBottom: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: T.txH, marginBottom: 10 }}>参加方式</div>
+        {[
+          { id: 'open', label: '自由参加', desc: '誰でもすぐに参加可能' },
+          { id: 'approval', label: '承認制', desc: '管理者の承認が必要' },
+          { id: 'invite_only', label: '招待のみ', desc: '招待されたユーザーのみ参加可能' },
+        ].map(m => (
+          <button key={m.id} onClick={() => saveJoinMode(m.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px', borderRadius: 10, border: `1px solid ${joinMode === m.id ? T.accent : T.bd}`, background: joinMode === m.id ? `${T.accent}08` : 'transparent', cursor: 'pointer', textAlign: 'left', marginBottom: 6 }}>
+            <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${joinMode === m.id ? T.accent : T.txD}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {joinMode === m.id && <div style={{ width: 10, height: 10, borderRadius: '50%', background: T.accent }} />}
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{m.label}</div>
+              <div style={{ fontSize: 11, color: T.txD, marginTop: 1 }}>{m.desc}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* 申請タブ */}
+      <div style={{ display: 'flex', borderBottom: `1px solid ${T.bd}`, marginBottom: 12 }}>
+        <button onClick={() => setTab('pending')} style={tabS(tab === 'pending')}>未処理 ({pending.length})</button>
+        <button onClick={() => setTab('approved')} style={tabS(tab === 'approved')}>承認済 ({approved.length})</button>
+        <button onClick={() => setTab('rejected')} style={tabS(tab === 'rejected')}>却下 ({rejected.length})</button>
+      </div>
+
+      {list.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 32, color: T.txD, fontSize: 13 }}>
+          {tab === 'pending' ? '未処理の申請はありません' : tab === 'approved' ? '承認済みの申請はありません' : '却下した申請はありません'}
+        </div>
+      ) : list.map(a => (
+        <div key={a.id} style={{ ...cardS, marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: a.color || '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>{a.avatar || a.name?.[0] || '?'}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{a.name || '不明'}</div>
+              <div style={{ fontSize: 11, color: T.txD }}>{a.ts ? new Date(a.ts).toLocaleDateString('ja') : ''}</div>
+            </div>
+            {a.status === 'approved' && <span style={{ fontSize: 11, fontWeight: 600, color: T.green, padding: '3px 8px', borderRadius: 6, background: `${T.green}14` }}>承認済</span>}
+            {a.status === 'rejected' && <span style={{ fontSize: 11, fontWeight: 600, color: T.red, padding: '3px 8px', borderRadius: 6, background: `${T.red}14` }}>却下</span>}
+          </div>
+          {a.message && <div style={{ fontSize: 13, color: T.tx, lineHeight: 1.6, padding: '8px 12px', borderRadius: 8, background: T.bg3, marginBottom: 8 }}>{a.message}</div>}
+          {a.reviewedBy && <div style={{ fontSize: 11, color: T.txD, marginBottom: 4 }}>処理: {a.reviewedBy} ({a.reviewedAt ? new Date(a.reviewedAt).toLocaleDateString('ja') : ''})</div>}
+          {a.rejectReason && <div style={{ fontSize: 11, color: T.red, marginBottom: 4 }}>理由: {a.rejectReason}</div>}
+          {a.status === 'pending' && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button onClick={() => approve(a.id)} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: 'none', background: T.green, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>承認</button>
+              <button onClick={() => setRejectId(a.id)} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: `1px solid ${T.red}50`, background: 'transparent', color: T.red, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>却下</button>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* 却下理由モーダル */}
+      {rejectId && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ width: '100%', maxWidth: 360, background: T.bg, borderRadius: 16, padding: 20 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 12 }}>却下理由</div>
+            <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="却下理由を入力（任意）" rows={3} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 14, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }} autoFocus />
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button onClick={() => { setRejectId(null); setRejectReason(''); }} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: `1px solid ${T.bd}`, background: 'transparent', color: T.txD, fontSize: 13, cursor: 'pointer' }}>キャンセル</button>
+              <button onClick={() => { reject(rejectId, rejectReason); setRejectId(null); setRejectReason(''); }} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: 'none', background: T.red, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>却下する</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>);
+};
+
+/* ── 会費管理 ── */
+const AdminFees = ({ sc, updateCircle, user, SubHdr, cardS, btnPrimary, btnDel }) => {
+  const plans = sc.feePlans || [];
+  const periods = sc.feePeriods || [];
+  const assignments = sc.feeAssignments || [];
+  const logs = sc.feeLogs || [];
+  const members = sc.members || [];
+  const currentPeriod = periods.find(p => p.isCurrent);
+  const isSetup = plans.length === 0 && periods.length === 0; // 初期設定がまだ
+
+  const [mode, setMode] = useState(isSetup ? 'setup' : 'manage'); // setup: 初期設定, manage: 管理画面
+  const [setupStep, setSetupStep] = useState(0); // 0: 選択, 1: 簡単, 2: 詳細
+  const [tab, setTab] = useState('plans');
+  const tabS = (active) => ({ flex: 1, padding: '8px 0', border: 'none', borderBottom: active ? `2px solid ${T.accent}` : '2px solid transparent', background: 'transparent', color: active ? T.accent : T.txD, fontSize: 12, fontWeight: active ? 700 : 400, cursor: 'pointer' });
+
+  const inputS = { width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' };
+  const selectS = { ...inputS, appearance: 'none', WebkitAppearance: 'none' };
+  const cycleName = { yearly: '年次', half_yearly: '半期', monthly: '月次', one_time: '入会時' };
+  const statusLabel = { unpaid: '未納', paid: '納入済', exempt: '免除', overdue: '滞納' };
+  const statusColor = { unpaid: T.orange || '#d4843e', paid: T.green, exempt: T.txD, overdue: T.red };
+
+  /* ── 簡単設定 state ── */
+  const [quickPreset, setQuickPreset] = useState(null);
+  const [quickAmount, setQuickAmount] = useState('');
+  const [quickCycle, setQuickCycle] = useState('yearly');
+  const QUICK_PRESETS = [
+    { id: 'free', label: '会費なし', desc: 'サークル参加は無料', amount: 0, cycle: 'yearly' },
+    { id: 'yearly_low', label: '年会費（少額）', desc: '年1回の少額徴収', amount: 1000, cycle: 'yearly' },
+    { id: 'yearly_mid', label: '年会費（標準）', desc: '一般的なサークル会費', amount: 3000, cycle: 'yearly' },
+    { id: 'yearly_high', label: '年会費（高額）', desc: '設備費・合宿費込み', amount: 10000, cycle: 'yearly' },
+    { id: 'half', label: '半期ごと', desc: '前期/後期で分割徴収', amount: 2000, cycle: 'half_yearly' },
+    { id: 'monthly', label: '月額', desc: '毎月定額を徴収', amount: 500, cycle: 'monthly' },
+    { id: 'custom', label: '金額を自分で決める', desc: '金額とサイクルを指定', amount: 0, cycle: 'yearly' },
+  ];
+
+  const applyQuickSetup = () => {
+    const y = new Date().getFullYear();
+    const amt = quickPreset === 'custom' ? Number(quickAmount) : (QUICK_PRESETS.find(p => p.id === quickPreset)?.amount || 0);
+    const cyc = quickPreset === 'custom' ? quickCycle : (QUICK_PRESETS.find(p => p.id === quickPreset)?.cycle || 'yearly');
+    const preset = QUICK_PRESETS.find(p => p.id === quickPreset);
+    const updates = {};
+    // プラン作成
+    if (amt > 0) {
+      updates.feePlans = [{ id: `fp_${Date.now()}`, name: preset?.label || '会費', amount: amt, cycle: cyc, desc: '', isDefault: true, isActive: true, createdAt: new Date() }];
+    } else {
+      updates.feePlans = [{ id: `fp_${Date.now()}`, name: '無料', amount: 0, cycle: 'yearly', desc: '会費なし', isDefault: true, isActive: true, createdAt: new Date() }];
+    }
+    // 期間作成
+    if (cyc === 'half_yearly') {
+      updates.feePeriods = [
+        { id: `per_${Date.now()}_h1`, name: `${y}年度 前期`, type: 'first_half', startDate: `${y}-04-01`, endDate: `${y}-09-30`, isCurrent: true },
+        { id: `per_${Date.now()}_h2`, name: `${y}年度 後期`, type: 'second_half', startDate: `${y}-10-01`, endDate: `${y + 1}-03-31`, isCurrent: false },
+      ];
+    } else {
+      updates.feePeriods = [{ id: `per_${Date.now()}`, name: `${y}年度`, type: 'yearly', startDate: `${y}-04-01`, endDate: `${y + 1}-03-31`, isCurrent: true }];
+    }
+    updateCircle(sc.id, updates);
+    setMode('manage');
+  };
+
+  /* ── 詳細設定 state ── */
+  const [detailStep, setDetailStep] = useState(0); // 0: プラン, 1: 期間, 2: 完了
+  const [dpf, setDpf] = useState({ name: '', amount: '', cycle: 'yearly', desc: '', isDefault: true });
+  const [detailPlans, setDetailPlans] = useState([]);
+  const [detailPeriodType, setDetailPeriodType] = useState('yearly');
+  const [detailYear, setDetailYear] = useState(new Date().getFullYear());
+
+  const addDetailPlan = () => {
+    if (!dpf.name.trim() || !dpf.amount) return;
+    setDetailPlans(prev => [...prev, { id: `fp_${Date.now()}_${prev.length}`, name: dpf.name.trim(), amount: Number(dpf.amount), cycle: dpf.cycle, desc: dpf.desc.trim(), isDefault: dpf.isDefault, isActive: true, createdAt: new Date() }]);
+    setDpf({ name: '', amount: '', cycle: 'yearly', desc: '', isDefault: false });
+  };
+
+  const applyDetailSetup = () => {
+    const y = detailYear;
+    const updates = { feePlans: detailPlans };
+    if (detailPeriodType === 'half_yearly') {
+      updates.feePeriods = [
+        { id: `per_${Date.now()}_h1`, name: `${y}年度 前期`, type: 'first_half', startDate: `${y}-04-01`, endDate: `${y}-09-30`, isCurrent: true },
+        { id: `per_${Date.now()}_h2`, name: `${y}年度 後期`, type: 'second_half', startDate: `${y}-10-01`, endDate: `${y + 1}-03-31`, isCurrent: false },
+      ];
+    } else {
+      updates.feePeriods = [{ id: `per_${Date.now()}`, name: `${y}年度`, type: 'yearly', startDate: `${y}-04-01`, endDate: `${y + 1}-03-31`, isCurrent: true }];
+    }
+    updateCircle(sc.id, updates);
+    setMode('manage');
+  };
+
+  /* ── 管理画面 actions ── */
+  const [showPlanForm, setShowPlanForm] = useState(false);
+  const [pf, setPf] = useState({ name: '', amount: '', cycle: 'yearly', desc: '', isDefault: false });
+  const [editPlanId, setEditPlanId] = useState(null);
+  const [epf, setEpf] = useState({});
+
+  const addPlan = () => {
+    if (!pf.name.trim() || !pf.amount) return;
+    updateCircle(sc.id, { feePlans: [...plans, { id: `fp_${Date.now()}`, name: pf.name.trim(), amount: Number(pf.amount), cycle: pf.cycle, desc: pf.desc.trim(), isDefault: pf.isDefault, isActive: true, createdAt: new Date() }] });
+    setPf({ name: '', amount: '', cycle: 'yearly', desc: '', isDefault: false });
+    setShowPlanForm(false);
+  };
+  const deletePlan = (id) => updateCircle(sc.id, { feePlans: plans.filter(p => p.id !== id) });
+  const togglePlanActive = (id) => updateCircle(sc.id, { feePlans: plans.map(p => p.id === id ? { ...p, isActive: !p.isActive } : p) });
+  const savePlanEdit = (id) => {
+    updateCircle(sc.id, { feePlans: plans.map(p => p.id === id ? { ...p, name: epf.name?.trim() || p.name, amount: Number(epf.amount) || p.amount, cycle: epf.cycle || p.cycle, desc: epf.desc?.trim() ?? p.desc, isDefault: epf.isDefault ?? p.isDefault } : p) });
+    setEditPlanId(null);
+  };
+
+  const [showPerForm, setShowPerForm] = useState(false);
+  const [perf, setPerf] = useState({ name: '', type: 'yearly', startDate: '', endDate: '' });
+  const [genYear, setGenYear] = useState(new Date().getFullYear());
+  const [genType, setGenType] = useState('yearly');
+
+  const addPeriod = () => {
+    if (!perf.name.trim() || !perf.startDate || !perf.endDate) return;
+    updateCircle(sc.id, { feePeriods: [...periods, { id: `per_${Date.now()}`, name: perf.name.trim(), type: perf.type, startDate: perf.startDate, endDate: perf.endDate, isCurrent: false }] });
+    setPerf({ name: '', type: 'yearly', startDate: '', endDate: '' });
+    setShowPerForm(false);
+  };
+  const generatePeriods = () => {
+    const y = genYear;
+    let newPers = genType === 'yearly'
+      ? [{ id: `per_${Date.now()}`, name: `${y}年度`, type: 'yearly', startDate: `${y}-04-01`, endDate: `${y + 1}-03-31`, isCurrent: false }]
+      : [
+          { id: `per_${Date.now()}_h1`, name: `${y}年度 前期`, type: 'first_half', startDate: `${y}-04-01`, endDate: `${y}-09-30`, isCurrent: false },
+          { id: `per_${Date.now()}_h2`, name: `${y}年度 後期`, type: 'second_half', startDate: `${y}-10-01`, endDate: `${y + 1}-03-31`, isCurrent: false },
+        ];
+    const existing = periods.map(p => p.name);
+    const toAdd = newPers.filter(p => !existing.includes(p.name));
+    if (toAdd.length > 0) updateCircle(sc.id, { feePeriods: [...periods, ...toAdd] });
+  };
+  const setCurrentPeriod = (id) => updateCircle(sc.id, { feePeriods: periods.map(p => ({ ...p, isCurrent: p.id === id })) });
+  const deletePeriod = (id) => updateCircle(sc.id, { feePeriods: periods.filter(p => p.id !== id) });
+
+  const [selPeriod, setSelPeriod] = useState(currentPeriod?.id || periods[0]?.id || '');
+  const periodAssignments = assignments.filter(a => a.periodId === selPeriod);
+  const stats = { total: periodAssignments.length, paid: periodAssignments.filter(a => a.status === 'paid').length, unpaid: periodAssignments.filter(a => a.status === 'unpaid').length, exempt: periodAssignments.filter(a => a.status === 'exempt').length, overdue: periodAssignments.filter(a => a.status === 'overdue').length };
+  const totalAmount = periodAssignments.reduce((s, a) => s + (a.amount || 0), 0);
+  const collectedAmount = periodAssignments.filter(a => a.status === 'paid').reduce((s, a) => s + (a.amount || 0), 0);
+
+  const bulkAssign = () => {
+    const plan = plans.find(p => p.isDefault && p.isActive) || plans.find(p => p.isActive);
+    if (!plan || !selPeriod) return;
+    const existing = assignments.filter(a => a.periodId === selPeriod).map(a => a.userId);
+    const newAssigns = members.filter(m => !existing.includes(m.id)).map(m => ({
+      id: `fa_${Date.now()}_${m.id}`, circleId: sc.id, userId: m.id, userName: m.name, planId: plan.id, planName: plan.name, periodId: selPeriod, amount: plan.amount, status: 'unpaid', createdAt: new Date(),
+    }));
+    if (newAssigns.length > 0) updateCircle(sc.id, { feeAssignments: [...assignments, ...newAssigns] });
+  };
+  const updateAssignStatus = (id, status) => {
+    updateCircle(sc.id, {
+      feeAssignments: assignments.map(a => a.id === id ? { ...a, status, ...(status === 'paid' ? { paidAt: new Date(), confirmedBy: user?.name || '管理者', confirmedAt: new Date() } : {}) } : a),
+      feeLogs: [...logs, { id: `fl_${Date.now()}`, action: status, actorName: user?.name || '管理者', targetName: assignments.find(a => a.id === id)?.userName, amount: assignments.find(a => a.id === id)?.amount, ts: new Date() }],
+    });
+  };
+
+  /* ── reset to setup ── */
+  const resetToSetup = () => {
+    setMode('setup');
+    setSetupStep(0);
+    setDetailStep(0);
+    setDetailPlans([]);
+  };
+
+  return (<div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <SubHdr />
+
+    {/* =============== 初期設定: ステップ選択 =============== */}
+    {mode === 'setup' && setupStep === 0 && (
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 14px 24px' }}>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: `#c6a23614`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c6a236', margin: '0 auto 12px' }}>{I.yen}</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: T.txH }}>会費設定</div>
+          <div style={{ fontSize: 13, color: T.txD, marginTop: 4, lineHeight: 1.6 }}>サークルの会費を設定しましょう。<br />あとから変更することもできます。</div>
+        </div>
+
+        <button onClick={() => setSetupStep(1)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '18px 16px', borderRadius: 16, border: `1px solid ${T.bd}`, background: T.bg2, cursor: 'pointer', textAlign: 'left', marginBottom: 10 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: `${T.green}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ color: T.green, fontSize: 20 }}>{I.check}</span>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>簡単設定</div>
+            <div style={{ fontSize: 12, color: T.txD, marginTop: 2, lineHeight: 1.5 }}>プリセットから選ぶだけで完了。<br />会費なし・年会費・半期・月額から選択</div>
+          </div>
+          <span style={{ color: T.txD, opacity: 0.4, display: 'flex' }}>{I.arr}</span>
+        </button>
+
+        <button onClick={() => setSetupStep(2)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '18px 16px', borderRadius: 16, border: `1px solid ${T.bd}`, background: T.bg2, cursor: 'pointer', textAlign: 'left', marginBottom: 10 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: `${T.accent}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ color: T.accent, fontSize: 20 }}>{I.setting}</span>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>詳細設定</div>
+            <div style={{ fontSize: 12, color: T.txD, marginTop: 2, lineHeight: 1.5 }}>複数プラン・カスタム期間など<br />細かくカスタマイズして設定</div>
+          </div>
+          <span style={{ color: T.txD, opacity: 0.4, display: 'flex' }}>{I.arr}</span>
+        </button>
+
+        {plans.length > 0 && (
+          <button onClick={() => setMode('manage')} style={{ width: '100%', padding: '12px 0', borderRadius: 10, border: `1px solid ${T.bd}`, background: 'transparent', color: T.txD, fontSize: 13, cursor: 'pointer', marginTop: 8 }}>現在の設定に戻る</button>
+        )}
+      </div>
+    )}
+
+    {/* =============== 簡単設定 =============== */}
+    {mode === 'setup' && setupStep === 1 && (
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <button onClick={() => setSetupStep(0)} style={{ background: 'none', border: 'none', color: T.txD, cursor: 'pointer', display: 'flex', padding: 2 }}>{I.back}</button>
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>簡単設定</div>
+        </div>
+
+        <div style={{ fontSize: 13, color: T.txD, marginBottom: 16, lineHeight: 1.6 }}>会費の種類を選択してください。会計期間は自動で{new Date().getFullYear()}年度（4月〜）が作成されます。</div>
+
+        {QUICK_PRESETS.map(p => (
+          <button key={p.id} onClick={() => { setQuickPreset(p.id); setQuickAmount(String(p.amount)); setQuickCycle(p.cycle); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px', borderRadius: 12, border: `1px solid ${quickPreset === p.id ? T.accent : T.bd}`, background: quickPreset === p.id ? `${T.accent}08` : T.bg2, cursor: 'pointer', textAlign: 'left', marginBottom: 8 }}>
+            <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${quickPreset === p.id ? T.accent : T.txD}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {quickPreset === p.id && <div style={{ width: 10, height: 10, borderRadius: '50%', background: T.accent }} />}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{p.label}</div>
+              <div style={{ fontSize: 11, color: T.txD, marginTop: 1 }}>{p.desc}</div>
+            </div>
+            {p.amount > 0 && p.id !== 'custom' && <span style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>¥{p.amount.toLocaleString()}</span>}
+          </button>
+        ))}
+
+        {/* カスタム金額入力 */}
+        {quickPreset === 'custom' && (
+          <div style={{ ...cardS, marginTop: 4, marginBottom: 8 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ flex: 1, position: 'relative' }}>
+                <input value={quickAmount} onChange={e => setQuickAmount(e.target.value.replace(/[^\d]/g, ''))} placeholder="金額" style={inputS} autoFocus />
+                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: T.txD, fontSize: 13 }}>円</span>
+              </div>
+              <select value={quickCycle} onChange={e => setQuickCycle(e.target.value)} style={{ ...selectS, flex: 1 }}>
+                <option value="yearly">年次</option>
+                <option value="half_yearly">半期</option>
+                <option value="monthly">月次</option>
+                <option value="one_time">入会時のみ</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        <button onClick={applyQuickSetup} disabled={!quickPreset || (quickPreset === 'custom' && !quickAmount)} style={{ ...btnPrimary(quickPreset && (quickPreset !== 'custom' || quickAmount)), marginTop: 12 }}>この設定で始める</button>
+      </div>
+    )}
+
+    {/* =============== 詳細設定 =============== */}
+    {mode === 'setup' && setupStep === 2 && (
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <button onClick={() => detailStep > 0 ? setDetailStep(detailStep - 1) : setSetupStep(0)} style={{ background: 'none', border: 'none', color: T.txD, cursor: 'pointer', display: 'flex', padding: 2 }}>{I.back}</button>
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>詳細設定</div>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+            {[0, 1, 2].map(s => <div key={s} style={{ width: 24, height: 4, borderRadius: 2, background: s <= detailStep ? T.accent : T.bg4 }} />)}
+          </div>
+        </div>
+
+        {/* Step 0: プラン作成 */}
+        {detailStep === 0 && (<>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.txH, marginBottom: 4 }}>Step 1: 会費プランの作成</div>
+          <div style={{ fontSize: 12, color: T.txD, marginBottom: 16, lineHeight: 1.6 }}>複数のプランを作成できます（例: 通常会費・新入生割引・幽霊部員）。最低1つ作成してください。</div>
+
+          <div style={{ ...cardS, marginBottom: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <input value={dpf.name} onChange={e => setDpf({ ...dpf, name: e.target.value })} placeholder="プラン名（例: 通常会費）" style={inputS} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <input value={dpf.amount} onChange={e => setDpf({ ...dpf, amount: e.target.value.replace(/[^\d]/g, '') })} placeholder="金額" style={inputS} />
+                  <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: T.txD, fontSize: 13 }}>円</span>
+                </div>
+                <select value={dpf.cycle} onChange={e => setDpf({ ...dpf, cycle: e.target.value })} style={{ ...selectS, flex: 1 }}>
+                  <option value="yearly">年次</option>
+                  <option value="half_yearly">半期</option>
+                  <option value="monthly">月次</option>
+                  <option value="one_time">入会時のみ</option>
+                </select>
+              </div>
+              <input value={dpf.desc} onChange={e => setDpf({ ...dpf, desc: e.target.value })} placeholder="説明（任意）" style={inputS} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: T.txH, cursor: 'pointer' }}>
+                <input type="checkbox" checked={dpf.isDefault} onChange={e => setDpf({ ...dpf, isDefault: e.target.checked })} />
+                デフォルトプラン（新規メンバーに自動適用）
+              </label>
+              <button onClick={addDetailPlan} style={btnPrimary(dpf.name.trim() && dpf.amount)}>プランを追加</button>
+            </div>
+          </div>
+
+          {detailPlans.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6 }}>追加済みプラン ({detailPlans.length})</div>
+              {detailPlans.map((p, i) => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: T.bg2, border: `1px solid ${T.bd}`, marginBottom: 6 }}>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{p.name}</span>
+                    {p.isDefault && <span style={{ fontSize: 10, color: T.accent, marginLeft: 6 }}>デフォルト</span>}
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.txH, marginTop: 2 }}>¥{p.amount.toLocaleString()} / {cycleName[p.cycle]}</div>
+                  </div>
+                  <button onClick={() => setDetailPlans(prev => prev.filter((_, j) => j !== i))} style={btnDel}>{I.x}</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button onClick={() => setDetailStep(1)} disabled={detailPlans.length === 0} style={btnPrimary(detailPlans.length > 0)}>次へ: 会計期間</button>
+        </>)}
+
+        {/* Step 1: 期間設定 */}
+        {detailStep === 1 && (<>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.txH, marginBottom: 4 }}>Step 2: 会計期間の設定</div>
+          <div style={{ fontSize: 12, color: T.txD, marginBottom: 16, lineHeight: 1.6 }}>年度単位か半期単位かを選択してください。4月始まりで自動生成されます。</div>
+
+          <div style={{ ...cardS, marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>開始年度</div>
+            <input type="number" value={detailYear} onChange={e => setDetailYear(Number(e.target.value))} style={{ ...inputS, textAlign: 'center', marginBottom: 12 }} />
+
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>期間の区切り方</div>
+            {[
+              { id: 'yearly', label: '年度単位', desc: `${detailYear}年4月 〜 ${detailYear + 1}年3月` },
+              { id: 'half_yearly', label: '半期単位', desc: `前期 (4〜9月) + 後期 (10〜3月)` },
+            ].map(opt => (
+              <button key={opt.id} onClick={() => setDetailPeriodType(opt.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px', borderRadius: 10, border: `1px solid ${detailPeriodType === opt.id ? T.accent : T.bd}`, background: detailPeriodType === opt.id ? `${T.accent}08` : 'transparent', cursor: 'pointer', textAlign: 'left', marginBottom: 6 }}>
+                <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${detailPeriodType === opt.id ? T.accent : T.txD}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {detailPeriodType === opt.id && <div style={{ width: 8, height: 8, borderRadius: '50%', background: T.accent }} />}
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{opt.label}</div>
+                  <div style={{ fontSize: 11, color: T.txD }}>{opt.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <button onClick={() => setDetailStep(2)} style={btnPrimary(true)}>次へ: 確認</button>
+        </>)}
+
+        {/* Step 2: 確認 */}
+        {detailStep === 2 && (<>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.txH, marginBottom: 4 }}>Step 3: 設定の確認</div>
+          <div style={{ fontSize: 12, color: T.txD, marginBottom: 16, lineHeight: 1.6 }}>以下の内容で会費を設定します。あとから管理画面で変更できます。</div>
+
+          <div style={{ ...cardS, marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.txD, marginBottom: 8 }}>会費プラン</div>
+            {detailPlans.map(p => (
+              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${T.bd}` }}>
+                <div>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{p.name}</span>
+                  {p.isDefault && <span style={{ fontSize: 10, color: T.accent, marginLeft: 6 }}>デフォルト</span>}
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>¥{p.amount.toLocaleString()} / {cycleName[p.cycle]}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ ...cardS, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.txD, marginBottom: 8 }}>会計期間</div>
+            <div style={{ fontSize: 14, color: T.txH }}>{detailPeriodType === 'half_yearly' ? `${detailYear}年度（前期 + 後期）` : `${detailYear}年度`}</div>
+            <div style={{ fontSize: 12, color: T.txD, marginTop: 2 }}>{detailYear}年4月1日 〜 {detailYear + 1}年3月31日</div>
+          </div>
+
+          <button onClick={applyDetailSetup} style={btnPrimary(true)}>この設定で開始する</button>
+        </>)}
+      </div>
+    )}
+
+    {/* =============== 管理画面（設定済み後） =============== */}
+    {mode === 'manage' && (<>
+      {/* Tabs */}
+      <div style={{ display: 'flex', borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
+        <button onClick={() => setTab('plans')} style={tabS(tab === 'plans')}>プラン</button>
+        <button onClick={() => setTab('periods')} style={tabS(tab === 'periods')}>期間</button>
+        <button onClick={() => setTab('collection')} style={tabS(tab === 'collection')}>回収</button>
+        <button onClick={() => setTab('logs')} style={tabS(tab === 'logs')}>履歴</button>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px 24px' }}>
+
+        {/* ── プラン管理 ── */}
+        {tab === 'plans' && (<>
+          {/* 現在の設定サマリー */}
+          <div style={{ ...cardS, marginBottom: 16, background: `${T.accent}06`, border: `1px solid ${T.accent}20` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.txH }}>現在の会費設定</span>
+              <button onClick={resetToSetup} style={{ background: 'none', border: 'none', color: T.accent, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>初期設定に戻す</button>
+            </div>
+            <div style={{ fontSize: 12, color: T.txD, lineHeight: 1.6 }}>
+              プラン数: {plans.length} ・ 有効: {plans.filter(p => p.isActive).length} ・ 会計期間: {periods.length}<br />
+              プランの追加・金額変更・有効/無効の切替はここで行えます。変更はすぐに反映されますが、すでに割当済みの会費には影響しません。
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: T.txH }}>会費プラン ({plans.length})</span>
+            <button onClick={() => setShowPlanForm(p => !p)} style={{ background: 'none', border: 'none', color: T.accent, cursor: 'pointer', display: 'flex', fontSize: 13, fontWeight: 600, gap: 4, alignItems: 'center' }}>{I.plus} 新規プラン</button>
+          </div>
+          {showPlanForm && (
+            <div style={{ ...cardS, marginBottom: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input value={pf.name} onChange={e => setPf({ ...pf, name: e.target.value })} placeholder="プラン名（例: 通常会費）" style={inputS} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input value={pf.amount} onChange={e => setPf({ ...pf, amount: e.target.value.replace(/[^\d]/g, '') })} placeholder="金額" style={inputS} />
+                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: T.txD, fontSize: 13 }}>円</span>
+                  </div>
+                  <select value={pf.cycle} onChange={e => setPf({ ...pf, cycle: e.target.value })} style={{ ...selectS, flex: 1 }}>
+                    <option value="yearly">年次</option><option value="half_yearly">半期</option><option value="monthly">月次</option><option value="one_time">入会時のみ</option>
+                  </select>
+                </div>
+                <input value={pf.desc} onChange={e => setPf({ ...pf, desc: e.target.value })} placeholder="説明（任意）" style={inputS} />
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: T.txH, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={pf.isDefault} onChange={e => setPf({ ...pf, isDefault: e.target.checked })} />
+                  デフォルトプラン
+                </label>
+                <button onClick={addPlan} style={btnPrimary(pf.name.trim() && pf.amount)}>プランを作成</button>
+              </div>
+            </div>
+          )}
+          {plans.map(p => (
+            <div key={p.id} style={{ ...cardS, marginBottom: 8, opacity: p.isActive ? 1 : 0.5 }}>
+              {editPlanId === p.id ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <input value={epf.name ?? p.name} onChange={e => setEpf({ ...epf, name: e.target.value })} style={inputS} placeholder="プラン名" />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <input value={epf.amount ?? p.amount} onChange={e => setEpf({ ...epf, amount: e.target.value.replace(/[^\d]/g, '') })} style={inputS} />
+                      <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: T.txD, fontSize: 13 }}>円</span>
+                    </div>
+                    <select value={epf.cycle ?? p.cycle} onChange={e => setEpf({ ...epf, cycle: e.target.value })} style={{ ...selectS, flex: 1 }}>
+                      <option value="yearly">年次</option><option value="half_yearly">半期</option><option value="monthly">月次</option><option value="one_time">入会時のみ</option>
+                    </select>
+                  </div>
+                  <input value={epf.desc ?? p.desc} onChange={e => setEpf({ ...epf, desc: e.target.value })} placeholder="説明" style={inputS} />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: T.txH, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={epf.isDefault ?? p.isDefault} onChange={e => setEpf({ ...epf, isDefault: e.target.checked })} />
+                    デフォルトプラン
+                  </label>
+                  <div style={{ fontSize: 11, color: T.txD, padding: '6px 0', lineHeight: 1.5 }}>金額を変更しても、すでに割当済みの会費には影響しません。新しい割当から反映されます。</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setEditPlanId(null)} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: `1px solid ${T.bd}`, background: 'transparent', color: T.txD, fontSize: 13, cursor: 'pointer' }}>キャンセル</button>
+                    <button onClick={() => savePlanEdit(p.id)} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: 'none', background: T.accent, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>保存</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>{p.name}</span>
+                        {p.isDefault && <span style={{ fontSize: 10, fontWeight: 600, color: T.accent, padding: '2px 6px', borderRadius: 4, background: `${T.accent}14` }}>デフォルト</span>}
+                        {!p.isActive && <span style={{ fontSize: 10, fontWeight: 600, color: T.txD, padding: '2px 6px', borderRadius: 4, background: T.bg4 }}>無効</span>}
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: T.txH, marginTop: 4 }}>¥{(p.amount || 0).toLocaleString()}<span style={{ fontSize: 12, fontWeight: 400, color: T.txD, marginLeft: 4 }}>/ {cycleName[p.cycle] || p.cycle}</span></div>
+                    </div>
+                  </div>
+                  {p.desc && <div style={{ fontSize: 12, color: T.txD, marginTop: 6 }}>{p.desc}</div>}
+                  <div style={{ display: 'flex', gap: 6, marginTop: 10, borderTop: `1px solid ${T.bd}`, paddingTop: 10 }}>
+                    <button onClick={() => { setEditPlanId(p.id); setEpf({ name: p.name, amount: p.amount, cycle: p.cycle, desc: p.desc, isDefault: p.isDefault }); }} style={{ padding: '6px 12px', borderRadius: 6, border: `1px solid ${T.bd}`, background: 'transparent', color: T.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>{I.pen} 編集</button>
+                    <button onClick={() => togglePlanActive(p.id)} style={{ padding: '6px 12px', borderRadius: 6, border: `1px solid ${T.bd}`, background: 'transparent', color: p.isActive ? T.txD : T.green, fontSize: 12, cursor: 'pointer' }}>{p.isActive ? '無効化' : '有効化'}</button>
+                    <button onClick={() => deletePlan(p.id)} style={{ padding: '6px 12px', borderRadius: 6, border: `1px solid ${T.red}30`, background: 'transparent', color: T.red, fontSize: 12, cursor: 'pointer', marginLeft: 'auto' }}>削除</button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </>)}
+
+        {/* ── 会計期間 ── */}
+        {tab === 'periods' && (<>
+          <div style={{ ...cardS, marginBottom: 16, background: `${T.accent}06`, border: `1px solid ${T.accent}20` }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.txH, marginBottom: 4 }}>年度更新について</div>
+            <div style={{ fontSize: 12, color: T.txD, lineHeight: 1.6 }}>新しい年度が始まったら「一括生成」で新しい期間を追加し、「現在に設定」を押してください。過去の期間データはそのまま残ります。</div>
+          </div>
+
+          {/* 一括生成 */}
+          <div style={{ ...cardS, marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.txH, marginBottom: 10 }}>期間を一括生成</div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <input type="number" value={genYear} onChange={e => setGenYear(Number(e.target.value))} style={{ ...inputS, flex: 1, textAlign: 'center' }} />
+              <select value={genType} onChange={e => setGenType(e.target.value)} style={{ ...selectS, flex: 1 }}>
+                <option value="yearly">年度 (4月〜3月)</option>
+                <option value="half_yearly">半期 (前期+後期)</option>
+              </select>
+            </div>
+            <button onClick={generatePeriods} style={btnPrimary(true)}>生成</button>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: T.txH }}>会計期間 ({periods.length})</span>
+            <button onClick={() => setShowPerForm(p => !p)} style={{ background: 'none', border: 'none', color: T.accent, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>手動追加</button>
+          </div>
+          {showPerForm && (
+            <div style={{ ...cardS, marginBottom: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input value={perf.name} onChange={e => setPerf({ ...perf, name: e.target.value })} placeholder="期間名（例: 2026年度）" style={inputS} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input type="date" value={perf.startDate} onChange={e => setPerf({ ...perf, startDate: e.target.value })} style={{ ...inputS, flex: 1 }} />
+                  <span style={{ color: T.txD, alignSelf: 'center' }}>〜</span>
+                  <input type="date" value={perf.endDate} onChange={e => setPerf({ ...perf, endDate: e.target.value })} style={{ ...inputS, flex: 1 }} />
+                </div>
+                <button onClick={addPeriod} style={btnPrimary(perf.name.trim() && perf.startDate && perf.endDate)}>追加</button>
+              </div>
+            </div>
+          )}
+          {periods.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 32, color: T.txD, fontSize: 13 }}>会計期間がありません</div>
+          ) : periods.map(p => (
+            <div key={p.id} style={{ ...cardS, marginBottom: 8, border: `1px solid ${p.isCurrent ? T.accent : T.bd}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>{p.name}</span>
+                    {p.isCurrent && <span style={{ fontSize: 10, fontWeight: 600, color: T.accent, padding: '2px 6px', borderRadius: 4, background: `${T.accent}14` }}>現在</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: T.txD, marginTop: 2 }}>{p.startDate} 〜 {p.endDate}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {!p.isCurrent && <button onClick={() => setCurrentPeriod(p.id)} style={{ background: 'none', border: 'none', color: T.accent, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>現在に設定</button>}
+                  <button onClick={() => deletePeriod(p.id)} style={btnDel}>{I.x}</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </>)}
+
+        {/* ── 回収管理 ── */}
+        {tab === 'collection' && (<>
+          <div style={{ marginBottom: 16 }}>
+            <select value={selPeriod} onChange={e => setSelPeriod(e.target.value)} style={{ ...selectS, marginBottom: 8 }}>
+              {periods.length === 0 && <option value="">期間がありません</option>}
+              {periods.map(p => <option key={p.id} value={p.id}>{p.name}{p.isCurrent ? ' (現在)' : ''}</option>)}
+            </select>
+            {selPeriod && (
+              <button onClick={bulkAssign} style={{ ...btnPrimary(true), marginBottom: 8 }}>全メンバーに会費を一括割当</button>
+            )}
+          </div>
+
+          {periodAssignments.length > 0 && (
+            <div style={{ ...cardS, marginBottom: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.txH, marginBottom: 10 }}>回収状況</div>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                <Stat label="回収済" value={`¥${collectedAmount.toLocaleString()}`} color={T.green} />
+                <Stat label="合計" value={`¥${totalAmount.toLocaleString()}`} color="#5b8ff9" />
+              </div>
+              <div style={{ height: 8, borderRadius: 4, background: T.bg4, overflow: 'hidden', marginBottom: 8 }}>
+                <div style={{ height: '100%', width: totalAmount > 0 ? `${(collectedAmount / totalAmount) * 100}%` : '0%', borderRadius: 4, background: T.green, transition: 'width 0.3s' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
+                <span style={{ color: T.green }}>納入済 {stats.paid}</span>
+                <span style={{ color: T.orange || '#d4843e' }}>未納 {stats.unpaid}</span>
+                <span style={{ color: T.red }}>滞納 {stats.overdue}</span>
+                <span style={{ color: T.txD }}>免除 {stats.exempt}</span>
+              </div>
+            </div>
+          )}
+
+          {periodAssignments.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 32, color: T.txD, fontSize: 13 }}>
+              {selPeriod ? 'この期間の会費割当はありません。「一括割当」で作成してください。' : '会計期間を選択してください'}
+            </div>
+          ) : periodAssignments.map(a => {
+            const m = members.find(mm => mm.id === a.userId);
+            return (
+              <div key={a.id} style={{ ...cardS, marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: m?.color || '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{m?.avatar || a.userName?.[0] || '?'}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{a.userName || m?.name || '不明'}</div>
+                    <div style={{ fontSize: 12, color: T.txD }}>{a.planName || ''} · ¥{(a.amount || 0).toLocaleString()}</div>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: statusColor[a.status], padding: '3px 8px', borderRadius: 6, background: `${statusColor[a.status]}14` }}>{statusLabel[a.status]}</span>
+                </div>
+                {a.confirmedBy && <div style={{ fontSize: 11, color: T.txD, marginTop: 6 }}>確認: {a.confirmedBy} ({a.confirmedAt ? new Date(a.confirmedAt).toLocaleDateString('ja') : ''})</div>}
+                <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                  {a.status !== 'paid' && <button onClick={() => updateAssignStatus(a.id, 'paid')} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: T.green, color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>回収済</button>}
+                  {a.status !== 'exempt' && <button onClick={() => updateAssignStatus(a.id, 'exempt')} style={{ padding: '6px 12px', borderRadius: 6, border: `1px solid ${T.bd}`, background: 'transparent', color: T.txD, fontSize: 11, cursor: 'pointer' }}>免除</button>}
+                  {a.status !== 'overdue' && a.status !== 'paid' && <button onClick={() => updateAssignStatus(a.id, 'overdue')} style={{ padding: '6px 12px', borderRadius: 6, border: `1px solid ${T.red}40`, background: 'transparent', color: T.red, fontSize: 11, cursor: 'pointer' }}>滞納</button>}
+                  {a.status !== 'unpaid' && <button onClick={() => updateAssignStatus(a.id, 'unpaid')} style={{ padding: '6px 12px', borderRadius: 6, border: `1px solid ${T.bd}`, background: 'transparent', color: T.txD, fontSize: 11, cursor: 'pointer' }}>未納に戻す</button>}
+                </div>
+              </div>
+            );
+          })}
+        </>)}
+
+        {/* ── 操作履歴 ── */}
+        {tab === 'logs' && (<>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.txH, marginBottom: 12 }}>操作履歴 ({logs.length})</div>
+          {logs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 32, color: T.txD, fontSize: 13 }}>まだ操作履歴はありません</div>
+          ) : [...logs].reverse().map((l, i) => {
+            const actionLabel = { created: '割当作成', paid: '回収確認', confirmed: '確認', exempted: '免除', overdue: '滞納設定', refunded: '返金', plan_changed: 'プラン変更', unpaid: '未納に戻す', exempt: '免除' };
+            const actionColor = { paid: T.green, overdue: T.red, exempt: T.txD, unpaid: T.orange || '#d4843e' };
+            return (
+              <div key={l.id || i} style={{ display: 'flex', gap: 10, padding: '10px 0', borderBottom: `1px solid ${T.bd}` }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: actionColor[l.action] || T.accent, marginTop: 6, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, color: T.txH }}><span style={{ fontWeight: 600 }}>{l.actorName}</span> が <span style={{ fontWeight: 600 }}>{l.targetName}</span> を <span style={{ color: actionColor[l.action] || T.accent, fontWeight: 600 }}>{actionLabel[l.action] || l.action}</span></div>
+                  {l.amount != null && <div style={{ fontSize: 12, color: T.txD, marginTop: 2 }}>¥{l.amount.toLocaleString()}</div>}
+                  <div style={{ fontSize: 11, color: T.txD, marginTop: 2 }}>{l.ts ? new Date(l.ts).toLocaleString('ja') : ''}</div>
+                </div>
+              </div>
+            );
+          })}
+        </>)}
+      </div>
+    </>)}
   </div>);
 };
 
