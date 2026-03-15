@@ -179,6 +179,7 @@ const DEMO_CIRCLES = [
   {
     id: "cir_1", name: "プログラミング研究会", icon: "P", color: "#6375f0",
     desc: "競プロ・Web開発・AI など幅広くやってます。初心者歓迎！",
+    tags: ["技術", "プログラミング", "初心者歓迎"],
     memberCount: 24, role: "admin",
     channels: [
       { id: "ch_1_1", name: "general", type: "text" },
@@ -211,6 +212,7 @@ const DEMO_CIRCLES = [
   {
     id: "cir_2", name: "テニスサークル", icon: "🎾", color: "#3dae72",
     desc: "毎週火・木の放課後に大岡山コートで練習しています。",
+    tags: ["運動", "テニス", "初心者歓迎"],
     memberCount: 38, role: "member",
     channels: [
       { id: "ch_2_1", name: "general", type: "text" },
@@ -236,6 +238,7 @@ const DEMO_CIRCLES = [
   {
     id: "cir_3", name: "映画同好会", icon: "🎬", color: "#d4843e",
     desc: "月1で映画鑑賞会を開催。ジャンル問わず語り合いましょう。",
+    tags: ["文化", "映画", "ゆるめ"],
     memberCount: 15, role: "member",
     channels: [
       { id: "ch_3_1", name: "general", type: "text" },
@@ -283,10 +286,22 @@ const DEMO_CIRCLE_MESSAGES = {
 };
 
 const DEMO_DISCOVER_CIRCLES = [
-  { id: "cir_d1", name: "ロボット技術研究会", icon: "🤖", color: "#2d9d8f", desc: "ロボットの設計・制作を行う技術系サークルです。ロボコン出場を目指しています。", memberCount: 32 },
-  { id: "cir_d2", name: "軽音楽部", icon: "🎸", color: "#c678dd", desc: "バンド活動中心。学園祭ライブに向けて練習中！", memberCount: 45 },
-  { id: "cir_d3", name: "数学研究会", icon: "∑", color: "#c6a236", desc: "数学好きが集まって問題を解いたり議論したりするサークル。", memberCount: 18 },
-  { id: "cir_d4", name: "写真部", icon: "📷", color: "#e5534b", desc: "キャンパスや街の風景を撮影。月1で撮影会を開催。", memberCount: 22 },
+  { id: "cir_d1", name: "ロボット技術研究会", icon: "🤖", color: "#2d9d8f", desc: "ロボットの設計・制作を行う技術系サークルです。ロボコン出場を目指しています。", memberCount: 32, tags: ["技術", "ロボット", "ものづくり"] },
+  { id: "cir_d2", name: "軽音楽部", icon: "🎸", color: "#c678dd", desc: "バンド活動中心。学園祭ライブに向けて練習中！", memberCount: 45, tags: ["音楽", "バンド", "ライブ"] },
+  { id: "cir_d3", name: "数学研究会", icon: "∑", color: "#c6a236", desc: "数学好きが集まって問題を解いたり議論したりするサークル。", memberCount: 18, tags: ["学術", "数学"] },
+  { id: "cir_d4", name: "写真部", icon: "📷", color: "#e5534b", desc: "キャンパスや街の風景を撮影。月1で撮影会を開催。", memberCount: 22, tags: ["文化", "写真", "アート"] },
+  { id: "cir_d5", name: "サッカー部", icon: "⚽", color: "#3dae72", desc: "関東理工系リーグ所属。週3で練習、マネージャーも募集中！", memberCount: 52, tags: ["運動", "サッカー", "本格派"] },
+  { id: "cir_d6", name: "AI研究会", icon: "🧠", color: "#6375f0", desc: "機械学習・深層学習の勉強会や論文読み会を開催。Kaggleチームもあります。", memberCount: 28, tags: ["技術", "AI", "機械学習"] },
+  { id: "cir_d7", name: "ボードゲーム同好会", icon: "🎲", color: "#d4843e", desc: "カタンやドミニオンなど戦略系ゲームを中心に毎週活動中。", memberCount: 20, tags: ["文化", "ゲーム", "ゆるめ", "初心者歓迎"] },
+  { id: "cir_d8", name: "陸上競技部", icon: "🏃", color: "#e5534b", desc: "短距離から長距離まで。大岡山キャンパスのグラウンドで毎日練習。", memberCount: 35, tags: ["運動", "陸上", "本格派"] },
+  { id: "cir_d9", name: "天文部", icon: "🔭", color: "#2d4d8f", desc: "月1の観測会と天体写真撮影。すずかけ台の屋上望遠鏡が使えます。", memberCount: 14, tags: ["学術", "天文", "理系"] },
+  { id: "cir_d10", name: "料理研究会", icon: "🍳", color: "#c75d8e", desc: "月2で調理実習、レシピ共有。学園祭では模擬店を出店！", memberCount: 30, tags: ["文化", "料理", "初心者歓迎", "ゆるめ"] },
+  { id: "cir_d11", name: "バドミントンサークル", icon: "🏸", color: "#a855c7", desc: "経験者も初心者もOK！週2で体育館で活動。", memberCount: 40, tags: ["運動", "バドミントン", "初心者歓迎"] },
+  { id: "cir_d12", name: "電子工作研究会", icon: "⚡", color: "#c6a236", desc: "Arduino・ラズパイを使った電子工作。自作キーボード勢も多数。", memberCount: 16, tags: ["技術", "電子工作", "ものづくり"] },
+  { id: "cir_d13", name: "アカペラサークル", icon: "🎤", color: "#c678dd", desc: "声だけで音楽を作る！初心者から経験者まで幅広く在籍。", memberCount: 25, tags: ["音楽", "アカペラ", "初心者歓迎"] },
+  { id: "cir_d14", name: "ワンダーフォーゲル部", icon: "🏔️", color: "#3dae72", desc: "登山・ハイキングがメイン。夏は北アルプス縦走、冬は雪山にも。", memberCount: 22, tags: ["運動", "アウトドア", "登山", "本格派"] },
+  { id: "cir_d15", name: "漫画研究会", icon: "✏️", color: "#d4843e", desc: "オリジナル漫画・イラストの制作。学園祭で同人誌を頒布！", memberCount: 19, tags: ["文化", "漫画", "イラスト", "アート"] },
+  { id: "cir_d16", name: "クイズ研究会", icon: "❓", color: "#6375f0", desc: "競技クイズの練習から雑学系まで。ABC大会に毎年出場。", memberCount: 12, tags: ["学術", "クイズ", "ゆるめ"] },
 ];
 
 // ── 通知 ──

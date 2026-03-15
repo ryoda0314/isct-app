@@ -14,6 +14,7 @@ create table if not exists circles (
   is_public   boolean default true,
   allow_invite boolean default true,
   join_mode   text default 'open',             -- open: 自由参加, approval: 承認制, invite_only: 招待のみ
+  tags        text[] default '{}',             -- ジャンルタグ (例: {'運動','テニス','初心者歓迎'})
   owner_id    bigint not null references profiles(moodle_id),  -- 最高権限者 (譲渡可能)
   created_at  timestamptz default now()
 );

@@ -1496,6 +1496,96 @@ const AdminFees = ({ sc, updateCircle, user, SubHdr, cardS, btnPrimary, btnDel }
   </div>);
 };
 
+/* ── サークル探すセクション ── */
+const GENRE_FILTERS = [
+  { id: 'all', label: 'すべて' },
+  { id: '運動', label: '運動', icon: '🏃' },
+  { id: '技術', label: '技術', icon: '💻' },
+  { id: '音楽', label: '音楽', icon: '🎵' },
+  { id: '文化', label: '文化', icon: '🎨' },
+  { id: '学術', label: '学術', icon: '📖' },
+  { id: '初心者歓迎', label: '初心者歓迎', icon: '🌱' },
+  { id: 'ゆるめ', label: 'ゆるめ', icon: '☕' },
+  { id: '本格派', label: '本格派', icon: '🔥' },
+];
+
+const DiscoverSection = ({ discover, joinCircle }) => {
+  const [query, setQuery] = useState('');
+  const [genre, setGenre] = useState('all');
+  const [sort, setSort] = useState('popular'); // popular, name, newest
+
+  const filtered = discover.filter(c => {
+    const matchQ = !query || c.name.toLowerCase().includes(query.toLowerCase()) || c.desc?.toLowerCase().includes(query.toLowerCase()) || (c.tags || []).some(t => t.includes(query));
+    const matchG = genre === 'all' || (c.tags || []).includes(genre);
+    return matchQ && matchG;
+  }).sort((a, b) => {
+    if (sort === 'popular') return (b.memberCount || 0) - (a.memberCount || 0);
+    if (sort === 'name') return a.name.localeCompare(b.name, 'ja');
+    return 0; // newest: default order
+  });
+
+  const chipS = (active) => ({ padding: '6px 14px', borderRadius: 20, border: `1px solid ${active ? T.accent : T.bd}`, background: active ? `${T.accent}14` : T.bg2, color: active ? T.accent : T.txD, fontSize: 12, fontWeight: active ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 });
+
+  return (<>
+    {/* 検索バー */}
+    <div style={{ position: 'relative', marginBottom: 10 }}>
+      <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: T.txD, display: 'flex', opacity: 0.6 }}>{I.search}</div>
+      <input value={query} onChange={e => setQuery(e.target.value)} placeholder="サークル名・タグで検索" style={{ width: '100%', padding: '10px 12px 10px 38px', borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+      {query && <button onClick={() => setQuery('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: T.txD, cursor: 'pointer', display: 'flex', padding: 2 }}>{I.x}</button>}
+    </div>
+
+    {/* ジャンルフィルター */}
+    <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, marginBottom: 6, WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+      {GENRE_FILTERS.map(g => (
+        <button key={g.id} onClick={() => setGenre(g.id)} style={chipS(genre === g.id)}>
+          {g.icon ? `${g.icon} ${g.label}` : g.label}
+        </button>
+      ))}
+    </div>
+
+    {/* ソート＆件数 */}
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '0 2px' }}>
+      <span style={{ fontSize: 12, color: T.txD }}>{filtered.length}件</span>
+      <div style={{ display: 'flex', gap: 4 }}>
+        {[{ id: 'popular', l: '人気' }, { id: 'name', l: '名前' }, { id: 'newest', l: '新着' }].map(s => (
+          <button key={s.id} onClick={() => setSort(s.id)} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: sort === s.id ? `${T.accent}14` : 'transparent', color: sort === s.id ? T.accent : T.txD, fontSize: 11, fontWeight: sort === s.id ? 600 : 400, cursor: 'pointer' }}>{s.l}</button>
+        ))}
+      </div>
+    </div>
+
+    {/* サークル一覧 */}
+    {filtered.length === 0 ? (
+      <div style={{ textAlign: 'center', padding: 40, color: T.txD }}>
+        <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 4 }}>見つかりませんでした</div>
+        <div style={{ fontSize: 12 }}>別のキーワードやジャンルで検索してみてください</div>
+      </div>
+    ) : filtered.map(c => (
+      <div key={c.id} style={{ padding: 14, borderRadius: 14, background: T.bg2, border: `1px solid ${T.bd}`, marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+          <CIcon icon={c.icon} color={c.color} sz={48} radius={14} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, color: T.txH, fontSize: 15 }}>{c.name}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+              <span style={{ fontSize: 12, color: T.txD, display: 'flex', alignItems: 'center', gap: 3 }}>{I.users} {c.memberCount}人</span>
+            </div>
+          </div>
+        </div>
+        <div style={{ fontSize: 13, color: T.tx, lineHeight: 1.6, marginBottom: 10 }}>{c.desc}</div>
+        {/* タグ */}
+        {(c.tags || []).length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 12 }}>
+            {c.tags.map(tag => (
+              <span key={tag} onClick={() => { setGenre(GENRE_FILTERS.find(g => g.id === tag) ? tag : 'all'); setQuery(GENRE_FILTERS.find(g => g.id === tag) ? '' : tag); }} style={{ padding: '3px 10px', borderRadius: 12, background: T.bg4, color: T.txD, fontSize: 11, cursor: 'pointer' }}>#{tag}</span>
+            ))}
+          </div>
+        )}
+        <button onClick={() => joinCircle(c.id)} style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: T.accent, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>参加する</button>
+      </div>
+    ))}
+  </>);
+};
+
 /* ── サークルView ── */
 export const CircleView = ({ mob, circles = [], messages = {}, discover = [], sendMessage, createCircle, joinCircle, leaveCircle, addChannel, deleteChannel, pinMessage, updateCircle, onBack }) => {
   const user = useCurrentUser();
@@ -1607,22 +1697,7 @@ export const CircleView = ({ mob, circles = [], messages = {}, discover = [], se
               })}
             </>}
 
-            {tab === 'discover' && <>
-              {discover.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: T.txD, fontSize: 13 }}>新しいサークルはまだありません</div>}
-              {discover.map(c => (
-                <div key={c.id} style={{ padding: 14, borderRadius: 12, background: T.bg2, border: `1px solid ${T.bd}`, marginBottom: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                    <CIcon icon={c.icon} color={c.color} sz={40} radius={10} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, color: T.txH, fontSize: 14 }}>{c.name}</div>
-                      <div style={{ fontSize: 12, color: T.txD }}>{c.memberCount}人</div>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 13, color: T.tx, lineHeight: 1.5, marginBottom: 10 }}>{c.desc}</div>
-                  <button onClick={() => joinCircle(c.id)} style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: T.accent, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>参加する</button>
-                </div>
-              ))}
-            </>}
+            {tab === 'discover' && <DiscoverSection discover={discover} joinCircle={joinCircle} />}
 
             {tab === 'create' && (
               <div style={{ padding: 4 }}>
@@ -2222,22 +2297,7 @@ export const CircleView = ({ mob, circles = [], messages = {}, discover = [], se
           ))}
         </>}
 
-        {tab === 'discover' && <>
-          {discover.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: T.txD, fontSize: 13 }}>新しいサークルはまだありません</div>}
-          {discover.map(c => (
-            <div key={c.id} style={{ padding: 14, borderRadius: 12, background: T.bg2, border: `1px solid ${T.bd}`, marginBottom: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <CIcon icon={c.icon} color={c.color} sz={40} radius={10} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, color: T.txH, fontSize: 14 }}>{c.name}</div>
-                  <div style={{ fontSize: 12, color: T.txD }}>{c.memberCount}人</div>
-                </div>
-              </div>
-              <div style={{ fontSize: 13, color: T.tx, lineHeight: 1.5, marginBottom: 10 }}>{c.desc}</div>
-              <button onClick={() => joinCircle(c.id)} style={{ width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: T.accent, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>参加する</button>
-            </div>
-          ))}
-        </>}
+        {tab === 'discover' && <DiscoverSection discover={discover} joinCircle={joinCircle} />}
 
         {tab === 'create' && (
           <div style={{ padding: 4 }}>
