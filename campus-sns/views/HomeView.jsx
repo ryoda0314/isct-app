@@ -194,6 +194,25 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
         </div>
       </div>
 
+      {/* ── クイックアクセス ── */}
+      <div style={{padding:"2px 16px 6px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:6}}>
+        <button onClick={()=>setView("circles")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.accent}30`,background:`${T.accent}10`,cursor:"pointer"}}>
+          <span style={{color:T.accent,display:"flex"}}>{I.circle}</span>
+          <span style={{fontSize:11,fontWeight:600,color:T.txH}}>サークル</span>
+        </button>
+        <button onClick={()=>setView("calendar")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer"}}>
+          <span style={{color:T.txD,display:"flex"}}>{I.cal}</span>
+          <span style={{fontSize:11,fontWeight:600,color:T.txH}}>カレンダー</span>
+        </button>
+        <button onClick={()=>setView("events")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer"}}>
+          <span style={{color:T.txD,display:"flex"}}>{I.event}</span>
+          <span style={{fontSize:11,fontWeight:600,color:T.txH}}>イベント</span>
+        </button>
+        <button onClick={()=>setView("location")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer"}}>
+          <span style={{color:T.txD,display:"flex"}}>{I.pin}</span>
+          <span style={{fontSize:11,fontWeight:600,color:T.txH}}>居場所</span>
+        </button>
+      </div>
 
       {/* ── メインコンテンツ: 40:60 ── */}
       <div style={{padding:"4px 16px 8px",display:mob?"block":"flex",gap:14,alignItems:"flex-start"}}>
