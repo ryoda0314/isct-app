@@ -3,6 +3,7 @@ import { T } from '../theme.js';
 import { I } from '../icons.jsx';
 import { Av } from '../shared.jsx';
 import { updateUserPref } from '../hooks/useCurrentUser.js';
+import { MatrixInput, COLS, ROWS } from '../components/MatrixInput.jsx';
 
 /* ─── 画像 → 正方形クロップ → data URI ─── */
 const AV_SZ=160;
@@ -148,6 +149,14 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,co
   const [showPw,setShowPw]=useState(false);
   const [showTotp,setShowTotp]=useState(false);
 
+  // Portal認証情報
+  const [portalOpen,setPortalOpen]=useState(false);
+  const [portalForm,setPortalForm]=useState({userId:"",password:"",matrix:{}});
+  const [portalSaving,setPortalSaving]=useState(false);
+  const [portalMsg,setPortalMsg]=useState(null);
+  const [portalDeleting,setPortalDeleting]=useState(false);
+  const [showPortalPw,setShowPortalPw]=useState(false);
+
   // 表示設定
   const [fontSize,setFontSize]=useState(()=>{try{return localStorage.getItem("fontSize")||"medium";}catch{return "medium";}});
   const saveFontSize=v=>{setFontSize(v);try{localStorage.setItem("fontSize",v);}catch{}};
@@ -181,6 +190,34 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,co
       setCredMsg({type:"ok",text:"認証情報を削除しました"});
     }catch{setCredMsg({type:"err",text:"削除に失敗しました"});}
     setCredDeleting(false);
+  };
+
+  const handlePortalSave=async()=>{
+    const {userId,password,matrix}=portalForm;
+    const hasMatrix=COLS.every(c=>ROWS.every(r=>matrix[c]?.[r]));
+    if(!userId||!password||!hasMatrix){setPortalMsg({type:"err",text:"全ての項目を入力してください"});return;}
+    setPortalSaving(true);setPortalMsg(null);
+    try{
+      const r=await fetch("/api/auth/setup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({portalUserId:userId,portalPassword:password,matrix})});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.detail||d.error||"保存に失敗しました");
+      setPortalMsg({type:"ok",text:"ポータル認証情報を保存しました"});
+      setCredStatus(p=>({...p,hasPortal:true}));
+      setPortalForm({userId:"",password:"",matrix:{}});
+      setPortalOpen(false);
+    }catch(e){setPortalMsg({type:"err",text:e.message});}
+    setPortalSaving(false);
+  };
+
+  const handlePortalDelete=async()=>{
+    if(!confirm("ポータル認証情報を削除しますか？"))return;
+    setPortalDeleting(true);setPortalMsg(null);
+    try{
+      await fetch("/api/auth/credentials",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"portal"})});
+      setCredStatus(p=>({...p,hasPortal:false}));
+      setPortalMsg({type:"ok",text:"ポータル認証情報を削除しました"});
+    }catch{setPortalMsg({type:"err",text:"削除に失敗しました"});}
+    setPortalDeleting(false);
   };
 
   const handleClearCache=()=>{
@@ -292,7 +329,8 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,co
             onClick={()=>setCredOpen(p=>!p)}
             right={credStatus&&<Badge ok={credStatus.hasCredentials} label={credStatus.hasCredentials?"接続中":"未接続"}/>}/>
           <GRow last icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
-            label="Titech Portal" sub={credStatus?.hasPortal?"アカウント・パスワード・マトリクス 設定済み":"未設定 — セットアップ画面から設定"}
+            label="Titech Portal" sub={credStatus?.hasPortal?"アカウント・パスワード・マトリクス 設定済み":"未設定 — タップして設定"}
+            onClick={()=>setPortalOpen(p=>!p)}
             right={credStatus&&<Badge ok={credStatus.hasPortal} label={credStatus.hasPortal?"接続中":"未接続"}/>}/>
         </GCard>
 
@@ -322,6 +360,43 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,co
             </div>}
             <CredForm form={credForm} setForm={setCredForm} showPw={showPw} showTotp={showTotp} setShowPw={setShowPw} setShowTotp={setShowTotp} onSave={handleCredSave} saving={credSaving} btnLabel={credStatus?.hasCredentials?"認証情報を更新":"ログインして接続"}/>
             {!credStatus?.hasCredentials&&<div style={{padding:"0 14px 12px",fontSize:10,color:T.txD,lineHeight:1.5}}>認証情報はこのPC内に暗号化して保存されます。外部には送信されません。</div>}
+          </>}
+        </div>}
+
+        {portalOpen&&<div style={{marginTop:6,borderRadius:12,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
+          {portalMsg&&<div style={{margin:"10px 14px 0",padding:"8px 10px",borderRadius:8,background:portalMsg.type==="ok"?`${T.green}14`:`${T.red}14`,color:portalMsg.type==="ok"?T.green:T.red,fontSize:12,fontWeight:500}}>{portalMsg.text}</div>}
+
+          {credStatus?.hasPortal&&!credStatus._portalEditing?<div style={{padding:"14px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:10,borderRadius:8,background:`${T.green}08`,border:`1px solid ${T.green}20`,marginBottom:10}}>
+              <div style={{width:8,height:8,borderRadius:4,background:T.green,flexShrink:0}}/>
+              <span style={{fontSize:12,color:T.green,fontWeight:600}}>Titech Portalに接続済み</span>
+            </div>
+            <div style={{fontSize:12,color:T.txD,marginBottom:12,lineHeight:1.5}}>認証情報はAES-256-GCMで暗号化保存されています。</div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setCredStatus(p=>({...p,_portalEditing:true}))}
+                style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                再設定
+              </button>
+              <button onClick={handlePortalDelete} disabled={portalDeleting}
+                style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${T.red}30`,background:`${T.red}08`,color:T.red,fontSize:13,fontWeight:600,cursor:portalDeleting?"wait":"pointer",opacity:portalDeleting?.5:1}}>
+                {portalDeleting?"削除中...":"削除"}
+              </button>
+            </div>
+          </div>:<>
+            {credStatus?.hasPortal&&<div style={{padding:"10px 14px 0"}}>
+              <button onClick={()=>setCredStatus(p=>({...p,_portalEditing:false}))}
+                style={{background:"none",border:"none",color:T.txD,fontSize:12,cursor:"pointer",padding:0}}>← 戻る</button>
+            </div>}
+            <div style={{display:"grid",gap:10,padding:"12px 14px"}}>
+              <Inp label="ポータル アカウント" value={portalForm.userId} onChange={e=>setPortalForm(p=>({...p,userId:e.target.value}))} placeholder="学籍番号"/>
+              <PwInp label="ポータル パスワード" value={portalForm.password} onChange={e=>setPortalForm(p=>({...p,password:e.target.value}))} placeholder="ポータルのパスワード" show={showPortalPw} onTogShow={()=>setShowPortalPw(p=>!p)}/>
+              <MatrixInput matrix={portalForm.matrix} setMatrix={m=>setPortalForm(p=>({...p,matrix:typeof m==='function'?m(p.matrix):m}))}/>
+              <button onClick={handlePortalSave} disabled={portalSaving}
+                style={{padding:"10px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:portalSaving?"wait":"pointer",opacity:portalSaving?.6:1,transition:"opacity .15s"}}>
+                {portalSaving?"接続中...":(credStatus?.hasPortal?"認証情報を更新":"ログインして接続")}
+              </button>
+            </div>
+            {!credStatus?.hasPortal&&<div style={{padding:"0 14px 12px",fontSize:10,color:T.txD,lineHeight:1.5}}>認証情報はこのPC内に暗号化して保存されます。外部には送信されません。</div>}
           </>}
         </div>}
 
