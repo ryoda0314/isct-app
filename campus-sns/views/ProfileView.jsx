@@ -113,11 +113,9 @@ const CredForm=({form,setForm,showPw,showTotp,setShowPw,setShowTotp,onSave,savin
 );
 
 /* ─── メイン ─── */
-export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,att,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout})=>{
+export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout})=>{
   const done=asgn.filter(a=>a.st==="completed").length;
   const total=asgn.length;
-  const attAll=Object.values(att);
-  const attRate=attAll.length?Math.round(attAll.reduce((s,a)=>s+a.attended,0)/attAll.reduce((s,a)=>s+a.total,0)*100):0;
 
   const [credOpen,setCredOpen]=useState(false);
   const [notifOpen,setNotifOpen]=useState(false);
@@ -276,10 +274,9 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,at
           {!avEdit&&<div style={{display:"flex",gap:0,marginTop:14,borderTop:`1px solid ${T.bd}`,paddingTop:12}}>
             {[
               {v:`${done}/${total}`,l:"課題提出",c:T.green},
-              {v:`${attRate}%`,l:"出席率",c:T.accent},
               {v:courses.length,l:"履修科目",c:T.orange},
-            ].map((s,i)=>(
-              <div key={i} style={{flex:1,textAlign:"center",...(i<2?{borderRight:`1px solid ${T.bd}`}:{})}}>
+            ].map((s,i,arr)=>(
+              <div key={i} style={{flex:1,textAlign:"center",...(i<arr.length-1?{borderRight:`1px solid ${T.bd}`}:{})}}>
                 <div style={{fontSize:18,fontWeight:700,color:s.c}}>{s.v}</div>
                 <div style={{fontSize:10,color:T.txD,marginTop:1}}>{s.l}</div>
               </div>
@@ -287,11 +284,11 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,at
           </div>}
         </div>
 
-        {/* ═══ T2SCHOLA接続 ═══ */}
-        <GHead>T2SCHOLA接続</GHead>
+        {/* ═══ 接続設定 ═══ */}
+        <GHead>接続設定</GHead>
         <GCard>
-          <GRow last icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>}
-            label="認証情報" sub={credStatus?.hasCredentials?"ID・パスワード・TOTPキー 設定済み":"未設定 — タップして設定"}
+          <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>}
+            label="ISCT LMS" sub={credStatus?.hasCredentials?"ID・パスワード・TOTPキー 設定済み":"未設定 — タップして設定"}
             onClick={()=>setCredOpen(p=>!p)}
             right={credStatus&&<Badge ok={credStatus.hasCredentials} label={credStatus.hasCredentials?"接続中":"未接続"}/>}/>
         </GCard>
@@ -302,7 +299,7 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,at
           {credStatus?.hasCredentials&&!credStatus._editing?<div style={{padding:"14px"}}>
             <div style={{display:"flex",alignItems:"center",gap:8,padding:10,borderRadius:8,background:`${T.green}08`,border:`1px solid ${T.green}20`,marginBottom:10}}>
               <div style={{width:8,height:8,borderRadius:4,background:T.green,flexShrink:0}}/>
-              <span style={{fontSize:12,color:T.green,fontWeight:600}}>T2SCHOLAに接続済み</span>
+              <span style={{fontSize:12,color:T.green,fontWeight:600}}>ISCT LMSに接続済み</span>
             </div>
             <div style={{fontSize:12,color:T.txD,marginBottom:12,lineHeight:1.5}}>認証情報はAES-256-GCMで暗号化保存されています。</div>
             <div style={{display:"flex",gap:8}}>
@@ -407,7 +404,7 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,at
           <GRow icon={I.dl} label="データエクスポート"
             sub="課題・成績・設定をJSONで保存"
             onClick={()=>{
-              const data={exportedAt:new Date().toISOString(),user:{name:user.name,dept:user.dept,yearGroup:user.yearGroup},assignments:asgn,grades:Object.entries(att).map(([k,v])=>({course:k,...v})),courses:courses.map(c=>({id:c.id,code:c.code,name:c.name})),settings:{notifEnabled,notifSettings,fontSize}};
+              const data={exportedAt:new Date().toISOString(),user:{name:user.name,dept:user.dept,yearGroup:user.yearGroup},assignments:asgn,courses:courses.map(c=>({id:c.id,code:c.code,name:c.name})),settings:{notifEnabled,notifSettings,fontSize}};
               const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
               const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`sciencetokyo-export-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(url);
             }}/>
