@@ -18,17 +18,65 @@ async function loadTesseract() {
   });
 }
 
-/** canvas を二値化処理 */
+/** Otsu's method で最適な二値化閾値を計算 */
+function computeThreshold(imageData) {
+  const d = imageData.data;
+  const hist = new Uint32Array(256);
+  for (let i = 0; i < d.length; i += 4) {
+    hist[Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2])]++;
+  }
+  const total = d.length / 4;
+  let sum = 0;
+  for (let i = 0; i < 256; i++) sum += i * hist[i];
+  let sumB = 0, wB = 0, best = 0, thresh = 128;
+  for (let t = 0; t < 256; t++) {
+    wB += hist[t];
+    if (!wB) continue;
+    const wF = total - wB;
+    if (!wF) break;
+    sumB += t * hist[t];
+    const diff = sumB / wB - (sum - sumB) / wF;
+    const v = wB * wF * diff * diff;
+    if (v > best) { best = v; thresh = t; }
+  }
+  return thresh;
+}
+
+/** canvas を二値化処理（Otsu adaptive threshold） */
 function binarize(canvas) {
   const ctx = canvas.getContext('2d');
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const d = imageData.data;
+  const thresh = computeThreshold(imageData);
   for (let i = 0; i < d.length; i += 4) {
     const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-    const v = gray > 140 ? 255 : 0;
+    const v = gray > thresh ? 255 : 0;
     d[i] = d[i + 1] = d[i + 2] = v;
   }
   ctx.putImageData(imageData, 0, 0);
+}
+
+/** データ領域のみ切り出し（ヘッダ行・行番号列を除去）+ 小さければ拡大 */
+function cropDataArea(srcCanvas) {
+  const sw = srcCanvas.width, sh = srcCanvas.height;
+  // マトリクスカード: 左 ~9% が行番号列、上 ~14% がヘッダ行
+  const x0 = Math.round(sw * 0.09);
+  const y0 = Math.round(sh * 0.14);
+  const cw = sw - x0 - Math.round(sw * 0.01);
+  const ch = sh - y0 - Math.round(sh * 0.02);
+  const scale = cw < 600 ? 2 : 1;
+  const canvas = document.createElement('canvas');
+  canvas.width = cw * scale;
+  canvas.height = ch * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(srcCanvas, x0, y0, cw, ch, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+/** OCR誤認識の数字→文字補正 */
+function fixOCRChar(c) {
+  return { '0': 'O', '1': 'I', '2': 'Z', '5': 'S', '8': 'B', '6': 'G' }[c] || c;
 }
 
 /** OCR結果からマトリクスをパース */
@@ -38,11 +86,18 @@ function parseOCRResult(text) {
   let rowIdx = 0;
 
   for (const line of lines) {
-    const chars = line.replace(/[^A-Z]/g, '').split('');
-    if (chars.length < 5) continue;
-    const isHeader = chars.length >= 8 && chars.slice(0, 5).join('') === 'ABCDE';
-    if (isHeader) continue;
+    let cleaned = line.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    if (cleaned.length < 3) continue;
+    // ヘッダ行をスキップ
+    if (cleaned.length >= 8 && cleaned.slice(0, 5) === 'ABCDE') continue;
+    // 数字のみの行をスキップ
+    if (/^\d+$/.test(cleaned)) continue;
     if (rowIdx >= ROWS.length) break;
+    // 先頭が数字なら行番号 → スキップ
+    let start = 0;
+    if (/^\d/.test(cleaned)) start = 1;
+    const chars = cleaned.slice(start).split('').map(fixOCRChar).filter(c => /^[A-Z]$/.test(c));
+    if (chars.length < 3) continue;
     const row = ROWS[rowIdx];
     for (let ci = 0; ci < Math.min(chars.length, COLS.length); ci++) {
       const col = COLS[ci];
@@ -70,9 +125,10 @@ async function scanMatrixFromImage(file) {
   canvas.height = img.height;
   canvas.getContext('2d').drawImage(img, 0, 0);
   URL.revokeObjectURL(img.src);
-  binarize(canvas);
+  const dataCanvas = cropDataArea(canvas);
+  binarize(dataCanvas);
 
-  const { data } = await window.Tesseract.recognize(canvas, 'eng', {
+  const { data } = await window.Tesseract.recognize(dataCanvas, 'eng', {
     tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
     tessedit_pageseg_mode: '6',
   });
@@ -120,6 +176,7 @@ function LiveScanner({ onResult, onClose }) {
   const busyRef = useRef(false);
   const doneRef = useRef(false);
   const workerRef = useRef(null);
+  const votesRef = useRef({}); // { "A-1": { "G": 3, "C": 1 }, ... }
   const [phase, setPhase] = useState('init'); // init | workerLoading | ready | error | found
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -191,31 +248,57 @@ function LiveScanner({ onResult, onClose }) {
       try {
         // ガイドフレーム内のみ切り出し
         const rect = getFrameRect(video, containerRef.current);
-        const canvas = document.createElement('canvas');
+        const rawCanvas = document.createElement('canvas');
         if (rect && rect.sWidth > 50 && rect.sHeight > 50) {
-          canvas.width = rect.sWidth;
-          canvas.height = rect.sHeight;
-          canvas.getContext('2d').drawImage(video, rect.sx, rect.sy, rect.sWidth, rect.sHeight, 0, 0, rect.sWidth, rect.sHeight);
+          rawCanvas.width = rect.sWidth;
+          rawCanvas.height = rect.sHeight;
+          rawCanvas.getContext('2d').drawImage(video, rect.sx, rect.sy, rect.sWidth, rect.sHeight, 0, 0, rect.sWidth, rect.sHeight);
         } else {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          canvas.getContext('2d').drawImage(video, 0, 0);
+          rawCanvas.width = video.videoWidth;
+          rawCanvas.height = video.videoHeight;
+          rawCanvas.getContext('2d').drawImage(video, 0, 0);
         }
-        binarize(canvas);
+        // データ領域のみ切り出し + 二値化
+        const dataCanvas = cropDataArea(rawCanvas);
+        binarize(dataCanvas);
 
-        const { data } = await workerRef.current.recognize(canvas);
-        const { matrix, rowsFound } = parseOCRResult(data.text);
+        const { data } = await workerRef.current.recognize(dataCanvas);
+        const { matrix: parsed, rowsFound } = parseOCRResult(data.text);
 
+        // 投票を蓄積（複数フレームのコンセンサスで精度向上）
+        for (const c of COLS) {
+          for (const r of ROWS) {
+            const ch = parsed[c]?.[r];
+            if (!ch || !/^[A-Z]$/.test(ch)) continue;
+            const key = `${c}-${r}`;
+            if (!votesRef.current[key]) votesRef.current[key] = {};
+            votesRef.current[key][ch] = (votesRef.current[key][ch] || 0) + 1;
+          }
+        }
+
+        // コンセンサス行列を構築（最多投票の文字を採用）
+        const consensus = {};
         let cells = 0;
-        for (const c of COLS) for (const r of ROWS) if (matrix[c]?.[r]) cells++;
+        for (const c of COLS) {
+          consensus[c] = {};
+          for (const r of ROWS) {
+            const votes = votesRef.current[`${c}-${r}`];
+            if (!votes) continue;
+            let best = null, bestCount = 0;
+            for (const [ch, count] of Object.entries(votes)) {
+              if (count > bestCount) { best = ch; bestCount = count; }
+            }
+            if (best) { consensus[c][r] = best; cells++; }
+          }
+        }
         setProgress(cells);
 
-        if (rowsFound >= 5 && cells >= 35) {
+        if (cells >= 55) {
           doneRef.current = true;
           setPhase('found');
           setScanning(false);
           stopStream();
-          onResult(matrix, rowsFound);
+          onResult(consensus, 7);
           return;
         }
       } catch {}
