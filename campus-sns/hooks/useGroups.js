@@ -3,7 +3,7 @@ import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { isDemoMode } from '../demoMode.js';
 import { DEMO_GROUPS } from '../demoData.js';
 
-export function useGroups() {
+export function useGroups(enabled = true) {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -22,11 +22,11 @@ export function useGroups() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchGroups(); }, [fetchGroups]);
+  useEffect(() => { if (enabled) fetchGroups(); }, [fetchGroups, enabled]);
 
   // Realtime: listen for group_members changes (join/leave)
   useEffect(() => {
-    if (isDemoMode()) return;
+    if (isDemoMode() || !enabled) return;
     const sb = getSupabaseClient();
     const channel = sb
       .channel('group_members_changes')
@@ -37,7 +37,7 @@ export function useGroups() {
       }, () => { fetchGroups(); })
       .subscribe();
     return () => { sb.removeChannel(channel); };
-  }, [fetchGroups]);
+  }, [fetchGroups, enabled]);
 
   const createGroup = useCallback(async (name, memberIds) => {
     try {

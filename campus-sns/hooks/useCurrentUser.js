@@ -31,7 +31,7 @@ export function updateUserPref(patch) {
   notify();
 }
 
-export function useCurrentUser() {
+export function useCurrentUser(enabled = true) {
   const base = cached || ME;
   const [user, setUser] = useState({ ...base, ...pref });
 
@@ -39,14 +39,16 @@ export function useCurrentUser() {
     const handler = (u) => setUser(u);
     listeners.add(handler);
     if (cached) { handler({ ...cached, ...pref }); return () => listeners.delete(handler); }
-    (async () => {
-      try {
-        const r = await fetch('/api/auth/me');
-        if (!r.ok) return;
-        const d = await r.json();
-        setCurrentUserFromAPI(d);
-      } catch {}
-    })();
+    if (enabled) {
+      (async () => {
+        try {
+          const r = await fetch('/api/auth/me');
+          if (!r.ok) return;
+          const d = await r.json();
+          setCurrentUserFromAPI(d);
+        } catch {}
+      })();
+    }
     return () => listeners.delete(handler);
   }, []);
 

@@ -3,7 +3,7 @@ import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { isDemoMode } from '../demoMode.js';
 import { DEMO_NOTIFICATIONS } from '../demoData.js';
 
-export function useNotifications() {
+export function useNotifications(enabled = true) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const idsRef = useRef(new Set());
@@ -32,11 +32,11 @@ export function useNotifications() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchNotifs(); }, [fetchNotifs]);
+  useEffect(() => { if (enabled) fetchNotifs(); }, [fetchNotifs, enabled]);
 
   // Realtime subscription
   useEffect(() => {
-    if (isDemoMode()) return;
+    if (isDemoMode() || !enabled) return;
     const sb = getSupabaseClient();
     const channel = sb
       .channel('notifications')
@@ -58,7 +58,7 @@ export function useNotifications() {
         }, ...prev]);
         // Browser push notification
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-          try { new Notification('ScienceTokyo App', { body: n.text, icon: '/favicon.ico' }); } catch {}
+          try { new Notification('ScienceTokyo App', { body: n.text, icon: '/icons/icon-192x192.png' }); } catch {}
         }
       })
       .on('postgres_changes', {
@@ -72,7 +72,7 @@ export function useNotifications() {
       .subscribe();
 
     return () => { sb.removeChannel(channel); };
-  }, []);
+  }, [enabled]);
 
   const markRead = useCallback(async (id) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));

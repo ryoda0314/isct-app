@@ -2,13 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { isDemoMode } from '../demoMode.js';
 import { showToast } from './useToast.js';
 
-export function useBookmarks() {
+export function useBookmarks(enabled = true) {
   const [bmarks, setBmarks] = useState([]);
   const [loading, setLoading] = useState(false);
 
   // Fetch bookmarks on mount
   useEffect(() => {
-    if (isDemoMode()) return;
+    if (isDemoMode() || !enabled) return;
     setLoading(true);
     (async () => {
       try {
@@ -22,7 +22,7 @@ export function useBookmarks() {
       }
       setLoading(false);
     })();
-  }, []);
+  }, [enabled]);
 
   // Toggle bookmark (optimistic)
   const toggle = useCallback(async (postId) => {

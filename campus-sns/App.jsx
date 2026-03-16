@@ -46,7 +46,8 @@ const API="";
 // ============================================================
 export default function App(){
   const mob=useMobile();
-  const user=useCurrentUser();
+  const ready=appState==="ready";
+  const user=useCurrentUser(ready);
   const [darkPref,setDarkPref]=useState(()=>{try{return localStorage.getItem("themePref")||"dark";}catch{return "dark";}});
   const [sysDark,setSysDark]=useState(()=>typeof window!=="undefined"&&window.matchMedia?.("(prefers-color-scheme: dark)").matches);
   useEffect(()=>{
@@ -73,7 +74,7 @@ export default function App(){
   const [hiddenAsgn,setHiddenAsgn]=useState(()=>{try{return JSON.parse(localStorage.getItem("hiddenAsgn"))||[];}catch{return[];}});
   const saveHidden=ids=>{setHiddenAsgn(ids);try{localStorage.setItem("hiddenAsgn",JSON.stringify(ids));}catch{}};
   const [myTasks,setMyTasks]=useState(MYTK0);
-  const {bmarks,toggle:togBmark}=useBookmarks();
+  const {bmarks,toggle:togBmark}=useBookmarks(ready);
   const [events,setEvents]=useState(EVENTS0);
   // grades are now fetched inside GradeView directly
   const [reviews,setReviews]=useState(REVIEWS0);
@@ -131,9 +132,9 @@ export default function App(){
   const qCourseIds=useMemo(()=>new Set(allCourses.filter(c=>c.quarter===quarter).map(c=>c.id)),[allCourses,quarter]);
   const hiddenSet=useMemo(()=>new Set(hiddenAsgn),[hiddenAsgn]);
   const ac=asgn.filter(a=>a.st!=="completed"&&qCourseIds.has(a.cid)&&!hiddenSet.has(a.id)).length;
-  const {unreadCount:unreadN}=useNotifications();
+  const {unreadCount:unreadN}=useNotifications(ready);
   const {unreadDM:dmUnread,markDMSeen}=useUnreadDM(user?.moodleId||user?.id);
-  const {friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,friendIds,isFriend,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,lookupById}=useFriends();
+  const {friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,friendIds,isFriend,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,lookupById}=useFriends(ready);
   const presenceRoom=view==="course"&&cc?`course:${cc.id}`:view==="dept"&&cd?`dept:${cd.prefix}`:null;
   const {online}=usePresence(presenceRoom,{id:user.moodleId||user.id,name:user.name,col:user.col});
   const members=useCourseMembers(cc?.moodleId);
@@ -142,7 +143,7 @@ export default function App(){
   const navCrs=id=>{setCid(id);setView("course");setCh("assignments");};
   const goToBuilding=(destId,origId)=>{if(destId){setNavDest(destId);setNavOrig(origId||null);setView("navigation");}};
   // togBmark is now from useBookmarks()
-  const {groups:groupList,createGroup,leaveGroup}=useGroups();
+  const {groups:groupList,createGroup,leaveGroup}=useGroups(ready);
   const {circles:circleList,messages:circleMsgs,discover:circleDiscover,sendMessage:circleSend,createCircle,joinCircle,leaveCircle,addChannel:circleAddCh,deleteChannel:circleDelCh,pinMessage:circlePin,updateCircle:circleUpdate,init:circleInit}=useCircles();
   const [mySpotId,setMySpotId]=useState(()=>{try{return localStorage.getItem("myLocation")||"";}catch{return"";}});
   useEffect(()=>{const h=()=>{try{setMySpotId(localStorage.getItem("myLocation")||"");}catch{}};window.addEventListener("storage",h);const iv=setInterval(()=>{try{const v=localStorage.getItem("myLocation")||"";setMySpotId(p=>p!==v?v:p);}catch{}},5000);return()=>{window.removeEventListener("storage",h);clearInterval(iv);};},[]);

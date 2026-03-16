@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'node:fs/promises';
 import { isAuthenticated, getToken } from '../../../../lib/auth/token-manager.js';
 import { verifySession, createSessionToken, sessionCookieOptions, COOKIE_NAME } from '../../../../lib/auth/session.js';
+import { loadCredentials } from '../../../../lib/credentials.js';
 import { DATA_DIR } from '../../../../lib/config.js';
 
 /** Find loginId from credential files on disk */
@@ -20,10 +21,16 @@ export async function GET(request) {
     const session = verifySession(cookie);
 
     if (session) {
+      let hasPortal = false;
+      try {
+        const creds = await loadCredentials(session.loginId);
+        hasPortal = !!(creds.portalUserId && creds.portalPassword && creds.matrix);
+      } catch {}
       return NextResponse.json({
         hasCredentials: true,
         isAuthenticated: isAuthenticated(session.loginId),
         loginId: session.loginId,
+        hasPortal,
       });
     }
 

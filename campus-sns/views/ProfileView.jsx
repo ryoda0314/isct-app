@@ -291,6 +291,9 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,co
             label="ISCT LMS" sub={credStatus?.hasCredentials?"ID・パスワード・TOTPキー 設定済み":"未設定 — タップして設定"}
             onClick={()=>setCredOpen(p=>!p)}
             right={credStatus&&<Badge ok={credStatus.hasCredentials} label={credStatus.hasCredentials?"接続中":"未接続"}/>}/>
+          <GRow last icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
+            label="Titech Portal" sub={credStatus?.hasPortal?"アカウント・パスワード・マトリクス 設定済み":"未設定 — セットアップ画面から設定"}
+            right={credStatus&&<Badge ok={credStatus.hasPortal} label={credStatus.hasPortal?"接続中":"未接続"}/>}/>
         </GCard>
 
         {credOpen&&<div style={{marginTop:6,borderRadius:12,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>

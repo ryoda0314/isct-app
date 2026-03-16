@@ -3,7 +3,7 @@ import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { isDemoMode } from '../demoMode.js';
 import { DEMO_FRIENDS, DEMO_FRIEND_PENDING, DEMO_FRIEND_SENT } from '../demoData.js';
 
-export function useFriends() {
+export function useFriends(enabled = true) {
   const [friends, setFriends] = useState([]);
   const [pending, setPending] = useState([]);
   const [sent, setSent] = useState([]);
@@ -30,11 +30,11 @@ export function useFriends() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { if (enabled) fetchAll(); }, [fetchAll, enabled]);
 
   // Realtime subscription
   useEffect(() => {
-    if (isDemoMode()) return;
+    if (isDemoMode() || !enabled) return;
     const sb = getSupabaseClient();
     const channel = sb
       .channel('friendships_changes')
@@ -45,7 +45,7 @@ export function useFriends() {
       }, () => { fetchAll(); })
       .subscribe();
     return () => { sb.removeChannel(channel); };
-  }, [fetchAll]);
+  }, [fetchAll, enabled]);
 
   const friendIds = useMemo(() => new Set(friends.map(f => f.friendId)), [friends]);
   const isFriend = useCallback((userId) => friendIds.has(userId), [friendIds]);
