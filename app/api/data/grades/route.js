@@ -29,11 +29,13 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Portal credentials not configured' }, { status: 400 });
   }
 
+  const headers = { 'Cache-Control': 'no-store, no-cache, must-revalidate' };
+
   try {
     const data = await fetchGrades({ userId: portalUser, password: portalPass, matrix });
-    return NextResponse.json(data);
+    return NextResponse.json(data, { headers });
   } catch (err) {
     console.error('[Grades API] Error:', err.message);
-    return NextResponse.json({ error: 'Failed to fetch grades' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch grades' }, { status: 500, headers });
   }
 }

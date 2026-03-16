@@ -5,6 +5,16 @@ const withPWA = withPWAInit({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
+  extendDefaultRuntimeCaching: true,
+  workboxOptions: {
+    runtimeCaching: [
+      {
+        // 成績APIはPuppeteerで17秒+かかるため、SWキャッシュをバイパス
+        urlPattern: /\/api\/data\/grades/,
+        handler: "NetworkOnly",
+      },
+    ],
+  },
 });
 
 /** @type {import('next').NextConfig} */
