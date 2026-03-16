@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { T } from '../theme.js';
+
+/* ── Grade helpers ── */
 
 function gradeStatus(c) {
   if (c.grade === '合格') return 'passed';
@@ -28,6 +30,290 @@ function recLabel(rec) {
   if (rec.includes('L') || rec === '*') return { text: '選択', bg: T.txD };
   return null;
 }
+
+/** Parse total credits from various formats: "2", "1-1-0", "2-0-0" */
+function parseCredits(credits) {
+  if (!credits) return 0;
+  const s = String(credits).trim();
+  // "1-1-0" format → sum
+  if (s.includes('-')) {
+    return s.split('-').reduce((sum, v) => sum + (parseInt(v) || 0), 0);
+  }
+  return parseInt(s) || 0;
+}
+
+/** Convert numeric grade to GP (東工大式: (点数-55)/10) */
+function toGP(grade) {
+  const n = parseInt(grade);
+  if (isNaN(n)) return null; // 合格/未報告 etc. → exclude
+  return (n - 55) / 10;
+}
+
+/** Grade rank label from score */
+function rankLabel(score) {
+  const n = parseInt(score);
+  if (isNaN(n)) return '-';
+  if (n >= 90) return 'S';
+  if (n >= 80) return 'A';
+  if (n >= 70) return 'B';
+  if (n >= 60) return 'C';
+  return 'F';
+}
+
+function gpColor(gp) {
+  if (gp >= 3.5) return T.green;
+  if (gp >= 2.5) return T.accent;
+  if (gp >= 1.5) return T.yellow;
+  if (gp >= 0.5) return T.orange;
+  return T.red;
+}
+
+/** Calculate GPA stats for a set of courses (東工大式) */
+function calcGPA(courses) {
+  let totalGP = 0, totalCredits = 0, count = 0;
+  // Distribution by rank: S(90+), A(80-89), B(70-79), C(60-69), F(<60)
+  const dist = { S: 0, A: 0, B: 0, C: 0, F: 0 };
+
+  for (const c of courses) {
+    const gp = toGP(c.grade);
+    if (gp === null) continue;
+    const cr = parseCredits(c.credits);
+    if (cr <= 0) continue;
+    totalGP += gp * cr;
+    totalCredits += cr;
+    dist[rankLabel(c.grade)] += cr;
+    count++;
+  }
+
+  return {
+    gpa: totalCredits > 0 ? totalGP / totalCredits : 0,
+    gpt: totalGP,
+    credits: totalCredits,
+    count,
+    dist,
+  };
+}
+
+/* ── Icons ── */
+const ICN = {
+  calc: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10.01"/><line x1="12" y1="10" x2="12" y2="10.01"/><line x1="16" y1="10" x2="16" y2="10.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="14.01"/><line x1="8" y1="18" x2="16" y2="18"/></svg>,
+  back: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
+};
+
+/* ── GPA Calculator Sub-view ── */
+
+function GPACalcView({ courses, mob, onBack }) {
+  const [yearFilter, setYearFilter] = useState('all');
+
+  const years = useMemo(() =>
+    [...new Set(courses.map(c => c.period?.match(/^(\d{4})/)?.[1]).filter(Boolean))].sort(),
+    [courses]
+  );
+
+  const filtered = yearFilter === 'all' ? courses : courses.filter(c => c.period?.startsWith(yearFilter));
+
+  const overall = useMemo(() => calcGPA(filtered), [filtered]);
+
+  // By category (教養 vs 専門)
+  const liberal = useMemo(() => calcGPA(filtered.filter(c => /^LA[HESLW]/.test(c.code))), [filtered]);
+  const major = useMemo(() => calcGPA(filtered.filter(c => !/^LA[HESLW]/.test(c.code))), [filtered]);
+
+  // By year
+  const byYear = useMemo(() => {
+    const map = {};
+    for (const y of years) {
+      map[y] = calcGPA(courses.filter(c => c.period?.startsWith(y)));
+    }
+    return map;
+  }, [courses, years]);
+
+  // Per-course list with GP
+  const courseGPs = useMemo(() =>
+    filtered
+      .map(c => ({ ...c, gp: toGP(c.grade), cr: parseCredits(c.credits) }))
+      .filter(c => c.gp !== null && c.cr > 0),
+    [filtered]
+  );
+
+  const maxDist = Math.max(...Object.values(overall.dist), 1);
+
+  const statCard = (value, label, sub, color) => (
+    <div style={{
+      padding: mob ? 14 : 18, borderRadius: 12,
+      background: `${color}08`, border: `1px solid ${color}20`, textAlign: 'center',
+    }}>
+      <div style={{ fontSize: mob ? 28 : 34, fontWeight: 800, color }}>{value}</div>
+      <div style={{ fontSize: 11, color: T.txD, marginTop: 2 }}>{label}</div>
+      {sub && <div style={{ fontSize: 10, color: T.txD, marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: mob ? 12 : 20 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <button onClick={onBack} style={{
+          background: 'none', border: 'none', color: T.txD, cursor: 'pointer',
+          display: 'flex', padding: 4,
+        }}>{ICN.back}</button>
+        <div style={{ fontWeight: 700, color: T.txH, fontSize: mob ? 16 : 18 }}>GPA / GPT</div>
+      </div>
+
+      {/* Year filter */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button onClick={() => setYearFilter('all')} style={{
+          padding: '5px 14px', borderRadius: 20, border: 'none',
+          background: yearFilter === 'all' ? T.accent : T.bg3,
+          color: yearFilter === 'all' ? '#fff' : T.txD, fontSize: 12, cursor: 'pointer',
+          fontWeight: yearFilter === 'all' ? 600 : 400,
+        }}>全年度</button>
+        {years.map(y => (
+          <button key={y} onClick={() => setYearFilter(y)} style={{
+            padding: '5px 14px', borderRadius: 20, border: 'none',
+            background: yearFilter === y ? T.accent : T.bg3,
+            color: yearFilter === y ? '#fff' : T.txD, fontSize: 12, cursor: 'pointer',
+            fontWeight: yearFilter === y ? 600 : 400,
+          }}>{y}</button>
+        ))}
+      </div>
+
+      {/* Main stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: mob ? 6 : 8, marginBottom: 16 }}>
+        {statCard(overall.gpa.toFixed(2), 'GPA', `${overall.credits}単位`, T.accent)}
+        {statCard(overall.gpt.toFixed(1), 'GPT', `${overall.count}科目`, T.green)}
+        {statCard(overall.credits, '修得単位', null, T.yellow)}
+      </div>
+
+      {/* 教養 / 専門 breakdown */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: mob ? 6 : 8, marginBottom: 16 }}>
+        <div style={{
+          padding: mob ? 12 : 14, borderRadius: 10, background: T.bg2, border: `1px solid ${T.bd}`,
+        }}>
+          <div style={{ fontSize: 11, color: T.txD, marginBottom: 4 }}>教養科目</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: T.orange }}>{liberal.gpa.toFixed(2)}</div>
+          <div style={{ fontSize: 10, color: T.txD }}>{liberal.credits}単位 / GPT {liberal.gpt.toFixed(1)}</div>
+        </div>
+        <div style={{
+          padding: mob ? 12 : 14, borderRadius: 10, background: T.bg2, border: `1px solid ${T.bd}`,
+        }}>
+          <div style={{ fontSize: 11, color: T.txD, marginBottom: 4 }}>専門科目</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: T.green }}>{major.gpa.toFixed(2)}</div>
+          <div style={{ fontSize: 10, color: T.txD }}>{major.credits}単位 / GPT {major.gpt.toFixed(1)}</div>
+        </div>
+      </div>
+
+      {/* Grade distribution */}
+      <div style={{
+        padding: mob ? 12 : 16, borderRadius: 12, background: T.bg2,
+        border: `1px solid ${T.bd}`, marginBottom: 16,
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 12 }}>成績分布（単位数）</div>
+        {[
+          { rank: 'S', label: '90-100', gp: 3.5, color: T.green },
+          { rank: 'A', label: '80-89', gp: 2.5, color: T.accent },
+          { rank: 'B', label: '70-79', gp: 1.5, color: T.yellow },
+          { rank: 'C', label: '60-69', gp: 0.5, color: T.orange },
+          { rank: 'F', label: '0-59', gp: -2, color: T.red },
+        ].map(r => (
+          <div key={r.rank} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{
+              fontSize: 12, fontWeight: 700, color: r.color, width: 16, textAlign: 'center',
+            }}>{r.rank}</span>
+            <span style={{ fontSize: 10, color: T.txD, width: 38 }}>{r.label}</span>
+            <div style={{ flex: 1, height: 18, background: T.bg3, borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', borderRadius: 4,
+                width: `${(overall.dist[r.rank] / maxDist) * 100}%`,
+                background: r.color, transition: 'width 0.3s',
+                minWidth: overall.dist[r.rank] > 0 ? 4 : 0,
+              }} />
+            </div>
+            <span style={{ fontSize: 11, color: T.txH, fontWeight: 600, width: 28 }}>{overall.dist[r.rank]}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* GPA by year */}
+      {yearFilter === 'all' && years.length > 1 && (
+        <div style={{
+          padding: mob ? 12 : 16, borderRadius: 12, background: T.bg2,
+          border: `1px solid ${T.bd}`, marginBottom: 16,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 12 }}>年度別GPA</div>
+          {years.map(y => {
+            const s = byYear[y];
+            if (!s || s.count === 0) return null;
+            return (
+              <div key={y} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 0', borderBottom: `1px solid ${T.bd}`,
+              }}>
+                <span style={{ fontSize: 13, color: T.txH, fontWeight: 500 }}>{y}年度</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 11, color: T.txD }}>{s.credits}単位</span>
+                  <span style={{ fontSize: 11, color: T.txD }}>GPT {s.gpt.toFixed(1)}</span>
+                  <span style={{
+                    fontSize: 16, fontWeight: 700,
+                    color: s.gpa >= 3 ? T.green : s.gpa >= 2 ? T.yellow : T.orange,
+                  }}>{s.gpa.toFixed(2)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Per-course GP list */}
+      <div style={{
+        padding: mob ? 12 : 16, borderRadius: 12, background: T.bg2,
+        border: `1px solid ${T.bd}`, marginBottom: 16,
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>
+          科目別GP（{courseGPs.length}科目）
+        </div>
+        {courseGPs.map((c, i) => (
+          <div key={`${c.code}-${i}`} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '6px 0', borderBottom: i < courseGPs.length - 1 ? `1px solid ${T.bd}` : 'none',
+          }}>
+            <span style={{
+              fontSize: 12, fontWeight: 700, color: gpColor(c.gp),
+              width: 30, textAlign: 'center', flexShrink: 0,
+            }}>{c.gp.toFixed(1)}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: 12, color: T.txH, overflow: 'hidden',
+                textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>{c.name}</div>
+              <div style={{ fontSize: 10, color: T.txD }}>{c.code} · {c.credits}単位 · {c.grade}点</div>
+            </div>
+            <span style={{
+              fontSize: 11, color: T.txD, flexShrink: 0,
+            }}>{c.gp.toFixed(1)}×{c.cr}={(c.gp * c.cr).toFixed(1)}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Explanation */}
+      <div style={{
+        padding: mob ? 10 : 12, borderRadius: 10,
+        background: `${T.accent}06`, border: `1px solid ${T.accent}15`,
+        fontSize: 11, color: T.txD, lineHeight: 1.7,
+      }}>
+        <div style={{ fontWeight: 600, color: T.txH, marginBottom: 4 }}>計算方法（東工大式）</div>
+        GP = (点数 - 55) / 10<br />
+        GPT = Σ(GP × 単位数)<br />
+        GPA = GPT / 修得単位数<br />
+        <span style={{ fontSize: 10, marginTop: 4, display: 'block' }}>
+          例: 90点×2単位 → GP=3.5, 寄与=7.0<br />
+          合格・未報告の科目はGPA計算から除外
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Category Section ── */
 
 function CategorySection({ name, courses: items, mob }) {
   const [open, setOpen] = useState(true);
@@ -83,6 +369,8 @@ function CategorySection({ name, courses: items, mob }) {
   );
 }
 
+/* ── Main GradeView ── */
+
 export const GradeView = ({ mob }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -90,6 +378,7 @@ export const GradeView = ({ mob }) => {
   const [filter, setFilter] = useState('all');
   const [year, setYear] = useState('all');
   const [qtr, setQtr] = useState('all');
+  const [subView, setSubView] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -138,9 +427,14 @@ export const GradeView = ({ mob }) => {
   }
 
   const { summary, categories, courses: allCourses } = data;
+
+  // GPA sub-view
+  if (subView === 'gpa' && allCourses?.length > 0) {
+    return <GPACalcView courses={allCourses} mob={mob} onBack={() => setSubView(null)} />;
+  }
+
   const gpa = summary?.gpa || {};
 
-  // Extract unique years and quarters from data
   const years = [...new Set((allCourses || []).map(c => c.period?.match(/^(\d{4})/)?.[1]).filter(Boolean))].sort();
   const quarters = [...new Set((allCourses || []).flatMap(c => {
     const q = c.quarter;
@@ -161,7 +455,6 @@ export const GradeView = ({ mob }) => {
     return q === qtr;
   });
 
-  // Group by category based on course code prefix
   const grouped = {};
   for (const c of filtered) {
     const prefix = c.code.substring(0, 3);
@@ -207,6 +500,16 @@ export const GradeView = ({ mob }) => {
           成績一覧
           {summary?.name && <span style={{ fontSize: 12, fontWeight: 400, color: T.txD, marginLeft: 8 }}>{summary.name}</span>}
         </div>
+        {allCourses?.length > 0 && (
+          <button onClick={() => setSubView('gpa')} style={{
+            display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px',
+            borderRadius: 8, border: `1px solid ${T.accent}40`, background: `${T.accent}08`,
+            color: T.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+          }}>
+            {ICN.calc}
+            GPA
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: mob ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: mob ? 6 : 8, marginBottom: 16 }}>
