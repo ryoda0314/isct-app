@@ -42,118 +42,181 @@ function computeThreshold(imageData) {
   return thresh;
 }
 
-/** canvas を二値化処理（Otsu adaptive threshold） */
-function binarize(canvas) {
-  const ctx = canvas.getContext('2d');
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const d = imageData.data;
-  const thresh = computeThreshold(imageData);
-  for (let i = 0; i < d.length; i += 4) {
-    const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-    const v = gray > thresh ? 255 : 0;
-    d[i] = d[i + 1] = d[i + 2] = v;
-  }
-  ctx.putImageData(imageData, 0, 0);
-}
-
-/** データ領域のみ切り出し（ヘッダ行・行番号列を除去）+ 小さければ拡大 */
-function cropDataArea(srcCanvas) {
-  const sw = srcCanvas.width, sh = srcCanvas.height;
-  // マトリクスカード: 左 ~9% が行番号列、上 ~14% がヘッダ行
-  const x0 = Math.round(sw * 0.09);
-  const y0 = Math.round(sh * 0.14);
-  const cw = sw - x0 - Math.round(sw * 0.01);
-  const ch = sh - y0 - Math.round(sh * 0.02);
-  const scale = cw < 600 ? 2 : 1;
-  const canvas = document.createElement('canvas');
-  canvas.width = cw * scale;
-  canvas.height = ch * scale;
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(srcCanvas, x0, y0, cw, ch, 0, 0, canvas.width, canvas.height);
-  return canvas;
-}
-
-/** グリッド構造からセルを個別抽出し、罫線・背景を完全除去した画像を生成 */
-function extractCellGrid(srcCanvas) {
-  const sw = srcCanvas.width, sh = srcCanvas.height;
-  // カード構造: 11列(行番号+A-J) × 8行(ヘッダ+1-7)
-  const colW = sw / 11, rowH = sh / 8;
-  // セル内マージン（罫線を除外）
-  const mx = colW * 0.20, my = rowH * 0.18;
-  // 出力: 各セル 64×80px、行間に余白あり・列間に小余白
-  const OW = 64, OH = 80, GX = 6, GY = 24;
-  const out = document.createElement('canvas');
-  out.width = OW * 10 + GX * 9;
-  out.height = GY + (OH + GY) * 7;
-  const ctx = out.getContext('2d');
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, out.width, out.height);
-  const tmp = document.createElement('canvas');
-  const tctx = tmp.getContext('2d');
-
-  for (let r = 0; r < 7; r++) {
-    for (let c = 0; c < 10; c++) {
-      const sx = (c + 1) * colW + mx;
-      const sy = (r + 1) * rowH + my;
-      const cw = colW - 2 * mx, ch = rowH - 2 * my;
-      tmp.width = Math.max(1, Math.round(cw));
-      tmp.height = Math.max(1, Math.round(ch));
-      tctx.clearRect(0, 0, tmp.width, tmp.height);
-      tctx.drawImage(srcCanvas, Math.round(sx), Math.round(sy),
-        Math.round(cw), Math.round(ch), 0, 0, tmp.width, tmp.height);
-      // セル個別に二値化（ピンク/白の背景差を吸収）
-      const imgData = tctx.getImageData(0, 0, tmp.width, tmp.height);
-      const thresh = computeThreshold(imgData);
-      const d = imgData.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-        d[i] = d[i + 1] = d[i + 2] = g > thresh ? 255 : 0;
-      }
-      tctx.putImageData(imgData, 0, 0);
-      const dx = c * (OW + GX), dy = GY + r * (OH + GY);
-      ctx.drawImage(tmp, 0, 0, tmp.width, tmp.height, dx, dy, OW, OH);
-    }
-  }
-  return out;
-}
-
 /** OCR誤認識の数字→文字補正 */
 function fixOCRChar(c) {
   return { '0': 'O', '1': 'I', '2': 'Z', '5': 'S', '8': 'B', '6': 'G' }[c] || c;
 }
 
-/** OCR結果からマトリクスをパース */
-function parseOCRResult(text) {
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  const matrix = {};
-  let rowIdx = 0;
+/* ─── 射影プロファイルでグリッド線を検出 ─── */
+function detectGridLines(srcCanvas) {
+  const ctx = srcCanvas.getContext('2d', { willReadFrequently: true });
+  const w = srcCanvas.width, h = srcCanvas.height;
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const d = imgData.data;
 
-  for (const line of lines) {
-    let cleaned = line.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-    if (cleaned.length < 3) continue;
-    // ヘッダ行をスキップ
-    if (cleaned.length >= 8 && cleaned.slice(0, 5) === 'ABCDE') continue;
-    // 数字のみの行をスキップ
-    if (/^\d+$/.test(cleaned)) continue;
-    if (rowIdx >= ROWS.length) break;
-    // 先頭が数字なら行番号 → スキップ
-    let start = 0;
-    if (/^\d/.test(cleaned)) start = 1;
-    const chars = cleaned.slice(start).split('').map(fixOCRChar).filter(c => /^[A-Z]$/.test(c));
-    if (chars.length < 3) continue;
-    const row = ROWS[rowIdx];
-    for (let ci = 0; ci < Math.min(chars.length, COLS.length); ci++) {
-      const col = COLS[ci];
-      if (!matrix[col]) matrix[col] = {};
-      matrix[col][row] = chars[ci];
+  // 各行/列の暗ピクセル比率を計算
+  const rowDark = new Float64Array(h);
+  for (let y = 0; y < h; y++) {
+    let cnt = 0;
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2] < 90) cnt++;
     }
-    rowIdx++;
+    rowDark[y] = cnt / w;
   }
-  return { matrix, rowsFound: rowIdx };
+  const colDark = new Float64Array(w);
+  for (let x = 0; x < w; x++) {
+    let cnt = 0;
+    for (let y = 0; y < h; y++) {
+      const i = (y * w + x) * 4;
+      if (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2] < 90) cnt++;
+    }
+    colDark[x] = cnt / h;
+  }
+
+  const findLines = (prof, len) => {
+    // 暗いラインの中心位置を検出
+    const lines = [];
+    let inDark = false, start = 0;
+    const thresh = 0.25;
+    for (let i = 0; i < len; i++) {
+      if (prof[i] > thresh) {
+        if (!inDark) { inDark = true; start = i; }
+      } else {
+        if (inDark) {
+          const width = i - start;
+          // 細い線（<15% of total）のみグリッド線として採用
+          // 太い帯（ヘッダ/サイドバー背景）は除外
+          if (width < len * 0.15) {
+            lines.push(Math.round((start + i) / 2));
+          } else {
+            // 太い帯の開始・終了位置を境界として記録
+            lines.push(start);
+            lines.push(i);
+          }
+          inDark = false;
+        }
+      }
+    }
+    if (inDark) {
+      const width = len - start;
+      if (width < len * 0.15) lines.push(Math.round((start + len) / 2));
+      else { lines.push(start); lines.push(len); }
+    }
+    return lines;
+  };
+
+  return { hLines: findLines(rowDark, h), vLines: findLines(colDark, w) };
 }
 
-/** 画像ファイルからマトリクスを読み取る */
+/** グリッド線からセル境界を推定 */
+function getCellBounds(srcCanvas) {
+  const sw = srcCanvas.width, sh = srcCanvas.height;
+
+  try {
+    const { hLines, vLines } = detectGridLines(srcCanvas);
+
+    // 水平線: 8行区切り → 9本の線が期待（上端, header/row1, row1/row2, ..., 下端）
+    // 垂直線: 11列区切り → 12本の線が期待
+    // 検出された線が十分あればそれを使う
+    if (hLines.length >= 8 && vLines.length >= 10) {
+      // ソート
+      const hs = [...hLines].sort((a, b) => a - b);
+      const vs = [...vLines].sort((a, b) => a - b);
+
+      // データ行: ヘッダ以降の7行を特定
+      // 最初の2つの水平線の間がヘッダ行、以降がデータ行
+      // 垂直線: 最初の2つの間が行番号列、以降がデータ列
+      const rowStarts = [];
+      const colStarts = [];
+
+      // 水平線から行の開始位置を取得（2番目の線以降）
+      for (let i = 1; i < hs.length && rowStarts.length < 8; i++) {
+        // 前の線との距離が十分あれば新しいセル境界
+        if (i === 1 || hs[i] - hs[i - 1] > sh * 0.04) {
+          rowStarts.push(hs[i]);
+        }
+      }
+
+      for (let i = 1; i < vs.length && colStarts.length < 11; i++) {
+        if (i === 1 || vs[i] - vs[i - 1] > sw * 0.03) {
+          colStarts.push(vs[i]);
+        }
+      }
+
+      if (rowStarts.length >= 7 && colStarts.length >= 10) {
+        // データ領域: rowStarts[0]以降の7行、colStarts[0]以降の10列
+        const cells = [];
+        for (let r = 0; r < 7; r++) {
+          const y0 = rowStarts[r] || (sh * (r + 1) / 8);
+          const y1 = rowStarts[r + 1] || (sh * (r + 2) / 8);
+          for (let c = 0; c < 10; c++) {
+            const x0 = colStarts[c] || (sw * (c + 1) / 11);
+            const x1 = colStarts[c + 1] || (sw * (c + 2) / 11);
+            cells.push({ col: c, row: r, x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+          }
+        }
+        return cells;
+      }
+    }
+  } catch {}
+
+  // フォールバック: 固定比率（行番号列は狭め）
+  const rnw = sw * 0.065;
+  const dcw = (sw - rnw) / 10;
+  const drh = sh / 8;
+  const cells = [];
+  for (let r = 0; r < 7; r++) {
+    for (let c = 0; c < 10; c++) {
+      cells.push({
+        col: c, row: r,
+        x: rnw + c * dcw,
+        y: (r + 1) * drh,
+        w: dcw, h: drh,
+      });
+    }
+  }
+  return cells;
+}
+
+/** 単一セルを抽出・二値化（80×80px、パディング付き） */
+function extractCell(srcCanvas, cell) {
+  const mx = cell.w * 0.15, my = cell.h * 0.12;
+  const size = 80, pad = 8;
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, size, size);
+  ctx.drawImage(srcCanvas,
+    Math.round(cell.x + mx), Math.round(cell.y + my),
+    Math.round(cell.w - 2 * mx), Math.round(cell.h - 2 * my),
+    pad, pad, size - 2 * pad, size - 2 * pad);
+
+  // 個別二値化（Otsu）
+  const imgData = ctx.getImageData(0, 0, size, size);
+  const thresh = computeThreshold(imgData);
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    d[i] = d[i + 1] = d[i + 2] = g > thresh ? 255 : 0;
+  }
+  ctx.putImageData(imgData, 0, 0);
+  return c;
+}
+
+/** Worker で単一セルを認識し、文字を返す */
+async function recognizeCell(worker, cellCanvas) {
+  const { data } = await worker.recognize(cellCanvas);
+  const raw = data.text.trim().replace(/[^A-Z0-9]/gi, '').toUpperCase();
+  if (raw.length >= 1) {
+    const ch = fixOCRChar(raw[0]);
+    if (/^[A-Z]$/.test(ch)) return ch;
+  }
+  return null;
+}
+
+/** 画像ファイルからマトリクスを読み取る（セル個別OCR） */
 async function scanMatrixFromImage(file) {
   await loadTesseract();
 
@@ -169,14 +232,30 @@ async function scanMatrixFromImage(file) {
   canvas.height = img.height;
   canvas.getContext('2d').drawImage(img, 0, 0);
   URL.revokeObjectURL(img.src);
-  const dataCanvas = cropDataArea(canvas);
-  binarize(dataCanvas);
 
-  const { data } = await window.Tesseract.recognize(dataCanvas, 'eng', {
-    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
-    tessedit_pageseg_mode: '6',
+  const w = await window.Tesseract.createWorker('eng');
+  await w.setParameters({
+    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    tessedit_pageseg_mode: '10',
   });
-  return parseOCRResult(data.text);
+
+  const cells = getCellBounds(canvas);
+  const matrix = {};
+  let rowsFound = new Set();
+
+  for (const cell of cells) {
+    const cellCanvas = extractCell(canvas, cell);
+    const ch = await recognizeCell(w, cellCanvas);
+    if (ch) {
+      const col = COLS[cell.col], row = ROWS[cell.row];
+      if (!matrix[col]) matrix[col] = {};
+      matrix[col][row] = ch;
+      rowsFound.add(cell.row);
+    }
+  }
+
+  await w.terminate();
+  return { matrix, rowsFound: rowsFound.size };
 }
 
 /* ─── ガイドフレームの位置をビデオ座標に変換 ─── */
@@ -186,19 +265,16 @@ function getFrameRect(video, containerEl) {
   const cw = containerEl.clientWidth, ch = containerEl.clientHeight;
   if (!vw || !vh || !cw || !ch) return null;
 
-  // object-fit: cover のスケール計算
   const scale = Math.max(cw / vw, ch / vh);
   const sw = vw * scale, sh = vh * scale;
   const ox = (sw - cw) / 2, oy = (sh - ch) / 2;
 
-  // ガイドフレームの画面上の位置（CSS: 90% width, centered, aspect 8.56/5.4）
   const CARD_RATIO = 8.56 / 5.4;
   const fw = cw * 0.90;
   const fh = fw / CARD_RATIO;
   const fx = (cw - fw) / 2;
   const fy = (ch - fh) / 2;
 
-  // ビデオ座標に変換
   const sx = (fx + ox) / scale;
   const sy = (fy + oy) / scale;
   const sWidth = fw / scale;
@@ -220,8 +296,8 @@ function LiveScanner({ onResult, onClose }) {
   const busyRef = useRef(false);
   const doneRef = useRef(false);
   const workerRef = useRef(null);
-  const votesRef = useRef({}); // { "A-1": { "G": 3, "C": 1 }, ... }
-  const [phase, setPhase] = useState('init'); // init | workerLoading | ready | error | found
+  const votesRef = useRef({});
+  const [phase, setPhase] = useState('init');
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [errMsg, setErrMsg] = useState(null);
@@ -233,12 +309,11 @@ function LiveScanner({ onResult, onClose }) {
     }
   }, []);
 
-  // カメラ起動 + Tesseract worker 同時ロード
+  // カメラ起動 + Tesseract worker（PSM 10: 単一文字モード）
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      // カメラ起動
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
@@ -254,15 +329,14 @@ function LiveScanner({ onResult, onClose }) {
         return;
       }
 
-      // Tesseract ロード
       if (!cancelled) setPhase('workerLoading');
       try {
         await loadTesseract();
         if (cancelled) return;
         const w = await window.Tesseract.createWorker('eng');
         await w.setParameters({
-          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
-          tessedit_pageseg_mode: '6',
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+          tessedit_pageseg_mode: '10',
         });
         if (cancelled) { w.terminate(); return; }
         workerRef.current = w;
@@ -279,7 +353,7 @@ function LiveScanner({ onResult, onClose }) {
     };
   }, [stopStream]);
 
-  // 定期フレームスキャン（phase に依存しない安定した interval）
+  // セル個別スキャン
   useEffect(() => {
     const iv = setInterval(async () => {
       if (busyRef.current || doneRef.current || !workerRef.current || !videoRef.current) return;
@@ -290,7 +364,7 @@ function LiveScanner({ onResult, onClose }) {
       setScanning(true);
 
       try {
-        // ガイドフレーム内のみ切り出し
+        // ガイドフレーム内を切り出し
         const rect = getFrameRect(video, containerRef.current);
         const rawCanvas = document.createElement('canvas');
         if (rect && rect.sWidth > 50 && rect.sHeight > 50) {
@@ -302,26 +376,28 @@ function LiveScanner({ onResult, onClose }) {
           rawCanvas.height = video.videoHeight;
           rawCanvas.getContext('2d').drawImage(video, 0, 0);
         }
-        // セル個別抽出（罫線・背景を完全除去）
-        const gridCanvas = extractCellGrid(rawCanvas);
 
-        const { data } = await workerRef.current.recognize(gridCanvas);
-        const { matrix: parsed, rowsFound } = parseOCRResult(data.text);
+        // グリッド検出 → セル境界取得
+        const cells = getCellBounds(rawCanvas);
 
-        // 投票を蓄積（複数フレームのコンセンサスで精度向上）
-        for (const c of COLS) {
-          for (const r of ROWS) {
-            const ch = parsed[c]?.[r];
-            if (!ch || !/^[A-Z]$/.test(ch)) continue;
-            const key = `${c}-${r}`;
+        // 各セルを個別にOCR（確信済みセルはスキップ）
+        for (const cell of cells) {
+          if (doneRef.current) break;
+          const key = `${COLS[cell.col]}-${ROWS[cell.row]}`;
+          const ev = votesRef.current[key];
+          if (ev && Math.max(...Object.values(ev)) >= 3) continue;
+
+          const cellCanvas = extractCell(rawCanvas, cell);
+          const ch = await recognizeCell(workerRef.current, cellCanvas);
+          if (ch) {
             if (!votesRef.current[key]) votesRef.current[key] = {};
             votesRef.current[key][ch] = (votesRef.current[key][ch] || 0) + 1;
           }
         }
 
-        // コンセンサス行列を構築（最多投票の文字を採用）
+        // コンセンサス行列を構築
         const consensus = {};
-        let cells = 0;
+        let confirmed = 0;
         for (const c of COLS) {
           consensus[c] = {};
           for (const r of ROWS) {
@@ -331,12 +407,12 @@ function LiveScanner({ onResult, onClose }) {
             for (const [ch, count] of Object.entries(votes)) {
               if (count > bestCount) { best = ch; bestCount = count; }
             }
-            if (best) { consensus[c][r] = best; cells++; }
+            if (best) { consensus[c][r] = best; confirmed++; }
           }
         }
-        setProgress(cells);
+        setProgress(confirmed);
 
-        if (cells >= 55) {
+        if (confirmed >= 60) {
           doneRef.current = true;
           setPhase('found');
           setScanning(false);
@@ -348,7 +424,7 @@ function LiveScanner({ onResult, onClose }) {
 
       busyRef.current = false;
       setScanning(false);
-    }, 1200);
+    }, 800);
 
     return () => clearInterval(iv);
   }, [onResult, stopStream]);
@@ -371,7 +447,6 @@ function LiveScanner({ onResult, onClose }) {
       position: 'fixed', inset: 0, zIndex: 10000, background: '#000',
       display: 'flex', flexDirection: 'column',
     }}>
-      {/* ヘッダー */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '12px 16px', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)',
@@ -385,21 +460,16 @@ function LiveScanner({ onResult, onClose }) {
         }}>✕</button>
       </div>
 
-      {/* カメラビュー */}
       <div ref={containerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         <video ref={videoRef} playsInline muted style={{
           width: '100%', height: '100%', objectFit: 'cover',
         }} />
-
-        {/* フレーム外を暗くするオーバーレイ（CSS mask で穴を開ける） */}
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none',
           background: 'rgba(0,0,0,.55)',
           maskImage: 'radial-gradient(ellipse 48% 26% at 50% 50%, transparent 98%, black 100%)',
           WebkitMaskImage: 'radial-gradient(ellipse 48% 26% at 50% 50%, transparent 98%, black 100%)',
         }} />
-
-        {/* ガイドフレーム — クレジットカードサイズ比率 */}
         <div style={{
           position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
           width: '90%', maxWidth: 420, aspectRatio: '8.56 / 5.4',
@@ -408,8 +478,6 @@ function LiveScanner({ onResult, onClose }) {
           <div style={cornerStyle('tr')} />
           <div style={cornerStyle('bl')} />
           <div style={cornerStyle('br')} />
-
-          {/* スキャンライン */}
           {isActive && (
             <div style={{
               position: 'absolute', left: 6, right: 6, height: 2,
@@ -420,7 +488,6 @@ function LiveScanner({ onResult, onClose }) {
         </div>
       </div>
 
-      {/* ステータスバー */}
       <div style={{
         padding: '16px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)',
         background: 'rgba(0,0,0,.85)', flexShrink: 0, textAlign: 'center',
@@ -455,7 +522,7 @@ function LiveScanner({ onResult, onClose }) {
           }}>
             <div style={{
               width: `${Math.min(100, (progress / 70) * 100)}%`, height: '100%',
-              borderRadius: 3, background: progress >= 35 ? T.green : T.accent,
+              borderRadius: 3, background: progress >= 50 ? T.green : T.accent,
               transition: 'width .3s, background .3s',
             }} />
           </div>
@@ -519,7 +586,6 @@ export function MatrixInput({ matrix, setMatrix }) {
     });
   }, [setMatrix]);
 
-  // ファイル選択フォールバック
   const handleFileScan = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -564,7 +630,6 @@ export function MatrixInput({ matrix, setMatrix }) {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform .15s" }}><polyline points="6 9 12 15 18 9" /></svg>
       </div>
 
-      {/* カメラスキャン / 画像選択 */}
       <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
         {hasCamera && (
           <button onClick={() => setLiveMode(true)} style={{
