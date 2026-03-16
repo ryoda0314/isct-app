@@ -46,6 +46,7 @@ const API="";
 // ============================================================
 export default function App(){
   const mob=useMobile();
+  const [appState,setAppState]=useState("loading");
   const ready=appState==="ready";
   const user=useCurrentUser(ready);
   const [darkPref,setDarkPref]=useState(()=>{try{return localStorage.getItem("themePref")||"dark";}catch{return "dark";}});
@@ -60,7 +61,6 @@ export default function App(){
   useEffect(()=>{try{localStorage.setItem("themePref",darkPref);}catch{}},[darkPref]);
   const dark=darkPref==="auto"?sysDark:darkPref==="dark";
   updateT(dark);
-  const [appState,setAppState]=useState("loading");
   const [mockMode,setMockMode]=useState(false);
   const [quarter,setQuarter]=useState(()=>{try{const v=localStorage.getItem("quarter");return v?Number(v):2;}catch{return 2;}});
   const [qDataLive,setQDataLive]=useState(null);
