@@ -65,7 +65,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
           <button onClick={()=>setMoreOpen(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.x}</button>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          {[{id:"grades",i:I.grad,l:"成績・出席",c:T.accentSoft},{id:"pomo",i:I.play,l:"ポモドーロ",c:T.green},{id:"events",i:I.event,l:"イベント",c:T.orange},{id:"reviews",i:I.star,l:"授業レビュー",c:"#c6a236"},{id:"bmarks",i:I.bmark,l:"ブックマーク",c:T.txD},{id:"location",i:I.pin,l:"友達の居場所",c:T.green},{id:"encounter",i:I.encounter,l:"すれ違い通信",c:T.accent}].map(n=>
+          {[{id:"grades",i:I.grad,l:"成績",c:T.accentSoft},{id:"pomo",i:I.play,l:"ポモドーロ",c:T.green},{id:"events",i:I.event,l:"イベント",c:T.orange},{id:"reviews",i:I.star,l:"授業レビュー",c:"#c6a236"},{id:"bmarks",i:I.bmark,l:"ブックマーク",c:T.txD},{id:"location",i:I.pin,l:"友達の居場所",c:T.green},{id:"encounter",i:I.encounter,l:"すれ違い通信",c:T.accent}].map(n=>
             <button key={n.id} onClick={()=>{setView(n.id);setMoreOpen(false);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,padding:"16px 8px",borderRadius:12,border:view===n.id?`2px solid ${n.c}`:`1px solid ${T.bd}`,background:view===n.id?`${n.c}10`:T.bg3,cursor:"pointer",transition:"all .12s"}}>
               <span style={{color:n.c,display:"flex"}}>{n.i}</span>
               <span style={{fontSize:12,fontWeight:view===n.id?600:400,color:view===n.id?T.txH:T.tx}}>{n.l}</span>
@@ -151,7 +151,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0})=>{
     ]},
     {title:"学習",items:[
       {id:"calendar",i:I.cal,l:"カレンダー"},
-      {id:"grades",i:I.grad,l:"成績・出席"},
+      {id:"grades",i:I.grad,l:"成績"},
       {id:"reviews",i:I.star,l:"授業レビュー"},
       {id:"pomo",i:I.play,l:"ポモドーロタイマー"},
     ]},

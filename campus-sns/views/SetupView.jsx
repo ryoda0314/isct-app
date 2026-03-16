@@ -4,28 +4,152 @@ import { I } from "../icons.jsx";
 import { updateUserPref } from "../hooks/useCurrentUser.js";
 
 const API = "";
-
-// 完全独立のフルスクリーンページ（ボトムバーなし）
 const PAGE={position:"fixed",inset:0,display:"flex",flexDirection:"column",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",zIndex:9999};
+const COLS = ['A','B','C','D','E','F','G','H','I','J'];
+const ROWS = ['1','2','3','4','5','6','7'];
+
+function MatrixInput({ matrix, setMatrix }) {
+  const [expanded, setExpanded] = useState(false);
+  const filled = COLS.every(c => ROWS.every(r => matrix[c]?.[r]));
+
+  const set = (col, row, val) => {
+    setMatrix(prev => {
+      const next = { ...prev };
+      if (!next[col]) next[col] = {};
+      next[col] = { ...next[col], [row]: val.toUpperCase().slice(0, 1) };
+      return next;
+    });
+  };
+
+  const focusNext = (col, row) => {
+    const ci = COLS.indexOf(col);
+    const ri = ROWS.indexOf(row);
+    let nc = ci + 1, nr = ri;
+    if (nc >= COLS.length) { nc = 0; nr++; }
+    if (nr < ROWS.length) {
+      const next = document.getElementById(`mx-${COLS[nc]}-${ROWS[nr]}`);
+      if (next) next.focus();
+    }
+  };
+
+  return (
+    <div>
+      <div onClick={() => setExpanded(p => !p)} style={{
+        padding: "12px 14px", borderRadius: 10, border: `1px solid ${T.bd}`,
+        background: T.bg3, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center",
+      }}>
+        <span style={{ fontSize: 14, color: filled ? T.green : T.txD }}>
+          {filled ? "マトリクスカード登録済み" : "マトリクスカードを入力"}
+        </span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform .15s" }}><polyline points="6 9 12 15 18 9" /></svg>
+      </div>
+      {expanded && (
+        <div style={{ marginTop: 8, padding: 10, borderRadius: 10, border: `1px solid ${T.bd}`, background: T.bg3, overflowX: "auto" }}>
+          <p style={{ fontSize: 11, color: T.txD, marginBottom: 8 }}>マトリクスカードの各セルを入力（大文字・小文字は区別しません）</p>
+          <table style={{ borderCollapse: "collapse", width: "100%" }}>
+            <thead>
+              <tr>
+                <th style={{ width: 24, fontSize: 10, color: T.txD, padding: 2 }} />
+                {COLS.map(c => (
+                  <th key={c} style={{ fontSize: 11, color: T.accent, padding: 2, textAlign: "center", fontWeight: 700 }}>{c}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {ROWS.map(r => (
+                <tr key={r}>
+                  <td style={{ fontSize: 11, color: T.accent, textAlign: "center", fontWeight: 700, padding: 2 }}>{r}</td>
+                  {COLS.map(c => (
+                    <td key={c} style={{ padding: 1 }}>
+                      <input
+                        id={`mx-${c}-${r}`}
+                        value={matrix[c]?.[r] || ''}
+                        onChange={e => {
+                          const v = e.target.value;
+                          set(c, r, v);
+                          if (v) focusNext(c, r);
+                        }}
+                        maxLength={1}
+                        style={{
+                          width: "100%", minWidth: 24, height: 28, textAlign: "center",
+                          border: `1px solid ${matrix[c]?.[r] ? T.accent + '40' : T.bd}`,
+                          borderRadius: 4, background: matrix[c]?.[r] ? `${T.accent}08` : T.bg2,
+                          color: T.txH, fontSize: 14, fontWeight: 700, fontFamily: "monospace",
+                          outline: "none", textTransform: "uppercase", padding: 0,
+                        }}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InputField({ label, value, onChange, placeholder, type = "text", mono, note, showToggle }) {
+  const [show, setShow] = useState(false);
+  const eyeOff = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 01-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>;
+  return (
+    <div>
+      <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" }}>{label}</label>
+      <div style={{ position: "relative" }}>
+        <input
+          style={{
+            width: "100%", padding: showToggle ? "12px 44px 12px 14px" : "12px 14px",
+            borderRadius: 10, border: `1px solid ${T.bd}`, background: T.bg3,
+            color: T.txH, fontSize: 16, outline: "none", boxSizing: "border-box",
+            ...(mono ? { fontFamily: "monospace", letterSpacing: 1 } : {}),
+          }}
+          type={showToggle ? (show ? "text" : "password") : type}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          autoComplete={type === "password" ? "current-password" : "off"}
+          autoCapitalize={mono ? "characters" : "none"}
+        />
+        {showToggle && (
+          <button onClick={() => setShow(p => !p)} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 4 }}>
+            {show ? I.eye : eyeOff}
+          </button>
+        )}
+      </div>
+      {note && <p style={{ fontSize: 11, color: T.txD, margin: "6px 0 0", lineHeight: 1.5 }}>{note}</p>}
+    </div>
+  );
+}
 
 export const SetupView = ({ onComplete, onSkip, onDemo, mob }) => {
-  const [userId, setUserId] = useState("");
-  const [password, setPassword] = useState("");
+  // ISCT (LMS)
+  const [isctId, setIsctId] = useState("");
+  const [isctPw, setIsctPw] = useState("");
   const [totpSecret, setTotpSecret] = useState("");
+  // Titech Portal
+  const [portalId, setPortalId] = useState("");
+  const [portalPw, setPortalPw] = useState("");
+  const [matrix, setMatrix] = useState({});
+
   const [yearGroup, setYearGroup] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [step, setStep] = useState(0);
-  const [showPw, setShowPw] = useState(false);
   const [showYG, setShowYG] = useState(false);
+  const [tab, setTab] = useState("isct");
+
+  const hasIsct = isctId && isctPw && totpSecret;
+  const hasMatrix = COLS.every(c => ROWS.every(r => matrix[c]?.[r]));
+  const hasPortal = portalId && portalPw && hasMatrix;
 
   const handleSubmit = async () => {
-    if (!userId || !password || !totpSecret) {
-      setError("全ての項目を入力してください");
+    if (!hasIsct && !hasPortal) {
+      setError("いずれかの認証情報を入力してください");
       return;
     }
     // テストアカウント
-    if (userId === "test" && password === "test" && totpSecret === "TEST") {
+    if (isctId === "test" && isctPw === "test" && totpSecret === "TEST") {
       if (yearGroup) updateUserPref({ yearGroup });
       onDemo();
       return;
@@ -34,10 +158,22 @@ export const SetupView = ({ onComplete, onSkip, onDemo, mob }) => {
     setError(null);
     setStep(1);
     try {
+      const body = {};
+      if (hasIsct) {
+        body.userId = isctId;
+        body.password = isctPw;
+        body.totpSecret = totpSecret;
+      }
+      if (hasPortal) {
+        body.portalUserId = portalId;
+        body.portalPassword = portalPw;
+        body.matrix = matrix;
+      }
+
       const resp = await fetch(`${API}/api/auth/setup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, password, totpSecret })
+        body: JSON.stringify(body),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.detail || data.error);
@@ -51,9 +187,24 @@ export const SetupView = ({ onComplete, onSkip, onDemo, mob }) => {
     }
   };
 
-  const canSubmit = userId && password && totpSecret && !loading;
+  const canSubmit = (hasIsct || hasPortal) && !loading;
 
-  const eyeOff = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 01-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>;
+  const tabBtn = (id, label, desc, ready) => (
+    <button onClick={() => setTab(id)} style={{
+      flex: 1, padding: "10px 8px", borderRadius: 10,
+      border: `1px solid ${tab === id ? T.accent : T.bd}`,
+      background: tab === id ? `${T.accent}12` : "transparent",
+      color: tab === id ? T.accent : T.txD, cursor: "pointer", textAlign: "center",
+      position: "relative",
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 10, marginTop: 2, opacity: .7 }}>{desc}</div>
+      <div style={{
+        position: "absolute", top: 6, right: 6, width: 8, height: 8,
+        borderRadius: 4, background: ready ? T.green : T.txD,
+      }} />
+    </button>
+  );
 
   // 接続中
   if (step === 1) {
@@ -65,8 +216,11 @@ export const SetupView = ({ onComplete, onSkip, onDemo, mob }) => {
         <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20}}>
           <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16}}>
             <div style={{width:48,height:48,border:`3px solid ${T.bd}`,borderTop:`3px solid ${T.accent}`,borderRadius:"50%",animation:"spin 1s linear infinite"}}/>
-            <p style={{color:T.txH,fontSize:15,fontWeight:600,margin:0}}>LMSに接続中...</p>
-            <p style={{color:T.txD,fontSize:13,margin:0,textAlign:"center",lineHeight:1.6}}>SSO認証を実行しています<br/>初回は30秒ほどかかります</p>
+            <p style={{color:T.txH,fontSize:15,fontWeight:600,margin:0}}>接続中...</p>
+            <p style={{color:T.txD,fontSize:13,margin:0,textAlign:"center",lineHeight:1.6}}>
+              {hasIsct ? "ISCT SSO認証を実行しています" : "認証情報を保存しています"}
+              <br/>初回は30秒ほどかかります
+            </p>
             {error&&<div style={{padding:"10px 14px",borderRadius:10,background:`${T.red}18`,color:T.red,fontSize:13,width:"100%",maxWidth:300,textAlign:"center"}}>{error}</div>}
           </div>
         </div>
@@ -76,7 +230,6 @@ export const SetupView = ({ onComplete, onSkip, onDemo, mob }) => {
     );
   }
 
-  // フォーム
   return (
     <div style={PAGE}>
       <div style={{paddingTop:"env(safe-area-inset-top)",background:T.bg2,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>
@@ -84,27 +237,35 @@ export const SetupView = ({ onComplete, onSkip, onDemo, mob }) => {
       </div>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
         <div style={{minHeight:"100%",display:"flex",flexDirection:"column",justifyContent:"center"}}>
-          <div style={{padding:mob?"20px 24px":"40px",maxWidth:400,width:"100%",margin:"0 auto",boxSizing:"border-box"}}>
-            <p style={{fontSize:13,color:T.txD,margin:"0 0 20px",textAlign:"center"}}>LMSから時間割・課題を自動取得</p>
+          <div style={{padding:mob?"20px 24px":"40px",maxWidth:440,width:"100%",margin:"0 auto",boxSizing:"border-box"}}>
+            <p style={{fontSize:13,color:T.txD,margin:"0 0 20px",textAlign:"center"}}>LMS・教務Webから時間割・課題・成績を自動取得</p>
             {error&&<div style={{padding:"10px 14px",borderRadius:10,background:`${T.red}18`,color:T.red,fontSize:13,marginBottom:16}}>{error}</div>}
-            <div style={{display:"flex",flexDirection:"column",gap:16}}>
-              <div>
-                <label style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:6,display:"block"}}>Science Tokyo ID</label>
-                <input style={{width:"100%",padding:"12px 14px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:16,outline:"none",boxSizing:"border-box"}} value={userId} onChange={e=>setUserId(e.target.value)} placeholder="abcd1234" autoComplete="username" autoCapitalize="none"/>
-              </div>
-              <div>
-                <label style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:6,display:"block"}}>パスワード</label>
-                <div style={{position:"relative"}}>
-                  <input style={{width:"100%",padding:"12px 44px 12px 14px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:16,outline:"none",boxSizing:"border-box"}} type={showPw?"text":"password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder="ポータルのパスワード" autoComplete="current-password"/>
-                  <button onClick={()=>setShowPw(p=>!p)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{showPw?I.eye:eyeOff}</button>
-                </div>
-              </div>
-              <div>
-                <label style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:6,display:"block"}}>TOTPシークレットキー</label>
-                <input style={{width:"100%",padding:"12px 14px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:16,outline:"none",boxSizing:"border-box",fontFamily:"monospace",letterSpacing:1}} value={totpSecret} onChange={e=>setTotpSecret(e.target.value.replace(/\s/g,"").toUpperCase())} placeholder="TT5SOVTA4BFN4IND" autoCapitalize="characters" autoComplete="off"/>
-                <p style={{fontSize:11,color:T.txD,margin:"6px 0 0",lineHeight:1.5}}>2段階認証のアプリ設定時に表示されたキー</p>
-              </div>
+
+            {/* タブ切り替え */}
+            <div style={{display:"flex",gap:8,marginBottom:14}}>
+              {tabBtn("isct", "ISCT LMS", "時間割・課題", hasIsct)}
+              {tabBtn("titech", "Titech Portal", "成績", hasPortal)}
             </div>
+
+            {/* ISCT LMS */}
+            {tab === "isct" && (
+              <div style={{display:"flex",flexDirection:"column",gap:14,padding:14,borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2}}>
+                <InputField label="Science Tokyo ID" value={isctId} onChange={e => setIsctId(e.target.value)} placeholder="abcd1234" />
+                <InputField label="パスワード" value={isctPw} onChange={e => setIsctPw(e.target.value)} placeholder="ISCTのパスワード" type="password" showToggle />
+                <InputField label="TOTPシークレットキー" value={totpSecret} onChange={e => setTotpSecret(e.target.value.replace(/\s/g, "").toUpperCase())} placeholder="TT5SOVTA4BFN4IND" mono note="2段階認証アプリ設定時に表示されたキー" />
+              </div>
+            )}
+
+            {/* Titech Portal */}
+            {tab === "titech" && (
+              <div style={{display:"flex",flexDirection:"column",gap:14,padding:14,borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2}}>
+                <InputField label="ポータル アカウント" value={portalId} onChange={e => setPortalId(e.target.value)} placeholder="学籍番号" />
+                <InputField label="ポータル パスワード" value={portalPw} onChange={e => setPortalPw(e.target.value)} placeholder="ポータルのパスワード" type="password" showToggle />
+                <MatrixInput matrix={matrix} setMatrix={setMatrix} />
+              </div>
+            )}
+
+            {/* 学年グループ */}
             <div style={{marginTop:16}}>
               <label style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:8,display:"block"}}>学年グループ</label>
               <div onClick={()=>setShowYG(p=>!p)} style={{padding:"12px 14px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -126,6 +287,7 @@ export const SetupView = ({ onComplete, onSkip, onDemo, mob }) => {
                 </div>
               </div>}
             </div>
+
             <button onClick={handleSubmit} disabled={!canSubmit} style={{width:"100%",padding:"14px 0",borderRadius:12,border:"none",background:canSubmit?T.accent:`${T.accent}40`,color:"#fff",fontSize:15,fontWeight:700,cursor:canSubmit?"pointer":"default",marginTop:24,transition:"opacity .15s"}}>ログインして接続</button>
             <button onClick={onSkip} style={{background:"none",border:"none",color:T.txD,fontSize:13,cursor:"pointer",marginTop:16,textAlign:"center",padding:8,width:"100%"}}>スキップ（モックデータで表示）</button>
             <p style={{fontSize:11,color:T.txD,textAlign:"center",lineHeight:1.6,margin:"16px 0 0"}}>認証情報はAES-256-GCMで暗号化して保存されます</p>
