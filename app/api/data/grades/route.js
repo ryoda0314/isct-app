@@ -3,6 +3,8 @@ import { verifySession, COOKIE_NAME } from '../../../../lib/auth/session.js';
 import { loadCredentials } from '../../../../lib/credentials.js';
 import { fetchGrades } from '../../../../lib/api/grades.js';
 
+export const maxDuration = 60;
+
 export async function GET(request) {
   const cookie = request.cookies.get(COOKIE_NAME)?.value;
   const session = verifySession(cookie);
