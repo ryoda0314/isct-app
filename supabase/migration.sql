@@ -236,3 +236,12 @@ create table if not exists event_rsvps (
 );
 alter table event_rsvps enable row level security;
 create policy "anon_select_event_rsvps" on event_rsvps for select to anon using (true);
+
+-- 22. user_credentials: 暗号化クレデンシャルの永続化 (Vercelコールドスタート対策)
+create table if not exists user_credentials (
+  login_id           text primary key,
+  encrypted_payload  text not null,
+  updated_at         timestamptz default now()
+);
+alter table user_credentials enable row level security;
+-- anon アクセス不可 (service_role のみ)

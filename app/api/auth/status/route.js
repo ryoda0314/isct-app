@@ -4,15 +4,27 @@ import { isAuthenticated, getToken } from '../../../../lib/auth/token-manager.js
 import { verifySession, createSessionToken, sessionCookieOptions, COOKIE_NAME } from '../../../../lib/auth/session.js';
 import { loadCredentials } from '../../../../lib/credentials.js';
 import { DATA_DIR } from '../../../../lib/config.js';
+import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
-/** Find loginId from credential files on disk */
+/** Find loginId from credential files on disk or Supabase */
 async function findStoredLoginId() {
+  // Check filesystem first
   try {
     const files = await fs.readdir(DATA_DIR);
     const cred = files.find(f => f.startsWith('cred-') && f.endsWith('.enc'));
-    if (!cred) return null;
-    return cred.slice(5, -4); // cred-{loginId}.enc → loginId
-  } catch { return null; }
+    if (cred) return cred.slice(5, -4);
+  } catch {}
+  // Fall back to Supabase
+  try {
+    const sb = getSupabaseAdmin();
+    const { data } = await sb
+      .from('user_credentials')
+      .select('login_id')
+      .limit(1)
+      .single();
+    if (data?.login_id) return data.login_id;
+  } catch {}
+  return null;
 }
 
 export async function GET(request) {
