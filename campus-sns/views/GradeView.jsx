@@ -375,6 +375,7 @@ export const GradeView = ({ mob }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [maintInfo, setMaintInfo] = useState(null);
   const [filter, setFilter] = useState('all');
   const [year, setYear] = useState('all');
   const [qtr, setQtr] = useState('all');
@@ -386,7 +387,13 @@ export const GradeView = ({ mob }) => {
       try {
         const r = await fetch('/api/data/grades');
         if (!r.ok) {
-          setError(r.status === 400 ? 'portal' : 'fetch');
+          if (r.status === 503) {
+            const body = await r.json().catch(() => ({}));
+            setMaintInfo(body);
+            setError('maintenance');
+          } else {
+            setError(r.status === 400 ? 'portal' : 'fetch');
+          }
           setLoading(false);
           return;
         }
@@ -405,6 +412,33 @@ export const GradeView = ({ mob }) => {
         <div style={{ textAlign: 'center', padding: 40, color: T.txD, fontSize: 13 }}>
           ポータルのマトリクス認証が設定されていません。<br />
           セットアップ画面からマトリクスカードを登録してください。
+        </div>
+      </div>
+    );
+  }
+
+  if (error === 'maintenance') {
+    return (
+      <div style={{ flex: 1, overflowY: 'auto', padding: mob ? 12 : 20 }}>
+        <div style={{ fontWeight: 700, color: T.txH, fontSize: mob ? 16 : 18, marginBottom: 10 }}>成績</div>
+        <div style={{
+          padding: mob ? 16 : 24, borderRadius: 12,
+          background: `${T.yellow}08`, border: `1px solid ${T.yellow}20`, textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.yellow, marginBottom: 8 }}>
+            教務Webシステム メンテナンス中
+          </div>
+          {maintInfo?.schedules?.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              {maintInfo.schedules.map((s, i) => (
+                <div key={i} style={{ fontSize: 13, color: T.txH, lineHeight: 1.8 }}>{s}</div>
+              ))}
+            </div>
+          )}
+          {maintInfo?.recurring && (
+            <div style={{ fontSize: 11, color: T.txD, marginBottom: 8 }}>{maintInfo.recurring}</div>
+          )}
+          <div style={{ fontSize: 11, color: T.txD }}>メンテナンス終了後に再度お試しください。</div>
         </div>
       </div>
     );

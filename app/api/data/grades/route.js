@@ -36,6 +36,12 @@ export async function GET(request) {
     return NextResponse.json(data, { headers });
   } catch (err) {
     console.error('[Grades API] Error:', err.message);
+    if (err.message === 'MAINTENANCE') {
+      return NextResponse.json(
+        { error: 'maintenance', ...err.maintenance },
+        { status: 503, headers },
+      );
+    }
     return NextResponse.json({ error: 'Failed to fetch grades' }, { status: 500, headers });
   }
 }
