@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { updateUserPref } from "../hooks/useCurrentUser.js";
 import { MatrixInput, COLS, ROWS } from "../components/MatrixInput.jsx";
+import { QRScanner } from "../components/QRScanner.jsx";
 
 const API = "";
 const PAGE = {
@@ -61,6 +62,83 @@ function InputField({ label, value, onChange, placeholder, type = "text", mono, 
         )}
       </div>
       {note && <p style={{ fontSize: 11, color: T.txD, margin: "6px 0 0", lineHeight: 1.5 }}>{note}</p>}
+    </div>
+  );
+}
+
+/**
+ * TotpBlock — TOTP secret input + QR scanner + live 6-digit code preview
+ */
+function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
+  const [totpCode, setTotpCode] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(30);
+
+  // Generate TOTP code and countdown when secret is set
+  useEffect(() => {
+    if (!totpSecret || totpSecret.length < 6) { setTotpCode(null); return; }
+    let cancelled = false;
+    const update = async () => {
+      try {
+        const res = await fetch(`/api/auth/totp-preview?secret=${encodeURIComponent(totpSecret)}`);
+        if (!res.ok) { setTotpCode(null); return; }
+        const { code, remaining } = await res.json();
+        if (!cancelled) { setTotpCode(code); setTimeLeft(remaining); }
+      } catch { if (!cancelled) setTotpCode(null); }
+    };
+    update();
+    const iv = setInterval(update, 1000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [totpSecret]);
+
+  return (
+    <div>
+      <InputField
+        label="TOTPシークレットキー" value={totpSecret}
+        onChange={e => setTotpSecret(e.target.value.replace(/\s/g, "").toUpperCase())}
+        placeholder="TT5SOVTA4BFN4IND" mono
+        note="ISCTアカウント設定 → 多要素認証(OTP) に表示されるキー"
+      />
+      {/* QR scan button */}
+      {!showQR && (
+        <button onClick={() => setShowQR(true)} style={{
+          width: "100%", marginTop: 8, padding: "10px 0", borderRadius: 8,
+          border: `1px solid ${T.accent}40`, background: `${T.accent}08`,
+          color: T.accent, fontSize: 12, fontWeight: 600, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+          </svg>
+          QRコードから読み取る
+        </button>
+      )}
+      {showQR && (
+        <QRScanner
+          onSecret={(secret) => { setTotpSecret(secret); setShowQR(false); }}
+          onClose={() => setShowQR(false)}
+        />
+      )}
+      {/* Live TOTP code preview */}
+      {totpCode && (
+        <div style={{
+          marginTop: 10, padding: "12px 14px", borderRadius: 10,
+          background: `${T.green}12`, border: `1px solid ${T.green}30`,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <div>
+            <div style={{ fontSize: 11, color: T.green, fontWeight: 600, marginBottom: 4 }}>現在のTOTPコード</div>
+            <div style={{ fontSize: 24, fontWeight: 800, fontFamily: "monospace", letterSpacing: 4, color: T.txH }}>
+              {totpCode.slice(0, 3)} {totpCode.slice(3)}
+            </div>
+          </div>
+          <div style={{
+            width: 32, height: 32, borderRadius: "50%",
+            border: `3px solid ${T.bd}`, borderTopColor: timeLeft > 5 ? T.green : T.red,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 11, fontWeight: 700, color: timeLeft > 5 ? T.green : T.red,
+          }}>{timeLeft}</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -153,6 +231,7 @@ export const SetupView = ({ onComplete, onSkip, onDemo, mob }) => {
 
   const [yearGroup, setYearGroup] = useState(null);
   const [showYG, setShowYG] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const [error, setError] = useState(null);
 
   const hasIsct = isctId && isctPw && totpSecret;
@@ -301,7 +380,7 @@ export const SetupView = ({ onComplete, onSkip, onDemo, mob }) => {
             <div style={cardStyle}>
               <InputField label="Science Tokyo ID" value={isctId} onChange={e => setIsctId(e.target.value)} placeholder="abcd1234" />
               <InputField label="パスワード" value={isctPw} onChange={e => setIsctPw(e.target.value)} placeholder="ISCTのパスワード" type="password" showToggle />
-              <InputField label="TOTPシークレットキー" value={totpSecret} onChange={e => setTotpSecret(e.target.value.replace(/\s/g, "").toUpperCase())} placeholder="TT5SOVTA4BFN4IND" mono note="2段階認証アプリ設定時に表示されたキー" />
+              <TotpBlock totpSecret={totpSecret} setTotpSecret={setTotpSecret} showQR={showQR} setShowQR={setShowQR} />
             </div>
             <div style={{ marginTop: 24 }}>
               <button onClick={handleSubmit} disabled={!hasIsct} style={primaryBtnStyle(hasIsct)}>ログイン</button>
@@ -329,7 +408,7 @@ export const SetupView = ({ onComplete, onSkip, onDemo, mob }) => {
             <div style={cardStyle}>
               <InputField label="Science Tokyo ID" value={isctId} onChange={e => setIsctId(e.target.value)} placeholder="abcd1234" />
               <InputField label="パスワード" value={isctPw} onChange={e => setIsctPw(e.target.value)} placeholder="ISCTのパスワード" type="password" showToggle />
-              <InputField label="TOTPシークレットキー" value={totpSecret} onChange={e => setTotpSecret(e.target.value.replace(/\s/g, "").toUpperCase())} placeholder="TT5SOVTA4BFN4IND" mono note="2段階認証アプリ設定時に表示されたキー" />
+              <TotpBlock totpSecret={totpSecret} setTotpSecret={setTotpSecret} showQR={showQR} setShowQR={setShowQR} />
             </div>
             {hasIsct && <DoneBanner />}
             <div style={{ marginTop: 24 }}>
