@@ -79,15 +79,50 @@ async function scanMatrixFromImage(file) {
   return parseOCRResult(data.text);
 }
 
+/* ─── ガイドフレームの位置をビデオ座標に変換 ─── */
+function getFrameRect(video, containerEl) {
+  if (!video || !containerEl) return null;
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const cw = containerEl.clientWidth, ch = containerEl.clientHeight;
+  if (!vw || !vh || !cw || !ch) return null;
+
+  // object-fit: cover のスケール計算
+  const scale = Math.max(cw / vw, ch / vh);
+  const sw = vw * scale, sh = vh * scale;
+  const ox = (sw - cw) / 2, oy = (sh - ch) / 2;
+
+  // ガイドフレームの画面上の位置（CSS: 90% width, centered, aspect 8.56/5.4）
+  const CARD_RATIO = 8.56 / 5.4;
+  const fw = cw * 0.90;
+  const fh = fw / CARD_RATIO;
+  const fx = (cw - fw) / 2;
+  const fy = (ch - fh) / 2;
+
+  // ビデオ座標に変換
+  const sx = (fx + ox) / scale;
+  const sy = (fy + oy) / scale;
+  const sWidth = fw / scale;
+  const sHeight = fh / scale;
+
+  return {
+    sx: Math.max(0, Math.round(sx)),
+    sy: Math.max(0, Math.round(sy)),
+    sWidth: Math.min(vw - Math.max(0, Math.round(sx)), Math.round(sWidth)),
+    sHeight: Math.min(vh - Math.max(0, Math.round(sy)), Math.round(sHeight)),
+  };
+}
+
 /* ─── ライブカメラスキャナー ─── */
 function LiveScanner({ onResult, onClose }) {
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+  const containerRef = useRef(null);
   const streamRef = useRef(null);
-  const scanningRef = useRef(false);
+  const busyRef = useRef(false);
+  const doneRef = useRef(false);
   const workerRef = useRef(null);
-  const [status, setStatus] = useState('loading'); // loading | ready | scanning | found | error
-  const [progress, setProgress] = useState(0); // 検出セル数
+  const [phase, setPhase] = useState('init'); // init | workerLoading | ready | error | found
+  const [scanning, setScanning] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [errMsg, setErrMsg] = useState(null);
 
   const stopStream = useCallback(() => {
@@ -97,13 +132,15 @@ function LiveScanner({ onResult, onClose }) {
     }
   }, []);
 
-  // カメラ起動
+  // カメラ起動 + Tesseract worker 同時ロード
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
+      // カメラ起動
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
         });
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
@@ -111,90 +148,97 @@ function LiveScanner({ onResult, onClose }) {
           videoRef.current.srcObject = stream;
           videoRef.current.play();
         }
-        setStatus('ready');
       } catch {
-        setErrMsg('カメラにアクセスできません');
-        setStatus('error');
+        if (!cancelled) { setErrMsg('カメラにアクセスできません'); setPhase('error'); }
+        return;
       }
-    })();
-    return () => { cancelled = true; stopStream(); };
-  }, [stopStream]);
 
-  // Tesseract worker を事前ロード
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
+      // Tesseract ロード
+      if (!cancelled) setPhase('workerLoading');
       try {
         await loadTesseract();
-        if (!cancelled) {
-          const w = await window.Tesseract.createWorker('eng');
-          await w.setParameters({
-            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
-            tessedit_pageseg_mode: '6',
-          });
-          if (!cancelled) workerRef.current = w;
-          else w.terminate();
-        }
-      } catch {}
+        if (cancelled) return;
+        const w = await window.Tesseract.createWorker('eng');
+        await w.setParameters({
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+          tessedit_pageseg_mode: '6',
+        });
+        if (cancelled) { w.terminate(); return; }
+        workerRef.current = w;
+        setPhase('ready');
+      } catch {
+        if (!cancelled) { setErrMsg('OCRエンジンの読み込みに失敗'); setPhase('error'); }
+      }
     })();
-    return () => { cancelled = true; if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; } };
-  }, []);
 
-  // 定期フレームスキャン
+    return () => {
+      cancelled = true;
+      stopStream();
+      if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; }
+    };
+  }, [stopStream]);
+
+  // 定期フレームスキャン（phase に依存しない安定した interval）
   useEffect(() => {
-    if (status !== 'ready') return;
     const iv = setInterval(async () => {
-      if (scanningRef.current || !workerRef.current || !videoRef.current) return;
+      if (busyRef.current || doneRef.current || !workerRef.current || !videoRef.current) return;
       const video = videoRef.current;
       if (video.readyState < 2) return;
 
-      scanningRef.current = true;
-      setStatus('scanning');
+      busyRef.current = true;
+      setScanning(true);
 
       try {
-        const canvas = canvasRef.current || document.createElement('canvas');
-        canvasRef.current = canvas;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
+        // ガイドフレーム内のみ切り出し
+        const rect = getFrameRect(video, containerRef.current);
+        const canvas = document.createElement('canvas');
+        if (rect && rect.sWidth > 50 && rect.sHeight > 50) {
+          canvas.width = rect.sWidth;
+          canvas.height = rect.sHeight;
+          canvas.getContext('2d').drawImage(video, rect.sx, rect.sy, rect.sWidth, rect.sHeight, 0, 0, rect.sWidth, rect.sHeight);
+        } else {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          canvas.getContext('2d').drawImage(video, 0, 0);
+        }
         binarize(canvas);
 
         const { data } = await workerRef.current.recognize(canvas);
         const { matrix, rowsFound } = parseOCRResult(data.text);
 
-        // 検出セル数をカウント
         let cells = 0;
         for (const c of COLS) for (const r of ROWS) if (matrix[c]?.[r]) cells++;
         setProgress(cells);
 
-        if (rowsFound >= 5 && cells >= 40) {
-          // 十分なデータが検出された
-          setStatus('found');
+        if (rowsFound >= 5 && cells >= 35) {
+          doneRef.current = true;
+          setPhase('found');
+          setScanning(false);
           stopStream();
           onResult(matrix, rowsFound);
           return;
         }
       } catch {}
 
-      scanningRef.current = false;
-      setStatus('ready');
-    }, 1500);
+      busyRef.current = false;
+      setScanning(false);
+    }, 1200);
 
     return () => clearInterval(iv);
-  }, [status, onResult, stopStream]);
+  }, [onResult, stopStream]);
 
-  const handleClose = () => {
-    stopStream();
-    onClose();
-  };
+  const handleClose = () => { stopStream(); onClose(); };
 
+  const cornerSize = 28;
   const cornerStyle = (pos) => {
-    const base = { position: 'absolute', width: 24, height: 24, borderColor: T.accent, borderStyle: 'solid', borderWidth: 0 };
-    if (pos === 'tl') return { ...base, top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 8 };
-    if (pos === 'tr') return { ...base, top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 8 };
-    if (pos === 'bl') return { ...base, bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 8 };
-    return { ...base, bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 8 };
+    const base = { position: 'absolute', width: cornerSize, height: cornerSize, borderColor: T.accent, borderStyle: 'solid', borderWidth: 0 };
+    if (pos === 'tl') return { ...base, top: -1, left: -1, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 10 };
+    if (pos === 'tr') return { ...base, top: -1, right: -1, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 10 };
+    if (pos === 'bl') return { ...base, bottom: -1, left: -1, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 10 };
+    return { ...base, bottom: -1, right: -1, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 10 };
   };
+
+  const isActive = phase === 'ready' || scanning;
 
   return (
     <div style={{
@@ -216,39 +260,38 @@ function LiveScanner({ onResult, onClose }) {
       </div>
 
       {/* カメラビュー */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div ref={containerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         <video ref={videoRef} playsInline muted style={{
           width: '100%', height: '100%', objectFit: 'cover',
         }} />
 
-        {/* ガイドフレーム */}
+        {/* フレーム外を暗くするオーバーレイ（CSS mask で穴を開ける） */}
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          background: 'rgba(0,0,0,.55)',
+          maskImage: 'radial-gradient(ellipse 48% 26% at 50% 50%, transparent 98%, black 100%)',
+          WebkitMaskImage: 'radial-gradient(ellipse 48% 26% at 50% 50%, transparent 98%, black 100%)',
+        }} />
+
+        {/* ガイドフレーム — クレジットカードサイズ比率 */}
         <div style={{
           position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-          width: '88%', maxWidth: 400, aspectRatio: '10/7',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: '90%', maxWidth: 420, aspectRatio: '8.56 / 5.4',
         }}>
-          <div style={{ position: 'absolute', inset: 0 }}>
-            <div style={cornerStyle('tl')} />
-            <div style={cornerStyle('tr')} />
-            <div style={cornerStyle('bl')} />
-            <div style={cornerStyle('br')} />
-          </div>
+          <div style={cornerStyle('tl')} />
+          <div style={cornerStyle('tr')} />
+          <div style={cornerStyle('bl')} />
+          <div style={cornerStyle('br')} />
+
           {/* スキャンライン */}
-          {status === 'scanning' && (
+          {isActive && (
             <div style={{
-              position: 'absolute', left: 4, right: 4, height: 2,
-              background: `linear-gradient(90deg, transparent, ${T.accent}, transparent)`,
-              animation: 'scanline 1.5s ease-in-out infinite',
+              position: 'absolute', left: 6, right: 6, height: 2,
+              background: `linear-gradient(90deg, transparent, ${T.accent}cc, transparent)`,
+              animation: 'mxscanline 2s ease-in-out infinite',
             }} />
           )}
         </div>
-
-        {/* オーバーレイ（フレーム外を暗くする） */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'radial-gradient(ellipse 52% 38% at center, transparent 0%, rgba(0,0,0,.6) 100%)',
-          pointerEvents: 'none',
-        }} />
       </div>
 
       {/* ステータスバー */}
@@ -256,39 +299,53 @@ function LiveScanner({ onResult, onClose }) {
         padding: '16px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)',
         background: 'rgba(0,0,0,.85)', flexShrink: 0, textAlign: 'center',
       }}>
-        {status === 'loading' && (
+        {phase === 'init' && (
           <div style={{ color: '#fff', fontSize: 13 }}>カメラを起動中...</div>
         )}
-        {status === 'error' && (
-          <div style={{ color: T.red, fontSize: 13 }}>{errMsg || 'エラーが発生しました'}</div>
-        )}
-        {(status === 'ready' || status === 'scanning') && <>
-          <div style={{ color: '#fff', fontSize: 13, marginBottom: 8 }}>
-            マトリクスカードを枠内に合わせてください
+        {phase === 'workerLoading' && (
+          <div style={{ color: '#fff', fontSize: 13 }}>
+            <div style={{ marginBottom: 6 }}>OCRエンジンを読み込み中...</div>
+            <div style={{
+              width: 120, height: 3, borderRadius: 2, background: 'rgba(255,255,255,.15)',
+              margin: '0 auto', overflow: 'hidden',
+            }}>
+              <div style={{
+                width: '60%', height: '100%', background: T.accent,
+                animation: 'mxloader 1.2s ease-in-out infinite',
+              }} />
+            </div>
           </div>
-          {/* プログレスバー */}
+        )}
+        {phase === 'error' && (
+          <div style={{ color: T.red, fontSize: 13 }}>{errMsg}</div>
+        )}
+        {phase === 'ready' && <>
+          <div style={{ color: '#fff', fontSize: 13, marginBottom: 8 }}>
+            カードを枠に合わせてください
+          </div>
           <div style={{
-            width: '100%', maxWidth: 280, margin: '0 auto', height: 6,
-            borderRadius: 3, background: 'rgba(255,255,255,.15)', overflow: 'hidden',
+            width: '100%', maxWidth: 260, margin: '0 auto', height: 6,
+            borderRadius: 3, background: 'rgba(255,255,255,.12)', overflow: 'hidden',
           }}>
             <div style={{
               width: `${Math.min(100, (progress / 70) * 100)}%`, height: '100%',
-              borderRadius: 3, background: progress >= 40 ? T.green : T.accent,
+              borderRadius: 3, background: progress >= 35 ? T.green : T.accent,
               transition: 'width .3s, background .3s',
             }} />
           </div>
-          <div style={{ color: 'rgba(255,255,255,.5)', fontSize: 11, marginTop: 4 }}>
-            {progress > 0 ? `${progress}/70 セル検出中...` : 'スキャン待機中...'}
+          <div style={{ color: 'rgba(255,255,255,.45)', fontSize: 11, marginTop: 4 }}>
+            {scanning ? `読み取り中... (${progress}/70)` : (progress > 0 ? `${progress}/70 セル検出` : 'スキャン待機中')}
           </div>
         </>}
-        {status === 'found' && (
-          <div style={{ color: T.green, fontSize: 14, fontWeight: 700 }}>
-            読み取り完了
-          </div>
+        {phase === 'found' && (
+          <div style={{ color: T.green, fontSize: 14, fontWeight: 700 }}>読み取り完了</div>
         )}
       </div>
 
-      <style>{`@keyframes scanline{0%{top:10%}50%{top:85%}100%{top:10%}}`}</style>
+      <style>{`
+        @keyframes mxscanline{0%{top:8%}50%{top:88%}100%{top:8%}}
+        @keyframes mxloader{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}
+      `}</style>
     </div>
   );
 }
