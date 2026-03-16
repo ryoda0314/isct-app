@@ -268,7 +268,15 @@ export const GradeView = ({ mob }) => {
       ))}
 
       {filtered.length === 0 && (
-        <div style={{ textAlign: 'center', padding: 40, color: T.txD, fontSize: 13 }}>該当する科目はありません</div>
+        <div style={{ textAlign: 'center', padding: 40, color: T.txD, fontSize: 13 }}>
+          {allCourses?.length === 0
+            ? <>成績データを取得できませんでした。<br /><span style={{ fontSize: 11 }}>ポータル認証後のリダイレクトに失敗した可能性があります。</span>
+              {data?._debug && <pre style={{ textAlign: 'left', fontSize: 10, marginTop: 10, color: T.txD, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {`URL: ${data._debug.finalUrl}\nTitle: ${data._debug.pageTitle}\nTables: ${data._debug.tables?.length || 0}`}
+              </pre>}
+            </>
+            : '該当する科目はありません'}
+        </div>
       )}
     </div>
   );
