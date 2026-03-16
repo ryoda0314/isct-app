@@ -74,6 +74,50 @@ function cropDataArea(srcCanvas) {
   return canvas;
 }
 
+/** グリッド構造からセルを個別抽出し、罫線・背景を完全除去した画像を生成 */
+function extractCellGrid(srcCanvas) {
+  const sw = srcCanvas.width, sh = srcCanvas.height;
+  // カード構造: 11列(行番号+A-J) × 8行(ヘッダ+1-7)
+  const colW = sw / 11, rowH = sh / 8;
+  // セル内マージン（罫線を除外）
+  const mx = colW * 0.20, my = rowH * 0.18;
+  // 出力: 各セル 64×80px、行間に余白あり・列間に小余白
+  const OW = 64, OH = 80, GX = 6, GY = 24;
+  const out = document.createElement('canvas');
+  out.width = OW * 10 + GX * 9;
+  out.height = GY + (OH + GY) * 7;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, out.width, out.height);
+  const tmp = document.createElement('canvas');
+  const tctx = tmp.getContext('2d');
+
+  for (let r = 0; r < 7; r++) {
+    for (let c = 0; c < 10; c++) {
+      const sx = (c + 1) * colW + mx;
+      const sy = (r + 1) * rowH + my;
+      const cw = colW - 2 * mx, ch = rowH - 2 * my;
+      tmp.width = Math.max(1, Math.round(cw));
+      tmp.height = Math.max(1, Math.round(ch));
+      tctx.clearRect(0, 0, tmp.width, tmp.height);
+      tctx.drawImage(srcCanvas, Math.round(sx), Math.round(sy),
+        Math.round(cw), Math.round(ch), 0, 0, tmp.width, tmp.height);
+      // セル個別に二値化（ピンク/白の背景差を吸収）
+      const imgData = tctx.getImageData(0, 0, tmp.width, tmp.height);
+      const thresh = computeThreshold(imgData);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        d[i] = d[i + 1] = d[i + 2] = g > thresh ? 255 : 0;
+      }
+      tctx.putImageData(imgData, 0, 0);
+      const dx = c * (OW + GX), dy = GY + r * (OH + GY);
+      ctx.drawImage(tmp, 0, 0, tmp.width, tmp.height, dx, dy, OW, OH);
+    }
+  }
+  return out;
+}
+
 /** OCR誤認識の数字→文字補正 */
 function fixOCRChar(c) {
   return { '0': 'O', '1': 'I', '2': 'Z', '5': 'S', '8': 'B', '6': 'G' }[c] || c;
@@ -258,11 +302,10 @@ function LiveScanner({ onResult, onClose }) {
           rawCanvas.height = video.videoHeight;
           rawCanvas.getContext('2d').drawImage(video, 0, 0);
         }
-        // データ領域のみ切り出し + 二値化
-        const dataCanvas = cropDataArea(rawCanvas);
-        binarize(dataCanvas);
+        // セル個別抽出（罫線・背景を完全除去）
+        const gridCanvas = extractCellGrid(rawCanvas);
 
-        const { data } = await workerRef.current.recognize(dataCanvas);
+        const { data } = await workerRef.current.recognize(gridCanvas);
         const { matrix: parsed, rowsFound } = parseOCRResult(data.text);
 
         // 投票を蓄積（複数フレームのコンセンサスで精度向上）
