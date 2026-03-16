@@ -73,11 +73,11 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
   const [totpCode, setTotpCode] = useState(null);
   const [timeLeft, setTimeLeft] = useState(30);
 
-  // Generate TOTP code and countdown when secret is set
+  // Fetch TOTP code from API, then countdown locally
   useEffect(() => {
     if (!totpSecret || totpSecret.length < 6) { setTotpCode(null); return; }
     let cancelled = false;
-    const update = async () => {
+    const fetchCode = async () => {
       try {
         const res = await fetch(`/api/auth/totp-preview?secret=${encodeURIComponent(totpSecret)}`);
         if (!res.ok) { setTotpCode(null); return; }
@@ -85,31 +85,126 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
         if (!cancelled) { setTotpCode(code); setTimeLeft(remaining); }
       } catch { if (!cancelled) setTotpCode(null); }
     };
-    update();
-    const iv = setInterval(update, 1000);
+    fetchCode();
+    // Re-fetch every 30s to get new code
+    const iv = setInterval(fetchCode, 30000);
     return () => { cancelled = true; clearInterval(iv); };
   }, [totpSecret]);
 
+  // Client-side 1s countdown + re-fetch when expired
+  useEffect(() => {
+    if (!totpCode) return;
+    const iv = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          // Refetch new code
+          fetch(`/api/auth/totp-preview?secret=${encodeURIComponent(totpSecret)}`)
+            .then(r => r.json())
+            .then(({ code, remaining }) => { setTotpCode(code); setTimeLeft(remaining); })
+            .catch(() => {});
+          return 30;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [totpCode, totpSecret]);
+
+  const [showGuide, setShowGuide] = useState(true);
+  const [zoomImg, setZoomImg] = useState(null);
+
+  const guideSteps = [
+    { n: 1, text: "ISCTアカウントページにログインし、「多要素認証 (OTP)」タブを開く", img: "/guide/step1.png", top: 0, h: 109, zoom: "192%", ml: "-61%" },
+    { n: 2, text: "「アプリ認証」の横にある「設定」ボタンを押す", img: "/guide/step2.png", top: -2, h: 99, zoom: "185%", ml: "-50%" },
+    { n: 3, text: "表示されるQRコードをこのアプリでスキャン。表示された6桁コードをISCTの「トークン」欄に入力して完了", img: "/guide/step3.png", top: -43, h: 185, zoom: "180%", ml: "-40%" },
+  ];
+
   return (
     <div>
-      <InputField
-        label="TOTPシークレットキー" value={totpSecret}
-        onChange={e => setTotpSecret(e.target.value.replace(/\s/g, "").toUpperCase())}
-        placeholder="TT5SOVTA4BFN4IND" mono
-        note="ISCTアカウント設定 → 多要素認証(OTP) に表示されるキー"
-      />
-      {/* QR scan button */}
-      {!showQR && (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+        <label style={{ fontSize: 12, fontWeight: 600, color: T.txD }}>TOTP認証</label>
+        {!totpSecret && (
+          <button onClick={() => setShowGuide(p => !p)} style={{
+            background: "none", border: "none", color: T.accent,
+            fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0,
+            display: "flex", alignItems: "center", gap: 3,
+          }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            {showGuide ? "閉じる" : "やり方"}
+          </button>
+        )}
+      </div>
+      {/* Setup guide */}
+      {showGuide && !totpSecret && (
+        <div style={{
+          marginBottom: 10, padding: 12, borderRadius: 10,
+          border: `1px solid ${T.accent}20`, background: `${T.accent}06`,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: T.txH, marginBottom: 8 }}>QRコードの取得方法</div>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "8px 10px", borderRadius: 8, marginBottom: 10,
+            background: `${T.accent}14`, border: `1px solid ${T.accent}30`,
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            <span style={{ fontSize: 11, color: T.accent, fontWeight: 600, lineHeight: 1.5 }}>
+              PCでISCTアカウントページを開いて操作してください
+            </span>
+          </div>
+          {guideSteps.map(s => (
+            <div key={s.n} style={{ marginBottom: s.n < 3 ? 12 : 0 }}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+                <div style={{
+                  width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
+                  background: T.accent, color: "#fff", fontSize: 11, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1,
+                }}>{s.n}</div>
+                <p style={{ fontSize: 12, color: T.tx, lineHeight: 1.6, margin: 0 }}>{s.text}</p>
+              </div>
+              <div onClick={() => setZoomImg(s.img)} style={{
+                overflow: "hidden", borderRadius: 8,
+                border: `1px solid ${T.bd}`, background: "#fff",
+                height: s.h, marginLeft: 28, cursor: "pointer",
+                position: "relative",
+              }}>
+                <img src={s.img} alt={`Step ${s.n}`} style={{
+                  width: s.zoom, display: "block",
+                  marginLeft: s.ml,
+                  marginTop: s.top,
+                }} />
+                <div style={{
+                  position: "absolute", bottom: 4, right: 4, padding: "2px 6px",
+                  borderRadius: 4, background: "rgba(0,0,0,0.5)", color: "#fff",
+                  fontSize: 9, display: "flex", alignItems: "center", gap: 3,
+                }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  拡大
+                </div>
+              </div>
+            </div>
+          ))}
+          <div style={{
+            marginTop: 10, padding: "8px 10px", borderRadius: 8,
+            background: `${T.orange}12`, border: `1px solid ${T.orange}25`,
+            fontSize: 11, color: T.orange, lineHeight: 1.5,
+          }}>
+            ISCTの「トークン」欄には、スキャン後にこのアプリに表示される6桁のコードを入力してください
+          </div>
+        </div>
+      )}
+      {!totpSecret && !showQR && (
         <button onClick={() => setShowQR(true)} style={{
-          width: "100%", marginTop: 8, padding: "10px 0", borderRadius: 8,
+          width: "100%", padding: "12px 0", borderRadius: 8,
           border: `1px solid ${T.accent}40`, background: `${T.accent}08`,
-          color: T.accent, fontSize: 12, fontWeight: 600, cursor: "pointer",
+          color: T.accent, fontSize: 13, fontWeight: 600, cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
         }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
           </svg>
-          QRコードから読み取る
+          QRコードをスキャンして設定
         </button>
       )}
       {showQR && (
@@ -137,6 +232,33 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: 11, fontWeight: 700, color: timeLeft > 5 ? T.green : T.red,
           }}>{timeLeft}</div>
+        </div>
+      )}
+      {totpSecret && !showQR && (
+        <button onClick={() => setShowQR(true)} style={{
+          width: "100%", marginTop: 6, padding: "6px 0",
+          background: "none", border: "none", color: T.txD,
+          fontSize: 11, cursor: "pointer",
+        }}>QRコードを再スキャン</button>
+      )}
+      {/* Lightbox */}
+      {zoomImg && (
+        <div onClick={() => setZoomImg(null)} style={{
+          position: "fixed", inset: 0, zIndex: 10000,
+          background: "rgba(0,0,0,0.85)",
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          cursor: "pointer", padding: 16,
+          animation: "fadeIn .15s ease",
+        }}>
+          <img src={zoomImg} alt="拡大表示" style={{
+            maxWidth: "100%", maxHeight: "85vh",
+            borderRadius: 8, objectFit: "contain",
+          }} />
+          <div style={{
+            marginTop: 12, color: "rgba(255,255,255,0.6)",
+            fontSize: 12,
+          }}>タップして閉じる</div>
         </div>
       )}
     </div>

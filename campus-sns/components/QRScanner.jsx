@@ -95,6 +95,7 @@ export function QRScanner({ onSecret, onClose }) {
     } catch (e) {
       setError("カメラを起動できませんでした: " + e.message);
       setScanning(false);
+      setMode(null);
     }
   }, [handleResult]);
 
@@ -173,23 +174,55 @@ export function QRScanner({ onSecret, onClose }) {
   }
 
   /* ── Camera view ── */
+  const cornerStyle = (pos) => {
+    const size = 24;
+    const weight = 3;
+    const base = { position: "absolute", width: size, height: size };
+    const bdr = `${weight}px solid ${T.accent}`;
+    if (pos === "tl") return { ...base, top: 0, left: 0, borderTop: bdr, borderLeft: bdr, borderRadius: "4px 0 0 0" };
+    if (pos === "tr") return { ...base, top: 0, right: 0, borderTop: bdr, borderRight: bdr, borderRadius: "0 4px 0 0" };
+    if (pos === "bl") return { ...base, bottom: 0, left: 0, borderBottom: bdr, borderLeft: bdr, borderRadius: "0 0 0 4px" };
+    return { ...base, bottom: 0, right: 0, borderBottom: bdr, borderRight: bdr, borderRadius: "0 0 4px 0" };
+  };
+
   if (mode === "camera") {
     return (
       <div style={{ marginTop: 10, padding: 14, borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg3 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>
-          QRコードをカメラに向けてください
-        </div>
-        <div style={{ position: "relative", borderRadius: 8, overflow: "hidden", background: "#000" }}>
-          <video ref={videoRef} style={{ width: "100%", display: "block" }} playsInline muted />
+        <div style={{ position: "relative", borderRadius: 8, overflow: "hidden", background: "#000", minHeight: 280 }}>
+          <video ref={videoRef} style={{ width: "100%", display: "block", minHeight: 280 }} playsInline muted />
           {/* Scanning overlay */}
           <div style={{
             position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-            pointerEvents: "none",
+            flexDirection: "column", pointerEvents: "none",
           }}>
+            {/* Dark mask */}
+            <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)" }}>
+              <div style={{
+                position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+                width: "65%", aspectRatio: "1", borderRadius: 4,
+                boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)",
+              }} />
+            </div>
+            {/* Corner markers */}
+            <div style={{ position: "relative", width: "65%", aspectRatio: "1" }}>
+              <div style={cornerStyle("tl")} />
+              <div style={cornerStyle("tr")} />
+              <div style={cornerStyle("bl")} />
+              <div style={cornerStyle("br")} />
+              {/* Scan line */}
+              <div style={{
+                position: "absolute", left: 8, right: 8, height: 2,
+                background: `linear-gradient(90deg, transparent, ${T.accent}, transparent)`,
+                animation: "scanLine 2s ease-in-out infinite",
+                boxShadow: `0 0 8px ${T.accent}80`,
+              }} />
+            </div>
+            {/* Label */}
             <div style={{
-              width: "60%", aspectRatio: "1", border: `2px solid ${T.accent}`,
-              borderRadius: 12, boxShadow: `0 0 0 9999px rgba(0,0,0,0.4)`,
-            }} />
+              marginTop: 16, padding: "4px 12px", borderRadius: 12,
+              background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+              fontSize: 11, color: "rgba(255,255,255,0.85)", fontWeight: 500,
+            }}>QRコードを枠内に合わせてください</div>
           </div>
         </div>
         <canvas ref={canvasRef} style={{ display: "none" }} />
@@ -199,6 +232,7 @@ export function QRScanner({ onSecret, onClose }) {
           color: T.txD, fontSize: 13, cursor: "pointer",
         }}>閉じる</button>
         {error && <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8, background: `${T.red}14`, color: T.red, fontSize: 12 }}>{error}</div>}
+        <style>{`@keyframes scanLine{0%,100%{top:8px;opacity:0}10%{opacity:1}50%{top:calc(100% - 10px);opacity:1}60%{opacity:0}}`}</style>
       </div>
     );
   }
