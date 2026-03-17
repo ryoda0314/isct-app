@@ -197,6 +197,33 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const [heading,setHeading]=useState(null);
   const headingRef=useRef(null);
   const watchIdRef=useRef(null);
+  const routeCoordsRef=useRef(null);
+
+  // ルート座標をrefに同期（watchPositionコールバック内で参照するため）
+  useEffect(()=>{routeCoordsRef.current=route?.coords||null;},[route]);
+
+  // ルートからの逸脱判定しきい値（メートル）
+  const REROUTE_THRESHOLD=50;
+
+  // GPS位置からルートポリライン上の最短距離を求める
+  const distToRoute=(lat,lng,coords)=>{
+    if(!coords||coords.length===0)return Infinity;
+    let minD=Infinity;
+    for(let i=0;i<coords.length-1;i++){
+      const c1=coords[i],c2=coords[i+1];
+      const dx=c2.lat-c1.lat,dy=c2.lng-c1.lng;
+      const lenSq=dx*dx+dy*dy;
+      let t=lenSq===0?0:((lat-c1.lat)*dx+(lng-c1.lng)*dy)/lenSq;
+      t=Math.max(0,Math.min(1,t));
+      const d=haversineNav(lat,lng,c1.lat+t*dx,c1.lng+t*dy);
+      if(d<minD)minD=d;
+    }
+    // 単一点の場合
+    if(coords.length===1){
+      minD=haversineNav(lat,lng,coords[0].lat,coords[0].lng);
+    }
+    return minD;
+  };
 
   // GPS常時追従
   const startWatch=useCallback(()=>{
@@ -205,8 +232,19 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       (pos)=>{
         const {latitude:lat,longitude:lng,accuracy}=pos.coords;
         setGpsPos({lat,lng,accuracy});
-        const {spot,distance}=findNearestNavSpot(lat,lng);
-        if(spot&&distance<1500)setOrigin(spot.id);
+        // ルートが存在する場合、逸脱時のみ再計算
+        const rc=routeCoordsRef.current;
+        if(rc&&rc.length>0){
+          const d=distToRoute(lat,lng,rc);
+          if(d>REROUTE_THRESHOLD){
+            const {spot,distance}=findNearestNavSpot(lat,lng);
+            if(spot&&distance<1500)setOrigin(spot.id);
+          }
+        }else{
+          // ルート未設定時は従来通り（出発地の初期設定用）
+          const {spot,distance}=findNearestNavSpot(lat,lng);
+          if(spot&&distance<1500)setOrigin(spot.id);
+        }
       },
       ()=>{},
       {enableHighAccuracy:true,timeout:10000,maximumAge:5000}
@@ -218,14 +256,31 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   },[]);
   useEffect(()=>()=>stopWatch(),[]);
 
-  // コンパス
+  // コンパス（ローパスフィルタ+閾値でジッター抑制）
   useEffect(()=>{
     if(!guiding){setHeading(null);return;}
+    let smoothed=null;
     const handler=(e)=>{
       let h=null;
       if(e.webkitCompassHeading!=null)h=e.webkitCompassHeading;
       else if(e.alpha!=null)h=(360-e.alpha)%360;
-      if(h!=null){headingRef.current=h;setHeading(h);}
+      if(h==null)return;
+      // ローパスフィルタ: 急な変動を平滑化
+      if(smoothed==null){smoothed=h;}
+      else{
+        let delta=h-smoothed;
+        if(delta>180)delta-=360;
+        if(delta<-180)delta+=360;
+        smoothed=(smoothed+delta*0.25+360)%360;
+      }
+      headingRef.current=smoothed;
+      // 3度以上変化した時のみ再描画（微振動を抑制）
+      setHeading(prev=>{
+        if(prev==null)return Math.round(smoothed);
+        let diff=Math.abs(smoothed-prev);
+        if(diff>180)diff=360-diff;
+        return diff>3?Math.round(smoothed):prev;
+      });
     };
     if(typeof DeviceOrientationEvent!=="undefined"&&typeof DeviceOrientationEvent.requestPermission==="function"){
       DeviceOrientationEvent.requestPermission().then(r=>{
@@ -496,7 +551,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     if(!route&&originSpot&&destSpot){
       map.fitBounds(L.latLngBounds([[originSpot.lat,originSpot.lng],[destSpot.lat,destSpot.lng]]).pad(0.3));
     }
-  },[leafletReady,origin,destination,route,gpsPos,heading,guiding,navPhase,spotGroup]);
+  },[leafletReady,origin,destination,route,gpsPos,guiding,navPhase,spotGroup]);
 
   /* ── Inline search for search phase ── */
   const [searchQ,setSearchQ]=useState("");
