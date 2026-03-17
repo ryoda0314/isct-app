@@ -256,17 +256,19 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   },[]);
   useEffect(()=>()=>stopWatch(),[]);
 
-  // コンパス（ローパスフィルタ+閾値でジッター抑制）
+  // コンパス（ローパスフィルタ+連続回転角でジッター・ラップアラウンド抑制）
   useEffect(()=>{
     if(!guiding){setHeading(null);return;}
     let smoothed=null;
+    let prevSmoothed=null;
+    let accumulated=null;
     const handler=(e)=>{
       let h=null;
       if(e.webkitCompassHeading!=null)h=e.webkitCompassHeading;
       else if(e.alpha!=null)h=(360-e.alpha)%360;
       if(h==null)return;
       // ローパスフィルタ: 急な変動を平滑化
-      if(smoothed==null){smoothed=h;}
+      if(smoothed==null){smoothed=h;prevSmoothed=h;accumulated=h;}
       else{
         let delta=h-smoothed;
         if(delta>180)delta-=360;
@@ -274,12 +276,16 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         smoothed=(smoothed+delta*0.25+360)%360;
       }
       headingRef.current=smoothed;
-      // 3度以上変化した時のみ再描画（微振動を抑制）
+      // 連続回転角: 0/360境界をまたいでもCSSが最短経路で回転
+      let d=smoothed-prevSmoothed;
+      if(d>180)d-=360;
+      if(d<-180)d+=360;
+      prevSmoothed=smoothed;
+      accumulated+=d;
+      // 2度以上変化した時のみ再描画
       setHeading(prev=>{
-        if(prev==null)return Math.round(smoothed);
-        let diff=Math.abs(smoothed-prev);
-        if(diff>180)diff=360-diff;
-        return diff>3?Math.round(smoothed):prev;
+        if(prev==null)return Math.round(accumulated);
+        return Math.abs(accumulated-prev)>=2?Math.round(accumulated):prev;
       });
     };
     if(typeof DeviceOrientationEvent!=="undefined"&&typeof DeviceOrientationEvent.requestPermission==="function"){
