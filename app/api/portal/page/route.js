@@ -224,7 +224,7 @@ document.addEventListener('click',function(e){
       if (browser) await browser.close();
     }
   } catch (err) {
-    console.error('[Portal Page] Error:', err.message);
-    return NextResponse.json({ error: 'Portal login failed' }, { status: 500 });
+    console.error('[Portal Page] Error:', err.message, err.stack);
+    return NextResponse.json({ error: `Portal: ${err.message}` }, { status: 500 });
   }
 }
