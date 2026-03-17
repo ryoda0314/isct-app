@@ -323,7 +323,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   // 案内モード: heading変更時にマップをネイティブ回転（followingがtrueの時のみ）
   // コンパスデータ到着前は出発地→目的地の初期方位を維持
   useEffect(()=>{
-    if(!mapInst.current)return;
+    if(!mapInst.current||typeof mapInst.current.setBearing!=='function')return;
     if(guiding&&following&&heading!=null){
       mapInst.current.setBearing(-heading);
     }else if(guiding&&following&&initialBearingRef.current!=null){
@@ -341,9 +341,9 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     setPanelMin(true);
     startWatch();
     // 出発地→目的地の方位でマップを初期回転（目的地が画面上方に来るように）
-    const origSpot=NAV_SPOTS.find(s=>s.id===origin);
+    const origSpot=origin==="__gps__"&&gpsOriginPos?{lat:gpsOriginPos.lat,lng:gpsOriginPos.lng}:NAV_SPOTS.find(s=>s.id===origin);
     const destSpot=NAV_SPOTS.find(s=>s.id===destination);
-    if(origSpot&&destSpot&&mapInst.current){
+    if(origSpot&&destSpot&&mapInst.current&&typeof mapInst.current.setBearing==='function'){
       const b=bearingNav(origSpot.lat,origSpot.lng,destSpot.lat,destSpot.lng);
       initialBearingRef.current=b;
       mapInst.current.setBearing(b);
@@ -359,7 +359,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         mapInst.current?.flyTo([lat,lng],18,{duration:0.8});
       },()=>{},{enableHighAccuracy:true,timeout:10000});
     }
-  },[startWatch,gpsPos,origin,destination]);
+  },[startWatch,gpsPos,gpsOriginPos,origin,destination]);
   const stopGuiding=useCallback(()=>{
     setGuiding(false);
     setFollowing(true);
