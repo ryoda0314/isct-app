@@ -207,6 +207,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const watchIdRef=useRef(null);
   const routeCoordsRef=useRef(null);
   const initialBearingRef=useRef(null);
+  const compassPermRef=useRef(false); // コンパス権限取得済みか
   // 自動追従モード（案内中にユーザーがドラッグしたらfalse）
   const [following,setFollowing]=useState(true);
   const guidingRef=useRef(false);
@@ -270,8 +271,10 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   useEffect(()=>()=>stopWatch(),[]);
 
   // コンパス（ローパスフィルタ+連続回転角でジッター・ラップアラウンド抑制）
+  // 権限はstartGuiding内（ユーザージェスチャー内）で取得済み
   useEffect(()=>{
     if(!guiding){setHeading(null);return;}
+    if(!compassPermRef.current)return;
     let smoothed=null;
     let prevSmoothed=null;
     let accumulated=null;
@@ -301,14 +304,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         return Math.abs(accumulated-prev)>=2?Math.round(accumulated):prev;
       });
     };
-    if(typeof DeviceOrientationEvent!=="undefined"&&typeof DeviceOrientationEvent.requestPermission==="function"){
-      DeviceOrientationEvent.requestPermission().then(r=>{
-        if(r==="granted")window.addEventListener("deviceorientation",handler,true);
-        else setGuiding(false);
-      }).catch(()=>setGuiding(false));
-    }else{
-      window.addEventListener("deviceorientation",handler,true);
-    }
+    window.addEventListener("deviceorientation",handler,true);
     return()=>window.removeEventListener("deviceorientation",handler,true);
   },[guiding]);
 
@@ -336,28 +332,39 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
 
   // 案内開始/終了
   const startGuiding=useCallback(()=>{
-    setGuiding(true);
-    setFollowing(true);
-    setPanelMin(true);
-    startWatch();
-    // 出発地→目的地の方位でマップを初期回転（目的地が画面上方に来るように）
-    const origSpot=origin==="__gps__"&&gpsOriginPos?{lat:gpsOriginPos.lat,lng:gpsOriginPos.lng}:NAV_SPOTS.find(s=>s.id===origin);
-    const destSpot=NAV_SPOTS.find(s=>s.id===destination);
-    if(origSpot&&destSpot&&mapInst.current&&typeof mapInst.current.setBearing==='function'){
-      const b=bearingNav(origSpot.lat,origSpot.lng,destSpot.lat,destSpot.lng);
-      initialBearingRef.current=b;
-      mapInst.current.setBearing(b);
-    }
-    // 現在地にズームイン
-    if(gpsPos&&mapInst.current){
-      mapInst.current.flyTo([gpsPos.lat,gpsPos.lng],18,{duration:0.8});
-    }else if(mapInst.current){
-      // GPSまだ無い場合は取得後にズーム
-      navigator.geolocation?.getCurrentPosition((pos)=>{
-        const {latitude:lat,longitude:lng,accuracy}=pos.coords;
-        setGpsPos({lat,lng,accuracy});
-        mapInst.current?.flyTo([lat,lng],18,{duration:0.8});
-      },()=>{},{enableHighAccuracy:true,timeout:10000});
+    const doStart=()=>{
+      setGuiding(true);
+      setFollowing(true);
+      setPanelMin(true);
+      startWatch();
+      // 出発地→目的地の方位でマップを初期回転（目的地が画面上方に来るように）
+      const origSpot=origin==="__gps__"&&gpsOriginPos?{lat:gpsOriginPos.lat,lng:gpsOriginPos.lng}:NAV_SPOTS.find(s=>s.id===origin);
+      const destSpot=NAV_SPOTS.find(s=>s.id===destination);
+      if(origSpot&&destSpot&&mapInst.current&&typeof mapInst.current.setBearing==='function'){
+        const b=bearingNav(origSpot.lat,origSpot.lng,destSpot.lat,destSpot.lng);
+        initialBearingRef.current=b;
+        mapInst.current.setBearing(b);
+      }
+      // 現在地にズームイン
+      if(gpsPos&&mapInst.current){
+        mapInst.current.flyTo([gpsPos.lat,gpsPos.lng],18,{duration:0.8});
+      }else if(mapInst.current){
+        navigator.geolocation?.getCurrentPosition((pos)=>{
+          const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+          setGpsPos({lat,lng,accuracy});
+          mapInst.current?.flyTo([lat,lng],18,{duration:0.8});
+        },()=>{},{enableHighAccuracy:true,timeout:10000});
+      }
+    };
+    // iOSではユーザージェスチャー内でコンパス権限を取得する必要がある
+    if(typeof DeviceOrientationEvent!=="undefined"&&typeof DeviceOrientationEvent.requestPermission==="function"){
+      DeviceOrientationEvent.requestPermission().then(r=>{
+        compassPermRef.current=r==="granted";
+        doStart();
+      }).catch(()=>{compassPermRef.current=false;doStart();});
+    }else{
+      compassPermRef.current=true;
+      doStart();
     }
   },[startWatch,gpsPos,gpsOriginPos,origin,destination]);
   const stopGuiding=useCallback(()=>{
