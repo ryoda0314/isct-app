@@ -213,8 +213,10 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
         </button>
         <button onClick={()=>{
           setPortalLoading(true);setPortalError(null);
-          fetch("/api/portal/page").then(r=>{
-            if(!r.ok)throw new Error(r.status===400?"ポータル認証情報が未設定です":"ポータルへの接続に失敗しました");
+          fetch("/api/portal/page",{cache:"no-store"}).then(async r=>{
+            if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||(r.status===400?"ポータル認証情報が未設定です":"ポータルへの接続に失敗しました"));}
+            const ct=r.headers.get("content-type")||"";
+            if(!ct.includes("application/json"))throw new Error("サーバーから不正な応答がありました");
             return r.json();
           }).then(d=>{setPortalData(d);setPortalLoading(false);})
             .catch(e=>{setPortalError(e.message);setPortalLoading(false);});
