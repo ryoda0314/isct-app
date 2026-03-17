@@ -29,7 +29,9 @@ const useLeaflet=()=>{
   useEffect(()=>{
     if(window.L){setReady(true);return;}
     const css=document.createElement("link");css.rel="stylesheet";css.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";document.head.appendChild(css);
-    const js=document.createElement("script");js.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";js.onload=()=>setReady(true);document.head.appendChild(js);
+    const js=document.createElement("script");js.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";js.onload=()=>{
+      const rot=document.createElement("script");rot.src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js";rot.onload=()=>setReady(true);rot.onerror=()=>setReady(true);document.head.appendChild(rot);
+    };document.head.appendChild(js);
   },[]);
   return ready;
 };

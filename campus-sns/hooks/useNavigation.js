@@ -130,6 +130,7 @@ export { SPOT_CATS };
 export function useNavigation() {
   const [origin, setOrigin] = useState(null);
   const [destination, setDestination] = useState(null);
+  const [gpsOriginPos, setGpsOriginPos] = useState(null); // {lat, lng} — GPS由来の出発地座標
 
   const graph = useMemo(() => buildGraph(), []);
 
@@ -148,16 +149,46 @@ export function useNavigation() {
   }, [graph]);
 
   const route = useMemo(() => {
-    if (!origin || !destination || origin === destination) return null;
+    const useGps = origin === "__gps__" && gpsOriginPos;
+    if (!useGps && (!origin || origin === destination)) return null;
+    if (!destination) return null;
 
-    const startNodes = getEntranceNodes(origin);
+    let startNodes;
+    let gpsPrefixCoord = null;
+    let gpsPrefixDist = 0;
+
+    if (useGps) {
+      // GPS出発: 最寄りの接続済みノードを探す
+      const connectedIds = Object.keys(graph.adj).filter(id => graph.adj[id]?.length > 0);
+      let bestId = null, bestDist = Infinity;
+      for (const id of connectedIds) {
+        const n = graph.nodes[id];
+        if (!n) continue;
+        const d = haversine(gpsOriginPos, n);
+        if (d < bestDist) { bestDist = d; bestId = id; }
+      }
+      if (!bestId) return null;
+      startNodes = [bestId];
+      gpsPrefixCoord = { lat: gpsOriginPos.lat, lng: gpsOriginPos.lng };
+      gpsPrefixDist = bestDist;
+    } else {
+      startNodes = getEntranceNodes(origin);
+    }
+
     const endNodes = getEntranceNodes(destination);
     if (startNodes.length === 0 || endNodes.length === 0) return null;
 
     const result = dijkstra(graph.adj, graph.nodes, startNodes, endNodes);
     if (!result) return null;
 
-    const coords = result.path.map(id => graph.nodes[id]).filter(Boolean);
+    let coords = result.path.map(id => graph.nodes[id]).filter(Boolean);
+    let totalDist = result.distance;
+
+    // GPS出発地を経路の先頭に追加
+    if (gpsPrefixCoord) {
+      coords = [gpsPrefixCoord, ...coords];
+      totalDist += gpsPrefixDist;
+    }
 
     // Check if route includes stairs
     let hasStairs = false;
@@ -168,15 +199,16 @@ export function useNavigation() {
     }
 
     // Walking speed: 80m/min
-    const minutes = Math.max(1, Math.ceil(result.distance / 80));
+    const minutes = Math.max(1, Math.ceil(totalDist / 80));
 
-    return { path: result.path, coords, distance: Math.round(result.distance), minutes, hasStairs };
-  }, [origin, destination, graph, getEntranceNodes]);
+    return { path: result.path, coords, distance: Math.round(totalDist), minutes, hasStairs };
+  }, [origin, destination, gpsOriginPos, graph, getEntranceNodes]);
 
   const swap = useCallback(() => {
+    if (origin === "__gps__") return; // GPS出発地は入れ替え不可
     setOrigin(destination);
     setDestination(origin);
   }, [origin, destination]);
 
-  return { origin, setOrigin, destination, setDestination, route, swap, graph };
+  return { origin, setOrigin, destination, setDestination, route, swap, graph, gpsOriginPos, setGpsOriginPos };
 }
