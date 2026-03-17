@@ -36,6 +36,9 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
   const [locQ,setLocQ]=useState("");
   const [locRes,setLocRes]=useState([]);
   const [locLoading,setLocLoading]=useState(false);
+  const [portalHtml,setPortalHtml]=useState(null);
+  const [portalLoading,setPortalLoading]=useState(false);
+  const [portalError,setPortalError]=useState(null);
   const {myLoc}=useLocationSharing({id:user.moodleId||user.id,name:user.name,col:user.col,av:user.av});
   const mySpot=getSpot(myLoc);
 
@@ -208,9 +211,16 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
           <span style={{color:T.txD,display:"flex"}}>{I.event}</span>
           <span style={{fontSize:11,fontWeight:600,color:T.txH}}>イベント</span>
         </button>
-        <button onClick={()=>setView("location")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer"}}>
-          <span style={{color:T.txD,display:"flex"}}>{I.pin}</span>
-          <span style={{fontSize:11,fontWeight:600,color:T.txH}}>居場所</span>
+        <button onClick={()=>{
+          setPortalLoading(true);setPortalError(null);
+          fetch("/api/portal/page").then(r=>{
+            if(!r.ok)throw new Error(r.status===400?"ポータル認証情報が未設定です":"ポータルへの接続に失敗しました");
+            return r.text();
+          }).then(html=>{setPortalHtml(html);setPortalLoading(false);})
+            .catch(e=>{setPortalError(e.message);setPortalLoading(false);});
+        }} disabled={portalLoading} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:portalLoading?"wait":"pointer",opacity:portalLoading?.6:1}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+          <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{portalLoading?"読込中...":"ポータル"}</span>
         </button>
       </div>
 
@@ -310,6 +320,19 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
 
       </div>
       <div style={{height:12}}/>
+
+      {/* ── ポータル オーバーレイ ── */}
+      {portalHtml&&<div style={{position:"fixed",inset:0,zIndex:9999,background:T.bg,display:"flex",flexDirection:"column"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:T.bg2,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>
+          <button onClick={()=>setPortalHtml(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
+          <span style={{flex:1,fontSize:15,fontWeight:700,color:T.txH}}>TiTech Portal</span>
+          <button onClick={()=>setPortalHtml(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
+        </div>
+        <iframe srcDoc={portalHtml} style={{flex:1,border:"none",width:"100%"}} sandbox="allow-same-origin allow-scripts allow-forms" title="TiTech Portal"/>
+      </div>}
+
+      {/* ── ポータル エラー トースト ── */}
+      {portalError&&<div onClick={()=>setPortalError(null)} style={{position:"fixed",bottom:mob?80:24,left:"50%",transform:"translateX(-50%)",zIndex:9999,padding:"10px 20px",borderRadius:12,background:T.red,color:"#fff",fontSize:13,fontWeight:600,boxShadow:"0 4px 16px rgba(0,0,0,.3)",cursor:"pointer",animation:"navSlideUp .25s ease-out"}}>{portalError}</div>}
     </div>
   );
 };
