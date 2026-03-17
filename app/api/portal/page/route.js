@@ -113,10 +113,18 @@ export async function GET(request) {
         await proxyBrowser.close();
         proxyBrowser = null;
 
-        // Inject <base> for relative resources
+        // Inject <base>, viewport, mobile CSS
         const baseTag = `<base href="${origin}/">`;
         const viewport = '<meta name="viewport" content="width=device-width,initial-scale=1">';
-        html = html.replace(/<head[^>]*>/i, m => m + baseTag + viewport);
+        const mobileCSS = `<style>
+body{max-width:100vw!important;overflow-x:hidden!important;padding:8px!important;font-size:14px!important;word-break:break-word!important}
+table{max-width:100%!important;width:100%!important;table-layout:fixed!important;border-collapse:collapse!important}
+td,th{word-break:break-word!important;padding:4px!important}
+img{max-width:100%!important;height:auto!important}
+pre{white-space:pre-wrap!important;max-width:100%!important}
+a{word-break:break-all!important}
+</style>`;
+        html = html.replace(/<head[^>]*>/i, m => m + baseTag + viewport + mobileCSS);
 
         // Inject JS: intercept link clicks → route through proxy
         const proxyScript = `<script>
