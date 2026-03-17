@@ -22,10 +22,6 @@ async function ensurePortalCookies(loginId, creds) {
   return cookies;
 }
 
-function toCookieHeader(cookies) {
-  return cookies.map(c => `${c.name}=${c.value}`).join('; ');
-}
-
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 const PORTAL_LOGIN_URL =
@@ -76,38 +72,54 @@ export async function GET(request) {
   try {
     /* ════════════════════════════════════════════════
        MODE A: Proxy a specific URL (link click)
+       Uses Puppeteer with cached cookies to handle SSO
        ════════════════════════════════════════════════ */
     if (targetUrl) {
       const cookies = await ensurePortalCookies(session.loginId, creds);
-      const res = await fetch(targetUrl, {
-        headers: { 'Cookie': toCookieHeader(cookies), 'User-Agent': UA },
-        redirect: 'follow',
-      });
+      let proxyBrowser;
+      try {
+        proxyBrowser = await getBrowser();
+        const page = await proxyBrowser.newPage();
+        page.setDefaultNavigationTimeout(30000);
+        page.setDefaultTimeout(15000);
+        await page.setUserAgent(UA);
 
-      const ct = res.headers.get('content-type') || '';
+        // Set cached portal cookies
+        await page.setCookie(...cookies);
 
-      // Non-HTML resources (images, CSS, JS) — pass through
-      if (!ct.includes('text/html')) {
-        const body = await res.arrayBuffer();
-        return new NextResponse(body, {
-          headers: { 'Content-Type': ct, 'Cache-Control': 'public, max-age=3600' },
+        // Override window.open so SSO stays in same tab
+        await page.evaluateOnNewDocument(() => {
+          window.open = function(url) { if (url) window.location.href = url; return window; };
         });
-      }
 
-      // HTML — add <base> tag and inject link interception
-      let html = await res.text();
-      const origin = new URL(targetUrl).origin;
+        // Navigate to the target URL (Puppeteer handles SSO redirects)
+        await page.goto(targetUrl, { waitUntil: 'networkidle2' });
+        await new Promise(r => setTimeout(r, 1500));
 
-      // Inject <base> for relative URLs (images, CSS)
-      const baseTag = `<base href="${origin}/">`;
-      html = html.replace(/<head[^>]*>/i, m => m + baseTag);
+        // Check if SSO opened a new tab
+        const allPages = await proxyBrowser.pages();
+        let activePage = page;
+        if (allPages.length > 1) {
+          for (const p of allPages) {
+            const u = p.url();
+            if (u !== 'about:blank' && u !== page.url()) { activePage = p; break; }
+          }
+        }
 
-      // Inject viewport meta for mobile
-      const viewport = '<meta name="viewport" content="width=device-width,initial-scale=1">';
-      html = html.replace(/<head[^>]*>/i, m => m + viewport);
+        const finalUrl = activePage.url();
+        const origin = new URL(finalUrl).origin;
+        let html = await activePage.content();
 
-      // Inject JS: intercept link clicks → route through proxy
-      const proxyScript = `<script>
+        await proxyBrowser.close();
+        proxyBrowser = null;
+
+        // Inject <base> for relative resources
+        const baseTag = `<base href="${origin}/">`;
+        const viewport = '<meta name="viewport" content="width=device-width,initial-scale=1">';
+        html = html.replace(/<head[^>]*>/i, m => m + baseTag + viewport);
+
+        // Inject JS: intercept link clicks → route through proxy
+        const proxyScript = `<script>
 document.addEventListener('click',function(e){
   var a=e.target.closest('a');
   if(!a||!a.href||a.href.indexOf('javascript:')===0)return;
@@ -116,15 +128,18 @@ document.addEventListener('click',function(e){
   window.location.href='/api/portal/page?url='+encodeURIComponent(a.href);
 },true);
 </script>`;
-      if (html.includes('</body>')) {
-        html = html.replace('</body>', proxyScript + '</body>');
-      } else {
-        html += proxyScript;
-      }
+        if (html.includes('</body>')) {
+          html = html.replace('</body>', proxyScript + '</body>');
+        } else {
+          html += proxyScript;
+        }
 
-      return new NextResponse(html, {
-        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
-      });
+        return new NextResponse(html, {
+          headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+        });
+      } finally {
+        if (proxyBrowser) await proxyBrowser.close();
+      }
     }
 
     /* ════════════════════════════════════════════════
