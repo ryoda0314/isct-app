@@ -36,7 +36,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
   const [locQ,setLocQ]=useState("");
   const [locRes,setLocRes]=useState([]);
   const [locLoading,setLocLoading]=useState(false);
-  const [portalHtml,setPortalHtml]=useState(null);
+  const [portalData,setPortalData]=useState(null);
   const [portalLoading,setPortalLoading]=useState(false);
   const [portalError,setPortalError]=useState(null);
   const {myLoc}=useLocationSharing({id:user.moodleId||user.id,name:user.name,col:user.col,av:user.av});
@@ -215,8 +215,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
           setPortalLoading(true);setPortalError(null);
           fetch("/api/portal/page").then(r=>{
             if(!r.ok)throw new Error(r.status===400?"ポータル認証情報が未設定です":"ポータルへの接続に失敗しました");
-            return r.text();
-          }).then(html=>{setPortalHtml(html);setPortalLoading(false);})
+            return r.json();
+          }).then(d=>{setPortalData(d);setPortalLoading(false);})
             .catch(e=>{setPortalError(e.message);setPortalLoading(false);});
         }} disabled={portalLoading} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:portalLoading?"wait":"pointer",opacity:portalLoading?.6:1}}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
@@ -322,13 +322,26 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
       <div style={{height:12}}/>
 
       {/* ── ポータル オーバーレイ ── */}
-      {portalHtml&&<div style={{position:"fixed",inset:0,zIndex:9999,background:T.bg,display:"flex",flexDirection:"column"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:T.bg2,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>
-          <button onClick={()=>setPortalHtml(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
-          <span style={{flex:1,fontSize:15,fontWeight:700,color:T.txH}}>TiTech Portal</span>
-          <button onClick={()=>setPortalHtml(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
+      {portalData&&<div style={{position:"fixed",inset:0,zIndex:9999,background:T.bg,display:"flex",flexDirection:"column"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"12px 14px",background:T.bg2,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>
+          <button onClick={()=>setPortalData(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+          <span style={{flex:1,fontSize:16,fontWeight:700,color:T.txH}}>TiTech Portal</span>
+          <button onClick={()=>setPortalData(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
         </div>
-        <iframe srcDoc={portalHtml} style={{flex:1,border:"none",width:"100%"}} sandbox="allow-same-origin allow-scripts allow-forms" title="TiTech Portal"/>
+        <div style={{flex:1,overflowY:"auto",padding:"8px 14px 80px"}}>
+          {portalData.sections?.map((sec,si)=><div key={si} style={{marginBottom:16}}>
+            <div style={{fontSize:12,fontWeight:700,color:T.txD,letterSpacing:.3,padding:"8px 4px 6px"}}>{sec.title}</div>
+            <div style={{borderRadius:12,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
+              {sec.links.map((lnk,li)=><a key={li} href={lnk.url} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:10,padding:"13px 14px",textDecoration:"none",borderTop:li>0?`1px solid ${T.bd}`:"none",cursor:"pointer"}}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                <span style={{flex:1,fontSize:14,fontWeight:500,color:T.txH}}>{lnk.label}</span>
+                <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
+              </a>)}
+            </div>
+          </div>)}
+          {(!portalData.sections||portalData.sections.length===0)&&<div style={{textAlign:"center",padding:"40px 0",color:T.txD,fontSize:13}}>サービス情報を取得できませんでした</div>}
+        </div>
       </div>}
 
       {/* ── ポータル エラー トースト ── */}
