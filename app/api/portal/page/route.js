@@ -6,7 +6,8 @@ import puppeteer from 'puppeteer-core';
 export const maxDuration = 60;
 
 /* ── Per-user cache: cookies + sections (10 min TTL) ── */
-const portalCache = new Map();
+if (!globalThis.__portalCache) globalThis.__portalCache = new Map();
+const portalCache = globalThis.__portalCache;
 const CACHE_TTL = 10 * 60 * 1000;
 const loginPromises = new Map();
 
@@ -187,7 +188,7 @@ export async function GET(request) {
       });
     }
 
-    /* ── Proxy: return page HTML as-is (auth only, no modifications) ── */
+    /* ── Full proxy: rewrite all URLs, return self-contained HTML ── */
     const data = await ensurePortalData(session.loginId, creds);
     let browser;
     try {
@@ -216,33 +217,41 @@ export async function GET(request) {
       }
 
       const finalUrl = activePage.url();
-      const origin = new URL(finalUrl).origin;
+      const baseOrigin = new URL(finalUrl).origin;
       let html = await activePage.content();
 
       await browser.close();
       browser = null;
 
-      // Only inject base tag (for relative URLs) and link proxy script — no viewport, no CSS
-      const baseTag = `<base href="${origin}/">`;
-      html = html.replace(/<head[^>]*>/i, m => m + baseTag);
+      // Rewrite all resource URLs to go through /api/portal/proxy?url=...
+      const proxyBase = '/api/portal/proxy?url=';
+      const rewriteUrl = (rawUrl) => {
+        if (!rawUrl || rawUrl.startsWith('data:') || rawUrl.startsWith('javascript:') || rawUrl.startsWith('#') || rawUrl.startsWith('mailto:')) return rawUrl;
+        try {
+          const abs = new URL(rawUrl, finalUrl).href;
+          return proxyBase + encodeURIComponent(abs);
+        } catch { return rawUrl; }
+      };
 
-      const proxyScript = `<script>
-document.addEventListener('click',function(e){
-  var a=e.target.closest('a');
-  if(!a||!a.href||a.href.indexOf('javascript:')===0)return;
-  e.preventDefault();
-  e.stopPropagation();
-  window.location.href='/api/portal/page?url='+encodeURIComponent(a.href);
-},true);
-</script>`;
-      if (html.includes('</body>')) {
-        html = html.replace('</body>', proxyScript + '</body>');
-      } else {
-        html += proxyScript;
-      }
+      // Rewrite src, href (CSS/JS/img), action, background attributes
+      html = html.replace(/(<(?:link|script|img|input|source|video|audio|embed|iframe)\b[^>]*?\s)(src|href)=(["'])(.*?)\3/gi,
+        (m, pre, attr, q, url) => `${pre}${attr}=${q}${rewriteUrl(url)}${q}`);
+      html = html.replace(/(<link\b[^>]*?\s)(href)=(["'])(.*?)\3/gi,
+        (m, pre, attr, q, url) => `${pre}${attr}=${q}${rewriteUrl(url)}${q}`);
+      // Rewrite <a href> to go through page proxy (not resource proxy)
+      html = html.replace(/(<a\b[^>]*?\s)(href)=(["'])((?!javascript:|#|mailto:).*?)\3/gi,
+        (m, pre, attr, q, url) => {
+          try {
+            const abs = new URL(url, finalUrl).href;
+            return `${pre}${attr}=${q}/api/portal/page?url=${encodeURIComponent(abs)}${q}`;
+          } catch { return m; }
+        });
+      // Rewrite url() in <style> and style attributes
+      html = html.replace(/url\((["']?)((?!data:).*?)\1\)/gi,
+        (m, q, url) => `url(${q}${rewriteUrl(url)}${q})`);
 
       return new NextResponse(html, {
-        headers: { 'Cache-Control': 'no-store' },
+        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
       });
     } finally {
       if (browser) await browser.close();

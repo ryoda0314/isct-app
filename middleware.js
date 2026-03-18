@@ -61,7 +61,7 @@ export function middleware(request) {
   res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
 
   // Portal proxy pages are displayed inside a same-origin iframe
-  const isPortalPage = pathname.startsWith('/api/portal/page');
+  const isPortalPage = pathname.startsWith('/api/portal/page') || pathname.startsWith('/api/portal/proxy');
   res.headers.set('X-Frame-Options', isPortalPage ? 'SAMEORIGIN' : 'DENY');
 
   // M2: HSTS
