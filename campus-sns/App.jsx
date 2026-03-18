@@ -202,37 +202,17 @@ export default function App(){
   // --- LOADING / SETUP ---
   if(splashPhase!=="done") return (
     <div style={{position:"fixed",inset:0,zIndex:99999,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:T.bg,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden",opacity:splashPhase==="fade"?0:1,transition:"opacity .5s ease-out"}}>
-      {/* ambient glow */}
-      <div style={{position:"absolute",width:"140vmax",height:"140vmax",borderRadius:"50%",background:`radial-gradient(circle,${T.accent}0d 0%,transparent 55%)`,animation:"spBgPulse 4s ease-in-out infinite"}}/>
-      {/* floating particles */}
-      {[[18,12,5],[75,18,4],[25,72,6],[82,68,4],[48,88,3],[10,48,5],[90,42,3],[60,22,5],[35,38,4],[68,82,6]].map(([x,y,s],i)=><div key={i} style={{position:"absolute",left:`${x}%`,top:`${y}%`,width:s,height:s,borderRadius:"50%",background:T.accent,opacity:0,animation:`spFloat ${3+i*.4}s ${i*.25}s ease-in-out infinite`}}/>)}
-      {/* center block */}
-      <div style={{display:"flex",flexDirection:"column",alignItems:"center",position:"relative"}}>
-        {/* ripple rings from logo */}
-        {[0,1,2].map(i=><div key={i} style={{position:"absolute",top:42,left:"50%",width:84,height:84,marginLeft:-42,marginTop:-42,borderRadius:24,border:`1.5px solid ${T.accent}`,opacity:0,animation:`spRipple 2.8s ${.7+i*.45}s ease-out infinite`}}/>)}
-        {/* orbiting dot */}
-        <div style={{position:"absolute",top:42,left:"50%",width:0,height:0,animation:"spOrbit 3.5s linear infinite"}}>
-          <div style={{position:"absolute",width:5,height:5,borderRadius:"50%",background:T.accentSoft,boxShadow:`0 0 10px ${T.accent}`,left:-2.5,top:-56,opacity:0,animation:"spFadeIn .6s .9s forwards"}}/>
-        </div>
-        {/* glow behind logo */}
-        <div style={{position:"absolute",top:42,left:"50%",width:130,height:130,marginLeft:-65,marginTop:-65,borderRadius:40,background:`radial-gradient(circle,${T.accent}28 0%,transparent 65%)`,animation:"spGlow 2.5s ease-in-out infinite",filter:"blur(10px)"}}/>
-        {/* logo */}
-        <div style={{width:84,height:84,borderRadius:24,background:`linear-gradient(135deg,${T.accent},${T.accentSoft})`,display:"flex",alignItems:"center",justifyContent:"center",animation:"spLogoIn .8s cubic-bezier(.16,1,.3,1) both",boxShadow:`0 16px 48px ${T.accent}40`,position:"relative",zIndex:2}}>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+        <div style={{width:84,height:84,borderRadius:24,background:`linear-gradient(135deg,${T.accent},${T.accentSoft})`,display:"flex",alignItems:"center",justifyContent:"center",animation:"spLogoIn .7s cubic-bezier(.16,1,.3,1) both",boxShadow:`0 10px 36px ${T.accent}30`}}>
           <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
         </div>
-        {/* title + shimmer */}
-        <div style={{marginTop:28,position:"relative",overflow:"hidden",padding:"4px 8px",animation:"spSlideIn .65s .15s cubic-bezier(.16,1,.3,1) both"}}>
-          <span style={{fontSize:24,fontWeight:700,color:T.txH,letterSpacing:"-0.02em"}}>Science<span style={{color:T.accent}}>Tokyo</span> App</span>
-          <div style={{position:"absolute",inset:"-30% -80%",background:`linear-gradient(105deg,transparent 42%,${T.txH}12 49%,${T.txH}12 51%,transparent 58%)`,animation:"spShimmer 3s 1.2s ease-in-out infinite"}}/>
-        </div>
-        {/* subtitle */}
-        <div style={{marginTop:8,fontSize:13,color:T.txD,letterSpacing:"0.02em",animation:"spSlideIn .65s .28s cubic-bezier(.16,1,.3,1) both"}}>東京科学大学キャンパスSNS</div>
+        <div style={{marginTop:24,fontSize:24,fontWeight:700,color:T.txH,letterSpacing:"-0.02em",animation:"spFadeUp .6s .12s cubic-bezier(.16,1,.3,1) both"}}>Science<span style={{color:T.accent}}>Tokyo</span> App</div>
+        <div style={{marginTop:8,fontSize:13,color:T.txD,letterSpacing:"0.02em",animation:"spFadeUp .6s .22s cubic-bezier(.16,1,.3,1) both"}}>東京科学大学キャンパスSNS</div>
       </div>
-      {/* loading dots */}
-      <div style={{position:"absolute",bottom:`calc(72px + env(safe-area-inset-bottom))`,display:"flex",gap:10,animation:"spSlideIn .6s .4s cubic-bezier(.16,1,.3,1) both"}}>
-        {[0,1,2].map(i=><div key={i} style={{width:7,height:7,borderRadius:"50%",background:T.accent,boxShadow:`0 0 8px ${T.accent}60`,animation:`spDot 1.4s ${i*.15}s ease-in-out infinite`}}/>)}
+      <div style={{position:"absolute",bottom:`calc(72px + env(safe-area-inset-bottom))`,display:"flex",gap:8,animation:"spFadeUp .5s .32s cubic-bezier(.16,1,.3,1) both"}}>
+        {[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:T.accent,animation:`spDot 1.4s ${i*.15}s ease-in-out infinite`}}/>)}
       </div>
-      <style>{`@keyframes spLogoIn{from{opacity:0;transform:scale(.45) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}@keyframes spSlideIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}@keyframes spBgPulse{0%,100%{opacity:.5;transform:scale(.95)}50%{opacity:1;transform:scale(1.06)}}@keyframes spGlow{0%,100%{opacity:.5;transform:translate(0) scale(.85)}50%{opacity:1;transform:translate(0) scale(1.15)}}@keyframes spRipple{0%{transform:scale(1);opacity:.35}100%{transform:scale(2.5);opacity:0}}@keyframes spOrbit{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes spFadeIn{to{opacity:.85}}@keyframes spShimmer{0%,30%{transform:translateX(-120%)}70%,100%{transform:translateX(120%)}}@keyframes spDot{0%,80%,100%{transform:scale(.5);opacity:.25}40%{transform:scale(1.3);opacity:1}}@keyframes spFloat{0%,100%{transform:translateY(0) scale(.5);opacity:.08}50%{transform:translateY(-28px) scale(1);opacity:.22}}html,body{background:${T.bg};margin:0}`}</style>
+      <style>{`@keyframes spLogoIn{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}@keyframes spFadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes spDot{0%,80%,100%{transform:scale(.5);opacity:.3}40%{transform:scale(1.2);opacity:1}}html,body{background:${T.bg};margin:0}`}</style>
     </div>
   );
   if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={()=>{setMockMode(true);setAppState("ready");}} onDemo={onDemo} mob={mob} dark={dark}/>;

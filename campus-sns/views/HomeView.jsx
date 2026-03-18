@@ -166,7 +166,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                     <span style={{fontSize:i===0?9:8,fontWeight:700,color:i===0?tint:T.txD,whiteSpace:"nowrap",marginBottom:2}}>{lbl}</span>
                     <WxIcon type={iconType} sz={mob?18:16}/>
                     <span style={{fontSize:mob?10:9,fontWeight:700,color:T.txH,marginTop:2}}>{h.temp}°</span>
-                    {h.rain!=null&&h.rain>0&&<span style={{fontSize:7,fontWeight:600,color:h.rain>50?T.accent:T.txD}}>{h.rain}%</span>}
+                    {h.rain!=null&&h.rain>0&&<span style={{fontSize:7,fontWeight:600,color:"#3b82f6"}}>{h.rain}%</span>}
                   </div>
                 );})}
               </div>}
