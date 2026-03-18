@@ -353,13 +353,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                 <span style={{fontSize:11,color:T.txD,marginLeft:"auto"}}>{sec.links.length}件</span>
               </div>
               <div style={{borderRadius:14,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
-                {sec.links.map((lnk,li)=><button key={li} onClick={()=>{
-                  setPortalPage({label:lnk.label,content:null,loading:true});
-                  fetch("/api/portal/page?url="+encodeURIComponent(lnk.url),{cache:"no-store"})
-                    .then(r=>{if(!r.ok)throw new Error("読み込み失敗");return r.json();})
-                    .then(d=>setPortalPage(p=>p?{...p,content:d.content,title:d.title,loading:false}:null))
-                    .catch(()=>setPortalPage(p=>p?{...p,loading:false,error:true}:null));
-                }} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",textDecoration:"none",border:"none",borderTop:li>0?`1px solid ${T.bd}`:"none",cursor:"pointer",background:"transparent",textAlign:"left",color:"inherit"}}>
+                {sec.links.map((lnk,li)=><button key={li} onClick={()=>setPortalPage({url:"/api/portal/page?url="+encodeURIComponent(lnk.url),label:lnk.label})} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",textDecoration:"none",border:"none",borderTop:li>0?`1px solid ${T.bd}`:"none",cursor:"pointer",background:"transparent",textAlign:"left",color:"inherit"}}>
                   <div style={{width:32,height:32,borderRadius:8,background:`${s.col}15`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={s.col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                   </div>
@@ -371,7 +365,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
           })}
           {(!portalData.sections||portalData.sections.length===0)&&<div style={{textAlign:"center",padding:"40px 0",color:T.txD,fontSize:13}}>サービス情報を取得できませんでした</div>}
         </div>
-        {portalPage&&<div style={{position:"absolute",inset:0,zIndex:1,background:T.bg,display:"flex",flexDirection:"column"}}>
+        {portalPage&&<div style={{position:"absolute",inset:0,zIndex:1,background:"#fff",display:"flex",flexDirection:"column"}}>
           <header style={{display:"flex",alignItems:"center",gap:8,padding:"env(safe-area-inset-top) 14px 0",minHeight:54,borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}>
             <div style={{display:"flex",alignItems:"center",gap:10,width:"100%",height:54}}>
               <button onClick={()=>setPortalPage(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
@@ -379,30 +373,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               <button onClick={()=>{setPortalPage(null);setPortalData(null);}} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
             </div>
           </header>
-          <div style={{flex:1,overflowY:"scroll",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",minHeight:0,padding:"12px 16px 40px"}}>
-            {portalPage.loading&&<div style={{textAlign:"center",padding:"40px 0",color:T.txD,fontSize:13}}>読み込み中...</div>}
-            {portalPage.error&&<div style={{textAlign:"center",padding:"40px 0",color:T.red,fontSize:13}}>ページの読み込みに失敗しました</div>}
-            {portalPage.content&&portalPage.content.map((item,i)=>{
-              if(item.type==="heading")return <div key={i} style={{fontSize:item.level<=2?18:15,fontWeight:700,color:T.txH,margin:"16px 0 6px"}}>{item.text}</div>;
-              if(item.type==="bold")return <div key={i} style={{fontSize:14,fontWeight:700,color:T.txH,margin:"12px 0 4px"}}>{item.text}</div>;
-              if(item.type==="hr")return <div key={i} style={{height:1,background:T.bd,margin:"12px 0"}}/>;
-              if(item.type==="link"){
-                const dateMatch=item.text.match(/^(\d{4}\/\d{2}\/\d{2})\s+/);
-                return <button key={i} onClick={()=>{
-                  setPortalPage({label:item.text.slice(0,30),content:null,loading:true});
-                  fetch("/api/portal/page?url="+encodeURIComponent(item.url),{cache:"no-store"})
-                    .then(r=>{if(!r.ok)throw new Error();return r.json();})
-                    .then(d=>setPortalPage(p=>p?{...p,content:d.content,title:d.title,loading:false}:null))
-                    .catch(()=>setPortalPage(p=>p?{...p,loading:false,error:true}:null));
-                }} style={{width:"100%",display:"block",textAlign:"left",padding:"10px 12px",margin:"3px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer",color:"inherit"}}>
-                  {dateMatch&&<div style={{fontSize:11,fontWeight:600,color:T.txD,marginBottom:2}}>{dateMatch[1]}</div>}
-                  <div style={{fontSize:13,fontWeight:500,color:T.accent,lineHeight:1.4}}>{dateMatch?item.text.slice(dateMatch[0].length):item.text}</div>
-                </button>;
-              }
-              if(item.type==="text")return <div key={i} style={{fontSize:13,color:T.tx,lineHeight:1.7,whiteSpace:"pre-wrap",margin:"4px 0"}}>{item.text}</div>;
-              return null;
-            })}
-          </div>
+          <iframe src={portalPage.url} style={{flex:1,border:"none",width:"100%",minHeight:0}} title={portalPage.label}/>
         </div>}
       </div>;
     })()}

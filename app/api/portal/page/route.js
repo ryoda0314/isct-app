@@ -187,7 +187,7 @@ export async function GET(request) {
       });
     }
 
-    /* ── Content extraction: extract readable content as JSON ── */
+    /* ── Proxy: return page HTML as-is (auth only, no modifications) ── */
     const data = await ensurePortalData(session.loginId, creds);
     let browser;
     try {
@@ -215,115 +215,33 @@ export async function GET(request) {
         }
       }
 
-      const title = await activePage.title();
-      const content = await activePage.evaluate(() => {
-        const items = [];
-        const seen = new Set();
-        const body = document.body;
-        if (!body) return items;
-
-        // Walk the DOM in order, extracting meaningful content
-        const walk = (node) => {
-          if (!node) return;
-          // Skip hidden elements, scripts, styles
-          if (node.nodeType === 1) {
-            const tag = node.tagName;
-            if (['SCRIPT','STYLE','NOSCRIPT','HEAD','META','LINK','IFRAME'].includes(tag)) return;
-            const style = window.getComputedStyle(node);
-            if (style.display === 'none' || style.visibility === 'hidden') return;
-          }
-
-          // Link
-          if (node.nodeType === 1 && node.tagName === 'A' && node.href) {
-            const text = (node.innerText || '').trim();
-            const href = node.href;
-            if (text && text.length > 1 && href !== '#' && !href.startsWith('javascript:')) {
-              const key = text + '|' + href;
-              if (!seen.has(key)) {
-                seen.add(key);
-                items.push({ type: 'link', text, url: href });
-              }
-            }
-            return; // Don't recurse into links
-          }
-
-          // Heading
-          if (node.nodeType === 1 && /^H[1-6]$/.test(node.tagName)) {
-            const text = (node.innerText || '').trim();
-            if (text && !seen.has('h:' + text)) {
-              seen.add('h:' + text);
-              items.push({ type: 'heading', text, level: parseInt(node.tagName[1]) });
-            }
-            return;
-          }
-
-          // Bold text as sub-heading
-          if (node.nodeType === 1 && (node.tagName === 'B' || node.tagName === 'STRONG')) {
-            const text = (node.innerText || '').trim();
-            if (text && text.length > 2 && text.length < 80 && !node.closest('a') && !seen.has('b:' + text)) {
-              seen.add('b:' + text);
-              items.push({ type: 'bold', text });
-            }
-            return;
-          }
-
-          // Text nodes
-          if (node.nodeType === 3) {
-            const text = node.textContent.trim();
-            if (text && text.length > 1) {
-              // Merge with previous text item if exists
-              const last = items[items.length - 1];
-              if (last && last.type === 'text') {
-                last.text += ' ' + text;
-              } else {
-                items.push({ type: 'text', text });
-              }
-            }
-            return;
-          }
-
-          // HR → separator
-          if (node.nodeType === 1 && node.tagName === 'HR') {
-            items.push({ type: 'hr' });
-            return;
-          }
-
-          // Recurse children
-          if (node.childNodes) {
-            for (const child of node.childNodes) walk(child);
-          }
-
-          // Block elements add line breaks
-          if (node.nodeType === 1) {
-            const display = window.getComputedStyle(node).display;
-            if (['block','flex','table','table-row','list-item'].includes(display)) {
-              const last = items[items.length - 1];
-              if (last && last.type === 'text' && !last.text.endsWith('\n')) {
-                last.text += '\n';
-              }
-            }
-          }
-        };
-
-        walk(body);
-
-        // Clean up: trim text items, remove empty ones
-        return items
-          .map(item => {
-            if (item.type === 'text') item.text = item.text.replace(/\n{3,}/g, '\n\n').trim();
-            return item;
-          })
-          .filter(item => {
-            if (item.type === 'text') return item.text.length > 0;
-            return true;
-          });
-      });
+      const finalUrl = activePage.url();
+      const origin = new URL(finalUrl).origin;
+      let html = await activePage.content();
 
       await browser.close();
       browser = null;
 
-      console.log(`[Portal] Content extracted: ${title}, ${content.length} items`);
-      return NextResponse.json({ title, content }, {
+      // Only inject base tag (for relative URLs) and link proxy script — no viewport, no CSS
+      const baseTag = `<base href="${origin}/">`;
+      html = html.replace(/<head[^>]*>/i, m => m + baseTag);
+
+      const proxyScript = `<script>
+document.addEventListener('click',function(e){
+  var a=e.target.closest('a');
+  if(!a||!a.href||a.href.indexOf('javascript:')===0)return;
+  e.preventDefault();
+  e.stopPropagation();
+  window.location.href='/api/portal/page?url='+encodeURIComponent(a.href);
+},true);
+</script>`;
+      if (html.includes('</body>')) {
+        html = html.replace('</body>', proxyScript + '</body>');
+      } else {
+        html += proxyScript;
+      }
+
+      return new NextResponse(html, {
         headers: { 'Cache-Control': 'no-store' },
       });
     } finally {
