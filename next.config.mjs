@@ -13,6 +13,11 @@ const withPWA = withPWAInit({
         urlPattern: /\/api\/data\/grades/,
         handler: "NetworkOnly",
       },
+      {
+        // ポータルAPIはHTML/JSONを返すためSWキャッシュをバイパス
+        urlPattern: /\/api\/portal\//,
+        handler: "NetworkOnly",
+      },
     ],
   },
 });
