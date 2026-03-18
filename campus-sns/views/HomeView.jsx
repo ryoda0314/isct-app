@@ -118,7 +118,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
   const gcol=mob?2:3;
 
   return(
-    <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+    <><div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
       {/* ── Hero: 挨拶 + 天気 ── */}
       <div style={{padding:"10px 16px 6px"}}>
         {/* 日時 + 天気カード */}
@@ -323,63 +323,64 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
 
       </div>
       <div style={{height:12}}/>
+    </div>
 
-      {/* ── ポータル オーバーレイ (createPortal to escape overflow:hidden) ── */}
-      {portalData&&createPortal((()=>{
-        const secIcons={
-          "教務系サービス":{col:"#4285f4",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4285f4" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>},
-          "DX支援サービス":{col:"#34a853",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34a853" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>},
-          "メール関連サービス":{col:"#ea4335",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea4335" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>},
-          "各種情報サービス":{col:"#fbbc04",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fbbc04" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>},
-        };
-        const fallback={col:T.accent,icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>};
-        return <div style={{position:"fixed",inset:0,zIndex:9999,background:T.bg,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+    {/* ── ポータル オーバーレイ (absolute within content wrapper, tab bar stays visible) ── */}
+    {portalData&&(()=>{
+      const secIcons={
+        "教務系サービス":{col:"#4285f4",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4285f4" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>},
+        "DX支援サービス":{col:"#34a853",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34a853" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>},
+        "メール関連サービス":{col:"#ea4335",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea4335" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>},
+        "各種情報サービス":{col:"#fbbc04",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fbbc04" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>},
+      };
+      const fallback={col:T.accent,icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>};
+      return <div style={{position:"absolute",inset:0,zIndex:10,background:T.bg,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <header style={{display:"flex",alignItems:"center",gap:8,padding:"env(safe-area-inset-top) 14px 0",minHeight:54,borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,width:"100%",height:54}}>
+            <button onClick={()=>setPortalData(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+            <span style={{flex:1,fontSize:17,fontWeight:700,color:T.txH}}>TiTech Portal</span>
+            <button onClick={()=>setPortalData(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
+          </div>
+        </header>
+        <div style={{flex:1,overflowY:"scroll",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",minHeight:0,padding:"12px 16px 80px"}}>
+          {portalData.sections?.map((sec,si)=>{
+            const s=secIcons[sec.title]||fallback;
+            return <div key={si} style={{marginBottom:20}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 2px 8px"}}>
+                {s.icon}
+                <span style={{fontSize:15,fontWeight:700,color:T.txH}}>{sec.title}</span>
+                <span style={{fontSize:11,color:T.txD,marginLeft:"auto"}}>{sec.links.length}件</span>
+              </div>
+              <div style={{borderRadius:14,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
+                {sec.links.map((lnk,li)=><button key={li} onClick={()=>setPortalPage({url:"/api/portal/page?url="+encodeURIComponent(lnk.url),label:lnk.label})} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",textDecoration:"none",border:"none",borderTop:li>0?`1px solid ${T.bd}`:"none",cursor:"pointer",background:"transparent",textAlign:"left",color:"inherit"}}>
+                  <div style={{width:32,height:32,borderRadius:8,background:`${s.col}15`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={s.col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  </div>
+                  <span style={{flex:1,fontSize:14,fontWeight:500,color:T.txH,lineHeight:1.3}}>{lnk.label}</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>)}
+              </div>
+            </div>;
+          })}
+          {(!portalData.sections||portalData.sections.length===0)&&<div style={{textAlign:"center",padding:"40px 0",color:T.txD,fontSize:13}}>サービス情報を取得できませんでした</div>}
+        </div>
+        {/* ── iframe sub-view ── */}
+        {portalPage&&<div style={{position:"absolute",inset:0,zIndex:1,background:T.bg,display:"flex",flexDirection:"column"}}>
           <header style={{display:"flex",alignItems:"center",gap:8,padding:"env(safe-area-inset-top) 14px 0",minHeight:54,borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}>
             <div style={{display:"flex",alignItems:"center",gap:10,width:"100%",height:54}}>
-              <button onClick={()=>setPortalData(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-              <span style={{flex:1,fontSize:17,fontWeight:700,color:T.txH}}>TiTech Portal</span>
-              <button onClick={()=>setPortalData(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
+              <button onClick={()=>setPortalPage(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
+              <span style={{flex:1,fontSize:14,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{portalPage.label}</span>
+              <button onClick={()=>{setPortalPage(null);setPortalData(null);}} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
             </div>
           </header>
-          <div style={{flex:1,overflowY:"scroll",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",minHeight:0,padding:"12px 16px 80px"}}>
-            {portalData.sections?.map((sec,si)=>{
-              const s=secIcons[sec.title]||fallback;
-              return <div key={si} style={{marginBottom:20}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 2px 8px"}}>
-                  {s.icon}
-                  <span style={{fontSize:15,fontWeight:700,color:T.txH}}>{sec.title}</span>
-                  <span style={{fontSize:11,color:T.txD,marginLeft:"auto"}}>{sec.links.length}件</span>
-                </div>
-                <div style={{borderRadius:14,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
-                  {sec.links.map((lnk,li)=><button key={li} onClick={()=>setPortalPage({url:"/api/portal/page?url="+encodeURIComponent(lnk.url),label:lnk.label})} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",textDecoration:"none",border:"none",borderTop:li>0?`1px solid ${T.bd}`:"none",cursor:"pointer",background:"transparent",textAlign:"left",color:"inherit"}}>
-                    <div style={{width:32,height:32,borderRadius:8,background:`${s.col}15`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={s.col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                    </div>
-                    <span style={{flex:1,fontSize:14,fontWeight:500,color:T.txH,lineHeight:1.3}}>{lnk.label}</span>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                  </button>)}
-                </div>
-              </div>;
-            })}
-            {(!portalData.sections||portalData.sections.length===0)&&<div style={{textAlign:"center",padding:"40px 0",color:T.txD,fontSize:13}}>サービス情報を取得できませんでした</div>}
-          </div>
-          {/* ── iframe sub-view ── */}
-          {portalPage&&<div style={{position:"absolute",inset:0,zIndex:1,background:T.bg,display:"flex",flexDirection:"column"}}>
-            <header style={{display:"flex",alignItems:"center",gap:8,padding:"env(safe-area-inset-top) 14px 0",minHeight:54,borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}>
-              <div style={{display:"flex",alignItems:"center",gap:10,width:"100%",height:54}}>
-                <button onClick={()=>setPortalPage(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
-                <span style={{flex:1,fontSize:14,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{portalPage.label}</span>
-                <button onClick={()=>{setPortalPage(null);setPortalData(null);}} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
-              </div>
-            </header>
-            <iframe src={portalPage.url} style={{flex:1,border:"none",width:"100%",minHeight:0,background:"#fff"}} title={portalPage.label}/>
-          </div>}
-        </div>;
-      })(),document.body)}
+          <iframe src={portalPage.url} style={{flex:1,border:"none",width:"100%",minHeight:0,background:"#fff"}} title={portalPage.label}/>
+        </div>}
+      </div>;
+    })()}
 
-      {/* ── ポータル エラー トースト ── */}
-      {portalError&&createPortal(<div onClick={()=>setPortalError(null)} style={{position:"fixed",bottom:mob?80:24,left:"50%",transform:"translateX(-50%)",zIndex:9999,padding:"10px 20px",borderRadius:12,background:T.red,color:"#fff",fontSize:13,fontWeight:600,boxShadow:"0 4px 16px rgba(0,0,0,.3)",cursor:"pointer",animation:"navSlideUp .25s ease-out"}}>{portalError}</div>,document.body)}
-    </div>
+    {/* ── ポータル エラー トースト ── */}
+    {portalError&&createPortal(<div onClick={()=>setPortalError(null)} style={{position:"fixed",bottom:mob?80:24,left:"50%",transform:"translateX(-50%)",zIndex:9999,padding:"10px 20px",borderRadius:12,background:T.red,color:"#fff",fontSize:13,fontWeight:600,boxShadow:"0 4px 16px rgba(0,0,0,.3)",cursor:"pointer",animation:"navSlideUp .25s ease-out"}}>{portalError}</div>,document.body)}
+    </>
   );
 };
