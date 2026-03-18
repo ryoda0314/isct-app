@@ -192,6 +192,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const mapInst=useRef(null);
   const layersRef=useRef([]);
   const overlayRef=useRef(null);
+  const gpsMarkerRef=useRef(null);
   const {origin,setOrigin,destination,setDestination,route,swap,gpsOriginPos,setGpsOriginPos}=useNavigation();
   const [selectMode,setSelectMode]=useState(null);
   const [panelMin,setPanelMin]=useState(false);
@@ -342,6 +343,18 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     // guiding && !following の時は何もしない（ユーザーが自由操作中）
   },[guiding,following,heading]);
 
+  // GPSマーカーの方向矢印をheading変化に追従させる
+  useEffect(()=>{
+    if(!gpsMarkerRef.current||!window.L)return;
+    const hd=headingRef.current;
+    // マップがsetBearingで回転中は矢印を常に上向き(0)にする（マップ自体が回転してるため）
+    const mapBearing=(mapInst.current&&typeof mapInst.current.getBearing==='function')?mapInst.current.getBearing():0;
+    const arrowAngle=hd!=null?hd+mapBearing:null;
+    const arrowHtml=arrowAngle!=null?`<div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%) rotate(${arrowAngle}deg);transform-origin:center 24px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:14px solid #4285f4;filter:drop-shadow(0 0 3px rgba(66,133,244,.6));z-index:2"></div>`:"";
+    const icon=window.L.divIcon({className:"",html:`<div style="position:relative">${arrowHtml}<div style="position:absolute;inset:-10px;border-radius:50%;background:#4285f420;border:1.5px solid #4285f440;animation:locPulse 2s ease-in-out infinite"></div><div style="width:12px;height:12px;border-radius:50%;background:#4285f4;border:2.5px solid #fff;box-shadow:0 0 6px rgba(66,133,244,.5)"></div></div>`,iconSize:[12,12],iconAnchor:[6,6]});
+    gpsMarkerRef.current.setIcon(icon);
+  },[heading,guiding,following]);
+
   // 案内開始/終了
   const startGuiding=useCallback(()=>{
     const doStart=()=>{
@@ -472,6 +485,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     const map=mapInst.current;
     layersRef.current.forEach(l=>{try{map.removeLayer(l);}catch{}});
     layersRef.current=[];
+    gpsMarkerRef.current=null;
 
     const originSpot=origin==="__gps__"&&gpsOriginPos?{id:"__gps__",label:"現在地",lat:gpsOriginPos.lat,lng:gpsOriginPos.lng,col:"#4285f4"}:NAV_SPOTS.find(s=>s.id===origin);
     const destSpot=NAV_SPOTS.find(s=>s.id===destination);
@@ -604,10 +618,13 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     // GPS位置マーカー
     if(gpsPos){
       const hd=headingRef.current;
-      const arrowHtml=hd!=null?`<div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%) rotate(${hd}deg);transform-origin:center 24px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:12px solid #4285f4;filter:drop-shadow(0 0 3px rgba(66,133,244,.6))"></div>`:"";
+      const mapBearing=(map&&typeof map.getBearing==='function')?map.getBearing():0;
+      const arrowAngle=hd!=null?hd+mapBearing:null;
+      const arrowHtml=arrowAngle!=null?`<div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%) rotate(${arrowAngle}deg);transform-origin:center 24px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:14px solid #4285f4;filter:drop-shadow(0 0 3px rgba(66,133,244,.6));z-index:2"></div>`:"";
       const gpsDot=L.divIcon({className:"",html:`<div style="position:relative">${arrowHtml}<div style="position:absolute;inset:-10px;border-radius:50%;background:#4285f420;border:1.5px solid #4285f440;animation:locPulse 2s ease-in-out infinite"></div><div style="width:12px;height:12px;border-radius:50%;background:#4285f4;border:2.5px solid #fff;box-shadow:0 0 6px rgba(66,133,244,.5)"></div></div>`,iconSize:[12,12],iconAnchor:[6,6]});
       const gm=L.marker([gpsPos.lat,gpsPos.lng],{icon:gpsDot,zIndexOffset:900}).addTo(map);
       gm.bindTooltip(`<b>現在地</b>`,{direction:"top",offset:[0,-10],className:"nav-tip"});
+      gpsMarkerRef.current=gm;
       layersRef.current.push(gm);
       if(gpsPos.accuracy&&gpsPos.accuracy<500){
         const circle=L.circle([gpsPos.lat,gpsPos.lng],{radius:gpsPos.accuracy,color:"#4285f4",fillColor:"#4285f4",fillOpacity:0.08,weight:1,opacity:0.3}).addTo(map);
