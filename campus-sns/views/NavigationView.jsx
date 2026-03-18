@@ -602,18 +602,12 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       }
     }
 
-    // Origin marker — 白丸、案内中はguidingOriginRefの固定位置を使用
+    // Origin marker — 白丸（中心アンカー）、案内中はguidingOriginRefの固定位置を使用
     const originPos=guiding&&guidingOriginRef.current?guidingOriginRef.current:originSpot;
     if(originPos){
-      const icon=L.divIcon({className:"",html:`
-        <div style="position:relative;width:32px;height:42px">
-          <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:10px;height:10px;border-radius:50%;background:rgba(0,0,0,.2);filter:blur(3px)"></div>
-          <div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:28px;height:28px;border-radius:50%;background:#fff;border:3px solid #ccc;box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center">
-            <div style="width:8px;height:8px;border-radius:50%;background:#aaa"></div>
-          </div>
-        </div>`,iconSize:[32,42],iconAnchor:[16,42]});
+      const icon=L.divIcon({className:"",html:`<div style="width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid #ccc;box-shadow:0 2px 6px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center"><div style="width:6px;height:6px;border-radius:50%;background:#aaa"></div></div>`,iconSize:[18,18],iconAnchor:[9,9]});
       const m=L.marker([originPos.lat,originPos.lng],{icon,zIndexOffset:1000}).addTo(map);
-      m.bindTooltip(`出発: ${originSpot?.label||"現在地"}`,{direction:"top",offset:[0,-44],className:"nav-tip"});
+      m.bindTooltip(`出発: ${originSpot?.label||"現在地"}`,{direction:"top",offset:[0,-12],className:"nav-tip"});
       layersRef.current.push(m);
     }
 
