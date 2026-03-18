@@ -304,8 +304,20 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         return Math.abs(accumulated-prev)>=2?Math.round(accumulated):prev;
       });
     };
-    window.addEventListener("deviceorientation",handler,true);
-    return()=>window.removeEventListener("deviceorientation",handler,true);
+    // Android: deviceorientationabsoluteを優先（一部端末はdeviceorientationでalpha=nullになる）
+    let evtName="deviceorientation";
+    if(typeof window.DeviceOrientationAbsoluteEvent!=="undefined"){
+      evtName="deviceorientationabsolute";
+    }
+    window.addEventListener(evtName,handler,true);
+    // フォールバック: 通常のdeviceorientationも併せて登録
+    if(evtName!=="deviceorientation"){
+      window.addEventListener("deviceorientation",handler,true);
+    }
+    return()=>{
+      window.removeEventListener(evtName,handler,true);
+      if(evtName!=="deviceorientation") window.removeEventListener("deviceorientation",handler,true);
+    };
   },[guiding]);
 
   // 案内モード: GPS追従でマップ中央を追従（followingがtrueの時のみ）

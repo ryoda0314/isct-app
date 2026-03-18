@@ -69,7 +69,7 @@ export function middleware(request) {
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://unpkg.com",
       "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
       "img-src 'self' https: data: blob:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lms.s.isct.ac.jp https://api.open-meteo.com https://geocoding-api.open-meteo.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com https://server.arcgisonline.com https://tile.openstreetmap.org",
