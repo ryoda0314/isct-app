@@ -59,13 +59,13 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
         if(d.current){
           const dy=d.daily||{};
           const hr=d.hourly||{};
-          // 現在時刻から先の時間帯データを抽出（3時間おき、最大8個）
+          // 現在時刻から先の時間帯データを抽出（1時間おき、最大7個）
           const nowH=new Date();
           const hourly=[];
           if(hr.time&&hr.temperature_2m&&hr.weather_code){
             const curIdx=hr.time.findIndex(t=>new Date(t)>nowH);
             if(curIdx>=0){
-              for(let i=curIdx;i<hr.time.length&&hourly.length<8;i+=3){
+              for(let i=curIdx;i<hr.time.length&&hourly.length<7;i+=1){
                 const dt=new Date(hr.time[i]);
                 hourly.push({h:dt.getHours(),temp:Math.round(hr.temperature_2m[i]),code:hr.weather_code[i],rain:hr.precipitation_probability?hr.precipitation_probability[i]:null,isNextDay:dt.getDate()!==nowH.getDate()});
               }
@@ -159,7 +159,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               </div>
               {/* 時間別予報 */}
               {wx.hourly?.length>0&&<div style={{display:"flex",overflowX:"auto",scrollbarWidth:"none",msOverflowStyle:"none",padding:"0 6px 8px",gap:2}} onClick={e=>e.stopPropagation()}>
-                {wx.hourly.slice(0,mob?6:5).map((h,i)=>{const [,iconType]=wxInfo(h.code);
+                {wx.hourly.map((h,i)=>{const [,iconType]=wxInfo(h.code);
                   const lbl=i===0?"Now":h.isNextDay?`翌${h.h}`:mob?`${h.h}:00`:`${h.h}時`;
                   return(
                   <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:mob?"5px 8px":"4px 7px",minWidth:mob?38:34,flexShrink:0,borderRadius:8,background:i===0?`${tint}14`:"transparent"}}>
