@@ -338,7 +338,7 @@ function ErrorBanner({ error }) {
    mode="login"  → ログイン（ISCT資格情報のみ）
    mode="signup" → 新規登録ウィザード（step 0〜2）
    ================================================================ */
-export const SetupView = ({ onComplete, onSkip, onDemo, mob }) => {
+export const SetupView = ({ onComplete, onSkip, mob }) => {
   const [mode, setMode] = useState(null);
   const [step, setStep] = useState(0);
   const [connecting, setConnecting] = useState(false);
@@ -372,11 +372,6 @@ export const SetupView = ({ onComplete, onSkip, onDemo, mob }) => {
   const handleSubmit = async () => {
     if (!hasIsct && !hasPortal) {
       setError("いずれかの認証情報を入力してください");
-      return;
-    }
-    if (isctId === "test" && isctPw === "test" && totpSecret === "TEST") {
-      if (yearGroup) updateUserPref({ yearGroup });
-      onDemo();
       return;
     }
     setConnecting(true);

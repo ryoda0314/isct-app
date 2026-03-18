@@ -215,7 +215,7 @@ export default function App(){
       <style>{`@keyframes spLogoIn{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}@keyframes spFadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes spDot{0%,80%,100%{transform:scale(.5);opacity:.3}40%{transform:scale(1.2);opacity:1}}html,body{background:${T.bg};margin:0}`}</style>
     </div>
   );
-  if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={()=>{setMockMode(true);setAppState("ready");}} onDemo={onDemo} mob={mob} dark={dark}/>;
+  if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={onDemo} mob={mob} dark={dark}/>;
 
   // --- DESKTOP ---
   if(!mob){

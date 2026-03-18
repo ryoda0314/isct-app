@@ -1,5 +1,5 @@
-// テストアカウント用デモデータ
-// userId: "test" / password: "test" / totpSecret: "TEST" でログイン可能
+// デモモード用テストデータ
+// スキップボタンからデモモードに入ると表示される
 
 const now = new Date();
 const d = (days, h = 23, m = 59) => {
@@ -51,6 +51,9 @@ const DEMO_ASGN = [
   { id: "da_8", moodleId: 208, cid: "mc_101", title: "演習3: ハッシュテーブル", desc: "オープンアドレス法とチェイン法の実装。", due: d(-2), type: "assignment", st: "completed", sub: d(-3), pri: 1, subs: [] },
   { id: "da_9", moodleId: 209, cid: "mc_102", title: "線形代数 問題セット4", desc: "行列式と逆行列に関する演習。", due: d(-5), type: "assignment", st: "completed", sub: d(-6), pri: 1, subs: [] },
   { id: "da_10", moodleId: 210, cid: "mc_107", title: "CA 小テスト2", desc: "パイプライン処理とハザードについて。", due: d(-1), type: "quiz", st: "completed", sub: d(-1, 10, 0), pri: 1, subs: [] },
+  { id: "da_11", moodleId: 211, cid: "mc_106", title: "確率統計 レポート2", desc: "最尤推定量とベイズ推定の比較について論ぜよ。", due: d(-1), type: "assignment", st: "not_started", pri: 2, subs: [] },
+  { id: "da_12", moodleId: 212, cid: "mc_103", title: "論理と形式言語 演習3", desc: "正規表現からNFAへの変換。", due: d(-3), type: "assignment", st: "in_progress", pri: 2, subs: [{ id: "s7", t: "正規表現→NFA", d: true }, { id: "s8", t: "NFA→DFA", d: false }, { id: "s9", t: "最小化", d: false }] },
+  { id: "da_13", moodleId: 213, cid: "mc_107", title: "CA レポート1: キャッシュメモリ", desc: "キャッシュの連想度とヒット率の関係をシミュレーションで検証せよ。", due: d(-7), type: "assignment", st: "not_started", pri: 3, subs: [] },
 ];
 
 // ── 成績 ──

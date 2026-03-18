@@ -2,7 +2,7 @@ import { T } from "./theme.js";
 import { I } from "./icons.jsx";
 import { useState, useEffect } from "react";
 
-const NOW=new Date(2026,1,28,12,0);
+const NOW=new Date();
 const fT=d=>{const m=Math.floor((NOW-d)/6e4);if(m<1)return"now";if(m<60)return`${m}m`;const h=Math.floor(m/60);if(h<24)return`${h}h`;return`${Math.floor(h/24)}d`;};
 const fTs=d=>`${d.getHours()}:${String(d.getMinutes()).padStart(2,"0")}`;
 const fDS=d=>`${d.getMonth()+1}/${d.getDate()}`;

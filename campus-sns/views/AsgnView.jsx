@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { NOW, uDue, pDone, tMap, aMap, sMap, pCol, fT, fDS, fDF } from "../utils.jsx";
@@ -8,6 +8,22 @@ const DAYS=["月","火","水","木","金","土","日"];
 const dKey=d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 const isSameDay=(a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
 const dayLabel=(d)=>{if(isSameDay(d,NOW))return"今日";const tm=new Date(NOW);tm.setDate(tm.getDate()+1);if(isSameDay(d,tm))return"明日";return DAYS[(d.getDay()+6)%7]+"曜日";};
+
+function OverdueCollapse({open,items,renderItems,hasUpcoming}){
+  const ref=useRef(null);
+  const [h,setH]=useState(0);
+  useEffect(()=>{if(ref.current)setH(ref.current.scrollHeight);},[open,items]);
+  return <div style={{overflow:"hidden",height:open?h:0,opacity:open?1:0,transition:"height .25s ease,opacity .2s ease"}}>
+    <div ref={ref}>
+      {renderItems(items)}
+      {hasUpcoming&&<div style={{display:"flex",alignItems:"center",gap:8,margin:"4px 0 8px"}}>
+        <div style={{flex:1,height:1,background:T.bd}}/>
+        <span style={{fontSize:10,fontWeight:600,color:T.txD,flexShrink:0}}>これより先は期限内</span>
+        <div style={{flex:1,height:1,background:T.bd}}/>
+      </div>}
+    </div>
+  </div>;
+}
 
 export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,courses=[],quarter,setQuarter,hiddenAsgn,saveHidden})=>{
 
@@ -19,6 +35,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
   const [showDoneTk,setShowDoneTk]=useState(false);
   const [qOpen,setQOpen]=useState(false);
   const [showHidden,setShowHidden]=useState(false);
+  const [showOverdue,setShowOverdue]=useState(false);
   const [calMode,setCalMode]=useState("timeline");
   const [calMonth,setCalMonth]=useState(()=>({y:NOW.getFullYear(),m:NOW.getMonth()}));
   const [selDay,setSelDay]=useState(null);
@@ -157,10 +174,11 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
         })()}
         {showTabs&&tab!=="mytasks"&&calMode==="timeline"&&(()=>{
           const calItems=tab==="done"?done:active;
-          const sortedDates=[...new Set(calItems.map(a=>dKey(a.due)))].sort((a,b)=>{const[ay,am,ad]=a.split("-").map(Number);const[by,bm,bd]=b.split("-").map(Number);return new Date(ay,am,ad)-new Date(by,bm,bd);});
-          return <>
-            {sortedDates.length===0&&<div style={{textAlign:"center",color:T.txD,padding:20,fontSize:13}}>{tab==="done"?"提出済みの課題はありません":"未完了の課題はありません"}</div>}
-            {sortedDates.map(dk=>{const[y,m,d]=dk.split("-").map(Number);const date=new Date(y,m,d);const dayItems=calItems.filter(a=>isSameDay(a.due,date));const dl=uDue(date);return(
+          const overdue=tab==="active"?calItems.filter(a=>a.due<NOW):[];
+          const upcoming=tab==="active"?calItems.filter(a=>a.due>=NOW):calItems;
+          const makeDates=list=>[...new Set(list.map(a=>dKey(a.due)))].sort((a,b)=>{const[ay,am,ad]=a.split("-").map(Number);const[by,bm,bd]=b.split("-").map(Number);return new Date(ay,am,ad)-new Date(by,bm,bd);});
+          const upDates=makeDates(upcoming);
+          const renderItems=(list)=>makeDates(list).map(dk=>{const[y,m,dd]=dk.split("-").map(Number);const date=new Date(y,m,dd);const dayItems=list.filter(a=>isSameDay(a.due,date));const dl=uDue(date);return(
               <div key={dk} style={{marginBottom:12}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
                   <span style={{fontSize:13,fontWeight:700,color:tab==="done"?T.green:dl.c}}>{date.getMonth()+1}/{date.getDate()}</span>
@@ -179,7 +197,21 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
                   </div>
                 );})}
               </div>
-            );})}
+          );});
+          return <>
+            {overdue.length>0&&<div style={{marginBottom:upDates.length?12:0}}>
+              <button onClick={()=>setShowOverdue(p=>!p)} style={{display:"flex",alignItems:"center",gap:6,background:`${T.red}10`,border:`1px solid ${T.red}20`,borderRadius:8,padding:"8px 12px",cursor:"pointer",width:"100%",marginBottom:showOverdue?8:0}}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.red} strokeWidth="2.5" style={{transform:showOverdue?"rotate(90deg)":"none",transition:"transform .15s",flexShrink:0}}><path d="M9 18l6-6-6-6"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.red} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span style={{fontSize:12,fontWeight:700,color:T.red}}>期限切れ</span>
+                <span style={{fontSize:11,fontWeight:600,padding:"1px 7px",borderRadius:10,background:`${T.red}18`,color:T.red}}>{overdue.length}</span>
+                <div style={{flex:1}}/>
+                <span style={{fontSize:10,color:T.txD}}>{showOverdue?"閉じる":"確認する"}</span>
+              </button>
+              <OverdueCollapse open={showOverdue} items={overdue} renderItems={renderItems} hasUpcoming={upDates.length>0}/>
+            </div>}
+            {calItems.length===0&&<div style={{textAlign:"center",color:T.txD,padding:20,fontSize:13}}>{tab==="done"?"提出済みの課題はありません":"未完了の課題はありません"}</div>}
+            {renderItems(upcoming)}
           </>;
         })()}
         {showTabs&&tab==="active"&&hidden.length>0&&<div style={{marginTop:4}}>

@@ -101,7 +101,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
 
   const vis=asgn.filter(a=>!hiddenSet.has(a.id));
   const active=vis.filter(a=>a.st!=="completed");
-  const upcoming=[...active].sort((a,b)=>a.due-b.due).slice(0,mob?4:8);
+  const upcoming=[...active].filter(a=>a.due>=NOW).sort((a,b)=>a.due-b.due).slice(0,mob?4:8);
 
   // 今日のタイムライン: 授業+予定+締切を時刻順に統合
   const todayKey=`${NOW.getFullYear()}-${NOW.getMonth()}-${NOW.getDate()}`;
