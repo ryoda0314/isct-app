@@ -224,12 +224,7 @@ export async function GET(request) {
 
       const baseTag = `<base href="${origin}/">`;
       const viewport = '<meta name="viewport" content="width=device-width,initial-scale=1">';
-      // Minimal CSS: just responsive overflow fix, keep original page layout
-      const mobileCSS = `<style>
-img{max-width:100%!important;height:auto!important}
-table{max-width:100vw!important}
-</style>`;
-      html = html.replace(/<head[^>]*>/i, m => m + baseTag + viewport + mobileCSS);
+      html = html.replace(/<head[^>]*>/i, m => m + baseTag + viewport);
 
       const proxyScript = `<script>
 document.addEventListener('click',function(e){

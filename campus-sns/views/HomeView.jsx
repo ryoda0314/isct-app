@@ -40,6 +40,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
   const [portalData,setPortalData]=useState(null);
   const [portalLoading,setPortalLoading]=useState(false);
   const [portalError,setPortalError]=useState(null);
+  const [portalPage,setPortalPage]=useState(null);
   const {myLoc}=useLocationSharing({id:user.moodleId||user.id,name:user.name,col:user.col,av:user.av});
   const mySpot=getSpot(myLoc);
 
@@ -352,7 +353,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                 <span style={{fontSize:11,color:T.txD,marginLeft:"auto"}}>{sec.links.length}件</span>
               </div>
               <div style={{borderRadius:14,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
-                {sec.links.map((lnk,li)=><button key={li} onClick={()=>window.open(lnk.url,"_blank")} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",textDecoration:"none",border:"none",borderTop:li>0?`1px solid ${T.bd}`:"none",cursor:"pointer",background:"transparent",textAlign:"left",color:"inherit"}}>
+                {sec.links.map((lnk,li)=><button key={li} onClick={()=>setPortalPage({url:"/api/portal/page?url="+encodeURIComponent(lnk.url),label:lnk.label})} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",textDecoration:"none",border:"none",borderTop:li>0?`1px solid ${T.bd}`:"none",cursor:"pointer",background:"transparent",textAlign:"left",color:"inherit"}}>
                   <div style={{width:32,height:32,borderRadius:8,background:`${s.col}15`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={s.col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                   </div>
@@ -364,6 +365,16 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
           })}
           {(!portalData.sections||portalData.sections.length===0)&&<div style={{textAlign:"center",padding:"40px 0",color:T.txD,fontSize:13}}>サービス情報を取得できませんでした</div>}
         </div>
+        {portalPage&&<div style={{position:"absolute",inset:0,zIndex:1,background:"#fff",display:"flex",flexDirection:"column"}}>
+          <header style={{display:"flex",alignItems:"center",gap:8,padding:"env(safe-area-inset-top) 14px 0",minHeight:54,borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,width:"100%",height:54}}>
+              <button onClick={()=>setPortalPage(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
+              <span style={{flex:1,fontSize:14,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{portalPage.label}</span>
+              <button onClick={()=>{setPortalPage(null);setPortalData(null);}} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
+            </div>
+          </header>
+          <iframe src={portalPage.url} style={{flex:1,border:"none",width:"100%",minHeight:0}} title={portalPage.label}/>
+        </div>}
       </div>;
     })()}
 
