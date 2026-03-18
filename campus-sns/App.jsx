@@ -119,12 +119,14 @@ export default function App(){
   },[]);
 
   useEffect(()=>{
-    if(appState!=="loading"&&splashPhase==="show"){
-      setSplashPhase("fade");
+    if(appState!=="loading"&&splashPhase==="show") setSplashPhase("fade");
+  },[appState,splashPhase]);
+  useEffect(()=>{
+    if(splashPhase==="fade"){
       const t=setTimeout(()=>setSplashPhase("done"),600);
       return()=>clearTimeout(t);
     }
-  },[appState,splashPhase]);
+  },[splashPhase]);
 
   useEffect(()=>{try{localStorage.setItem("quarter",String(quarter));}catch{}},[quarter]);
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
