@@ -224,33 +224,10 @@ export async function GET(request) {
 
       const baseTag = `<base href="${origin}/">`;
       const viewport = '<meta name="viewport" content="width=device-width,initial-scale=1">';
+      // Minimal CSS: just responsive overflow fix, keep original page layout
       const mobileCSS = `<style>
-*{box-sizing:border-box!important}
-html,body{background:#1a1a1f!important;color:#c9d1d9!important;max-width:100vw!important;overflow-x:hidden!important;padding:0!important;margin:0!important;font-size:14px!important;word-break:break-word!important;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif!important;line-height:1.6!important}
-body{padding:12px!important}
-table{max-width:100%!important;width:100%!important;table-layout:fixed!important;border-collapse:collapse!important;border:none!important;background:transparent!important}
-td,th{word-break:break-word!important;padding:4px 2px!important;color:#c9d1d9!important;border:none!important;background:transparent!important}
 img{max-width:100%!important;height:auto!important}
-img:not([src]),img[src=""],img[width="1"],img[height="1"],img[src*="spacer"],img[src*="clear"]{display:none!important}
-pre{white-space:pre-wrap!important;max-width:100%!important;color:#c9d1d9!important}
-font,span,div,p,li,dt,dd,b,strong,em,i,u,center,blockquote{color:inherit!important}
-font[color]{color:inherit!important}
-font[size]{font-size:inherit!important}
-h1,h2,h3,h4,h5,h6{color:#e6e6ef!important;margin:16px 0 8px!important;font-size:revert!important}
-hr{border:none!important;border-top:1px solid #2d2d35!important;margin:12px 0!important}
-a{color:#7b8fff!important;text-decoration:none!important;word-break:break-all!important}
-a:visited{color:#9b8aff!important}
-a:hover{text-decoration:underline!important}
-input,select,textarea{background:#2a2a32!important;color:#c9d1d9!important;border:1px solid #3d3d47!important;border-radius:6px!important;padding:6px 10px!important;font-size:14px!important}
-input[type="submit"],input[type="button"],button{background:#6375f0!important;color:#fff!important;border:none!important;border-radius:6px!important;padding:8px 16px!important;cursor:pointer!important;font-weight:600!important}
-/* お知らせリスト風にリンクを見やすく */
-.portal-link-item{display:block;padding:12px 14px;margin:0 -12px;border-bottom:1px solid #2a2a32;transition:background .15s}
-.portal-link-item:last-child{border-bottom:none}
-.portal-link-item:active{background:#2a2a32}
-.portal-link-date{font-size:12px;color:#8b949e;font-weight:600;margin-bottom:2px}
-.portal-link-text{font-size:14px;color:#7b8fff;line-height:1.5}
-.portal-section-title{font-size:16px;font-weight:700;color:#e6e6ef;padding:14px 0 8px;border-bottom:1px solid #2d2d35;margin-bottom:4px}
-center{display:block!important;text-align:left!important}
+table{max-width:100vw!important}
 </style>`;
       html = html.replace(/<head[^>]*>/i, m => m + baseTag + viewport + mobileCSS);
 
@@ -262,50 +239,6 @@ document.addEventListener('click',function(e){
   e.stopPropagation();
   window.location.href='/api/portal/page?url='+encodeURIComponent(a.href);
 },true);
-// --- DOM cleanup ---
-(function(){
-  // Remove tiny/spacer/broken images
-  document.querySelectorAll('img').forEach(function(img){
-    if(!img.src||img.width<3||img.height<3||img.naturalWidth<3)img.remove();
-  });
-  // Remove bgcolor/background attributes
-  document.querySelectorAll('[bgcolor],[background]').forEach(function(el){
-    el.removeAttribute('bgcolor');el.removeAttribute('background');
-  });
-  // Remove inline color/font-size from font tags and convert to spans
-  document.querySelectorAll('font').forEach(function(f){
-    f.removeAttribute('color');f.removeAttribute('face');f.removeAttribute('size');
-  });
-  // Remove width/height attributes from tables and cells for responsiveness
-  document.querySelectorAll('table,td,th,tr').forEach(function(el){
-    el.removeAttribute('width');el.removeAttribute('height');el.removeAttribute('bgcolor');
-    el.removeAttribute('background');el.removeAttribute('cellpadding');el.removeAttribute('cellspacing');
-    el.removeAttribute('border');
-  });
-  // Convert announcement-style links to card layout
-  // Pattern: date text followed by a link (common in portal pages)
-  var links=document.querySelectorAll('a[href]');
-  links.forEach(function(a){
-    if(!a.textContent.trim()||a.textContent.trim().length<3)return;
-    var txt=a.textContent.trim();
-    // Check if this looks like a dated announcement: "YYYY/MM/DD ..." or has date prefix
-    var dateMatch=txt.match(/^(\\d{4}\\/\\d{2}\\/\\d{2})\\s+/);
-    if(dateMatch){
-      var dateStr=dateMatch[1];
-      var rest=txt.slice(dateMatch[0].length);
-      a.className='portal-link-item';
-      a.innerHTML='<div class="portal-link-date">'+dateStr+'</div><div class="portal-link-text">'+rest+'</div>';
-    }
-  });
-  // Style section headers (bold text that isn't inside a link)
-  document.querySelectorAll('b,strong').forEach(function(b){
-    if(b.closest('a'))return;
-    var t=b.textContent.trim();
-    if(t.length>2&&t.length<30&&!b.querySelector('a')){
-      b.className='portal-section-title';
-    }
-  });
-})();
 </script>`;
       if (html.includes('</body>')) {
         html = html.replace('</body>', proxyScript + '</body>');
