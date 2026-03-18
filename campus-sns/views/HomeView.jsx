@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { NOW, uDue, pDone } from "../utils.jsx";
@@ -323,8 +324,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
       </div>
       <div style={{height:12}}/>
 
-      {/* ── ポータル オーバーレイ ── */}
-      {portalData&&(()=>{
+      {/* ── ポータル オーバーレイ (createPortal to escape overflow:hidden) ── */}
+      {portalData&&createPortal((()=>{
         const secIcons={
           "教務系サービス":{col:"#4285f4",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4285f4" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>},
           "DX支援サービス":{col:"#34a853",icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34a853" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>},
@@ -375,10 +376,10 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
             <iframe src={portalPage.url} style={{flex:1,border:"none",width:"100%",minHeight:0,background:"#fff"}} title={portalPage.label}/>
           </div>}
         </div>;
-      })()}
+      })(),document.body)}
 
       {/* ── ポータル エラー トースト ── */}
-      {portalError&&<div onClick={()=>setPortalError(null)} style={{position:"fixed",bottom:mob?80:24,left:"50%",transform:"translateX(-50%)",zIndex:9999,padding:"10px 20px",borderRadius:12,background:T.red,color:"#fff",fontSize:13,fontWeight:600,boxShadow:"0 4px 16px rgba(0,0,0,.3)",cursor:"pointer",animation:"navSlideUp .25s ease-out"}}>{portalError}</div>}
+      {portalError&&createPortal(<div onClick={()=>setPortalError(null)} style={{position:"fixed",bottom:mob?80:24,left:"50%",transform:"translateX(-50%)",zIndex:9999,padding:"10px 20px",borderRadius:12,background:T.red,color:"#fff",fontSize:13,fontWeight:600,boxShadow:"0 4px 16px rgba(0,0,0,.3)",cursor:"pointer",animation:"navSlideUp .25s ease-out"}}>{portalError}</div>,document.body)}
     </div>
   );
 };
