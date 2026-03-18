@@ -963,7 +963,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       </div>
     </div>}
     {/* 案内中 + 自由操作中: 現在地に戻るボタン */}
-    {guiding&&!following&&<button onClick={reCenter} style={{position:"absolute",bottom:mob?70:80,right:mob?12:14,zIndex:1000,display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:28,background:T.bg2,border:`1px solid #4285f440`,boxShadow:"0 4px 16px rgba(0,0,0,.35)",cursor:"pointer",animation:"navSlideUp .2s ease-out"}}>
+    {guiding&&!following&&<button onClick={reCenter} style={{position:"absolute",bottom:hasRoute&&!panelMin?(mob?180:195):(mob?70:80),right:mob?12:14,zIndex:1000,display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:28,background:T.bg2,border:`1px solid #4285f440`,boxShadow:"0 4px 16px rgba(0,0,0,.35)",cursor:"pointer",animation:"navSlideUp .2s ease-out",transition:"bottom .25s ease"}}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4285f4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m-10-10h4m12 0h4"/></svg>
       <span style={{fontSize:13,fontWeight:700,color:"#4285f4"}}>現在地に戻る</span>
     </button>}
