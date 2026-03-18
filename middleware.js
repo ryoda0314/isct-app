@@ -57,9 +57,12 @@ export function middleware(request) {
   const res = NextResponse.next();
 
   res.headers.set('X-Content-Type-Options', 'nosniff');
-  res.headers.set('X-Frame-Options', 'DENY');
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
+
+  // Portal proxy pages are displayed inside a same-origin iframe
+  const isPortalPage = pathname.startsWith('/api/portal/page');
+  res.headers.set('X-Frame-Options', isPortalPage ? 'SAMEORIGIN' : 'DENY');
 
   // M2: HSTS
   res.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
@@ -74,7 +77,7 @@ export function middleware(request) {
       "img-src 'self' https: data: blob:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lms.s.isct.ac.jp https://api.open-meteo.com https://geocoding-api.open-meteo.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com https://server.arcgisonline.com https://tile.openstreetmap.org",
       "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com",
-      "frame-ancestors 'none'",
+      isPortalPage ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
     ].join('; ')

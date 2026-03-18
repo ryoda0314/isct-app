@@ -316,17 +316,21 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
 
       {/* ── ポータル オーバーレイ (iframe) ── */}
       {portalOpen&&<div style={{position:"fixed",inset:0,zIndex:9999,background:T.bg,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 16px",background:T.bg2,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>
-          <button onClick={()=>setPortalOpen(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-          <span style={{flex:1,fontSize:17,fontWeight:700,color:T.txH}}>TiTech Portal</span>
-          <button onClick={()=>setPortalOpen(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
+        <div style={{paddingTop:"env(safe-area-inset-top)",background:T.bg2,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"0 14px",height:54}}>
+            <button onClick={()=>setPortalOpen(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+            <span style={{flex:1,fontSize:17,fontWeight:700,color:T.txH}}>TiTech Portal</span>
+            <button onClick={()=>setPortalOpen(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
+          </div>
         </div>
-        {!portalLoaded&&<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"40px 0",color:T.txD,fontSize:13}}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" style={{animation:"spin 1s linear infinite"}}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
-          読込中...
-        </div>}
-        <iframe src="/api/portal/page" onLoad={()=>setPortalLoaded(true)} style={{flex:1,border:"none",width:"100%",minHeight:0,background:"#fff",display:portalLoaded?"block":"none"}} title="TiTech Portal"/>
+        <div style={{flex:1,position:"relative",minHeight:0}}>
+          {!portalLoaded&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:T.bg,zIndex:1,color:T.txD,fontSize:13}}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{animation:"spin 1s linear infinite"}}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+            読込中...
+          </div>}
+          <iframe src="/api/portal/page" onLoad={()=>setPortalLoaded(true)} style={{width:"100%",height:"100%",border:"none",background:"#fff"}} title="TiTech Portal"/>
+        </div>
       </div>}
     </div>
   );
