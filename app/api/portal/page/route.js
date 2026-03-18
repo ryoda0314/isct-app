@@ -225,12 +225,17 @@ export async function GET(request) {
       const baseTag = `<base href="${origin}/">`;
       const viewport = '<meta name="viewport" content="width=device-width,initial-scale=1">';
       const mobileCSS = `<style>
-body{max-width:100vw!important;overflow-x:hidden!important;padding:8px!important;font-size:14px!important;word-break:break-word!important}
+html,body{background:#1a1a1f!important;color:#c9d1d9!important;max-width:100vw!important;overflow-x:hidden!important;padding:8px!important;font-size:14px!important;word-break:break-word!important;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif!important}
 table{max-width:100%!important;width:100%!important;table-layout:fixed!important;border-collapse:collapse!important}
-td,th{word-break:break-word!important;padding:4px!important}
+td,th{word-break:break-word!important;padding:4px!important;color:#c9d1d9!important}
 img{max-width:100%!important;height:auto!important}
-pre{white-space:pre-wrap!important;max-width:100%!important}
-a{word-break:break-all!important}
+pre{white-space:pre-wrap!important;max-width:100%!important;color:#c9d1d9!important}
+a{word-break:break-all!important;color:#7b8fff!important}
+a:visited{color:#9b8aff!important}
+font,span,div,p,li,dt,dd,h1,h2,h3,h4,h5,h6,b,strong,em,i,u,center{color:inherit!important}
+hr{border-color:#2d2d35!important}
+input,select,textarea{background:#2a2a32!important;color:#c9d1d9!important;border:1px solid #3d3d47!important;border-radius:4px!important;padding:4px 8px!important}
+font[color]{color:inherit!important}
 </style>`;
       html = html.replace(/<head[^>]*>/i, m => m + baseTag + viewport + mobileCSS);
 
