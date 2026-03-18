@@ -374,7 +374,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               <button onClick={()=>{setPortalPage(null);setPortalData(null);}} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
             </div>
           </header>
-          <iframe src={portalPage.url} style={{flex:1,border:"none",width:"100%",minHeight:0,background:"#fff"}} title={portalPage.label}/>
+          <iframe src={portalPage.url} style={{flex:1,border:"none",width:"100%",minHeight:0,background:"#1a1a1f"}} title={portalPage.label}/>
         </div>}
       </div>;
     })()}
