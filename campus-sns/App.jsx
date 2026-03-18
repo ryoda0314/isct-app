@@ -84,6 +84,7 @@ export default function App(){
   const [notifEnabled,setNotifEnabled]=useState(()=>{try{const v=localStorage.getItem("notifEnabled");return v!==null?JSON.parse(v):true;}catch{return true;}});
   const [notifSettings,setNotifSettings]=useState(()=>{try{const v=localStorage.getItem("notifSettings");return v?JSON.parse(v):{course:true,deadline:true,dm:true,event:true};}catch{return{course:true,deadline:true,dm:true,event:true};}});
   const refreshRef=useRef(null);
+  const [splashPhase,setSplashPhase]=useState("show");
 
   const fetchData=async()=>{
     try{
@@ -116,6 +117,14 @@ export default function App(){
     })();
     return()=>{if(refreshRef.current)clearInterval(refreshRef.current)};
   },[]);
+
+  useEffect(()=>{
+    if(appState!=="loading"&&splashPhase==="show"){
+      setSplashPhase("fade");
+      const t=setTimeout(()=>setSplashPhase("done"),600);
+      return()=>clearTimeout(t);
+    }
+  },[appState,splashPhase]);
 
   useEffect(()=>{try{localStorage.setItem("quarter",String(quarter));}catch{}},[quarter]);
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
@@ -189,7 +198,7 @@ export default function App(){
   };
 
   // --- LOADING / SETUP ---
-  if(appState==="loading") return <div style={{position:"fixed",inset:0,display:"flex",flexDirection:"column",background:T.bg,color:T.txD,fontFamily:"'Inter',sans-serif",zIndex:9999}}>{mob&&<div style={{paddingTop:"env(safe-area-inset-top)",background:T.bg2,flexShrink:0}}><div style={{height:46,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:16,fontWeight:700,color:T.txH}}>ScienceTokyo App</span></div></div>}<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><Loader msg="読み込み中" size="lg"/></div>{mob&&<div style={{paddingBottom:"env(safe-area-inset-bottom)",background:T.bg,flexShrink:0}}/>}<style>{`html,body{background:${T.bg};margin:0}`}</style></div>;
+  if(splashPhase!=="done") return <div style={{position:"fixed",inset:0,zIndex:99999,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:T.bg,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",opacity:splashPhase==="fade"?0:1,transition:"opacity .5s ease-out"}}><div style={{width:84,height:84,borderRadius:24,background:`linear-gradient(135deg,${T.accent},${T.accentSoft})`,display:"flex",alignItems:"center",justifyContent:"center",animation:"splashLogoIn .7s cubic-bezier(.16,1,.3,1) both",boxShadow:`0 12px 40px ${T.accent}33`}}><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div><div style={{marginTop:28,fontSize:24,fontWeight:700,color:T.txH,letterSpacing:"-0.02em",animation:"splashTextIn .6s .12s cubic-bezier(.16,1,.3,1) both"}}>Science<span style={{color:T.accent}}>Tokyo</span> App</div><div style={{marginTop:10,fontSize:13,color:T.txD,letterSpacing:"0.02em",animation:"splashTextIn .6s .22s cubic-bezier(.16,1,.3,1) both"}}>東京科学大学キャンパスSNS</div><div style={{position:"absolute",bottom:`calc(72px + env(safe-area-inset-bottom))`,width:120,height:3,borderRadius:2,background:T.bg3,overflow:"hidden",animation:"splashTextIn .6s .32s cubic-bezier(.16,1,.3,1) both"}}><div style={{position:"absolute",width:"30%",height:"100%",borderRadius:2,background:`linear-gradient(90deg,${T.accent},${T.accentSoft})`,animation:"splashBar 1.4s ease-in-out infinite"}}/></div><style>{`@keyframes splashLogoIn{from{opacity:0;transform:scale(.6) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}@keyframes splashTextIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes splashBar{0%{left:-30%}100%{left:100%}}html,body{background:${T.bg};margin:0}`}</style></div>;
   if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={()=>{setMockMode(true);setAppState("ready");}} onDemo={onDemo} mob={mob} dark={dark}/>;
 
   // --- DESKTOP ---
