@@ -209,6 +209,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const routeCoordsRef=useRef(null);
   const initialBearingRef=useRef(null);
   const compassPermRef=useRef(false); // コンパス権限取得済みか
+  const guidingOriginRef=useRef(null); // 案内開始時の出発地点（固定表示用）
   // 自動追従モード（案内中にユーザーがドラッグしたらfalse）
   const [following,setFollowing]=useState(true);
   const guidingRef=useRef(false);
@@ -279,11 +280,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     let smoothed=null;
     let prevSmoothed=null;
     let accumulated=null;
-    const handler=(e)=>{
-      let h=null;
-      if(e.webkitCompassHeading!=null)h=e.webkitCompassHeading;
-      else if(e.alpha!=null)h=(360-e.alpha)%360;
-      if(h==null)return;
+    let gotAbsolute=false; // 絶対方向イベントを受信済みか
+    const process=(h)=>{
       // ローパスフィルタ: 急な変動を平滑化
       if(smoothed==null){smoothed=h;prevSmoothed=h;accumulated=h;}
       else{
@@ -305,19 +303,34 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         return Math.abs(accumulated-prev)>=2?Math.round(accumulated):prev;
       });
     };
-    // Android: deviceorientationabsoluteを優先（一部端末はdeviceorientationでalpha=nullになる）
-    let evtName="deviceorientation";
-    if(typeof window.DeviceOrientationAbsoluteEvent!=="undefined"){
-      evtName="deviceorientationabsolute";
+    // 絶対方向ハンドラ（deviceorientationabsolute）
+    const absHandler=(e)=>{
+      let h=null;
+      if(e.webkitCompassHeading!=null)h=e.webkitCompassHeading;
+      else if(e.alpha!=null&&(e.absolute||e.type==="deviceorientationabsolute"))h=(360-e.alpha)%360;
+      if(h==null)return;
+      gotAbsolute=true;
+      process(h);
+    };
+    // フォールバック: 通常のdeviceorientation（絶対方向が取れない場合のみ使用）
+    const fallbackHandler=(e)=>{
+      if(gotAbsolute)return; // 絶対方向が取れている場合は無視
+      let h=null;
+      if(e.webkitCompassHeading!=null)h=e.webkitCompassHeading;
+      else if(e.alpha!=null)h=(360-e.alpha)%360;
+      if(h==null)return;
+      process(h);
+    };
+    const hasAbsoluteEvent=typeof window.DeviceOrientationAbsoluteEvent!=="undefined";
+    if(hasAbsoluteEvent){
+      window.addEventListener("deviceorientationabsolute",absHandler,true);
     }
-    window.addEventListener(evtName,handler,true);
-    // フォールバック: 通常のdeviceorientationも併せて登録
-    if(evtName!=="deviceorientation"){
-      window.addEventListener("deviceorientation",handler,true);
-    }
+    // iOS: webkitCompassHeadingはdeviceorientationイベント内で取得
+    // Android: absoluteイベントがない端末のフォールバック
+    window.addEventListener("deviceorientation",hasAbsoluteEvent?fallbackHandler:absHandler,true);
     return()=>{
-      window.removeEventListener(evtName,handler,true);
-      if(evtName!=="deviceorientation") window.removeEventListener("deviceorientation",handler,true);
+      if(hasAbsoluteEvent)window.removeEventListener("deviceorientationabsolute",absHandler,true);
+      window.removeEventListener("deviceorientation",hasAbsoluteEvent?fallbackHandler:absHandler,true);
     };
   },[guiding]);
 
@@ -362,8 +375,9 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       setFollowing(true);
       setPanelMin(true);
       startWatch();
-      // 出発地→目的地の方位でマップを初期回転（目的地が画面上方に来るように）
+      // 出発地点を固定保存（マーカー表示用、案内中に動かない）
       const origSpot=origin==="__gps__"&&gpsOriginPos?{lat:gpsOriginPos.lat,lng:gpsOriginPos.lng}:NAV_SPOTS.find(s=>s.id===origin);
+      if(origSpot)guidingOriginRef.current={lat:origSpot.lat,lng:origSpot.lng};
       const destSpot=NAV_SPOTS.find(s=>s.id===destination);
       if(origSpot&&destSpot&&mapInst.current&&typeof mapInst.current.setBearing==='function'){
         const b=bearingNav(origSpot.lat,origSpot.lng,destSpot.lat,destSpot.lng);
@@ -397,6 +411,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     setFollowing(true);
     stopWatch();
     initialBearingRef.current=null;
+    guidingOriginRef.current=null;
   },[stopWatch]);
 
   // 現在地に戻る（自動追従再開）
@@ -587,17 +602,18 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       }
     }
 
-    // Origin marker — green pin style
-    if(originSpot){
+    // Origin marker — 白丸、案内中はguidingOriginRefの固定位置を使用
+    const originPos=guiding&&guidingOriginRef.current?guidingOriginRef.current:originSpot;
+    if(originPos){
       const icon=L.divIcon({className:"",html:`
         <div style="position:relative;width:32px;height:42px">
           <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:10px;height:10px;border-radius:50%;background:rgba(0,0,0,.2);filter:blur(3px)"></div>
-          <div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:28px;height:28px;border-radius:50%;background:#34a853;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center">
-            <div style="width:8px;height:8px;border-radius:50%;background:#fff"></div>
+          <div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:28px;height:28px;border-radius:50%;background:#fff;border:3px solid #ccc;box-shadow:0 2px 8px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center">
+            <div style="width:8px;height:8px;border-radius:50%;background:#aaa"></div>
           </div>
         </div>`,iconSize:[32,42],iconAnchor:[16,42]});
-      const m=L.marker([originSpot.lat,originSpot.lng],{icon,zIndexOffset:1000}).addTo(map);
-      m.bindTooltip(`出発: ${originSpot.label}`,{direction:"top",offset:[0,-44],className:"nav-tip"});
+      const m=L.marker([originPos.lat,originPos.lng],{icon,zIndexOffset:1000}).addTo(map);
+      m.bindTooltip(`出発: ${originSpot?.label||"現在地"}`,{direction:"top",offset:[0,-44],className:"nav-tip"});
       layersRef.current.push(m);
     }
 
@@ -803,7 +819,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     <div style={cardBase}>
       <div style={{display:"flex",alignItems:"stretch",padding:"4px 8px 4px 4px"}}>
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:32,flexShrink:0,padding:"12px 0"}}>
-          <div style={{width:10,height:10,borderRadius:"50%",background:origin?"#34a853":"#34a85360",border:"2px solid #34a853",flexShrink:0}}/>
+          <div style={{width:10,height:10,borderRadius:"50%",background:origin?"#fff":"#ccc",border:"2px solid #bbb",flexShrink:0}}/>
           <div style={{width:2,flex:1,background:`${T.txD}30`,margin:"3px 0",minHeight:12}}/>
           <div style={{width:10,height:10,borderRadius:"50%",background:destination?T.accent:`${T.accent}60`,border:`2px solid ${T.accent}`,flexShrink:0}}/>
         </div>
