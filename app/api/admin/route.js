@@ -52,11 +52,13 @@ export async function GET(request) {
       const page = parseInt(searchParams.get('page')) || 0;
       const limit = 30;
       const search = searchParams.get('search') || '';
+      const courseId = searchParams.get('course_id') || '';
       let query = sb
         .from('posts')
         .select('*, profiles(name, avatar, color)', { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(page * limit, (page + 1) * limit - 1);
+      if (courseId) query = query.eq('course_id', courseId);
       if (search) query = query.ilike('text', `%${search}%`);
       const { data, error, count } = await query;
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -67,11 +69,13 @@ export async function GET(request) {
       const page = parseInt(searchParams.get('page')) || 0;
       const limit = 50;
       const search = searchParams.get('search') || '';
+      const courseId = searchParams.get('course_id') || '';
       let query = sb
         .from('messages')
         .select('*, profiles(name, avatar, color)', { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(page * limit, (page + 1) * limit - 1);
+      if (courseId) query = query.eq('course_id', courseId);
       if (search) query = query.ilike('text', `%${search}%`);
       const { data, error, count } = await query;
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
