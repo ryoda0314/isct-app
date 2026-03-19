@@ -2,18 +2,21 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
-const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
+const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
-function isAdmin(userid) {
-  return ADMIN_IDS.includes(String(userid));
+async function isAdmin(userid) {
+  if (ENV_ADMIN_IDS.includes(String(userid))) return true;
+  const sb = getSupabaseAdmin();
+  const { data } = await sb.from('admin_users').select('moodle_user_id').eq('moodle_user_id', userid).maybeSingle();
+  return !!data;
 }
 
-// GET /api/admin?action=stats|users|posts|messages
+// GET /api/admin?action=stats|users|posts|messages|admins
 export async function GET(request) {
   try {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
-    if (!isAdmin(auth.userid)) {
+    if (!(await isAdmin(auth.userid))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -82,9 +85,77 @@ export async function GET(request) {
       return NextResponse.json({ messages: data || [], total: count || 0, page });
     }
 
+    if (action === 'admins') {
+      const { data } = await sb
+        .from('admin_users')
+        .select('moodle_user_id, created_at, profiles(name, avatar, color)')
+        .order('created_at', { ascending: true });
+      const dbAdmins = (data || []).map(a => ({
+        moodleId: a.moodle_user_id,
+        name: a.profiles?.name || null,
+        avatar: a.profiles?.avatar || null,
+        color: a.profiles?.color || null,
+        createdAt: a.created_at,
+        source: 'db',
+      }));
+      const dbIds = new Set(dbAdmins.map(a => String(a.moodleId)));
+      const envAdmins = ENV_ADMIN_IDS.filter(id => !dbIds.has(id)).map(id => ({
+        moodleId: Number(id),
+        name: null,
+        avatar: null,
+        color: null,
+        createdAt: null,
+        source: 'env',
+      }));
+      // resolve env admin profiles
+      for (const ea of envAdmins) {
+        const { data: p } = await sb.from('profiles').select('name, avatar, color').eq('moodle_id', ea.moodleId).maybeSingle();
+        if (p) { ea.name = p.name; ea.avatar = p.avatar; ea.color = p.color; }
+      }
+      return NextResponse.json({ admins: [...envAdmins, ...dbAdmins] });
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (e) {
     console.error('[Admin GET]', e);
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+}
+
+// POST /api/admin  { action: 'add_admin', moodleUserId }
+export async function POST(request) {
+  try {
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    if (!(await isAdmin(auth.userid))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { action, moodleUserId } = body;
+
+    if (action === 'add_admin') {
+      if (!moodleUserId) return NextResponse.json({ error: 'moodleUserId required' }, { status: 400 });
+      const sb = getSupabaseAdmin();
+      const { error } = await sb.from('admin_users').upsert({ moodle_user_id: moodleUserId, added_by: auth.userid }, { onConflict: 'moodle_user_id' });
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === 'remove_admin') {
+      if (!moodleUserId) return NextResponse.json({ error: 'moodleUserId required' }, { status: 400 });
+      if (ENV_ADMIN_IDS.includes(String(moodleUserId))) {
+        return NextResponse.json({ error: '環境変数で設定された管理者は削除できません' }, { status: 400 });
+      }
+      const sb = getSupabaseAdmin();
+      const { error } = await sb.from('admin_users').delete().eq('moodle_user_id', moodleUserId);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true });
+    }
+
+    return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+  } catch (e) {
+    console.error('[Admin POST]', e);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -94,7 +165,7 @@ export async function DELETE(request) {
   try {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
-    if (!isAdmin(auth.userid)) {
+    if (!(await isAdmin(auth.userid))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -105,7 +176,6 @@ export async function DELETE(request) {
     const sb = getSupabaseAdmin();
 
     if (type === 'post') {
-      // delete comments first
       await sb.from('comments').delete().eq('post_id', id);
       const { error } = await sb.from('posts').delete().eq('id', id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });

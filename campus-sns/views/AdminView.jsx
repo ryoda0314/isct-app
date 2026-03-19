@@ -10,6 +10,7 @@ const tabs = [
   { id: "users", label: "ユーザー", icon: I.users },
   { id: "posts", label: "投稿", icon: I.feed },
   { id: "messages", label: "メッセージ", icon: I.chat },
+  { id: "settings", label: "設定", icon: I.shield },
 ];
 
 const Card = ({ label, value, color }) => (
@@ -274,6 +275,103 @@ const MessagesTab = ({ courses, schools, depts }) => {
   );
 };
 
+// ---- Settings Tab (Admin Management) ----
+const SettingsTab = () => {
+  const [admins, setAdmins] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [newId, setNewId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadAdmins = useCallback(() => {
+    setLoading(true);
+    fetch(`${API}/api/admin?action=admins`)
+      .then(r => r.json())
+      .then(d => setAdmins(d.admins || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadAdmins(); }, [loadAdmins]);
+
+  const handleAdd = async () => {
+    const id = parseInt(newId);
+    if (!id) { setError("有効なMoodle IDを入力してください"); return; }
+    setSaving(true); setError("");
+    try {
+      const r = await fetch(`${API}/api/admin`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "add_admin", moodleUserId: id }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setError(d.error || "追加に失敗しました"); return; }
+      setNewId("");
+      loadAdmins();
+    } catch { setError("通信エラー"); }
+    finally { setSaving(false); }
+  };
+
+  const handleRemove = async (moodleId) => {
+    if (!confirm("この管理者を削除しますか？")) return;
+    const r = await fetch(`${API}/api/admin`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "remove_admin", moodleUserId: moodleId }),
+    });
+    const d = await r.json();
+    if (!r.ok) { alert(d.error || "削除に失敗しました"); return; }
+    loadAdmins();
+  };
+
+  return (
+    <div style={{ padding: 16, maxWidth: 600 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>管理者設定</div>
+
+      {/* Add admin */}
+      <div style={{ padding: 16, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>管理者を追加</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            value={newId} onChange={e => setNewId(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") handleAdd(); }}
+            placeholder="Moodle ユーザーID"
+            style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", fontFamily: "monospace" }}
+          />
+          <button
+            onClick={handleAdd} disabled={saving || !newId.trim()}
+            style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 600, cursor: saving ? "default" : "pointer", opacity: saving || !newId.trim() ? 0.5 : 1 }}
+          >{saving ? "追加中..." : "追加"}</button>
+        </div>
+        {error && <div style={{ fontSize: 12, color: T.red, marginTop: 8 }}>{error}</div>}
+      </div>
+
+      {/* Admin list */}
+      <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>管理者一覧</div>
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {admins.map(a => (
+          <div key={a.moodleId} style={{ display: "flex", alignItems: "center", gap: 10, padding: 12, borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}` }}>
+            <Av u={{ name: a.name, col: a.color, avatar: a.avatar }} sz={32} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{a.name || "不明"}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                <span style={{ fontSize: 11, color: T.txD, fontFamily: "monospace" }}>ID: {a.moodleId}</span>
+                <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: a.source === "env" ? `${T.orange}20` : `${T.accent}20`, color: a.source === "env" ? T.orange : T.accent }}>{a.source === "env" ? "環境変数" : "DB"}</span>
+                {a.createdAt && <span style={{ fontSize: 10, color: T.txD }}>{new Date(a.createdAt).toLocaleDateString("ja-JP")}</span>}
+              </div>
+            </div>
+            {a.source === "db" ? (
+              <button onClick={() => handleRemove(a.moodleId)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 8, border: `1px solid ${T.red}30`, background: `${T.red}10`, color: T.red, cursor: "pointer", fontSize: 12, flexShrink: 0 }}>{I.trash} 削除</button>
+            ) : (
+              <span style={{ fontSize: 11, color: T.txD, flexShrink: 0 }}>削除不可</span>
+            )}
+          </div>
+        ))}
+        {!loading && admins.length === 0 && <div style={{ padding: 24, textAlign: "center", color: T.txD, fontSize: 13 }}>管理者が登録されていません</div>}
+      </div>
+    </div>
+  );
+};
+
 // ---- Main AdminView ----
 export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
   const [tab, setTab] = useState("stats");
@@ -317,6 +415,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "users" && <UsersTab />}
         {tab === "posts" && <PostsTab courses={courses} schools={schools} depts={depts} />}
         {tab === "messages" && <MessagesTab courses={courses} schools={schools} depts={depts} />}
+        {tab === "settings" && <SettingsTab />}
       </div>
     </div>
   );

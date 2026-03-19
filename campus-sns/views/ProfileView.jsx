@@ -7,6 +7,7 @@ import { MatrixInput, COLS, ROWS } from '../components/MatrixInput.jsx';
 import { QA_ALL, QA_DEFAULT } from './HomeView.jsx';
 import { NAV_QUICK_DEFAULT, SPOT_GROUPS } from './NavigationView.jsx';
 import { SPOTS, SPOT_CATS } from '../hooks/useLocationSharing.js';
+import { SCHOOLS, DEPTS } from '../data.js';
 
 /* ─── 画像 → 正方形クロップ → data URI ─── */
 const AV_SZ=160;
@@ -124,6 +125,8 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,co
   const [credOpen,setCredOpen]=useState(false);
   const [notifOpen,setNotifOpen]=useState(false);
   const [ygOpen,setYgOpen]=useState(false);
+  const [deptOpen,setDeptOpen]=useState(false);
+  const selSchool=user.myDept?DEPTS[user.myDept]?.school:null;
   const [cacheCleared,setCacheCleared]=useState(false);
   const [avEdit,setAvEdit]=useState(false);
   const [uploading,setUploading]=useState(false);
@@ -555,6 +558,35 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,co
                   </button>
                 );})}
               </div>
+            </div>
+          </div>}
+          <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>}
+            label="所属学系" sub="プロフィールに表示される学系"
+            onClick={()=>setDeptOpen(p=>!p)}
+            right={<span style={{fontSize:13,fontWeight:600,color:user.myDept?DEPTS[user.myDept]?.col||T.accent:T.txD}}>{user.myDept?DEPTS[user.myDept]?.name||user.myDept:"未設定"}</span>}/>
+          {deptOpen&&<div style={{padding:"8px 14px 12px"}}>
+            <div style={{fontSize:10,fontWeight:600,color:T.txD,marginBottom:5}}>学院を選択</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
+              {Object.entries(SCHOOLS).map(([sk,sv])=>{const on=selSchool===sk;return(
+                <button key={sk} onClick={e=>{e.stopPropagation();if(on)updateUserPref({myDept:null});else{const first=Object.entries(DEPTS).find(([,d])=>d.school===sk);if(first)updateUserPref({myDept:first[0]});}}}
+                  style={{padding:"7px 14px",borderRadius:8,border:`1px solid ${on?sv.col:T.bd}`,background:on?`${sv.col}18`:"transparent",color:on?sv.col:T.txH,fontSize:12,fontWeight:on?700:500,cursor:"pointer",transition:"all .12s"}}>
+                  {sv.name}
+                </button>
+              );})}
+            </div>
+            {selSchool&&<>
+              <div style={{fontSize:10,fontWeight:600,color:SCHOOLS[selSchool]?.col||T.txD,marginBottom:5}}>学系を選択</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                {Object.entries(DEPTS).filter(([,d])=>d.school===selSchool).map(([prefix,d])=>{const sel=user.myDept===prefix;return(
+                  <button key={prefix} onClick={e=>{e.stopPropagation();updateUserPref({myDept:prefix});}}
+                    style={{padding:"7px 14px",borderRadius:8,border:`1px solid ${sel?d.col:T.bd}`,background:sel?`${d.col}18`:"transparent",color:sel?d.col:T.txH,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
+                    {d.name}
+                  </button>
+                );})}
+              </div>
+            </>}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",marginTop:8}}>
+              {user.myDept&&<button onClick={()=>updateUserPref({myDept:null})} style={{background:"none",border:"none",color:T.txD,fontSize:10,cursor:"pointer",padding:0}}>リセット</button>}
             </div>
           </div>}
           <GRow icon={dark?I.moon:I.sun} label="テーマ"
