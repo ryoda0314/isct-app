@@ -108,16 +108,24 @@ const UsersTab = () => {
   );
 };
 
-// ---- Course Select ----
-const CourseSelect = ({ courses, value, onChange }) => (
-  <select value={value} onChange={e => onChange(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none", maxWidth: 220 }}>
-    <option value="">すべてのコース</option>
-    {courses.map(c => <option key={c.id} value={c.id}>{c.code} {c.name}</option>)}
+// ---- Room Select (courses + schools + depts) ----
+const RoomSelect = ({ courses, schools = [], depts = [], value, onChange }) => (
+  <select value={value} onChange={e => onChange(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none", maxWidth: 240 }}>
+    <option value="">すべての部屋</option>
+    {schools.length > 0 && <optgroup label="学院">
+      {schools.map(s => <option key={s.prefix} value={`dept:${s.prefix}`}>{s.name}</option>)}
+    </optgroup>}
+    {depts.length > 0 && <optgroup label="学系">
+      {depts.map(d => <option key={d.prefix} value={`dept:${d.prefix}`}>{d.prefix} {d.name}</option>)}
+    </optgroup>}
+    {courses.length > 0 && <optgroup label="コース">
+      {courses.map(c => <option key={c.id} value={c.id}>{c.code} {c.name}</option>)}
+    </optgroup>}
   </select>
 );
 
 // ---- Posts Tab ----
-const PostsTab = ({ courses }) => {
+const PostsTab = ({ courses, schools, depts }) => {
   const [posts, setPosts] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -146,14 +154,18 @@ const PostsTab = ({ courses }) => {
     if (r.ok) load(page, search, courseId);
   };
 
-  const courseMap = Object.fromEntries(courses.map(c => [c.id, c]));
+  const roomMap = Object.fromEntries([
+    ...courses.map(c => [c.id, { code: c.code, col: c.col, name: c.name }]),
+    ...depts.map(d => [`dept:${d.prefix}`, { code: d.prefix, col: d.col, name: d.name }]),
+    ...schools.map(s => [`dept:${s.prefix}`, { code: s.name.slice(0, 3), col: s.col, name: s.name }]),
+  ]);
 
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>投稿管理 ({total})</div>
         <div style={{ flex: 1 }} />
-        <CourseSelect courses={courses} value={courseId} onChange={handleCourse} />
+        <RoomSelect courses={courses} schools={schools} depts={depts} value={courseId} onChange={handleCourse} />
         <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, width: 200 }}>
           <span style={{ color: T.txD, display: "flex" }}>{I.search}</span>
           <input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === "Enter") load(0, search, courseId); }} placeholder="検索..." style={{ flex: 1, border: "none", background: "transparent", color: T.txH, fontSize: 13, outline: "none" }} />
@@ -162,7 +174,7 @@ const PostsTab = ({ courses }) => {
       {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {posts.map(p => {
-          const cc = courseMap[p.course_id];
+          const cc = roomMap[p.course_id];
           return (
           <div key={p.id} style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -190,7 +202,7 @@ const PostsTab = ({ courses }) => {
 };
 
 // ---- Messages Tab ----
-const MessagesTab = ({ courses }) => {
+const MessagesTab = ({ courses, schools, depts }) => {
   const [messages, setMessages] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -219,14 +231,18 @@ const MessagesTab = ({ courses }) => {
     if (r.ok) load(page, search, courseId);
   };
 
-  const courseMap = Object.fromEntries(courses.map(c => [c.id, c]));
+  const roomMap = Object.fromEntries([
+    ...courses.map(c => [c.id, { code: c.code, col: c.col, name: c.name }]),
+    ...depts.map(d => [`dept:${d.prefix}`, { code: d.prefix, col: d.col, name: d.name }]),
+    ...schools.map(s => [`dept:${s.prefix}`, { code: s.name.slice(0, 3), col: s.col, name: s.name }]),
+  ]);
 
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>メッセージ管理 ({total})</div>
         <div style={{ flex: 1 }} />
-        <CourseSelect courses={courses} value={courseId} onChange={handleCourse} />
+        <RoomSelect courses={courses} schools={schools} depts={depts} value={courseId} onChange={handleCourse} />
         <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, width: 200 }}>
           <span style={{ color: T.txD, display: "flex" }}>{I.search}</span>
           <input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === "Enter") load(0, search, courseId); }} placeholder="検索..." style={{ flex: 1, border: "none", background: "transparent", color: T.txH, fontSize: 13, outline: "none" }} />
@@ -235,7 +251,7 @@ const MessagesTab = ({ courses }) => {
       {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {messages.map(m => {
-          const cc = courseMap[m.course_id];
+          const cc = roomMap[m.course_id];
           return (
           <div key={m.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: 12, borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}` }}>
             <Av u={{ name: m.profiles?.name, col: m.profiles?.color, avatar: m.profiles?.avatar }} sz={28} />
@@ -259,7 +275,7 @@ const MessagesTab = ({ courses }) => {
 };
 
 // ---- Main AdminView ----
-export const AdminView = ({ mob, courses = [] }) => {
+export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
   const [tab, setTab] = useState("stats");
   const [forbidden, setForbidden] = useState(false);
 
@@ -299,8 +315,8 @@ export const AdminView = ({ mob, courses = [] }) => {
       <div style={{ flex: 1, overflowY: "auto" }}>
         {tab === "stats" && <StatsTab />}
         {tab === "users" && <UsersTab />}
-        {tab === "posts" && <PostsTab courses={courses} />}
-        {tab === "messages" && <MessagesTab courses={courses} />}
+        {tab === "posts" && <PostsTab courses={courses} schools={schools} depts={depts} />}
+        {tab === "messages" && <MessagesTab courses={courses} schools={schools} depts={depts} />}
       </div>
     </div>
   );
