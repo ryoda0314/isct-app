@@ -138,6 +138,7 @@ const DEMO_ATT = {
 const DEMO_USER = {
   userid: 99999,
   fullname: "テスト太郎",
+  yearGroup: "25B",
 };
 
 // ── イベント ──
@@ -378,20 +379,275 @@ const DEMO_NOTIFICATIONS = [
 // ── フィード投稿 ──
 const DEMO_POSTS = {
   "mc_101": [
-    { id: 701, uid: 10001, text: "動的計画法の漸化式の立て方がいまいち分からない…コツありますか？", type: "question", yearGroup: "25B", likes: [10002, 10003], ts: d(0, 11, 30), name: "山田花子", avatar: "H", color: "#e5534b" },
-    { id: 702, uid: 10002, text: "小さいケースで手計算→パターンを見つけてテーブルに落とす、が王道だと思う", type: "discussion", yearGroup: "25B", likes: [10001, 99999, 10003], ts: d(0, 11, 45), name: "鈴木一郎", avatar: "I", color: "#6375f0" },
-    { id: 703, uid: 99999, text: "第3回レポート、ソートの比較はランダム入力だけでなくソート済み入力も試した方がいいですよ", type: "info", yearGroup: "25B", likes: [10001], ts: d(-1, 16, 0), name: "テスト太郎", avatar: "T", color: "#888" },
-    { id: 704, uid: 10003, text: "ヒープソートの計算量 O(n log n) の証明、教科書のp.142がわかりやすかったです", type: "material", yearGroup: "25B", likes: [10001, 10002], ts: d(-1, 20, 15), name: "田中美咲", avatar: "M", color: "#3dae72" },
-    { id: 705, uid: 10004, text: "来週の小テスト範囲ってどこまでですか？", type: "question", yearGroup: "25B", likes: [], ts: d(-2, 9, 0), name: "佐藤健太", avatar: "K", color: "#d4843e" },
-    { id: 706, uid: 0, text: "正直この授業の課題量多すぎない？毎週レポートはきつい", type: "anon", yearGroup: "25B", likes: [10001, 10002, 10003, 10005], ts: d(-3, 22, 0), name: "匿名", avatar: "?", color: "#68687a" },
+    // ── ピン留め投稿 ──
+    { id: 700, uid: 10001, text: "📌 **レポート提出要件まとめ**\n- 形式: PDF\n- ファイル名: `学籍番号_report03.pdf`\n- 締切: 3/24(月) 23:59\n- 提出先: Moodleの課題提出ページ\n\n遅延提出は **1日ごとに10%減点** です。",
+      type: "info", likes: [10001, 10002, 10003, 10004, 99999, 10005],
+      ts: d(-2, 10, 0), name: "山田花子", avatar: "H", color: "#e5534b",
+      pinned: true, commentCount: 3, reactions: {"👍":[10002,10003,10004],"🔥":[99999]} },
+
+    // ── 今日の投稿 ──
+    // 質問 + TeX
+    { id: 701, uid: 10001, text: "動的計画法の漸化式の立て方がいまいち分からない…\n例えばナップサック問題で $dp[i][w] = \\max(dp[i-1][w],\\; dp[i-1][w-w_i] + v_i)$ ってなるけど、この式をどう思いつけばいいの？",
+      type: "question", likes: [10002, 10003, 10004],
+      ts: d(0, 11, 30), name: "山田花子", avatar: "H", color: "#e5534b",
+      commentCount: 2, reactions: {"👍":[10002]} },
+
+    { id: 702, uid: 10002, text: "**DPの漸化式の考え方：**\n1. 小さいケースで手計算してパターンを見つける\n2. 「最後の1手」を考える（最後にどの選択をしたか？）\n3. テーブルの各セルが何を表すか明確にする\n\nナップサックなら「i番目の品物を入れるか入れないか」の2択で分岐する。@山田花子 これで伝わる？",
+      type: "discussion", likes: [10001, 99999, 10003],
+      ts: d(0, 11, 45), name: "鈴木一郎", avatar: "I", color: "#6375f0",
+      reactions: {"❤️":[10001],"👍":[10003,99999]} },
+
+    // 投票 (poll)
+    { id: 707, uid: 10004, text: "📊 レポートのプログラミング言語、みんな何使う？",
+      type: "poll", likes: [10001],
+      ts: d(0, 10, 0), name: "佐藤健太", avatar: "K", color: "#d4843e",
+      pollOptions: ["Python", "C/C++", "Java", "JavaScript", "Rust"],
+      pollVotes: {"Python":[10001,10003,10005,10006],"C/C++":[10002,99999,10004],"Java":[10007],"JavaScript":[10008],"Rust":[]},
+      commentCount: 1 },
+
+    // info + コード
+    { id: 703, uid: 99999, text: "第3回レポート、ソートの比較はランダム入力だけでなく**ソート済み入力**も試した方がいいですよ。クイックソートの最悪ケースが見えます：\n```python\nimport time, random\n\ndef benchmark(sort_fn, data):\n    start = time.perf_counter()\n    sort_fn(data[:])\n    return time.perf_counter() - start\n\n# ランダム vs ソート済み\nrandom_data = random.sample(range(10000), 10000)\nsorted_data = list(range(10000))\n```",
+      type: "info", likes: [10001, 10002, 10003, 10004],
+      ts: d(-1, 16, 0), name: "テスト太郎", avatar: "T", color: "#888",
+      commentCount: 4, reactions: {"🔥":[10001,10002],"👍":[10003]} },
+
+    // material
+    { id: 704, uid: 10003, text: "ヒープソートの計算量 $O(n \\log n)$ の証明、教科書のp.142がわかりやすかったです。ポイントは：\n- ヒープ構築: $O(n)$（上からではなく下から積み上げ）\n- 取り出し×n回: 各 $O(\\log n)$\n$$T(n) = O(n) + n \\cdot O(\\log n) = O(n \\log n)$$",
+      type: "material", likes: [10001, 10002, 10005],
+      ts: d(-1, 20, 15), name: "田中美咲", avatar: "M", color: "#3dae72",
+      reactions: {"👏":[10001,10002,99999]} },
+
+    // 編集済み投稿
+    { id: 705, uid: 10004, text: "来週の小テスト範囲は第5章〜第7章（ソート・探索・グラフ基礎）とのことです。TAさんに確認済み。",
+      type: "question", likes: [10001, 10002],
+      ts: d(-2, 9, 0), name: "佐藤健太", avatar: "K", color: "#d4843e",
+      editedAt: d(-2, 9, 30), commentCount: 1 },
+
+    // 匿名投稿
+    { id: 706, uid: 0, text: "正直この授業の課題量多すぎない？毎週レポートはきつい。他の授業との両立が厳しくなってきた…",
+      type: "anon", likes: [10001, 10002, 10003, 10004, 10005, 10006, 10007],
+      ts: d(-3, 22, 0), name: "匿名", avatar: "?", color: "#68687a",
+      commentCount: 5, reactions: {"😢":[10001,10002,10003],"👍":[10004,10005]} },
   ],
   "mc_102": [
-    { id: 711, uid: 10002, text: "固有値分解の計算、3x3以上になると大変すぎる", type: "discussion", yearGroup: "25B", likes: [99999], ts: d(0, 10, 0), name: "鈴木一郎", avatar: "I", color: "#6375f0" },
-    { id: 712, uid: 99999, text: "対角化の条件まとめノート作ったので共有します。固有値が全部異なれば対角化可能！", type: "material", yearGroup: "25B", likes: [10001, 10002, 10005], ts: d(-1, 14, 0), name: "テスト太郎", avatar: "T", color: "#888" },
+    // ピン留め
+    { id: 710, uid: 10002, text: "**中間試験の範囲**\n- 行列の基本演算\n- 連立一次方程式（掃き出し法）\n- 行列式\n- 固有値・固有ベクトル\n- 対角化\n\n持ち込み: A4用紙1枚（手書き・両面OK）",
+      type: "info", likes: [10001, 10003, 99999, 10004, 10005],
+      ts: d(-3, 18, 0), name: "鈴木一郎", avatar: "I", color: "#6375f0",
+      pinned: true, commentCount: 2, reactions: {"👍":[10001,10003,10004]} },
+
+    { id: 711, uid: 10002, text: "固有値分解の計算、3x3以上になると大変すぎる…\n$$\\det(A - \\lambda I) = \\det\\begin{pmatrix} a_{11}-\\lambda & a_{12} & a_{13} \\\\ a_{21} & a_{22}-\\lambda & a_{23} \\\\ a_{31} & a_{32} & a_{33}-\\lambda \\end{pmatrix} = 0$$\n3次方程式解くの手計算だときつい",
+      type: "discussion", likes: [99999, 10003],
+      ts: d(0, 10, 0), name: "鈴木一郎", avatar: "I", color: "#6375f0",
+      commentCount: 3, reactions: {"😢":[10001,10003]} },
+
+    { id: 712, uid: 99999, text: "対角化の条件まとめノート作ったので共有します：\n\n**対角化可能な条件**\n1. $n \\times n$ 行列が $n$ 個の線形独立な固有ベクトルを持つ\n2. 固有値が全部異なれば必ず対角化可能\n3. 重複固有値があっても固有空間の次元が重複度と等しければOK\n\nNumPyで確認：\n```python\nimport numpy as np\nA = np.array([[2, 1], [0, 2]])  # 重複固有値λ=2\nevals, evecs = np.linalg.eig(A)\nprint(f\"固有値: {evals}\")  # [2, 2]\n# 固有ベクトルが1つ → 対角化不可能\n```",
+      type: "material", likes: [10001, 10002, 10003, 10005],
+      ts: d(-1, 14, 0), name: "テスト太郎", avatar: "T", color: "#888",
+      commentCount: 2, reactions: {"🔥":[10001,10002],"👏":[10003]} },
+
+    // 投票
+    { id: 713, uid: 10003, text: "📊 試験対策どうする？",
+      type: "poll", likes: [],
+      ts: d(-1, 20, 0), name: "田中美咲", avatar: "M", color: "#3dae72",
+      pollOptions: ["過去問を解く", "ノートまとめ", "勉強会開く", "YouTubeで復習"],
+      pollVotes: {"過去問を解く":[10001,10002,99999,10004],"ノートまとめ":[10003,10005],"勉強会開く":[10001,10003,10002],"YouTubeで復習":[10006]},
+      pollSettings: {multi:true} },
+
+    // 匿名
+    { id: 714, uid: 0, text: "証明問題が全く書けない…解法暗記しないとダメなのかな",
+      type: "anon", likes: [10001, 10002, 10003],
+      ts: d(-2, 23, 30), name: "匿名", avatar: "?", color: "#68687a",
+      reactions: {"😢":[10004,10005],"❤️":[10001]} },
   ],
   "mc_105": [
-    { id: 721, uid: 10003, text: "実験レポート、参考文献のフォーマットってIEEEスタイルでいいですよね？", type: "question", yearGroup: "25B", likes: [99999], ts: d(0, 15, 30), name: "田中美咲", avatar: "M", color: "#3dae72" },
-    { id: 722, uid: 99999, text: "TAさんに確認したらIEEEでOKとのことです", type: "info", yearGroup: "25B", likes: [10003, 10001], ts: d(0, 16, 10), name: "テスト太郎", avatar: "T", color: "#888" },
+    { id: 721, uid: 10003, text: "実験レポート、参考文献のフォーマットってIEEEスタイルでいいですよね？LaTeXの `\\bibliographystyle{IEEEtran}` で合ってる？",
+      type: "question", likes: [99999, 10004],
+      ts: d(0, 15, 30), name: "田中美咲", avatar: "M", color: "#3dae72",
+      commentCount: 2 },
+    { id: 722, uid: 99999, text: "TAさんに確認したらIEEEでOKとのことです。BibTeXの書き方サンプル：\n```bibtex\n@article{smith2024,\n  author  = {Smith, John},\n  title   = {An Example Paper},\n  journal = {IEEE Trans.},\n  year    = {2024},\n  volume  = {42},\n  pages   = {1--10}\n}\n```",
+      type: "info", likes: [10003, 10001, 10004],
+      ts: d(0, 16, 10), name: "テスト太郎", avatar: "T", color: "#888",
+      reactions: {"👍":[10003,10004]} },
+    { id: 723, uid: 10004, text: "📊 実験データの可視化ツール何使ってる？",
+      type: "poll", likes: [],
+      ts: d(-1, 14, 0), name: "佐藤健太", avatar: "K", color: "#d4843e",
+      pollOptions: ["matplotlib", "Excel", "gnuplot", "Plotly"],
+      pollVotes: {"matplotlib":[10003,99999,10001],"Excel":[10004,10005],"gnuplot":[10002],"Plotly":[10006]} },
+  ],
+  "mc_103": [
+    { id: 730, uid: 10002, text: "正規表現 `(a|b)*abb` からNFAに変換するの、Thompson構成法でやるとノード数めっちゃ多くならない？",
+      type: "question", likes: [10001, 10003],
+      ts: d(0, 13, 0), name: "鈴木一郎", avatar: "I", color: "#6375f0",
+      commentCount: 3, reactions: {"👍":[10001]} },
+    { id: 731, uid: 10003, text: "Thompson構成法はε遷移が多くなるのが普通。NFA→DFA変換（部分集合構成法）でまとめると状態数減るよ。\n\n**変換の流れ:**\n1. 正規表現 → NFA (Thompson)\n2. NFA → DFA (部分集合構成法)\n3. DFA → 最小DFA (等価状態の統合)",
+      type: "info", likes: [10002, 99999, 10004],
+      ts: d(0, 13, 20), name: "田中美咲", avatar: "M", color: "#3dae72",
+      reactions: {"🔥":[10002]} },
+    { id: 732, uid: 99999, text: "文脈自由文法のチョムスキー標準形への変換手順まとめ：\n1. ε生成規則の除去\n2. 単位生成規則の除去\n3. 右辺を2変数以下に分解\n4. 終端記号を変数に置換\n\nこの順番大事。**順番間違えると正しく変換できない**ので注意",
+      type: "material", likes: [10001, 10002, 10003],
+      ts: d(-1, 15, 30), name: "テスト太郎", avatar: "T", color: "#888",
+      pinned: true, commentCount: 2, reactions: {"👏":[10001,10003]} },
+    { id: 733, uid: 0, text: "この授業、毎回の内容が重いのに演習の時間短すぎる…もう少し演習時間ほしい",
+      type: "anon", likes: [10001, 10002, 10004, 10005],
+      ts: d(-2, 21, 0), name: "匿名", avatar: "?", color: "#68687a",
+      reactions: {"😢":[10003,10005]} },
+  ],
+  "mc_104": [
+    { id: 740, uid: 10001, text: "今週のessayのテーマ \"Technology and Society\" って、AIに絞って書いていいのかな？それとも幅広く書くべき？",
+      type: "question", likes: [10004],
+      ts: d(0, 14, 0), name: "山田花子", avatar: "H", color: "#e5534b",
+      commentCount: 2 },
+    { id: 741, uid: 10004, text: "先生が授業中に \"You can focus on a specific area\" って言ってたから、AIだけでも大丈夫だと思う",
+      type: "discussion", likes: [10001, 10003],
+      ts: d(0, 14, 15), name: "佐藤健太", avatar: "K", color: "#d4843e" },
+    { id: 742, uid: 10003, text: "Academic writingの構成テンプレ共有します：\n\n**Introduction** (50 words)\n- Hook → Background → Thesis statement\n\n**Body** (350 words)\n- Topic sentence → Evidence → Analysis × 2-3 paragraphs\n\n**Conclusion** (100 words)\n- Restate thesis → Summary → Future implications",
+      type: "material", likes: [10001, 10004, 99999],
+      ts: d(-1, 10, 0), name: "田中美咲", avatar: "M", color: "#3dae72",
+      pinned: true, reactions: {"👍":[10001,10004],"🔥":[99999]} },
+    { id: 743, uid: 99999, text: "📊 Grammarly使ってる？",
+      type: "poll", likes: [],
+      ts: d(-2, 16, 0), name: "テスト太郎", avatar: "T", color: "#888",
+      pollOptions: ["使ってる", "使ってない", "DeepL Write派", "ChatGPT派"],
+      pollVotes: {"使ってる":[10001,10003],"使ってない":[10004],"DeepL Write派":[10002,10005],"ChatGPT派":[99999,10006]} },
+  ],
+  "mc_106": [
+    { id: 750, uid: 10001, text: "ベイズの定理の問題、事前確率と尤度を取り違えやすい…\n$$P(A|B) = \\frac{P(B|A)\\,P(A)}{P(B)}$$\nの $P(B|A)$ が尤度で $P(A)$ が事前確率。ここ間違える人多そう",
+      type: "info", likes: [10002, 10003, 10004],
+      ts: d(0, 9, 30), name: "山田花子", avatar: "H", color: "#e5534b",
+      commentCount: 2, reactions: {"👍":[10002,10004]} },
+    { id: 751, uid: 10002, text: "最尤推定量の導出で対数尤度を使うテクニック、覚えておくと楽：\n$$\\hat{\\theta}_{ML} = \\arg\\max_\\theta \\sum_{i=1}^{n} \\ln f(x_i | \\theta)$$\n積を和にできるから微分が簡単になる",
+      type: "discussion", likes: [10001, 99999],
+      ts: d(-1, 11, 0), name: "鈴木一郎", avatar: "I", color: "#6375f0",
+      reactions: {"🔥":[10001]} },
+    { id: 752, uid: 99999, text: "Pythonで正規分布のパラメータ推定やってみた：\n```python\nimport numpy as np\nfrom scipy import stats\n\ndata = np.random.normal(loc=5, scale=2, size=100)\n\n# 最尤推定\nmu_ml = np.mean(data)\nsigma_ml = np.std(data)  # MLEはn割り\n\n# 不偏推定\nmu_ub = np.mean(data)\nsigma_ub = np.std(data, ddof=1)  # n-1割り\n\nprint(f\"MLE: μ={mu_ml:.3f}, σ={sigma_ml:.3f}\")\nprint(f\"不偏: μ={mu_ub:.3f}, σ={sigma_ub:.3f}\")\n```\nMLEの $\\sigma$ は不偏じゃないので注意！",
+      type: "material", likes: [10001, 10002, 10003, 10005],
+      ts: d(-1, 15, 0), name: "テスト太郎", avatar: "T", color: "#888",
+      commentCount: 3, reactions: {"🔥":[10001,10002],"👏":[10003]} },
+    { id: 753, uid: 10004, text: "📊 小テスト3の自信は？",
+      type: "poll", likes: [],
+      ts: d(-2, 20, 0), name: "佐藤健太", avatar: "K", color: "#d4843e",
+      pollOptions: ["余裕", "まあまあ", "不安", "無理"],
+      pollVotes: {"余裕":[],"まあまあ":[10002,99999],"不安":[10001,10003,10004],"無理":[10005,10006,10007]},
+      pollSettings: {anon:true} },
+  ],
+  "mc_107": [
+    { id: 760, uid: 10002, text: "パイプラインハザードの3種類、整理しておく：\n\n**1. データハザード** — 前の命令の結果を次が使う\n  → フォワーディングで解決\n**2. 制御ハザード** — 分岐命令\n  → 分岐予測 or 遅延分岐\n**3. 構造ハザード** — リソース競合\n  → ハードウェア追加で解決",
+      type: "material", likes: [10001, 10003, 99999, 10004],
+      ts: d(0, 10, 30), name: "鈴木一郎", avatar: "I", color: "#6375f0",
+      pinned: true, commentCount: 4, reactions: {"👍":[10001,10003],"🔥":[99999]} },
+    { id: 761, uid: 10001, text: "キャッシュのレポート、連想度を1, 2, 4, 8-wayで比較してみたけど、4-wayから先はヒット率ほとんど変わらなかった。これって一般的な傾向？",
+      type: "question", likes: [10002],
+      ts: d(-1, 16, 30), name: "山田花子", avatar: "H", color: "#e5534b",
+      commentCount: 2 },
+    { id: 762, uid: 99999, text: "RISC-VのR型命令のデコード、ビットフィールド覚えるの大変だけどこの表が便利：\n```\n31-25  24-20  19-15  14-12  11-7   6-0\nfunct7  rs2    rs1   funct3   rd   opcode\n```\n`add x1, x2, x3` → `0000000 00011 00010 000 00001 0110011`",
+      type: "info", likes: [10001, 10002, 10003],
+      ts: d(-2, 11, 0), name: "テスト太郎", avatar: "T", color: "#888",
+      reactions: {"👍":[10001,10002]} },
+    { id: 763, uid: 0, text: "小テスト2、平均点低かったらしいけどみんなどうだった？自分は半分くらいしか取れなかった…",
+      type: "anon", likes: [10001, 10003, 10005],
+      ts: d(-3, 19, 0), name: "匿名", avatar: "?", color: "#68687a",
+      commentCount: 6, reactions: {"😢":[10001,10004,10005]} },
+  ],
+  "mc_108": [
+    { id: 770, uid: 10004, text: "プロジェクトのテーマ決め、来週までだけどみんな何にする？自分は「大学内の食品ロス削減」を考えてる",
+      type: "discussion", likes: [10001, 10003],
+      ts: d(0, 12, 0), name: "佐藤健太", avatar: "K", color: "#d4843e",
+      commentCount: 3 },
+    { id: 771, uid: 10001, text: "グループ発表のスライド構成、先生が言ってた流れ：\n\n1. **問題提起**（なぜこのテーマ？）\n2. **現状分析**（データ・事実）\n3. **提案**（具体的な解決策）\n4. **実現可能性**（コスト・期間）\n5. **まとめ・展望**\n\n1スライド1メッセージを意識するといいらしい",
+      type: "info", likes: [10002, 10003, 10004, 99999],
+      ts: d(-1, 13, 0), name: "山田花子", avatar: "H", color: "#e5534b",
+      pinned: true, reactions: {"👍":[10002,10004]} },
+    { id: 772, uid: 10003, text: "📊 チームの役割分担、どれがいい？",
+      type: "poll", likes: [],
+      ts: d(-1, 18, 0), name: "田中美咲", avatar: "M", color: "#3dae72",
+      pollOptions: ["リーダー", "リサーチ担当", "スライド作成", "発表者"],
+      pollVotes: {"リーダー":[10004],"リサーチ担当":[10002,10003],"スライド作成":[10001,99999],"発表者":[10005]} },
+    { id: 773, uid: 0, text: "立志プロジェクト、正直何をすればいいのかよくわからない…グループワーク苦手な人にはきつい",
+      type: "anon", likes: [10002, 10005, 10006],
+      ts: d(-3, 22, 30), name: "匿名", avatar: "?", color: "#68687a",
+      reactions: {"😢":[10001,10003],"❤️":[10004]} },
+  ],
+};
+
+// ── チャットメッセージ (機能デモ) ──
+const DEMO_CHAT_MESSAGES = {
+  "mc_101": [
+    // ── 3日前 ──
+    // 通常テキスト + @メンション + #ハッシュタグ
+    { id: "dcm_1", uid: 10001, name: "山田花子", avatar: "H", color: "#e5534b",
+      text: "@鈴木一郎 今日の演習の解答もう確認した？ #アルゴリズム",
+      ts: d(-3, 14, 20) },
+
+    // 太字
+    { id: "dcm_2", uid: 10002, name: "鈴木一郎", avatar: "I", color: "#6375f0",
+      text: "まだ見てない！**計算量の証明**が難しかったよね。**O(n log n)**の下界の証明パート",
+      ts: d(-3, 14, 35) },
+
+    // インラインコード + TeX数式
+    { id: "dcm_3", uid: 10003, name: "田中美咲", avatar: "M", color: "#3dae72",
+      text: "マージソートの計算量は再帰式 $T(n) = 2T(n/2) + O(n)$ をマスター定理で解くと $$T(n) = O(n \\log n)$$ になるよ。`mergeSort(arr, 0, n-1)` みたいな呼び出しで再帰する",
+      ts: d(-3, 15, 0) },
+
+    // ── 昨日 ──
+    // コードブロック (Python)
+    { id: "dcm_4", uid: 10002, name: "鈴木一郎", avatar: "I", color: "#6375f0",
+      text: "Pythonだとこんな感じ：\n```python\ndef merge_sort(arr):\n    if len(arr) <= 1:\n        return arr\n    mid = len(arr) // 2\n    left = merge_sort(arr[:mid])\n    right = merge_sort(arr[mid:])\n    return merge(left, right)\n\ndef merge(left, right):\n    result = []\n    i = j = 0\n    while i < len(left) and j < len(right):\n        if left[i] <= right[j]:\n            result.append(left[i])\n            i += 1\n        else:\n            result.append(right[j])\n            j += 1\n    result.extend(left[i:])\n    result.extend(right[j:])\n    return result\n```",
+      ts: d(-1, 10, 30) },
+
+    // コードブロック (JavaScript)
+    { id: "dcm_5", uid: 99999, name: "テスト太郎", avatar: "T", color: "#888",
+      text: "JavaScriptだとこう：\n```javascript\nfunction quickSort(arr, lo = 0, hi = arr.length - 1) {\n  if (lo >= hi) return;\n  const pivot = arr[hi];\n  let i = lo;\n  for (let j = lo; j < hi; j++) {\n    if (arr[j] < pivot) {\n      [arr[i], arr[j]] = [arr[j], arr[i]];\n      i++;\n    }\n  }\n  [arr[i], arr[hi]] = [arr[hi], arr[i]];\n  quickSort(arr, lo, i - 1);\n  quickSort(arr, i + 1, hi);\n}\n```\nクイックソートの最悪計算量は $O(n^2)$ だけど平均は $O(n \\log n)$ だよ",
+      ts: d(-1, 11, 0) },
+
+    // TeX表示数式（行列）
+    { id: "dcm_6", uid: 10003, name: "田中美咲", avatar: "M", color: "#3dae72",
+      text: "ちなみに線形代数の授業と繋がるけど、ストラッセンのアルゴリズムで行列積が\n$$C = A \\times B \\quad \\text{where} \\quad A, B \\in \\mathbb{R}^{n \\times n}$$\nを $O(n^{2.807})$ で計算できるんだよね",
+      ts: d(-1, 11, 20) },
+
+    // 投票 (単一選択)
+    { id: "dcm_7", uid: 10001, name: "山田花子", avatar: "H", color: "#e5534b",
+      text: "📊 レポートどのソートアルゴリズムで実験する？",
+      ts: d(-1, 14, 0),
+      pollOptions: ["クイックソート", "マージソート", "ヒープソート", "基数ソート"],
+      pollVotes: { "クイックソート": [10002, 99999], "マージソート": [10001, 10003], "ヒープソート": [10004], "基数ソート": [] },
+      pollSettings: {} },
+
+    // ── 今日 ──
+    // 投票 (複数選択)
+    { id: "dcm_8", uid: 10004, name: "佐藤健太", avatar: "K", color: "#d4843e",
+      text: "📊 勉強会の日程、都合いい曜日は？",
+      ts: d(0, 9, 30),
+      pollOptions: ["月曜", "水曜", "金曜", "土曜"],
+      pollVotes: { "月曜": [10001, 10003], "水曜": [10002, 99999, 10003], "金曜": [10001, 10004], "土曜": [10001, 10002, 10003, 99999] },
+      pollSettings: { multi: true } },
+
+    // 投票 (匿名)
+    { id: "dcm_9", uid: 10003, name: "田中美咲", avatar: "M", color: "#3dae72",
+      text: "📊 この授業の難易度どう思う？（正直に！）",
+      ts: d(0, 10, 15),
+      pollOptions: ["簡単", "ちょうどいい", "やや難しい", "かなり難しい"],
+      pollVotes: { "簡単": [10005], "ちょうどいい": [10002, 10004], "やや難しい": [10001, 99999, 10003], "かなり難しい": [10006, 10007] },
+      pollSettings: { anon: true } },
+
+    // お知らせ + 太字
+    { id: "dcm_10", uid: 10001, name: "山田花子", avatar: "H", color: "#e5534b",
+      text: "📢 **お知らせ**\n来週の月曜は**休講**です。代わりに再来週の水曜5-6限に補講があります。教室は `W6-31` のままです。",
+      ts: d(0, 12, 0) },
+
+    // インラインTeX + インラインコードの混在
+    { id: "dcm_11", uid: 99999, name: "テスト太郎", avatar: "T", color: "#888",
+      text: "二分探索木の検索計算量は平均 $O(\\log n)$ だけど、最悪 $O(n)$ になる。`balancedBST` を使えば常に $O(\\log n)$ を保証できるよ。AVL木の回転操作が `rotateLeft()` と `rotateRight()` の2種類 #データ構造",
+      ts: d(0, 13, 45) },
+  ],
+
+  "mc_102": [
+    { id: "dcm_20", uid: 10002, name: "鈴木一郎", avatar: "I", color: "#6375f0",
+      text: "固有値 $\\lambda$ は $\\det(A - \\lambda I) = 0$ を解けばいいんだよね？\n$$\\det\\begin{pmatrix} 1-\\lambda & 2 \\\\ 3 & 4-\\lambda \\end{pmatrix} = 0$$",
+      ts: d(-1, 16, 0) },
+    { id: "dcm_21", uid: 99999, name: "テスト太郎", avatar: "T", color: "#888",
+      text: "そう！展開すると $(1-\\lambda)(4-\\lambda) - 6 = 0$ で $\\lambda^2 - 5\\lambda - 2 = 0$ になる。NumPyだと一発：\n```python\nimport numpy as np\nA = np.array([[1, 2], [3, 4]])\neigenvalues, eigenvectors = np.linalg.eig(A)\nprint(f\"固有値: {eigenvalues}\")\nprint(f\"固有ベクトル:\\n{eigenvectors}\")\n```",
+      ts: d(0, 9, 10) },
   ],
 };
 
@@ -400,5 +656,6 @@ export {
   DEMO_USER, DEMO_EVENTS, DEMO_REVIEWS, DEMO_MY_EVENTS, DEMO_TASKS,
   DEMO_FRIENDS, DEMO_FRIEND_PENDING, DEMO_FRIEND_SENT,
   DEMO_DM_CONVERSATIONS, DEMO_GROUPS, DEMO_NOTIFICATIONS,
-  DEMO_POSTS, DEMO_CIRCLES, DEMO_CIRCLE_MESSAGES, DEMO_DISCOVER_CIRCLES
+  DEMO_POSTS, DEMO_CIRCLES, DEMO_CIRCLE_MESSAGES, DEMO_DISCOVER_CIRCLES,
+  DEMO_CHAT_MESSAGES
 };

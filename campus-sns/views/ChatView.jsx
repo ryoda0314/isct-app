@@ -7,15 +7,82 @@ import { useChat } from "../hooks/useChat.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
 import { useTyping } from "../hooks/useTyping.js";
 
+const ChatPoll=({options,votes,userId,onVote,settings,profiles})=>{
+  const multi=settings?.multi||false;
+  const anon=settings?.anon||false;
+  const totalVoters=new Set(Object.values(votes).flatMap(arr=>arr||[])).size;
+  const totalVotes=Object.values(votes).reduce((s,arr)=>s+(arr||[]).length,0);
+  const myVotes=options.filter(o=>(votes[o]||[]).includes(userId));
+  const [showVoters,setShowVoters]=useState(false);
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:5,marginTop:6,maxWidth:320}}>
+      {(multi||anon)&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {multi&&<span style={{fontSize:10,color:T.txD,background:T.bg4,padding:"1px 6px",borderRadius:4}}>複数選択</span>}
+        {anon&&<span style={{fontSize:10,color:T.txD,background:T.bg4,padding:"1px 6px",borderRadius:4}}>匿名</span>}
+      </div>}
+      {options.map((opt,i)=>{
+        const count=(votes[opt]||[]).length;
+        const pct=totalVotes>0?Math.round(count/totalVotes*100):0;
+        const voted=myVotes.includes(opt);
+        return(
+          <div key={i} onClick={()=>onVote(opt)}
+            style={{position:"relative",padding:"7px 10px",borderRadius:8,border:`1px solid ${voted?T.accent+"44":T.bd}`,cursor:"pointer",overflow:"hidden",background:T.bg3}}>
+            <div style={{position:"absolute",left:0,top:0,bottom:0,width:`${pct}%`,background:voted?T.accent+"22":T.txD+"11",transition:"width .3s",borderRadius:8}}/>
+            <div style={{position:"relative",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:13,color:voted?T.accent:T.txH,fontWeight:voted?600:400}}>
+                {voted&&"\u2713 "}{opt}
+              </span>
+              <span style={{fontSize:11,color:T.txD,fontWeight:600}}>{pct}%</span>
+            </div>
+          </div>
+        );
+      })}
+      <div style={{fontSize:10,color:T.txD,textAlign:"right"}}>
+        {anon?`${totalVotes}票`
+          :totalVoters>0?<span onClick={()=>setShowVoters(true)} style={{cursor:"pointer",color:T.accent,fontWeight:500}}>{totalVoters}人が投票 &rsaquo;</span>
+          :"0人が投票"}
+      </div>
+      {/* Voter modal */}
+      {showVoters&&!anon&&<div onClick={()=>setShowVoters(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:T.bg2,borderRadius:14,width:"100%",maxWidth:320,maxHeight:"70vh",overflow:"hidden",display:"flex",flexDirection:"column"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderBottom:`1px solid ${T.bd}`}}>
+            <span style={{fontSize:14,fontWeight:600,color:T.txH}}>投票者一覧</span>
+            <span onClick={()=>setShowVoters(false)} style={{color:T.txD,cursor:"pointer",display:"flex"}}>{I.x}</span>
+          </div>
+          <div style={{overflowY:"auto",padding:"8px 0"}}>
+            {options.map((opt,i)=>{
+              const voters=votes[opt]||[];
+              if(voters.length===0) return null;
+              return(
+                <div key={i} style={{padding:"8px 16px"}}>
+                  <div style={{fontSize:12,fontWeight:600,color:T.txH,marginBottom:4}}>{opt} ({voters.length})</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                    {voters.map((vid,j)=>{const p=profiles?.[vid];return(
+                      <div key={j} style={{display:"flex",alignItems:"center",gap:8}}>
+                        <Av u={{av:p?.av,col:p?.col}} sz={22}/>
+                        <span style={{fontSize:12,color:T.txH}}>{p?.name||`User ${vid}`}</span>
+                      </div>
+                    );})}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>}
+    </div>
+  );
+};
+
 export const ChatView=({course,dept,mob})=>{
   const user=useCurrentUser();
   const roomId=course?.id||`dept:${dept?.prefix}`;
-  const {messages,loading,sendMessage}=useChat(roomId);
+  const {messages,loading,sendMessage,votePoll}=useChat(roomId);
   const {typingUsers,setTyping}=useTyping(roomId,{id:user?.moodleId||user?.id,name:user?.name});
   const [inp,setInp]=useState("");
   const [menuOpen,setMenuOpen]=useState(null); // null|'actions'|'emoji'
   const [compose,setCompose]=useState(null); // null|'code'|'poll'|'announce'
-  const ref=useRef(null);
+  const scrollRef=useRef(null);
 
   // Code block state
   const [codeLang,setCodeLang]=useState("");
@@ -23,10 +90,12 @@ export const ChatView=({course,dept,mob})=>{
   // Poll state
   const [pollQ,setPollQ]=useState("");
   const [pollOpts,setPollOpts]=useState(["",""]);
+  const [pollMulti,setPollMulti]=useState(false);
+  const [pollAnon,setPollAnon]=useState(false);
   // Announce state
   const [announceText,setAnnounceText]=useState("");
 
-  useEffect(()=>{ref.current?.scrollIntoView({behavior:"smooth"});},[messages.length]);
+  useEffect(()=>{if(scrollRef.current) scrollRef.current.scrollTop=scrollRef.current.scrollHeight;},[messages.length]);
 
   const send=()=>{if(!inp.trim())return;sendMessage(inp,user);setInp("");setTyping(false);};
   const closeMenu=()=>setMenuOpen(null);
@@ -40,8 +109,11 @@ export const ChatView=({course,dept,mob})=>{
   const sendPoll=()=>{
     const q=pollQ.trim();const opts=pollOpts.map(o=>o.trim()).filter(Boolean);
     if(!q||opts.length<2)return;
-    sendMessage(`📊 **投票: ${q}**\n${opts.map((o,i)=>` ${i+1}. ${o}`).join("\n")}`,user);
-    setPollQ("");setPollOpts(["",""]);setCompose(null);
+    const settings={};
+    if(pollMulti) settings.multi=true;
+    if(pollAnon) settings.anon=true;
+    sendMessage(`📊 ${q}`,user,{pollOptions:opts,pollSettings:settings});
+    setPollQ("");setPollOpts(["",""]);setPollMulti(false);setPollAnon(false);setCompose(null);
   };
   const sendAnnounce=()=>{
     const t=announceText.trim();if(!t)return;
@@ -49,8 +121,20 @@ export const ChatView=({course,dept,mob})=>{
     setAnnounceText("");setCompose(null);
   };
 
-  // Group consecutive messages from same user within 5 min
-  const grp=[];messages.forEach((m,i)=>{const p=messages[i-1];grp.push({...m,hdr:!(p&&p.uid===m.uid&&(m.ts-p.ts)<3e5)});});
+  // Group consecutive messages from same user within 5 min, with date separators
+  const _dateKey=d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  const _dateLabel=d=>{
+    const now=new Date();const t=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    const md=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+    const diff=Math.round((t-md)/864e5);
+    if(diff===0)return"今日";if(diff===1)return"昨日";
+    return `${d.getMonth()+1}月${d.getDate()}日`;
+  };
+  const grp=[];let lastDate="";messages.forEach((m,i)=>{
+    const dk=_dateKey(m.ts);
+    if(dk!==lastDate){grp.push({_dateSep:true,_dateLabel:_dateLabel(m.ts),_key:`date_${dk}`});lastDate=dk;}
+    const p=messages[i-1];grp.push({...m,hdr:!(p&&p.uid===m.uid&&_dateKey(p.ts)===dk&&(m.ts-p.ts)<3e5)});
+  });
 
   // Resolve display info: prefer DB profile, fall back to static data
   const resolveUser=(m)=>{
@@ -58,6 +142,17 @@ export const ChatView=({course,dept,mob})=>{
     if(m.uid===user.moodleId||m.uid===user.id) return {name:user.name,av:user.av,col:user.col};
     return {name:`User ${m.uid}`,av:"?",col:"#888"};
   };
+
+  // Build profile map from messages for poll voter display
+  const profileMap=React.useMemo(()=>{
+    const map={};
+    messages.forEach(m=>{
+      if(m.uid&&m.name) map[m.uid]={name:m.name,av:m.avatar,col:m.color};
+    });
+    const uid=user?.moodleId||user?.id;
+    if(uid) map[uid]={name:user.name,av:user.av,col:user.col};
+    return map;
+  },[messages,user]);
 
   const composeHeader=(icon,label,onSend,canSend)=>(
     <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderBottom:`1px solid ${T.bd}`}}>
@@ -71,15 +166,23 @@ export const ChatView=({course,dept,mob})=>{
 
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"8px 0"}}>
+      <div ref={scrollRef} style={{flex:1,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",padding:"8px 0"}}>
         {loading&&<Loader msg="メッセージを読み込み中" size="sm"/>}
-        {grp.map(m=>{const u=resolveUser(m);return(
-          <div key={m.id} style={{padding:m.hdr?"5px 14px 2px":"1px 14px 1px 56px"}}>
-            {m.hdr?<div style={{display:"flex",gap:8}}><Av u={u} sz={32}/><div><div style={{display:"flex",alignItems:"baseline",gap:4}}><span style={{fontWeight:600,color:u?.col,fontSize:13}}>{u?.name}</span><span style={{fontSize:10,color:T.txD}}>{fTs(m.ts)}</span></div><p style={{margin:"2px 0 0",color:T.tx,fontSize:14,lineHeight:1.5}}><Tx>{m.text}</Tx></p></div></div>
-            :<p style={{margin:0,color:T.tx,fontSize:14,lineHeight:1.5}}><Tx>{m.text}</Tx></p>}
+        {grp.map(m=>{
+          if(m._dateSep) return(
+            <div key={m._key} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px 4px",margin:"4px 0"}}>
+              <div style={{flex:1,height:1,background:T.bd}}/>
+              <span style={{fontSize:11,color:T.txD,fontWeight:500,whiteSpace:"nowrap"}}>{m._dateLabel}</span>
+              <div style={{flex:1,height:1,background:T.bd}}/>
+            </div>
+          );
+          const u=resolveUser(m);const userId=user?.moodleId||user?.id;const poll=m.pollOptions?<ChatPoll options={m.pollOptions} votes={m.pollVotes||{}} userId={userId} onVote={opt=>votePoll(m.id,opt,userId)} settings={m.pollSettings} profiles={profileMap}/>:null;return(
+          <div key={m.id} style={{padding:m.hdr?"5px 14px 2px":"1px 14px 1px 56px",maxWidth:"100%",overflow:"hidden"}}>
+            {m.hdr?<div style={{display:"flex",gap:8}}><Av u={u} sz={32}/><div style={{flex:1,minWidth:0}}><div style={{display:"flex",alignItems:"baseline",gap:4}}><span style={{fontWeight:600,color:u?.col,fontSize:13}}>{u?.name}</span><span style={{fontSize:10,color:T.txD}}>{fTs(m.ts)}</span></div><div style={{margin:"2px 0 0",color:T.tx,fontSize:14,lineHeight:1.5}}><Tx>{m.text}</Tx></div>{poll}</div></div>
+            :<><div style={{margin:0,color:T.tx,fontSize:14,lineHeight:1.5}}><Tx>{m.text}</Tx></div>{poll}</>}
           </div>
         );})}
-        <div ref={ref}/>
+
       </div>
       {/* Typing indicator */}
       {typingUsers.length>0&&<div style={{padding:"2px 14px",fontSize:11,color:T.txD,fontStyle:"italic"}}>
@@ -116,6 +219,16 @@ export const ChatView=({course,dept,mob})=>{
             style={{display:"flex",alignItems:"center",gap:4,padding:"6px 10px",borderRadius:6,border:`1px dashed ${T.bd}`,background:"transparent",color:T.txD,fontSize:12,cursor:"pointer",justifyContent:"center"}}>
             <span style={{display:"flex"}}>{I.plus}</span>選択肢を追加
           </button>}
+          <div style={{display:"flex",gap:12,paddingTop:4,borderTop:`1px solid ${T.bd}`,marginTop:2}}>
+            {[{key:"multi",label:"複数選択",val:pollMulti,set:setPollMulti},{key:"anon",label:"匿名投票",val:pollAnon,set:setPollAnon}].map(s=>(
+              <label key={s.key} onClick={()=>s.set(v=>!v)} style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer",fontSize:12,color:T.txD,userSelect:"none"}}>
+                <div style={{width:16,height:16,borderRadius:4,border:`1.5px solid ${s.val?T.accent:T.bd}`,background:s.val?T.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s",flexShrink:0}}>
+                  {s.val&&<svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5l2 2 4-4" stroke="#fff" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </div>
+                {s.label}
+              </label>
+            ))}
+          </div>
         </div>
       </div>}
 

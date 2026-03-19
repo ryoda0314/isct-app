@@ -39,7 +39,7 @@ export const ReviewView=({reviews,setReviews,course,mob,courses=[]})=>{
             <span style={{fontSize:10,color:T.txD,marginLeft:"auto"}}>{fDS(r.ts)}</span>
           </div>
           <Stars v={r.rating}/>
-          <p style={{margin:"6px 0 0",fontSize:13,color:T.tx,lineHeight:1.5}}><Tx>{r.text}</Tx></p>
+          <div style={{margin:"6px 0 0",fontSize:13,color:T.tx,lineHeight:1.5}}><Tx>{r.text}</Tx></div>
           <div style={{display:"flex",gap:12,fontSize:11,color:T.txD,marginTop:4}}><span>難易度 {r.diff}/5</span><span>有用性 {r.useful}/5</span></div>
         </div>
       );})}

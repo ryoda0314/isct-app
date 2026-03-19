@@ -541,7 +541,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
           ?`<div style="position:relative;display:flex;flex-direction:column;align-items:center;${anim?`animation:navPinPop .35s cubic-bezier(.34,1.56,.64,1) ${delay}ms both`:""}"><div style="background:${col};color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:8px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4);border:2px solid #fff">${lbl}</div><div style="width:2px;height:6px;background:#fff;opacity:.7"></div><div style="width:6px;height:6px;border-radius:50%;background:${col};border:1.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)"></div></div>`
           :`<div style="position:relative;display:flex;flex-direction:column;align-items:center"><div style="width:14px;height:14px;border-radius:50%;background:${col};border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);${anim?`animation:navPinDot .3s cubic-bezier(.34,1.56,.64,1) ${delay}ms both`:""}"></div></div>`,
           iconSize:[0,0],iconAnchor:[0,showLabel?40:7]});
-        const m=L.marker([s.lat,s.lng],{icon:mkIcon(map.getZoom()>=17),interactive:true,zIndexOffset:500}).addTo(map);
+        const m=L.marker([s.lat,s.lng],{icon:mkIcon(false),interactive:true,zIndexOffset:500}).addTo(map);
         m._mkIcon=mkIcon;
         m.on("click",()=>{setDestination(s.id);setSpotGroup(null);setNavPhase("detail");});
         layersRef.current.push(m);
@@ -571,7 +571,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
 
     // Zoom-dependent label toggle for group pins
     if(isGroupPhase){
-      let prevShow=map.getZoom()>=17;
+      let prevShow=false;
       const onZoom=()=>{
         const show=map.getZoom()>=17;
         if(show===prevShow)return;

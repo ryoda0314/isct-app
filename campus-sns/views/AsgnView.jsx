@@ -62,7 +62,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
         <button onClick={()=>setSel(null)} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",color:T.txD,fontSize:13,cursor:"pointer",marginBottom:12,padding:0}}>{I.back} 戻る</button>
         <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}><Tag color={co?.col}>{co?.code}</Tag><Tag color={at?.c}>{at?.l}</Tag><Tag color={si.c}>{si.l}</Tag><span style={{width:7,height:7,borderRadius:4,background:pCol()[a.pri],alignSelf:"center"}}/></div>
         <h2 style={{color:T.txH,margin:"0 0 4px",fontSize:mob?18:20,fontWeight:700}}>{a.title}</h2>
-        <p style={{color:T.tx,fontSize:13,lineHeight:1.6,margin:"0 0 14px"}}><Tx>{a.desc}</Tx></p>
+        <div style={{color:T.tx,fontSize:13,lineHeight:1.6,margin:"0 0 14px"}}><Tx>{a.desc}</Tx></div>
         <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(3,1fr)",gap:8,marginBottom:14}}>
           <div style={{padding:10,borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`}}><div style={{fontSize:10,color:T.txD}}>締切</div><div style={{fontSize:15,fontWeight:700,color:dl.c}}>{fDF(a.due)}</div><div style={{fontSize:11,color:dl.c}}>{dl.t}</div></div>
           <div style={{padding:10,borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`}}><div style={{fontSize:10,color:T.txD}}>配点 / 進捗</div><div style={{fontSize:15,fontWeight:700,color:T.accent}}>{a.pts}点 · {p}%</div></div>
@@ -316,7 +316,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
               </div>
               <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}><Tag color={co?.col}>{co?.code}</Tag><Tag color={at?.c}>{at?.l}</Tag><Tag color={si.c}>{si.l}</Tag><span style={{width:7,height:7,borderRadius:4,background:pCol()[a.pri],alignSelf:"center"}}/></div>
               <h3 style={{color:T.txH,margin:"0 0 4px",fontSize:17,fontWeight:700}}>{a.title}</h3>
-              <p style={{color:T.tx,fontSize:13,lineHeight:1.6,margin:"0 0 12px"}}><Tx>{a.desc}</Tx></p>
+              <div style={{color:T.tx,fontSize:13,lineHeight:1.6,margin:"0 0 12px"}}><Tx>{a.desc}</Tx></div>
               <div style={{display:"grid",gridTemplateColumns:"1fr",gap:8,marginBottom:12}}>
                 <div style={{padding:10,borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`}}><div style={{fontSize:10,color:T.txD}}>締切</div><div style={{fontSize:14,fontWeight:700,color:dl.c}}>{fDF(a.due)}</div><div style={{fontSize:11,color:dl.c}}>{dl.t}</div></div>
                 <div style={{padding:10,borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`}}><div style={{fontSize:10,color:T.txD}}>配点 / 進捗</div><div style={{fontSize:14,fontWeight:700,color:T.accent}}>{a.pts}点 · {p}%</div></div>

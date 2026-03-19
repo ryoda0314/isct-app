@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { isDemoMode } from '../demoMode.js';
+import { DEMO_CHAT_MESSAGES } from '../demoData.js';
 
 export function useChat(courseId) {
   const [messages, setMessages] = useState([]);
@@ -11,7 +12,11 @@ export function useChat(courseId) {
   useEffect(() => {
     if (!courseId) return;
     if (isDemoMode()) {
-      setMessages([]);
+      const demoMsgs = (DEMO_CHAT_MESSAGES[courseId] || []).map(m => ({
+        ...m,
+        ts: m.ts instanceof Date ? m.ts : new Date(m.ts),
+      }));
+      setMessages(demoMsgs);
       setLoading(false);
       return;
     }
@@ -31,6 +36,9 @@ export function useChat(courseId) {
           name: m.profiles?.name,
           avatar: m.profiles?.avatar,
           color: m.profiles?.color,
+          pollOptions: m.poll_options || null,
+          pollVotes: m.poll_votes || {},
+          pollSettings: m.poll_settings || {},
         }));
         msgs.forEach(m => idsRef.current.add(m.id));
         setMessages(msgs);
@@ -59,10 +67,12 @@ export function useChat(courseId) {
           uid: m.moodle_user_id,
           text: m.text,
           ts: new Date(m.created_at),
-          // Profile info may not be in payload; fetch separately if needed
           name: null,
           avatar: null,
           color: null,
+          pollOptions: m.poll_options || null,
+          pollVotes: m.poll_votes || {},
+          pollSettings: m.poll_settings || {},
         }]);
       })
       .subscribe();
@@ -71,7 +81,7 @@ export function useChat(courseId) {
   }, [courseId]);
 
   // Send message (optimistic)
-  const sendMessage = useCallback(async (text, currentUser) => {
+  const sendMessage = useCallback(async (text, currentUser, extra) => {
     if (!text.trim() || !courseId) return;
     const tempId = `temp_${Date.now()}`;
     const optimistic = {
@@ -82,20 +92,27 @@ export function useChat(courseId) {
       name: currentUser?.name,
       avatar: currentUser?.av,
       color: currentUser?.col,
+      pollOptions: extra?.pollOptions || null,
+      pollVotes: {},
+      pollSettings: extra?.pollSettings || {},
     };
     idsRef.current.add(tempId);
     setMessages(prev => [...prev, optimistic]);
 
     try {
+      const body = { course_id: courseId, text: text.trim() };
+      if (extra?.pollOptions) {
+        body.poll_options = extra.pollOptions;
+        if (extra.pollSettings) body.poll_settings = extra.pollSettings;
+      }
       const r = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ course_id: courseId, text: text.trim() }),
+        body: JSON.stringify(body),
       });
       if (r.ok) {
         const m = await r.json();
         idsRef.current.add(m.id);
-        // Replace temp with real
         setMessages(prev => prev.map(msg =>
           msg.id === tempId ? {
             id: m.id,
@@ -105,6 +122,9 @@ export function useChat(courseId) {
             name: m.profiles?.name,
             avatar: m.profiles?.avatar,
             color: m.profiles?.color,
+            pollOptions: m.poll_options || null,
+            pollVotes: m.poll_votes || {},
+            pollSettings: m.poll_settings || {},
           } : msg
         ));
       } else {
@@ -113,5 +133,40 @@ export function useChat(courseId) {
     } catch (e) { console.error('[useChat POST error]', e); }
   }, [courseId]);
 
-  return { messages, loading, sendMessage };
+  // Vote on a poll message
+  const votePoll = useCallback(async (messageId, option, userId) => {
+    // Optimistic update
+    setMessages(prev => prev.map(m => {
+      if (m.id !== messageId || !m.pollOptions) return m;
+      const votes = { ...m.pollVotes };
+      const multi = m.pollSettings?.multi || false;
+      const alreadyVoted = (votes[option] || []).includes(userId);
+      if (multi) {
+        if (alreadyVoted) { votes[option] = (votes[option] || []).filter(id => id !== userId); }
+        else { votes[option] = [...(votes[option] || []), userId]; }
+      } else {
+        Object.keys(votes).forEach(k => { votes[k] = (votes[k] || []).filter(id => id !== userId); });
+        if (!alreadyVoted) { votes[option] = [...(votes[option] || []), userId]; }
+      }
+      return { ...m, pollVotes: votes };
+    }));
+
+    if (isDemoMode()) return; // demo mode: optimistic update only
+
+    try {
+      const r = await fetch('/api/messages', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: messageId, action: 'vote', option }),
+      });
+      if (r.ok) {
+        const m = await r.json();
+        setMessages(prev => prev.map(msg =>
+          msg.id === messageId ? { ...msg, pollVotes: m.poll_votes || {} } : msg
+        ));
+      }
+    } catch (e) { console.error('[useChat vote error]', e); }
+  }, []);
+
+  return { messages, loading, sendMessage, votePoll };
 }

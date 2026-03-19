@@ -8,6 +8,8 @@ import { useFeed } from "../hooks/useFeed.js";
 import { useComments } from "../hooks/useComments.js";
 import { useCourseMembers } from "../hooks/useCourseMembers.js";
 import { showToast } from "../hooks/useToast.js";
+import { isDemoMode } from "../demoMode.js";
+import { DEMO_POSTS } from "../demoData.js";
 
 const EMOJIS=["👍","❤️","😂","😢","🔥","👏"];
 
@@ -87,7 +89,7 @@ const CommentSection=({postId,user,onCountChange,members})=>{
                   onMouseEnter={e=>e.currentTarget.style.opacity=1}
                   onMouseLeave={e=>e.currentTarget.style.opacity=.6}>削除</span>}
               </div>
-              <p style={{margin:0,fontSize:13,color:T.tx,lineHeight:1.5}}><Tx>{c.text}</Tx></p>
+              <div style={{margin:0,fontSize:13,color:T.tx,lineHeight:1.5}}><Tx>{c.text}</Tx></div>
             </div>
           </div>
         );
@@ -229,6 +231,9 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
   // Search & filter
   const [searchQ,setSearchQ]=useState("");
   const [filterType,setFilterType]=useState(null);
+  // User profile filter (Twitter-like)
+  const [filterUser,setFilterUser]=useState(null); // {uid,name,av,col}
+  const [profileTab,setProfileTab]=useState("course"); // "course" | "all"
   // Mention autocomplete cursor tracking
   const [cursor,setCursor]=useState(0);
   const tm=tMap();
@@ -247,26 +252,59 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
 
   const userId=user.moodleId||user.id;
 
-  // Filter posts: year group + search + type
+  // User posts: current course only (include pinned posts too)
+  const courseUserPosts=useMemo(()=>{
+    if(!filterUser) return [];
+    const all=[...posts,...pinnedPosts];
+    const result=all.filter(p=>p.uid===filterUser.uid&&p.type!=="anon").map(p=>({...p,_courseId:roomId}));
+    result.sort((a,b)=>(b.ts?.getTime?b.ts.getTime():0)-(a.ts?.getTime?a.ts.getTime():0));
+    return result;
+  },[filterUser,posts,pinnedPosts,roomId]);
+
+  // User posts: all courses (demo mode)
+  const allUserPosts=useMemo(()=>{
+    if(!filterUser||!isDemoMode()) return courseUserPosts;
+    const all=Object.entries(DEMO_POSTS).flatMap(([cid,arr])=>
+      arr.filter(p=>p.uid===filterUser.uid&&p.type!=="anon").map(p=>({...p,_courseId:cid}))
+    );
+    all.sort((a,b)=>(b.ts?.getTime?b.ts.getTime():0)-(a.ts?.getTime?a.ts.getTime():0));
+    return all;
+  },[filterUser,courseUserPosts]);
+
+  // Active profile posts based on tab
+  const profilePosts=useMemo(()=>{
+    return profileTab==="all"?allUserPosts:courseUserPosts;
+  },[profileTab,allUserPosts,courseUserPosts]);
+
+  // Filter posts: year group + search + type + user
   const filtered=useMemo(()=>{
+    if(filterUser) {
+      let result=profilePosts;
+      if(searchQ){
+        const q=searchQ.toLowerCase();
+        result=result.filter(p=>p.text.toLowerCase().includes(q)||(p.name||"").toLowerCase().includes(q));
+      }
+      if(filterType) result=result.filter(p=>p.type===filterType);
+      return result;
+    }
     const ug=user.yearGroup||null;
     let result=posts.filter(p=>!p.yearGroup||p.yearGroup===ug);
     if(searchQ){
       const q=searchQ.toLowerCase();
       result=result.filter(p=>p.text.toLowerCase().includes(q)||(p.name||"").toLowerCase().includes(q));
     }
-    if(filterType){
-      result=result.filter(p=>p.type===filterType);
-    }
+    if(filterType) result=result.filter(p=>p.type===filterType);
     return result;
-  },[posts,user.yearGroup,searchQ,filterType]);
+  },[posts,user.yearGroup,searchQ,filterType,filterUser,profilePosts]);
 
   // Also filter pinned posts
   const filteredPinned=useMemo(()=>{
-    if(searchQ||filterType) return []; // hide pinned section during search/filter
+    if(searchQ||filterType||filterUser) return [];
     const ug=user.yearGroup||null;
     return pinnedPosts.filter(p=>!p.yearGroup||p.yearGroup===ug);
-  },[pinnedPosts,user.yearGroup,searchQ,filterType]);
+  },[pinnedPosts,user.yearGroup,searchQ,filterType,filterUser]);
+
+  const userPostCount=useMemo(()=>allUserPosts.length,[allUserPosts]);
 
   const send=()=>{
     if(!txt.trim()) return;
@@ -331,18 +369,24 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
     const own=isOwnPost(p);
     const expanded=expandedPost===p.id;
     const isEditing=editingPost===p.id;
+    const cInfo=filterUser&&profileTab==="all"&&p._courseId?courses.find(c=>c.id===p._courseId):null;
     return(
       <div key={key||p.id} style={{padding:"14px 16px",borderBottom:`1px solid ${T.bd}`}}>
+        {/* Course label in profile view */}
+        {cInfo&&<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:6,paddingLeft:44,fontSize:11,color:cInfo.col||T.txD,fontWeight:500}}>
+          <span style={{width:6,height:6,borderRadius:"50%",background:cInfo.col,flexShrink:0}}/>
+          {cInfo.code} {cInfo.name}
+        </div>}
         {/* Pin indicator */}
-        {p.pinned&&<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:6,paddingLeft:44,fontSize:11,color:T.accent,fontWeight:600}}>
+        {p.pinned&&!filterUser&&<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:6,paddingLeft:44,fontSize:11,color:T.accent,fontWeight:600}}>
           <span style={{display:"flex"}}>{I.pin}</span>ピン留め
         </div>}
         {/* Header */}
         <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:6}}>
-          <Av u={u} sz={34}/>
+          <div onClick={()=>p.type!=="anon"&&(setFilterUser({uid:p.uid,name:u.name,av:u.av,col:u.col}),setProfileTab("course"))} style={{cursor:p.type==="anon"?"default":"pointer"}}><Av u={u} sz={34}/></div>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-              <span style={{fontWeight:600,fontSize:13,color:u.col||T.txH}}>{u.name}</span>
+              <span onClick={()=>p.type!=="anon"&&(setFilterUser({uid:p.uid,name:u.name,av:u.av,col:u.col}),setProfileTab("course"))} style={{fontWeight:600,fontSize:13,color:u.col||T.txH,cursor:p.type==="anon"?"default":"pointer"}}>{u.name}</span>
               {ti&&<Tag color={ti.c}>{ti.l}</Tag>}
               {p.yearGroup&&<span style={{padding:"1px 6px",borderRadius:8,fontSize:10,fontWeight:600,background:T.accent+"18",color:T.accent,border:`1px solid ${T.accent}33`}}>{p.yearGroup}</span>}
             </div>
@@ -395,7 +439,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
               </div>
             </div>
           ):(
-            <p style={{margin:0,color:T.tx,fontSize:14,lineHeight:1.6,whiteSpace:"pre-wrap"}}><Tx>{p.text}</Tx></p>
+            <div style={{margin:0,color:T.tx,fontSize:14,lineHeight:1.6,whiteSpace:"pre-wrap"}}><Tx>{p.text}</Tx></div>
           )}
           {/* Poll */}
           {p.type==="poll"&&p.pollOptions&&(
@@ -410,7 +454,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
             reactions={p.reactions||{}}
             userId={userId}
             onReact={emoji=>reactPost(p.id,emoji,userId)}
-            likes={p.likes}
+            likes={p.likes||[]}
             onLike={()=>toggleLike(p.id,userId)}
           />
           {/* Comment toggle */}
@@ -439,8 +483,8 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
 
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      {/* Composer */}
-      <div style={{padding:mob?12:14,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>
+      {/* Composer (hidden when viewing user profile) */}
+      {!filterUser&&<div style={{padding:mob?12:14,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>
         <div style={{display:"flex",gap:8,alignItems:mob&&!composing?"center":"flex-start"}}>
           <Av u={user} sz={mob?32:36}/>
           {mob&&!composing?
@@ -496,10 +540,10 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
             </div>
           }
         </div>
-      </div>
+      </div>}
 
-      {/* Search & filter bar */}
-      <div style={{padding:"6px 16px",borderBottom:`1px solid ${T.bd}`,display:"flex",gap:6,alignItems:"center",flexShrink:0,flexWrap:"wrap"}}>
+      {/* Search & filter bar (hidden in profile view) */}
+      {!filterUser&&<div style={{padding:"6px 16px",borderBottom:`1px solid ${T.bd}`,display:"flex",gap:6,alignItems:"center",flexShrink:0,flexWrap:"wrap"}}>
         <div style={{display:"flex",alignItems:"center",gap:4,flex:1,minWidth:120,padding:"4px 10px",borderRadius:8,background:T.bg3,border:`1px solid ${T.bd}`}}>
           <span style={{color:T.txD,display:"flex"}}>{I.search}</span>
           <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="投稿を検索..."
@@ -514,12 +558,44 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
             {v.l}
           </div>
         )}
-      </div>
+      </div>}
+
+      {/* Sticky back bar for profile view */}
+      {filterUser&&<div style={{flexShrink:0,display:"flex",alignItems:"center",gap:12,padding:"8px 16px",borderBottom:`1px solid ${T.bd}`,background:T.bg}}>
+        <div onClick={()=>setFilterUser(null)} style={{cursor:"pointer",color:T.txH,display:"flex",padding:4,borderRadius:"50%",transition:"background .15s"}}
+          onMouseEnter={e=>e.currentTarget.style.background=T.bg3} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{I.back}</div>
+        <div>
+          <div style={{fontWeight:700,fontSize:15,color:T.txH,lineHeight:1.2}}>{filterUser.name}</div>
+          <div style={{fontSize:12,color:T.txD}}>{userPostCount}件の投稿</div>
+        </div>
+      </div>}
 
       {/* Feed list */}
       <div ref={scrollRef} style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}} onClick={e=>{setMenuPost(null);const tag=e.target.closest?.('.hashtag')?.dataset?.tag;if(tag)setSearchQ(`#${tag}`);}}>
+        {/* Profile header (scrolls with content) */}
+        {filterUser&&<div>
+          <div style={{height:80,background:`linear-gradient(135deg, ${filterUser.col||T.accent}, ${filterUser.col||T.accent}88)`}}/>
+          <div style={{padding:"0 16px 12px",position:"relative"}}>
+            <div style={{marginTop:-32,marginBottom:8,border:`3px solid ${T.bg}`,borderRadius:"50%",width:68,height:68,display:"inline-block"}}>
+              <Av u={filterUser} sz={62}/>
+            </div>
+            <div style={{fontWeight:700,fontSize:17,color:T.txH}}>{filterUser.name}</div>
+            <div style={{fontSize:13,color:T.txD,marginTop:2}}>全{userPostCount}件の投稿</div>
+          </div>
+          <div style={{display:"flex",borderTop:`1px solid ${T.bd}`,borderBottom:`1px solid ${T.bd}`}}>
+            {[["course","この科目"],["all","すべて"]].map(([k,l])=>{
+              const active=profileTab===k;
+              return <div key={k} onClick={()=>setProfileTab(k)}
+                style={{flex:1,textAlign:"center",padding:"10px 0",fontSize:13,fontWeight:active?600:400,
+                  color:active?T.accent:T.txD,borderBottom:`2px solid ${active?T.accent:"transparent"}`,cursor:"pointer",transition:"all .15s"}}>
+                {l}{k==="course"?` (${courseUserPosts.length})`:` (${allUserPosts.length})`}
+              </div>;
+            })}
+          </div>
+        </div>}
+
         {loading&&<Loader msg="投稿を読み込み中" size="sm"/>}
-        {!loading&&filtered.length===0&&filteredPinned.length===0&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{searchQ||filterType?"該当する投稿がありません":"まだ投稿がありません"}</div>}
+        {!loading&&filtered.length===0&&filteredPinned.length===0&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{filterUser?`${filterUser.name}の投稿はありません`:searchQ||filterType?"該当する投稿がありません":"まだ投稿がありません"}</div>}
 
         {/* Pinned posts */}
         {filteredPinned.map(p=>renderPost(p,`pin_${p.id}`))}

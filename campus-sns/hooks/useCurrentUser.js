@@ -20,7 +20,7 @@ function notify() {
 
 export function setCurrentUserFromAPI(d) {
   if (!d?.userid) return;
-  cached = { ...ME, moodleId: d.userid, name: d.fullname || '', id: String(d.userid) };
+  cached = { ...ME, ...d, moodleId: d.userid, name: d.fullname || '', id: String(d.userid) };
   notify();
 }
 

@@ -245,3 +245,8 @@ create table if not exists user_credentials (
 );
 alter table user_credentials enable row level security;
 -- anon アクセス不可 (service_role のみ)
+
+-- 23. messages 投票カラム追加
+alter table messages add column if not exists poll_options jsonb;
+alter table messages add column if not exists poll_votes jsonb default '{}';
+alter table messages add column if not exists poll_settings jsonb default '{}';

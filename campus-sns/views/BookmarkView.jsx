@@ -64,7 +64,7 @@ export const BookmarkView=({bmarks=[],mob,setView,setCid,setCh,courses=[]})=>{
               </div>
               <span style={{display:"flex",color:T.accent}}>{I.bmark}</span>
             </div>
-            <p style={{margin:0,paddingLeft:36,color:T.tx,fontSize:13,lineHeight:1.5,overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}><Tx>{p.text}</Tx></p>
+            <div style={{margin:0,paddingLeft:36,color:T.tx,fontSize:13,lineHeight:1.5,overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}><Tx>{p.text}</Tx></div>
             {course&&<div style={{paddingLeft:36,marginTop:4,fontSize:11,color:T.txD}}>{course.name||course.shortname}</div>}
           </div>
         );

@@ -52,13 +52,19 @@ export async function POST(request) {
     if (auth.error) return auth.error;
     const { wstoken, userid, fullname } = auth;
 
-    const { course_id, text } = await request.json();
+    const { course_id, text, poll_options, poll_settings } = await request.json();
     if (!course_id || !text?.trim()) {
       return NextResponse.json({ error: 'course_id and text required' }, { status: 400 });
     }
 
     if (text.length > MAX_TEXT_LENGTH) {
       return NextResponse.json({ error: 'Text too long' }, { status: 400 });
+    }
+
+    if (poll_options) {
+      if (!Array.isArray(poll_options) || poll_options.length < 2 || poll_options.length > 6) {
+        return NextResponse.json({ error: 'Poll needs 2-6 options' }, { status: 400 });
+      }
     }
 
     let enrolled;
@@ -81,9 +87,16 @@ export async function POST(request) {
     );
     if (profileErr) console.error('[Messages POST] profile upsert:', profileErr.message);
 
+    const row = { course_id, moodle_user_id: userid, text: text.trim() };
+    if (poll_options) {
+      row.poll_options = poll_options;
+      row.poll_votes = {};
+      row.poll_settings = poll_settings || {};
+    }
+
     const { data, error } = await sb
       .from('messages')
-      .insert({ course_id, moodle_user_id: userid, text: text.trim() })
+      .insert(row)
       .select('*, profiles(name, avatar, color)')
       .single();
 
@@ -94,6 +107,66 @@ export async function POST(request) {
     return NextResponse.json(data);
   } catch (err) {
     console.error('[Messages POST]', err);
+    return NextResponse.json({ error: `Internal error: ${err.message}` }, { status: 500 });
+  }
+}
+
+export async function PATCH(request) {
+  try {
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userid } = auth;
+
+    const { message_id, action, option } = await request.json();
+    if (!message_id || action !== 'vote' || !option) {
+      return NextResponse.json({ error: 'message_id, action=vote, and option required' }, { status: 400 });
+    }
+
+    const sb = getSupabaseAdmin();
+
+    const { data: msg, error: fetchErr } = await sb
+      .from('messages')
+      .select('poll_options, poll_votes, poll_settings')
+      .eq('id', message_id)
+      .single();
+
+    if (fetchErr || !msg) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+    if (!msg.poll_options || !msg.poll_options.includes(option)) {
+      return NextResponse.json({ error: 'Invalid option' }, { status: 400 });
+    }
+
+    const votes = msg.poll_votes || {};
+    const multi = msg.poll_settings?.multi || false;
+    const alreadyVoted = (votes[option] || []).includes(userid);
+
+    if (multi) {
+      // Toggle: add or remove from this option only
+      if (alreadyVoted) {
+        votes[option] = (votes[option] || []).filter(id => id !== userid);
+      } else {
+        votes[option] = [...(votes[option] || []), userid];
+      }
+    } else {
+      // Single choice: remove from all, then add (or unvote if same)
+      Object.keys(votes).forEach(k => {
+        votes[k] = (votes[k] || []).filter(id => id !== userid);
+      });
+      if (!alreadyVoted) {
+        votes[option] = [...(votes[option] || []), userid];
+      }
+    }
+
+    const { data, error } = await sb
+      .from('messages')
+      .update({ poll_votes: votes })
+      .eq('id', message_id)
+      .select('*, profiles(name, avatar, color)')
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data);
+  } catch (err) {
+    console.error('[Messages PATCH]', err);
     return NextResponse.json({ error: `Internal error: ${err.message}` }, { status: 500 });
   }
 }

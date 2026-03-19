@@ -38,8 +38,9 @@ export function useFeed(courseId) {
   useEffect(() => {
     if (!courseId) return;
     if (isDemoMode()) {
-      setPosts(DEMO_POSTS[courseId] || []);
-      setPinnedPosts([]);
+      const all = DEMO_POSTS[courseId] || [];
+      setPosts(all.filter(p => !p.pinned));
+      setPinnedPosts(all.filter(p => p.pinned));
       setLoading(false);
       return;
     }

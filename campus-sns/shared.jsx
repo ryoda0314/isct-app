@@ -36,36 +36,76 @@ const useLeaflet=()=>{
   return ready;
 };
 
+// --- Highlight.js Loader ---
+const useHighlight=()=>{
+  const [ready,setReady]=useState(typeof window!=="undefined"&&!!window.hljs);
+  useEffect(()=>{
+    if(window.hljs){setReady(true);return;}
+    const css=document.createElement("link");css.rel="stylesheet";css.href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css";document.head.appendChild(css);
+    const js=document.createElement("script");js.src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js";js.onload=()=>setReady(true);document.head.appendChild(js);
+  },[]);
+  return ready;
+};
+
 // --- TeX Text Component ---
-// Supports $$...$$ (display) and $...$ (inline), plus @mentions
+// Supports ```code blocks```, $$...$$ (display), $...$ (inline), **bold**, @mentions, #hashtags
+const _esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const _codeBlock=(highlighted,lang,raw)=>{
+  const esc=raw.replace(/\\/g,"\\\\").replace(/'/g,"\\'").replace(/\n/g,"\\n");
+  const langLabel=lang?`<span style="color:#888;font-size:11px;font-weight:500;user-select:none">${_esc(lang)}</span>`:"";
+  const copyBtn=`<button onclick="var b=this;navigator.clipboard.writeText('${esc}');b.textContent='\\u2713 コピーしました';setTimeout(function(){b.textContent='コピー'},1500)" style="padding:5px 14px;border-radius:5px;border:1px solid #444;background:#2a2a3e;color:#aaa;font-size:12px;cursor:pointer;font-family:inherit;transition:background .15s;-webkit-tap-highlight-color:transparent" ontouchstart="this.style.background='#3a3a5e'" ontouchend="this.style.background='#2a2a3e'">コピー</button>`;
+  const toolbar=`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#181825;border-radius:0 0 8px 8px;border-top:1px solid #2a2a3e">${langLabel}${copyBtn}</div>`;
+  return `<div style="margin:4px 0;border-radius:8px;overflow:hidden;background:#1e1e2e"><pre style="margin:0;padding:10px 12px;overflow-x:auto;font-size:12.5px;line-height:1.5;background:transparent"><code${highlighted?' class="hljs"':' style="color:#cdd6f4"'}>${highlighted||_esc(raw)}</code></pre>${toolbar}</div>`;
+};
 const Tx=({children,style:s})=>{
   const k=useKatex();
+  const hl=useHighlight();
   const html=useMemo(()=>{
     if(!children||typeof children!=="string")return null;
     if(!k)return null;
     try{
-      // split by $$...$$ first, then $...$
       let out=children;
-      // display math
+      // 1) Extract code blocks & inline code into placeholders (protect from later regexes)
+      const held=[];
+      const ph=html=>{const id=`\x00${held.length}\x00`;held.push(html);return id;};
+      // code blocks: ```lang\ncode\n``` → <pre><code>
+      out=out.replace(/```(\w*)\n?([\s\S]*?)```/g,(_,lang,code)=>{
+        const raw=code.replace(/\n$/,"");
+        if(hl&&window.hljs){
+          try{
+            const result=lang&&window.hljs.getLanguage(lang)?window.hljs.highlight(raw,{language:lang}):window.hljs.highlightAuto(raw);
+            return ph(_codeBlock(result.value,lang,raw));
+          }catch{}
+        }
+        return ph(_codeBlock(null,lang,raw));
+      });
+      // inline code: `code`
+      out=out.replace(/`([^`\n]+)`/g,(_,code)=>ph(`<code style="background:#1e1e2e;color:#cdd6f4;padding:1px 5px;border-radius:4px;font-size:12.5px">${_esc(code)}</code>`));
+      // 2) Display math
       out=out.replace(/\$\$(.+?)\$\$/gs,(_, m)=>{
-        try{return window.katex.renderToString(m,{displayMode:true,throwOnError:false});}catch{return _;}
+        try{return ph(window.katex.renderToString(m,{displayMode:true,throwOnError:false}));}catch{return _;}
       });
-      // inline math
+      // Inline math
       out=out.replace(/\$(.+?)\$/g,(_,m)=>{
-        try{return window.katex.renderToString(m,{displayMode:false,throwOnError:false});}catch{return _;}
+        try{return ph(window.katex.renderToString(m,{displayMode:false,throwOnError:false}));}catch{return _;}
       });
-      // @mentions
-      out=out.replace(/@(\S+)/g,'<span style="color:#6375f0;font-weight:600">@$1</span>');
+      // 3) Text-level formatting (safe — no HTML in these segments)
+      // bold
+      out=out.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+      // @mentions → placeholder (protect color codes like #6375f0 from hashtag regex)
+      out=out.replace(/@(\S+)/g,(_,name)=>ph(`<span style="color:#6375f0;font-weight:600">@${_esc(name)}</span>`));
       // #hashtags
-      out=out.replace(/#([^\s#]+)/g,'<span class="hashtag" style="color:#6375f0;font-weight:500;cursor:pointer" data-tag="$1">#$1</span>');
+      out=out.replace(/#([^\s#]+)/g,(_,tag)=>ph(`<span class="hashtag" style="color:#6375f0;font-weight:500;cursor:pointer" data-tag="${_esc(tag)}">#${_esc(tag)}</span>`));
+      // 4) Restore placeholders
+      out=out.replace(/\x00(\d+)\x00/g,(_,i)=>held[+i]);
       return out;
     }catch{return null;}
-  },[children,k]);
+  },[children,k,hl]);
   if(!children)return null;
-  if(html)return <span style={s} dangerouslySetInnerHTML={{__html:html}}/>;
+  if(html)return <div style={s} dangerouslySetInnerHTML={{__html:html}}/>;
   // fallback: no katex yet, just render with mentions and hashtags
   const parts=(children+"").split(/([@#]\S+)/g);
-  return <span style={s}>{parts.map((p,i)=>p.startsWith("@")?<span key={i} style={{color:"#6375f0",fontWeight:600}}>{p}</span>:p.startsWith("#")?<span key={i} style={{color:"#6375f0",fontWeight:500,cursor:"pointer"}}>{p}</span>:p)}</span>;
+  return <div style={s}>{parts.map((p,i)=>p.startsWith("@")?<span key={i} style={{color:"#6375f0",fontWeight:600}}>{p}</span>:p.startsWith("#")?<span key={i} style={{color:"#6375f0",fontWeight:500,cursor:"pointer"}}>{p}</span>:p)}</div>;
 };
 
 const _isImg=v=>v&&(v.startsWith("data:")||v.startsWith("http")||v.startsWith("/"));
@@ -107,4 +147,4 @@ const Loader=({msg,size="md"})=>{
   );
 };
 
-export { useKatex, useLeaflet, useQRCode, Tx, Av, Tag, Bar, Btn, Loader };
+export { useKatex, useHighlight, useLeaflet, useQRCode, Tx, Av, Tag, Bar, Btn, Loader };
