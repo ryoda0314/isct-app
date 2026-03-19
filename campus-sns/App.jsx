@@ -180,8 +180,29 @@ export default function App(){
   // Desktop top bar
   const DTop=({title,color})=><div style={{display:"flex",alignItems:"center",gap:10,padding:"0 16px",height:44,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}><h3 style={{margin:0,color:color||T.txH,fontSize:15,fontWeight:700,flex:1}}>{title}</h3><div style={{display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:6,background:T.bg3,border:`1px solid ${T.bd}`,width:180}}><span style={{color:T.txD,display:"flex"}}>{I.search}</span><input placeholder="検索..." style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:12,outline:"none"}}/></div><div style={{position:"relative",cursor:"pointer",color:T.txD,display:"flex"}} onClick={()=>setView("notif")}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</div><Av u={user} sz={28} st/></div>;
 
-  // Course channel tabs (mobile)
-  const MTabs=({ch,setCh})=><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,overflowX:"auto",flexShrink:0}}>{[{id:"timeline",l:"フィード",i:I.feed},{id:"chat",l:"チャット",i:I.chat},{id:"assignments",l:"課題",i:I.tasks},{id:"materials",l:"教材",i:I.clip},{id:"reviews",l:"レビュー",i:I.star}].map(t=><button key={t.id} onClick={()=>setCh(t.id)} style={{flex:"0 0 auto",display:"flex",alignItems:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===t.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===t.id?T.txH:T.txD,fontSize:13,fontWeight:ch===t.id?600:400,cursor:"pointer",whiteSpace:"nowrap"}}>{t.i}<span>{t.l}</span></button>)}</div>;
+  // Course header (gradient banner + equal-width icon+label tabs)
+  const cTabs=[{id:"timeline",l:"フィード",i:I.feed},{id:"chat",l:"チャット",i:I.chat},{id:"assignments",l:"課題",i:I.tasks},{id:"materials",l:"教材",i:I.clip},{id:"reviews",l:"レビュー",i:I.star}];
+  const CourseHdr=()=>{
+    if(!cc) return null;
+    const bk=()=>setView("courseSelect");
+    return <div style={{flexShrink:0}}>
+      <div style={{background:`linear-gradient(135deg, ${cc.col}20, ${cc.col}08)`,borderBottom:`1px solid ${cc.col}25`}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,paddingTop:"env(safe-area-inset-top)",padding:"env(safe-area-inset-top) 14px 0",minHeight:54}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,width:"100%",height:54}}>
+            <button onClick={bk} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:16,fontWeight:700,color:T.txH}}>{cc.code}</div>
+              <div style={{fontSize:12,color:T.txD,marginTop:1}}>{cc.name}</div>
+            </div>
+            <button style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.more}</button>
+          </div>
+        </div>
+      </div>
+      <div style={{display:"flex",background:T.bg2,borderBottom:`1px solid ${T.bd}`}}>
+        {cTabs.map(t=><button key={t.id} onClick={()=>setCh(t.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"8px 4px",border:"none",borderBottom:ch===t.id?`2px solid ${cc.col}`:"2px solid transparent",background:"transparent",color:ch===t.id?cc.col:T.txD,fontSize:10,fontWeight:ch===t.id?600:400,cursor:"pointer"}}><span style={{display:"flex",transform:ch===t.id?"scale(1.15)":"scale(1)",transition:"transform .15s"}}>{t.i}</span><span>{t.l}</span></button>)}
+      </div>
+    </div>;
+  };
 
   const courseContent=()=>{
     if(!cc) return null;
@@ -268,7 +289,7 @@ export default function App(){
         {view==="timetable"&&(L?<><MHdr title="時間割"/><LockedView title="時間割"/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding}/>)}
         {view==="tasks"&&(L?<><MHdr title="課題管理"/><LockedView title="課題管理"/></>:<><MHdr title="課題管理"/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden}/></>)}
         {view==="courseSelect"&&(L?<><MHdr title="コース・学系"/><LockedView title="コース"/></>:<><MHdr title="コース・学系"/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={allCourses} depts={userDepts} setDid={setDid}/></>)}
-        {view==="course"&&(L?<><MHdr title="コース" back={()=>setView("courseSelect")}/><LockedView title="コース"/></>:cc&&<><MHdr title={<><span style={{color:cc.col}}>{cc.code}</span><span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{cc.name}</span></>} back={()=>setView("courseSelect")} right={<button style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.more}</button>}/><MTabs ch={ch} setCh={setCh}/>{courseContent()}</>)}
+        {view==="course"&&(L?<><MHdr title="コース" back={()=>setView("courseSelect")}/><LockedView title="コース"/></>:cc&&<><CourseHdr/>{courseContent()}</>)}
         {view==="dept"&&(L?<><MHdr title="学系" back={()=>setView("courseSelect")}/><LockedView title="学系"/></>:cd&&<><MHdr title={<><span style={{color:cd.col}}>{cd.prefix}</span><span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{cd.name}</span></>} back={()=>setView("courseSelect")}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:"タイムライン",i:I.feed},{id:"chat",l:"チャット",i:I.chat}].map(t=><button key={t.id} onClick={()=>setCh(t.id)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===t.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===t.id?T.txH:T.txD,fontSize:13,fontWeight:ch===t.id?600:400,cursor:"pointer"}}>{t.i}<span>{t.l}</span></button>)}</div>{deptContent()}</>)}
         {view==="moreMenu"&&<><MHdr title="その他"/><MoreMenu setView={setView} unreadN={unreadN} pendingFriendCount={pendingFriendCount} dmUnread={dmUnread}/></>}
         {view==="friends"&&(L?<><MHdr title="友達" back={mBack}/><LockedView title="友達"/></>:<><MHdr title="友達" back={mBack}/><FriendsView mob setView={setView} {...friendProps}/></>)}
