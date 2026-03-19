@@ -12,7 +12,7 @@ const SideItem=({icon,label,on,click,badge})=>(
   </button>
 );
 
-const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,courses=[],depts=[],user={},quarter,pendingFriendCount=0})=>{
+const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,courses=[],depts=[],schools=[],user={},quarter,pendingFriendCount=0})=>{
   const [moreOpen,setMoreOpen]=useState(false);
   const extras=["grades","pomo","events","reviews","bmarks","location","encounter"];
   const isExtra=extras.includes(view);
@@ -32,6 +32,18 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
       <SideItem icon={I.map} label="キャンパスナビ" on={view==="navigation"} click={()=>setView("navigation")}/>
       <SideItem icon={I.more} label="ツール" on={moreOpen||isExtra} click={()=>setMoreOpen(p=>!p)}/>
     </div>
+    {schools.length>0&&<>
+      <div style={{width:"calc(100% - 20px)",height:1,background:T.bd,margin:"6px 10px"}}/>
+      <div style={{padding:"0 10px 2px",fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>学院</div>
+      <div style={{padding:"0 6px"}}>
+        {schools.map(s=>{const on=did===s.prefix&&view==="dept";return(
+          <button key={s.prefix} onClick={()=>{setDid(s.prefix);setView("dept");setCh("timeline");}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"5px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?`${s.col}14`:"transparent",color:on?T.txH:T.tx,fontSize:12,textAlign:"left",borderLeft:on?`2px solid ${s.col}`:"2px solid transparent"}}>
+            <div style={{width:24,height:24,borderRadius:6,background:on?s.col:`${s.col}30`,display:"flex",alignItems:"center",justifyContent:"center",color:on?"#fff":s.col,fontSize:8,fontWeight:700,flexShrink:0}}>{s.name.slice(0,2)}</div>
+            <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</span>
+          </button>
+        );})}
+      </div>
+    </>}
     {depts.length>0&&<>
       <div style={{width:"calc(100% - 20px)",height:1,background:T.bd,margin:"6px 10px"}}/>
       <div style={{padding:"0 10px 2px",fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>学系</div>

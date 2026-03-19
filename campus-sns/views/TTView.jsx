@@ -199,18 +199,26 @@ export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefr
   );
 };
 
-export const CSelect=({setCid,setView,setCh,courses=[],depts=[],setDid})=>{
+export const CSelect=({setCid,setView,setCh,courses=[],depts=[],schools=[],setDid})=>{
   return(
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:12}}>
+      {schools.length>0&&<>
+        <div style={{fontSize:12,fontWeight:700,color:T.txD,marginBottom:6,letterSpacing:.3}}>学院</div>
+        {schools.map(s=><div key={s.prefix} onClick={()=>{setDid?.(s.prefix);setCh("timeline");setView("dept");}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:8,borderLeft:`3px solid ${s.col}`,cursor:"pointer"}}>
+          <div style={{width:38,height:38,borderRadius:10,background:s.col,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:12,flexShrink:0}}>{s.name.slice(0,2)}</div>
+          <div style={{flex:1}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{s.name}</div></div>
+          <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
+        </div>)}
+      </>}
       {depts.length>0&&<>
-        <div style={{fontSize:12,fontWeight:700,color:T.txD,marginBottom:6,letterSpacing:.3}}>学系</div>
+        <div style={{fontSize:12,fontWeight:700,color:T.txD,marginTop:8,marginBottom:6,letterSpacing:.3}}>学系</div>
         {depts.map(d=><div key={d.prefix} onClick={()=>{setDid?.(d.prefix);setCh("timeline");setView("dept");}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:8,borderLeft:`3px solid ${d.col}`,cursor:"pointer"}}>
           <div style={{width:38,height:38,borderRadius:10,background:d.col,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:11,flexShrink:0}}>{d.prefix}</div>
           <div style={{flex:1}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{d.name}</div></div>
           <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
         </div>)}
-        <div style={{fontSize:12,fontWeight:700,color:T.txD,marginTop:8,marginBottom:6,letterSpacing:.3}}>コース</div>
       </>}
+      {(schools.length>0||depts.length>0)&&<div style={{fontSize:12,fontWeight:700,color:T.txD,marginTop:8,marginBottom:6,letterSpacing:.3}}>コース</div>}
       {courses.map(co=><div key={co.id} onClick={()=>{setCid(co.id);setCh("timeline");setView("course");}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:8,borderLeft:`3px solid ${co.col}`,cursor:"pointer"}}>
         <div style={{width:38,height:38,borderRadius:10,background:co.col,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:13,flexShrink:0}}>{co.code.slice(0,3)}</div>
         <div style={{flex:1}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{co.name}</div><div style={{fontSize:12,color:T.txD}}>{co.code} · {co.per}</div></div>

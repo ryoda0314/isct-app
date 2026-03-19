@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { T, updateT } from "./theme.js";
 import { I } from "./icons.jsx";
-import { QData, ASGN0, MYTK0, EVENTS0, REVIEWS0, MYEVENTS0, DEPTS } from "./data.js";
+import { QData, ASGN0, MYTK0, EVENTS0, REVIEWS0, MYEVENTS0, SCHOOLS, DEPTS } from "./data.js";
 import { DEMO_COURSES, DEMO_QDATA, DEMO_ASGN, DEMO_USER, DEMO_EVENTS, DEMO_REVIEWS, DEMO_MY_EVENTS, DEMO_TASKS } from "./demoData.js";
 import { setDemoMode } from "./demoMode.js";
 import { useNotifications } from "./hooks/useNotifications.js";
@@ -140,7 +140,11 @@ export default function App(){
     const ps=[...new Set(allCourses.map(c=>c.code.split('.')[0]))];
     return ps.filter(p=>DEPTS[p]).map(p=>({id:`dept:${p}`,prefix:p,...DEPTS[p]}));
   },[allCourses]);
-  const cd=userDepts.find(d=>d.prefix===did);
+  const userSchools=useMemo(()=>{
+    const sks=[...new Set(userDepts.map(d=>d.school))];
+    return sks.filter(k=>SCHOOLS[k]).map(k=>({id:`school:${k}`,prefix:`school:${k}`,name:SCHOOLS[k].name,col:SCHOOLS[k].col}));
+  },[userDepts]);
+  const cd=userDepts.find(d=>d.prefix===did)||userSchools.find(s=>s.prefix===did);
   const qCourseIds=useMemo(()=>new Set(allCourses.filter(c=>c.quarter===quarter).map(c=>c.id)),[allCourses,quarter]);
   const hiddenSet=useMemo(()=>new Set(hiddenAsgn),[hiddenAsgn]);
   const ac=asgn.filter(a=>a.st!=="completed"&&qCourseIds.has(a.cid)&&!hiddenSet.has(a.id)).length;
@@ -244,12 +248,12 @@ export default function App(){
     const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",location:"友達の居場所",navigation:"キャンパスナビ",friends:"友達",encounter:"すれ違い通信",circles:"サークル",admin:"管理者"};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:"タイムライン",chat:"チャット",assignments:"課題",materials:"教材",reviews:"レビュー"}[ch]}</>;
-      if(view==="dept"&&cd) return <><span style={{color:cd.col}}>{cd.prefix}</span> {cd.name} — {{timeline:"タイムライン",chat:"チャット"}[ch]||""}</>;
+      if(view==="dept"&&cd) return <><span style={{color:cd.col}}>{cd.prefix.startsWith("school:")?cd.name:cd.prefix}</span> {cd.prefix.startsWith("school:")?"":`${cd.name} `}— {{timeline:"タイムライン",chat:"チャット"}[ch]||""}</>;
       return titles[view]||"";
     };
     return(
       <div style={{display:"flex",height:"100dvh",width:"100vw",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
-        <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} dmUnread={dmUnread} courses={allCourses} depts={userDepts} user={user} quarter={quarter} pendingFriendCount={pendingFriendCount}/>
+        <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} dmUnread={dmUnread} courses={allCourses} depts={userDepts} schools={userSchools} user={user} quarter={quarter} pendingFriendCount={pendingFriendCount}/>
         {view==="course"&&cc&&<DChan course={cc} ch={ch} setCh={setCh} online={online} members={members}/>}
         {view==="dept"&&cd&&<DChan dept={cd} ch={ch} setCh={setCh} online={online}/>}
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
@@ -274,7 +278,7 @@ export default function App(){
           {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/>}
           {view==="encounter"&&(L?<LockedView title="すれ違い通信"/>:<EncounterView mob={false} nearby={nearby} myCard={myCard} setMyCard={setMyCard} inbox={encInbox} collection={encColl} openCard={encOpen} clearCollection={encClearColl} stats={encStats} courses={allCourses}/>)}
           {view==="circles"&&<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate}/>}
-          {view==="admin"&&<AdminView mob={false} courses={allCourses}/>}
+          {view==="admin"&&<AdminView mob={false} courses={allCourses} depts={userDepts} schools={userSchools}/>}
         </div>
         <Toasts/>
         <style>{`*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${T.bd};border-radius:3px}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit}`}</style>
@@ -290,9 +294,9 @@ export default function App(){
         {view==="home"&&<><MHdr title="ScienceTokyo App" right={<div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>setView("notif")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</button><button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button><button onClick={()=>setView("profile")} style={{background:"none",border:"none",cursor:"pointer",display:"flex",padding:0}}><Av u={user} sz={26}/></button></div>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} goToBuilding={goToBuilding}/></>}
         {view==="timetable"&&(L?<><MHdr title="時間割"/><LockedView title="時間割"/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding}/>)}
         {view==="tasks"&&(L?<><MHdr title="課題管理"/><LockedView title="課題管理"/></>:<><MHdr title="課題管理"/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden}/></>)}
-        {view==="courseSelect"&&(L?<><MHdr title="コース・学系"/><LockedView title="コース"/></>:<><MHdr title="コース・学系"/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={allCourses} depts={userDepts} setDid={setDid}/></>)}
+        {view==="courseSelect"&&(L?<><MHdr title="コース・学院・学系"/><LockedView title="コース"/></>:<><MHdr title="コース・学院・学系"/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={allCourses} depts={userDepts} schools={userSchools} setDid={setDid}/></>)}
         {view==="course"&&(L?<><MHdr title="コース" back={()=>setView("courseSelect")}/><LockedView title="コース"/></>:cc&&<><CourseHdr/>{courseContent()}</>)}
-        {view==="dept"&&(L?<><MHdr title="学系" back={()=>setView("courseSelect")}/><LockedView title="学系"/></>:cd&&<><MHdr title={<><span style={{color:cd.col}}>{cd.prefix}</span><span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{cd.name}</span></>} back={()=>setView("courseSelect")}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:"タイムライン",i:I.feed},{id:"chat",l:"チャット",i:I.chat}].map(t=><button key={t.id} onClick={()=>setCh(t.id)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===t.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===t.id?T.txH:T.txD,fontSize:13,fontWeight:ch===t.id?600:400,cursor:"pointer"}}>{t.i}<span>{t.l}</span></button>)}</div>{deptContent()}</>)}
+        {view==="dept"&&(L?<><MHdr title="学系" back={()=>setView("courseSelect")}/><LockedView title="学系"/></>:cd&&<><MHdr title={<><span style={{color:cd.col}}>{cd.prefix.startsWith("school:")?cd.name:cd.prefix}</span>{!cd.prefix.startsWith("school:")&&<span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{cd.name}</span>}</>} back={()=>setView("courseSelect")}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:"タイムライン",i:I.feed},{id:"chat",l:"チャット",i:I.chat}].map(t=><button key={t.id} onClick={()=>setCh(t.id)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===t.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===t.id?T.txH:T.txD,fontSize:13,fontWeight:ch===t.id?600:400,cursor:"pointer"}}>{t.i}<span>{t.l}</span></button>)}</div>{deptContent()}</>)}
         {view==="moreMenu"&&<><MHdr title="その他"/><MoreMenu setView={setView} unreadN={unreadN} pendingFriendCount={pendingFriendCount} dmUnread={dmUnread}/></>}
         {view==="friends"&&(L?<><MHdr title="友達" back={mBack}/><LockedView title="友達"/></>:<><MHdr title="友達" back={mBack}/><FriendsView mob setView={setView} {...friendProps}/></>)}
         {view==="dm"&&(L?<><MHdr title="DM"/><LockedView title="DM"/></>:<><MHdr title="DM"/><DMView mob setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/></>)}
@@ -309,7 +313,7 @@ export default function App(){
         {view==="navigation"&&<><MHdr title="キャンパスナビ" back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
         {view==="encounter"&&(L?<><MHdr title="すれ違い通信" back={mBack}/><LockedView title="すれ違い通信"/></>:<><MHdr title="すれ違い通信" back={mBack}/><EncounterView mob nearby={nearby} myCard={myCard} setMyCard={setMyCard} inbox={encInbox} collection={encColl} openCard={encOpen} clearCollection={encClearColl} stats={encStats} courses={allCourses}/></>)}
         {view==="circles"&&<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} onBack={mBack}/>}
-        {view==="admin"&&<><MHdr title="管理者" back={mBack}/><AdminView mob courses={allCourses}/></>}
+        {view==="admin"&&<><MHdr title="管理者" back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
       </div>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread}/>
       <div style={{height:14,background:T.bg2,flexShrink:0}}/>
