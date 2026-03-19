@@ -90,14 +90,15 @@ export default function App(){
   const fetchData=async()=>{
     try{
       const r=await fetch(`${API}/api/data/all`);
-      if(r.status===401){setAppState("setup");return;}
-      if(!r.ok) return;
+      if(r.status===401){setAppState("setup");return false;}
+      if(!r.ok) return false;
       const d=await r.json();
       if(d.qData) setQDataLive(d.qData);
       if(d.courses){setAllCourses(d.courses);if(d.courses[0]&&!cid)setCid(d.courses[0].id);}
       if(d.assignments) setAsgn(d.assignments.map(a=>({...a,due:new Date(a.due)})));
       if(d.user) setCurrentUserFromAPI(d.user);
-    }catch{}
+      return true;
+    }catch{ return false; }
   };
 
   useEffect(()=>{
@@ -106,9 +107,13 @@ export default function App(){
         const r=await fetch(`${API}/api/auth/status`);
         const d=await r.json();
         if(d.hasCredentials){
-          await fetchData();
-          setAppState("ready");
-          refreshRef.current=setInterval(fetchData,15*60*1000);
+          const ok=await fetchData();
+          if(ok){
+            setAppState("ready");
+            refreshRef.current=setInterval(fetchData,15*60*1000);
+          }else{
+            setAppState("setup");
+          }
         }else{
           setAppState("setup");
         }
