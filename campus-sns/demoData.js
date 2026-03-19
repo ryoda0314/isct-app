@@ -56,14 +56,71 @@ const DEMO_ASGN = [
   { id: "da_13", moodleId: 213, cid: "mc_107", title: "CA レポート1: キャッシュメモリ", desc: "キャッシュの連想度とヒット率の関係をシミュレーションで検証せよ。", due: d(-7), type: "assignment", st: "not_started", pri: 3, subs: [] },
 ];
 
-// ── 成績 ──
-const DEMO_GRADES = [
-  { cid: "mc_101", mid: 82, asgn: 88 },
-  { cid: "mc_102", mid: 75, asgn: 90 },
-  { cid: "mc_103", mid: null, asgn: 85 },
-  { cid: "mc_106", mid: 70, asgn: 78 },
-  { cid: "mc_107", mid: 88, asgn: 92 },
-];
+// ── 成績 (GradeView API互換フォーマット) ──
+const DEMO_GRADES = {
+  summary: {
+    studentId: "25B00099",
+    name: "テスト太郎",
+    totalCredits: 62,
+    gpa: {
+      overall: 2.78,
+      major: 2.95,
+      liberal: 2.42,
+    },
+  },
+  categories: [
+    { name: "文系教養科目", credits: 4 },
+    { name: "英語科目", credits: 3 },
+    { name: "理工系教養科目", credits: 6 },
+    { name: "情報工学系専門科目", credits: 34 },
+    { name: "数理・計算科学系専門科目", credits: 10 },
+    { name: "広域教養科目", credits: 2 },
+    { name: "第二外国語科目", credits: 3 },
+  ],
+  courses: [
+    // ── 2025年度 1Q ──
+    { code: "CSC.T213", name: "プログラミング基礎", grade: "92", credits: "2", quarter: "1", period: "2025-1Q", instructor: "山本 一郎", recommendation: "R", gradeNum: 92 },
+    { code: "MCS.T201", name: "微分積分学第一", grade: "78", credits: "2", quarter: "1", period: "2025-1Q", instructor: "佐々木 修", recommendation: "R", gradeNum: 78 },
+    { code: "MCS.T211", name: "線形代数学第一", grade: "85", credits: "2", quarter: "1", period: "2025-1Q", instructor: "松田 健", recommendation: "R", gradeNum: 85 },
+    { code: "LAH.S101", name: "東工大立志プロジェクト", grade: "合格", credits: "1", quarter: "1", period: "2025-1Q", instructor: "複数教員", recommendation: "R", gradeNum: null },
+    { code: "LAS.A101", name: "英語第一 S", grade: "80", credits: "1", quarter: "1", period: "2025-1Q", instructor: "Smith J.", recommendation: "R", gradeNum: 80 },
+    { code: "LAS.M101", name: "物理学基礎", grade: "71", credits: "2", quarter: "1", period: "2025-1Q", instructor: "高橋 誠", recommendation: "R", gradeNum: 71 },
+    // ── 2025年度 2Q ──
+    { code: "CSC.T223", name: "離散構造とアルゴリズム", grade: "88", credits: "2", quarter: "2", period: "2025-2Q", instructor: "田中 裕子", recommendation: "R", gradeNum: 88 },
+    { code: "MCS.T203", name: "微分積分学第二", grade: "65", credits: "2", quarter: "2", period: "2025-2Q", instructor: "佐々木 修", recommendation: "R", gradeNum: 65 },
+    { code: "MCS.T213", name: "線形代数学第二", grade: "82", credits: "2", quarter: "2", period: "2025-2Q", instructor: "松田 健", recommendation: "R", gradeNum: 82 },
+    { code: "LAS.A103", name: "英語第二 S", grade: "77", credits: "1", quarter: "2", period: "2025-2Q", instructor: "Brown K.", recommendation: "R", gradeNum: 77 },
+    { code: "LAH.S201", name: "科学技術と社会", grade: "合格", credits: "1", quarter: "2", period: "2025-2Q", instructor: "中村 由美", recommendation: "A", gradeNum: null },
+    { code: "LAS.C101", name: "化学基礎", grade: "68", credits: "2", quarter: "2", period: "2025-2Q", instructor: "石井 陽介", recommendation: "A", gradeNum: 68 },
+    // ── 2025年度 3Q ──
+    { code: "CSC.T233", name: "オペレーティングシステム", grade: "90", credits: "2", quarter: "3", period: "2025-3Q", instructor: "渡辺 剛", recommendation: "R", gradeNum: 90 },
+    { code: "CSC.T243", name: "データ構造とアルゴリズム", grade: "95", credits: "2", quarter: "3", period: "2025-3Q", instructor: "鈴木 太郎", recommendation: "R", gradeNum: 95 },
+    { code: "MCS.T223", name: "確率と統計", grade: "73", credits: "2", quarter: "3", period: "2025-3Q", instructor: "木村 真理", recommendation: "R", gradeNum: 73 },
+    { code: "LAL.G101", name: "ドイツ語初級1", grade: "82", credits: "1", quarter: "3", period: "2025-3Q", instructor: "Schmidt H.", recommendation: "A", gradeNum: 82 },
+    { code: "LAW.A101", name: "現代社会論", grade: "合格", credits: "2", quarter: "3", period: "2025-3Q", instructor: "藤本 和也", recommendation: "L", gradeNum: null },
+    // ── 2025年度 4Q ──
+    { code: "CSC.T253", name: "論理と形式言語", grade: "86", credits: "2", quarter: "4", period: "2025-4Q", instructor: "伊藤 正", recommendation: "R", gradeNum: 86 },
+    { code: "CSC.T263", name: "コンピュータアーキテクチャ", grade: "91", credits: "2", quarter: "4", period: "2025-4Q", instructor: "加藤 浩一", recommendation: "R", gradeNum: 91 },
+    { code: "CSC.T273", name: "計算機科学実験第一", grade: "85", credits: "2", quarter: "4", period: "2025-4Q", instructor: "複数教員", recommendation: "R", gradeNum: 85 },
+    { code: "LAL.G103", name: "ドイツ語初級2", grade: "79", credits: "1", quarter: "4", period: "2025-4Q", instructor: "Schmidt H.", recommendation: "A", gradeNum: 79 },
+    { code: "LAH.T101", name: "哲学入門", grade: "75", credits: "2", quarter: "4", period: "2025-4Q", instructor: "小林 哲也", recommendation: "A", gradeNum: 75 },
+    // ── 2026年度 1Q ──
+    { code: "CSC.T283", name: "ソフトウェア工学", grade: "87", credits: "2", quarter: "1", period: "2026-1Q", instructor: "大野 智", recommendation: "R", gradeNum: 87 },
+    { code: "CSC.T293", name: "データベース", grade: "93", credits: "2", quarter: "1", period: "2026-1Q", instructor: "吉田 誠", recommendation: "A", gradeNum: 93 },
+    { code: "MCS.T301", name: "数値解析", grade: "70", credits: "2", quarter: "1", period: "2026-1Q", instructor: "長谷川 勝", recommendation: "A", gradeNum: 70 },
+    { code: "LAS.A201", name: "英語第三", grade: "83", credits: "1", quarter: "1", period: "2026-1Q", instructor: "Davis M.", recommendation: "A", gradeNum: 83 },
+    { code: "LAL.G201", name: "ドイツ語中級", grade: "76", credits: "1", quarter: "1", period: "2026-1Q", instructor: "Weber A.", recommendation: "L", gradeNum: 76 },
+    // ── 2026年度 2Q (現在受講中) ──
+    { code: "CSC.T243", name: "データ構造とアルゴリズム", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "鈴木 太郎", recommendation: "R", gradeNum: null },
+    { code: "MCS.T223", name: "線形代数学第二", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "松田 健", recommendation: "R", gradeNum: null },
+    { code: "CSC.T253", name: "論理と形式言語", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "伊藤 正", recommendation: "R", gradeNum: null },
+    { code: "LAS.A101", name: "英語第二 S", grade: "未報告", credits: "1", quarter: "2", period: "2026-2Q", instructor: "Smith J.", recommendation: "R", gradeNum: null },
+    { code: "CSC.T273", name: "計算機科学実験第一", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "複数教員", recommendation: "R", gradeNum: null },
+    { code: "MCS.T213", name: "確率と統計", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "木村 真理", recommendation: "R", gradeNum: null },
+    { code: "CSC.T263", name: "コンピュータアーキテクチャ", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "加藤 浩一", recommendation: "R", gradeNum: null },
+    { code: "LAS.C103", name: "東工大立志プロジェクト", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "複数教員", recommendation: "R", gradeNum: null },
+  ],
+};
 
 // ── 出席 ──
 const DEMO_ATT = {

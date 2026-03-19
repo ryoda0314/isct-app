@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { T } from '../theme.js';
+import { isDemoMode } from '../demoMode.js';
+import { DEMO_GRADES } from '../demoData.js';
 
 /* ── Grade helpers ── */
 
@@ -383,6 +385,11 @@ export const GradeView = ({ mob }) => {
 
   useEffect(() => {
     let cancelled = false;
+    if (isDemoMode()) {
+      setData(DEMO_GRADES);
+      setLoading(false);
+      return;
+    }
     (async () => {
       try {
         const r = await fetch('/api/data/grades');

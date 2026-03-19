@@ -143,28 +143,23 @@ const MNav=({view,setView,ac,unreadN,dmUnread})=>{
 
 const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0})=>{
   const sections=[
+    {title:"アカウント",items:[
+      {id:"profile",i:I.user1,l:"プロフィール・設定"},
+    ]},
     {title:"コミュニケーション",items:[
-      {id:"dm",i:I.mail,l:"ダイレクトメッセージ",b:dmUnread},
-      {id:"circles",i:I.circle,l:"サークル"},
       {id:"friends",i:I.users,l:"友達",b:pendingFriendCount},
-      {id:"notif",i:I.bell,l:"通知",b:unreadN},
     ]},
     {title:"学習",items:[
-      {id:"calendar",i:I.cal,l:"カレンダー"},
       {id:"grades",i:I.grad,l:"成績"},
       {id:"reviews",i:I.star,l:"授業レビュー"},
       {id:"pomo",i:I.play,l:"ポモドーロタイマー"},
     ]},
     {title:"キャンパス",items:[
-      {id:"events",i:I.event,l:"イベント"},
       {id:"location",i:I.pin,l:"友達の居場所"},
       {id:"encounter",i:I.encounter,l:"すれ違い通信"},
-      {id:"navigation",i:I.tgt,l:"キャンパスナビ"},
     ]},
     {title:"その他",items:[
       {id:"bmarks",i:I.bmark,l:"ブックマーク"},
-      {id:"search",i:I.search,l:"検索"},
-      {id:"profile",i:I.user1,l:"プロフィール・設定"},
     ]},
   ];
   const Item=({n})=>(

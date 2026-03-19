@@ -29,7 +29,31 @@ const PD=[{s:[8,50],e:[10,30],l:"1限"},{s:[10,45],e:[12,25],l:"2限"},{s:[13,20
 const fPdTime=(h,m)=>`${h}:${String(m).padStart(2,"0")}`;
 const DAY_NAMES=["日","月","火","水","木","金","土"];
 
+const QA_ALL=[
+  {id:"circles",icon:I.circle,label:"サークル"},
+  {id:"calendar",icon:I.cal,label:"カレンダー"},
+  {id:"events",icon:I.event,label:"イベント"},
+  {id:"portal",icon:null,label:"ポータル"},
+  {id:"friends",icon:I.users,label:"友達"},
+  {id:"grades",icon:I.grad,label:"成績"},
+  {id:"reviews",icon:I.star,label:"レビュー"},
+  {id:"location",icon:I.pin,label:"居場所"},
+  {id:"encounter",icon:I.encounter,label:"すれ違い"},
+  {id:"pomo",icon:I.play,label:"ポモドーロ"},
+  {id:"bmarks",icon:I.bmark,label:"ブックマーク"},
+  {id:"dm",icon:I.mail,label:"DM"},
+  {id:"notif",icon:I.bell,label:"通知"},
+  {id:"navigation",icon:I.map,label:"マップ"},
+  {id:"search",icon:I.search,label:"検索"},
+];
+const QA_DEFAULT=["circles","calendar","events","portal"];
+const getQA=()=>{try{const v=localStorage.getItem("quickAccess");return v?JSON.parse(v):QA_DEFAULT;}catch{return QA_DEFAULT;}};
+
+export { QA_ALL, QA_DEFAULT };
+
 export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvents=[],quarter,hiddenSet=new Set(),qd,goToBuilding})=>{
+  const [qaIds]=useState(getQA);
+  const qaItems=qaIds.map(id=>QA_ALL.find(q=>q.id===id)).filter(Boolean);
   const [now,setNow]=useState(()=>new Date());
   const [wx,setWx]=useState(()=>{try{const v=localStorage.getItem("wxCache");if(v){const d=JSON.parse(v);if(Date.now()-d._ts<30*60*1000)return d;}return null;}catch{return null;}});
   const [loc,setLoc]=useState(()=>{try{const v=localStorage.getItem("wxLoc");return v?JSON.parse(v):DEF_LOC;}catch{return DEF_LOC;}});
@@ -201,30 +225,29 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
       </div>
 
       {/* ── クイックアクセス ── */}
-      <div style={{padding:"2px 16px 6px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:6}}>
-        <button onClick={()=>setView("circles")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.accent}30`,background:`${T.accent}10`,cursor:"pointer"}}>
-          <span style={{color:T.accent,display:"flex"}}>{I.circle}</span>
-          <span style={{fontSize:11,fontWeight:600,color:T.txH}}>サークル</span>
-        </button>
-        <button onClick={()=>setView("calendar")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer"}}>
-          <span style={{color:T.txD,display:"flex"}}>{I.cal}</span>
-          <span style={{fontSize:11,fontWeight:600,color:T.txH}}>カレンダー</span>
-        </button>
-        <button onClick={()=>setView("events")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer"}}>
-          <span style={{color:T.txD,display:"flex"}}>{I.event}</span>
-          <span style={{fontSize:11,fontWeight:600,color:T.txH}}>イベント</span>
-        </button>
-        <button onClick={()=>{
-          setPortalLoading(true);setPortalError(null);
-          fetch("/api/portal/page",{cache:"no-store"}).then(async r=>{
-            if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||(r.status===400?"ポータル認証情報が未設定です":"ポータルへの接続に失敗しました"));}
-            return r.json();
-          }).then(d=>{setPortalData(d);setPortalLoading(false);})
-            .catch(e=>{setPortalError(e.message);setPortalLoading(false);});
-        }} disabled={portalLoading} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:portalLoading?"wait":"pointer",opacity:portalLoading?.6:1}}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-          <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{portalLoading?"読込中...":"ポータル"}</span>
-        </button>
+      <div style={{padding:"2px 16px 6px",display:"grid",gridTemplateColumns:`repeat(${qaItems.length},1fr)`,gap:6}}>
+        {qaItems.map((qa,i)=>{
+          if(qa.id==="portal") return (
+            <button key={qa.id} onClick={()=>{
+              setPortalLoading(true);setPortalError(null);
+              fetch("/api/portal/page",{cache:"no-store"}).then(async r=>{
+                if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||(r.status===400?"ポータル認証情報が未設定です":"ポータルへの接続に失敗しました"));}
+                return r.json();
+              }).then(d=>{setPortalData(d);setPortalLoading(false);})
+                .catch(e=>{setPortalError(e.message);setPortalLoading(false);});
+            }} disabled={portalLoading} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:portalLoading?"wait":"pointer",opacity:portalLoading?.6:1}}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+              <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{portalLoading?"読込中...":"ポータル"}</span>
+            </button>
+          );
+          const isFirst=i===0;
+          return (
+            <button key={qa.id} onClick={()=>setView(qa.id)} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${isFirst?T.accent+"30":T.bd}`,background:isFirst?`${T.accent}10`:T.bg2,cursor:"pointer"}}>
+              <span style={{color:isFirst?T.accent:T.txD,display:"flex"}}>{qa.icon}</span>
+              <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{qa.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ── メインコンテンツ: 40:60 ── */}

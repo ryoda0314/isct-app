@@ -5,6 +5,10 @@ import { useLeaflet, Loader } from "../shared.jsx";
 import { CAMPUS_CENTER, CAMPUS_ZOOM, SPOTS, SPOT_CATS, ENTRANCES, AREAS } from "../hooks/useLocationSharing.js";
 import { useNavigation, NAV_SPOTS } from "../hooks/useNavigation.js";
 
+const NAV_QUICK_DEFAULT=["taki","eki","lib","main","coop","gym","w5"];
+// Returns raw IDs including cat: and grp: prefixes
+const getNavQuickRaw=()=>{try{const v=localStorage.getItem("navQuickSpots");return v?JSON.parse(v):NAV_QUICK_DEFAULT;}catch{return NAV_QUICK_DEFAULT;}};
+export { NAV_QUICK_DEFAULT };
 const NON_GEO_NAV=new Set(["suzu","home_loc","commute","off_campus"]);
 const haversineNav=(lat1,lng1,lat2,lng2)=>{
   const R=6371e3,toRad=d=>d*Math.PI/180;
@@ -59,7 +63,7 @@ const findNearestNavSpot=(lat,lng)=>{
 };
 
 /* ── Outdoor spot group definitions ── */
-const SPOT_GROUPS=[
+export const SPOT_GROUPS=[
   {prefix:"bench",label:"ベンチ",col:"#8bc34a"},
   {prefix:"park",label:"駐輪場",col:"#78909c"},
   {prefix:"vend_d",label:"自販機・飲料",col:"#42a5f5"},
@@ -92,8 +96,13 @@ const SpotSelector=({value,onChange,onSelectGroup,placeholder,accent,onGps,gpsLo
   const searchResults=searching?buildSearchResults(filtered):null;
   const searchGrouped=searching?SPOT_CATS.map(cat=>({...cat,spots:filtered.filter(s=>s.cat===cat.id&&!isGroupableSpot(s))})).filter(g=>g.spots.length>0):[];
   const catSpots=openCat?NAV_SPOTS.filter(s=>s.cat===openCat):[];
-  const QUICK_IDS=["taki","eki","lib","main","coop","gym","w5"];
-  const quickSpots=QUICK_IDS.map(id=>NAV_SPOTS.find(s=>s.id===id)).filter(Boolean);
+  const rawQuick=getNavQuickRaw();
+  // Build mixed list: spots + category entries + group entries
+  const quickItems=rawQuick.map(id=>{
+    if(id.startsWith("cat:")){const catId=id.slice(4);const cat=SPOT_CATS.find(c=>c.id===catId);return cat?{type:"cat",catId,label:cat.label,count:NAV_SPOTS.filter(s=>s.cat===catId).length}:null;}
+    if(id.startsWith("grp:")){const pfx=id.slice(4);const g=SPOT_GROUPS.find(x=>x.prefix===pfx);return g?{type:"grp",prefix:pfx,label:g.label,col:g.col,count:NAV_SPOTS.filter(s=>s.id.startsWith(pfx+"_")).length}:null;}
+    const s=NAV_SPOTS.find(s=>s.id===id);return s?{type:"spot",...s}:null;
+  }).filter(Boolean);
 
   return <div style={{position:"relative",flex:1,minWidth:0}}>
     <div style={{position:"relative",width:"100%"}} onMouseEnter={e=>{const x=e.currentTarget.querySelector('[data-clear]');if(x)x.style.opacity='1';}} onMouseLeave={e=>{const x=e.currentTarget.querySelector('[data-clear]');if(x)x.style.opacity='0';}}>
@@ -162,11 +171,22 @@ const SpotSelector=({value,onChange,onSelectGroup,placeholder,accent,onGps,gpsLo
               <span style={{fontSize:12,fontWeight:500,color:"#4285f4"}}>{gpsLoading?"取得中...":"現在地"}</span>
             </button>}
             <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5,padding:"6px 10px 3px"}}>よく使う</div>
-            {quickSpots.map(s=>{
-              const on=s.id===value;
-              return <button key={s.id} onClick={()=>{onChange(s.id);setOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:on?`${accent}18`:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>{if(!on)e.currentTarget.style.background=T.hover}} onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent"}}>
-                <div style={{width:20,height:20,borderRadius:5,background:on?s.col:`${s.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:on?"#fff":s.col}}>{s.short}</span></div>
-                <span style={{fontSize:12,fontWeight:on?600:400,color:on?T.txH:T.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{s.label}</span>
+            {quickItems.map((item,i)=>{
+              if(item.type==="cat") return <button key={"cat:"+item.catId} onClick={()=>setOpenCat(item.catId)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <span style={{fontSize:12,fontWeight:500,color:T.txH}}>{item.label}</span>
+                <span style={{fontSize:11,color:T.txD}}>{item.count}件 ›</span>
+              </button>;
+              if(item.type==="grp") return <button key={"grp:"+item.prefix} onClick={()=>{if(onSelectGroup){onSelectGroup(item.prefix);setOpen(false);}}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <div style={{width:20,height:20,borderRadius:5,background:`${item.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <div style={{width:8,height:8,borderRadius:2,background:item.col}}/>
+                </div>
+                <span style={{fontSize:12,fontWeight:500,color:T.txH,flex:1}}>{item.label}</span>
+                <span style={{fontSize:11,color:T.txD}}>{item.count}件 ›</span>
+              </button>;
+              const on=item.id===value;
+              return <button key={item.id} onClick={()=>{onChange(item.id);setOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:on?`${accent}18`:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>{if(!on)e.currentTarget.style.background=T.hover}} onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent"}}>
+                <div style={{width:20,height:20,borderRadius:5,background:on?item.col:`${item.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:on?"#fff":item.col}}>{item.short}</span></div>
+                <span style={{fontSize:12,fontWeight:on?600:400,color:on?T.txH:T.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{item.label}</span>
                 {on&&<span style={{display:"flex",color:accent,flexShrink:0}}>{I.chk}</span>}
               </button>;
             })}
@@ -673,8 +693,12 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const searchFiltered=searchQ.trim().length>0?NAV_SPOTS.filter(s=>s.label.includes(searchQ)||s.short.includes(searchQ)||s.id.includes(searchQ.toLowerCase())):[];
   const searchInlineResults=searchQ.trim().length>0?buildSearchResults(searchFiltered):null;
   const searchInlineGrouped=searchQ.trim().length>0?SPOT_CATS.map(cat=>({...cat,spots:searchFiltered.filter(s=>s.cat===cat.id&&!isGroupableSpot(s))})).filter(g=>g.spots.length>0):[];
-  const QUICK_IDS_INLINE=["taki","eki","lib","main","coop","gym","w5"];
-  const quickSpotsInline=QUICK_IDS_INLINE.map(id=>NAV_SPOTS.find(s=>s.id===id)).filter(Boolean);
+  const rawQuickInline=getNavQuickRaw();
+  const quickItemsInline=rawQuickInline.map(id=>{
+    if(id.startsWith("cat:")){const catId=id.slice(4);const cat=SPOT_CATS.find(c=>c.id===catId);return cat?{type:"cat",catId,label:cat.label,count:NAV_SPOTS.filter(s=>s.cat===catId).length}:null;}
+    if(id.startsWith("grp:")){const pfx=id.slice(4);const g=SPOT_GROUPS.find(x=>x.prefix===pfx);return g?{type:"grp",prefix:pfx,label:g.label,col:g.col,count:NAV_SPOTS.filter(s=>s.id.startsWith(pfx+"_")).length}:null;}
+    const s=NAV_SPOTS.find(s=>s.id===id);return s?{type:"spot",...s}:null;
+  }).filter(Boolean);
 
   const stopProp=e=>{e.stopPropagation();};
   const searchCard=navPhase==="search"&&searchMin?
@@ -714,12 +738,21 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
           {searchInlineResults.groups.length===0&&searchInlineGrouped.length===0&&<div style={{padding:"16px 0",fontSize:12,color:T.txD,textAlign:"center"}}>見つかりません</div>}
         </>:<>
           <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5,padding:"6px 10px 3px"}}>よく使う</div>
-          {quickSpotsInline.map(s=>(
-            <button key={s.id} onClick={()=>{setDestination(s.id);setSpotGroup(null);setNavPhase("detail");setSearchQ("");if(mapInst.current)mapInst.current.flyTo([s.lat,s.lng],18,{duration:.5});}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <div style={{width:20,height:20,borderRadius:5,background:`${s.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:s.col}}>{s.short}</span></div>
-              <span style={{fontSize:12,fontWeight:400,color:T.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{s.label}</span>
-            </button>
-          ))}
+          {quickItemsInline.map((item,i)=>{
+            if(item.type==="cat") return <button key={"cat:"+item.catId} onClick={()=>setOpenCatInline(item.catId)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <span style={{fontSize:12,fontWeight:500,color:T.txH}}>{item.label}</span>
+              <span style={{fontSize:11,color:T.txD}}>{item.count}件 ›</span>
+            </button>;
+            if(item.type==="grp") return <button key={"grp:"+item.prefix} onClick={()=>{setSpotGroup(item.prefix);setNavPhase("group");setSearchQ("");}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <div style={{width:20,height:20,borderRadius:5,background:`${item.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><div style={{width:8,height:8,borderRadius:2,background:item.col}}/></div>
+              <span style={{fontSize:12,fontWeight:500,color:T.txH,flex:1}}>{item.label}</span>
+              <span style={{fontSize:11,color:T.txD}}>{item.count}件 ›</span>
+            </button>;
+            return <button key={item.id} onClick={()=>{setDestination(item.id);setSpotGroup(null);setNavPhase("detail");setSearchQ("");if(mapInst.current)mapInst.current.flyTo([item.lat,item.lng],18,{duration:.5});}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <div style={{width:20,height:20,borderRadius:5,background:`${item.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:item.col}}>{item.short}</span></div>
+              <span style={{fontSize:12,fontWeight:400,color:T.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{item.label}</span>
+            </button>;
+          })}
           <div style={{height:1,background:T.bd,margin:"6px 10px"}}/>
           {SPOT_CATS.filter(cat=>NAV_SPOTS.some(s=>s.cat===cat.id)).map(cat=>{
             const catSpots=NAV_SPOTS.filter(s=>s.cat===cat.id&&!isGroupableSpot(s));

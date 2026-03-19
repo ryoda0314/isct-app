@@ -4,6 +4,9 @@ import { I } from '../icons.jsx';
 import { Av } from '../shared.jsx';
 import { updateUserPref } from '../hooks/useCurrentUser.js';
 import { MatrixInput, COLS, ROWS } from '../components/MatrixInput.jsx';
+import { QA_ALL, QA_DEFAULT } from './HomeView.jsx';
+import { NAV_QUICK_DEFAULT, SPOT_GROUPS } from './NavigationView.jsx';
+import { SPOTS, SPOT_CATS } from '../hooks/useLocationSharing.js';
 
 /* ─── 画像 → 正方形クロップ → data URI ─── */
 const AV_SZ=160;
@@ -160,6 +163,18 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,co
   // 表示設定
   const [fontSize,setFontSize]=useState(()=>{try{return localStorage.getItem("fontSize")||"medium";}catch{return "medium";}});
   const saveFontSize=v=>{setFontSize(v);try{localStorage.setItem("fontSize",v);}catch{}};
+
+  // クイックアクセス設定
+  const [qaIds,setQaIds]=useState(()=>{try{const v=localStorage.getItem("quickAccess");return v?JSON.parse(v):QA_DEFAULT;}catch{return QA_DEFAULT;}});
+  const [qaOpen,setQaOpen]=useState(false);
+  const saveQa=ids=>{setQaIds(ids);try{localStorage.setItem("quickAccess",JSON.stringify(ids));}catch{}};
+
+  // マップ よく使う場所
+  const navSpots=SPOTS.filter(s=>s.id&&s.lat!=null);
+  const [navQIds,setNavQIds]=useState(()=>{try{const v=localStorage.getItem("navQuickSpots");return v?JSON.parse(v):NAV_QUICK_DEFAULT;}catch{return NAV_QUICK_DEFAULT;}});
+  const [navQOpen,setNavQOpen]=useState(false);
+  const [navQCat,setNavQCat]=useState(null);
+  const saveNavQ=ids=>{setNavQIds(ids);try{localStorage.setItem("navQuickSpots",JSON.stringify(ids));}catch{}};
 
   useEffect(()=>{
     (async()=>{try{const r=await fetch("/api/auth/status");if(r.ok)setCredStatus(await r.json());}catch{}})();
@@ -399,6 +414,118 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,co
             {!credStatus?.hasPortal&&<div style={{padding:"0 14px 12px",fontSize:10,color:T.txD,lineHeight:1.5}}>認証情報はこのPC内に暗号化して保存されます。外部には送信されません。</div>}
           </>}
         </div>}
+
+        {/* ═══ ホーム画面 ═══ */}
+        <GHead>ホーム画面</GHead>
+        <GCard>
+          <GRow icon={I.home} label="クイックアクセス" sub={`${qaIds.length}個のショートカットを表示中`}
+            onClick={()=>setQaOpen(p=>!p)}/>
+          {qaOpen&&<div style={{padding:"8px 14px 12px"}}>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              {QA_ALL.map(q=>{
+                const on=qaIds.includes(q.id);
+                const full=!on&&qaIds.length>=4;
+                const portalIcon=<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>;
+                return(
+                  <button key={q.id} onClick={()=>{if(on)saveQa(qaIds.filter(x=>x!==q.id));else if(!full)saveQa([...qaIds,q.id]);}}
+                    style={{display:"flex",alignItems:"center",gap:4,padding:"6px 10px",borderRadius:8,
+                      border:`1px solid ${on?T.accent+"30":T.bd}`,background:on?`${T.accent}14`:"transparent",
+                      color:on?T.accent:full?T.txD:T.txH,fontSize:12,fontWeight:on?600:500,
+                      cursor:full&&!on?"default":"pointer",opacity:full&&!on?.4:1}}>
+                    <span style={{display:"flex",color:on?T.accent:T.txD}}>{q.icon||portalIcon}</span>
+                    {q.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:8}}>
+              <span style={{fontSize:10,color:T.txD}}>{qaIds.length}/4個選択中</span>
+              <button onClick={()=>saveQa(QA_DEFAULT)} style={{background:"none",border:"none",color:T.txD,fontSize:10,cursor:"pointer",padding:0}}>リセット</button>
+            </div>
+          </div>}
+        </GCard>
+
+        {/* ═══ マップ ═══ */}
+        <GHead>マップ</GHead>
+        <GCard>
+          <GRow icon={I.map} label="よく使う場所" sub={`${navQIds.length}件登録中`}
+            onClick={()=>setNavQOpen(p=>!p)}/>
+          {navQOpen&&<div style={{padding:"8px 14px 12px"}}>
+            {/* 登録済みタグ */}
+            {navQIds.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
+              {navQIds.map(id=>{
+                const xBtn=<button onClick={()=>saveNavQ(navQIds.filter(x=>x!==id))} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:0,marginLeft:1}}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>;
+                if(id.startsWith("cat:")){const cat=SPOT_CATS.find(c=>c.id===id.slice(4));if(!cat)return null;return(
+                  <div key={id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:6,background:`${T.accent}14`,border:`1px solid ${T.accent}30`}}>
+                    <span style={{fontSize:11,fontWeight:600,color:T.accent}}>{cat.label}</span>{xBtn}
+                  </div>);}
+                if(id.startsWith("grp:")){const g=SPOT_GROUPS.find(x=>x.prefix===id.slice(4));if(!g)return null;return(
+                  <div key={id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:6,background:`${g.col}18`,border:`1px solid ${g.col}30`}}>
+                    <span style={{fontSize:11,fontWeight:600,color:g.col}}>{g.label}</span>{xBtn}
+                  </div>);}
+                const s=navSpots.find(x=>x.id===id);if(!s)return null;return(
+                  <div key={id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:6,background:`${s.col}18`,border:`1px solid ${s.col}30`}}>
+                    <span style={{fontSize:8,fontWeight:700,color:s.col}}>{s.short}</span>
+                    <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{s.label}</span>{xBtn}
+                  </div>);
+              })}
+            </div>}
+            {/* カテゴリ追加 */}
+            <div style={{fontSize:10,fontWeight:600,color:T.txD,marginBottom:5}}>エリア・カテゴリ</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
+              {SPOT_CATS.filter(c=>navSpots.some(s=>s.cat===c.id)).map(c=>{
+                const cid="cat:"+c.id;const on=navQIds.includes(cid);
+                return <button key={cid} onClick={()=>{if(on)saveNavQ(navQIds.filter(x=>x!==cid));else saveNavQ([...navQIds,cid]);}}
+                  style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${on?T.accent+"30":T.bd}`,background:on?`${T.accent}14`:"transparent",
+                    color:on?T.accent:T.txH,fontSize:12,fontWeight:on?600:500,cursor:"pointer"}}>
+                  {c.label}{on&&<span style={{marginLeft:3,display:"inline-flex",color:T.accent}}>{I.chk}</span>}
+                </button>;
+              })}
+            </div>
+            {/* スポットグループ追加 */}
+            <div style={{fontSize:10,fontWeight:600,color:T.txD,marginBottom:5}}>スポット種別</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
+              {SPOT_GROUPS.map(g=>{
+                const gid="grp:"+g.prefix;const on=navQIds.includes(gid);
+                return <button key={gid} onClick={()=>{if(on)saveNavQ(navQIds.filter(x=>x!==gid));else saveNavQ([...navQIds,gid]);}}
+                  style={{display:"flex",alignItems:"center",gap:4,padding:"5px 10px",borderRadius:8,
+                    border:`1px solid ${on?g.col+"40":T.bd}`,background:on?`${g.col}14`:"transparent",
+                    color:on?g.col:T.txH,fontSize:12,fontWeight:on?600:500,cursor:"pointer"}}>
+                  <div style={{width:8,height:8,borderRadius:2,background:g.col,opacity:on?1:.5}}/>
+                  {g.label}{on&&<span style={{marginLeft:3,display:"inline-flex",color:g.col}}>{I.chk}</span>}
+                </button>;
+              })}
+            </div>
+            {/* 個別スポット */}
+            <div style={{fontSize:10,fontWeight:600,color:T.txD,marginBottom:5}}>個別に追加</div>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}>
+              {SPOT_CATS.filter(c=>navSpots.some(s=>s.cat===c.id)).map(c=>{
+                const on=navQCat===c.id;
+                return <button key={c.id} onClick={()=>setNavQCat(on?null:c.id)}
+                  style={{padding:"3px 8px",borderRadius:6,border:`1px solid ${on?T.accent:T.bd}`,background:on?`${T.accent}14`:"transparent",color:on?T.accent:T.txD,fontSize:10,fontWeight:on?700:500,cursor:"pointer"}}>{c.label}</button>;
+              })}
+            </div>
+            {navQCat&&<div style={{maxHeight:160,overflowY:"auto",display:"flex",flexDirection:"column",gap:2}}>
+              {navSpots.filter(s=>s.cat===navQCat).map(s=>{
+                const on=navQIds.includes(s.id);
+                return <button key={s.id} onClick={()=>{if(on)saveNavQ(navQIds.filter(x=>x!==s.id));else saveNavQ([...navQIds,s.id]);}}
+                  style={{display:"flex",alignItems:"center",gap:6,padding:"6px 8px",borderRadius:6,border:`1px solid ${on?T.accent+"30":T.bd}`,background:on?`${T.accent}10`:"transparent",cursor:"pointer",textAlign:"left"}}>
+                  <div style={{width:18,height:18,borderRadius:4,background:on?s.col:`${s.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <span style={{fontSize:7,fontWeight:700,color:on?"#fff":s.col}}>{s.short}</span>
+                  </div>
+                  <span style={{fontSize:12,fontWeight:on?600:400,color:on?T.txH:T.tx,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.label}</span>
+                  {on&&<span style={{display:"flex",color:T.accent}}>{I.chk}</span>}
+                </button>;
+              })}
+            </div>}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:8}}>
+              <span style={{fontSize:10,color:T.txD}}>{navQIds.filter(id=>!id.startsWith("grp:")).length}件 + {navQIds.filter(id=>id.startsWith("grp:")).length}グループ</span>
+              <button onClick={()=>saveNavQ(NAV_QUICK_DEFAULT)} style={{background:"none",border:"none",color:T.txD,fontSize:10,cursor:"pointer",padding:0}}>リセット</button>
+            </div>
+          </div>}
+        </GCard>
 
         {/* ═══ 一般 ═══ */}
         <GHead>一般</GHead>
