@@ -4,6 +4,7 @@ import { I } from "../icons.jsx";
 import { Av, useLeaflet, Loader } from "../shared.jsx";
 import { useLocationSharing, SPOTS, SPOT_CATS, getSpot, CAMPUS_CENTER, CAMPUS_ZOOM, WAYPOINTS, EDGES, ENTRANCES, AREAS } from "../hooks/useLocationSharing.js";
 import { useNavigation, NAV_SPOTS } from "../hooks/useNavigation.js";
+import { isDemoMode } from "../demoMode.js";
 
 const NON_GEO=new Set(["suzu","home_loc","commute","off_campus","road"]);
 
@@ -1034,6 +1035,28 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob,gpsPos})=>{
   );
 };
 
+/* ── デモ用：仮現在地ピッカー ── */
+const FakeLocPicker=({myLoc,setMyLoc})=>{
+  const [open,setOpen]=useState(false);
+  const cur=SPOTS.find(s=>s.id===myLoc);
+  return <div style={{marginTop:8}}>
+    <button onClick={()=>setOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,border:`1px solid ${T.accent}30`,background:`${T.accent}08`,cursor:"pointer",transition:"all .15s"}}>
+      <span style={{display:"flex",color:T.accent}}>{I.pin}</span>
+      <span style={{fontSize:12,fontWeight:600,color:T.accent}}>仮現在地{cur?`：${cur.label}`:"を選択"}</span>
+      <span style={{display:"flex",color:T.txD,transform:open?"rotate(90deg)":"rotate(-90deg)",transition:"transform .15s"}}>{I.back}</span>
+    </button>
+    {open&&<div style={{marginTop:6,display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:4}}>
+      {SPOTS.filter(s=>s.id&&!NON_GEO.has(s.id)).map(s=>{
+        const sel=myLoc===s.id;
+        return <button key={s.id} onClick={()=>{setMyLoc(s.id);try{localStorage.setItem("myLocation",s.id);}catch{}setOpen(false);}} style={{display:"flex",alignItems:"center",gap:4,padding:"5px 8px",borderRadius:6,border:`1px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}12`:T.bg2,cursor:"pointer",transition:"all .12s"}}>
+          <div style={{width:16,height:16,borderRadius:4,background:sel?s.col:`${s.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:sel?"#fff":s.col}}>{s.short}</span></div>
+          <span style={{fontSize:10,fontWeight:sel?600:400,color:sel?T.accent:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.label}</span>
+        </button>;
+      })}
+    </div>}
+  </div>;
+};
+
 /* ── メインビュー ── */
 export const LocationView=({mob,user={},friendIds})=>{
   const {peers:allPeers,myLoc,setMyLoc}=useLocationSharing({id:user.moodleId||user.id,name:user.name,col:user.col,av:user.av});
@@ -1116,14 +1139,15 @@ export const LocationView=({mob,user={},friendIds})=>{
               <span style={{fontSize:12,fontWeight:600,color:myLoc?T.red:T.green}}>{myLoc?"停止":"共有する"}</span>
             </button>
           </div>
-          {/* GPS 現在地取得 */}
+          {/* GPS 現在地取得 / デモ時は仮現在地選択 */}
+          {isDemoMode()?<FakeLocPicker myLoc={myLoc} setMyLoc={setMyLoc}/>:
           <div style={{display:"flex",alignItems:"center",gap:8,marginTop:8}}>
             <button onClick={gpsStatus==="watching"?stopGps:startGps} disabled={gpsStatus==="loading"} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,border:`1px solid ${gpsStatus==="watching"?`${T.green}60`:`${T.accent}30`}`,background:gpsStatus==="watching"?`${T.green}15`:`${T.accent}08`,cursor:gpsStatus==="loading"?"wait":"pointer",transition:"all .15s",opacity:gpsStatus==="loading"?0.6:1}}>
               <span style={{display:"flex",color:gpsStatus==="watching"?T.green:T.accent}}>{I.tgt}</span>
               <span style={{fontSize:12,fontWeight:600,color:gpsStatus==="watching"?T.green:T.accent}}>{gpsStatus==="loading"?"取得中…":gpsStatus==="watching"?"追従中（タップで停止）":"現在地を追従"}</span>
             </button>
             {gpsMsg&&<span style={{fontSize:11,color:gpsStatus==="error"?T.red:T.green,fontWeight:500}}>{gpsMsg}</span>}
-          </div>
+          </div>}
         </div>
       </div>
 
