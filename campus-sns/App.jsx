@@ -113,7 +113,7 @@ export default function App(){
           setAppState("setup");
         }
       }catch{
-        setAppState("ready");
+        setAppState("setup");
       }
     })();
     return()=>{if(refreshRef.current)clearInterval(refreshRef.current)};

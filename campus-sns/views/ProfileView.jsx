@@ -126,7 +126,7 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,co
   const [notifOpen,setNotifOpen]=useState(false);
   const [ygOpen,setYgOpen]=useState(false);
   const [deptOpen,setDeptOpen]=useState(false);
-  const selSchool=user.myDept?DEPTS[user.myDept]?.school:null;
+  const [deptSchool,setDeptSchool]=useState(()=>user.myDept?DEPTS[user.myDept]?.school||null:null);
   const [cacheCleared,setCacheCleared]=useState(false);
   const [avEdit,setAvEdit]=useState(false);
   const [uploading,setUploading]=useState(false);
@@ -565,29 +565,33 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,co
             onClick={()=>setDeptOpen(p=>!p)}
             right={<span style={{fontSize:13,fontWeight:600,color:user.myDept?DEPTS[user.myDept]?.col||T.accent:T.txD}}>{user.myDept?DEPTS[user.myDept]?.name||user.myDept:"未設定"}</span>}/>
           {deptOpen&&<div style={{padding:"8px 14px 12px"}}>
-            <div style={{fontSize:10,fontWeight:600,color:T.txD,marginBottom:5}}>学院を選択</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
-              {Object.entries(SCHOOLS).map(([sk,sv])=>{const on=selSchool===sk;return(
-                <button key={sk} onClick={e=>{e.stopPropagation();if(on)updateUserPref({myDept:null});else{const first=Object.entries(DEPTS).find(([,d])=>d.school===sk);if(first)updateUserPref({myDept:first[0]});}}}
-                  style={{padding:"7px 14px",borderRadius:8,border:`1px solid ${on?sv.col:T.bd}`,background:on?`${sv.col}18`:"transparent",color:on?sv.col:T.txH,fontSize:12,fontWeight:on?700:500,cursor:"pointer",transition:"all .12s"}}>
-                  {sv.name}
-                </button>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              {Object.entries(SCHOOLS).map(([sk,sv])=>{
+                const on=deptSchool===sk;
+                const hidden=deptSchool&&!on;
+                const ds=on?Object.entries(DEPTS).filter(([,d])=>d.school===sk):[];
+                return(
+                <div key={sk} style={{display:"flex",flexWrap:"wrap",gap:5,transition:"flex-basis .3s cubic-bezier(.4,0,.2,1)",flexBasis:on?"100%":"auto"}}>
+                  <button onClick={e=>{e.stopPropagation();if(on){setDeptSchool(null);updateUserPref({myDept:null});}else setDeptSchool(sk);}}
+                    style={{padding:"7px 14px",borderRadius:8,border:`1px solid ${on?sv.col:T.bd}`,background:on?sv.col:"transparent",color:on?"#fff":T.txH,fontSize:12,fontWeight:on?700:500,cursor:"pointer",
+                      transition:"all .25s cubic-bezier(.4,0,.2,1)",
+                      maxWidth:hidden?0:200,opacity:hidden?0:1,padding:hidden?"7px 0":"7px 14px",margin:hidden?"0 -2.5px":0,overflow:"hidden",whiteSpace:"nowrap"}}>
+                    {sv.name}{on?" ▾":""}
+                  </button>
+                  {ds.map(([prefix,d],i)=>{const sel=user.myDept===prefix;return(
+                    <button key={prefix} onClick={e=>{e.stopPropagation();updateUserPref({myDept:prefix});}}
+                      style={{padding:"7px 14px",borderRadius:8,border:`1px solid ${sel?d.col:T.bd}`,background:sel?`${d.col}20`:"transparent",color:sel?d.col:T.txH,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",
+                        animation:"deptPop .28s cubic-bezier(.34,1.56,.64,1) both",animationDelay:`${i*50}ms`}}>
+                      {d.name}
+                    </button>
+                  );})}
+                </div>
               );})}
             </div>
-            {selSchool&&<>
-              <div style={{fontSize:10,fontWeight:600,color:SCHOOLS[selSchool]?.col||T.txD,marginBottom:5}}>学系を選択</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                {Object.entries(DEPTS).filter(([,d])=>d.school===selSchool).map(([prefix,d])=>{const sel=user.myDept===prefix;return(
-                  <button key={prefix} onClick={e=>{e.stopPropagation();updateUserPref({myDept:prefix});}}
-                    style={{padding:"7px 14px",borderRadius:8,border:`1px solid ${sel?d.col:T.bd}`,background:sel?`${d.col}18`:"transparent",color:sel?d.col:T.txH,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
-                    {d.name}
-                  </button>
-                );})}
-              </div>
-            </>}
             <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",marginTop:8}}>
-              {user.myDept&&<button onClick={()=>updateUserPref({myDept:null})} style={{background:"none",border:"none",color:T.txD,fontSize:10,cursor:"pointer",padding:0}}>リセット</button>}
+              {user.myDept&&<button onClick={()=>{setDeptSchool(null);updateUserPref({myDept:null});}} style={{background:"none",border:"none",color:T.txD,fontSize:10,cursor:"pointer",padding:0}}>リセット</button>}
             </div>
+            <style>{`@keyframes deptPop{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}`}</style>
           </div>}
           <GRow icon={dark?I.moon:I.sun} label="テーマ"
             right={<div style={{display:"flex",gap:4}}>
