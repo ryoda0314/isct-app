@@ -55,6 +55,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
       );})}
     </div>
     <div style={{padding:"6px 6px 10px"}}>
+      <SideItem icon={I.shield} label="管理者" on={view==="admin"} click={()=>setView("admin")}/>
       <SideItem icon={I.user1} label={user.name||"プロフィール"} on={view==="profile"} click={()=>setView("profile")}/>
     </div>
     {moreOpen&&<>
@@ -128,7 +129,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[]})=>{
 // ============================================================
 
 const MNav=({view,setView,ac,unreadN,dmUnread})=>{
-  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles"];
+  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin"];
   const isMore=moreViews.includes(view);
   return(
   <nav style={{display:"flex",background:T.bg2,borderTop:`1px solid ${T.bd}`,flexShrink:0}}>
@@ -160,6 +161,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0})=>{
     ]},
     {title:"その他",items:[
       {id:"bmarks",i:I.bmark,l:"ブックマーク"},
+      {id:"admin",i:I.shield,l:"管理者"},
     ]},
   ];
   const Item=({n})=>(
