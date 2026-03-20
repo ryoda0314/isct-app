@@ -137,6 +137,9 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob,gpsPos})=>{
       zoom:CAMPUS_ZOOM,
       zoomControl:false,
       attributionControl:false,
+      touchRotate:true,
+      shiftKeyRotate:true,
+      rotateControl:true,
     });
     L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{
       maxZoom:22,maxNativeZoom:19,
