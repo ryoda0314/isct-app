@@ -65,6 +65,7 @@ export default function App(){
   const themeMode=themePref==="auto"?(sysDark?"dark":"light"):themePref;
   const dark=isDarkMode(themeMode);
   updateT(themeMode,accentPref);
+  useEffect(()=>{document.documentElement.style.background=T.bg;document.body.style.background=T.bg;},[themeMode,accentPref]);
   const [mockMode,setMockMode]=useState(false);
   const [quarter,setQuarter]=useState(()=>{try{const v=localStorage.getItem("quarter");return v?Number(v):2;}catch{return 2;}});
   const [qDataLive,setQDataLive]=useState(null);
