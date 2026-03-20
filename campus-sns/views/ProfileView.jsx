@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { T, ACCENT_PRESETS } from '../theme.js';
+import { T, ACCENT_PRESETS, THEME_MODES } from '../theme.js';
 import { I } from '../icons.jsx';
 import { Av } from '../shared.jsx';
 import { updateUserPref } from '../hooks/useCurrentUser.js';
@@ -118,7 +118,7 @@ const CredForm=({form,setForm,showPw,showTotp,setShowPw,setShowTotp,onSave,savin
 );
 
 /* ─── メイン ─── */
-export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,accentPref="default",setAccentPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout})=>{
+export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accentPref="default",setAccentPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout})=>{
   const done=asgn.filter(a=>a.st==="completed").length;
   const total=asgn.length;
 
@@ -593,21 +593,59 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,accentP
             </div>
             <style>{`@keyframes deptPop{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}`}</style>
           </div>}
-          <GRow icon={dark?I.moon:I.sun} label="テーマ"
-            right={<div style={{display:"flex",gap:4}}>
-              {[{id:"dark",l:"ダーク"},{id:"light",l:"ライト"},{id:"auto",l:"自動"}].map(f=>(
-                <button key={f.id} onClick={e=>{e.stopPropagation();setDarkPref?.(f.id);}}
-                  style={{padding:"4px 12px",borderRadius:6,border:`1px solid ${darkPref===f.id?T.accent:T.bd}`,background:darkPref===f.id?`${T.accent}14`:"transparent",color:darkPref===f.id?T.accent:T.txD,fontSize:12,fontWeight:darkPref===f.id?700:500,cursor:"pointer",transition:"all .12s"}}>
-                  {f.l}
-                </button>
-              ))}
-            </div>}/>
+          {/* ── テーマ設定セクション ── */}
           <div style={{padding:"10px 14px",borderBottom:`1px solid ${T.bd}`}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-              <span style={{color:T.txD,display:"flex"}}>{I.edit||<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>}</span>
-              <span style={{fontSize:13,fontWeight:600,color:T.txH}}>テーマカラー</span>
+              <span style={{color:T.txD,display:"flex"}}>{dark?I.moon:I.sun}</span>
+              <span style={{fontSize:13,fontWeight:600,color:T.txH}}>テーマ</span>
             </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {/* ベーステーマ */}
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {THEME_MODES.base.map(m=>{
+                const sel=themePref===m.id;
+                return <button key={m.id} onClick={e=>{e.stopPropagation();setThemePref?.(m.id);}}
+                  style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}14`:"transparent",color:sel?T.accent:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
+                  {m.name}
+                </button>;
+              })}
+            </div>
+            {/* Science Tokyo ブランド */}
+            <div style={{marginTop:12,marginBottom:4}}>
+              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>Science Tokyo</span>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {THEME_MODES.brand.map(m=>{
+                const sel=themePref===m.id;
+                return <button key={m.id} onClick={e=>{e.stopPropagation();setThemePref?.(m.id);}}
+                  style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:"transparent",color:sel?m.col:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
+                  <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:m.col,marginRight:6,verticalAlign:"middle"}}/>
+                  {m.name}
+                </button>;
+              })}
+            </div>
+            {/* 季節テーマ */}
+            <div style={{marginTop:12,marginBottom:4}}>
+              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>季節</span>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {THEME_MODES.season.map(m=>{
+                const sel=themePref===m.id;
+                return <button key={m.id} onClick={e=>{e.stopPropagation();setThemePref?.(m.id);}}
+                  style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:"transparent",color:sel?m.col:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
+                  <span style={{marginRight:4}}>{m.emoji}</span>{m.name}
+                </button>;
+              })}
+            </div>
+          </div>
+          {/* ── アクセントカラーセクション ── */}
+          <div style={{padding:"10px 14px",borderBottom:`1px solid ${T.bd}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+              <span style={{color:T.txD,display:"flex"}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12" r="2.5"/><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12a10 10 0 005.012 8.662"/></svg></span>
+              <span style={{fontSize:13,fontWeight:600,color:T.txH}}>テーマカラー</span>
+              {["titech","tmdu","scitokyo","sakura","shinryoku","koyo","yuki"].includes(themePref)&&
+                <span style={{fontSize:10,color:T.txD,fontStyle:"italic"}}>(ブランド・季節テーマでは固定)</span>}
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8,opacity:["titech","tmdu","scitokyo","sakura","shinryoku","koyo","yuki"].includes(themePref)?0.4:1,pointerEvents:["titech","tmdu","scitokyo","sakura","shinryoku","koyo","yuki"].includes(themePref)?"none":"auto",transition:"opacity .15s"}}>
               {ACCENT_PRESETS.map(p=>{
                 const sel=accentPref===p.id;
                 return <button key={p.id} onClick={e=>{e.stopPropagation();setAccentPref?.(p.id);}}
