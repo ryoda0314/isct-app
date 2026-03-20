@@ -66,9 +66,9 @@ const S = {
     display: "flex", flexDirection: "column", alignItems: "center",
     justifyContent: "center",
     padding: "0 20px",
-    touchAction: "pan-y",
+    touchAction: "none",
     WebkitTextSizeAdjust: "100%",
-    overflowX: "hidden",
+    overflow: "hidden",
     boxSizing: "border-box",
   },
   header: {
