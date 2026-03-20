@@ -75,6 +75,9 @@ const S = {
     fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
     display: "flex", flexDirection: "column", alignItems: "center",
     padding: "0 16px 48px",
+    touchAction: "pan-y",
+    WebkitTextSizeAdjust: "100%",
+    overflowX: "hidden",
   },
   header: {
     display: "flex", flexDirection: "column", alignItems: "center",
@@ -334,6 +337,23 @@ export default function InstallPage() {
     const ua = navigator.userAgent;
     setEnv(detect(ua));
     setUrl(window.location.origin);
+
+    // Prevent pinch-zoom on iOS Safari (ignores viewport meta)
+    const preventZoom = (e) => { if (e.touches && e.touches.length > 1) e.preventDefault(); };
+    document.addEventListener("touchmove", preventZoom, { passive: false });
+    // Prevent double-tap zoom
+    let lastTap = 0;
+    const preventDoubleTap = (e) => {
+      const now = Date.now();
+      if (now - lastTap < 300) e.preventDefault();
+      lastTap = now;
+    };
+    document.addEventListener("touchend", preventDoubleTap, { passive: false });
+
+    return () => {
+      document.removeEventListener("touchmove", preventZoom);
+      document.removeEventListener("touchend", preventDoubleTap);
+    };
   }, []);
 
   const handleCopy = useCallback(() => {
