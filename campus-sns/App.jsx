@@ -324,7 +324,6 @@ export default function App(){
         {view==="admin"&&<><MHdr title="管理者" back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
       </div>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread}/>
-      <div style={{height:14,background:T.bg2,flexShrink:0}}/>
       <Toasts/>
       <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}`}</style>
     </div>
