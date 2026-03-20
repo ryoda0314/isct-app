@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { T } from '../theme.js';
+import { T, ACCENT_PRESETS } from '../theme.js';
 import { I } from '../icons.jsx';
 import { Av } from '../shared.jsx';
 import { updateUserPref } from '../hooks/useCurrentUser.js';
@@ -118,7 +118,7 @@ const CredForm=({form,setForm,showPw,showTotp,setShowPw,setShowTotp,onSave,savin
 );
 
 /* ─── メイン ─── */
-export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout})=>{
+export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,accentPref="default",setAccentPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout})=>{
   const done=asgn.filter(a=>a.st==="completed").length;
   const total=asgn.length;
 
@@ -602,6 +602,22 @@ export const ProfileView=({mob,togTheme,dark,darkPref="dark",setDarkPref,asgn,co
                 </button>
               ))}
             </div>}/>
+          <div style={{padding:"10px 14px",borderBottom:`1px solid ${T.bd}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+              <span style={{color:T.txD,display:"flex"}}>{I.edit||<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>}</span>
+              <span style={{fontSize:13,fontWeight:600,color:T.txH}}>テーマカラー</span>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              {ACCENT_PRESETS.map(p=>{
+                const sel=accentPref===p.id;
+                return <button key={p.id} onClick={e=>{e.stopPropagation();setAccentPref?.(p.id);}}
+                  style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"8px 6px",borderRadius:10,border:sel?`2px solid ${p.col}`:`2px solid transparent`,background:sel?`${p.col}14`:"transparent",cursor:"pointer",minWidth:56,transition:"all .15s"}}>
+                  <div style={{width:28,height:28,borderRadius:"50%",background:p.col,boxShadow:sel?`0 0 12px ${p.col}50`:"none",transition:"box-shadow .15s"}}/>
+                  <span style={{fontSize:10,fontWeight:sel?700:400,color:sel?p.col:T.txD,whiteSpace:"nowrap"}}>{p.name}</span>
+                </button>;
+              })}
+            </div>
+          </div>
           <GRow icon={I.bell} label="通知" onClick={()=>setNotifOpen(p=>!p)}
             right={<Toggle on={notifEnabled} onTog={()=>setNotifEnabled(p=>!p)}/>}/>
           {notifOpen&&notifEnabled&&<>
