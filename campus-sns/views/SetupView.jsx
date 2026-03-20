@@ -6,13 +6,12 @@ import { MatrixInput, COLS, ROWS } from "../components/MatrixInput.jsx";
 import { QRScanner } from "../components/QRScanner.jsx";
 
 const API = "";
-const PAGE = {
+const PAGE_BASE = {
   position: "fixed", inset: 0, display: "flex", flexDirection: "column",
-  background: T.bg, color: T.tx,
   fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",
   zIndex: 9999,
 };
-const GLOBAL_CSS = `@keyframes spin{to{transform:rotate(360deg)}}@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}*{box-sizing:border-box;margin:0;padding:0}html,body{background:${T.bg};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}input,textarea{font-size:16px}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}`;
+const mkGlobalCSS = () => `@keyframes spin{to{transform:rotate(360deg)}}@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}*{box-sizing:border-box;margin:0;padding:0}html,body{background:${T.bg};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}input,textarea{font-size:16px}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}`;
 
 /* ─── Icons ─── */
 const ICN = {
@@ -421,7 +420,7 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
   /* ─────────── Connecting overlay ─────────── */
   if (connecting) {
     return (
-      <div style={PAGE}>
+      <div style={{...PAGE_BASE, background: T.bg, color: T.tx}}>
         <SetupHeader onBack={goBack} />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
@@ -435,14 +434,14 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
           </div>
         </div>
         <div style={{ paddingBottom: "env(safe-area-inset-bottom)", background: T.bg, flexShrink: 0 }} />
-        <style>{GLOBAL_CSS}</style>
+        <style>{mkGlobalCSS()}</style>
       </div>
     );
   }
 
   /* ─────────── Main render ─────────── */
   return (
-    <div style={PAGE}>
+    <div style={{...PAGE_BASE, background: T.bg, color: T.tx}}>
       <SetupHeader showBack={showBack} onBack={goBack} progress={progress} />
 
       {/* ═══ Welcome ═══ */}
@@ -643,7 +642,7 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
       )}
 
       <div style={{ paddingBottom: "env(safe-area-inset-bottom)", background: T.bg, flexShrink: 0 }} />
-      <style>{GLOBAL_CSS}</style>
+      <style>{mkGlobalCSS()}</style>
     </div>
   );
 };
