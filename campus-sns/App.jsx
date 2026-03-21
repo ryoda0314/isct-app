@@ -35,6 +35,7 @@ import { EncounterView } from "./views/EncounterView.jsx";
 import { CircleView } from "./views/CircleView.jsx";
 import { AdminView } from "./views/AdminView.jsx";
 import { AcademicCalendarView } from "./views/AcademicCalendarView.jsx";
+import { ACADEMIC_EVENTS } from "./academicCalendar.js";
 import { useFriends } from "./hooks/useFriends.js";
 import { useEncounter } from "./hooks/useEncounter.js";
 import { useGroups } from "./hooks/useGroups.js";
@@ -82,6 +83,7 @@ export default function App(){
   const [myTasks,setMyTasks]=useState(MYTK0);
   const {bmarks,toggle:togBmark}=useBookmarks(ready);
   const [events,setEvents]=useState(EVENTS0);
+  const allEvents=useMemo(()=>[...events,...ACADEMIC_EVENTS],[events]);
   // grades are now fetched inside GradeView directly
   const [reviews,setReviews]=useState(REVIEWS0);
   const [myEvents,setMyEvents]=useState(MYEVENTS0);
@@ -279,7 +281,7 @@ export default function App(){
           {view==="grades"&&(L?<LockedView title="成績"/>:<GradeView mob={false}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
           {view==="calendar"&&(L?<LockedView title="カレンダー"/>:<CalendarView myEvents={myEvents} setMyEvents={setMyEvents} asgn={asgn} courses={allCourses} qd={qd} mob={false}/>)}
-          {view==="events"&&<EventView events={events} mob={false}/>}
+          {view==="events"&&<EventView events={allEvents} mob={false}/>}
           {view==="reviews"&&(L?<LockedView title="授業レビュー"/>:<ReviewView reviews={reviews} setReviews={setReviews} mob={false} courses={allCourses}/>)}
           {view==="bmarks"&&(L?<LockedView title="ブックマーク"/>:<BookmarkView bmarks={bmarks} mob={false} setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/>)}
           {view==="search"&&(L?<LockedView title="検索"/>:<SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses}/>)}
@@ -315,7 +317,7 @@ export default function App(){
         {view==="grades"&&(L?<><MHdr title="成績" back={mBack}/><LockedView title="成績"/></>:<><MHdr title="成績" back={mBack}/><GradeView mob/></>)}
         {view==="pomo"&&<><MHdr title="ポモドーロ" back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
         {view==="calendar"&&(L?<><MHdr title="カレンダー" back={mBack}/><LockedView title="カレンダー"/></>:<><MHdr title="カレンダー" back={mBack}/><CalendarView myEvents={myEvents} setMyEvents={setMyEvents} asgn={asgn} courses={allCourses} qd={qd} mob/></>)}
-        {view==="events"&&<><MHdr title="イベント" back={mBack}/><EventView events={events} mob/></>}
+        {view==="events"&&<><MHdr title="イベント" back={mBack}/><EventView events={allEvents} mob/></>}
         {view==="reviews"&&(L?<><MHdr title="授業レビュー" back={mBack}/><LockedView title="授業レビュー"/></>:<><MHdr title="授業レビュー" back={mBack}/><ReviewView reviews={reviews} setReviews={setReviews} mob courses={allCourses}/></>)}
         {view==="bmarks"&&(L?<><MHdr title="ブックマーク" back={mBack}/><LockedView title="ブックマーク"/></>:<><MHdr title="ブックマーク" back={mBack}/><BookmarkView bmarks={bmarks} mob setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/></>)}
         {view==="search"&&(L?<><MHdr title="検索" back={mBack}/><LockedView title="検索"/></>:<><MHdr title="検索" back={mBack}/><SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses}/></>)}

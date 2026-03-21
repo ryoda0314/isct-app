@@ -273,3 +273,15 @@ export function getAcademicInfo(date) {
   const period = P.find(p => key >= p.s && key <= p.e) || null;
   return { items, period };
 }
+
+// イベントビュー用の大学行事データ
+export const ACADEMIC_EVENTS = [
+  { id:"acal_1", title:"新入生総合オリエンテーション（学士課程）", desc:"学士課程新入生向けの総合オリエンテーション。履修案内・キャンパスツアー等。", cat:"academic", date:new Date(2026,3,1,9,0), loc:"大岡山キャンパス" },
+  { id:"acal_2", title:"入学式（4月）", desc:"2026年度 春入学式。", cat:"academic", date:new Date(2026,3,2,10,0), loc:"大岡山キャンパス" },
+  { id:"acal_3", title:"ホームカミングデイ in 大岡山", desc:"卒業生・在学生・教職員の交流イベント。当日は授業休講。", cat:"community", date:new Date(2026,4,23,10,0), loc:"大岡山キャンパス" },
+  { id:"acal_4", title:"学位記授与式（9月）", desc:"9月期 学位記授与式。", cat:"academic", date:new Date(2026,8,24,10,0), loc:"大岡山キャンパス" },
+  { id:"acal_5", title:"入学式（10月）", desc:"2026年度 秋入学式。", cat:"academic", date:new Date(2026,8,30,10,0), loc:"大岡山キャンパス" },
+  { id:"acal_6", title:"大学祭（工大祭）", desc:"大岡山キャンパスにて大学祭開催。10/9準備、10/10-11本番、10/12片付け。期間中は授業休講。", cat:"festival", date:new Date(2026,9,10,10,0), end:new Date(2026,9,11,18,0), loc:"大岡山キャンパス" },
+  { id:"acal_7", title:"一般選抜「前期日程」", desc:"一般選抜 前期日程入試。1/22-23は入試関係業務のため授業休講。", cat:"exam", date:new Date(2027,1,25,9,0), end:new Date(2027,1,26,17,0), loc:"大岡山キャンパス" },
+  { id:"acal_8", title:"学位記授与式（3月）", desc:"3月期 学位記授与式。", cat:"academic", date:new Date(2027,2,26,10,0), loc:"大岡山キャンパス" },
+];

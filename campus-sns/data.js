@@ -18,7 +18,7 @@ const NOTIF0=[];
 const MYEVENTS0=[];
 
 // Event category config (not data)
-const evCat={contest:{l:"コンテスト",c:"#6375f0"},open_lab:{l:"研究室公開",c:"#a855c7"},career:{l:"就活",c:"#d4843e"},community:{l:"コミュニティ",c:"#3dae72"},exam:{l:"試験",c:"#e5534b"}};
+const evCat={contest:{l:"コンテスト",c:"#6375f0"},open_lab:{l:"研究室公開",c:"#a855c7"},career:{l:"就活",c:"#d4843e"},community:{l:"コミュニティ",c:"#3dae72"},exam:{l:"試験",c:"#e5534b"},academic:{l:"大学行事",c:"#6366f1"},festival:{l:"大学祭",c:"#f59e0b"}};
 
 // 理工学系の学院・系マスタ（東京科学大学 旧東工大）
 const SCHOOLS={
