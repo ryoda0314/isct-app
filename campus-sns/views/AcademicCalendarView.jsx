@@ -25,9 +25,9 @@ export const AcademicCalendarView=({mob})=>{
 
   const months=useMemo(()=>{
     const arr=[];
-    for(let i=0;i<12;i++){
-      const year=i<9?2026:2027;
-      const month=(3+i)%12;
+    for(let i=0;i<14;i++){
+      const year=i<11?2026:2027;
+      const month=(1+i)%12;
       const dim=new Date(year,month+1,0).getDate();
       const entries=[];
       let prevPeriod=null;
