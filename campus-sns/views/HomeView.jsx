@@ -5,6 +5,7 @@ import { I } from "../icons.jsx";
 import { NOW, uDue, pDone } from "../utils.jsx";
 import { Tag } from "../shared.jsx";
 import { useLocationSharing, getSpot } from "../hooks/useLocationSharing.js";
+import { getAcademicInfo } from "../academicCalendar.js";
 
 // SVG weather icons — clean, consistent style
 const WxIcon=({type,sz=20})=>{const s={width:sz,height:sz,display:"inline-block",verticalAlign:"middle",flexShrink:0};
@@ -223,6 +224,39 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
         );})():null}
         </div>
       </div>
+
+      {/* ── 学年暦情報 ── */}
+      {(()=>{
+        const acal=getAcademicInfo(now);
+        const badges=[];
+        if(acal.period){
+          const pc={exam:"#d97706",break:"#10b981",prep:"#6366f1"}[acal.period.t]||T.accent;
+          badges.push({label:acal.period.l,col:pc,icon:acal.period.t==="break"?"break":acal.period.t==="exam"?"exam":"prep"});
+        }
+        acal.items.forEach(it=>{
+          if(it.type==="class") badges.push({label:`${it.q}Q ${it.dow}曜授業 第${it.n}回${it.sub?" (振替)":""}`,col:T.accent,icon:"class"});
+          else if(it.type==="holiday") badges.push({label:`祝日: ${it.label}`,col:"#ef4444",icon:"holiday"});
+          else if(it.type==="event") badges.push({label:it.label,col:"#0ea5e9",icon:"event"});
+          else if(it.type==="cancel") badges.push({label:`${it.q}Q 休講: ${it.label}`,col:"#6b7280",icon:"cancel"});
+          else if(it.type==="exam") badges.push({label:`${it.q}Q ${it.label}`,col:"#d97706",icon:"exam"});
+        });
+        if(badges.length===0) return null;
+        const icons={
+          class:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>,
+          holiday:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>,
+          event:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+          cancel:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
+          exam:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+          break:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
+          prep:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+        };
+        return <div style={{padding:"0 16px 6px",display:"flex",flexWrap:"wrap",gap:4}}>
+          {badges.map((b,i)=><div key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:6,fontSize:11,fontWeight:600,background:`${b.col}15`,color:b.col,lineHeight:1.3}}>
+            <span style={{display:"flex",flexShrink:0,color:b.col}}>{icons[b.icon]}</span>
+            {b.label}
+          </div>)}
+        </div>;
+      })()}
 
       {/* ── クイックアクセス ── */}
       <div style={{padding:"2px 16px 6px",display:"grid",gridTemplateColumns:`repeat(${qaItems.length},1fr)`,gap:6}}>
