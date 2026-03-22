@@ -3,6 +3,8 @@ import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { NOW, uDue, pDone, tMap, aMap, sMap, pCol, fT, fDS, fDF } from "../utils.jsx";
 import { Av, Tag, Bar, Btn, Tx } from "../shared.jsx";
+import { isNative } from "../capacitor.js";
+import { openLmsPage } from "../plugins/portalWebView.js";
 
 const DAYS=["月","火","水","木","金","土","日"];
 const dKey=d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -53,6 +55,22 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
   const togTk=id=>setMyTasks?.(p=>p?.map(t=>t.id===id?{...t,d:!t.d}:t));
   const delTk=id=>setMyTasks?.(p=>p?.filter(t=>t.id!==id));
   const addTk=()=>{if(!ntxt.trim()||!setMyTasks)return;const due=ndue?new Date(ndue+"T23:59:00"):null;setMyTasks(p=>[...p,{id:`mt_${Date.now()}`,t:ntxt.trim(),d:false,due}]);setNtxt("");setNdue("");setAddExpand(false);};
+  const [lmsLoading,setLmsLoading]=useState(false);
+  const goLms=async(url)=>{
+    if(!url)return;
+    setLmsLoading(true);
+    try{
+      if(isNative()){
+        const r=await fetch("/api/auth/credentials?type=isct");
+        if(!r.ok)throw new Error("認証情報の取得に失敗");
+        const{userId,password,totpCode}=await r.json();
+        await openLmsPage(url,{userId,password,totpCode});
+      }else{
+        window.open(url,'_blank');
+      }
+    }catch(e){console.error('[LMS]',e);}
+    setLmsLoading(false);
+  };
 
   // Detail (mobile: full page)
   if(sel&&mob){
@@ -74,9 +92,9 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}><Bar p={p} h={6}/><span style={{fontSize:12,fontWeight:600,color:p>=100?T.green:T.accent}}>{p}%</span></div>
           {a.subs.map(s=><div key={s.id} onClick={()=>togSub(a.id,s.id)} style={{display:"flex",alignItems:"center",gap:10,padding:mob?"10px":"8px 10px",borderRadius:8,marginBottom:3,background:s.d?`${T.green}06`:T.bg2,border:`1px solid ${s.d?`${T.green}16`:T.bd}33`,cursor:"pointer"}}><div style={{width:20,height:20,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",background:s.d?T.green:"transparent",border:s.d?"none":`2px solid ${T.bdL}`,color:"#fff",flexShrink:0}}>{s.d&&I.chk}</div><span style={{fontSize:14,color:s.d?T.txD:T.txH,textDecoration:s.d?"line-through":"none"}}>{s.t}</span></div>)}
         </div>}
-        {a.url&&<button onClick={()=>window.open(a.url,'_blank')} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 14px",borderRadius:8,border:`1px solid ${T.accent}33`,background:`${T.accent}08`,color:T.accent,fontSize:13,fontWeight:500,cursor:"pointer",width:"100%",justifyContent:"center",marginBottom:6}}>
+        {a.url&&<button onClick={()=>goLms(a.url)} disabled={lmsLoading} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 14px",borderRadius:8,border:`1px solid ${T.accent}33`,background:`${T.accent}08`,color:T.accent,fontSize:13,fontWeight:500,cursor:lmsLoading?"wait":"pointer",width:"100%",justifyContent:"center",marginBottom:6,opacity:lmsLoading?.6:1}}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-          LMSで課題を開く
+          {lmsLoading?"ログイン中...":"LMSで課題を開く"}
         </button>}
         {navCourse&&<button onClick={()=>navCourse(a.cid)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 14px",borderRadius:8,border:`1px solid ${co?.col}33`,background:`${co?.col}08`,color:co?.col,fontSize:13,fontWeight:500,cursor:"pointer",width:"100%",justifyContent:"center"}}>{co?.code} のチャンネルへ {I.arr}</button>}
       </div>
@@ -337,9 +355,9 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
                 <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}><Bar p={p} h={6}/><span style={{fontSize:12,fontWeight:600,color:p>=100?T.green:T.accent}}>{p}%</span></div>
                 {a.subs.map(s=><div key={s.id} onClick={()=>togSub(a.id,s.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:8,marginBottom:3,background:s.d?`${T.green}06`:T.bg2,border:`1px solid ${s.d?`${T.green}16`:T.bd}33`,cursor:"pointer"}}><div style={{width:18,height:18,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",background:s.d?T.green:"transparent",border:s.d?"none":`2px solid ${T.bdL}`,color:"#fff",flexShrink:0}}>{s.d&&I.chk}</div><span style={{fontSize:13,color:s.d?T.txD:T.txH,textDecoration:s.d?"line-through":"none"}}>{s.t}</span></div>)}
               </div>}
-              {a.url&&<button onClick={()=>window.open(a.url,'_blank')} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 12px",borderRadius:8,border:`1px solid ${T.accent}33`,background:`${T.accent}08`,color:T.accent,fontSize:12,fontWeight:500,cursor:"pointer",width:"100%",justifyContent:"center",marginBottom:6}}>
+              {a.url&&<button onClick={()=>goLms(a.url)} disabled={lmsLoading} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 12px",borderRadius:8,border:`1px solid ${T.accent}33`,background:`${T.accent}08`,color:T.accent,fontSize:12,fontWeight:500,cursor:lmsLoading?"wait":"pointer",width:"100%",justifyContent:"center",marginBottom:6,opacity:lmsLoading?.6:1}}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                LMSで課題を開く
+                {lmsLoading?"ログイン中...":"LMSで課題を開く"}
               </button>}
               {navCourse&&<button onClick={()=>navCourse(a.cid)} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 12px",borderRadius:8,border:`1px solid ${co?.col}33`,background:`${co?.col}08`,color:co?.col,fontSize:12,fontWeight:500,cursor:"pointer",width:"100%",justifyContent:"center"}}>{co?.code} のチャンネルへ {I.arr}</button>}
             </>;

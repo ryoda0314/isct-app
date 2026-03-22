@@ -79,6 +79,29 @@ export async function openIsctPortal({ userId, password, totpCode }) {
 }
 
 /**
+ * Open an LMS page with SSO auto-login.
+ * On native, uses the portal WebView with ISCT SSO.
+ * On web, opens the URL in a new tab.
+ *
+ * @param {string} url - LMS page URL
+ * @param {Object} credentials - { userId, password, totpCode }
+ */
+export async function openLmsPage(url, { userId, password, totpCode }) {
+  if (!isNative()) {
+    window.open(url, '_blank');
+    return;
+  }
+
+  await ensurePortalPlugin();
+  if (Portal) {
+    await Portal.openLmsPage({ url, userId, password, totpCode });
+  } else {
+    const { Browser } = await import('@capacitor/browser');
+    await Browser.open({ url });
+  }
+}
+
+/**
  * Check if the native portal WebView is available.
  */
 export function isNativePortalAvailable() {
