@@ -250,3 +250,15 @@ alter table user_credentials enable row level security;
 alter table messages add column if not exists poll_options jsonb;
 alter table messages add column if not exists poll_votes jsonb default '{}';
 alter table messages add column if not exists poll_settings jsonb default '{}';
+
+-- 24. email_auth: メールアドレス認証連携
+create table if not exists email_auth (
+  email       text primary key,
+  login_id    text not null,
+  moodle_id   bigint not null references profiles(moodle_id),
+  pw_hash     text not null,
+  created_at  timestamptz default now()
+);
+create unique index if not exists idx_email_auth_login on email_auth(login_id);
+alter table email_auth enable row level security;
+-- anon アクセス不可 (service_role のみ)

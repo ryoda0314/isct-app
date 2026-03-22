@@ -167,6 +167,14 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   const [portalDeleting,setPortalDeleting]=useState(false);
   const [showPortalPw,setShowPortalPw]=useState(false);
 
+  // メールアドレス連携
+  const [emailOpen,setEmailOpen]=useState(false);
+  const [emailForm,setEmailForm]=useState({email:"",password:""});
+  const [emailSaving,setEmailSaving]=useState(false);
+  const [emailMsg,setEmailMsg]=useState(null);
+  const [emailDeleting,setEmailDeleting]=useState(false);
+  const [showEmailPw,setShowEmailPw]=useState(false);
+
   // 表示設定
   const [fontSize,setFontSize]=useState(()=>{try{return localStorage.getItem("fontSize")||"medium";}catch{return "medium";}});
   const saveFontSize=v=>{setFontSize(v);try{localStorage.setItem("fontSize",v);}catch{}};
@@ -240,6 +248,34 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
       setPortalMsg({type:"ok",text:"ポータル認証情報を削除しました"});
     }catch{setPortalMsg({type:"err",text:"削除に失敗しました"});}
     setPortalDeleting(false);
+  };
+
+  const handleEmailLink=async()=>{
+    const {email,password}=emailForm;
+    if(!email||!password){setEmailMsg({type:"err",text:"メールアドレスとパスワードを入力してください"});return;}
+    if(password.length<8){setEmailMsg({type:"err",text:"パスワードは8文字以上にしてください"});return;}
+    setEmailSaving(true);setEmailMsg(null);
+    try{
+      const r=await fetch("/api/auth/email/link",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.error||"連携に失敗しました");
+      setEmailMsg({type:"ok",text:"メールアドレスを連携しました"});
+      setCredStatus(p=>({...p,hasEmail:true}));
+      setEmailForm({email:"",password:""});
+      setEmailOpen(false);
+    }catch(e){setEmailMsg({type:"err",text:e.message});}
+    setEmailSaving(false);
+  };
+
+  const handleEmailUnlink=async()=>{
+    if(!confirm("メールアドレス連携を解除しますか？\nメアド+パスワードでのログインができなくなります。"))return;
+    setEmailDeleting(true);setEmailMsg(null);
+    try{
+      await fetch("/api/auth/email/link",{method:"DELETE"});
+      setCredStatus(p=>({...p,hasEmail:false}));
+      setEmailMsg({type:"ok",text:"メール連携を解除しました"});
+    }catch{setEmailMsg({type:"err",text:"解除に失敗しました"});}
+    setEmailDeleting(false);
   };
 
   const handleClearCache=()=>{
@@ -350,10 +386,14 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             label="ISCT LMS" sub={credStatus?.hasCredentials?"ID・パスワード・TOTPキー 設定済み":"未設定 — タップして設定"}
             onClick={()=>setCredOpen(p=>!p)}
             right={credStatus&&<Badge ok={credStatus.hasCredentials} label={credStatus.hasCredentials?"接続中":"未接続"}/>}/>
-          <GRow last icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
+          <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
             label="Titech Portal" sub={credStatus?.hasPortal?"アカウント・パスワード・マトリクス 設定済み":"未設定 — タップして設定"}
             onClick={()=>setPortalOpen(p=>!p)}
             right={credStatus&&<Badge ok={credStatus.hasPortal} label={credStatus.hasPortal?"接続中":"未接続"}/>}/>
+          <GRow last icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>}
+            label="メールアドレス連携" sub={credStatus?.hasEmail?"メアド+パスワードでログイン可能":"未設定 — タップして設定"}
+            onClick={()=>setEmailOpen(p=>!p)}
+            right={credStatus&&<Badge ok={credStatus.hasEmail} label={credStatus.hasEmail?"連携済":"未連携"}/>}/>
         </GCard>
 
         {credOpen&&<div style={{marginTop:6,borderRadius:12,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
@@ -419,6 +459,42 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               </button>
             </div>
             {!credStatus?.hasPortal&&<div style={{padding:"0 14px 12px",fontSize:10,color:T.txD,lineHeight:1.5}}>認証情報はこのPC内に暗号化して保存されます。外部には送信されません。</div>}
+          </>}
+        </div>}
+
+        {emailOpen&&<div style={{marginTop:6,borderRadius:12,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
+          {emailMsg&&<div style={{margin:"10px 14px 0",padding:"8px 10px",borderRadius:8,background:emailMsg.type==="ok"?`${T.green}14`:`${T.red}14`,color:emailMsg.type==="ok"?T.green:T.red,fontSize:12,fontWeight:500}}>{emailMsg.text}</div>}
+
+          {credStatus?.hasEmail?<div style={{padding:"14px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:10,borderRadius:8,background:`${T.green}08`,border:`1px solid ${T.green}20`,marginBottom:10}}>
+              <div style={{width:8,height:8,borderRadius:4,background:T.green,flexShrink:0}}/>
+              <span style={{fontSize:12,color:T.green,fontWeight:600}}>メールアドレス連携済み</span>
+            </div>
+            <div style={{fontSize:12,color:T.txD,marginBottom:12,lineHeight:1.5}}>メールアドレスとパスワードでログインできます。再設定で上書き、解除で無効化できます。</div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setCredStatus(p=>({...p,hasEmail:false,_emailEditing:true}))}
+                style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                再設定
+              </button>
+              <button onClick={handleEmailUnlink} disabled={emailDeleting}
+                style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${T.red}30`,background:`${T.red}08`,color:T.red,fontSize:13,fontWeight:600,cursor:emailDeleting?"wait":"pointer",opacity:emailDeleting?.5:1}}>
+                {emailDeleting?"解除中...":"連携解除"}
+              </button>
+            </div>
+          </div>:<>
+            {credStatus?._emailEditing&&<div style={{padding:"10px 14px 0"}}>
+              <button onClick={()=>setCredStatus(p=>({...p,hasEmail:true,_emailEditing:false}))}
+                style={{background:"none",border:"none",color:T.txD,fontSize:12,cursor:"pointer",padding:0}}>← 戻る</button>
+            </div>}
+            <div style={{display:"grid",gap:10,padding:"12px 14px"}}>
+              <Inp label="メールアドレス" type="email" value={emailForm.email} onChange={e=>setEmailForm(p=>({...p,email:e.target.value}))} placeholder="example@m.isct.ac.jp"/>
+              <PwInp label="パスワード (8文字以上)" value={emailForm.password} onChange={e=>setEmailForm(p=>({...p,password:e.target.value}))} placeholder="ログイン用パスワードを設定" show={showEmailPw} onTogShow={()=>setShowEmailPw(p=>!p)}/>
+              <button onClick={handleEmailLink} disabled={emailSaving}
+                style={{padding:"10px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:emailSaving?"wait":"pointer",opacity:emailSaving?.6:1,transition:"opacity .15s"}}>
+                {emailSaving?"連携中...":"メールアドレスを連携"}
+              </button>
+            </div>
+            <div style={{padding:"0 14px 12px",fontSize:10,color:T.txD,lineHeight:1.5}}>連携すると、ISCT認証が使えない環境でもメアド+パスワードでログインできます。</div>
           </>}
         </div>}
 

@@ -34,15 +34,26 @@ export async function GET(request) {
 
     if (session) {
       let hasPortal = false;
+      let hasEmail = false;
       try {
         const creds = await loadCredentials(session.loginId);
         hasPortal = !!(creds.portalUserId && creds.portalPassword && creds.matrix);
+      } catch {}
+      try {
+        const sb = getSupabaseAdmin();
+        const { data } = await sb
+          .from('email_auth')
+          .select('email')
+          .eq('login_id', session.loginId)
+          .single();
+        hasEmail = !!data?.email;
       } catch {}
       return NextResponse.json({
         hasCredentials: true,
         isAuthenticated: isAuthenticated(session.loginId),
         loginId: session.loginId,
         hasPortal,
+        hasEmail,
       });
     }
 

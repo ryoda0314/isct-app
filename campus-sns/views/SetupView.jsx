@@ -384,6 +384,10 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
   const [portalPw, setPortalPw] = useState("");
   const [matrix, setMatrix] = useState({});
 
+  const [emailLogin, setEmailLogin] = useState("");
+  const [emailPw, setEmailPw] = useState("");
+  const [loginTab, setLoginTab] = useState("isct"); // "isct" | "email"
+
   const [yearGroup, setYearGroup] = useState(null);
   const [school, setSchool] = useState(null);
   const [showYG, setShowYG] = useState(false);
@@ -406,7 +410,7 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
 
   const goBack = () => {
     setError(null);
-    if (mode === "login") { setMode(null); return; }
+    if (mode === "login") { setMode(null); setLoginTab("isct"); return; }
     if (mode === "signup" && step === 0) { setMode(null); return; }
     if (mode === "signup") { setStep(s => s - 1); }
   };
@@ -431,6 +435,25 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.detail || data.error);
       if (yearGroup) updateUserPref({ yearGroup, ...(school ? { school } : {}) });
+      onComplete();
+    } catch (err) {
+      setError(err.message);
+      setConnecting(false);
+    }
+  };
+
+  const handleEmailLogin = async () => {
+    if (!emailLogin || !emailPw) { setError("メールアドレスとパスワードを入力してください"); return; }
+    setConnecting(true);
+    setError(null);
+    try {
+      const resp = await fetch(`${API}/api/auth/email/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailLogin, password: emailPw }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "ログインに失敗しました");
       onComplete();
     } catch (err) {
       setError(err.message);
@@ -572,20 +595,55 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
         <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           <div style={bodyStyle}>
             <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>ログイン</h2>
-            <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>ISCT LMSのアカウントでログインします</p>
+            <p style={{ fontSize: 13, color: T.txD, margin: "0 0 16px", lineHeight: 1.5 }}>アカウントにログインします</p>
+
+            {/* ── タブ切り替え ── */}
+            <div style={{ display: "flex", gap: 0, marginBottom: 18, borderRadius: 10, background: T.bg3, padding: 3 }}>
+              {[["isct","ISCT LMS"],["email","メールアドレス"]].map(([k,l])=>(
+                <button key={k} onClick={()=>{setLoginTab(k);setError(null);}}
+                  style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none",
+                    background: loginTab===k ? T.bg2 : "transparent",
+                    color: loginTab===k ? T.txH : T.txD,
+                    fontSize: 13, fontWeight: 600, cursor: "pointer",
+                    boxShadow: loginTab===k ? "0 1px 3px rgba(0,0,0,.08)" : "none",
+                    transition: "all .15s",
+                  }}>{l}</button>
+              ))}
+            </div>
+
             <ErrorBanner error={error} />
-            <div style={cardStyle}>
-              <InputField label="Science Tokyo ID" value={isctId} onChange={e => setIsctId(e.target.value)} placeholder="abcd1234" />
-              <InputField label="パスワード" value={isctPw} onChange={e => setIsctPw(e.target.value)} placeholder="ISCTのパスワード" type="password" showToggle />
-              <TotpBlock totpSecret={totpSecret} setTotpSecret={setTotpSecret} showQR={showQR} setShowQR={setShowQR} />
-            </div>
-            <div style={{ marginTop: 24 }}>
-              <button onClick={handleSubmit} disabled={!hasIsct} style={primaryBtnStyle(hasIsct)}>ログイン</button>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 14 }}>
-              <span style={{ color: T.txD, display: "flex" }}>{ICN.lock}</span>
-              <p style={{ fontSize: 11, color: T.txD, lineHeight: 1.6 }}>認証情報はAES-256-GCMで暗号化して保存されます</p>
-            </div>
+
+            {/* ── ISCT LMS ログイン ── */}
+            {loginTab === "isct" && <>
+              <div style={cardStyle}>
+                <InputField label="Science Tokyo ID" value={isctId} onChange={e => setIsctId(e.target.value)} placeholder="abcd1234" />
+                <InputField label="パスワード" value={isctPw} onChange={e => setIsctPw(e.target.value)} placeholder="ISCTのパスワード" type="password" showToggle />
+                <TotpBlock totpSecret={totpSecret} setTotpSecret={setTotpSecret} showQR={showQR} setShowQR={setShowQR} />
+              </div>
+              <div style={{ marginTop: 24 }}>
+                <button onClick={handleSubmit} disabled={!hasIsct} style={primaryBtnStyle(hasIsct)}>ログイン</button>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 14 }}>
+                <span style={{ color: T.txD, display: "flex" }}>{ICN.lock}</span>
+                <p style={{ fontSize: 11, color: T.txD, lineHeight: 1.6 }}>認証情報はAES-256-GCMで暗号化して保存されます</p>
+              </div>
+            </>}
+
+            {/* ── メールアドレス ログイン ── */}
+            {loginTab === "email" && <>
+              <div style={cardStyle}>
+                <InputField label="メールアドレス" value={emailLogin} onChange={e => setEmailLogin(e.target.value)} placeholder="example@m.isct.ac.jp" type="email" />
+                <InputField label="パスワード" value={emailPw} onChange={e => setEmailPw(e.target.value)} placeholder="パスワード" type="password" showToggle />
+              </div>
+              <div style={{ marginTop: 24 }}>
+                <button onClick={handleEmailLogin} disabled={!emailLogin||!emailPw} style={primaryBtnStyle(emailLogin&&emailPw)}>ログイン</button>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 14 }}>
+                <span style={{ color: T.txD, display: "flex" }}>{ICN.lock}</span>
+                <p style={{ fontSize: 11, color: T.txD, lineHeight: 1.6 }}>事前にISCTアカウントでメールアドレス連携が必要です</p>
+              </div>
+            </>}
+
             <div style={{ textAlign: "center", marginTop: 20 }}>
               <span style={{ fontSize: 13, color: T.txD }}>アカウントをお持ちでない方は</span>
               <button onClick={() => { setMode("signup"); setStep(0); setError(null); }} style={{ background: "none", border: "none", color: T.accent, fontSize: 13, fontWeight: 600, cursor: "pointer", padding: "0 4px" }}>新規登録</button>
