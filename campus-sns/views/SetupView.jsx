@@ -494,8 +494,8 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
             <div style={{ width: 48, height: 48, border: `3px solid ${T.bd}`, borderTop: `3px solid ${T.accent}`, borderRadius: "50%", animation: "spin 1s linear infinite" }} />
             <p style={{ color: T.txH, fontSize: 15, fontWeight: 600, margin: 0 }}>接続中...</p>
             <p style={{ color: T.txD, fontSize: 13, margin: 0, textAlign: "center", lineHeight: 1.6 }}>
-              {hasIsct ? "ISCT SSO認証を実行しています" : "認証情報を保存しています"}
-              <br />初回は30秒ほどかかります
+              {loginTab === "email" ? "メールアドレスで認証中..." : hasIsct ? "ISCT SSO認証を実行しています" : "認証情報を保存しています"}
+              {loginTab !== "email" && <><br />初回は30秒ほどかかります</>}
             </p>
             {error && <div style={{ padding: "10px 14px", borderRadius: 10, background: `${T.red}18`, color: T.red, fontSize: 13, width: "100%", maxWidth: 300, textAlign: "center" }}>{error}</div>}
           </div>
