@@ -34,3 +34,4 @@ public/swe-worker-*.js
 android/
 ios/
 www/
+.vercel
