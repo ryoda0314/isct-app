@@ -293,10 +293,12 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
     if(!confirm("メールアドレス連携を解除しますか？\nメアド+パスワードでのログインができなくなります。"))return;
     setEmailDeleting(true);setEmailMsg(null);
     try{
-      await fetch("/api/auth/email/link",{method:"DELETE"});
+      const r=await fetch("/api/auth/email/link",{method:"DELETE"});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.error||"解除に失敗しました");
       setCredStatus(p=>({...p,hasEmail:false}));
       setEmailMsg({type:"ok",text:"メール連携を解除しました"});
-    }catch{setEmailMsg({type:"err",text:"解除に失敗しました"});}
+    }catch(e){setEmailMsg({type:"err",text:e.message||"解除に失敗しました"});}
     setEmailDeleting(false);
   };
 
