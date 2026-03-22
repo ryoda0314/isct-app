@@ -221,7 +221,26 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               </div>
             </>}
           </div>
-        );})():null}
+        );})():<div style={{flex:1,minWidth:0}}>
+            <style>{`@keyframes wxPulse{0%,100%{opacity:.4}50%{opacity:.8}}`}</style>
+            <div style={{borderRadius:14,overflow:"hidden",background:T.bg2,border:`1px solid ${T.bd}`,animation:"wxPulse 1.5s ease-in-out infinite"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px"}}>
+                <div style={{width:42,height:42,borderRadius:12,background:T.bg3,flexShrink:0}}/>
+                <div style={{display:"flex",flexDirection:"column",gap:6,flex:1}}>
+                  <div style={{width:80,height:16,borderRadius:4,background:T.bg3}}/>
+                  <div style={{width:120,height:10,borderRadius:3,background:T.bg3}}/>
+                </div>
+                <div style={{width:40,height:14,borderRadius:3,background:T.bg3,flexShrink:0}}/>
+              </div>
+              <div style={{display:"flex",gap:2,padding:"0 6px 8px"}}>
+                {[...Array(5)].map((_,i)=><div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"4px 7px",minWidth:34,gap:4}}>
+                  <div style={{width:20,height:8,borderRadius:3,background:T.bg3}}/>
+                  <div style={{width:16,height:16,borderRadius:8,background:T.bg3}}/>
+                  <div style={{width:18,height:8,borderRadius:3,background:T.bg3}}/>
+                </div>)}
+              </div>
+            </div>
+          </div>}
         </div>
       </div>
 

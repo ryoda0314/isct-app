@@ -101,8 +101,13 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
             {[{id:"month",l:"月表示"},{id:"timeline",l:"タイムライン"}].map(v=><button key={v.id} onClick={()=>setCalMode(v.id)} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${calMode===v.id?T.accent:T.bd}`,background:calMode===v.id?`${T.accent}16`:"transparent",color:calMode===v.id?T.accent:T.txD,fontSize:11,fontWeight:calMode===v.id?600:400,cursor:"pointer"}}>{v.l}</button>)}
           </div>
         </div>
-        <div style={{display:"flex",gap:2,padding:"10px 14px",background:T.bg3,borderRadius:8,margin:"10px 14px 10px"}}>
-          {[{id:"active",l:`未完了`,ct:active.length},{id:"mytasks",l:"マイタスク",ct:null},{id:"done",l:`提出済`,ct:done.length}].map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"8px 0",borderRadius:6,border:"none",fontSize:12,fontWeight:tab===t.id?600:500,cursor:"pointer",background:tab===t.id?T.bg2:"transparent",color:tab===t.id?T.txH:T.txD,boxShadow:tab===t.id?"0 1px 3px rgba(0,0,0,.2)":"none",transition:"all .15s ease",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>{t.l}{t.ct!=null&&<span style={{fontSize:10,fontWeight:600,padding:"1px 6px",borderRadius:10,background:tab===t.id?`${T.accent}18`:T.bg4||T.bg3,color:tab===t.id?T.accent:T.txD}}>{t.ct}</span>}</button>)}
+        <div style={{padding:"10px 14px 10px",display:"flex",alignItems:"center",gap:6}}>
+          <div style={{display:"flex",gap:2,background:T.bg3,borderRadius:8,padding:2,flex:1}}>
+            {[{id:"active",l:"未完了",ct:active.length},{id:"mytasks",l:"マイタスク",ct:null}].map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"8px 0",borderRadius:6,border:"none",fontSize:12,fontWeight:tab===t.id?600:500,cursor:"pointer",background:tab===t.id?T.bg2:"transparent",color:tab===t.id?T.txH:T.txD,boxShadow:tab===t.id?"0 1px 3px rgba(0,0,0,.2)":"none",transition:"all .15s ease",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>{t.l}{t.ct!=null&&<span style={{fontSize:10,fontWeight:600,padding:"1px 6px",borderRadius:10,background:tab===t.id?`${T.accent}18`:T.bg4||T.bg3,color:tab===t.id?T.accent:T.txD}}>{t.ct}</span>}</button>)}
+          </div>
+          <button onClick={()=>setTab("done")} style={{display:"flex",alignItems:"center",gap:4,padding:"7px 10px",borderRadius:6,border:tab==="done"?`1px solid ${T.green}40`:`1px solid ${T.bd}`,background:tab==="done"?`${T.green}10`:"transparent",fontSize:11,fontWeight:tab==="done"?600:400,cursor:"pointer",color:tab==="done"?T.green:T.txD,transition:"all .15s ease",flexShrink:0}}>
+            <span style={{display:"flex"}}>{I.chk}</span>提出済{done.length>0&&<span style={{fontSize:10,fontWeight:600,padding:"1px 6px",borderRadius:10,background:tab==="done"?`${T.green}18`:T.bg3,color:tab==="done"?T.green:T.txD}}>{done.length}</span>}
+          </button>
         </div>
       </div>}
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
@@ -120,7 +125,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
         );})}
         {done.length>0&&<><div style={{fontSize:12,color:T.txD,fontWeight:700,margin:"12px 0 6px"}}>提出済み</div>{done.map(a=><div key={a.id} style={{padding:10,borderRadius:8,background:`${T.green}06`,border:`1px solid ${T.green}16`,marginBottom:4,opacity:.6}}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{color:T.green,display:"flex"}}>{I.chk}</span><span style={{fontSize:13,color:T.txH}}>{a.title}</span></div></div>)}</>}
         </>}
-        {showTabs&&tab!=="mytasks"&&calMode==="month"&&(()=>{
+        {showTabs&&(tab==="active"||tab==="done")&&calMode==="month"&&(()=>{
           const calItems=tab==="done"?done:active;
           const byDay={};calItems.forEach(a=>{const k=dKey(a.due);(byDay[k]=byDay[k]||[]).push(a);});
           const first=new Date(calMonth.y,calMonth.m,1);
@@ -172,7 +177,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
             </div>}
           </>;
         })()}
-        {showTabs&&tab!=="mytasks"&&calMode==="timeline"&&(()=>{
+        {showTabs&&(tab==="active"||tab==="done")&&calMode==="timeline"&&(()=>{
           const calItems=tab==="done"?done:active;
           const overdue=tab==="active"?calItems.filter(a=>a.due<NOW):[];
           const upcoming=tab==="active"?calItems.filter(a=>a.due>=NOW):calItems;
@@ -306,7 +311,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
         })()}
         </div>
         {/* PC Right Panel */}
-        {!mob&&showTabs&&tab!=="mytasks"&&<div style={{width:340,flexShrink:0,borderLeft:`1px solid ${T.bd}`,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:14}}>
+        {!mob&&showTabs&&(tab==="active"||tab==="done")&&<div style={{width:340,flexShrink:0,borderLeft:`1px solid ${T.bd}`,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:14}}>
           {sel?(()=>{
             const a=sel,co=courses.find(x=>x.id===a.cid),at=aMap()[a.type],dl=uDue(a.due),si=sMap()[a.st],p=pDone(a.subs);
             return <>
