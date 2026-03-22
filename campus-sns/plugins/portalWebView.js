@@ -10,16 +10,20 @@ import { isNative } from '../capacitor.js';
 
 let Portal = null;
 
-async function getPortalPlugin() {
-  if (Portal) return Portal;
-  if (!isNative()) return null;
+/**
+ * Ensure the Portal plugin is initialized.
+ * IMPORTANT: Do NOT return the Capacitor Proxy from an async function.
+ * JS Promise resolution calls .then() on resolved values, and the
+ * Capacitor Proxy intercepts .then() as a plugin method call, causing
+ * "Portal.then() is not implemented" errors.
+ */
+async function ensurePortalPlugin() {
+  if (Portal) return;
+  if (!isNative()) return;
   try {
     const { registerPlugin } = await import('@capacitor/core');
     Portal = registerPlugin('Portal');
-    return Portal;
-  } catch {
-    return null;
-  }
+  } catch {}
 }
 
 /**
@@ -37,9 +41,9 @@ export async function openPortal({ userId, password, matrix }) {
     return;
   }
 
-  const plugin = await getPortalPlugin();
-  if (plugin) {
-    await plugin.openPortal({
+  await ensurePortalPlugin();
+  if (Portal) {
+    await Portal.openPortal({
       userId,
       password,
       matrixJson: JSON.stringify(matrix),

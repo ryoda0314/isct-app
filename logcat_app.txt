@@ -1,0 +1,202 @@
+--------- beginning of main
+03-23 00:41:29.991  5057  5057 D Capacitor: Registering plugin instance: CapacitorHttp
+03-23 00:41:29.994  5057  5057 D Capacitor: Registering plugin instance: SystemBars
+03-23 00:41:29.997  5057  5057 D Capacitor: Registering plugin instance: Portal
+03-23 00:41:29.998  5057  5057 D Capacitor: Registering plugin instance: App
+03-23 00:41:30.000  5057  5057 D Capacitor: Registering plugin instance: Browser
+03-23 00:41:30.006  5057  5057 D Capacitor: Registering plugin instance: StatusBar
+03-23 00:41:30.024  5057  5057 V Capacitor/StatusBarPlugin: Notifying listeners for event statusBarOverlayChanged
+03-23 00:41:30.024  5057  5057 D Capacitor/StatusBarPlugin: No listeners found for event statusBarOverlayChanged
+03-23 00:41:30.025  5057  5057 V Capacitor/StatusBarPlugin: Notifying listeners for event statusBarOverlayChanged
+03-23 00:41:30.025  5057  5057 D Capacitor/StatusBarPlugin: No listeners found for event statusBarOverlayChanged
+03-23 00:41:30.047  5057  5057 W Capacitor: Unable to read file at path public/plugins
+03-23 00:41:30.058  5057  5057 D Capacitor: Loading app at https://sciencetokyo.app
+03-23 00:41:30.101  5057  5120 W cr_media: BLUETOOTH_CONNECT permission is missing.
+03-23 00:41:30.106  5057  5120 W cr_media: getBluetoothAdapter() requires BLUETOOTH permission
+03-23 00:41:30.106  5057  5120 W cr_media: registerBluetoothIntentsIfNeeded: Requires BLUETOOTH permission
+03-23 00:41:30.169  5057  5137 W libc    : Access denied finding property "vendor.mesa.log"
+03-23 00:41:30.171  5057  5137 W libc    : Access denied finding property "vendor.mesa.log.file"
+03-23 00:41:30.171  5057  5137 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:41:30.171  5057  5137 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:41:30.192  5057  5137 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:41:30.192  5057  5137 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:41:30.193  5057  5137 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:41:30.194  5057  5137 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:41:30.195  5057  5137 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:41:30.196  5057  5137 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:41:30.196  5057  5137 W libc    : Access denied finding property "vendor.mesa.vk.trace.per.submit"
+03-23 00:41:30.196  5057  5137 W libc    : Access denied finding property "vendor.mesa.gallium.print.optio"
+03-23 00:41:30.197  5057  5137 W libc    : Access denied finding property "vendor.mesa.vk.trace.frame"
+03-23 00:41:30.227  5057  5137 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:41:30.230  5057  5137 W libc    : Access denied finding property "vendor.mesa.vk.wsi.headless.swa"
+03-23 00:41:30.231  5057  5137 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:41:30.231  5057  5137 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:41:30.236  5057  5057 D Capacitor: App started
+03-23 00:41:30.243  5057  5057 D Capacitor/AppPlugin: Firing change: true
+03-23 00:41:30.243  5057  5057 V Capacitor/AppPlugin: Notifying listeners for event appStateChange
+03-23 00:41:30.243  5057  5057 D Capacitor/AppPlugin: No listeners found for event appStateChange
+03-23 00:41:30.292  5057  5057 V Capacitor/BrowserPlugin: Notifying listeners for event browserFinished
+03-23 00:41:30.293  5057  5057 D Capacitor/BrowserPlugin: No listeners found for event browserFinished
+03-23 00:41:30.294  5057  5057 D Capacitor: App resumed
+03-23 00:41:30.365  5057  5057 W HWUI    : Unknown dataspace 0
+03-23 00:41:30.525  5057  5137 W chromium: [WARNING:viz_main_impl.cc(85)] VizNullHypothesis is disabled (not a warning)
+03-23 00:41:30.540  5057  5156 I CameraManagerGlobal: Connecting to camera service
+03-23 00:41:30.620  5057  5057 D WindowOnBackDispatcher: setTopOnBackInvokedCallback (unwrapped): android.app.Activity$$ExternalSyntheticLambda0@36c535e
+03-23 00:41:30.620  5057  5057 D WindowOnBackDispatcher: setTopOnBackInvokedCallback (unwrapped): androidx.activity.OnBackPressedDispatcher$Api34Impl$createOnBackAnimationCallback$1@f3a533f
+03-23 00:41:30.626  5057  5057 D VRI[MainActivity]: WindowInsets changed: 1080x2400 statusBars:[0,63,0,0] navigationBars:[0,0,0,63] mandatorySystemGestures:[0,63,0,84] 
+--------- beginning of system
+03-23 00:41:30.946  5057  5057 D InsetsController: hide(ime())
+03-23 00:41:30.947  5057  5057 I ImeTracker: ac.isct.campus:8bad46ef: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+03-23 00:41:30.992  5057  5168 I HWUI    : Using FreeType backend (prop=Auto)
+03-23 00:41:31.942  5057  5063 I ac.isct.campus: Compiler allocated 5087KB to compile void android.view.ViewRootImpl.performTraversals()
+03-23 00:41:32.019  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:41:32.020  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:41:32.029  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244880, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:41:32.033  5057  5057 V Capacitor: callback: 54244880, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:41:32.034  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244881, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:41:32.035  5057  5057 V Capacitor: callback: 54244881, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:41:32.051  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:41:32.052  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:41:32.052  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:41:32.052  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:41:32.058  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244882, pluginId: StatusBar, methodName: setStyle
+03-23 00:41:32.058  5057  5057 V Capacitor: callback: 54244882, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:41:32.059  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244883, pluginId: StatusBar, methodName: setStyle
+03-23 00:41:32.059  5057  5057 V Capacitor: callback: 54244883, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:41:32.063  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:41:32.064  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:41:34.092  5057  5187 D ProfileInstaller: Installing profile for ac.isct.campus
+03-23 00:41:36.937  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:41:36.938  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:41:36.938  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244884, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:41:36.939  5057  5057 V Capacitor: callback: 54244884, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:41:36.939  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244885, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:41:36.939  5057  5057 V Capacitor: callback: 54244885, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:41:36.942  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:41:36.942  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:41:36.943  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:41:36.943  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:41:36.944  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244886, pluginId: StatusBar, methodName: setStyle
+03-23 00:41:36.945  5057  5057 V Capacitor: callback: 54244886, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:41:36.945  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244887, pluginId: StatusBar, methodName: setStyle
+03-23 00:41:36.945  5057  5057 V Capacitor: callback: 54244887, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:41:36.955  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:41:36.955  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:41:36.999  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:41:37.001  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244888, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:41:37.001  5057  5057 V Capacitor: callback: 54244888, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:41:37.008  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:41:37.009  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:41:37.009  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244889, pluginId: StatusBar, methodName: setStyle
+03-23 00:41:37.010  5057  5057 V Capacitor: callback: 54244889, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:41:37.011  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:41:37.544  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:41:37.545  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244890, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:41:37.545  5057  5057 V Capacitor: callback: 54244890, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:41:37.577  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:41:37.578  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:41:37.579  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244891, pluginId: StatusBar, methodName: setStyle
+03-23 00:41:37.579  5057  5057 V Capacitor: callback: 54244891, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:41:37.581  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:41:41.998  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:41:41.999  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244892, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:41:41.999  5057  5057 V Capacitor: callback: 54244892, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:41:42.002  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:41:42.003  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:41:42.004  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244893, pluginId: StatusBar, methodName: setStyle
+03-23 00:41:42.004  5057  5057 V Capacitor: callback: 54244893, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:41:42.006  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:41:42.071  5057  5064 W ac.isct.campus: userfaultfd: MOVE ioctl seems unsupported: Connection timed out
+03-23 00:41:52.711  5057  5057 I ImeTracker: ac.isct.campus:e7c972e6: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false
+03-23 00:41:52.715  5057  5057 D InsetsController: show(ime())
+03-23 00:41:52.716  5057  5057 D InsetsController: Setting requestedVisibleTypes to 511 (was 503)
+03-23 00:41:52.724  5057  5057 I AssistStructure: Flattened final assist data: 2800 bytes, containing 1 windows, 6 views
+03-23 00:41:53.094  5057  5057 D WindowOnBackDispatcher: setTopOnBackInvokedCallback (unwrapped): android.view.ImeBackAnimationController@e8dbace
+03-23 00:41:53.287  5057  5057 I ImeTracker: ac.isct.campus:97a98780: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false
+03-23 00:41:53.288  5057  5057 D InsetsController: show(ime())
+03-23 00:41:53.288  5057  5057 I ImeTracker: ac.isct.campus:97a98780: onCancelled at PHASE_CLIENT_REPORT_REQUESTED_VISIBLE_TYPES
+03-23 00:41:53.344  5057  5206 W InteractionJankMonitor: Initializing without READ_DEVICE_CONFIG permission. enabled=false, interval=1, missedFrameThreshold=3, frameTimeThreshold=64, package=ac.isct.campus
+03-23 00:41:53.551  5057  5057 I ImeTracker: ac.isct.campus:e7c972e6: onShown
+03-23 00:42:07.545  5057  5057 I ImeTracker: ac.isct.campus:6f0fdac5: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false
+03-23 00:42:07.545  5057  5057 D InsetsController: show(ime())
+03-23 00:42:07.545  5057  5057 I ImeTracker: ac.isct.campus:6f0fdac5: onCancelled at PHASE_CLIENT_APPLY_ANIMATION
+03-23 00:42:07.547  5057  5057 I AssistStructure: Flattened final assist data: 2828 bytes, containing 1 windows, 6 views
+03-23 00:42:12.809  5057  5057 I ImeTracker: ac.isct.campus:8ae96698: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT fromUser false
+03-23 00:42:12.810  5057  5057 D InsetsController: hide(ime())
+03-23 00:42:12.810  5057  5057 D WindowOnBackDispatcher: setTopOnBackInvokedCallback (unwrapped): androidx.activity.OnBackPressedDispatcher$Api34Impl$createOnBackAnimationCallback$1@f3a533f
+03-23 00:42:12.810  5057  5057 D InsetsController: Setting requestedVisibleTypes to 503 (was 511)
+03-23 00:42:12.811  5057  5057 D CompatChangeReporter: Compat change id reported: 395521150; UID 10227; state: ENABLED
+03-23 00:42:12.920  5057  5057 I ImeTracker: system_server:de28b25b: onCancelled at PHASE_CLIENT_ON_CONTROLS_CHANGED
+03-23 00:42:24.737  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:24.739  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244894, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:42:24.739  5057  5057 V Capacitor: callback: 54244894, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:42:24.791  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:24.796  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:24.798  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244895, pluginId: StatusBar, methodName: setStyle
+03-23 00:42:24.799  5057  5057 V Capacitor: callback: 54244895, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:42:24.806  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:24.807  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244896, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:42:24.807  5057  5057 V Capacitor: callback: 54244896, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:42:24.821  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:24.824  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:24.826  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:24.833  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244897, pluginId: StatusBar, methodName: setStyle
+03-23 00:42:24.833  5057  5057 V Capacitor: callback: 54244897, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:42:24.939  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:25.994  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:25.994  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244898, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:42:25.994  5057  5057 V Capacitor: callback: 54244898, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:42:25.996  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:25.997  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:25.998  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244899, pluginId: StatusBar, methodName: setStyle
+03-23 00:42:25.998  5057  5057 V Capacitor: callback: 54244899, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:42:26.003  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:26.997  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:26.998  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244900, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:42:26.998  5057  5057 V Capacitor: callback: 54244900, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:42:26.999  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:26.999  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:27.000  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244901, pluginId: StatusBar, methodName: setStyle
+03-23 00:42:27.000  5057  5057 V Capacitor: callback: 54244901, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:42:27.001  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:29.299  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:29.300  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244902, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:42:29.300  5057  5057 V Capacitor: callback: 54244902, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:42:29.304  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:29.304  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:29.306  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244903, pluginId: StatusBar, methodName: setStyle
+03-23 00:42:29.306  5057  5057 V Capacitor: callback: 54244903, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:42:29.306  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:29.307  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244904, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:42:29.307  5057  5057 V Capacitor: callback: 54244904, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:42:29.310  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:29.311  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:29.312  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:29.312  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244905, pluginId: StatusBar, methodName: setStyle
+03-23 00:42:29.312  5057  5057 V Capacitor: callback: 54244905, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:42:29.314  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:29.714  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:29.715  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244906, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:42:29.715  5057  5057 V Capacitor: callback: 54244906, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:42:29.724  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:29.725  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:29.726  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:29.727  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244907, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:42:29.727  5057  5057 V Capacitor: callback: 54244907, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:42:29.727  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244908, pluginId: StatusBar, methodName: setStyle
+03-23 00:42:29.727  5057  5057 V Capacitor: callback: 54244908, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:42:29.730  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:29.731  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:29.732  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:29.732  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244909, pluginId: StatusBar, methodName: setStyle
+03-23 00:42:29.732  5057  5057 V Capacitor: callback: 54244909, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:42:29.738  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:30.469  5057  5057 E Capacitor/Console: File: https://sciencetokyo.app/_next/static/chunks/4968.8010b9b1830a860d.js - Line 1 - Msg: Uncaught (in promise) Error: "Portal.then()" is not implemented on android
+03-23 00:42:31.997  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:31.998  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244910, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:42:31.998  5057  5057 V Capacitor: callback: 54244910, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:42:31.999  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:42:32.000  5057  5057 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:42:32.000  5057  5057 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 54244911, pluginId: StatusBar, methodName: setStyle
+03-23 00:42:32.000  5057  5057 V Capacitor: callback: 54244911, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:42:32.002  5057  5057 I Capacitor/Console: File:  - Line 333 - Msg: undefined
