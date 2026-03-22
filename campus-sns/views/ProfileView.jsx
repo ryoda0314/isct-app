@@ -8,6 +8,7 @@ import { QA_ALL, QA_DEFAULT } from './HomeView.jsx';
 import { NAV_QUICK_DEFAULT, SPOT_GROUPS } from './NavigationView.jsx';
 import { SPOTS, SPOT_CATS } from '../hooks/useLocationSharing.js';
 import { SCHOOLS, DEPTS } from '../data.js';
+import { PrivacyPolicyView } from './PrivacyPolicyView.jsx';
 
 /* ─── 画像 → 正方形クロップ → data URI ─── */
 const AV_SZ=160;
@@ -128,6 +129,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   const [deptOpen,setDeptOpen]=useState(false);
   const [deptSchool,setDeptSchool]=useState(()=>user.myDept?DEPTS[user.myDept]?.school||null:null);
   const [cacheCleared,setCacheCleared]=useState(false);
+  const [showPrivacy,setShowPrivacy]=useState(false);
   const [avEdit,setAvEdit]=useState(false);
   const [uploading,setUploading]=useState(false);
   const fileRef=useRef(null);
@@ -693,11 +695,11 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             </div>}/>
         </GCard>
 
-        {/* ═══ その他 ═══ */}
-        <GHead>その他</GHead>
+        {/* ═══ データ管理 ═══ */}
+        <GHead>データ管理</GHead>
         <GCard>
           <GRow icon={I.dl} label="データエクスポート"
-            sub="課題・成績・設定をJSONで保存"
+            sub="個人データをJSON形式でダウンロード（開示請求対応）"
             onClick={()=>{
               const data={exportedAt:new Date().toISOString(),user:{name:user.name,dept:user.dept,yearGroup:user.yearGroup},assignments:asgn,courses:courses.map(c=>({id:c.id,code:c.code,name:c.name})),settings:{notifEnabled,notifSettings,fontSize}};
               const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
@@ -708,8 +710,32 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             onClick={handleClearCache}
             right={cacheCleared&&<span style={{color:T.green,display:"flex"}}>{I.chk}</span>}/>
           <GRow last danger
+            icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>}
+            label="アカウント削除"
+            sub="サーバー上の全データを削除します"
+            onClick={()=>{
+              if(!confirm("本当にアカウントを削除しますか？\n\n・サーバー上のプロフィール、投稿、メッセージ等の全データが削除されます\n・この操作は取り消せません")) return;
+              if(!confirm("最終確認: アカウントを完全に削除してよろしいですか？")) return;
+              (async()=>{
+                try{
+                  await fetch('/api/auth/credentials',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'all'})});
+                  try{localStorage.removeItem("privacyAgreed");}catch{}
+                  onLogout();
+                }catch{ alert("削除に失敗しました。もう一度お試しください。"); }
+              })();
+            }}/>
+        </GCard>
+
+        {/* ═══ その他 ═══ */}
+        <GHead>その他</GHead>
+        <GCard>
+          <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
+            label="プライバシーポリシー"
+            sub="個人情報の取り扱いについて"
+            onClick={()=>setShowPrivacy(true)}/>
+          <GRow
             icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>}
-            label="ログアウト"
+            label="ログアウト" last danger
             onClick={()=>{if(confirm("ログアウトしますか？")){onLogout();}}}/>
         </GCard>
 
@@ -718,6 +744,18 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
           <div style={{fontWeight:500}}>ScienceTokyo App v1.0.0</div>
           <div style={{marginTop:2}}>© 2026 Institute of Science Tokyo</div>
         </div>
+
+        {/* ═══ プライバシーポリシー モーダル ═══ */}
+        {showPrivacy&&<div style={{position:"fixed",inset:0,zIndex:10001,background:T.bg,display:"flex",flexDirection:"column"}}>
+          <div style={{paddingTop:"env(safe-area-inset-top)",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>
+            <div style={{height:46,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 12px"}}>
+              <button onClick={()=>setShowPrivacy(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
+              <span style={{fontSize:16,fontWeight:700,color:T.txH}}>プライバシーポリシー</span>
+              <div style={{width:28}}/>
+            </div>
+          </div>
+          <PrivacyPolicyView mob={mob} embedded={false}/>
+        </div>}
       </div>
     </div>
   );

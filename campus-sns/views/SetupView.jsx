@@ -4,6 +4,7 @@ import { I } from "../icons.jsx";
 import { updateUserPref } from "../hooks/useCurrentUser.js";
 import { MatrixInput, COLS, ROWS } from "../components/MatrixInput.jsx";
 import { QRScanner } from "../components/QRScanner.jsx";
+import { PrivacyPolicyView } from "./PrivacyPolicyView.jsx";
 
 const API = "";
 
@@ -105,7 +106,7 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
     let cancelled = false;
     const fetchCode = async () => {
       try {
-        const res = await fetch(`/api/auth/totp-preview?secret=${encodeURIComponent(totpSecret)}`);
+        const res = await fetch('/api/auth/totp-preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: totpSecret }) });
         if (!res.ok) { setTotpCode(null); return; }
         const { code, remaining } = await res.json();
         if (!cancelled) { setTotpCode(code); setTimeLeft(remaining); }
@@ -124,7 +125,7 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
       setTimeLeft(prev => {
         if (prev <= 1) {
           // Refetch new code
-          fetch(`/api/auth/totp-preview?secret=${encodeURIComponent(totpSecret)}`)
+          fetch('/api/auth/totp-preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: totpSecret }) })
             .then(r => r.json())
             .then(({ code, remaining }) => { setTotpCode(code); setTimeLeft(remaining); })
             .catch(() => {});
@@ -368,6 +369,10 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
   const [mode, setMode] = useState(null);
   const [step, setStep] = useState(0);
   const [connecting, setConnecting] = useState(false);
+  const [privacyAgreed, setPrivacyAgreed] = useState(() => {
+    try { return localStorage.getItem("privacyAgreed") === "true"; } catch { return false; }
+  });
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
 
   const [isctId, setIsctId] = useState("");
   const [isctPw, setIsctPw] = useState("");
@@ -502,19 +507,51 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
                 </div>
               ))}
             </div>
+            {/* ── 同意チェックボックス ── */}
+            <div style={{
+              display: "flex", alignItems: "flex-start", gap: 10, padding: "14px 16px",
+              borderRadius: 12, border: `1px solid ${privacyAgreed ? T.green + "40" : T.bd}`,
+              background: privacyAgreed ? `${T.green}06` : T.bg2, marginBottom: 16,
+              cursor: "pointer", transition: "all .15s",
+            }} onClick={() => { setPrivacyAgreed(p => { const next = !p; try { localStorage.setItem("privacyAgreed", String(next)); } catch {} return next; }); }}>
+              <div style={{
+                width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 1,
+                border: `2px solid ${privacyAgreed ? T.green : T.bd}`,
+                background: privacyAgreed ? T.green : "transparent",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "all .15s",
+              }}>
+                {privacyAgreed && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+              </div>
+              <div style={{ fontSize: 13, color: T.tx, lineHeight: 1.6 }}>
+                <button onClick={e => { e.stopPropagation(); setShowPrivacyPolicy(true); }} style={{
+                  background: "none", border: "none", color: T.accent, fontSize: 13,
+                  fontWeight: 600, cursor: "pointer", padding: 0, textDecoration: "underline",
+                }}>プライバシーポリシー</button>
+                に同意します
+              </div>
+            </div>
+
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <button onClick={() => { setMode("signup"); setStep(0); setError(null); }} style={{
+              <button onClick={() => { if (!privacyAgreed) return; setMode("signup"); setStep(0); setError(null); }} style={{
                 width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
-                background: T.accent, color: "#fff", fontSize: 15, fontWeight: 700,
-                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                background: privacyAgreed ? T.accent : `${T.accent}40`,
+                color: "#fff", fontSize: 15, fontWeight: 700,
+                cursor: privacyAgreed ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                transition: "background .15s",
               }}>{ICN.signup} 新規登録</button>
-              <button onClick={() => { setMode("login"); setError(null); }} style={{
+              <button onClick={() => { if (!privacyAgreed) return; setMode("login"); setError(null); }} style={{
                 width: "100%", padding: "14px 0", borderRadius: 12,
-                border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH,
-                fontSize: 15, fontWeight: 700, cursor: "pointer",
+                border: `1px solid ${privacyAgreed ? T.bd : T.bd + "60"}`,
+                background: privacyAgreed ? T.bg2 : `${T.bg2}80`,
+                color: privacyAgreed ? T.txH : T.txD,
+                fontSize: 15, fontWeight: 700,
+                cursor: privacyAgreed ? "pointer" : "default",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                transition: "all .15s",
               }}>{ICN.login} ログイン</button>
             </div>
+            {!privacyAgreed && <p style={{ fontSize: 11, color: T.txD, textAlign: "center", marginTop: 10 }}>利用するにはプライバシーポリシーへの同意が必要です</p>}
             <button onClick={onSkip} style={{
               background: "none", border: "none", color: T.txD, fontSize: 13,
               cursor: "pointer", marginTop: 16, textAlign: "center", padding: 8, width: "100%",
@@ -713,6 +750,47 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
       )}
 
       <div style={{ paddingBottom: "env(safe-area-inset-bottom)", background: T.bg, flexShrink: 0 }} />
+
+      {/* ═══ プライバシーポリシー モーダル ═══ */}
+      {showPrivacyPolicy && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 10001,
+          background: T.bg, display: "flex", flexDirection: "column",
+        }}>
+          <div style={{
+            paddingTop: "env(safe-area-inset-top)", borderBottom: `1px solid ${T.bd}`,
+            background: T.bg2, flexShrink: 0,
+          }}>
+            <div style={{
+              height: 46, display: "flex", alignItems: "center",
+              justifyContent: "space-between", padding: "0 12px",
+            }}>
+              <button onClick={() => setShowPrivacyPolicy(false)} style={{
+                background: "none", border: "none", color: T.txD,
+                cursor: "pointer", display: "flex", padding: 4,
+              }}>{I.back}</button>
+              <span style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>プライバシーポリシー</span>
+              <div style={{ width: 28 }} />
+            </div>
+          </div>
+          <PrivacyPolicyView mob={mob} embedded={false} />
+          <div style={{
+            padding: "12px 24px", paddingBottom: "calc(12px + env(safe-area-inset-bottom))",
+            borderTop: `1px solid ${T.bd}`, background: T.bg2, flexShrink: 0,
+          }}>
+            <button onClick={() => {
+              setPrivacyAgreed(true);
+              try { localStorage.setItem("privacyAgreed", "true"); } catch {}
+              setShowPrivacyPolicy(false);
+            }} style={{
+              width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
+              background: T.accent, color: "#fff", fontSize: 15, fontWeight: 700,
+              cursor: "pointer",
+            }}>同意して閉じる</button>
+          </div>
+        </div>
+      )}
+
       <style>{mkGlobalCSS()}</style>
     </div>
   );
