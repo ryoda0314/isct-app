@@ -7,7 +7,7 @@ import { Tag } from "../shared.jsx";
 import { useLocationSharing, getSpot } from "../hooks/useLocationSharing.js";
 import { getAcademicInfo } from "../academicCalendar.js";
 import { isNative } from "../capacitor.js";
-import { openPortal } from "../plugins/portalWebView.js";
+import { openPortal, openIsctPortal } from "../plugins/portalWebView.js";
 
 // SVG weather icons — clean, consistent style
 const WxIcon=({type,sz=20})=>{const s={width:sz,height:sz,display:"inline-block",verticalAlign:"middle",flexShrink:0};
@@ -37,6 +37,7 @@ const QA_ALL=[
   {id:"calendar",icon:I.cal,label:"カレンダー"},
   {id:"events",icon:I.event,label:"イベント"},
   {id:"portal",icon:null,label:"ポータル"},
+  {id:"isctportal",icon:null,label:"ISCTポータル"},
   {id:"friends",icon:I.users,label:"友達"},
   {id:"grades",icon:I.grad,label:"成績"},
   {id:"reviews",icon:I.star,label:"レビュー"},
@@ -68,6 +69,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
   const [portalLoading,setPortalLoading]=useState(false);
   const [portalError,setPortalError]=useState(null);
   const [portalPage,setPortalPage]=useState(null);
+  const [isctLoading,setIsctLoading]=useState(false);
   const {myLoc}=useLocationSharing({id:user.moodleId||user.id,name:user.name,col:user.col,av:user.av});
   const mySpot=getSpot(myLoc);
 
@@ -303,6 +305,25 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
             }} disabled={portalLoading} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:portalLoading?"wait":"pointer",opacity:portalLoading?.6:1}}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
               <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{portalLoading?"読込中...":"ポータル"}</span>
+            </button>
+          );
+          if(qa.id==="isctportal") return (
+            <button key={qa.id} onClick={async()=>{
+              setIsctLoading(true);setPortalError(null);
+              try{
+                if(isNative()){
+                  const r=await fetch("/api/auth/credentials?type=isct");
+                  if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||"ISCT認証情報の取得に失敗しました");}
+                  const{userId,password,totpCode}=await r.json();
+                  await openIsctPortal({userId,password,totpCode});
+                }else{
+                  window.open("https://portal.isct.ac.jp","_blank");
+                }
+              }catch(e){setPortalError(e.message);}
+              setIsctLoading(false);
+            }} disabled={isctLoading} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:isctLoading?"wait":"pointer",opacity:isctLoading?.6:1}}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+              <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{isctLoading?"読込中...":"ISCTポータル"}</span>
             </button>
           );
           const isFirst=i===0;

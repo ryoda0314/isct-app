@@ -56,6 +56,29 @@ export async function openPortal({ userId, password, matrix }) {
 }
 
 /**
+ * Open the ISCT portal with SSO auto-login.
+ *
+ * @param {Object} credentials
+ * @param {string} credentials.userId - Science Tokyo ID
+ * @param {string} credentials.password - ISCT password
+ * @param {string} credentials.totpCode - TOTP code (generated server-side)
+ */
+export async function openIsctPortal({ userId, password, totpCode }) {
+  if (!isNative()) {
+    window.open('https://portal.isct.ac.jp', '_blank');
+    return;
+  }
+
+  await ensurePortalPlugin();
+  if (Portal) {
+    await Portal.openIsctPortal({ userId, password, totpCode });
+  } else {
+    const { Browser } = await import('@capacitor/browser');
+    await Browser.open({ url: 'https://portal.isct.ac.jp' });
+  }
+}
+
+/**
  * Check if the native portal WebView is available.
  */
 export function isNativePortalAvailable() {

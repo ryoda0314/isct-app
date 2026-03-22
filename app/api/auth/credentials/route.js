@@ -4,11 +4,13 @@ import { invalidateToken } from '../../../../lib/auth/token-manager.js';
 import { requireAuth } from '../../../../lib/auth/require-auth.js';
 import { COOKIE_NAME, destroyUserSessions, verifySession } from '../../../../lib/auth/session.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
+import { generateTOTP } from '../../../../lib/auth/totp.js';
 
 /**
  * GET /api/auth/credentials
- * Returns the user's portal credentials (portalUserId, portalPassword, matrix).
- * Used by the native Capacitor app for direct portal WebView auto-login.
+ * Returns credentials for the native Capacitor app auto-login.
+ *   ?type=isct  → { userId, password, totpCode }
+ *   (default)   → { portalUserId, portalPassword, matrix }
  */
 export async function GET(request) {
   const cookie = request.cookies.get(COOKIE_NAME)?.value;
@@ -17,8 +19,20 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
+  const type = new URL(request.url).searchParams.get('type');
+
   try {
     const creds = await loadCredentials(session.loginId);
+
+    if (type === 'isct') {
+      const { password, totpSecret } = creds;
+      if (!password || !totpSecret) {
+        return NextResponse.json({ error: 'ISCT credentials not configured' }, { status: 400 });
+      }
+      const totpCode = generateTOTP(totpSecret);
+      return NextResponse.json({ userId: session.loginId, password, totpCode });
+    }
+
     const { portalUserId, portalPassword, matrix } = creds;
     if (!portalUserId || !portalPassword || !matrix) {
       return NextResponse.json({ error: 'Portal credentials not configured' }, { status: 400 });
