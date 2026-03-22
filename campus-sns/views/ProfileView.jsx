@@ -294,8 +294,8 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
     setEmailDeleting(true);setEmailMsg(null);
     try{
       const r=await fetch("/api/auth/email/link",{method:"DELETE"});
-      const d=await r.json();
-      if(!r.ok)throw new Error(d.error||"解除に失敗しました");
+      let d;try{d=await r.json();}catch{d={};}
+      if(!r.ok)throw new Error(d.error||`解除に失敗しました (${r.status})`);
       setCredStatus(p=>({...p,hasEmail:false}));
       setEmailMsg({type:"ok",text:"メール連携を解除しました"});
     }catch(e){setEmailMsg({type:"err",text:e.message||"解除に失敗しました"});}
