@@ -6,6 +6,33 @@ import { MatrixInput, COLS, ROWS } from "../components/MatrixInput.jsx";
 import { QRScanner } from "../components/QRScanner.jsx";
 
 const API = "";
+
+/* ─── 学籍番号パーサー ─── */
+// 例: "24B12149" → { year:"24", degree:"B", schoolNum:"1", yearGroup:"24B", schoolKey:"science" }
+const DEGREE_MAP = { B: "学部", M: "修士", D: "博士", R: "研究生" };
+const SCHOOL_NUM_MAP = {
+  "0": "science",       // 理学院
+  "1": "engineering",   // 工学院
+  "2": "matsci",        // 物質理工学院
+  "3": "computing",     // 情報理工学院
+  "4": "lifesci",       // 生命理工学院
+  "5": "envsoc",        // 環境・社会理工学院
+};
+const SCHOOL_LABEL = {
+  science: "理学院", engineering: "工学院", matsci: "物質理工学院",
+  computing: "情報理工学院", lifesci: "生命理工学院", envsoc: "環境・社会理工学院",
+};
+function parseStudentId(id) {
+  if (!id || id.length < 4) return null;
+  const m = id.match(/^(\d{2})([BMDR])(\d)/i);
+  if (!m) return null;
+  const year = m[1];
+  const degree = m[2].toUpperCase();
+  const schoolNum = m[3];
+  const schoolKey = SCHOOL_NUM_MAP[schoolNum] || null;
+  return { year, degree, schoolNum, yearGroup: year + degree, schoolKey, schoolLabel: schoolKey ? SCHOOL_LABEL[schoolKey] : null };
+}
+
 const PAGE_BASE = {
   position: "fixed", inset: 0, display: "flex", flexDirection: "column",
   fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",
@@ -351,9 +378,19 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
   const [matrix, setMatrix] = useState({});
 
   const [yearGroup, setYearGroup] = useState(null);
+  const [school, setSchool] = useState(null);
   const [showYG, setShowYG] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [error, setError] = useState(null);
+
+  // 学籍番号から学年・課程・学院を自動抽出
+  useEffect(() => {
+    const parsed = parseStudentId(portalId);
+    if (parsed) {
+      setYearGroup(parsed.yearGroup);
+      setSchool(parsed.schoolKey);
+    }
+  }, [portalId]);
 
   const hasIsct = isctId && isctPw && totpSecret;
   const hasMatrix = COLS.every(c => ROWS.every(r => matrix[c]?.[r]));
@@ -386,7 +423,7 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.detail || data.error);
-      if (yearGroup) updateUserPref({ yearGroup });
+      if (yearGroup) updateUserPref({ yearGroup, ...(school ? { school } : {}) });
       onComplete();
     } catch (err) {
       setError(err.message);
@@ -544,7 +581,17 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
             <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>成績情報の取得に必要です</p>
             <ErrorBanner error={error} />
             <div style={cardStyle}>
-              <InputField label="ポータル アカウント" value={portalId} onChange={e => setPortalId(e.target.value)} placeholder="学籍番号" />
+              <InputField label="ポータル アカウント" value={portalId} onChange={e => setPortalId(e.target.value)} placeholder="学籍番号（例: 24B12149）" mono />
+              {(() => {
+                const p = parseStudentId(portalId);
+                return p ? (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {[`20${p.year}年入学`, DEGREE_MAP[p.degree], p.schoolLabel].filter(Boolean).map(t => (
+                      <span key={t} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: `${T.green}14`, color: T.green }}>{t}</span>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
               <InputField label="ポータル パスワード" value={portalPw} onChange={e => setPortalPw(e.target.value)} placeholder="ポータルのパスワード" type="password" showToggle />
               <MatrixInput matrix={matrix} setMatrix={setMatrix} />
             </div>
@@ -565,55 +612,79 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
             <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>プロフィール</h2>
             <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>学年情報を設定してください</p>
             <ErrorBanner error={error} />
-            {/* Year group */}
-            <div style={{ padding: 14, borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg2 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 8, display: "block" }}>学年グループ</label>
-              <div onClick={() => setShowYG(p => !p)} style={{
-                padding: "12px 14px", borderRadius: 10, border: `1px solid ${T.bd}`,
-                background: T.bg3, cursor: "pointer", display: "flex",
-                justifyContent: "space-between", alignItems: "center",
-              }}>
-                <span style={{ fontSize: 15, color: yearGroup ? T.txH : T.txD }}>{yearGroup || "選択してください"}</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: showYG ? "rotate(180deg)" : "none", transition: "transform .15s" }}><polyline points="6 9 12 15 18 9" /></svg>
-              </div>
-              {showYG && (
-                <div style={{ marginTop: 10 }}>
-                  <div style={{ fontSize: 11, color: T.txD, marginBottom: 6, fontWeight: 500 }}>入学年度</div>
-                  <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                    {["22", "23", "24", "25", "26"].map(y => {
-                      const sel = yearGroup && yearGroup.slice(0, -1) === y;
-                      return (
-                        <button key={y} onClick={() => { const t = yearGroup ? yearGroup.slice(-1) : "B"; setYearGroup(sel ? null : y + t); }} style={{
-                          flex: 1, padding: "10px 0", borderRadius: 8,
-                          border: `1px solid ${sel ? T.accent : T.bd}`,
-                          background: sel ? `${T.accent}18` : "transparent",
-                          color: sel ? T.accent : T.txD,
-                          fontSize: 15, fontWeight: sel ? 700 : 500,
-                          cursor: "pointer", transition: "all .15s",
-                        }}>{y}</button>
-                      );
-                    })}
+            {/* Year group — auto-detected or manual */}
+            {(() => {
+              const parsed = parseStudentId(portalId);
+              return parsed ? (
+                <div style={{ padding: 14, borderRadius: 12, border: `1px solid ${T.green}30`, background: `${T.green}06` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: T.green }}>学籍番号から自動検出</span>
                   </div>
-                  <div style={{ fontSize: 11, color: T.txD, marginBottom: 6, fontWeight: 500 }}>課程</div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    {[["B", "学部"], ["M", "修士"], ["D", "博士"], ["R", "研究生"]].map(([k, l]) => {
-                      const sel = yearGroup && yearGroup.endsWith(k);
-                      return (
-                        <button key={k} onClick={() => { if (!yearGroup) return; setYearGroup(yearGroup.slice(0, -1) + k); }} style={{
-                          flex: 1, padding: "8px 0", borderRadius: 8,
-                          border: `1px solid ${sel ? T.accent : T.bd}`,
-                          background: sel ? `${T.accent}18` : "transparent",
-                          color: sel ? T.accent : T.txD,
-                          fontSize: 13, fontWeight: sel ? 700 : 500,
-                          cursor: yearGroup ? "pointer" : "default",
-                          opacity: yearGroup ? 1 : .4, transition: "all .15s",
-                        }}>{l}</button>
-                      );
-                    })}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {[
+                      { label: "入学年度", value: `20${parsed.year}` },
+                      { label: "課程", value: DEGREE_MAP[parsed.degree] || parsed.degree },
+                      ...(parsed.schoolLabel ? [{ label: "学院", value: parsed.schoolLabel }] : []),
+                    ].map(item => (
+                      <div key={item.label} style={{ flex: 1, padding: "10px 8px", borderRadius: 8, background: T.bg2, textAlign: "center" }}>
+                        <div style={{ fontSize: 10, color: T.txD, marginBottom: 4, fontWeight: 500 }}>{item.label}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>{item.value}</div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              )}
-            </div>
+              ) : (
+                <div style={{ padding: 14, borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg2 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 8, display: "block" }}>学年グループ</label>
+                  <div onClick={() => setShowYG(p => !p)} style={{
+                    padding: "12px 14px", borderRadius: 10, border: `1px solid ${T.bd}`,
+                    background: T.bg3, cursor: "pointer", display: "flex",
+                    justifyContent: "space-between", alignItems: "center",
+                  }}>
+                    <span style={{ fontSize: 15, color: yearGroup ? T.txH : T.txD }}>{yearGroup || "選択してください"}</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: showYG ? "rotate(180deg)" : "none", transition: "transform .15s" }}><polyline points="6 9 12 15 18 9" /></svg>
+                  </div>
+                  {showYG && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ fontSize: 11, color: T.txD, marginBottom: 6, fontWeight: 500 }}>入学年度</div>
+                      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                        {["22", "23", "24", "25", "26"].map(y => {
+                          const sel = yearGroup && yearGroup.slice(0, -1) === y;
+                          return (
+                            <button key={y} onClick={() => { const t = yearGroup ? yearGroup.slice(-1) : "B"; setYearGroup(sel ? null : y + t); }} style={{
+                              flex: 1, padding: "10px 0", borderRadius: 8,
+                              border: `1px solid ${sel ? T.accent : T.bd}`,
+                              background: sel ? `${T.accent}18` : "transparent",
+                              color: sel ? T.accent : T.txD,
+                              fontSize: 15, fontWeight: sel ? 700 : 500,
+                              cursor: "pointer", transition: "all .15s",
+                            }}>{y}</button>
+                          );
+                        })}
+                      </div>
+                      <div style={{ fontSize: 11, color: T.txD, marginBottom: 6, fontWeight: 500 }}>課程</div>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {[["B", "学部"], ["M", "修士"], ["D", "博士"], ["R", "研究生"]].map(([k, l]) => {
+                          const sel = yearGroup && yearGroup.endsWith(k);
+                          return (
+                            <button key={k} onClick={() => { if (!yearGroup) return; setYearGroup(yearGroup.slice(0, -1) + k); }} style={{
+                              flex: 1, padding: "8px 0", borderRadius: 8,
+                              border: `1px solid ${sel ? T.accent : T.bd}`,
+                              background: sel ? `${T.accent}18` : "transparent",
+                              color: sel ? T.accent : T.txD,
+                              fontSize: 13, fontWeight: sel ? 700 : 500,
+                              cursor: yearGroup ? "pointer" : "default",
+                              opacity: yearGroup ? 1 : .4, transition: "all .15s",
+                            }}>{l}</button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {/* Connection summary */}
             <div style={{ marginTop: 16, padding: 14, borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg2 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 10 }}>接続設定</div>
