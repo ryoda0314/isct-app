@@ -174,6 +174,10 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   const [emailMsg,setEmailMsg]=useState(null);
   const [emailDeleting,setEmailDeleting]=useState(false);
   const [showEmailPw,setShowEmailPw]=useState(false);
+  const [emailVerifyStep,setEmailVerifyStep]=useState(false); // コード入力ステップ
+  const [verifyCode,setVerifyCode]=useState("");
+  const [verifying,setVerifying]=useState(false);
+  const [pendingEmail,setPendingEmail]=useState("");
 
   // 表示設定
   const [fontSize,setFontSize]=useState(()=>{try{return localStorage.getItem("fontSize")||"medium";}catch{return "medium";}});
@@ -258,13 +262,31 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
     try{
       const r=await fetch("/api/auth/email/link",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
       const d=await r.json();
-      if(!r.ok)throw new Error(d.error||"連携に失敗しました");
+      if(!r.ok)throw new Error(d.error||"送信に失敗しました");
+      setPendingEmail(email.toLowerCase());
+      setVerifyCode("");
+      setEmailVerifyStep(true);
+      setEmailMsg({type:"ok",text:`${email} に確認コードを送信しました`});
+    }catch(e){setEmailMsg({type:"err",text:e.message});}
+    setEmailSaving(false);
+  };
+
+  const handleVerifyCode=async()=>{
+    if(!verifyCode||verifyCode.length!==6){setEmailMsg({type:"err",text:"6桁の確認コードを入力してください"});return;}
+    setVerifying(true);setEmailMsg(null);
+    try{
+      const r=await fetch("/api/auth/email/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:pendingEmail,code:verifyCode})});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.error||"確認に失敗しました");
       setEmailMsg({type:"ok",text:"メールアドレスを連携しました"});
       setCredStatus(p=>({...p,hasEmail:true}));
       setEmailForm({email:"",password:""});
+      setEmailVerifyStep(false);
+      setVerifyCode("");
+      setPendingEmail("");
       setEmailOpen(false);
     }catch(e){setEmailMsg({type:"err",text:e.message});}
-    setEmailSaving(false);
+    setVerifying(false);
   };
 
   const handleEmailUnlink=async()=>{
@@ -465,14 +487,14 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
         {emailOpen&&<div style={{marginTop:6,borderRadius:12,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
           {emailMsg&&<div style={{margin:"10px 14px 0",padding:"8px 10px",borderRadius:8,background:emailMsg.type==="ok"?`${T.green}14`:`${T.red}14`,color:emailMsg.type==="ok"?T.green:T.red,fontSize:12,fontWeight:500}}>{emailMsg.text}</div>}
 
-          {credStatus?.hasEmail?<div style={{padding:"14px"}}>
+          {credStatus?.hasEmail&&!credStatus?._emailEditing?<div style={{padding:"14px"}}>
             <div style={{display:"flex",alignItems:"center",gap:8,padding:10,borderRadius:8,background:`${T.green}08`,border:`1px solid ${T.green}20`,marginBottom:10}}>
               <div style={{width:8,height:8,borderRadius:4,background:T.green,flexShrink:0}}/>
               <span style={{fontSize:12,color:T.green,fontWeight:600}}>メールアドレス連携済み</span>
             </div>
             <div style={{fontSize:12,color:T.txD,marginBottom:12,lineHeight:1.5}}>メールアドレスとパスワードでログインできます。再設定で上書き、解除で無効化できます。</div>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setCredStatus(p=>({...p,hasEmail:false,_emailEditing:true}))}
+              <button onClick={()=>{setCredStatus(p=>({...p,_emailEditing:true}));setEmailVerifyStep(false);setEmailMsg(null);setEmailForm({email:"",password:""});}}
                 style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,fontWeight:600,cursor:"pointer"}}>
                 再設定
               </button>
@@ -483,18 +505,31 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             </div>
           </div>:<>
             {credStatus?._emailEditing&&<div style={{padding:"10px 14px 0"}}>
-              <button onClick={()=>setCredStatus(p=>({...p,hasEmail:true,_emailEditing:false}))}
+              <button onClick={()=>{setCredStatus(p=>({...p,_emailEditing:false}));setEmailVerifyStep(false);setEmailMsg(null);}}
                 style={{background:"none",border:"none",color:T.txD,fontSize:12,cursor:"pointer",padding:0}}>← 戻る</button>
             </div>}
-            <div style={{display:"grid",gap:10,padding:"12px 14px"}}>
-              <Inp label="メールアドレス" type="email" value={emailForm.email} onChange={e=>setEmailForm(p=>({...p,email:e.target.value}))} placeholder="example@m.isct.ac.jp"/>
-              <PwInp label="パスワード (8文字以上)" value={emailForm.password} onChange={e=>setEmailForm(p=>({...p,password:e.target.value}))} placeholder="ログイン用パスワードを設定" show={showEmailPw} onTogShow={()=>setShowEmailPw(p=>!p)}/>
-              <button onClick={handleEmailLink} disabled={emailSaving}
-                style={{padding:"10px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:emailSaving?"wait":"pointer",opacity:emailSaving?.6:1,transition:"opacity .15s"}}>
-                {emailSaving?"連携中...":"メールアドレスを連携"}
+            {emailVerifyStep?<div style={{display:"grid",gap:10,padding:"12px 14px"}}>
+              <div style={{fontSize:12,color:T.txD,lineHeight:1.5}}><strong>{pendingEmail}</strong> に送信した6桁の確認コードを入力してください。</div>
+              <Inp label="確認コード" type="text" inputMode="numeric" maxLength={6} value={verifyCode}
+                onChange={e=>setVerifyCode(e.target.value.replace(/\D/g,"").slice(0,6))} placeholder="123456"
+                style={{letterSpacing:6,fontSize:20,textAlign:"center",fontWeight:700}}/>
+              <button onClick={handleVerifyCode} disabled={verifying||verifyCode.length!==6}
+                style={{padding:"10px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:verifying?"wait":"pointer",opacity:(verifying||verifyCode.length!==6)?.6:1,transition:"opacity .15s"}}>
+                {verifying?"確認中...":"確認コードを送信"}
               </button>
-            </div>
-            <div style={{padding:"0 14px 12px",fontSize:10,color:T.txD,lineHeight:1.5}}>連携すると、ISCT認証が使えない環境でもメアド+パスワードでログインできます。</div>
+              <button onClick={()=>{setEmailVerifyStep(false);setEmailMsg(null);}}
+                style={{background:"none",border:"none",color:T.txD,fontSize:12,cursor:"pointer",padding:0}}>メールアドレスを変更する</button>
+            </div>:<>
+              <div style={{display:"grid",gap:10,padding:"12px 14px"}}>
+                <Inp label="メールアドレス" type="email" value={emailForm.email} onChange={e=>setEmailForm(p=>({...p,email:e.target.value}))} placeholder="example@m.isct.ac.jp"/>
+                <PwInp label="パスワード (8文字以上)" value={emailForm.password} onChange={e=>setEmailForm(p=>({...p,password:e.target.value}))} placeholder="ログイン用パスワードを設定" show={showEmailPw} onTogShow={()=>setShowEmailPw(p=>!p)}/>
+                <button onClick={handleEmailLink} disabled={emailSaving}
+                  style={{padding:"10px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:emailSaving?"wait":"pointer",opacity:emailSaving?.6:1,transition:"opacity .15s"}}>
+                  {emailSaving?"送信中...":"確認コードを送信"}
+                </button>
+              </div>
+              <div style={{padding:"0 14px 12px",fontSize:10,color:T.txD,lineHeight:1.5}}>確認メールを送信します。メール内のコードで本人確認後に連携が完了します。</div>
+            </>}
           </>}
         </div>}
 

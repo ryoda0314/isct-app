@@ -27,7 +27,8 @@
     "puppeteer": "^23.0.0",
     "puppeteer-core": "^24.38.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "resend": "^6.9.4"
   },
   "devDependencies": {
     "@capacitor/android": "^8.2.0",

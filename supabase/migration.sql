@@ -262,3 +262,16 @@ create table if not exists email_auth (
 create unique index if not exists idx_email_auth_login on email_auth(login_id);
 alter table email_auth enable row level security;
 -- anon アクセス不可 (service_role のみ)
+
+-- 25. email_verification: メール確認コード一時保存
+create table if not exists email_verification (
+  email       text primary key,
+  login_id    text not null,
+  moodle_id   bigint not null,
+  pw_hash     text not null,
+  code        text not null,
+  expires_at  timestamptz not null,
+  attempts    int default 0,
+  created_at  timestamptz default now()
+);
+alter table email_verification enable row level security;

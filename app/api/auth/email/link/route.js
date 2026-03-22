@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 import { verifySession, COOKIE_NAME } from '../../../../../lib/auth/session.js';
 import { getSupabaseAdmin } from '../../../../../lib/supabase/server.js';
+import { sendVerificationCode } from '../../../../../lib/email.js';
 
 const scrypt = promisify(crypto.scrypt);
 
@@ -12,15 +13,14 @@ async function hashPassword(password) {
   return `${salt}:${derived.toString('hex')}`;
 }
 
-async function verifyPassword(password, hash) {
-  const [salt, key] = hash.split(':');
-  const derived = await scrypt(password, salt, 64);
-  return crypto.timingSafeEqual(Buffer.from(key, 'hex'), derived);
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const CODE_TTL = 10 * 60 * 1000; // 10分
+
+function generateCode() {
+  return crypto.randomInt(100000, 999999).toString();
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/** POST: メールアドレス+パスワードを現在のアカウントに連携 */
+/** POST: 確認コードをメール送信 */
 export async function POST(request) {
   try {
     const cookie = request.cookies.get(COOKIE_NAME)?.value;
@@ -52,19 +52,28 @@ export async function POST(request) {
     }
 
     const pwHash = await hashPassword(password);
+    const code = generateCode();
+    const expiresAt = new Date(Date.now() + CODE_TTL).toISOString();
 
-    await sb.from('email_auth').upsert({
+    // Save verification record (upsert — resend overwrites previous code)
+    await sb.from('email_verification').upsert({
       email: email.toLowerCase(),
       login_id: session.loginId,
       moodle_id: session.moodleUserId,
       pw_hash: pwHash,
+      code,
+      expires_at: expiresAt,
+      attempts: 0,
       created_at: new Date().toISOString(),
     }, { onConflict: 'email' });
 
-    return NextResponse.json({ success: true });
+    // Send verification email
+    await sendVerificationCode(email.toLowerCase(), code);
+
+    return NextResponse.json({ success: true, needsVerification: true });
   } catch (err) {
     console.error('[EmailLink]', err.message);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    return NextResponse.json({ error: 'メール送信に失敗しました' }, { status: 500 });
   }
 }
 

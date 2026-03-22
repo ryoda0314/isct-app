@@ -2,8 +2,32 @@ import { NextResponse } from 'next/server';
 import { deleteCredentials, loadCredentials, saveCredentials } from '../../../../lib/credentials.js';
 import { invalidateToken } from '../../../../lib/auth/token-manager.js';
 import { requireAuth } from '../../../../lib/auth/require-auth.js';
-import { COOKIE_NAME, destroyUserSessions } from '../../../../lib/auth/session.js';
+import { COOKIE_NAME, destroyUserSessions, verifySession } from '../../../../lib/auth/session.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
+
+/**
+ * GET /api/auth/credentials
+ * Returns the user's portal credentials (portalUserId, portalPassword, matrix).
+ * Used by the native Capacitor app for direct portal WebView auto-login.
+ */
+export async function GET(request) {
+  const cookie = request.cookies.get(COOKIE_NAME)?.value;
+  const session = verifySession(cookie);
+  if (!session) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  try {
+    const creds = await loadCredentials(session.loginId);
+    const { portalUserId, portalPassword, matrix } = creds;
+    if (!portalUserId || !portalPassword || !matrix) {
+      return NextResponse.json({ error: 'Portal credentials not configured' }, { status: 400 });
+    }
+    return NextResponse.json({ portalUserId, portalPassword, matrix });
+  } catch {
+    return NextResponse.json({ error: 'Credentials not found' }, { status: 400 });
+  }
+}
 
 /**
  * DELETE /api/auth/credentials

@@ -6,6 +6,8 @@ import { NOW, uDue, pDone } from "../utils.jsx";
 import { Tag } from "../shared.jsx";
 import { useLocationSharing, getSpot } from "../hooks/useLocationSharing.js";
 import { getAcademicInfo } from "../academicCalendar.js";
+import { isNative } from "../capacitor.js";
+import { openPortal } from "../plugins/portalWebView.js";
 
 // SVG weather icons — clean, consistent style
 const WxIcon=({type,sz=20})=>{const s={width:sz,height:sz,display:"inline-block",verticalAlign:"middle",flexShrink:0};
@@ -74,7 +76,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
     return()=>clearInterval(tid);
   },[]);
   useEffect(()=>{try{localStorage.setItem("wxLoc",JSON.stringify(loc));}catch{}},[loc]);
-  useEffect(()=>{fetch("/api/portal/page?warmup=1",{cache:"no-store"}).catch(()=>{});},[]);
+  useEffect(()=>{if(!isNative())fetch("/api/portal/page?warmup=1",{cache:"no-store"}).catch(()=>{});},[]);
   useEffect(()=>{
     (async()=>{
       try{
@@ -282,13 +284,22 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
       <div style={{padding:"2px 16px 6px",display:"grid",gridTemplateColumns:`repeat(${qaItems.length},1fr)`,gap:6}}>
         {qaItems.map((qa,i)=>{
           if(qa.id==="portal") return (
-            <button key={qa.id} onClick={()=>{
+            <button key={qa.id} onClick={async()=>{
               setPortalLoading(true);setPortalError(null);
-              fetch("/api/portal/page",{cache:"no-store"}).then(async r=>{
-                if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||(r.status===400?"ポータル認証情報が未設定です":"ポータルへの接続に失敗しました"));}
-                return r.json();
-              }).then(d=>{setPortalData(d);setPortalLoading(false);})
-                .catch(e=>{setPortalError(e.message);setPortalLoading(false);});
+              try{
+                if(isNative()){
+                  const r=await fetch("/api/auth/credentials");
+                  if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||"ポータル認証情報の取得に失敗しました");}
+                  const{portalUserId,portalPassword,matrix}=await r.json();
+                  await openPortal({userId:portalUserId,password:portalPassword,matrix});
+                }else{
+                  const r=await fetch("/api/portal/page",{cache:"no-store"});
+                  if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||(r.status===400?"ポータル認証情報が未設定です":"ポータルへの接続に失敗しました"));}
+                  const d=await r.json();
+                  setPortalData(d);
+                }
+              }catch(e){setPortalError(e.message);}
+              setPortalLoading(false);
             }} disabled={portalLoading} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:portalLoading?"wait":"pointer",opacity:portalLoading?.6:1}}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
               <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{portalLoading?"読込中...":"ポータル"}</span>
