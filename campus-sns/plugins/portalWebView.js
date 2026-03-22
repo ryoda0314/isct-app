@@ -65,7 +65,7 @@ export async function openPortal({ userId, password, matrix }) {
  */
 export async function openIsctPortal({ userId, password, totpCode }) {
   if (!isNative()) {
-    window.open('https://portal.isct.ac.jp', '_blank');
+    window.open('https://isct.ex-tic.com/auth/session', '_blank');
     return;
   }
 
@@ -74,7 +74,7 @@ export async function openIsctPortal({ userId, password, totpCode }) {
     await Portal.openIsctPortal({ userId, password, totpCode });
   } else {
     const { Browser } = await import('@capacitor/browser');
-    await Browser.open({ url: 'https://portal.isct.ac.jp' });
+    await Browser.open({ url: 'https://isct.ex-tic.com/auth/session' });
   }
 }
 
