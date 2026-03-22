@@ -3,10 +3,11 @@
   "appName": "ScienceTokyo",
   "webDir": "www",
   "server": {
-    "url": "https://isct-app.vercel.app",
+    "url": "https://sciencetokyo.app",
     "androidScheme": "https",
     "iosScheme": "https",
     "allowNavigation": [
+      "*.sciencetokyo.app",
       "*.vercel.app",
       "*.supabase.co",
       "portal.nap.gsic.titech.ac.jp",
