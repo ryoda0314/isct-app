@@ -43,10 +43,9 @@ import { useCircles } from "./hooks/useCircles.js";
 import { Toasts } from "./hooks/useToast.js";
 import { useBookmarks } from "./hooks/useBookmarks.js";
 import { useUnreadDM } from "./hooks/useUnreadDM.js";
-import { installFetchInterceptor, configureStatusBar } from "./capacitor.js";
+import { installFetchInterceptor, updateStatusBarTheme } from "./capacitor.js";
 
 installFetchInterceptor();
-configureStatusBar();
 
 const API="";
 
@@ -71,6 +70,7 @@ export default function App(){
   const themeMode=themePref==="auto"?(sysDark?"dark":"light"):themePref;
   const dark=isDarkMode(themeMode);
   updateT(themeMode,accentPref);
+  updateStatusBarTheme(T.bg2);
   useEffect(()=>{document.documentElement.style.background=T.bg;document.body.style.background=T.bg;},[themeMode,accentPref]);
   const [mockMode,setMockMode]=useState(false);
   const [quarter,setQuarter]=useState(()=>{try{const v=localStorage.getItem("quarter");return v?Number(v):2;}catch{return 2;}});

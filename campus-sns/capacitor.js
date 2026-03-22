@@ -14,22 +14,28 @@ export function isNative() {
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '';
 
 /**
- * Call once at app startup (e.g. in App.jsx).
- * Rewrites relative `/api/…` fetches to the remote backend when
- * running inside a Capacitor native shell.
+ * Update the native status bar color to match the current theme.
+ * Call this whenever the theme changes.
+ *
+ * @param {string} bg2 - The theme's bg2 color (header background)
  */
-/**
- * Configure the native status bar for edge-to-edge display.
- * Makes the status bar transparent and overlays content beneath it.
- */
-export async function configureStatusBar() {
+export async function updateStatusBarTheme(bg2) {
   if (!isNative()) return;
   try {
     const { StatusBar, Style } = await import('@capacitor/status-bar');
-    await StatusBar.setOverlaysWebView({ overlay: true });
-    await StatusBar.setStyle({ style: Style.Dark });
-    await StatusBar.setBackgroundColor({ color: '#00000000' });
+    await StatusBar.setBackgroundColor({ color: bg2 });
+    // Use light icons on dark backgrounds, dark icons on light backgrounds
+    const isDark = isColorDark(bg2);
+    await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
   } catch {}
+}
+
+function isColorDark(hex) {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 < 128;
 }
 
 export function installFetchInterceptor() {
@@ -39,7 +45,6 @@ export function installFetchInterceptor() {
   window.fetch = (input, init) => {
     if (typeof input === 'string' && input.startsWith('/api/')) {
       input = API_BASE + input;
-      // Ensure cookies / credentials travel cross-origin
       init = { ...init, credentials: 'include' };
     } else if (input instanceof Request && new URL(input.url).pathname.startsWith('/api/')) {
       const url = API_BASE + new URL(input.url).pathname + new URL(input.url).search;
