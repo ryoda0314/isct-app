@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { saveCredentials, deleteCredentials, hasCredentials } from '../../../../lib/credentials.js';
 import { getToken, invalidateToken } from '../../../../lib/auth/token-manager.js';
-import { createSessionToken, sessionCookieOptions, COOKIE_NAME, verifySession } from '../../../../lib/auth/session.js';
+import { createSessionToken, sessionCookieOptions, COOKIE_NAME } from '../../../../lib/auth/session.js';
 
 export async function POST(request) {
   try {
@@ -17,15 +17,7 @@ export async function POST(request) {
 
     const loginId = userId || portalUserId;
 
-    // Guard: if this user already has credentials, require their session
     const hadCreds = await hasCredentials(loginId);
-    if (hadCreds) {
-      const cookie = request.cookies.get(COOKIE_NAME)?.value;
-      const session = verifySession(cookie);
-      if (!session || session.loginId !== loginId) {
-        return NextResponse.json({ error: 'Already configured. Authenticate first to reconfigure.' }, { status: 403 });
-      }
-    }
 
     // Build credential object
     const credData = {};
