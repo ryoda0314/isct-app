@@ -9,6 +9,7 @@ import { NAV_QUICK_DEFAULT, SPOT_GROUPS } from './NavigationView.jsx';
 import { SPOTS, SPOT_CATS } from '../hooks/useLocationSharing.js';
 import { SCHOOLS, DEPTS } from '../data.js';
 import { PrivacyPolicyView } from './PrivacyPolicyView.jsx';
+import { TermsOfServiceView } from './TermsOfServiceView.jsx';
 
 /* ─── 画像 → 正方形クロップ → data URI ─── */
 const AV_SZ=160;
@@ -130,6 +131,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   const [deptSchool,setDeptSchool]=useState(()=>user.myDept?DEPTS[user.myDept]?.school||null:null);
   const [cacheCleared,setCacheCleared]=useState(false);
   const [showPrivacy,setShowPrivacy]=useState(false);
+  const [showTerms,setShowTerms]=useState(false);
   const [avEdit,setAvEdit]=useState(false);
   const [uploading,setUploading]=useState(false);
   const fileRef=useRef(null);
@@ -729,6 +731,10 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
         {/* ═══ その他 ═══ */}
         <GHead>その他</GHead>
         <GCard>
+          <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>}
+            label="利用規約"
+            sub="サービスの利用条件について"
+            onClick={()=>setShowTerms(true)}/>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
             label="プライバシーポリシー"
             sub="個人情報の取り扱いについて"
@@ -745,6 +751,17 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
           <div style={{marginTop:2}}>© 2026 Institute of Science Tokyo</div>
         </div>
 
+        {/* ═══ 利用規約 モーダル ═══ */}
+        {showTerms&&<div style={{position:"fixed",inset:0,zIndex:10001,background:T.bg,display:"flex",flexDirection:"column"}}>
+          <div style={{paddingTop:"env(safe-area-inset-top)",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>
+            <div style={{height:46,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 12px"}}>
+              <button onClick={()=>setShowTerms(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
+              <span style={{fontSize:16,fontWeight:700,color:T.txH}}>利用規約</span>
+              <div style={{width:28}}/>
+            </div>
+          </div>
+          <TermsOfServiceView mob={mob} embedded={false}/>
+        </div>}
         {/* ═══ プライバシーポリシー モーダル ═══ */}
         {showPrivacy&&<div style={{position:"fixed",inset:0,zIndex:10001,background:T.bg,display:"flex",flexDirection:"column"}}>
           <div style={{paddingTop:"env(safe-area-inset-top)",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>

@@ -6,10 +6,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "trace-sso": "node lib/auth/trace-sso.js"
+    "trace-sso": "node lib/auth/trace-sso.js",
+    "cap:sync": "npx cap sync",
+    "cap:ios": "npx cap sync ios && npx cap open ios",
+    "cap:android": "npx cap sync android && npx cap open android"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/browser": "^8.0.2",
+    "@capacitor/core": "^8.2.0",
+    "@capacitor/status-bar": "^8.0.1",
     "@ducanh2912/next-pwa": "^10.2.9",
     "@sparticuz/chromium": "^143.0.4",
     "@supabase/supabase-js": "^2.98.0",
@@ -21,5 +28,10 @@
     "puppeteer-core": "^24.38.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.2.0",
+    "@capacitor/cli": "^8.2.0",
+    "@capacitor/ios": "^8.2.0"
   }
 }

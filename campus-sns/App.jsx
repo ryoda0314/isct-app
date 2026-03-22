@@ -43,6 +43,10 @@ import { useCircles } from "./hooks/useCircles.js";
 import { Toasts } from "./hooks/useToast.js";
 import { useBookmarks } from "./hooks/useBookmarks.js";
 import { useUnreadDM } from "./hooks/useUnreadDM.js";
+import { installFetchInterceptor, configureStatusBar } from "./capacitor.js";
+
+installFetchInterceptor();
+configureStatusBar();
 
 const API="";
 

@@ -5,6 +5,7 @@ import { updateUserPref } from "../hooks/useCurrentUser.js";
 import { MatrixInput, COLS, ROWS } from "../components/MatrixInput.jsx";
 import { QRScanner } from "../components/QRScanner.jsx";
 import { PrivacyPolicyView } from "./PrivacyPolicyView.jsx";
+import { TermsOfServiceView } from "./TermsOfServiceView.jsx";
 
 const API = "";
 
@@ -373,6 +374,7 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
     try { return localStorage.getItem("privacyAgreed") === "true"; } catch { return false; }
   });
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
 
   const [isctId, setIsctId] = useState("");
   const [isctPw, setIsctPw] = useState("");
@@ -524,6 +526,11 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
                 {privacyAgreed && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
               </div>
               <div style={{ fontSize: 13, color: T.tx, lineHeight: 1.6 }}>
+                <button onClick={e => { e.stopPropagation(); setShowTerms(true); }} style={{
+                  background: "none", border: "none", color: T.accent, fontSize: 13,
+                  fontWeight: 600, cursor: "pointer", padding: 0, textDecoration: "underline",
+                }}>利用規約</button>
+                ・
                 <button onClick={e => { e.stopPropagation(); setShowPrivacyPolicy(true); }} style={{
                   background: "none", border: "none", color: T.accent, fontSize: 13,
                   fontWeight: 600, cursor: "pointer", padding: 0, textDecoration: "underline",
@@ -551,7 +558,7 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
                 transition: "all .15s",
               }}>{ICN.login} ログイン</button>
             </div>
-            {!privacyAgreed && <p style={{ fontSize: 11, color: T.txD, textAlign: "center", marginTop: 10 }}>利用するにはプライバシーポリシーへの同意が必要です</p>}
+            {!privacyAgreed && <p style={{ fontSize: 11, color: T.txD, textAlign: "center", marginTop: 10 }}>利用するには利用規約・プライバシーポリシーへの同意が必要です</p>}
             <button onClick={onSkip} style={{
               background: "none", border: "none", color: T.txD, fontSize: 13,
               cursor: "pointer", marginTop: 16, textAlign: "center", padding: 8, width: "100%",
@@ -782,6 +789,46 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
               setPrivacyAgreed(true);
               try { localStorage.setItem("privacyAgreed", "true"); } catch {}
               setShowPrivacyPolicy(false);
+            }} style={{
+              width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
+              background: T.accent, color: "#fff", fontSize: 15, fontWeight: 700,
+              cursor: "pointer",
+            }}>同意して閉じる</button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ 利用規約 モーダル ═══ */}
+      {showTerms && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 10001,
+          background: T.bg, display: "flex", flexDirection: "column",
+        }}>
+          <div style={{
+            paddingTop: "env(safe-area-inset-top)", borderBottom: `1px solid ${T.bd}`,
+            background: T.bg2, flexShrink: 0,
+          }}>
+            <div style={{
+              height: 46, display: "flex", alignItems: "center",
+              justifyContent: "space-between", padding: "0 12px",
+            }}>
+              <button onClick={() => setShowTerms(false)} style={{
+                background: "none", border: "none", color: T.txD,
+                cursor: "pointer", display: "flex", padding: 4,
+              }}>{I.back}</button>
+              <span style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>利用規約</span>
+              <div style={{ width: 28 }} />
+            </div>
+          </div>
+          <TermsOfServiceView mob={mob} embedded={false} />
+          <div style={{
+            padding: "12px 24px", paddingBottom: "calc(12px + env(safe-area-inset-bottom))",
+            borderTop: `1px solid ${T.bd}`, background: T.bg2, flexShrink: 0,
+          }}>
+            <button onClick={() => {
+              setPrivacyAgreed(true);
+              try { localStorage.setItem("privacyAgreed", "true"); } catch {}
+              setShowTerms(false);
             }} style={{
               width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
               background: T.accent, color: "#fff", fontSize: 15, fontWeight: 700,

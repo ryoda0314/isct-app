@@ -39,9 +39,11 @@ export function middleware(request) {
   }
 
   // M3: CSRF — verify Origin header for mutating API requests
+  // Allow Capacitor native origins (capacitor://localhost, https://localhost)
+  const CAPACITOR_ORIGINS = ['capacitor://localhost', 'https://localhost', 'http://localhost'];
   if (isApi && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method)) {
     const origin = request.headers.get('origin');
-    if (origin) {
+    if (origin && !CAPACITOR_ORIGINS.includes(origin)) {
       try {
         const originHost = new URL(origin).host;
         const host = request.headers.get('host');
@@ -54,7 +56,31 @@ export function middleware(request) {
     }
   }
 
+  // CORS: Allow Capacitor native app origins
+  const reqOrigin = request.headers.get('origin');
+  const isCapacitorOrigin = reqOrigin && CAPACITOR_ORIGINS.includes(reqOrigin);
+  if (isCapacitorOrigin && isApi) {
+    if (request.method === 'OPTIONS') {
+      return new NextResponse(null, {
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': reqOrigin,
+          'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Max-Age': '86400',
+        },
+      });
+    }
+  }
+
   const res = NextResponse.next();
+
+  // Add CORS headers for Capacitor native app
+  if (isCapacitorOrigin && isApi) {
+    res.headers.set('Access-Control-Allow-Origin', reqOrigin);
+    res.headers.set('Access-Control-Allow-Credentials', 'true');
+  }
 
   res.headers.set('X-Content-Type-Options', 'nosniff');
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
