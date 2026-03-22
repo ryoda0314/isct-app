@@ -1,0 +1,27 @@
+{
+	"appId": "ac.isct.campus",
+	"appName": "ScienceTokyo",
+	"webDir": "www",
+	"server": {
+		"url": "https://sciencetokyo.app",
+		"androidScheme": "https",
+		"iosScheme": "https",
+		"allowNavigation": [
+			"*.sciencetokyo.app",
+			"*.vercel.app",
+			"*.supabase.co",
+			"portal.nap.gsic.titech.ac.jp",
+			"lms.s.isct.ac.jp"
+		]
+	},
+	"plugins": {
+		"App": {
+			"launchShowDuration": 0
+		}
+	},
+	"packageClassList": [
+		"AppPlugin",
+		"CAPBrowserPlugin",
+		"PortalPlugin"
+	]
+}

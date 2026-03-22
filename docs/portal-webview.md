@@ -133,3 +133,64 @@ private boolean isctSamlDone = false;
 - Rails アプリ（`authenticity_token` 付きフォーム）
 - 3つの form が存在: ログイン / パスワードレス(WebAuthn) / キャンセル
 - `input#password` が CSS で非表示の場合があるが、`form.submit()` なら表示させなくても送信可能
+
+---
+
+## LMS 課題ページ（SSO 経由）
+
+### 概要
+
+LMS（`lms.s.isct.ac.jp`）の課題ページを、ISCT SSO 自動ログイン経由で開く機能。
+
+### URL 形式
+
+```
+https://lms.s.isct.ac.jp/2025/mod/assign/view.php?id={cmid}
+```
+
+- `cmid` は Moodle API `mod_assign_get_assignments` のレスポンスから取得
+
+### フロー
+
+```
+openLmsPage(url, credentials)
+  ↓
+ISCT SSO で認証 (isct.ex-tic.com/auth/session)
+  ↓ login → TOTP → SAML
+SSO 完了後、lmsTargetUrl へ自動遷移
+  ↓
+LMS ページ読み込み完了 → ローディング非表示
+```
+
+### 実装のポイント
+
+| 項目 | 詳細 |
+|---|---|
+| 認証方式 | LMS URL を直接開くのではなく、**まず ISCT SSO で認証してから LMS に遷移** |
+| `lmsTargetUrl` | SSO 完了後の遷移先を保持する変数。遷移後に `null` にリセット |
+| 2回目以降 | WebView の Cookie で SSO 認証済み → ログインフォームなし → 非認証ページ検出で直接 LMS へ遷移 |
+| 認証済み判定 | `onPageFinished` の URL に `/auth/`, `/saml/`, `/login` を含まない場合 |
+| ローディング | LMS ページの `onPageFinished` で非表示（SSO 完了時点では非表示にしない） |
+
+### ハマりポイント
+
+| 問題 | 原因 | 解決策 |
+|---|---|---|
+| `/second_factor` で `ERR_HTTP_RESPONSE_CODE_FAILURE` | LMS URL を直接開くと SSO リダイレクトチェーンで別のセッション状態になる | LMS URL を直接開かず、先に `isct.ex-tic.com/auth/session` で認証 → 完了後に LMS へ遷移 |
+| 2回目以降が無限ローディング | SSO 認証済みでログインフォームが表示されず `injectIsctLogin` が `wait` を返し続ける | `handleIsctPageFinished` で非認証ページ（URL に `/auth/` 等を含まない）を検出し SSO スキップ |
+| ローディングが早く消える | SSO 完了時点で `hideLoading()` を呼んでいた | LMS 遷移時は `hideLoading()` を呼ばず、LMS の `onPageFinished` で消す |
+
+---
+
+## ボトムナビ連携
+
+WebView overlay 表示中でもアプリのボトムナビバーを操作可能にする仕組み。
+
+### 実装
+
+- overlay の `bottomMargin = dp(78)` でボトムナビ領域を確保
+- 透明な `navInterceptor` ビュー（78dp）をボトムに配置
+- タップ時: overlay を `removeOverlay()` で閉じた後、`MotionEvent` を Capacitor WebView に転送
+- `getBridge().getWebView()` で Capacitor WebView を取得し `dispatchTouchEvent` でタップを再現
+
+これにより1タップで「WebView 閉じる + タブ遷移」が可能。
