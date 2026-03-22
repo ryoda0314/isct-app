@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { T, updateT, ACCENT_PRESETS, isDarkMode } from "./theme.js";
 import { I } from "./icons.jsx";
-import { QData, ASGN0, MYTK0, EVENTS0, REVIEWS0, MYEVENTS0, SCHOOLS, DEPTS } from "./data.js";
+import { QData, ASGN0, MYTK0, EVENTS0, REVIEWS0, MYEVENTS0, SCHOOLS, DEPTS, evCat } from "./data.js";
 import { DEMO_COURSES, DEMO_QDATA, DEMO_ASGN, DEMO_USER, DEMO_EVENTS, DEMO_REVIEWS, DEMO_MY_EVENTS, DEMO_TASKS } from "./demoData.js";
-import { setDemoMode } from "./demoMode.js";
+import { setDemoMode, isDemoMode } from "./demoMode.js";
 import { useNotifications } from "./hooks/useNotifications.js";
 import { useCurrentUser, setCurrentUserFromAPI } from "./hooks/useCurrentUser.js";
 import { usePresence } from "./hooks/usePresence.js";
@@ -87,6 +87,49 @@ export default function App(){
   // grades are now fetched inside GradeView directly
   const [reviews,setReviews]=useState(REVIEWS0);
   const [myEvents,setMyEvents]=useState(MYEVENTS0);
+  const [rsvps,setRsvps]=useState(()=>{try{const v=localStorage.getItem("eventRsvps");return v?JSON.parse(v):{};}catch{return{};}});
+  const handleRsvp=useCallback((eventId,status)=>{
+    const prev=rsvps[eventId];
+    const next=prev===status?null:status;
+    const newRsvps={...rsvps};
+    if(next) newRsvps[eventId]=next; else delete newRsvps[eventId];
+    setRsvps(newRsvps);
+    try{localStorage.setItem("eventRsvps",JSON.stringify(newRsvps));}catch{}
+    // Sync with calendar: add/remove from myEvents
+    const rsvpId=`rsvp_${eventId}`;
+    if(next==="going"){
+      const ev=allEvents.find(e=>e.id===eventId);
+      if(ev&&!myEvents.some(e=>e.id===rsvpId)){
+        const col=evCat[ev.cat]?.c||T.accent;
+        setMyEvents(p=>[...p,{id:rsvpId,title:ev.title,date:ev.date,end:ev.end||null,color:col,memo:ev.loc||""}]);
+      }
+    }else{
+      if(prev==="going") setMyEvents(p=>p.filter(e=>e.id!==rsvpId));
+    }
+    if(isDemoMode()) return;
+    (async()=>{try{
+      if(next) await fetch('/api/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event_id:eventId,status:next})});
+      else await fetch('/api/events',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({event_id:eventId})});
+    }catch{}})();
+  },[rsvps,allEvents,myEvents]);
+  // Restore "going" RSVPs into calendar on mount
+  useEffect(()=>{
+    const goingIds=Object.entries(rsvps).filter(([,s])=>s==="going").map(([id])=>id);
+    if(goingIds.length===0) return;
+    const toAdd=goingIds.map(eid=>{
+      const rsvpId=`rsvp_${eid}`;
+      const ev=allEvents.find(e=>e.id===eid);
+      if(!ev) return null;
+      const col=evCat[ev.cat]?.c||T.accent;
+      return {id:rsvpId,title:ev.title,date:ev.date,end:ev.end||null,color:col,memo:ev.loc||""};
+    }).filter(Boolean);
+    if(toAdd.length>0) setMyEvents(p=>{
+      const existing=new Set(p.map(e=>e.id));
+      const fresh=toAdd.filter(e=>!existing.has(e.id));
+      return fresh.length?[...p,...fresh]:p;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
   const [pomo,setPomo]=useState({running:false,sec:25*60,mode:"work",sessions:0});
   const [searchQ,setSearchQ]=useState("");
   const [notifEnabled,setNotifEnabled]=useState(()=>{try{const v=localStorage.getItem("notifEnabled");return v!==null?JSON.parse(v):true;}catch{return true;}});
@@ -281,7 +324,7 @@ export default function App(){
           {view==="grades"&&(L?<LockedView title="成績"/>:<GradeView mob={false}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
           {view==="calendar"&&(L?<LockedView title="カレンダー"/>:<CalendarView myEvents={myEvents} setMyEvents={setMyEvents} asgn={asgn} courses={allCourses} qd={qd} mob={false}/>)}
-          {view==="events"&&<EventView events={allEvents} mob={false}/>}
+          {view==="events"&&<EventView events={allEvents} mob={false} rsvps={rsvps} onRsvp={handleRsvp}/>}
           {view==="reviews"&&(L?<LockedView title="授業レビュー"/>:<ReviewView reviews={reviews} setReviews={setReviews} mob={false} courses={allCourses}/>)}
           {view==="bmarks"&&(L?<LockedView title="ブックマーク"/>:<BookmarkView bmarks={bmarks} mob={false} setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/>)}
           {view==="search"&&(L?<LockedView title="検索"/>:<SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses}/>)}
@@ -317,7 +360,7 @@ export default function App(){
         {view==="grades"&&(L?<><MHdr title="成績" back={mBack}/><LockedView title="成績"/></>:<><MHdr title="成績" back={mBack}/><GradeView mob/></>)}
         {view==="pomo"&&<><MHdr title="ポモドーロ" back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
         {view==="calendar"&&(L?<><MHdr title="カレンダー" back={mBack}/><LockedView title="カレンダー"/></>:<><MHdr title="カレンダー" back={mBack}/><CalendarView myEvents={myEvents} setMyEvents={setMyEvents} asgn={asgn} courses={allCourses} qd={qd} mob/></>)}
-        {view==="events"&&<><MHdr title="イベント" back={mBack}/><EventView events={allEvents} mob/></>}
+        {view==="events"&&<><MHdr title="イベント" back={mBack}/><EventView events={allEvents} mob rsvps={rsvps} onRsvp={handleRsvp}/></>}
         {view==="reviews"&&(L?<><MHdr title="授業レビュー" back={mBack}/><LockedView title="授業レビュー"/></>:<><MHdr title="授業レビュー" back={mBack}/><ReviewView reviews={reviews} setReviews={setReviews} mob courses={allCourses}/></>)}
         {view==="bmarks"&&(L?<><MHdr title="ブックマーク" back={mBack}/><LockedView title="ブックマーク"/></>:<><MHdr title="ブックマーク" back={mBack}/><BookmarkView bmarks={bmarks} mob setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/></>)}
         {view==="search"&&(L?<><MHdr title="検索" back={mBack}/><LockedView title="検索"/></>:<><MHdr title="検索" back={mBack}/><SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses}/></>)}
