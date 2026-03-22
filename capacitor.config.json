@@ -16,6 +16,11 @@
   "plugins": {
     "App": {
       "launchShowDuration": 0
+    },
+    "StatusBar": {
+      "overlaysWebView": false,
+      "style": "LIGHT",
+      "backgroundColor": "#f5e6e0"
     }
   }
 }
