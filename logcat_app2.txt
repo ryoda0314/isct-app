@@ -1,0 +1,215 @@
+--------- beginning of main
+03-23 00:58:49.540  5886  5886 I Zygote  : Process 5886 created for ac.isct.campus
+03-23 00:58:49.541  5886  5886 I ac.isct.campus: Late-enabling -Xcheck:jni
+03-23 00:58:49.653  5886  5886 I ac.isct.campus: Using CollectorTypeCMC GC.
+03-23 00:58:49.654  5886  5886 W ac.isct.campus: Unexpected CPU variant for x86: x86_64.
+03-23 00:58:49.654  5886  5886 W ac.isct.campus: Known variants: atom, sandybridge, silvermont, goldmont, goldmont-plus, goldmont-without-sha-xsaves, tremont, kabylake, alderlake, default
+03-23 00:58:49.841  5886  5886 D nativeloader: Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+03-23 00:58:50.321  5886  5886 D nativeloader: Configuring clns-9 for other apk /data/app/~~afoMr1KivXFMCAmX6h0drw==/ac.isct.campus-lCz5o5famOTeT3kpTqdI_A==/base.apk. target_sdk_version=36, uses_libraries=, library_path=/data/app/~~afoMr1KivXFMCAmX6h0drw==/ac.isct.campus-lCz5o5famOTeT3kpTqdI_A==/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/ac.isct.campus
+03-23 00:58:50.399  5886  5886 V GraphicsEnvironment: Currently set values for:
+03-23 00:58:50.399  5886  5886 V GraphicsEnvironment:   angle_gl_driver_selection_pkgs=[]
+03-23 00:58:50.399  5886  5886 V GraphicsEnvironment:   angle_gl_driver_selection_values=[]
+03-23 00:58:50.399  5886  5886 V GraphicsEnvironment: ac.isct.campus is not listed in per-application setting
+03-23 00:58:50.400  5886  5886 V GraphicsEnvironment: ANGLE allowlist from config: com.dreamgames.royalmatch com.dts.freefiremax com.dxx.firenow com.gramgames.mergedragons com.ludo.king com.mojang.minecraftpe com.my.defense com.nintendo.zaka com.os.airforce com.playrix.fishdomdd.gplay io.teslatech.callbreak jp.konami.prospia net.peakgames.toonblast
+03-23 00:58:50.400  5886  5886 V GraphicsEnvironment: No special selections for ANGLE, returning default driver choice
+03-23 00:58:50.400  5886  5886 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+--------- beginning of system
+03-23 00:58:50.503  5886  5912 I DisplayManager: Choreographer implicitly registered for the refresh rate.
+03-23 00:58:50.588  5886  5886 D DesktopExperienceFlags: Toggle override initialized to: false
+03-23 00:58:50.600  5886  5912 I GFXSTREAM: [eglDisplay.cpp(297)] Opening libGLESv1_CM_emulation.so
+03-23 00:58:50.602  5886  5912 I GFXSTREAM: [eglDisplay.cpp(297)] Opening libGLESv2_emulation.so
+03-23 00:58:50.610  5886  5912 W HWUI    : Failed to choose config with EGL_SWAP_BEHAVIOR_PRESERVED, retrying without...
+03-23 00:58:50.610  5886  5912 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS
+03-23 00:58:50.612  5886  5886 D AppCompatDelegate: Checking for metadata for AppLocalesMetadataHolderService : Service not found
+03-23 00:58:50.625  5886  5886 E ashmem  : Pinning is deprecated since Android Q. Please use trim or other methods.
+03-23 00:58:50.729  5886  5886 D CompatChangeReporter: Compat change id reported: 377864165; UID 10227; state: ENABLED
+03-23 00:58:50.730  5886  5886 D DesktopModeFlags: Toggle override initialized to: OVERRIDE_UNSET
+03-23 00:58:50.781  5886  5886 I ac.isct.campus: hiddenapi: Accessing hidden method Landroid/view/ViewGroup;->makeOptionalFitsSystemWindows()V (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/appcompat/widget/ViewUtils; (domain=app, TargetSdkVersion=36) using reflection: allowed
+03-23 00:58:50.817  5886  5886 I WebViewFactory: Loading com.google.android.webview version 134.0.6998.135 (code 699813538)
+03-23 00:58:50.826  5886  5886 V ResourcesManager: The following library key has been added: ResourcesKey{ mHash=19ef9c24 mResDir=null mSplitDirs=[] mOverlayDirs=[] mLibDirs=[/data/app/~~U7YZnhdTFQShPrGu8k5dKw==/com.google.android.webview-tyA-dAeiv9beiwVO6N1iWA==/WebViewGoogle.apk,/data/app/~~tLbATdl9k3eO-62QHcNG7A==/com.google.android.trichromelibrary_699813538-vTxkg2d--JgBquginwWxTg==/TrichromeLibrary.apk,/system_ext/framework/androidx.window.extensions.jar] mDisplayId=0 mOverrideConfig=v36 mCompatInfo={420dpi always-compat} mLoaders=[]}
+03-23 00:58:50.831  5886  5886 W ac.isct.campus: Failed to find entry 'classes.dex': Entry not found
+03-23 00:58:50.832  5886  5886 D nativeloader: Configuring clns-10 for other apk /data/app/~~tLbATdl9k3eO-62QHcNG7A==/com.google.android.trichromelibrary_699813538-vTxkg2d--JgBquginwWxTg==/TrichromeLibrary.apk. target_sdk_version=35, uses_libraries=ALL, library_path=/data/app/~~U7YZnhdTFQShPrGu8k5dKw==/com.google.android.webview-tyA-dAeiv9beiwVO6N1iWA==/lib/x86_64:/data/app/~~U7YZnhdTFQShPrGu8k5dKw==/com.google.android.webview-tyA-dAeiv9beiwVO6N1iWA==/WebViewGoogle.apk!/lib/x86_64:/data/app/~~tLbATdl9k3eO-62QHcNG7A==/com.google.android.trichromelibrary_699813538-vTxkg2d--JgBquginwWxTg==/TrichromeLibrary.apk!/lib/x86_64, permitted_path=/data:/mnt/expand
+03-23 00:58:50.836  5886  5886 D ApplicationLoaders: Returning zygote-cached class loader: /system_ext/framework/androidx.window.extensions.jar
+03-23 00:58:50.843  5886  5886 D nativeloader: Configuring clns-11 for other apk /data/app/~~U7YZnhdTFQShPrGu8k5dKw==/com.google.android.webview-tyA-dAeiv9beiwVO6N1iWA==/WebViewGoogle.apk. target_sdk_version=35, uses_libraries=, library_path=/data/app/~~U7YZnhdTFQShPrGu8k5dKw==/com.google.android.webview-tyA-dAeiv9beiwVO6N1iWA==/lib/x86_64:/data/app/~~U7YZnhdTFQShPrGu8k5dKw==/com.google.android.webview-tyA-dAeiv9beiwVO6N1iWA==/WebViewGoogle.apk!/lib/x86_64:/data/app/~~tLbATdl9k3eO-62QHcNG7A==/com.google.android.trichromelibrary_699813538-vTxkg2d--JgBquginwWxTg==/TrichromeLibrary.apk!/lib/x86_64, permitted_path=/data:/mnt/expand
+03-23 00:58:50.927  5886  5886 I cr_WVCFactoryProvider: version=134.0.6998.135 (699813538) minSdkVersion=29 isBundle=false multiprocess=true packageId=2
+03-23 00:58:50.952  5886  5886 D nativeloader: Load /data/app/~~tLbATdl9k3eO-62QHcNG7A==/com.google.android.trichromelibrary_699813538-vTxkg2d--JgBquginwWxTg==/TrichromeLibrary.apk!/lib/x86_64/libmonochrome_64.so using class loader ns clns-11 (caller=/data/app/~~U7YZnhdTFQShPrGu8k5dKw==/com.google.android.webview-tyA-dAeiv9beiwVO6N1iWA==/WebViewGoogle.apk): ok
+03-23 00:58:50.957  5886  5886 D nativeloader: Load /system/lib64/libwebviewchromium_plat_support.so using class loader ns clns-11 (caller=/data/app/~~U7YZnhdTFQShPrGu8k5dKw==/com.google.android.webview-tyA-dAeiv9beiwVO6N1iWA==/WebViewGoogle.apk): ok
+03-23 00:58:50.972  5886  5918 E chromium: [0323/005850.967993:ERROR:variations_seed_loader.cc(39)] Seed missing signature.
+03-23 00:58:50.980  5886  5918 I chromium: [0323/005850.978247:INFO:variations_seed_loader.cc(67)] Failed to open file for reading.: No such file or directory (2)
+03-23 00:58:50.990  5886  5886 I cr_LibraryLoader: Successfully loaded native library
+03-23 00:58:50.992  5886  5886 I cr_CachingUmaRecorder: Flushed 6 samples from 6 histograms, 0 samples were dropped.
+03-23 00:58:51.001  5886  5886 I cr_CombinedPProvider: #registerProvider() provider:WV.I8@a137567 isPolicyCacheEnabled:false policyProvidersSize:0
+03-23 00:58:51.003  5886  5886 I cr_PolicyProvider: #setManagerAndSource() 0
+03-23 00:58:51.085  5886  5886 I cr_CombinedPProvider: #linkNativeInternal() 1
+03-23 00:58:51.088  5886  5886 I cr_AppResProvider: #getApplicationRestrictionsFromUserManager() Bundle[EMPTY_PARCEL]
+03-23 00:58:51.088  5886  5886 I cr_PolicyProvider: #notifySettingsAvailable() 0
+03-23 00:58:51.088  5886  5886 I cr_CombinedPProvider: #onSettingsAvailable() 0
+03-23 00:58:51.088  5886  5886 I cr_CombinedPProvider: #flushPolicies()
+03-23 00:58:51.168  5886  5936 W chromium: [WARNING:dns_config_service_android.cc(81)] Failed to read DnsConfig.
+03-23 00:58:51.383  5886  5886 D Capacitor: Starting BridgeActivity
+03-23 00:58:51.439  5886  5886 D Capacitor: Registering plugin instance: CapacitorCookies
+03-23 00:58:51.446  5886  5886 D Capacitor: Registering plugin instance: WebView
+03-23 00:58:51.447  5886  5886 D Capacitor: Registering plugin instance: CapacitorHttp
+03-23 00:58:51.450  5886  5886 D Capacitor: Registering plugin instance: SystemBars
+03-23 00:58:51.454  5886  5886 D Capacitor: Registering plugin instance: Portal
+03-23 00:58:51.457  5886  5886 D Capacitor: Registering plugin instance: App
+03-23 00:58:51.459  5886  5886 D Capacitor: Registering plugin instance: Browser
+03-23 00:58:51.464  5886  5886 D Capacitor: Registering plugin instance: StatusBar
+03-23 00:58:51.474  5886  5886 V Capacitor/StatusBarPlugin: Notifying listeners for event statusBarOverlayChanged
+03-23 00:58:51.474  5886  5886 D Capacitor/StatusBarPlugin: No listeners found for event statusBarOverlayChanged
+03-23 00:58:51.475  5886  5886 V Capacitor/StatusBarPlugin: Notifying listeners for event statusBarOverlayChanged
+03-23 00:58:51.475  5886  5886 D Capacitor/StatusBarPlugin: No listeners found for event statusBarOverlayChanged
+03-23 00:58:51.499  5886  5886 W Capacitor: Unable to read file at path public/plugins
+03-23 00:58:51.508  5886  5886 D Capacitor: Loading app at https://sciencetokyo.app
+03-23 00:58:51.548  5886  5941 W cr_media: BLUETOOTH_CONNECT permission is missing.
+03-23 00:58:51.549  5886  5941 W cr_media: getBluetoothAdapter() requires BLUETOOTH permission
+03-23 00:58:51.549  5886  5941 W cr_media: registerBluetoothIntentsIfNeeded: Requires BLUETOOTH permission
+03-23 00:58:51.603  5886  5957 W libc    : Access denied finding property "vendor.mesa.log"
+03-23 00:58:51.603  5886  5957 W libc    : Access denied finding property "vendor.mesa.log.file"
+03-23 00:58:51.603  5886  5957 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:58:51.603  5886  5957 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:58:51.627  5886  5957 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:58:51.628  5886  5957 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:58:51.631  5886  5957 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:58:51.631  5886  5957 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:58:51.637  5886  5957 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:58:51.638  5886  5957 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:58:51.639  5886  5957 W libc    : Access denied finding property "vendor.mesa.vk.trace.per.submit"
+03-23 00:58:51.639  5886  5957 W libc    : Access denied finding property "vendor.mesa.gallium.print.optio"
+03-23 00:58:51.639  5886  5957 W libc    : Access denied finding property "vendor.mesa.vk.trace.frame"
+03-23 00:58:51.644  5886  5886 D Capacitor: App started
+03-23 00:58:51.649  5886  5886 D Capacitor/AppPlugin: Firing change: true
+03-23 00:58:51.649  5886  5886 V Capacitor/AppPlugin: Notifying listeners for event appStateChange
+03-23 00:58:51.649  5886  5886 D Capacitor/AppPlugin: No listeners found for event appStateChange
+03-23 00:58:51.668  5886  5957 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:58:51.670  5886  5957 W libc    : Access denied finding property "vendor.mesa.vk.wsi.headless.swa"
+03-23 00:58:51.670  5886  5957 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:58:51.671  5886  5957 E MESA    : Failed to open rendernode: No such file or directory
+03-23 00:58:51.682  5886  5886 V Capacitor/BrowserPlugin: Notifying listeners for event browserFinished
+03-23 00:58:51.682  5886  5886 D Capacitor/BrowserPlugin: No listeners found for event browserFinished
+03-23 00:58:51.683  5886  5886 D Capacitor: App resumed
+03-23 00:58:51.738  5886  5886 W HWUI    : Unknown dataspace 0
+03-23 00:58:51.984  5886  5957 W chromium: [WARNING:viz_main_impl.cc(85)] VizNullHypothesis is disabled (not a warning)
+03-23 00:58:52.054  5886  5977 I CameraManagerGlobal: Connecting to camera service
+03-23 00:58:52.073  5886  5886 I Choreographer: Skipped 30 frames!  The application may be doing too much work on its main thread.
+03-23 00:58:52.079  5886  5886 D WindowOnBackDispatcher: setTopOnBackInvokedCallback (unwrapped): android.app.Activity$$ExternalSyntheticLambda0@26fdbe3
+03-23 00:58:52.081  5886  5886 D WindowOnBackDispatcher: setTopOnBackInvokedCallback (unwrapped): androidx.activity.OnBackPressedDispatcher$Api34Impl$createOnBackAnimationCallback$1@331f9e0
+03-23 00:58:52.088  5886  5886 D VRI[MainActivity]: WindowInsets changed: 1080x2400 statusBars:[0,63,0,0] navigationBars:[0,0,0,63] mandatorySystemGestures:[0,63,0,84] 
+03-23 00:58:52.287  5886  5904 I HWUI    : Davey! duration=703ms; Flags=1, FrameTimelineVsyncId=96855, IntendedVsync=2171135511454, Vsync=2171635511434, InputEventId=0, HandleInputStart=2171644697000, AnimationStart=2171644733700, PerformTraversalsStart=2171649490400, DrawStart=2171791768300, FrameDeadline=2171152178120, FrameStartTime=2171644120700, FrameInterval=16666666, WorkloadTarget=16666666, SyncQueued=2171797829600, SyncStart=2171812855500, IssueDrawCommandsStart=2171813067100, SwapBuffers=2171846473600, FrameCompleted=2171853993500, DequeueBufferDuration=24900, QueueBufferDuration=374400, GpuCompleted=2171853993500, SwapBuffersCompleted=2171849864000, DisplayPresentTime=0, CommandSubmissionCompleted=2171846473600, 
+03-23 00:58:52.374  5886  5886 D InsetsController: hide(ime())
+03-23 00:58:52.374  5886  5886 I ImeTracker: ac.isct.campus:960c6c56: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+03-23 00:58:52.415  5886  5987 I HWUI    : Using FreeType backend (prop=Auto)
+03-23 00:58:53.242  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:58:53.244  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:58:53.251  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917119, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:58:53.254  5886  5886 V Capacitor: callback: 19917119, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:58:53.255  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917120, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:58:53.255  5886  5886 V Capacitor: callback: 19917120, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:58:53.261  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:58:53.261  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:58:53.262  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:58:53.262  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:58:53.263  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917121, pluginId: StatusBar, methodName: setStyle
+03-23 00:58:53.263  5886  5886 V Capacitor: callback: 19917121, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:58:53.264  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917122, pluginId: StatusBar, methodName: setStyle
+03-23 00:58:53.264  5886  5886 V Capacitor: callback: 19917122, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:58:53.268  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:58:53.269  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:58:53.641  5886  5894 I ac.isct.campus: Compiler allocated 5087KB to compile void android.view.ViewRootImpl.performTraversals()
+03-23 00:58:55.728  5886  6005 D ProfileInstaller: Installing profile for ac.isct.campus
+03-23 00:58:58.147  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:58:58.147  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917123, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:58:58.147  5886  5886 V Capacitor: callback: 19917123, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:58:58.156  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:58:58.156  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:58:58.157  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917124, pluginId: StatusBar, methodName: setStyle
+03-23 00:58:58.157  5886  5886 V Capacitor: callback: 19917124, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:58:58.161  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:00.175  5886  5896 W ac.isct.campus: userfaultfd: MOVE ioctl seems unsupported: Connection timed out
+03-23 00:59:00.182  5886  5896 I ac.isct.campus: Background concurrent mark compact GC freed 5521KB AllocSpace bytes, 27(1060KB) LOS objects, 49% free, 3907KB/7814KB, paused 1.809ms,2.082ms total 113.512ms
+03-23 00:59:05.614  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:05.615  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917125, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:59:05.615  5886  5886 V Capacitor: callback: 19917125, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:59:05.638  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:05.639  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:05.639  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:05.641  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917126, pluginId: StatusBar, methodName: setStyle
+03-23 00:59:05.641  5886  5886 V Capacitor: callback: 19917126, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:59:05.644  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917127, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:59:05.644  5886  5886 V Capacitor: callback: 19917127, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:59:05.650  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:05.651  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:05.652  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:05.654  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917128, pluginId: StatusBar, methodName: setStyle
+03-23 00:59:05.654  5886  5886 V Capacitor: callback: 19917128, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:59:05.660  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:06.255  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:06.256  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917129, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:59:06.256  5886  5886 V Capacitor: callback: 19917129, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:59:06.302  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:06.303  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:06.304  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917130, pluginId: StatusBar, methodName: setStyle
+03-23 00:59:06.304  5886  5886 V Capacitor: callback: 19917130, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:59:06.311  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:06.324  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:06.326  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917131, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:59:06.326  5886  5886 V Capacitor: callback: 19917131, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:59:06.332  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:06.333  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:06.336  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917132, pluginId: StatusBar, methodName: setStyle
+03-23 00:59:06.336  5886  5886 V Capacitor: callback: 19917132, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:59:06.354  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:09.844  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:09.845  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917133, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:59:09.845  5886  5886 V Capacitor: callback: 19917133, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:59:09.847  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:09.848  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:09.848  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917134, pluginId: StatusBar, methodName: setStyle
+03-23 00:59:09.848  5886  5886 V Capacitor: callback: 19917134, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:59:09.851  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:10.073  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:10.074  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917135, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:59:10.074  5886  5886 V Capacitor: callback: 19917135, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:59:10.084  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:10.084  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:10.085  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:10.085  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917136, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:59:10.086  5886  5886 V Capacitor: callback: 19917136, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:59:10.086  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917137, pluginId: StatusBar, methodName: setStyle
+03-23 00:59:10.086  5886  5886 V Capacitor: callback: 19917137, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:59:10.090  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:10.091  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:10.091  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:10.092  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917138, pluginId: StatusBar, methodName: setStyle
+03-23 00:59:10.092  5886  5886 V Capacitor: callback: 19917138, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:59:10.101  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:13.146  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:13.146  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917139, pluginId: StatusBar, methodName: setBackgroundColor
+03-23 00:59:13.146  5886  5886 V Capacitor: callback: 19917139, pluginId: StatusBar, methodName: setBackgroundColor, methodData: {"color":"#fff8f9"}
+03-23 00:59:13.148  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 00:59:13.148  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 00:59:13.149  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917140, pluginId: StatusBar, methodName: setStyle
+03-23 00:59:13.149  5886  5886 V Capacitor: callback: 19917140, pluginId: StatusBar, methodName: setStyle, methodData: {"style":"LIGHT"}
+03-23 00:59:13.151  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 01:01:53.066  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 01:01:53.067  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917141, pluginId: Portal, methodName: openPortal
+03-23 01:01:53.067  5886  5886 V Capacitor: callback: 19917141, pluginId: Portal, methodName: openPortal, methodData: {"userId":"24B12149","password":"edamame31415","matrixJson":"{\"A\":{\"1\":\"G\",\"2\":\"P\",\"3\":\"O\",\"4\":\"A\",\"5\":\"K\",\"6\":\"C\",\"7\":\"L\"},\"B\":{\"1\":\"M\",\"2\":\"V\",\"3\":\"Z\",\"4\":\"A\",\"5\":\"X\",\"6\":\"F\",\"7\":\"L\"},\"C\":{\"1\":\"O\",\"2\":\"D\",\"3\":\"H\",\"4\":\"E\",\"5\":\"O\",\"6\":\"A\",\"7\":\"P\"},\"D\":{\"1\":\"T\",\"2\":\"D\",\"3\":\"G\",\"4\":\"R\",\"5\":\"Q\",\"6\":\"G\",\"7\":\"M\"},\"E\":{\"1\":\"C\",\"2\":\"Z\",\"3\":\"H\",\"4\":\"X\",\"5\":\"M\",\"6\":\"L\",\"7\":\"Q\"},\"F\":{\"1\":\"H\",\"2\":\"W\",\"3\":\"F\",\"4\":\"E\",\"5\":\"V\",\"6\":\"C\",\"7\":\"Z\"},\"G\":{\"1\":\"E\",\"2\":\"G\",\"3\":\"M\",\"4\":\"O\",\"5\":\"V\",\"6\":\"S\",\"7\":\"I\"},\"H\":{\"1\":\"Y\",\"2\":\"M\",\"3\":\"K\",\"4\":\"E\",\"5\":\"U\",\"6\":\"P\",\"7\":\"W\"},\"I\":{\"1\":\"D\",\"2\":\"J\",\"3\":\"Q\",\"4\":\"E\",\"5\":\"K\",\"6\":\"N\",\"7\":\"Z\"},\"J\":{\"1\":\"T\",\"2\":\"O\",\"3\":\"E\",\"4\":\"V\",\"5\":\"R\",\"6\":\"H\",\"7\":\"H\"}}"}
+03-23 01:01:53.135  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 01:01:53.444  5886  5886 E chromium: [ERROR:page_load_metrics_update_dispatcher.cc(179)] Invalid first_paint (unset) for first_image_paint 0.269 s
+03-23 01:01:53.474  5886  5886 E chromium: [ERROR:page_load_metrics_update_dispatcher.cc(179)] Invalid first_paint 0.333 s for first_image_paint 0.269 s
+03-23 01:01:53.563  5886  5886 E chromium: [ERROR:page_load_metrics_update_dispatcher.cc(179)] Invalid first_paint 0.333 s for first_image_paint 0.269 s
+03-23 01:01:54.293  5886  5886 E chromium: [ERROR:page_load_metrics_update_dispatcher.cc(179)] Invalid first_paint 0.333 s for first_image_paint 0.269 s
+03-23 01:01:54.774  5886  5886 E chromium: [ERROR:page_load_metrics_update_dispatcher.cc(179)] Invalid first_paint 0.333 s for first_image_paint 0.269 s
+03-23 01:01:54.840  5886  5886 I chromium: [INFO:CONSOLE(177)] "Uncaught ReferenceError: checkflag is not defined", source: https://portal.nap.gsic.titech.ac.jp/GetAccess/Login?Template=idg_key&AUTHMETHOD=IG&GASF=CERTIFICATE,IG.GRID,IG.TOKENRO,IG.OTP&LOCALE=ja_JP&GAREASONCODE=13&GAIDENTIFICATIONID=UserPassword&GARESOURCEID=resourcelistID2&GAURI=https://portal.nap.gsic.titech.ac.jp/GetAccess/ResourceList&Reason=13&APPID=resourcelistID2&URI=https://portal.nap.gsic.titech.ac.jp/GetAccess/ResourceList (177)
+03-23 01:01:59.673  5886  5935 I cr_X509Util: Failed to validate the certificate chain, error: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+03-23 01:01:59.678  5886  5943 E chromium: [ERROR:ssl_client_socket_impl.cc(877)] handshake failed; returned -1, SSL error code 1, net_error -202
+03-23 01:02:06.927  5886  5886 W cr_AwContents: WebView.destroy() called while WebView is still attached to window.
+03-23 01:02:09.735  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 01:02:09.736  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917142, pluginId: Portal, methodName: openPortal
+03-23 01:02:09.736  5886  5886 V Capacitor: callback: 19917142, pluginId: Portal, methodName: openPortal, methodData: {"userId":"24B12149","password":"edamame31415","matrixJson":"{\"A\":{\"1\":\"G\",\"2\":\"P\",\"3\":\"O\",\"4\":\"A\",\"5\":\"K\",\"6\":\"C\",\"7\":\"L\"},\"B\":{\"1\":\"M\",\"2\":\"V\",\"3\":\"Z\",\"4\":\"A\",\"5\":\"X\",\"6\":\"F\",\"7\":\"L\"},\"C\":{\"1\":\"O\",\"2\":\"D\",\"3\":\"H\",\"4\":\"E\",\"5\":\"O\",\"6\":\"A\",\"7\":\"P\"},\"D\":{\"1\":\"T\",\"2\":\"D\",\"3\":\"G\",\"4\":\"R\",\"5\":\"Q\",\"6\":\"G\",\"7\":\"M\"},\"E\":{\"1\":\"C\",\"2\":\"Z\",\"3\":\"H\",\"4\":\"X\",\"5\":\"M\",\"6\":\"L\",\"7\":\"Q\"},\"F\":{\"1\":\"H\",\"2\":\"W\",\"3\":\"F\",\"4\":\"E\",\"5\":\"V\",\"6\":\"C\",\"7\":\"Z\"},\"G\":{\"1\":\"E\",\"2\":\"G\",\"3\":\"M\",\"4\":\"O\",\"5\":\"V\",\"6\":\"S\",\"7\":\"I\"},\"H\":{\"1\":\"Y\",\"2\":\"M\",\"3\":\"K\",\"4\":\"E\",\"5\":\"U\",\"6\":\"P\",\"7\":\"W\"},\"I\":{\"1\":\"D\",\"2\":\"J\",\"3\":\"Q\",\"4\":\"E\",\"5\":\"K\",\"6\":\"N\",\"7\":\"Z\"},\"J\":{\"1\":\"T\",\"2\":\"O\",\"3\":\"E\",\"4\":\"V\",\"5\":\"R\",\"6\":\"H\",\"7\":\"H\"}}"}
+03-23 01:02:09.755  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
+03-23 01:02:17.129  5886  5886 W cr_AwContents: WebView.destroy() called while WebView is still attached to window.
+03-23 01:02:19.478  5886  5886 I Capacitor/Console: File:  - Line 349 - Msg: [object Object]
+03-23 01:02:19.481  5886  5886 V Capacitor/Plugin: To native (Capacitor plugin): callbackId: 19917143, pluginId: Portal, methodName: openPortal
+03-23 01:02:19.481  5886  5886 V Capacitor: callback: 19917143, pluginId: Portal, methodName: openPortal, methodData: {"userId":"24B12149","password":"edamame31415","matrixJson":"{\"A\":{\"1\":\"G\",\"2\":\"P\",\"3\":\"O\",\"4\":\"A\",\"5\":\"K\",\"6\":\"C\",\"7\":\"L\"},\"B\":{\"1\":\"M\",\"2\":\"V\",\"3\":\"Z\",\"4\":\"A\",\"5\":\"X\",\"6\":\"F\",\"7\":\"L\"},\"C\":{\"1\":\"O\",\"2\":\"D\",\"3\":\"H\",\"4\":\"E\",\"5\":\"O\",\"6\":\"A\",\"7\":\"P\"},\"D\":{\"1\":\"T\",\"2\":\"D\",\"3\":\"G\",\"4\":\"R\",\"5\":\"Q\",\"6\":\"G\",\"7\":\"M\"},\"E\":{\"1\":\"C\",\"2\":\"Z\",\"3\":\"H\",\"4\":\"X\",\"5\":\"M\",\"6\":\"L\",\"7\":\"Q\"},\"F\":{\"1\":\"H\",\"2\":\"W\",\"3\":\"F\",\"4\":\"E\",\"5\":\"V\",\"6\":\"C\",\"7\":\"Z\"},\"G\":{\"1\":\"E\",\"2\":\"G\",\"3\":\"M\",\"4\":\"O\",\"5\":\"V\",\"6\":\"S\",\"7\":\"I\"},\"H\":{\"1\":\"Y\",\"2\":\"M\",\"3\":\"K\",\"4\":\"E\",\"5\":\"U\",\"6\":\"P\",\"7\":\"W\"},\"I\":{\"1\":\"D\",\"2\":\"J\",\"3\":\"Q\",\"4\":\"E\",\"5\":\"K\",\"6\":\"N\",\"7\":\"Z\"},\"J\":{\"1\":\"T\",\"2\":\"O\",\"3\":\"E\",\"4\":\"V\",\"5\":\"R\",\"6\":\"H\",\"7\":\"H\"}}"}
+03-23 01:02:19.500  5886  5886 I Capacitor/Console: File:  - Line 333 - Msg: undefined
