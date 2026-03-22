@@ -117,7 +117,15 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
   const byDay=useMemo(()=>{
     const map={};
     const ensure=k=>{if(!map[k])map[k]={events:[],asgns:[],classes:[]};return map[k];};
-    myEvents.forEach(ev=>{ensure(dKey(ev.date)).events.push(ev);});
+    myEvents.forEach(ev=>{
+      ensure(dKey(ev.date)).events.push(ev);
+      // Multi-day: also add to each intermediate & end day
+      if(ev.end&&!isSameDay(ev.date,ev.end)){
+        const d=new Date(ev.date);d.setDate(d.getDate()+1);d.setHours(0,0,0,0);
+        const last=new Date(ev.end);last.setHours(0,0,0,0);
+        while(d<=last){ensure(dKey(d)).events.push(ev);d.setDate(d.getDate()+1);}
+      }
+    });
     asgn.filter(a=>a.st!=="completed").forEach(a=>{ensure(dKey(a.due)).asgns.push(a);});
     return map;
   },[myEvents,asgn]);
