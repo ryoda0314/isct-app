@@ -28,7 +28,6 @@ export async function POST(request) {
       .single();
 
     if (error || !record) {
-      console.error('[EmailVerify] record not found', { email: email.toLowerCase(), loginId: session.loginId, dbError: error?.message });
       return NextResponse.json({ error: '確認コードが見つかりません。再度メールアドレスを送信してください' }, { status: 400 });
     }
 
