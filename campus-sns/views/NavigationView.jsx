@@ -236,6 +236,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   useEffect(()=>{guidingRef.current=guiding;},[guiding]);
   // 出発地がGPS（現在地）由来かどうか
   const [originFromGps,setOriginFromGps]=useState(false);
+  const gpsCenteredRef=useRef(false);
 
   // マップ表示用の常時GPS更新（案内中はstartWatchが担当するのでスキップ）
   useEffect(()=>{
@@ -244,6 +245,11 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       (pos)=>{
         const {latitude:lat,longitude:lng,accuracy}=pos.coords;
         setGpsPos({lat,lng,accuracy});
+        // 初回GPS取得時にマップを現在地へ移動
+        if(!gpsCenteredRef.current&&mapInst.current){
+          gpsCenteredRef.current=true;
+          mapInst.current.flyTo([lat,lng],CAMPUS_ZOOM,{duration:0.6});
+        }
       },
       ()=>{},
       {enableHighAccuracy:true,timeout:10000,maximumAge:5000}
