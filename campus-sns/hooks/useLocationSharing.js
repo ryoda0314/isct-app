@@ -175,15 +175,15 @@ export const SPOTS = [
   { id: "off_campus", label: "キャンパス外", short: "外", col: "#8888a0", cat: "other", lat: null, lng: null },
   { id: "road", label: "屋外（道）", short: "道", col: "#a0a060", cat: "other", lat: null, lng: null },
   // 飲食店（大岡山周辺）
-  { id: "rest_excelsior", label: "エクセルシオール カフェ 大岡山駅前店", short: "Ex", col: "#4a3728", cat: "restaurant", lat: 35.60730, lng: 139.68472, meta: { genre: "カフェ", hours: "平日 7:30〜21:00 / 土日祝 8:00〜21:00", budget: "~500円", desc: "東工大蔵前会館1Fのドトール系カフェ。全39席・全席禁煙、Wi-Fi・電源あり" } },
-  { id: "rest_saizeriya", label: "サイゼリヤ 大岡山駅前店", short: "サ", col: "#3a9e50", cat: "restaurant", lat: 35.60725, lng: 139.68642, meta: { genre: "イタリアン", hours: "11:00〜22:00", budget: "~500円", desc: "諸星ビル2F。低価格イタリアン、ドリンクバーあり" } },
+  { id: "rest_excelsior", label: "エクセルシオール カフェ 大岡山駅前店", short: "Ex", col: "#4a3728", cat: "restaurant", lat: 35.60732, lng: 139.68475, meta: { genre: "カフェ", hours: "平日 7:30〜21:00 / 土日祝 8:00〜21:00", budget: "~500円", desc: "東工大蔵前会館1Fのドトール系カフェ。全39席・全席禁煙、Wi-Fi・電源あり" } },
+  { id: "rest_saizeriya", label: "サイゼリヤ 大岡山駅前店", short: "サ", col: "#3a9e50", cat: "restaurant", lat: 35.60726, lng: 139.68643, meta: { genre: "イタリアン", hours: "11:00〜22:00", budget: "~500円", desc: "諸星ビル2F。低価格イタリアン、ドリンクバーあり" } },
   { id: "rest_gusto", label: "ガスト 大岡山駅前店", short: "ガ", col: "#e85050", cat: "restaurant", lat: 35.60801, lng: 139.68544, meta: { genre: "ファミレス", hours: "9:00〜23:00", budget: "~800円", desc: "から好し取扱店。リバーレプラザ大岡山2F、駅徒歩1分" } },
-  { id: "rest_hirugao", label: "ひるがお 大岡山店", short: "ひ", col: "#e8a33a", cat: "restaurant", lat: 35.60832, lng: 139.68548, meta: { genre: "ラーメン（塩）", hours: "11:30〜15:30 / 17:30〜22:00", budget: "~1000円", desc: "せたが屋系列の塩らーめん専門店。火曜・第4水曜定休", closed: "火曜・第4水曜" } },
+  { id: "rest_hirugao", label: "ひるがお 大岡山店", short: "ひ", col: "#e8a33a", cat: "restaurant", lat: 35.60832, lng: 139.68549, meta: { genre: "ラーメン（塩）", hours: "11:30〜15:30 / 17:30〜22:00", budget: "~1000円", desc: "せたが屋系列の塩らーめん専門店。火曜・第4水曜定休", closed: "火曜・第4水曜" } },
   { id: "rest_matsuya", label: "松屋 大岡山店", short: "松", col: "#e8a33a", cat: "restaurant", lat: 35.60910, lng: 139.68560, meta: { genre: "牛丼", hours: "24時間営業", budget: "~500円", desc: "年中無休の牛丼チェーン。石井ビル1F" } },
-  { id: "rest_shisen", label: "中華菜房 四川屋台", short: "四", col: "#d43a2a", cat: "restaurant", lat: 35.60692, lng: 139.68535, meta: { genre: "中華・四川料理", hours: "11:00〜14:00 / 17:00〜21:30", budget: "~800円", desc: "東科大正門前。平成元年創業、担々麺580円・角煮丼490円が人気。スープは全て手作り" } },
-  { id: "rest_narumen", label: "なるめん", short: "な", col: "#e8633a", cat: "restaurant", lat: 35.60672, lng: 139.68713, meta: { genre: "ラーメン（豚骨魚介）", hours: "11:30〜15:00", budget: "~900円", desc: "自家製麺と豚骨魚介系スープが人気。木曜定休", closed: "木曜" } },
-  { id: "rest_mcd", label: "マクドナルド 大岡山店", short: "マ", col: "#da3a2a", cat: "restaurant", lat: 35.60700, lng: 139.68536, meta: { genre: "ファストフード", hours: "6:00〜24:00", budget: "~600円", desc: "大岡山駅すぐのマクドナルド" } },
-  { id: "rest_tsukasa", label: "潮さい茶屋つかさ", short: "つ", col: "#2a7ab8", cat: "restaurant", lat: 35.60787, lng: 139.68502, meta: { genre: "海鮮料理", hours: "11:00〜14:00 / 17:00〜22:30", budget: "ランチ~1000円 / 夜~3000円", desc: "新鮮な魚介が自慢。アジフライ定食が人気。日曜・祝日定休", closed: "日曜・祝日" } },
+  { id: "rest_shisen", label: "中華菜房 四川屋台", short: "四", col: "#d43a2a", cat: "restaurant", lat: 35.60693, lng: 139.68532, meta: { genre: "中華・四川料理", hours: "11:00〜14:00 / 17:00〜21:30", budget: "~800円", desc: "東科大正門前。平成元年創業、担々麺580円・角煮丼490円が人気。スープは全て手作り" } },
+  { id: "rest_narumen", label: "なるめん", short: "な", col: "#e8633a", cat: "restaurant", lat: 35.60666, lng: 139.68715, meta: { genre: "ラーメン（豚骨魚介）", hours: "11:30〜15:00", budget: "~900円", desc: "自家製麺と豚骨魚介系スープが人気。木曜定休", closed: "木曜" } },
+  { id: "rest_mcd", label: "マクドナルド 大岡山店", short: "マ", col: "#da3a2a", cat: "restaurant", lat: 35.60701, lng: 139.68536, meta: { genre: "ファストフード", hours: "6:00〜24:00", budget: "~600円", desc: "大岡山駅すぐのマクドナルド" } },
+  { id: "rest_tsukasa", label: "潮さい茶屋つかさ", short: "つ", col: "#2a7ab8", cat: "restaurant", lat: 35.60788, lng: 139.68502, meta: { genre: "海鮮料理", hours: "11:00〜14:00 / 17:00〜22:30", budget: "ランチ~1000円 / 夜~3000円", desc: "新鮮な魚介が自慢。アジフライ定食が人気。日曜・祝日定休", closed: "日曜・祝日" } },
   { id: "rest_basanta", label: "ケバブ＆カレー Basanta", short: "Ba", col: "#c8641e", cat: "restaurant", lat: 35.60839, lng: 139.68537, meta: { genre: "ケバブ・カレー", hours: "10:00〜22:00", budget: "~700円", desc: "2025年6月OPEN。ドネルケバブとシェフ本格カレー。イートイン・テイクアウト対応" } },
 ];
 
