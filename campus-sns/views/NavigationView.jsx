@@ -701,6 +701,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   /* ── Inline search for search phase ── */
   const [searchQ,setSearchQ]=useState("");
   const [openCatInline,setOpenCatInline]=useState(null);
+  const [tipsOpen,setTipsOpen]=useState(false);
 
   if(!leafletReady)return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><Loader msg="マップを読み込み中" size="md"/></div>;
 
@@ -878,6 +879,20 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
               <span style={{fontSize:12,color:T.red||"#e5534b"}}>{destSpotInfo.meta.closed} 定休</span>
             </div>}
             {destSpotInfo.meta.desc&&<div style={{fontSize:11,color:T.txD,marginTop:2,lineHeight:1.5}}>{destSpotInfo.meta.desc}</div>}
+            {destSpotInfo.meta.tips&&<>
+              <button onClick={()=>setTipsOpen(!tipsOpen)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:6,padding:"6px 0 0",border:"none",background:"transparent",cursor:"pointer"}}>
+                <span style={{fontSize:11,fontWeight:600,color:T.txH}}>初めて行く人へ</span>
+                <span style={{fontSize:10,color:T.txD}}>{tipsOpen?"▾ 閉じる":"› 詳しく見る"}</span>
+              </button>
+              {tipsOpen&&<div style={{marginTop:6,display:"flex",flexDirection:"column",gap:8}}>
+                {destSpotInfo.meta.tips.map((sec,i)=><div key={i}>
+                  <div style={{fontSize:11,fontWeight:600,color:T.txH,marginBottom:3}}>{sec.title}</div>
+                  {sec.items.map((item,j)=><div key={j} style={{fontSize:10,color:T.txD,lineHeight:1.5,paddingLeft:8,position:"relative"}}>
+                    <span style={{position:"absolute",left:0,color:T.txD}}>•</span>{item}
+                  </div>)}
+                </div>)}
+              </div>}
+            </>}
           </div>}
           <button onClick={()=>{
             setNavPhase("route");
