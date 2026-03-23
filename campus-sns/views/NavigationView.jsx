@@ -604,17 +604,23 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     if(route&&route.coords.length>1){
       const latlngs=route.coords.map(c=>[c.lat,c.lng]);
 
-      // 案内中: GPSに最も近いルート上の点で分割 → 通過済み=グレー, 残り=緑
+      // 案内中: GPSに最も近いルート上のセグメント射影点で分割 → 通過済み=グレー, 残り=緑
       if(guiding&&gpsPos){
-        let bestIdx=0,bestDist=Infinity;
-        for(let i=0;i<latlngs.length;i++){
-          const d=haversineNav(gpsPos.lat,gpsPos.lng,latlngs[i][0],latlngs[i][1]);
-          if(d<bestDist){bestDist=d;bestIdx=i;}
+        let bestSeg=0,bestT=0,bestDist=Infinity;
+        for(let i=0;i<latlngs.length-1;i++){
+          const [ay,ax]=latlngs[i],[by,bx]=latlngs[i+1];
+          const dy=by-ay,dx=bx-ax,lenSq=dy*dy+dx*dx;
+          let t=lenSq===0?0:((gpsPos.lat-ay)*dy+(gpsPos.lng-ax)*dx)/lenSq;
+          t=Math.max(0,Math.min(1,t));
+          const d=haversineNav(gpsPos.lat,gpsPos.lng,ay+t*dy,ax+t*dx);
+          if(d<bestDist){bestDist=d;bestSeg=i;bestT=t;}
         }
-        // 通過済み部分（先頭〜最寄り点）
-        const passed=latlngs.slice(0,bestIdx+1);
-        // 残り部分（最寄り点〜ゴール）
-        const remaining=latlngs.slice(bestIdx);
+        const [ay,ax]=latlngs[bestSeg],[by,bx]=latlngs[bestSeg+1];
+        const proj=[ay+bestT*(by-ay),ax+bestT*(bx-ax)];
+        // 通過済み部分（先頭〜射影点）
+        const passed=[...latlngs.slice(0,bestSeg+1),proj];
+        // 残り部分（射影点〜ゴール）
+        const remaining=[proj,...latlngs.slice(bestSeg+1)];
 
         if(passed.length>1){
           const pg=L.polyline(passed,{color:"#888",weight:5,opacity:0.4,lineCap:"round",lineJoin:"round",dashArray:"6 8"}).addTo(map);
