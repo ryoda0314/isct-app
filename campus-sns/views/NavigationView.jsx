@@ -861,6 +861,10 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
               <span style={{fontSize:12,color:T.txH}}>{destSpotInfo.meta.budget}</span>
             </div>}
+            {destSpotInfo.meta.closed&&<div style={{display:"flex",alignItems:"center",gap:8}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.red||"#e5534b"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              <span style={{fontSize:12,color:T.red||"#e5534b"}}>{destSpotInfo.meta.closed} 定休</span>
+            </div>}
             {destSpotInfo.meta.desc&&<div style={{fontSize:11,color:T.txD,marginTop:2,lineHeight:1.5}}>{destSpotInfo.meta.desc}</div>}
           </div>}
           <button onClick={()=>{
