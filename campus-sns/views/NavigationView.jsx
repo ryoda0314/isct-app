@@ -62,16 +62,17 @@ const findNearestNavSpot=(lat,lng)=>{
   return {spot:best,distance:bestDist};
 };
 
-/* ── Outdoor spot group definitions ── */
+/* ── Spot group definitions ── */
 export const SPOT_GROUPS=[
   {prefix:"bench",label:"ベンチ",col:"#8bc34a"},
   {prefix:"park",label:"駐輪場",col:"#78909c"},
   {prefix:"vend_d",label:"自販機・飲料",col:"#42a5f5"},
   {prefix:"vend_f",label:"自販機・食品",col:"#ff8a65"},
   {prefix:"smoke",label:"喫煙所",col:"#b0bec5"},
+  {prefix:"rest",label:"飲食店",col:"#e8843a"},
 ];
 const getGroupPrefix=(id)=>{const g=SPOT_GROUPS.find(g=>id.startsWith(g.prefix+"_"));return g?g.prefix:null;};
-const isGroupableSpot=(s)=>s.cat==="outdoor"&&getGroupPrefix(s.id)!=null;
+const isGroupableSpot=(s)=>(s.cat==="outdoor"||s.cat==="restaurant")&&getGroupPrefix(s.id)!=null;
 
 const buildSearchResults=(spots)=>{
   const nonGroupable=spots.filter(s=>!isGroupableSpot(s));
