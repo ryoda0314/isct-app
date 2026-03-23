@@ -174,6 +174,17 @@ export const SPOTS = [
   { id: "commute", label: "通学中", short: "移", col: "#61afef", cat: "other", lat: null, lng: null },
   { id: "off_campus", label: "キャンパス外", short: "外", col: "#8888a0", cat: "other", lat: null, lng: null },
   { id: "road", label: "屋外（道）", short: "道", col: "#a0a060", cat: "other", lat: null, lng: null },
+  // 飲食店（大岡山周辺）
+  { id: "rest_excelsior", label: "エクセルシオール カフェ 大岡山駅前店", short: "Ex", col: "#4a3728", cat: "restaurant", lat: 35.60748, lng: 139.68565, meta: { genre: "カフェ", hours: "7:00〜22:00", budget: "~500円", desc: "大岡山駅前のカフェチェーン" } },
+  { id: "rest_saizeriya", label: "サイゼリヤ 大岡山駅前店", short: "サ", col: "#3a9e50", cat: "restaurant", lat: 35.60755, lng: 139.68590, meta: { genre: "イタリアン", hours: "11:00〜23:00", budget: "~700円", desc: "低価格イタリアンファミレス" } },
+  { id: "rest_gusto", label: "ガスト 大岡山駅前店", short: "ガ", col: "#e85050", cat: "restaurant", lat: 35.60738, lng: 139.68610, meta: { genre: "ファミレス", hours: "7:00〜翌2:00", budget: "~800円", desc: "ファミリーレストラン" } },
+  { id: "rest_hirugao", label: "ひるがお 大岡山店", short: "ひ", col: "#e8a33a", cat: "restaurant", lat: 35.60720, lng: 139.68575, meta: { genre: "ラーメン（塩）", hours: "11:00〜16:00", budget: "~1000円", desc: "せたが屋系列の塩ラーメン専門店" } },
+  { id: "rest_matsuya", label: "松屋 大岡山店", short: "松", col: "#e8a33a", cat: "restaurant", lat: 35.60762, lng: 139.68555, meta: { genre: "牛丼", hours: "24時間営業", budget: "~500円", desc: "大岡山駅前の牛丼チェーン" } },
+  { id: "rest_shisen", label: "中華菜房 四川屋台", short: "四", col: "#d43a2a", cat: "restaurant", lat: 35.60710, lng: 139.68600, meta: { genre: "中華・四川料理", hours: "11:30〜23:00", budget: "~800円", desc: "本格四川料理の中華料理店" } },
+  { id: "rest_narumen", label: "なるめん", short: "な", col: "#e8633a", cat: "restaurant", lat: 35.60695, lng: 139.68580, meta: { genre: "ラーメン", hours: "11:00〜22:00", budget: "~800円", desc: "大岡山のラーメン店" } },
+  { id: "rest_mcd", label: "マクドナルド 大岡山店", short: "マ", col: "#da3a2a", cat: "restaurant", lat: 35.60725, lng: 139.68620, meta: { genre: "ファストフード", hours: "7:00〜23:00", budget: "~600円", desc: "大岡山駅近くのマクドナルド" } },
+  { id: "rest_tsukasa", label: "潮さい茶屋つかさ", short: "つ", col: "#2a7ab8", cat: "restaurant", lat: 35.60700, lng: 139.68640, meta: { genre: "海鮮・居酒屋", hours: "17:00〜23:00", budget: "~3000円", desc: "新鮮な海鮮料理が楽しめる居酒屋" } },
+  { id: "rest_basanta", label: "ケバブ＆カレー Basanta", short: "Ba", col: "#c8641e", cat: "restaurant", lat: 35.60680, lng: 139.68560, meta: { genre: "ケバブ・カレー", hours: "11:00〜23:00", budget: "~700円", desc: "ケバブとカレーの専門店" } },
 ];
 
 export const SPOT_CATS = [
@@ -185,6 +196,7 @@ export const SPOT_CATS = [
   { id: "ishikawa", label: "石川台地区" },
   { id: "area", label: "すずかけ台" },
   { id: "facility", label: "施設" },
+  { id: "restaurant", label: "飲食店" },
   { id: "outdoor", label: "屋外スポット" },
   { id: "smoking", label: "喫煙所" },
   { id: "other", label: "その他" },

@@ -834,9 +834,11 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     <div style={{...cardBase,top:"auto",bottom:mob?10:14}}>
       <div style={{padding:14}}>
         {destSpotInfo&&<>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:destSpotInfo.meta?8:12}}>
             <div style={{width:36,height:36,borderRadius:10,background:`${destSpotInfo.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <span style={{fontSize:12,fontWeight:800,color:destSpotInfo.col}}>{destSpotInfo.short}</span>
+              {destSpotInfo.cat==="restaurant"
+                ?<svg width="18" height="18" viewBox="0 0 24 24" fill={destSpotInfo.col} stroke="none"><path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/></svg>
+                :<span style={{fontSize:12,fontWeight:800,color:destSpotInfo.col}}>{destSpotInfo.short}</span>}
             </div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:15,fontWeight:700,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{destSpotInfo.label}</div>
@@ -844,6 +846,22 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
             </div>
             <button onClick={()=>{setDestination(null);setOrigin(null);setNavPhase("search");}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",color:T.txD,flexShrink:0}}>{I.x}</button>
           </div>
+          {/* ── Restaurant meta info ── */}
+          {destSpotInfo.meta&&<div style={{marginBottom:12,padding:"10px 12px",borderRadius:10,background:T.bg3,display:"flex",flexDirection:"column",gap:6}}>
+            {destSpotInfo.meta.genre&&<div style={{display:"flex",alignItems:"center",gap:8}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+              <span style={{fontSize:12,color:T.txH,fontWeight:500}}>{destSpotInfo.meta.genre}</span>
+            </div>}
+            {destSpotInfo.meta.hours&&<div style={{display:"flex",alignItems:"center",gap:8}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span style={{fontSize:12,color:T.txH}}>{destSpotInfo.meta.hours}</span>
+            </div>}
+            {destSpotInfo.meta.budget&&<div style={{display:"flex",alignItems:"center",gap:8}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+              <span style={{fontSize:12,color:T.txH}}>{destSpotInfo.meta.budget}</span>
+            </div>}
+            {destSpotInfo.meta.desc&&<div style={{fontSize:11,color:T.txD,marginTop:2,lineHeight:1.5}}>{destSpotInfo.meta.desc}</div>}
+          </div>}
           <button onClick={()=>{
             setNavPhase("route");
             // GPS で現在地を自動取得
