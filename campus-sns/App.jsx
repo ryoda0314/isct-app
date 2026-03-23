@@ -43,6 +43,7 @@ import { useCircles } from "./hooks/useCircles.js";
 import { Toasts } from "./hooks/useToast.js";
 import { useBookmarks } from "./hooks/useBookmarks.js";
 import { useUnreadDM } from "./hooks/useUnreadDM.js";
+import { useAppLock } from "./hooks/useAppLock.js";
 import { installFetchInterceptor, updateStatusBarTheme } from "./capacitor.js";
 
 installFetchInterceptor();
@@ -85,6 +86,7 @@ export default function App(){
   const [hiddenAsgn,setHiddenAsgn]=useState(()=>{try{return JSON.parse(localStorage.getItem("hiddenAsgn"))||[];}catch{return[];}});
   const saveHidden=ids=>{setHiddenAsgn(ids);try{localStorage.setItem("hiddenAsgn",JSON.stringify(ids));}catch{}};
   const [myTasks,setMyTasks]=useState(MYTK0);
+  const appLock=useAppLock();
   const {bmarks,toggle:togBmark}=useBookmarks(ready);
   const [events,setEvents]=useState(EVENTS0);
   const allEvents=useMemo(()=>[...events,...ACADEMIC_EVENTS],[events]);
@@ -238,6 +240,67 @@ export default function App(){
   </div>;
   const L=mockMode;
 
+  // App lock screen (PIN pad + biometric)
+  const LockScreen=()=>{
+    const [pin,setPin]=useState("");
+    const [shake,setShake]=useState(false);
+    const [fails,setFails]=useState(0);
+    const biometricTriedRef=useRef(false);
+    const enter=async d=>{
+      if(pin.length>=4)return;
+      const next=pin+d;
+      setPin(next);
+      if(next.length===4){
+        const ok=await appLock.verify(next);
+        if(ok){setFails(0);}
+        else{
+          setFails(f=>f+1);
+          setShake(true);
+          try{navigator.vibrate?.(80);}catch{}
+          setTimeout(()=>{setPin("");setShake(false);},400);
+        }
+      }
+    };
+    const tryBiometric=useCallback(async()=>{
+      if(!appLock.biometricEnabled||!appLock.biometricAvailable)return;
+      await appLock.verifyBiometric();
+    },[appLock]);
+    // Auto-trigger biometric on mount
+    useEffect(()=>{
+      if(!biometricTriedRef.current&&appLock.biometricEnabled&&appLock.biometricAvailable){
+        biometricTriedRef.current=true;
+        tryBiometric();
+      }
+    },[tryBiometric,appLock.biometricEnabled,appLock.biometricAvailable]);
+    const showBio=appLock.biometricEnabled&&appLock.biometricAvailable;
+    const nums=[1,2,3,4,5,6,7,8,9,null,0,"del"];
+    return <div style={{position:"fixed",inset:0,zIndex:99998,background:T.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
+      <div style={{width:56,height:56,borderRadius:16,background:`${T.accent}18`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      </div>
+      <div style={{fontSize:16,fontWeight:600,color:T.txH}}>パスコードを入力</div>
+      {fails>=3&&<div style={{fontSize:12,color:T.red,marginTop:6}}>{fails}回失敗</div>}
+      <div style={{display:"flex",gap:14,margin:"24px 0 32px",animation:shake?"appLockShake .4s":"none"}}>
+        {[0,1,2,3].map(i=><div key={i} style={{width:14,height:14,borderRadius:7,border:`2px solid ${pin.length>i?T.accent:T.txD}`,background:pin.length>i?T.accent:"transparent",transition:"all .1s"}}/>)}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,76px)",gap:10}}>
+        {nums.map((k,i)=>{
+          if(k===null)return <div key={i}/>;
+          if(k==="del")return <button key="del" onClick={()=>setPin(p=>p.slice(0,-1))} style={{width:76,height:52,borderRadius:12,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txD}}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>
+          </button>;
+          return <button key={k} onClick={()=>enter(String(k))} style={{width:76,height:52,borderRadius:12,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer",fontSize:24,fontWeight:300,color:T.txH,transition:"background .1s"}} onMouseDown={e=>e.currentTarget.style.background=T.bg3} onMouseUp={e=>e.currentTarget.style.background=T.bg2} onMouseLeave={e=>e.currentTarget.style.background=T.bg2}>{k}</button>;
+        })}
+      </div>
+      {showBio&&<button onClick={tryBiometric} style={{marginTop:20,padding:"10px 20px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer",display:"flex",alignItems:"center",gap:8,color:T.txH,fontSize:13,fontWeight:500}}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 11c0-1.1.9-2 2-2s2 .9 2 2v1"/><path d="M8 11V9a4 4 0 018 0"/><path d="M6 11V8a6 6 0 0112 0v3"/><path d="M12 14v3"/><rect x="4" y="11" width="16" height="10" rx="2"/></svg>
+        生体認証で解除
+      </button>}
+      {fails>=5&&<button onClick={()=>{if(confirm("ログアウトしますか？パスコードはリセットされます。")){appLock.removePin();onLogout();}}} style={{marginTop:24,padding:"10px 24px",borderRadius:10,border:"none",background:T.red,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>ログアウト</button>}
+      <style>{`@keyframes appLockShake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-6px)}40%,60%{transform:translateX(6px)}}`}</style>
+    </div>;
+  };
+
   // --- Header for mobile ---
   const MHdr=({title,back,color,right})=><header style={{display:"flex",alignItems:"center",gap:8,padding:"env(safe-area-inset-top) 14px 0",minHeight:54,borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}><div style={{display:"flex",alignItems:"center",gap:8,width:"100%",height:54}}>{back&&<button onClick={back} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>}<h1 style={{flex:1,margin:0,fontSize:17,fontWeight:700,color:color||T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title}</h1>{right}</div></header>;
 
@@ -332,7 +395,7 @@ export default function App(){
           {view==="reviews"&&(L?<LockedView title="授業レビュー"/>:<ReviewView reviews={reviews} setReviews={setReviews} mob={false} courses={allCourses}/>)}
           {view==="bmarks"&&(L?<LockedView title="ブックマーク"/>:<BookmarkView bmarks={bmarks} mob={false} setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/>)}
           {view==="search"&&(L?<LockedView title="検索"/>:<SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses}/>)}
-          {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout}/>}
+          {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock}/>}
           {view==="location"&&(L?<LockedView title="友達の居場所"/>:<LocationView mob={false} user={user} friendIds={friendIds}/>)}
           {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/>}
           {view==="encounter"&&(L?<LockedView title="すれ違い通信"/>:<EncounterView mob={false} nearby={nearby} myCard={myCard} setMyCard={setMyCard} inbox={encInbox} collection={encColl} openCard={encOpen} clearCollection={encClearColl} stats={encStats} courses={allCourses}/>)}
@@ -340,6 +403,7 @@ export default function App(){
           {view==="acadCal"&&<AcademicCalendarView mob={false}/>}
           {view==="admin"&&<AdminView mob={false} courses={allCourses} depts={userDepts} schools={userSchools}/>}
         </div>
+        {appLock.locked&&<LockScreen/>}
         <Toasts/>
         <style>{`*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${T.bd};border-radius:3px}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit}`}</style>
       </div>
@@ -368,7 +432,7 @@ export default function App(){
         {view==="reviews"&&(L?<><MHdr title="授業レビュー" back={mBack}/><LockedView title="授業レビュー"/></>:<><MHdr title="授業レビュー" back={mBack}/><ReviewView reviews={reviews} setReviews={setReviews} mob courses={allCourses}/></>)}
         {view==="bmarks"&&(L?<><MHdr title="ブックマーク" back={mBack}/><LockedView title="ブックマーク"/></>:<><MHdr title="ブックマーク" back={mBack}/><BookmarkView bmarks={bmarks} mob setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/></>)}
         {view==="search"&&(L?<><MHdr title="検索" back={mBack}/><LockedView title="検索"/></>:<><MHdr title="検索" back={mBack}/><SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses}/></>)}
-        {view==="profile"&&<><MHdr title="プロフィール" back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout}/></>}
+        {view==="profile"&&<><MHdr title="プロフィール" back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock}/></>}
         {view==="location"&&(L?<><MHdr title="友達の居場所" back={mBack}/><LockedView title="友達の居場所"/></>:<><MHdr title="友達の居場所" back={mBack}/><LocationView mob user={user} friendIds={friendIds}/></>)}
         {view==="navigation"&&<><MHdr title="キャンパスナビ" back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
         {view==="encounter"&&(L?<><MHdr title="すれ違い通信" back={mBack}/><LockedView title="すれ違い通信"/></>:<><MHdr title="すれ違い通信" back={mBack}/><EncounterView mob nearby={nearby} myCard={myCard} setMyCard={setMyCard} inbox={encInbox} collection={encColl} openCard={encOpen} clearCollection={encClearColl} stats={encStats} courses={allCourses}/></>)}
@@ -378,6 +442,7 @@ export default function App(){
       </div>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread}/>
       <div style={{height:14,background:T.bg2,flexShrink:0}}/>
+      {appLock.locked&&<LockScreen/>}
       <Toasts/>
       <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}`}</style>
     </div>

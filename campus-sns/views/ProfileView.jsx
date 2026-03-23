@@ -7,6 +7,7 @@ import { MatrixInput, COLS, ROWS } from '../components/MatrixInput.jsx';
 import { QA_ALL, QA_DEFAULT } from './HomeView.jsx';
 import { NAV_QUICK_DEFAULT, SPOT_GROUPS } from './NavigationView.jsx';
 import { SPOTS, SPOT_CATS } from '../hooks/useLocationSharing.js';
+import { TIMEOUT_OPTIONS } from '../hooks/useAppLock.js';
 import { SCHOOLS, DEPTS } from '../data.js';
 import { PrivacyPolicyView } from './PrivacyPolicyView.jsx';
 import { TermsOfServiceView } from './TermsOfServiceView.jsx';
@@ -120,7 +121,7 @@ const CredForm=({form,setForm,showPw,showTotp,setShowPw,setShowTotp,onSave,savin
 );
 
 /* ─── メイン ─── */
-export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accentPref="default",setAccentPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout})=>{
+export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accentPref="default",setAccentPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout,appLock})=>{
   const done=asgn.filter(a=>a.st==="completed").length;
   const total=asgn.length;
 
@@ -132,6 +133,10 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   const [cacheCleared,setCacheCleared]=useState(false);
   const [showPrivacy,setShowPrivacy]=useState(false);
   const [showTerms,setShowTerms]=useState(false);
+  // App lock PIN setup
+  const [pinSetup,setPinSetup]=useState(null); // null | {phase:"new"} | {phase:"confirm",first:string}
+  const [pinInput,setPinInput]=useState("");
+  const [pinError,setPinError]=useState("");
   const [avEdit,setAvEdit]=useState(false);
   const [uploading,setUploading]=useState(false);
   const fileRef=useRef(null);
@@ -809,6 +814,77 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               ))}
             </div>}/>
         </GCard>
+
+        {/* ═══ セキュリティ ═══ */}
+        <GHead>セキュリティ</GHead>
+        <GCard>
+          <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>}
+            label="アプリロック"
+            sub={appLock?.enabled?"バックグラウンド復帰時にロック":"オフ"}
+            right={<Toggle on={!!appLock?.enabled} onTog={()=>{
+              if(!appLock)return;
+              if(!appLock.enabled){
+                if(!appLock.pinSet){setPinSetup({phase:"new"});setPinInput("");setPinError("");}
+                else appLock.setEnabled(true);
+              }else{appLock.setEnabled(false);}
+            }}/>}/>
+          {appLock?.enabled&&<>
+            <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}
+              label="ロックまでの時間"
+              right={<select value={appLock.timeout} onChange={e=>appLock.setLockTimeout(Number(e.target.value))}
+                style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:12,cursor:"pointer",outline:"none"}}>
+                {TIMEOUT_OPTIONS.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>}/>
+            <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>}
+              label="パスコードを変更"
+              onClick={()=>{setPinSetup({phase:"new"});setPinInput("");setPinError("");}}/>
+            {appLock?.biometricAvailable&&<GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 11c0-1.1.9-2 2-2s2 .9 2 2v1"/><path d="M8 11V9a4 4 0 018 0"/><path d="M6 11V8a6 6 0 0112 0v3"/><path d="M12 14v3"/><rect x="4" y="11" width="16" height="10" rx="2"/></svg>}
+              label="Face ID / 指紋認証"
+              sub={appLock.biometricEnabled?"ロック解除時に使用":"オフ"}
+              right={<Toggle on={!!appLock.biometricEnabled} onTog={()=>appLock.setBiometricEnabled(!appLock.biometricEnabled)}/>}/>}
+            <GRow last icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>}
+              label="今すぐロック"
+              onClick={()=>appLock.lockNow()}/>
+          </>}
+          {!appLock?.enabled&&appLock?.pinSet&&<GRow last
+            icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>}
+            label="パスコードを削除" danger
+            onClick={()=>{if(confirm("パスコードを削除しますか？"))appLock.removePin();}}/>}
+        </GCard>
+        {/* PIN setup modal */}
+        {pinSetup&&<div style={{position:"fixed",inset:0,zIndex:10002,background:T.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
+          <button onClick={()=>setPinSetup(null)} style={{position:"absolute",top:"calc(16px + env(safe-area-inset-top))",left:16,background:"none",border:"none",color:T.txD,cursor:"pointer",fontSize:14}}>キャンセル</button>
+          <div style={{fontSize:16,fontWeight:600,color:T.txH,marginBottom:4}}>{pinSetup.phase==="new"?"新しいパスコードを入力":"もう一度入力してください"}</div>
+          {pinError&&<div style={{fontSize:12,color:T.red,marginTop:4}}>{pinError}</div>}
+          <div style={{display:"flex",gap:14,margin:"24px 0 32px"}}>
+            {[0,1,2,3].map(i=><div key={i} style={{width:14,height:14,borderRadius:7,border:`2px solid ${pinInput.length>i?T.accent:T.txD}`,background:pinInput.length>i?T.accent:"transparent",transition:"all .1s"}}/>)}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,76px)",gap:10}}>
+            {[1,2,3,4,5,6,7,8,9,null,0,"del"].map((k,i)=>{
+              if(k===null)return <div key={i}/>;
+              if(k==="del")return <button key="del" onClick={()=>setPinInput(p=>p.slice(0,-1))} style={{width:76,height:52,borderRadius:12,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txD}}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>
+              </button>;
+              return <button key={k} onClick={()=>{
+                if(pinInput.length>=4)return;
+                const next=pinInput+k;
+                setPinInput(next);
+                if(next.length===4){
+                  if(pinSetup.phase==="new"){
+                    setPinSetup({phase:"confirm",first:next});setPinInput("");setPinError("");
+                  }else{
+                    if(next===pinSetup.first){
+                      appLock.setPin(next).then(()=>{appLock.setEnabled(true);setPinSetup(null);});
+                    }else{
+                      setPinError("パスコードが一致しません");setPinInput("");setPinSetup({phase:"new"});
+                    }
+                  }
+                }
+              }} style={{width:76,height:52,borderRadius:12,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer",fontSize:24,fontWeight:300,color:T.txH,transition:"background .1s"}}
+                onMouseDown={e=>e.currentTarget.style.background=T.bg3} onMouseUp={e=>e.currentTarget.style.background=T.bg2} onMouseLeave={e=>e.currentTarget.style.background=T.bg2}>{k}</button>;
+            })}
+          </div>
+        </div>}
 
         {/* ═══ データ管理 ═══ */}
         <GHead>データ管理</GHead>
