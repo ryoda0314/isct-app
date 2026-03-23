@@ -225,6 +225,9 @@ export const SPOTS = [
         "グループ客は替え玉をまとめて注文する",
       ]},
     ],
+    links: [
+      { icon: "x", label: "@NARUTOmoMENMAmo", url: "https://x.com/NARUTOmoMENMAmo" },
+    ],
   } },
   { id: "rest_mcd", label: "マクドナルド 大岡山店", short: "マ", col: "#da3a2a", cat: "restaurant", lat: 35.60701, lng: 139.68536, meta: { genre: "ファストフード", hours: "6:00〜24:00", budget: "~600円", desc: "大岡山駅すぐのマクドナルド" } },
   { id: "rest_tsukasa", label: "潮さい茶屋つかさ", short: "つ", col: "#2a7ab8", cat: "restaurant", lat: 35.60788, lng: 139.68502, meta: { genre: "海鮮料理", hours: "11:00〜14:00 / 17:00〜22:30", budget: "ランチ~1000円 / 夜~3000円", desc: "新鮮な魚介が自慢。アジフライ定食が人気。日曜・祝日定休", closed: "日曜・祝日" } },

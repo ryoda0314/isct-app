@@ -884,6 +884,13 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
               <span style={{fontSize:12,fontWeight:600,color:destSpotInfo.col,flex:1,textAlign:"left"}}>初めて行く人へ</span>
               <span style={{fontSize:11,color:`${destSpotInfo.col}90`}}>›</span>
             </button>}
+            {destSpotInfo.meta.links&&<div style={{display:"flex",gap:6,marginTop:8}}>
+              {destSpotInfo.meta.links.map((lk,li)=><a key={li} href={lk.url} target="_blank" rel="noopener noreferrer" style={{flex:1,display:"flex",alignItems:"center",gap:6,padding:"7px 10px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",textDecoration:"none",cursor:"pointer",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                {lk.icon==="x"&&<svg width="14" height="14" viewBox="0 0 24 24" fill={T.txH}><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>}
+                {lk.icon==="yt"&&<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="16" rx="3" fill="#ff0000"/><polygon points="10,8.5 16,12 10,15.5" fill="#fff"/></svg>}
+                <span style={{fontSize:11,fontWeight:500,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lk.label}</span>
+              </a>)}
+            </div>}
           </div>}
           <button onClick={()=>{
             setNavPhase("route");
