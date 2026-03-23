@@ -879,20 +879,11 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
               <span style={{fontSize:12,color:T.red||"#e5534b"}}>{destSpotInfo.meta.closed} 定休</span>
             </div>}
             {destSpotInfo.meta.desc&&<div style={{fontSize:11,color:T.txD,marginTop:2,lineHeight:1.5}}>{destSpotInfo.meta.desc}</div>}
-            {destSpotInfo.meta.tips&&<>
-              <button onClick={()=>setTipsOpen(!tipsOpen)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:6,padding:"6px 0 0",border:"none",background:"transparent",cursor:"pointer"}}>
-                <span style={{fontSize:11,fontWeight:600,color:T.txH}}>初めて行く人へ</span>
-                <span style={{fontSize:10,color:T.txD}}>{tipsOpen?"▾ 閉じる":"› 詳しく見る"}</span>
-              </button>
-              {tipsOpen&&<div style={{marginTop:6,display:"flex",flexDirection:"column",gap:8}}>
-                {destSpotInfo.meta.tips.map((sec,i)=><div key={i}>
-                  <div style={{fontSize:11,fontWeight:600,color:T.txH,marginBottom:3}}>{sec.title}</div>
-                  {sec.items.map((item,j)=><div key={j} style={{fontSize:10,color:T.txD,lineHeight:1.5,paddingLeft:8,position:"relative"}}>
-                    <span style={{position:"absolute",left:0,color:T.txD}}>•</span>{item}
-                  </div>)}
-                </div>)}
-              </div>}
-            </>}
+            {destSpotInfo.meta.tips&&<button onClick={()=>setTipsOpen(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,marginTop:8,padding:"8px 10px",borderRadius:8,border:`1px solid ${destSpotInfo.col}40`,background:`${destSpotInfo.col}10`,cursor:"pointer",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=`${destSpotInfo.col}20`} onMouseLeave={e=>e.currentTarget.style.background=`${destSpotInfo.col}10`}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={destSpotInfo.col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              <span style={{fontSize:12,fontWeight:600,color:destSpotInfo.col,flex:1,textAlign:"left"}}>初めて行く人へ</span>
+              <span style={{fontSize:11,color:`${destSpotInfo.col}90`}}>›</span>
+            </button>}
           </div>}
           <button onClick={()=>{
             setNavPhase("route");
@@ -1076,5 +1067,56 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4285f4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m-10-10h4m12 0h4"/></svg>
       <span style={{fontSize:13,fontWeight:700,color:"#4285f4"}}>現在地に戻る</span>
     </button>}
+    {/* ── Tips Modal ── */}
+    {tipsOpen&&destSpotInfo?.meta?.tips&&(()=>{
+      const col=destSpotInfo.col;
+      const secIcons=[
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>,
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>,
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/></svg>,
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/></svg>,
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+      ];
+      return <div style={{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"flex-end",justifyContent:"center",animation:"navFadeIn .2s ease-out"}} onClick={()=>setTipsOpen(false)}>
+        <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,.55)",backdropFilter:"blur(4px)"}}/>
+        <div onClick={e=>e.stopPropagation()} style={{position:"relative",width:"100%",maxWidth:480,maxHeight:"85vh",margin:mob?0:"0 16px 16px",borderRadius:mob?"20px 20px 0 0":20,background:T.bg2,border:`1px solid ${T.bd}`,boxShadow:"0 -4px 40px rgba(0,0,0,.5)",display:"flex",flexDirection:"column",animation:"navSlideUp .25s ease-out"}}>
+          {/* Handle bar */}
+          {mob&&<div style={{display:"flex",justifyContent:"center",padding:"10px 0 0"}}><div style={{width:36,height:4,borderRadius:2,background:T.bdL}}/></div>}
+          {/* Header */}
+          <div style={{padding:"16px 20px 12px",borderBottom:`1px solid ${T.bd}`,display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+            <div style={{width:40,height:40,borderRadius:12,background:`${col}20`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:16,fontWeight:700,color:T.txH}}>初めて行く人へ</div>
+              <div style={{fontSize:11,color:T.txD,marginTop:1}}>{destSpotInfo.label} — 来店マナー</div>
+            </div>
+            <button onClick={()=>setTipsOpen(false)} style={{width:32,height:32,borderRadius:"50%",border:`1px solid ${T.bd}`,background:T.bg3,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txD,flexShrink:0}}>{I.x}</button>
+          </div>
+          {/* Scrollable body */}
+          <div style={{flex:1,overflowY:"auto",padding:"12px 16px 20px",WebkitOverflowScrolling:"touch"}}>
+            <div style={{fontSize:11,color:T.txD,lineHeight:1.6,marginBottom:14,padding:"8px 12px",borderRadius:8,background:`${col}08`,borderLeft:`3px solid ${col}40`}}>
+              カウンター4席・ワンオペの超個人店。店主のこだわりが強めですが、それも含めて愛されるお店です。気持ちよく食べるために知っておくと安心なことをまとめました。
+            </div>
+            {destSpotInfo.meta.tips.map((sec,si)=><div key={si} style={{marginBottom:si<destSpotInfo.meta.tips.length-1?16:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                <div style={{width:28,height:28,borderRadius:8,background:`${col}15`,display:"flex",alignItems:"center",justifyContent:"center",color:col,flexShrink:0}}>{secIcons[si]||secIcons[0]}</div>
+                <span style={{fontSize:13,fontWeight:700,color:T.txH}}>{sec.title}</span>
+                <span style={{fontSize:10,color:T.txD,background:T.bg3,padding:"2px 7px",borderRadius:10}}>{sec.items.length}件</span>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:1}}>
+                {sec.items.map((item,ii)=><div key={ii} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"6px 10px",borderRadius:8,background:ii%2===0?"transparent":T.bg3}}>
+                  <span style={{fontSize:10,fontWeight:700,color:`${col}90`,width:16,textAlign:"right",flexShrink:0,marginTop:1}}>{ii+1}.</span>
+                  <span style={{fontSize:12,color:T.tx,lineHeight:1.5}}>{item}</span>
+                </div>)}
+              </div>
+            </div>)}
+            <div style={{marginTop:16,padding:"10px 12px",borderRadius:8,background:T.bg3,fontSize:11,color:T.txD,lineHeight:1.5,textAlign:"center"}}>
+              店主いわく「僕が口に出してるだけで、ラーメン屋さんみんな思ってること」とのこと。リスペクトを持って美味しくいただきましょう。
+            </div>
+          </div>
+        </div>
+      </div>;
+    })()}
   </div>;
 };
