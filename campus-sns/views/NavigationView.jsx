@@ -784,6 +784,18 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
           {SPOT_CATS.filter(cat=>NAV_SPOTS.some(s=>s.cat===cat.id)).map(cat=>{
             const catSpots=NAV_SPOTS.filter(s=>s.cat===cat.id&&!isGroupableSpot(s));
             const catGroups=SPOT_GROUPS.filter(g=>NAV_SPOTS.some(s=>s.cat===cat.id&&s.id.startsWith(g.prefix+"_")));
+            // カテゴリ内にグループ1つだけ（個別スポットなし）→ 直接グループリンク
+            if(catSpots.length===0&&catGroups.length===1){
+              const g=catGroups[0];
+              const cnt=NAV_SPOTS.filter(s=>s.id.startsWith(g.prefix+"_")).length;
+              return <button key={cat.id} onClick={()=>{setSpotGroup(g.prefix);setNavPhase("group");setSearchQ("");setOpenCatInline(null);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <div style={{width:20,height:20,borderRadius:6,background:`${g.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill={g.col} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+                </div>
+                <span style={{fontSize:13,fontWeight:500,color:T.txH,flex:1}}>{cat.label}</span>
+                <span style={{fontSize:11,color:T.txD}}>{cnt}件 ›</span>
+              </button>;
+            }
             const isOpen=openCatInline===cat.id;
             return <div key={cat.id}>
               <button onClick={()=>setOpenCatInline(isOpen?null:cat.id)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"10px 10px",borderRadius:8,border:"none",background:isOpen?T.bg3:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>{if(!isOpen)e.currentTarget.style.background=T.hover}} onMouseLeave={e=>{if(!isOpen)e.currentTarget.style.background=isOpen?T.bg3:"transparent"}}>
