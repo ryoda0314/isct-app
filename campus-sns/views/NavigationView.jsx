@@ -1118,6 +1118,26 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
                 </div>)}
               </div>
             </div>)}
+            {/* ── 1ミリも怒ってないタイムライン ── */}
+            {destSpotInfo.meta.notAngry&&<div style={{marginTop:20}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                <div style={{width:28,height:28,borderRadius:8,background:`${T.red}15`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.red} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </div>
+                <div style={{flex:1}}>
+                  <span style={{fontSize:13,fontWeight:700,color:T.txH}}>１ミリも怒ってないのですが</span>
+                  <div style={{fontSize:10,color:T.txD}}>撤去・廃止の歴史</div>
+                </div>
+              </div>
+              <div style={{position:"relative",paddingLeft:14}}>
+                <div style={{position:"absolute",left:5,top:4,bottom:4,width:2,background:`${T.red}20`,borderRadius:1}}/>
+                {destSpotInfo.meta.notAngry.map((ev,ei)=><div key={ei} style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:ei<destSpotInfo.meta.notAngry.length-1?2:0,padding:"5px 8px",borderRadius:8,background:ei%2===0?"transparent":T.bg3,position:"relative"}}>
+                  <div style={{position:"absolute",left:-10,top:10,width:8,height:8,borderRadius:"50%",background:T.bg2,border:`2px solid ${T.red}50`}}/>
+                  <span style={{fontSize:9,fontWeight:600,color:T.txD,width:52,flexShrink:0,marginTop:2}}>{ev.date}</span>
+                  <span style={{fontSize:11,color:T.tx,lineHeight:1.5}}>{ev.text}</span>
+                </div>)}
+              </div>
+            </div>}
             <div style={{marginTop:16,padding:"10px 12px",borderRadius:8,background:T.bg3,fontSize:11,color:T.txD,lineHeight:1.5,textAlign:"center"}}>
               店主いわく「僕が口に出してるだけで、ラーメン屋さんみんな思ってること」とのこと。リスペクトを持って美味しくいただきましょう。
             </div>
