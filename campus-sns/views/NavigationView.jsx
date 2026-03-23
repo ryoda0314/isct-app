@@ -1114,6 +1114,22 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
             <div style={{marginTop:16,padding:"10px 12px",borderRadius:8,background:T.bg3,fontSize:11,color:T.txD,lineHeight:1.5,textAlign:"center"}}>
               店主いわく「僕が口に出してるだけで、ラーメン屋さんみんな思ってること」とのこと。リスペクトを持って美味しくいただきましょう。
             </div>
+            <a href="https://www.youtube.com/watch?v=FIiwCPRcMbk" target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:10,marginTop:10,padding:"10px 12px",borderRadius:8,background:"#ff000012",border:"1px solid #ff000025",textDecoration:"none",cursor:"pointer",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="#ff000020"} onMouseLeave={e=>e.currentTarget.style.background="#ff000012"}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="16" rx="3" fill="#ff0000"/><polygon points="10,8.5 16,12 10,15.5" fill="#fff"/></svg>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,fontWeight:600,color:T.txH}}>なるメンルールブック</div>
+                <div style={{fontSize:10,color:T.txD}}>店主本人が解説する元動画</div>
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </a>
+            <a href="https://x.com/NARUTOmoMENMAmo" target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:10,marginTop:6,padding:"10px 12px",borderRadius:8,background:`${T.txH}08`,border:`1px solid ${T.txH}15`,textDecoration:"none",cursor:"pointer",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=`${T.txH}14`} onMouseLeave={e=>e.currentTarget.style.background=`${T.txH}08`}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill={T.txH}><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,fontWeight:600,color:T.txH}}>@NARUTOmoMENMAmo</div>
+                <div style={{fontSize:10,color:T.txD}}>営業情報はここでチェック</div>
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </a>
           </div>
         </div>
       </div>;
