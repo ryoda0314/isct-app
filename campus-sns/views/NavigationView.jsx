@@ -237,6 +237,20 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   // 出発地がGPS（現在地）由来かどうか
   const [originFromGps,setOriginFromGps]=useState(false);
 
+  // マップ表示用の常時GPS更新（案内中はstartWatchが担当するのでスキップ）
+  useEffect(()=>{
+    if(guiding||!navigator.geolocation)return;
+    const id=navigator.geolocation.watchPosition(
+      (pos)=>{
+        const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+        setGpsPos({lat,lng,accuracy});
+      },
+      ()=>{},
+      {enableHighAccuracy:true,timeout:10000,maximumAge:5000}
+    );
+    return ()=>navigator.geolocation.clearWatch(id);
+  },[guiding]);
+
   // ルート座標をrefに同期（watchPositionコールバック内で参照するため）
   useEffect(()=>{routeCoordsRef.current=route?.coords||null;},[route]);
 
