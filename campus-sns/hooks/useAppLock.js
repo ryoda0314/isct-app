@@ -25,13 +25,7 @@ async function sha256(str) {
 }
 
 export function useAppLock() {
-  const [locked, setLocked] = useState(() => {
-    try {
-      const en = localStorage.getItem(SK.enabled) === "1";
-      const pin = localStorage.getItem(SK.pinHash) || "";
-      return en && !!pin;
-    } catch { return false; }
-  });
+  const [locked, setLocked] = useState(false);
   const [enabled, setEnabledRaw] = useState(() => {
     try { return localStorage.getItem(SK.enabled) === "1"; } catch { return false; }
   });
