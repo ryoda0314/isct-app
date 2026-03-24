@@ -50,6 +50,66 @@ installFetchInterceptor();
 
 const API="";
 
+// Lock screen – defined outside App to avoid remount on parent re-render
+const LockScreen=({appLock,onLogout})=>{
+  const [pin,setPin]=useState("");
+  const [shake,setShake]=useState(false);
+  const [fails,setFails]=useState(0);
+  const biometricTriedRef=useRef(false);
+  const enter=async d=>{
+    if(pin.length>=4)return;
+    const next=pin+d;
+    setPin(next);
+    if(next.length===4){
+      const ok=await appLock.verify(next);
+      if(ok){setFails(0);}
+      else{
+        setFails(f=>f+1);
+        setShake(true);
+        try{navigator.vibrate?.(80);}catch{}
+        setTimeout(()=>{setPin("");setShake(false);},400);
+      }
+    }
+  };
+  const tryBiometric=useCallback(async()=>{
+    if(!appLock.biometricEnabled||!appLock.biometricAvailable)return;
+    await appLock.verifyBiometric();
+  },[appLock.biometricEnabled,appLock.biometricAvailable,appLock.verifyBiometric]);
+  useEffect(()=>{
+    if(!biometricTriedRef.current&&appLock.biometricEnabled&&appLock.biometricAvailable){
+      biometricTriedRef.current=true;
+      tryBiometric();
+    }
+  },[tryBiometric,appLock.biometricEnabled,appLock.biometricAvailable]);
+  const showBio=appLock.biometricEnabled&&appLock.biometricAvailable;
+  const nums=[1,2,3,4,5,6,7,8,9,null,0,"del"];
+  return <div style={{position:"fixed",inset:0,zIndex:99998,background:T.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
+    <div style={{width:56,height:56,borderRadius:16,background:`${T.accent}18`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+    </div>
+    <div style={{fontSize:16,fontWeight:600,color:T.txH}}>パスコードを入力</div>
+    {fails>=3&&<div style={{fontSize:12,color:T.red,marginTop:6}}>{fails}回失敗</div>}
+    <div style={{display:"flex",gap:14,margin:"24px 0 32px",animation:shake?"appLockShake .4s":"none"}}>
+      {[0,1,2,3].map(i=><div key={i} style={{width:14,height:14,borderRadius:7,border:`2px solid ${pin.length>i?T.accent:T.txD}`,background:pin.length>i?T.accent:"transparent",transition:"all .1s"}}/>)}
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,76px)",gap:10}}>
+      {nums.map((k,i)=>{
+        if(k===null)return <div key={i}/>;
+        if(k==="del")return <button key="del" onClick={()=>setPin(p=>p.slice(0,-1))} style={{width:76,height:52,borderRadius:12,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txD}}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>
+        </button>;
+        return <button key={k} onClick={()=>enter(String(k))} style={{width:76,height:52,borderRadius:12,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer",fontSize:24,fontWeight:300,color:T.txH,transition:"background .1s"}} onMouseDown={e=>e.currentTarget.style.background=T.bg3} onMouseUp={e=>e.currentTarget.style.background=T.bg2} onMouseLeave={e=>e.currentTarget.style.background=T.bg2}>{k}</button>;
+      })}
+    </div>
+    {showBio&&<button onClick={tryBiometric} style={{marginTop:20,padding:"10px 20px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer",display:"flex",alignItems:"center",gap:8,color:T.txH,fontSize:13,fontWeight:500}}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 11c0-1.1.9-2 2-2s2 .9 2 2v1"/><path d="M8 11V9a4 4 0 018 0"/><path d="M6 11V8a6 6 0 0112 0v3"/><path d="M12 14v3"/><rect x="4" y="11" width="16" height="10" rx="2"/></svg>
+      生体認証で解除
+    </button>}
+    {fails>=5&&<button onClick={()=>{if(confirm("ログアウトしますか？パスコードはリセットされます。")){appLock.removePin();onLogout();}}} style={{marginTop:24,padding:"10px 24px",borderRadius:10,border:"none",background:T.red,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>ログアウト</button>}
+    <style>{`@keyframes appLockShake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-6px)}40%,60%{transform:translateX(6px)}}`}</style>
+  </div>;
+};
+
 // ============================================================
 export default function App(){
   const mob=useMobile();
@@ -241,65 +301,6 @@ export default function App(){
   const L=mockMode;
 
   // App lock screen (PIN pad + biometric)
-  const LockScreen=()=>{
-    const [pin,setPin]=useState("");
-    const [shake,setShake]=useState(false);
-    const [fails,setFails]=useState(0);
-    const biometricTriedRef=useRef(false);
-    const enter=async d=>{
-      if(pin.length>=4)return;
-      const next=pin+d;
-      setPin(next);
-      if(next.length===4){
-        const ok=await appLock.verify(next);
-        if(ok){setFails(0);}
-        else{
-          setFails(f=>f+1);
-          setShake(true);
-          try{navigator.vibrate?.(80);}catch{}
-          setTimeout(()=>{setPin("");setShake(false);},400);
-        }
-      }
-    };
-    const tryBiometric=useCallback(async()=>{
-      if(!appLock.biometricEnabled||!appLock.biometricAvailable)return;
-      await appLock.verifyBiometric();
-    },[appLock]);
-    // Auto-trigger biometric on mount
-    useEffect(()=>{
-      if(!biometricTriedRef.current&&appLock.biometricEnabled&&appLock.biometricAvailable){
-        biometricTriedRef.current=true;
-        tryBiometric();
-      }
-    },[tryBiometric,appLock.biometricEnabled,appLock.biometricAvailable]);
-    const showBio=appLock.biometricEnabled&&appLock.biometricAvailable;
-    const nums=[1,2,3,4,5,6,7,8,9,null,0,"del"];
-    return <div style={{position:"fixed",inset:0,zIndex:99998,background:T.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
-      <div style={{width:56,height:56,borderRadius:16,background:`${T.accent}18`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-      </div>
-      <div style={{fontSize:16,fontWeight:600,color:T.txH}}>パスコードを入力</div>
-      {fails>=3&&<div style={{fontSize:12,color:T.red,marginTop:6}}>{fails}回失敗</div>}
-      <div style={{display:"flex",gap:14,margin:"24px 0 32px",animation:shake?"appLockShake .4s":"none"}}>
-        {[0,1,2,3].map(i=><div key={i} style={{width:14,height:14,borderRadius:7,border:`2px solid ${pin.length>i?T.accent:T.txD}`,background:pin.length>i?T.accent:"transparent",transition:"all .1s"}}/>)}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,76px)",gap:10}}>
-        {nums.map((k,i)=>{
-          if(k===null)return <div key={i}/>;
-          if(k==="del")return <button key="del" onClick={()=>setPin(p=>p.slice(0,-1))} style={{width:76,height:52,borderRadius:12,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txD}}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>
-          </button>;
-          return <button key={k} onClick={()=>enter(String(k))} style={{width:76,height:52,borderRadius:12,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer",fontSize:24,fontWeight:300,color:T.txH,transition:"background .1s"}} onMouseDown={e=>e.currentTarget.style.background=T.bg3} onMouseUp={e=>e.currentTarget.style.background=T.bg2} onMouseLeave={e=>e.currentTarget.style.background=T.bg2}>{k}</button>;
-        })}
-      </div>
-      {showBio&&<button onClick={tryBiometric} style={{marginTop:20,padding:"10px 20px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer",display:"flex",alignItems:"center",gap:8,color:T.txH,fontSize:13,fontWeight:500}}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 11c0-1.1.9-2 2-2s2 .9 2 2v1"/><path d="M8 11V9a4 4 0 018 0"/><path d="M6 11V8a6 6 0 0112 0v3"/><path d="M12 14v3"/><rect x="4" y="11" width="16" height="10" rx="2"/></svg>
-        生体認証で解除
-      </button>}
-      {fails>=5&&<button onClick={()=>{if(confirm("ログアウトしますか？パスコードはリセットされます。")){appLock.removePin();onLogout();}}} style={{marginTop:24,padding:"10px 24px",borderRadius:10,border:"none",background:T.red,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>ログアウト</button>}
-      <style>{`@keyframes appLockShake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-6px)}40%,60%{transform:translateX(6px)}}`}</style>
-    </div>;
-  };
 
   // --- Header for mobile ---
   const MHdr=({title,back,color,right})=><header style={{display:"flex",alignItems:"center",gap:8,padding:"env(safe-area-inset-top) 14px 0",minHeight:54,borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}><div style={{display:"flex",alignItems:"center",gap:8,width:"100%",height:54}}>{back&&<button onClick={back} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>}<h1 style={{flex:1,margin:0,fontSize:17,fontWeight:700,color:color||T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title}</h1>{right}</div></header>;
@@ -403,7 +404,7 @@ export default function App(){
           {view==="acadCal"&&<AcademicCalendarView mob={false}/>}
           {view==="admin"&&<AdminView mob={false} courses={allCourses} depts={userDepts} schools={userSchools}/>}
         </div>
-        {appLock.locked&&<LockScreen/>}
+        {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
         <Toasts/>
         <style>{`*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${T.bd};border-radius:3px}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit}`}</style>
       </div>
@@ -442,7 +443,7 @@ export default function App(){
       </div>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread}/>
       <div style={{height:14,background:T.bg2,flexShrink:0}}/>
-      {appLock.locked&&<LockScreen/>}
+      {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
       <Toasts/>
       <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}`}</style>
     </div>
