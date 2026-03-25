@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { Av } from "../shared.jsx";
+import { MapEditorView } from "./MapEditorView.jsx";
 
 const API = "";
 
@@ -10,6 +11,7 @@ const tabs = [
   { id: "users", label: "ユーザー", icon: I.users },
   { id: "posts", label: "投稿", icon: I.feed },
   { id: "messages", label: "メッセージ", icon: I.chat },
+  { id: "map", label: "地図編集", icon: I.pin },
   { id: "settings", label: "設定", icon: I.shield },
 ];
 
@@ -415,6 +417,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "users" && <UsersTab />}
         {tab === "posts" && <PostsTab courses={courses} schools={schools} depts={depts} />}
         {tab === "messages" && <MessagesTab courses={courses} schools={schools} depts={depts} />}
+        {tab === "map" && <MapEditorView mob={mob} />}
         {tab === "settings" && <SettingsTab />}
       </div>
     </div>

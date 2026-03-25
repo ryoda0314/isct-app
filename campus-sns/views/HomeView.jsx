@@ -42,7 +42,6 @@ const QA_ALL=[
   {id:"grades",icon:I.grad,label:"成績"},
   {id:"reviews",icon:I.star,label:"レビュー"},
   {id:"location",icon:I.pin,label:"居場所"},
-  {id:"encounter",icon:I.encounter,label:"すれ違い"},
   {id:"pomo",icon:I.play,label:"ポモドーロ"},
   {id:"bmarks",icon:I.bmark,label:"ブックマーク"},
   {id:"dm",icon:I.mail,label:"DM"},

@@ -21,7 +21,6 @@ const APPS = [
   { id: "circles",    icon: I.circle,    label: "サークル",     color: C.purple },
   { id: "events",     icon: I.event,     label: "イベント",     color: C.yellow },
   { id: "location",   icon: I.pin,       label: "居場所",       color: C.mint },
-  { id: "encounter",  icon: I.encounter, label: "すれ違い",     color: C.brown },
   { id: "navigation", icon: I.map,       label: "マップ",       color: C.blue },
   { id: "reviews",    icon: I.star,      label: "レビュー",     color: C.orange },
   { id: "pomo",       icon: I.play,      label: "ポモドーロ",   color: C.red },
