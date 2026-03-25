@@ -412,7 +412,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         ))}
       </div>
       {/* Content */}
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      <div style={{ flex: 1, overflowY: tab === "map" ? "hidden" : "auto", display: "flex", flexDirection: "column" }}>
         {tab === "stats" && <StatsTab />}
         {tab === "users" && <UsersTab />}
         {tab === "posts" && <PostsTab courses={courses} schools={schools} depts={depts} />}
