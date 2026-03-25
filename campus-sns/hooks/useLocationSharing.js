@@ -161,7 +161,7 @@ export const SPOTS = [
   { id: "park_22", label: "駐輪場（本館前(東)駐輪場）", short: "P22", col: "#78909c", cat: "outdoor", lat: 35.60478, lng: 139.68436 },
   { id: "park_23", label: "駐輪場（事務局横駐輪場）", short: "P23", col: "#78909c", cat: "outdoor", lat: 35.60497, lng: 139.68453 },
   { id: "park_24", label: "駐輪場（事務局向かい駐輪場）", short: "P24", col: "#78909c", cat: "outdoor", lat: 35.60502, lng: 139.68479 },
-  { id: "park_25", label: "駐輪場（情報基盤センター前自動販売機）", short: "P25", col: "#78909c", cat: "outdoor", lat: 35.60562, lng: 139.68478 },
+  { id: "vend_d_12", label: "自販機・飲料（情報基盤センター前自動販売機）", short: "VD12", col: "#42a5f5", cat: "outdoor", lat: 35.60562, lng: 139.68478 },
   { id: "vend_f_2", label: "自販機・食品（情報基盤センター前自動販売機(17アイス)）", short: "VF2", col: "#ff8a65", cat: "outdoor", lat: 35.60564, lng: 139.68478 },
   { id: "park_26", label: "駐輪場（手島横駐輪場）", short: "P26", col: "#78909c", cat: "outdoor", lat: 35.60574, lng: 139.68443 },
   { id: "bench_19", label: "ベンチ（手島前ベンチ）", short: "B19", col: "#8bc34a", cat: "outdoor", lat: 35.60539, lng: 139.68428 },
