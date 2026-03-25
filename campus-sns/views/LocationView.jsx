@@ -2,19 +2,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { Av, useLeaflet, Loader } from "../shared.jsx";
-import { useLocationSharing, SPOTS, SPOT_CATS, getSpot, CAMPUS_CENTER, CAMPUS_ZOOM, AREAS } from "../hooks/useLocationSharing.js";
+import { useLocationSharing, SPOTS, SPOT_CATS, getSpot, CAMPUS_CENTER, CAMPUS_ZOOM, AREAS, CAMPUS_BOUNDARY } from "../hooks/useLocationSharing.js";
 import { useNavigation, NAV_SPOTS } from "../hooks/useNavigation.js";
 import { isDemoMode } from "../demoMode.js";
 
 const NON_GEO=new Set(["suzu","home_loc","commute","off_campus","road"]);
 
 /* ── GPS → 最寄りスポット検索（ポリゴン→入口→中心点） ── */
-const haversine=(lat1,lng1,lat2,lng2)=>{
-  const R=6371e3,toRad=d=>d*Math.PI/180;
-  const dLat=toRad(lat2-lat1),dLng=toRad(lng2-lng1);
-  const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
-  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-};
 // Ray-casting法によるポリゴン内判定
 const pointInPolygon=(lat,lng,poly)=>{
   let inside=false;
@@ -376,12 +370,41 @@ const FakeLocPicker=({myLoc,setMyLoc})=>{
   </div>;
 };
 
+/* ── 公開先管理パネル ── */
+const VisibilityPanel=({friends=[],visibleTo,toggleVisibleTo,setVisibleTo})=>{
+  const allOn=friends.length>0&&friends.every(f=>visibleTo.includes(f.friendId)||visibleTo.includes(String(f.friendId)));
+  const noneOn=visibleTo.length===0;
+  return <div style={{padding:"8px 16px",flex:1,overflowY:"auto"}}>
+    <div style={{fontSize:12,color:T.txD,marginBottom:8,lineHeight:1.5}}>
+      位置情報を共有する友達を選択してください。{noneOn&&<span style={{color:T.green,fontWeight:600}}>（現在: 全員に公開）</span>}
+    </div>
+    <div style={{display:"flex",gap:6,marginBottom:10}}>
+      <button onClick={()=>setVisibleTo(friends.map(f=>f.friendId))} style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${allOn?`${T.accent}50`:T.bd}`,background:allOn?`${T.accent}12`:T.bg2,cursor:"pointer",fontSize:11,fontWeight:600,color:allOn?T.accent:T.txD}}>全員を選択</button>
+      <button onClick={()=>setVisibleTo([])} style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${noneOn?`${T.green}50`:T.bd}`,background:noneOn?`${T.green}12`:T.bg2,cursor:"pointer",fontSize:11,fontWeight:600,color:noneOn?T.green:T.txD}}>全員に公開</button>
+    </div>
+    {friends.length===0&&<div style={{textAlign:"center",padding:"30px 20px",fontSize:13,color:T.txD}}>友達がまだいません</div>}
+    {friends.map(f=>{
+      const on=visibleTo.includes(f.friendId)||visibleTo.includes(String(f.friendId));
+      return <button key={f.friendId} onClick={()=>toggleVisibleTo(f.friendId)} style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 12px",borderRadius:10,border:`1px solid ${on?`${T.green}30`:T.bd}`,background:on?`${T.green}08`:T.bg2,cursor:"pointer",marginBottom:6,transition:"all .15s"}}>
+        <Av u={{name:f.name,av:f.avatar,col:f.color}} sz={30}/>
+        <div style={{flex:1,minWidth:0,textAlign:"left"}}>
+          <div style={{fontSize:13,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
+          {f.dept&&<div style={{fontSize:10,color:T.txD}}>{f.dept}</div>}
+        </div>
+        <div style={{width:20,height:20,borderRadius:4,border:`2px solid ${on?T.green:T.txD+"40"}`,background:on?T.green:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s",flexShrink:0}}>
+          {on&&<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="#fff" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+        </div>
+      </button>;
+    })}
+  </div>;
+};
+
 /* ── メインビュー ── */
-export const LocationView=({mob,user={},friendIds})=>{
-  const {peers:allPeers,myLoc,setMyLoc}=useLocationSharing({id:user.moodleId||user.id,name:user.name,col:user.col,av:user.av});
+export const LocationView=({mob,user={},friendIds,friends=[]})=>{
+  const {peers:allPeers,myLoc,setMyLoc,visibleTo,setVisibleTo,toggleVisibleTo}=useLocationSharing({id:user.moodleId||user.id,name:user.name,col:user.col,av:user.av});
   const peers=friendIds?allPeers.filter(p=>friendIds.has(Number(p.id))):allPeers;
   const mySpot=getSpot(myLoc);
-  const [tab,setTab]=useState("list"); // "list" | "map" | "spots"
+  const [tab,setTab]=useState("list"); // "list" | "map" | "spots" | "visibility"
   const [gpsPos,setGpsPos]=useState(null); // {lat,lng,accuracy}
   const [gpsStatus,setGpsStatus]=useState("idle"); // "idle"|"loading"|"watching"|"error"
   const [gpsMsg,setGpsMsg]=useState("");
@@ -401,9 +424,10 @@ export const LocationView=({mob,user={},friendIds})=>{
         const {latitude:lat,longitude:lng,accuracy}=pos.coords;
         setGpsPos({lat,lng,accuracy});
         const {spot,distance}=findNearestSpot(lat,lng);
-        const campusDist=haversine(lat,lng,CAMPUS_CENTER.lat,CAMPUS_CENTER.lng);
-        if(campusDist>1500){
-          setGpsMsg("キャンパス外のようです");
+        const inCampus=pointInPolygon(lat,lng,CAMPUS_BOUNDARY);
+        if(!inCampus){
+          setMyLoc("off_campus");
+          setGpsMsg("キャンパス外（位置は非公開）");
         }else if(spot){
           setMyLoc(spot.id);
           setGpsMsg(distance===0?`${spot.label}（建物内）`:distance===-1?"屋外（道）":`${spot.label}（${Math.round(distance)}m）`);
@@ -472,7 +496,7 @@ export const LocationView=({mob,user={},friendIds})=>{
 
       {/* ── タブ切り替え ── */}
       <div style={{display:"flex",gap:0,padding:"0 16px",borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>
-        {[{id:"list",l:"友達",cnt:peers.length},{id:"map",l:"地図"},{id:"spots",l:"場所を選択"}].map(t=>
+        {[{id:"list",l:"友達",cnt:peers.length},{id:"map",l:"地図"},{id:"spots",l:"場所を選択"},{id:"visibility",l:"公開先",cnt:visibleTo.length||null}].map(t=>
           <button key={t.id} onClick={()=>setTab(t.id)} style={{display:"flex",alignItems:"center",gap:4,padding:"8px 14px",border:"none",borderBottom:tab===t.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",cursor:"pointer",transition:"all .12s"}}>
             <span style={{fontSize:13,fontWeight:tab===t.id?600:400,color:tab===t.id?T.txH:T.txD}}>{t.l}</span>
             {t.cnt!=null&&t.cnt>0&&<span style={{fontSize:10,fontWeight:700,color:T.accent,background:`${T.accent}14`,padding:"1px 6px",borderRadius:8}}>{t.cnt}</span>}
@@ -509,6 +533,9 @@ export const LocationView=({mob,user={},friendIds})=>{
           </div>
         </div>)}
       </div>}
+
+      {/* ── 公開先タブ ── */}
+      {tab==="visibility"&&<VisibilityPanel friends={friends} visibleTo={visibleTo} toggleVisibleTo={toggleVisibleTo} setVisibleTo={setVisibleTo}/>}
 
       {/* ── 地図タブ ── */}
       {tab==="map"&&<MapTab peers={peers} myLoc={myLoc} mySpot={mySpot} grouped={grouped} mob={mob} gpsPos={gpsPos}/>}

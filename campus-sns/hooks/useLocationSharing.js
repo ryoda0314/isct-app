@@ -9,6 +9,41 @@ const LOC_KEY = "myLocation";
 export const CAMPUS_CENTER = { lat: 35.6048, lng: 139.6835 };
 export const CAMPUS_ZOOM = 17;
 
+// キャンパス外判定用ポリゴン（時計回り）
+// 緑が丘・大岡山メイン・石川台の3エリアを含む
+export const CAMPUS_BOUNDARY = [
+  // 緑が丘地区（北西）
+  [35.61020, 139.67750],
+  [35.61020, 139.68020],
+  // 緑が丘→北地区への接続
+  [35.60880, 139.68050],
+  [35.60800, 139.68000],
+  [35.60800, 139.68150],
+  // 北地区→蔵前会館→大岡山駅（北東）
+  [35.60800, 139.68550],
+  [35.60850, 139.68600],
+  [35.60850, 139.68720],
+  // 大岡山駅〜飲食店エリア（東）
+  [35.60650, 139.68770],
+  // 正門〜東地区
+  [35.60600, 139.68600],
+  [35.60370, 139.68520],
+  // 石川台地区（南東）
+  [35.60250, 139.68570],
+  [35.60000, 139.68570],
+  [35.59970, 139.68370],
+  // 南地区（南西）
+  [35.60200, 139.68270],
+  [35.60220, 139.68200],
+  // グラウンド・西地区（西）
+  [35.60430, 139.68040],
+  [35.60580, 139.68030],
+  // 北地区西端→緑が丘
+  [35.60680, 139.67970],
+  [35.60760, 139.67870],
+  [35.60800, 139.67750],
+];
+
 export const SPOTS = [
   { id: "", label: "非公開", short: "--", col: "#68687a", cat: "other" },
   // 本館・中央
@@ -1676,13 +1711,21 @@ export const EDGES = [
   ["wp_mn5xz04s", "wp_mn5xygwi"],
 ];
 
+const VIS_KEY = "locationVisibleTo";
+
 export function useLocationSharing(userInfo) {
   const [peers, setPeers] = useState([]);
   const [myLoc, setMyLocRaw] = useState(() => {
     try { return localStorage.getItem(LOC_KEY) || ""; } catch { return ""; }
   });
+  // 位置情報の公開先リスト（許可したユーザーIDの配列）
+  // 空配列 = 全友達に公開（後方互換）、IDが入っている = そのIDのみに公開
+  const [visibleTo, setVisibleToRaw] = useState(() => {
+    try { const s = localStorage.getItem(VIS_KEY); return s ? JSON.parse(s) : []; } catch { return []; }
+  });
   const channelRef = useRef(null);
   const locRef = useRef(myLoc);
+  const visRef = useRef(visibleTo);
 
   const retrack = useCallback(() => {
     const ch = channelRef.current;
@@ -1693,6 +1736,7 @@ export function useLocationSharing(userInfo) {
       col: userInfo.col || '#888',
       av: userInfo.av || '?',
       loc: locRef.current,
+      vis: visRef.current,
     });
   }, [userInfo?.id, userInfo?.name, userInfo?.col, userInfo?.av]);
 
@@ -1702,6 +1746,20 @@ export function useLocationSharing(userInfo) {
     try { localStorage.setItem(LOC_KEY, loc); } catch {}
     retrack();
   }, [retrack]);
+
+  const setVisibleTo = useCallback((ids) => {
+    const arr = Array.isArray(ids) ? ids : [...ids];
+    setVisibleToRaw(arr);
+    visRef.current = arr;
+    try { localStorage.setItem(VIS_KEY, JSON.stringify(arr)); } catch {}
+    retrack();
+  }, [retrack]);
+
+  const toggleVisibleTo = useCallback((userId) => {
+    const cur = visRef.current;
+    const next = cur.includes(userId) ? cur.filter(id => id !== userId) : [...cur, userId];
+    setVisibleTo(next);
+  }, [setVisibleTo]);
 
   useEffect(() => {
     if (!userInfo?.id) return;
@@ -1722,7 +1780,12 @@ export function useLocationSharing(userInfo) {
         for (const entry of entries) {
           if (!seen.has(entry.id) && entry.id !== userInfo.id && entry.loc) {
             seen.add(entry.id);
-            users.push({ id: entry.id, name: entry.name, col: entry.col, av: entry.av, loc: entry.loc });
+            // vis が設定されている場合、自分のIDが含まれているか確認
+            const vis = entry.vis;
+            const allowed = !vis || vis.length === 0 || vis.includes(userInfo.id) || vis.includes(Number(userInfo.id)) || vis.includes(String(userInfo.id));
+            if (allowed) {
+              users.push({ id: entry.id, name: entry.name, col: entry.col, av: entry.av, loc: entry.loc });
+            }
           }
         }
       }
@@ -1739,6 +1802,7 @@ export function useLocationSharing(userInfo) {
             col: userInfo.col || '#888',
             av: userInfo.av || '?',
             loc: locRef.current,
+            vis: visRef.current,
           });
         }
       });
@@ -1752,5 +1816,5 @@ export function useLocationSharing(userInfo) {
     };
   }, [userInfo?.id]);
 
-  return { peers, myLoc, setMyLoc };
+  return { peers, myLoc, setMyLoc, visibleTo, setVisibleTo, toggleVisibleTo };
 }
