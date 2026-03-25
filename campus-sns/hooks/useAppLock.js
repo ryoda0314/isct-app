@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { registerPlugin } from "@capacitor/core";
+
+const Biometric = registerPlugin("Biometric");
 
 const SK = {
   enabled: "appLock_enabled",
@@ -43,10 +46,10 @@ export function useAppLock() {
   useEffect(() => {
     (async () => {
       try {
-        const { NativeBiometric } = await import("capacitor-native-biometric");
-        const result = await NativeBiometric.isAvailable();
-        setBiometricAvailable(result.isAvailable);
-      } catch {
+        const result = await Biometric.isAvailable();
+        setBiometricAvailable(!!result.isAvailable);
+      } catch (e) {
+        console.error("Biometric.isAvailable error:", e);
         setBiometricAvailable(false);
       }
     })();
@@ -76,8 +79,7 @@ export function useAppLock() {
 
   const verifyBiometric = useCallback(async () => {
     try {
-      const { NativeBiometric } = await import("capacitor-native-biometric");
-      await NativeBiometric.verifyIdentity({ reason: "アプリのロックを解除" });
+      await Biometric.verifyIdentity({ reason: "アプリのロックを解除" });
       setLocked(false);
       return true;
     } catch {
