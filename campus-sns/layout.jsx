@@ -67,7 +67,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
       );})}
     </div>
     <div style={{padding:"6px 6px 10px"}}>
-      <SideItem icon={I.shield} label="管理者" on={view==="admin"} click={()=>setView("admin")}/>
+      {user.isAdmin&&<SideItem icon={I.shield} label="管理者" on={view==="admin"} click={()=>setView("admin")}/>}
       <SideItem icon={I.user1} label={user.name||"プロフィール"} on={view==="profile"} click={()=>setView("profile")}/>
     </div>
     {moreOpen&&<>
@@ -154,7 +154,9 @@ const MNav=({view,setView,ac,unreadN,dmUnread})=>{
 
 // --- More Menu (mobile) ---
 
-const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0})=>{
+const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})=>{
+  const otherItems=[{id:"bmarks",i:I.bmark,l:"ブックマーク"}];
+  if(isAdmin) otherItems.push({id:"admin",i:I.shield,l:"管理者"});
   const sections=[
     {title:"アカウント",items:[
       {id:"profile",i:I.user1,l:"プロフィール・設定"},
@@ -171,10 +173,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0})=>{
     {title:"キャンパス",items:[
       {id:"location",i:I.pin,l:"友達の居場所"},
     ]},
-    {title:"その他",items:[
-      {id:"bmarks",i:I.bmark,l:"ブックマーク"},
-      {id:"admin",i:I.shield,l:"管理者"},
-    ]},
+    {title:"その他",items:otherItems},
   ];
   const Item=({n})=>(
     <div onClick={()=>setView(n.id)} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",cursor:"pointer"}}>
