@@ -1,11 +1,23 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { fetchUserCourses } from '../../../../lib/api/courses.js';
 import { fetchScheduleForCourses } from '../../../../lib/api/syllabus-scraper.js';
 import { fetchAssignments, fetchSubmissionStatus } from '../../../../lib/api/assignments.js';
 import { transformCourses, groupByQuarter } from '../../../../lib/transform/course-transform.js';
 import { buildTimetable } from '../../../../lib/transform/timetable-builder.js';
 import { transformAssignments, updateAssignmentStatus } from '../../../../lib/transform/assignment-transform.js';
+
+const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
+
+async function checkAdmin(userid) {
+  if (ENV_ADMIN_IDS.includes(String(userid))) return true;
+  try {
+    const sb = getSupabaseAdmin();
+    const { data } = await sb.from('admin_users').select('moodle_user_id').eq('moodle_user_id', userid).maybeSingle();
+    return !!data;
+  } catch { return false; }
+}
 
 export async function GET(request) {
   try {
@@ -61,7 +73,8 @@ export async function GET(request) {
       console.warn(`[All] ${statusFailed}/${assignments.length} submission status fetches failed`);
     }
 
-    return NextResponse.json({ qData, courses, assignments, user: { userid, fullname } });
+    const isAdmin = await checkAdmin(userid);
+    return NextResponse.json({ qData, courses, assignments, user: { userid, fullname, isAdmin } });
   } catch (err) {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
