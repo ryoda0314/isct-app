@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { T } from "../theme.js";
 import { useLeaflet, Loader } from "../shared.jsx";
-import { SPOTS, CAMPUS_CENTER, CAMPUS_ZOOM, WAYPOINTS, EDGES, ENTRANCES, AREAS } from "../hooks/useLocationSharing.js";
+import { SPOTS, CAMPUS_CENTER, CAMPUS_ZOOM, WAYPOINTS, EDGES, ENTRANCES, AREAS, CAMPUS_BOUNDARY } from "../hooks/useLocationSharing.js";
 
 const SPOT_TYPES=[
   {id:"bench",label:"ベンチ",prefix:"B",col:"#8bc34a"},
@@ -51,6 +51,11 @@ export const MapEditorView=({mob})=>{
   const [areaEdits,setAreaEdits]=useState({});
   const [areaCopied,setAreaCopied]=useState(false);
   const [areaSelSpot,setAreaSelSpot]=useState(null);
+
+  // キャンパス範囲
+  const [cbEditMode,setCbEditMode]=useState(false);
+  const [cbVerts,setCbVerts]=useState(()=>CAMPUS_BOUNDARY.map(v=>[...v]));
+  const [cbCopied,setCbCopied]=useState(false);
 
   // スポット登録
   const [spotRegMode,setSpotRegMode]=useState(false);
@@ -122,6 +127,39 @@ export const MapEditorView=({mob})=>{
         });
         markersRef.current.push(m);
       });
+      return;
+    }
+
+    // ── キャンパス範囲編集モード ──
+    if(cbEditMode){
+      if(cbVerts.length>=3){
+        const poly=L.polygon(cbVerts,{color:"#ff6090",fillColor:"#ff6090",fillOpacity:0.08,weight:2.5,opacity:0.8,dashArray:"6,4"}).addTo(map);
+        markersRef.current.push(poly);
+      }
+      cbVerts.forEach((v,vi)=>{
+        const handleIcon=L.divIcon({
+          className:"",
+          html:`<div style="width:16px;height:16px;border-radius:50%;background:#fff;border:3px solid #ff6090;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:grab;transform:translate(-50%,-50%)"><span style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:8px;font-weight:700;color:#ff6090;text-shadow:0 0 3px #000">${vi+1}</span></div>`,
+          iconSize:[0,0],iconAnchor:[0,0],
+        });
+        const handle=L.marker(v,{icon:handleIcon,draggable:true}).addTo(map);
+        handle.on("dragend",()=>{
+          const ll=handle.getLatLng();
+          setCbVerts(prev=>{const nv=[...prev];nv[vi]=[parseFloat(ll.lat.toFixed(6)),parseFloat(ll.lng.toFixed(6))];return nv;});
+        });
+        handle.on("contextmenu",(ev)=>{
+          L.DomEvent.stopPropagation(ev);L.DomEvent.preventDefault(ev);
+          setCbVerts(prev=>prev.filter((_,i)=>i!==vi));
+        });
+        markersRef.current.push(handle);
+      });
+      const onMapClick=(e)=>{
+        const lat=parseFloat(e.latlng.lat.toFixed(6));
+        const lng=parseFloat(e.latlng.lng.toFixed(6));
+        setCbVerts(prev=>[...prev,[lat,lng]]);
+      };
+      map.on("click",onMapClick);
+      markersRef.current.push({remove:()=>map.off("click",onMapClick)});
       return;
     }
 
@@ -447,7 +485,7 @@ export const MapEditorView=({mob})=>{
       map.on("click",onSpotClick);
       markersRef.current.push({remove:()=>map.off("click",onSpotClick)});
     }
-  },[leafletReady,editMode,edits,showPaths,wpEditMode,wpEdits,newWps,edgeEditMode,edgeFrom,newEdges,edgeType,deletedEdges,showEnts,entEditMode,newEnts,entDragEdits,areaEditMode,areaSelSpot,areaEdits,spotRegMode,spotRegType,spotRegs]);
+  },[leafletReady,editMode,edits,showPaths,wpEditMode,wpEdits,newWps,edgeEditMode,edgeFrom,newEdges,edgeType,deletedEdges,showEnts,entEditMode,newEnts,entDragEdits,areaEditMode,areaSelSpot,areaEdits,cbEditMode,cbVerts,spotRegMode,spotRegType,spotRegs]);
 
   // コピー関数群
   const copyEdits=()=>{
@@ -485,6 +523,11 @@ export const MapEditorView=({mob})=>{
     }).join("\n");
     navigator.clipboard.writeText(`{\n${entries}\n}`);
     setAreaCopied(true);setTimeout(()=>setAreaCopied(false),2000);
+  };
+  const copyCampusBoundary=()=>{
+    const pts=cbVerts.map(v=>`  [${v[0]},${v[1]}],`).join("\n");
+    navigator.clipboard.writeText(`export const CAMPUS_BOUNDARY = [\n${pts}\n];`);
+    setCbCopied(true);setTimeout(()=>setCbCopied(false),2000);
   };
   const copyEntEdits=()=>{
     const allEnts=[...ENTRANCES,...newEnts];
@@ -547,6 +590,9 @@ export const MapEditorView=({mob})=>{
         </button>}
         <button onClick={()=>{setAreaEditMode(e=>!e);if(areaEditMode)setAreaSelSpot(null);}} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:areaEditMode?"#60a0ff":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${areaEditMode?"#60a0ff":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
           <span style={{fontSize:11,fontWeight:600,color:areaEditMode?"#fff":T.txH}}>{areaEditMode?"範囲編集中":"範囲"}</span>
+        </button>
+        <button onClick={()=>setCbEditMode(e=>!e)} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:cbEditMode?"#ff6090":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${cbEditMode?"#ff6090":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
+          <span style={{fontSize:11,fontWeight:600,color:cbEditMode?"#fff":T.txH}}>{cbEditMode?"学域編集中":"学域"}</span>
         </button>
         <button onClick={()=>{setEditMode(e=>!e);}} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:editMode?"#e8b63a":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${editMode?"#e8b63a":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
           <span style={{fontSize:11,fontWeight:600,color:editMode?"#000":T.txH}}>{editMode?"編集中":"座標を編集"}</span>
@@ -650,6 +696,29 @@ export const MapEditorView=({mob})=>{
         </button>}
         <button onClick={()=>{setAreaEdits({});setAreaSelSpot(null);}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"5px",borderRadius:7,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",marginTop:4}}>
           <span style={{fontSize:10,fontWeight:500,color:T.txD}}>リセット</span>
+        </button>
+      </div>}
+
+      {/* キャンパス範囲編集パネル */}
+      {cbEditMode&&<div style={{position:"absolute",top:46,right:10,zIndex:1000,width:mob?220:260,borderRadius:10,background:`${T.bg2}f0`,backdropFilter:"blur(8px)",border:`1px solid #ff6090`,boxShadow:"0 4px 16px rgba(0,0,0,.4)",padding:10,maxHeight:340,display:"flex",flexDirection:"column"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#ff6090",marginBottom:6}}>キャンパス範囲（{cbVerts.length}頂点）</div>
+        <div style={{fontSize:9,color:T.txD,lineHeight:1.4,marginBottom:8}}>マップクリックで頂点追加。ドラッグで移動。右クリックで削除。</div>
+        <div style={{flex:1,overflowY:"auto",maxHeight:160,marginBottom:6}}>
+          {cbVerts.map((v,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0",borderBottom:`1px solid ${T.bd}`}}>
+            <span style={{fontSize:9,fontWeight:700,color:"#ff6090",width:16,textAlign:"right"}}>{i+1}</span>
+            <span style={{fontSize:10,color:T.txH,fontFamily:"monospace",flex:1}}>{v[0]}, {v[1]}</span>
+            <button onClick={()=>setCbVerts(prev=>prev.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:T.txD,fontSize:12,padding:"0 2px"}}>×</button>
+          </div>)}
+        </div>
+        <div style={{display:"flex",gap:4,marginBottom:4}}>
+          {cbVerts.length>0&&<button onClick={()=>setCbVerts(prev=>{const nv=[...prev];nv.pop();return nv;})} style={{flex:1,fontSize:9,fontWeight:600,color:"#ff6060",background:"#ff606014",border:"1px solid #ff606030",borderRadius:5,padding:"4px 6px",cursor:"pointer"}}>末尾削除</button>}
+          {cbVerts.length>0&&<button onClick={()=>{if(confirm("全頂点を削除しますか？"))setCbVerts([]);}} style={{flex:1,fontSize:9,fontWeight:600,color:"#ff6060",background:"#ff606014",border:"1px solid #ff606030",borderRadius:5,padding:"4px 6px",cursor:"pointer"}}>全削除</button>}
+        </div>
+        {cbVerts.length>=3&&<button onClick={copyCampusBoundary} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4,width:"100%",padding:"7px",borderRadius:7,border:"none",background:cbCopied?"#4db88a":"#ff6090",cursor:"pointer",transition:"background .15s"}}>
+          <span style={{fontSize:11,fontWeight:700,color:"#fff"}}>{cbCopied?"コピーしました":"コードをコピー"}</span>
+        </button>}
+        <button onClick={()=>setCbVerts(CAMPUS_BOUNDARY.map(v=>[...v]))} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"5px",borderRadius:7,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",marginTop:4}}>
+          <span style={{fontSize:10,fontWeight:500,color:T.txD}}>リセット（初期値に戻す）</span>
         </button>
       </div>}
 
