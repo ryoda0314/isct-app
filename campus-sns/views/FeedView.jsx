@@ -10,6 +10,7 @@ import { useCourseMembers } from "../hooks/useCourseMembers.js";
 import { showToast } from "../hooks/useToast.js";
 import { isDemoMode } from "../demoMode.js";
 import { DEMO_POSTS } from "../demoData.js";
+import { ReportModal } from "../ReportModal.jsx";
 
 const EMOJIS=["👍","❤️","😂","😢","🔥","👏"];
 
@@ -236,6 +237,8 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
   const [profileTab,setProfileTab]=useState("course"); // "course" | "all"
   // Mention autocomplete cursor tracking
   const [cursor,setCursor]=useState(0);
+  // Report
+  const [reportTarget,setReportTarget]=useState(null);
   const tm=tMap();
 
   // Infinite scroll sentinel
@@ -474,6 +477,11 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
             onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.7}>
             <span style={{display:"flex"}}>{I.send}</span>
           </div>
+          {/* Report */}
+          {!own&&<div onClick={()=>setReportTarget({type:"post",id:p.id,userId:p.uid})} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",color:T.txD,fontSize:12,opacity:.5}}
+            onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.5}>
+            <span style={{display:"flex"}}>{I.flag}</span>
+          </div>}
         </div>
         {/* Comment section */}
         {expanded&&<CommentSection postId={p.id} user={user} onCountChange={delta=>updateCommentCount(p.id,delta)} members={members}/>}
@@ -608,6 +616,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
           {loadingMore?<Loader msg="読み込み中" size="sm"/>:<div style={{color:T.txD,fontSize:12}}>スクロールして続きを読み込む</div>}
         </div>}
       </div>
+      {reportTarget&&<ReportModal targetType={reportTarget.type} targetId={reportTarget.id} targetUserId={reportTarget.userId} onClose={()=>setReportTarget(null)}/>}
     </div>
   );
 };

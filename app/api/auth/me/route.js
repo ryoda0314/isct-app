@@ -15,7 +15,21 @@ export async function GET(request) {
   try {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
-    const isAdmin = await checkAdmin(auth.userid);
+
+    const sb = getSupabaseAdmin();
+    const [isAdmin, profile] = await Promise.all([
+      checkAdmin(auth.userid),
+      sb.from('profiles').select('banned, ban_reason').eq('moodle_id', auth.userid).maybeSingle().then(r => r.data),
+    ]);
+
+    if (profile?.banned) {
+      return NextResponse.json({
+        error: 'アカウントが停止されています',
+        banned: true,
+        banReason: profile.ban_reason || null,
+      }, { status: 403 });
+    }
+
     return NextResponse.json({ userid: auth.userid, fullname: auth.fullname, isAdmin });
   } catch (err) {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });

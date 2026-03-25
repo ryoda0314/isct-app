@@ -8,6 +8,7 @@ import { useLocationSharing, getSpot } from "../hooks/useLocationSharing.js";
 import { getAcademicInfo } from "../academicCalendar.js";
 import { isNative } from "../capacitor.js";
 import { openPortal, openIsctPortal } from "../plugins/portalWebView.js";
+import { AnnouncementBanner } from "../AnnouncementBanner.jsx";
 
 // SVG weather icons — clean, consistent style
 const WxIcon=({type,sz=20})=>{const s={width:sz,height:sz,display:"inline-block",verticalAlign:"middle",flexShrink:0};
@@ -334,6 +335,9 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
           );
         })}
       </div>
+
+      {/* ── お知らせバナー ── */}
+      <div style={{padding:"0 16px"}}><AnnouncementBanner/></div>
 
       {/* ── メインコンテンツ: 40:60 ── */}
       <div style={{padding:"4px 16px 8px",display:mob?"block":"flex",gap:14,alignItems:"flex-start"}}>

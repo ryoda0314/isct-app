@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
+import { checkNgWords } from '../../../lib/ng-filter.js';
 
 // GET: list DM conversations for current user
 export async function GET(request) {
@@ -112,6 +113,12 @@ export async function POST(request) {
     }
     if (text.length > 2000) {
       return NextResponse.json({ error: 'Text too long' }, { status: 400 });
+    }
+
+    // NG word check
+    const ngResult = await checkNgWords(text);
+    if (ngResult.blocked) {
+      return NextResponse.json({ error: '禁止ワードが含まれています' }, { status: 400 });
     }
 
     const sb = getSupabaseAdmin();

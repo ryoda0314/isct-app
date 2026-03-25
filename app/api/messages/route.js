@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { isEnrolledInCourse } from '../../../lib/auth/course-enrollment.js';
+import { checkNgWords } from '../../../lib/ng-filter.js';
 
 const MAX_TEXT_LENGTH = 2000;
 const toMoodleId = (id) => id?.startsWith('mc_') ? id.slice(3) : id;
@@ -76,6 +77,12 @@ export async function POST(request) {
     }
     if (!enrolled) {
       return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
+    }
+
+    // NG word check
+    const ngResult = await checkNgWords(text);
+    if (ngResult.blocked) {
+      return NextResponse.json({ error: '禁止ワードが含まれています' }, { status: 400 });
     }
 
     const sb = getSupabaseAdmin();
