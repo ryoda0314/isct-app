@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { sendPushToUser } from '../../../lib/push.js';
+import { getCachedSyllabus, fetchAllSyllabus, getDeptList } from '../../../lib/api/syllabus-bulk.js';
 
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -385,6 +386,21 @@ export async function GET(request) {
       });
     }
 
+    // --- Syllabus / timetable data ---
+    if (action === 'syllabus') {
+      const cached = getCachedSyllabus();
+      if (!cached) {
+        return NextResponse.json({
+          courses: [], depts: {}, timestamp: null,
+          availableDepts: getDeptList(),
+        });
+      }
+      return NextResponse.json({
+        ...cached,
+        availableDepts: getDeptList(),
+      });
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (e) {
     console.error('[Admin GET]', e);
@@ -652,6 +668,22 @@ export async function POST(request) {
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       await auditLog(sb, auth.userid, 'toggle_feature', 'setting', feature, { enabled });
       return NextResponse.json({ ok: true });
+    }
+
+    // --- Syllabus bulk scrape ---
+    if (action === 'scrape_syllabus') {
+      await auditLog(sb, auth.userid, 'scrape_syllabus', 'system', null);
+      try {
+        const result = await fetchAllSyllabus(true);
+        return NextResponse.json({
+          ok: true,
+          count: result.courses.length,
+          depts: result.depts,
+          timestamp: result.timestamp,
+        });
+      } catch (e) {
+        return NextResponse.json({ error: e.message }, { status: 500 });
+      }
     }
 
     // --- Bulk update profiles (dept/year) ---

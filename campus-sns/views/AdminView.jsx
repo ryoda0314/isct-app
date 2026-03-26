@@ -18,6 +18,7 @@ const tabs = [
   { id: "announce", label: "お知らせ", icon: I.mega },
   { id: "audit", label: "操作ログ", icon: I.clock },
   { id: "map", label: "地図編集", icon: I.pin },
+  { id: "syllabus", label: "時間割", icon: I.cal },
   { id: "settings", label: "設定", icon: I.shield },
 ];
 
@@ -1004,6 +1005,242 @@ const FEATURE_FLAGS = [
   { id: "polls", label: "投票" }, { id: "file_upload", label: "ファイルアップロード" },
 ];
 
+// ---- Syllabus / Timetable Tab ----
+const DAY_LABELS = ["月", "火", "水", "木", "金"];
+const PERIOD_LABELS = ["1-2", "3-4", "5-6", "7-8", "9-10"];
+const PERIOD_TIMES = ["8:50–10:30", "10:45–12:25", "13:20–15:00", "15:15–16:55", "17:10–18:50"];
+
+const SyllabusTab = () => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [scraping, setScraping] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filterDept, setFilterDept] = useState("");
+  const [filterQuarter, setFilterQuarter] = useState("");
+  const [filterDay, setFilterDay] = useState("");
+  const [viewMode, setViewMode] = useState("table"); // table | grid
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch(`${API}/api/admin?action=syllabus`).then(r => r.json()).then(setData).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleScrape = async () => {
+    if (!confirm("シラバスサイトから全学科の時間割データを取得します。数分かかる場合があります。")) return;
+    setScraping(true);
+    try {
+      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "scrape_syllabus" }) });
+      const d = await r.json();
+      if (r.ok) { alert(`取得完了: ${d.count}件の授業データを収集しました`); load(); }
+      else alert(d.error || "取得に失敗しました");
+    } catch { alert("通信エラー"); }
+    finally { setScraping(false); }
+  };
+
+  const courses = data?.courses || [];
+  const filtered = courses.filter(c => {
+    if (filterDept && c.dept !== filterDept) return false;
+    if (filterQuarter && c.quarter !== filterQuarter) return false;
+    if (filterDay && c.day !== filterDay) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      if (!c.code?.toLowerCase().includes(s) && !c.name?.toLowerCase().includes(s) && !c.room?.toLowerCase().includes(s)) return false;
+    }
+    return true;
+  });
+
+  // Stats
+  const deptCounts = {};
+  const quarterCounts = {};
+  const dayCounts = {};
+  for (const c of courses) {
+    deptCounts[c.dept] = (deptCounts[c.dept] || 0) + 1;
+    if (c.quarter) quarterCounts[c.quarter] = (quarterCounts[c.quarter] || 0) + 1;
+    if (c.day) dayCounts[c.day] = (dayCounts[c.day] || 0) + 1;
+  }
+
+  // Grid view data: build 5x5 grid for selected quarter
+  const buildGrid = () => {
+    const grid = Array.from({ length: 5 }, () => Array.from({ length: 5 }, () => []));
+    const dayMap = { "月": 0, "火": 1, "水": 2, "木": 3, "金": 4 };
+    for (const c of filtered) {
+      if (!c.day || !c.periodStart) continue;
+      const col = dayMap[c.day];
+      if (col === undefined) continue;
+      const rowStart = Math.floor((c.periodStart - 1) / 2);
+      const rowEnd = c.periodEnd ? Math.floor((c.periodEnd - 1) / 2) : rowStart;
+      for (let row = rowStart; row <= rowEnd && row < 5; row++) {
+        grid[row][col].push(c);
+      }
+    }
+    return grid;
+  };
+
+  const uniqueQuarters = [...new Set(courses.map(c => c.quarter).filter(Boolean))].sort();
+  const uniqueDepts = [...new Set(courses.map(c => c.dept).filter(Boolean))].sort();
+
+  return (
+    <div style={{ padding: 16 }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>時間割データ</div>
+          {data?.timestamp && (
+            <div style={{ fontSize: 11, color: T.txD, marginTop: 2 }}>
+              最終取得: {new Date(data.timestamp).toLocaleString("ja-JP")}
+            </div>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <Btn onClick={() => setViewMode(viewMode === "table" ? "grid" : "table")} color={T.accent} small>
+            {viewMode === "table" ? "時間割表示" : "一覧表示"}
+          </Btn>
+          <Btn onClick={handleScrape} color={T.green} disabled={scraping}>
+            {scraping ? "取得中..." : "シラバスから取得"}
+          </Btn>
+        </div>
+      </div>
+
+      {/* Stats */}
+      {courses.length > 0 && (
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+          <Card label="総授業数" value={courses.length} color={T.accent} />
+          {uniqueQuarters.map(q => (
+            <Card key={q} label={q} value={quarterCounts[q] || 0} color={T.green} />
+          ))}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
+        <SearchBar value={search} onChange={setSearch} onSearch={() => {}} placeholder="科目コード・名前・教室..." width={240} />
+        <select value={filterDept} onChange={e => setFilterDept(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
+          <option value="">全学科</option>
+          {uniqueDepts.map(d => {
+            const info = data?.depts?.[d];
+            return <option key={d} value={d}>{d} ({info?.label || d})</option>;
+          })}
+        </select>
+        <select value={filterQuarter} onChange={e => setFilterQuarter(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
+          <option value="">全クォーター</option>
+          {uniqueQuarters.map(q => <option key={q} value={q}>{q}</option>)}
+        </select>
+        <select value={filterDay} onChange={e => setFilterDay(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
+          <option value="">全曜日</option>
+          {DAY_LABELS.map(d => <option key={d} value={d}>{d}曜</option>)}
+        </select>
+        {(search || filterDept || filterQuarter || filterDay) && (
+          <span style={{ fontSize: 12, color: T.txD }}>{filtered.length}件</span>
+        )}
+      </div>
+
+      {loading && <div style={{ color: T.txD, fontSize: 13, padding: 20 }}>読み込み中...</div>}
+
+      {!loading && courses.length === 0 && (
+        <div style={{ padding: 40, textAlign: "center" }}>
+          <div style={{ fontSize: 14, color: T.txD, marginBottom: 12 }}>時間割データがありません</div>
+          <Btn onClick={handleScrape} color={T.accent} disabled={scraping}>
+            {scraping ? "取得中..." : "シラバスから時間割を取得"}
+          </Btn>
+        </div>
+      )}
+
+      {/* Grid View */}
+      {!loading && courses.length > 0 && viewMode === "grid" && (() => {
+        const grid = buildGrid();
+        return (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th style={{ padding: "8px 4px", borderBottom: `1px solid ${T.bd}`, color: T.txD, fontWeight: 500, width: 60, textAlign: "left" }}>時限</th>
+                  {DAY_LABELS.map(d => (
+                    <th key={d} style={{ padding: "8px 4px", borderBottom: `1px solid ${T.bd}`, color: T.txH, fontWeight: 600, textAlign: "center", width: "19%" }}>{d}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {PERIOD_LABELS.map((p, ri) => (
+                  <tr key={p}>
+                    <td style={{ padding: "6px 4px", borderBottom: `1px solid ${T.bd}`, color: T.txD, verticalAlign: "top" }}>
+                      <div style={{ fontWeight: 600 }}>{p}</div>
+                      <div style={{ fontSize: 10 }}>{PERIOD_TIMES[ri]}</div>
+                    </td>
+                    {DAY_LABELS.map((_, ci) => (
+                      <td key={ci} style={{ padding: 4, borderBottom: `1px solid ${T.bd}`, verticalAlign: "top" }}>
+                        {grid[ri][ci].map((c, i) => (
+                          <div key={i} style={{ padding: "4px 6px", borderRadius: 6, background: `${T.accent}15`, border: `1px solid ${T.accent}30`, marginBottom: 2, fontSize: 11 }}>
+                            <div style={{ fontWeight: 600, color: T.txH }}>{c.code}</div>
+                            {c.name && <div style={{ color: T.tx, fontSize: 10, lineHeight: 1.3 }}>{c.name}</div>}
+                            {c.room && <div style={{ color: T.txD, fontSize: 10 }}>{c.room}</div>}
+                          </div>
+                        ))}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
+
+      {/* Table View */}
+      {!loading && courses.length > 0 && viewMode === "table" && (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: `2px solid ${T.bd}` }}>
+                {["科目コード", "科目名", "学科", "曜日", "時限", "教室", "Q"].map(h => (
+                  <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: T.txD, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c, i) => (
+                <tr key={i} style={{ borderBottom: `1px solid ${T.bd}` }}>
+                  <td style={{ padding: "6px 6px", color: T.accent, fontFamily: "monospace", fontWeight: 600, fontSize: 12, whiteSpace: "nowrap" }}>{c.code}</td>
+                  <td style={{ padding: "6px 6px", color: T.txH, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name || "-"}</td>
+                  <td style={{ padding: "6px 6px" }}><Badge text={c.dept} color={T.accent} /></td>
+                  <td style={{ padding: "6px 6px", color: T.txH, textAlign: "center" }}>{c.day || "-"}</td>
+                  <td style={{ padding: "6px 6px", color: T.tx, whiteSpace: "nowrap" }}>{c.per || "-"}</td>
+                  <td style={{ padding: "6px 6px", color: T.tx, fontFamily: "monospace", fontSize: 11 }}>{c.room || "-"}</td>
+                  <td style={{ padding: "6px 6px" }}>{c.quarter ? <Badge text={c.quarter} color={T.green} /> : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtered.length === 0 && (
+            <div style={{ padding: 20, textAlign: "center", color: T.txD, fontSize: 13 }}>
+              条件に一致する授業がありません
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Department stats */}
+      {data?.depts && Object.keys(data.depts).length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 8 }}>学科別取得状況</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {Object.entries(data.depts).map(([key, info]) => (
+              <div key={key} style={{ padding: "8px 14px", borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}`, fontSize: 12 }}>
+                <span style={{ fontWeight: 600, color: T.txH }}>{key}</span>
+                <span style={{ color: T.txD, marginLeft: 6 }}>{info.label}</span>
+                <span style={{ color: info.error ? T.red : T.green, marginLeft: 6, fontWeight: 500 }}>
+                  {info.error ? "エラー" : `${info.count}件`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const SettingsTab = () => {
   const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1265,6 +1502,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "announce" && <AnnouncementsTab />}
         {tab === "audit" && <AuditLogTab />}
         {tab === "map" && <MapEditorView mob={mob} />}
+        {tab === "syllabus" && <SyllabusTab />}
         {tab === "settings" && <SettingsTab />}
       </div>
     </div>
