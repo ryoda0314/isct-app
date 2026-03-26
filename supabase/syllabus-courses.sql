@@ -7,7 +7,7 @@ create table if not exists syllabus_courses (
   id              bigint generated always as identity primary key,
   code            text not null,            -- 科目コード (e.g. MEC.C201)
   name            text,                     -- 科目名
-  section         text,                     -- セクション (e.g. 14-RW, S16, B)
+  section         text not null default '',  -- セクション (e.g. 14-RW, S16, B)
   dept            text not null,            -- 学科キー (e.g. MEC, CSC)
   year            text not null,            -- 年度 (e.g. 2025, 2026)
   day             text,                     -- 曜日 (月,火,水,木,金)
@@ -21,9 +21,9 @@ create table if not exists syllabus_courses (
   fetched_at      timestamptz default now() -- 取得日時
 );
 
--- 同じ科目コード+年度+URLは重複させない
-create unique index if not exists idx_syllabus_code_year_url
-  on syllabus_courses(code, year, syllabus_url);
+-- 同じ科目コード+年度+URL+セクションは重複させない
+create unique index if not exists idx_syllabus_code_year_url_section
+  on syllabus_courses(code, year, syllabus_url, section);
 
 -- セクション付き検索用
 create index if not exists idx_syllabus_code_year_section
