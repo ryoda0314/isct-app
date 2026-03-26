@@ -10,3 +10,8 @@ create table if not exists user_mutes (
 
 create index if not exists idx_user_mutes_muter on user_mutes(muter_id);
 alter table user_mutes enable row level security;
+
+
+
+
+

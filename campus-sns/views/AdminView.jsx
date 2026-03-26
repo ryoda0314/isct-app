@@ -1018,6 +1018,7 @@ const SyllabusTab = () => {
   const [filterDept, setFilterDept] = useState("");
   const [filterQuarter, setFilterQuarter] = useState("");
   const [filterDay, setFilterDay] = useState("");
+  const [filterYear, setFilterYear] = useState("");
   const [viewMode, setViewMode] = useState("table"); // table | grid
 
   const load = useCallback(() => {
@@ -1041,6 +1042,7 @@ const SyllabusTab = () => {
 
   const courses = data?.courses || [];
   const filtered = courses.filter(c => {
+    if (filterYear && c.year !== filterYear) return false;
     if (filterDept && c.dept !== filterDept) return false;
     if (filterQuarter && c.quarter !== filterQuarter) return false;
     if (filterDay && c.day !== filterDay) return false;
@@ -1078,6 +1080,7 @@ const SyllabusTab = () => {
     return grid;
   };
 
+  const uniqueYears = [...new Set(courses.map(c => c.year).filter(Boolean))].sort();
   const uniqueQuarters = [...new Set(courses.map(c => c.quarter).filter(Boolean))].sort();
   const uniqueDepts = [...new Set(courses.map(c => c.dept).filter(Boolean))].sort();
 
@@ -1116,6 +1119,10 @@ const SyllabusTab = () => {
       {/* Filters */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
         <SearchBar value={search} onChange={setSearch} onSearch={() => {}} placeholder="科目コード・名前・教室..." width={240} />
+        <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
+          <option value="">全年度</option>
+          {uniqueYears.map(y => <option key={y} value={y}>{y}年度</option>)}
+        </select>
         <select value={filterDept} onChange={e => setFilterDept(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
           <option value="">全学科</option>
           {uniqueDepts.map(d => {
@@ -1193,7 +1200,7 @@ const SyllabusTab = () => {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: `2px solid ${T.bd}` }}>
-                {["科目コード", "科目名", "学科", "曜日", "時限", "教室", "Q"].map(h => (
+                {["科目コード", "科目名", "学科", "年度", "曜日", "時限", "教室", "Q"].map(h => (
                   <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: T.txD, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -1204,6 +1211,7 @@ const SyllabusTab = () => {
                   <td style={{ padding: "6px 6px", color: T.accent, fontFamily: "monospace", fontWeight: 600, fontSize: 12, whiteSpace: "nowrap" }}>{c.code}</td>
                   <td style={{ padding: "6px 6px", color: T.txH, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name || "-"}</td>
                   <td style={{ padding: "6px 6px" }}><Badge text={c.dept} color={T.accent} /></td>
+                  <td style={{ padding: "6px 6px", color: T.txD, fontSize: 11, textAlign: "center" }}>{c.year || "-"}</td>
                   <td style={{ padding: "6px 6px", color: T.txH, textAlign: "center" }}>{c.day || "-"}</td>
                   <td style={{ padding: "6px 6px", color: T.tx, whiteSpace: "nowrap" }}>{c.per || "-"}</td>
                   <td style={{ padding: "6px 6px", color: T.tx, fontFamily: "monospace", fontSize: 11 }}>{c.room || "-"}</td>
@@ -1227,7 +1235,8 @@ const SyllabusTab = () => {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {Object.entries(data.depts).map(([key, info]) => (
               <div key={key} style={{ padding: "8px 14px", borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}`, fontSize: 12 }}>
-                <span style={{ fontWeight: 600, color: T.txH }}>{key}</span>
+                <span style={{ fontWeight: 600, color: T.txH }}>{key.replace(/_\d{4}$/, '')}</span>
+                {info.year && <span style={{ color: T.txD, marginLeft: 4, fontSize: 10 }}>{info.year}</span>}
                 <span style={{ color: T.txD, marginLeft: 6 }}>{info.label}</span>
                 <span style={{ color: info.error ? T.red : T.green, marginLeft: 6, fontWeight: 500 }}>
                   {info.error ? "エラー" : `${info.count}件`}
