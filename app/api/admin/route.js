@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { sendPushToUser } from '../../../lib/push.js';
-import { getSyllabusFromDB, getSyllabusStats, fetchDeptSyllabus, getDeptList } from '../../../lib/api/syllabus-bulk.js';
+import { getSyllabusFromDB, getSyllabusStats, fetchDeptSyllabus, getDeptList, getScrapeProgress } from '../../../lib/api/syllabus-bulk.js';
 
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -386,6 +386,13 @@ export async function GET(request) {
       });
     }
 
+    // --- Syllabus scrape progress ---
+    if (action === 'scrape_progress') {
+      const key = searchParams.get('key') || '';
+      const progress = getScrapeProgress(key);
+      return NextResponse.json({ progress });
+    }
+
     // --- Syllabus / timetable data ---
     if (action === 'syllabus') {
       const dept = searchParams.get('dept') || '';
@@ -680,7 +687,8 @@ export async function POST(request) {
         const result = await fetchDeptSyllabus(dept, year);
         return NextResponse.json({ ok: true, ...result });
       } catch (e) {
-        return NextResponse.json({ error: e.message }, { status: 500 });
+        console.error(`[Admin] scrape_syllabus ${dept}_${year} failed:`, e);
+        return NextResponse.json({ error: e.message, detail: e.stack?.split('\n').slice(0, 5).join('\n') }, { status: 500 });
       }
     }
 

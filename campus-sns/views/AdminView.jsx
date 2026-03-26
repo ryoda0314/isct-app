@@ -1023,6 +1023,7 @@ const SyllabusTab = () => {
   const [viewMode, setViewMode] = useState("table");
   const [dbLookup, setDbLookup] = useState(true);
   const [togglingLookup, setTogglingLookup] = useState(false);
+  const [progress, setProgress] = useState(null); // { total, done, phase, current }
 
   const load = useCallback(() => {
     setLoading(true);
@@ -1043,16 +1044,30 @@ const SyllabusTab = () => {
     finally { setTogglingLookup(false); }
   };
 
+  // Poll progress during scraping
+  useEffect(() => {
+    if (!scraping) { setProgress(null); return; }
+    const id = setInterval(async () => {
+      try {
+        const r = await fetch(`${API}/api/admin?action=scrape_progress&key=${scraping}`);
+        const d = await r.json();
+        if (d.progress) setProgress(d.progress);
+      } catch {}
+    }, 1000);
+    return () => clearInterval(id);
+  }, [scraping]);
+
   const handleScrape = async (dept, year) => {
     const key = `${dept}_${year}`;
     setScraping(key);
+    setProgress({ total: 0, done: 0, phase: "listing", current: "" });
     try {
       const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "scrape_syllabus", dept, year }) });
       const d = await r.json();
-      if (r.ok) load();
-      else alert(d.error || "取得に失敗しました");
-    } catch { alert("通信エラー"); }
-    finally { setScraping(""); }
+      if (r.ok) { load(); alert(`${dept} ${year}: ${d.added || 0}件取得完了`); }
+      else alert(`取得失敗: ${d.error || "不明なエラー"}${d.detail ? "\n\n" + d.detail : ""}`);
+    } catch (e) { alert(`通信エラー: ${e.message}`); }
+    finally { setScraping(""); setProgress(null); }
   };
 
   const courses = data?.courses || [];
@@ -1256,6 +1271,23 @@ const SyllabusTab = () => {
             {scraping === `${scrapeTarget.dept}_${scrapeTarget.year}` ? "取得中..." : "取得"}
           </Btn>
         </div>
+
+        {/* Progress indicator */}
+        {scraping && progress && (
+          <div style={{ marginBottom: 12, padding: "10px 14px", borderRadius: 10, background: T.bg2, border: `1px solid ${T.accent}40` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: T.txH }}>
+                {scraping.replace("_", " ")} — {progress.phase === "listing" ? "一覧取得中..." : progress.phase === "saving" ? "DB保存中..." : `詳細取得中 ${progress.done}/${progress.total}`}
+              </span>
+              {progress.current && <span style={{ fontSize: 11, color: T.accent, fontFamily: "monospace" }}>{progress.current}</span>}
+            </div>
+            {progress.total > 0 && (
+              <div style={{ height: 6, borderRadius: 3, background: T.bd, overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 3, background: T.accent, width: `${Math.round((progress.done / progress.total) * 100)}%`, transition: "width 0.3s" }} />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Per-dept × year status table */}
         {departments.length > 0 && (
