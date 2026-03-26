@@ -177,7 +177,7 @@ export async function POST(request) {
     }
 
     // NG word check
-    const ngResult = await checkNgWords(text);
+    const ngResult = await checkNgWords(text, { userId: userid, type: 'post', courseId: course_id });
     if (ngResult.blocked) {
       return NextResponse.json({ error: '禁止ワードが含まれています' }, { status: 400 });
     }

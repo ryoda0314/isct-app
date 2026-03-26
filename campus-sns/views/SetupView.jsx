@@ -10,7 +10,7 @@ import { TermsOfServiceView } from "./TermsOfServiceView.jsx";
 const API = "";
 
 /* ─── 学籍番号パーサー ─── */
-// 例: "24B12149" → { year:"24", degree:"B", schoolNum:"1", yearGroup:"24B", schoolKey:"science" }
+// 例: "24B00001" → { year:"24", degree:"B", schoolNum:"0", yearGroup:"24B", schoolKey:"science" }
 const DEGREE_MAP = { B: "学部", M: "修士", D: "博士", R: "研究生" };
 const SCHOOL_NUM_MAP = {
   "0": "science",       // 理学院
@@ -683,7 +683,7 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
             <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>成績情報の取得に必要です</p>
             <ErrorBanner error={error} />
             <div style={cardStyle}>
-              <InputField label="ポータル アカウント" value={portalId} onChange={e => setPortalId(e.target.value)} placeholder="学籍番号（例: 24B12149）" mono />
+              <InputField label="ポータル アカウント" value={portalId} onChange={e => setPortalId(e.target.value)} placeholder="学籍番号（例: 24B00001）" mono />
               {(() => {
                 const p = parseStudentId(portalId);
                 return p ? (
