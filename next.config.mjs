@@ -7,6 +7,7 @@ const withPWA = withPWAInit({
   disable: process.env.NODE_ENV === "development",
   extendDefaultRuntimeCaching: true,
   workboxOptions: {
+    importScripts: ['/push-handler.js'],
     runtimeCaching: [
       {
         // 成績APIはPuppeteerで17秒+かかるため、SWキャッシュをバイパス

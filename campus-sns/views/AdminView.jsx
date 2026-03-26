@@ -1016,6 +1016,8 @@ const SettingsTab = () => {
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
   const [maintenanceMsg, setMaintenanceMsg] = useState("");
+  const [telecomRestricted, setTelecomRestricted] = useState(false);
+  const [telecomMsg, setTelecomMsg] = useState("");
   const [featureFlags, setFeatureFlags] = useState({});
   const [bulkField, setBulkField] = useState("dept");
   const [bulkOld, setBulkOld] = useState("");
@@ -1035,6 +1037,9 @@ const SettingsTab = () => {
       const mm = d.settings?.maintenance_mode || {};
       setMaintenanceEnabled(!!mm.enabled);
       setMaintenanceMsg(mm.message || "");
+      const tr = d.settings?.telecom_restriction || {};
+      setTelecomRestricted(!!tr.enabled);
+      setTelecomMsg(tr.message || "");
       setFeatureFlags(d.settings?.feature_flags || {});
       setSettingsLoaded(true);
     }).catch(() => setSettingsLoaded(true));
@@ -1065,6 +1070,12 @@ const SettingsTab = () => {
     const next = !maintenanceEnabled;
     const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "toggle_maintenance", enabled: next, message: maintenanceMsg }) });
     if (r.ok) setMaintenanceEnabled(next);
+  };
+
+  const handleToggleTelecom = async () => {
+    const next = !telecomRestricted;
+    const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "toggle_telecom_restriction", enabled: next, message: telecomMsg }) });
+    if (r.ok) setTelecomRestricted(next);
   };
 
   const handleToggleFeature = async (feature) => {
@@ -1111,6 +1122,24 @@ const SettingsTab = () => {
           </div>
         ))}
       </div>
+
+      {/* Telecom restriction (電気通信事業の届出前制限) */}
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>電気通信事業 届出前制限</div>
+      <div style={{ fontSize: 12, color: T.txD, marginBottom: 12, lineHeight: 1.6 }}>
+        電気通信事業の届出が未承認の間、通信媒介機能（DM・チャット・サークルメッセージ等）を一括で無効化します。
+        投稿・コメントなど掲示板型の機能は影響を受けません。
+      </div>
+      {settingsLoaded && (
+        <div style={{ padding: 14, borderRadius: 12, background: telecomRestricted ? `${T.orange}12` : T.bg3, border: `1px solid ${telecomRestricted ? T.orange + "40" : T.bd}`, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>状態:</span>
+            <Badge text={telecomRestricted ? "通信機能を制限中" : "全機能有効"} color={telecomRestricted ? T.orange : T.green} />
+          </div>
+          <div style={{ fontSize: 12, color: T.txD, marginBottom: 8 }}>制限対象: DM / コースチャット / サークルメッセージ / グループチャット</div>
+          <input value={telecomMsg} onChange={e => setTelecomMsg(e.target.value)} placeholder="ユーザーへの表示メッセージ（例: 届出手続き中のため一時制限中）" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 10 }} />
+          <Btn onClick={handleToggleTelecom} color={telecomRestricted ? T.green : T.orange}>{telecomRestricted ? "制限を解除（届出承認済み）" : "通信機能を一括制限"}</Btn>
+        </div>
+      )}
 
       {/* Maintenance mode */}
       <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>メンテナンスモード</div>

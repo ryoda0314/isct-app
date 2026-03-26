@@ -121,7 +121,7 @@ const CredForm=({form,setForm,showPw,showTotp,setShowPw,setShowTotp,onSave,savin
 );
 
 /* ─── メイン ─── */
-export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accentPref="default",setAccentPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout,appLock,blocks=[],unblockUser})=>{
+export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accentPref="default",setAccentPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout,appLock,blocks=[],unblockUser,mutes=[],unmuteUser})=>{
   const done=asgn.filter(a=>a.st==="completed").length;
   const total=asgn.length;
 
@@ -933,6 +933,25 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               }}
               right={<span style={{fontSize:11,fontWeight:500,color:T.txD,padding:"4px 10px",borderRadius:6,border:`1px solid ${T.bd}`}}>解除</span>}
             />)}
+          </GCard>
+        </>}
+
+        {/* ═══ ミュートリスト ═══ */}
+        {mutes.length>0&&<>
+          <GHead>ミュート中のユーザー ({mutes.length})</GHead>
+          <GCard>
+            {mutes.map((m,i)=>{const p=m.profiles||{};return <GRow key={m.muted_id}
+              last={i===mutes.length-1}
+              icon={<Av u={{name:p.name||`User ${m.muted_id}`,av:p.avatar_url,col:'#888'}} sz={24}/>}
+              label={p.name||`User ${m.muted_id}`}
+              sub="ミュート中"
+              onClick={()=>{
+                if(confirm(`${p.name||'このユーザー'}のミュートを解除しますか？`)){
+                  unmuteUser&&unmuteUser(m.muted_id);
+                }
+              }}
+              right={<span style={{fontSize:11,fontWeight:500,color:T.txD,padding:"4px 10px",borderRadius:6,border:`1px solid ${T.bd}`}}>解除</span>}
+            />;})}
           </GCard>
         </>}
 

@@ -4,6 +4,8 @@ import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { isEnrolledInCourse } from '../../../lib/auth/course-enrollment.js';
 import { checkNgWords } from '../../../lib/ng-filter.js';
 import { getBlockedIds } from '../../../lib/blocks.js';
+import { getMutedIds } from '../../../lib/mutes.js';
+import { requireTelecomAllowed } from '../../../lib/telecom-restriction.js';
 
 const MAX_TEXT_LENGTH = 2000;
 const toMoodleId = (id) => id?.startsWith('mc_') ? id.slice(3) : id;
@@ -42,9 +44,10 @@ export async function GET(request) {
       return NextResponse.json({ error: `DB query failed: ${error.message}` }, { status: 500 });
     }
 
-    // Filter out messages from blocked users
-    const blockedIds = await getBlockedIds(userid);
-    const filtered = blockedIds.size === 0 ? data : data.filter(m => !blockedIds.has(m.moodle_user_id));
+    // Filter out messages from blocked/muted users
+    const [blockedIds, mutedIds] = await Promise.all([getBlockedIds(userid), getMutedIds(userid)]);
+    const isHidden = (uid) => blockedIds.has(uid) || mutedIds.has(uid);
+    const filtered = (blockedIds.size === 0 && mutedIds.size === 0) ? data : data.filter(m => !isHidden(m.moodle_user_id));
     return NextResponse.json(filtered);
   } catch (err) {
     console.error('[Messages GET]', err);
@@ -54,6 +57,9 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    const blocked = await requireTelecomAllowed();
+    if (blocked) return blocked;
+
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
     const { wstoken, userid, fullname } = auth;

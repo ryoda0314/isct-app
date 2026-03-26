@@ -7,6 +7,7 @@ import { useCurrentUser } from '../hooks/useCurrentUser.js';
 import { useDMList, useDMMessages, useDMSend } from '../hooks/useDM.js';
 import { useGroupMessages, useGroupSend } from '../hooks/useGroupChat.js';
 import { useTyping } from '../hooks/useTyping.js';
+import { ReportModal } from '../ReportModal.jsx';
 
 export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,createGroup})=>{
   const user=useCurrentUser();
@@ -14,6 +15,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
   const [sel,setSel]=useState(null); // {type:'dm'|'group', ...}
   const [inp,setInp]=useState("");
   const [showPicker,setShowPicker]=useState(false);
+  const [reportTarget,setReportTarget]=useState(null);
   const [showNewGroup,setShowNewGroup]=useState(false);
   const [grpName,setGrpName]=useState("");
   const [grpSel,setGrpSel]=useState([]);
@@ -97,11 +99,12 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
           {isGroup&&grpLoading&&<Loader msg="読み込み中" size="sm"/>}
           {messages.map(m=>{
             const me=m.uid===uid;
-            return <div key={m.id} style={{display:"flex",justifyContent:me?"flex-end":"flex-start",marginBottom:4}}>
+            return <div key={m.id} className="dmMsg" style={{display:"flex",justifyContent:me?"flex-end":"flex-start",marginBottom:4,alignItems:"flex-end",gap:4}}>
               {/* Group: show sender avatar */}
-              {isGroup&&!me&&<div style={{marginRight:6,alignSelf:"flex-end"}}>
+              {isGroup&&!me&&<div style={{marginRight:2,alignSelf:"flex-end"}}>
                 <Av u={{name:m.name,av:m.avatar,col:m.color}} sz={24}/>
               </div>}
+              {!me&&<span className="dmMsgFlag" onClick={()=>setReportTarget({type:isGroup?"message":"dm",id:m.id,userId:m.uid})} style={{cursor:"pointer",color:T.txD,display:"flex",opacity:0,transition:"opacity .15s",alignSelf:"center",flexShrink:0}} title="通報">{I.flag}</span>}
               <div style={{maxWidth:"75%"}}>
                 {isGroup&&!me&&<div style={{fontSize:11,fontWeight:600,color:m.color||T.txD,marginBottom:2,marginLeft:2}}>{m.name}</div>}
                 <div style={{padding:"8px 12px",borderRadius:me?"14px 14px 4px 14px":"14px 14px 14px 4px",background:me?T.accent:T.bg3,color:me?"#fff":T.txH,fontSize:14}}>
@@ -126,6 +129,8 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
             <button onClick={()=>{sendMsg();setTyping(false);}} style={{width:34,height:34,borderRadius:"50%",border:"none",background:inp.trim()?T.accent:"transparent",color:inp.trim()?"#fff":T.txD,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>{I.send}</button>
           </div>
         </div>
+        {reportTarget&&<ReportModal targetType={reportTarget.type} targetId={reportTarget.id} targetUserId={reportTarget.userId} onClose={()=>setReportTarget(null)}/>}
+        <style>{`.dmMsg:hover .dmMsgFlag{opacity:.5!important}.dmMsgFlag:hover{opacity:1!important}`}</style>
       </div>
     );
   }

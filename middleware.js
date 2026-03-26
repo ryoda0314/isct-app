@@ -1,39 +1,56 @@
 import { NextResponse } from 'next/server';
 
-// M4: In-memory rate limiter (fixed window)
+// M4: In-memory tiered rate limiter (fixed window)
 const hits = new Map();
-const WINDOW_MS = 60_000;
-const MAX_HITS = 120;
+const TIERS = {
+  auth:   { window: 60_000, max: 10 },   // 認証系: 10 req/min
+  write:  { window: 60_000, max: 40 },   // 書き込み系: 40 req/min
+  global: { window: 60_000, max: 120 },  // 全API: 120 req/min
+};
 
 // Periodic cleanup every 5 minutes to prevent unbounded growth
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of hits) {
-    if (now - v.s > WINDOW_MS) hits.delete(k);
+    if (now - v.s > TIERS[v.t]?.window ?? 60_000) hits.delete(k);
   }
 }, 5 * 60 * 1000);
 
-function checkRateLimit(ip) {
+function checkRateLimit(ip, tier) {
+  const cfg = TIERS[tier];
+  const key = `${ip}:${tier}`;
   const now = Date.now();
-  let rec = hits.get(ip);
-  if (!rec || now - rec.s > WINDOW_MS) {
-    rec = { s: now, c: 0 };
-    hits.set(ip, rec);
+  let rec = hits.get(key);
+  if (!rec || now - rec.s > cfg.window) {
+    rec = { s: now, c: 0, t: tier };
+    hits.set(key, rec);
   }
   rec.c++;
-  return rec.c <= MAX_HITS;
+  return rec.c <= cfg.max;
+}
+
+function getTier(pathname, method) {
+  if (pathname.startsWith('/api/auth/')) return 'auth';
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return 'write';
+  return null;
 }
 
 export function middleware(request) {
   const pathname = request.nextUrl.pathname;
   const isApi = pathname.startsWith('/api/');
 
-  // M4: Rate limit API endpoints
+  // M4: Rate limit API endpoints (tiered)
   if (isApi) {
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       || request.headers.get('x-real-ip')
       || '127.0.0.1';
-    if (!checkRateLimit(ip)) {
+    // Check global limit first
+    if (!checkRateLimit(ip, 'global')) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    }
+    // Check tier-specific limit (auth / write)
+    const tier = getTier(pathname, request.method);
+    if (tier && !checkRateLimit(ip, tier)) {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
   }

@@ -37,6 +37,8 @@ import { AcademicCalendarView } from "./views/AcademicCalendarView.jsx";
 import { ACADEMIC_EVENTS } from "./academicCalendar.js";
 import { useFriends } from "./hooks/useFriends.js";
 import { useBlocks } from "./hooks/useBlocks.js";
+import { useMutes } from "./hooks/useMutes.js";
+import { useOfflineQueue } from "./hooks/useOfflineQueue.js";
 import { useGroups } from "./hooks/useGroups.js";
 import { useCircles } from "./hooks/useCircles.js";
 import { Toasts } from "./hooks/useToast.js";
@@ -204,6 +206,8 @@ export default function App(){
   const [notifSettings,setNotifSettings]=useState(()=>{try{const v=localStorage.getItem("notifSettings");return v?JSON.parse(v):{course:true,deadline:true,dm:true,event:true};}catch{return{course:true,deadline:true,dm:true,event:true};}});
   const refreshRef=useRef(null);
   const [splashPhase,setSplashPhase]=useState("show");
+  const [telecomRestricted,setTelecomRestricted]=useState(false);
+  const [telecomMsg,setTelecomMsg]=useState("");
 
   const fetchData=async()=>{
     try{
@@ -219,6 +223,18 @@ export default function App(){
     }catch{ return false; }
   };
 
+  const fetchSiteSettings=async()=>{
+    try{
+      const r=await fetch(`${API}/api/settings`);
+      if(r.ok){
+        const d=await r.json();
+        const tr=d.telecom_restriction||{};
+        setTelecomRestricted(!!tr.enabled);
+        setTelecomMsg(tr.message||"");
+      }
+    }catch{}
+  };
+
   useEffect(()=>{
     (async()=>{
       try{
@@ -229,6 +245,7 @@ export default function App(){
           if(ok){
             setAppState("ready");
             refreshRef.current=setInterval(fetchData,15*60*1000);
+            fetchSiteSettings();
           }else{
             setAppState("setup");
           }
@@ -275,6 +292,8 @@ export default function App(){
   const {unreadDM:dmUnread,markDMSeen}=useUnreadDM(user?.moodleId||user?.id);
   const {friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,friendIds,isFriend,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,lookupById}=useFriends(ready);
   const {blocks:blockList,isBlocked,blockUser,unblockUser}=useBlocks(ready);
+  const {mutes:muteList,isMuted,muteUser,unmuteUser}=useMutes();
+  const {enqueue:enqueueOffline,pending:offlinePending}=useOfflineQueue();
   const presenceRoom=view==="course"&&cc?`course:${cc.id}`:view==="dept"&&cd?`dept:${cd.prefix}`:null;
   const {online}=usePresence(presenceRoom,{id:user.moodleId||user.id,name:user.name,col:user.col});
   const members=useCourseMembers(cc?.moodleId);
@@ -287,9 +306,24 @@ export default function App(){
   const {circles:circleList,messages:circleMsgs,discover:circleDiscover,sendMessage:circleSend,createCircle,joinCircle,leaveCircle,addChannel:circleAddCh,deleteChannel:circleDelCh,pinMessage:circlePin,updateCircle:circleUpdate,init:circleInit}=useCircles();
   const startDMFromFriend=(fid,name,avatar,color)=>{setView("dm");};
   const openGroupChat=(g)=>{setView("dm");};
-  const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat,blockUser,unblockUser,isBlocked,blocks:blockList};
+  const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat,blockUser,unblockUser,isBlocked,blocks:blockList,muteUser,unmuteUser,isMuted,mutes:muteList};
   const togTheme=()=>setThemePref(p=>p==="dark"?"light":"dark");
   const onLogout=async()=>{setDemoMode(false);try{await fetch("/api/auth/logout",{method:"POST"});}catch{}if(refreshRef.current)clearInterval(refreshRef.current);setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
+
+  // Telecom restriction overlay — shown when regulated features are disabled
+  const TelecomBlockView=({title,onBack})=><div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,gap:16}}>
+    <div style={{width:64,height:64,borderRadius:20,background:`${T.orange}15`,border:`1px solid ${T.orange}30`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.orange} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div style={{fontSize:16,fontWeight:700,color:T.txH,textAlign:"center"}}>{title||"この機能は現在利用できません"}</div>
+    <div style={{fontSize:13,color:T.txD,textAlign:"center",lineHeight:1.8,maxWidth:340}}>
+      {telecomMsg||"電気通信事業の届出手続き中のため、メッセージング機能（DM・チャット・サークルメッセージ等）を一時的に制限しています。"}
+    </div>
+    <div style={{fontSize:12,color:T.txD,textAlign:"center",lineHeight:1.6,marginTop:4,padding:"10px 16px",borderRadius:10,background:T.bg3,border:`1px solid ${T.bd}`}}>
+      投稿・コメント・フレンド機能など<br/>掲示板型の機能は引き続きご利用いただけます。
+    </div>
+    {onBack&&<button onClick={onBack} style={{marginTop:8,padding:"10px 28px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,color:T.txH,fontSize:14,fontWeight:600,cursor:"pointer"}}>戻る</button>}
+  </div>;
 
   // Lock screen for mock mode
   const LockedView=({title})=><div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,gap:12}}>
@@ -332,10 +366,11 @@ export default function App(){
     </div>;
   };
 
+  const TR=telecomRestricted;
   const courseContent=()=>{
     if(!cc) return null;
-    if(ch==="timeline") return <FeedView course={cc} mob={mob} bmarks={bmarks} togBmark={togBmark} courses={allCourses}/>;
-    if(ch==="chat") return <ChatView course={cc} mob={mob}/>;
+    if(ch==="timeline") return <FeedView course={cc} mob={mob} bmarks={bmarks} togBmark={togBmark} courses={allCourses} onOfflineQueue={enqueueOffline}/>;
+    if(ch==="chat") return TR?<TelecomBlockView title="チャットは現在利用できません"/>:<ChatView course={cc} mob={mob}/>;
     if(ch==="assignments") return <AsgnView asgn={asgn} setAsgn={setAsgn} course={cc} mob={mob} courses={allCourses}/>;
     if(ch==="materials") return <MatView course={cc} mob={mob}/>;
     if(ch==="reviews") return <ReviewView reviews={reviews} setReviews={setReviews} course={cc} mob={mob} courses={allCourses}/>;
@@ -343,8 +378,8 @@ export default function App(){
   };
   const deptContent=()=>{
     if(!cd) return null;
-    if(ch==="timeline") return <FeedView dept={cd} mob={mob} courses={allCourses}/>;
-    if(ch==="chat") return <ChatView dept={cd} mob={mob}/>;
+    if(ch==="timeline") return <FeedView dept={cd} mob={mob} courses={allCourses} onOfflineQueue={enqueueOffline}/>;
+    if(ch==="chat") return TR?<TelecomBlockView title="チャットは現在利用できません"/>:<ChatView dept={cd} mob={mob}/>;
     return null;
   };
 
@@ -387,7 +422,7 @@ export default function App(){
           {view==="course"&&(L?<LockedView title="コース"/>:cc&&courseContent())}
           {view==="dept"&&(L?<LockedView title="学系"/>:cd&&deptContent())}
           {view==="friends"&&(L?<LockedView title="友達"/>:<FriendsView mob={false} setView={setView} {...friendProps}/>)}
-          {view==="dm"&&(L?<LockedView title="DM"/>:<DMView mob={false} setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/>)}
+          {view==="dm"&&(L?<LockedView title="DM"/>:TR?<TelecomBlockView title="DMは現在利用できません"/>:<DMView mob={false} setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/>)}
           {view==="notif"&&(L?<LockedView title="通知"/>:<NotifView mob={false}/>)}
           {view==="grades"&&(L?<LockedView title="成績"/>:<GradeView mob={false}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
@@ -396,10 +431,10 @@ export default function App(){
           {view==="reviews"&&(L?<LockedView title="授業レビュー"/>:<ReviewView reviews={reviews} setReviews={setReviews} mob={false} courses={allCourses}/>)}
           {view==="bmarks"&&(L?<LockedView title="ブックマーク"/>:<BookmarkView bmarks={bmarks} mob={false} setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/>)}
           {view==="search"&&(L?<LockedView title="検索"/>:<SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses}/>)}
-          {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser}/>}
+          {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/>}
           {view==="location"&&(L?<LockedView title="友達の居場所"/>:<LocationView mob={false} user={user} friendIds={friendIds} friends={friendList}/>)}
           {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/>}
-          {view==="circles"&&<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate}/>}
+          {view==="circles"&&(TR?<TelecomBlockView title="サークルは現在利用できません"/>:<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate}/>)}
           {view==="acadCal"&&<AcademicCalendarView mob={false}/>}
           {view==="admin"&&<AdminView mob={false} courses={allCourses} depts={userDepts} schools={userSchools}/>}
         </div>
@@ -423,7 +458,7 @@ export default function App(){
         {view==="dept"&&(L?<><MHdr title="学系" back={goBack}/><LockedView title="学系"/></>:cd&&<><MHdr title={<><span style={{color:cd.col}}>{cd.prefix.startsWith("school:")?cd.name:cd.prefix}</span>{!cd.prefix.startsWith("school:")&&<span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{cd.name}</span>}</>} back={goBack}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:"タイムライン",i:I.feed},{id:"chat",l:"チャット",i:I.chat}].map(t=><button key={t.id} onClick={()=>setCh(t.id)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===t.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===t.id?T.txH:T.txD,fontSize:13,fontWeight:ch===t.id?600:400,cursor:"pointer"}}>{t.i}<span>{t.l}</span></button>)}</div>{deptContent()}</>)}
         {view==="moreMenu"&&<><MHdr title="その他"/><MoreMenu setView={setView} unreadN={unreadN} pendingFriendCount={pendingFriendCount} dmUnread={dmUnread} isAdmin={!!user.isAdmin}/></>}
         {view==="friends"&&(L?<><MHdr title="友達" back={mBack}/><LockedView title="友達"/></>:<><MHdr title="友達" back={mBack}/><FriendsView mob setView={setView} {...friendProps}/></>)}
-        {view==="dm"&&(L?<><MHdr title="DM"/><LockedView title="DM"/></>:<><MHdr title="DM"/><DMView mob setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/></>)}
+        {view==="dm"&&(L?<><MHdr title="DM"/><LockedView title="DM"/></>:TR?<><MHdr title="DM"/><TelecomBlockView title="DMは現在利用できません" onBack={goBack}/></>:<><MHdr title="DM"/><DMView mob setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/></>)}
         {view==="notif"&&(L?<><MHdr title="通知" back={mBack}/><LockedView title="通知"/></>:<><MHdr title="通知" back={mBack}/><NotifView mob/></>)}
         {view==="grades"&&(L?<><MHdr title="成績" back={mBack}/><LockedView title="成績"/></>:<><MHdr title="成績" back={mBack}/><GradeView mob/></>)}
         {view==="pomo"&&<><MHdr title="ポモドーロ" back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
@@ -432,10 +467,10 @@ export default function App(){
         {view==="reviews"&&(L?<><MHdr title="授業レビュー" back={mBack}/><LockedView title="授業レビュー"/></>:<><MHdr title="授業レビュー" back={mBack}/><ReviewView reviews={reviews} setReviews={setReviews} mob courses={allCourses}/></>)}
         {view==="bmarks"&&(L?<><MHdr title="ブックマーク" back={mBack}/><LockedView title="ブックマーク"/></>:<><MHdr title="ブックマーク" back={mBack}/><BookmarkView bmarks={bmarks} mob setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/></>)}
         {view==="search"&&(L?<><MHdr title="検索" back={mBack}/><LockedView title="検索"/></>:<><MHdr title="検索" back={mBack}/><SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses}/></>)}
-        {view==="profile"&&<><MHdr title="プロフィール" back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser}/></>}
+        {view==="profile"&&<><MHdr title="プロフィール" back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/></>}
         {view==="location"&&(L?<><MHdr title="友達の居場所" back={mBack}/><LockedView title="友達の居場所"/></>:<><MHdr title="友達の居場所" back={mBack}/><LocationView mob user={user} friendIds={friendIds} friends={friendList}/></>)}
         {view==="navigation"&&<><MHdr title="キャンパスナビ" back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
-        {view==="circles"&&<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} onBack={mBack}/>}
+        {view==="circles"&&(TR?<><MHdr title="サークル" back={mBack}/><TelecomBlockView title="サークルは現在利用できません" onBack={goBack}/></>:<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} onBack={mBack}/>)}
         {view==="acadCal"&&<><MHdr title="学年暦" back={mBack}/><AcademicCalendarView mob/></>}
         {view==="admin"&&<><MHdr title="管理者" back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
       </div>

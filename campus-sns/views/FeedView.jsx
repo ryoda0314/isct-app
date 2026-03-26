@@ -46,7 +46,7 @@ const MentionSuggest=({text,cursorPos,members,onSelect})=>{
 };
 
 // Inline comment section for a single post
-const CommentSection=({postId,user,onCountChange,members})=>{
+const CommentSection=({postId,user,onCountChange,members,onReport})=>{
   const {comments,loading,sendComment,deleteComment}=useComments(postId);
   const [txt,setTxt]=useState("");
   const prevCount=React.useRef(0);
@@ -89,6 +89,11 @@ const CommentSection=({postId,user,onCountChange,members})=>{
                   style={{cursor:"pointer",color:T.txD,fontSize:10,marginLeft:"auto",opacity:.6}}
                   onMouseEnter={e=>e.currentTarget.style.opacity=1}
                   onMouseLeave={e=>e.currentTarget.style.opacity=.6}>削除</span>}
+                {!isOwn&&onReport&&<span onClick={()=>onReport({type:"comment",id:c.id,userId:c.uid})}
+                  style={{cursor:"pointer",color:T.txD,fontSize:10,marginLeft:isOwn?0:"auto",opacity:.4,display:"flex",alignItems:"center"}}
+                  onMouseEnter={e=>e.currentTarget.style.opacity=1}
+                  onMouseLeave={e=>e.currentTarget.style.opacity=.4}
+                  title="通報">{I.flag}</span>}
               </div>
               <div style={{margin:0,fontSize:13,color:T.tx,lineHeight:1.5}}><Tx>{c.text}</Tx></div>
             </div>
@@ -212,7 +217,7 @@ const Attachments=({items})=>{
   );
 };
 
-export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
+export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQueue})=>{
   const user=useCurrentUser();
   const roomId=course?.id||`dept:${dept?.prefix}`;
   const {posts,pinnedPosts,loading,loadingMore,hasMore,sendPost,loadMore,toggleLike,deletePost,editPost,votePoll,reactPost,pinPost,updateCommentCount}=useFeed(roomId);
@@ -318,6 +323,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
       extra.pollOptions=opts;
     }
     if(files.length>0) extra.files=files;
+    if(onOfflineQueue) extra.onOfflineQueue=onOfflineQueue;
     sendPost(txt,type,user,extra);
     setTxt("");
     setType("discussion");
@@ -442,8 +448,12 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
               </div>
             </div>
           ):(
-            <div style={{margin:0,color:T.tx,fontSize:14,lineHeight:1.6,whiteSpace:"pre-wrap"}}><Tx>{p.text}</Tx></div>
+            <div style={{margin:0,color:p.queued?T.txD:T.tx,fontSize:14,lineHeight:1.6,whiteSpace:"pre-wrap"}}><Tx>{p.text}</Tx></div>
           )}
+          {p.queued&&<div style={{fontSize:11,color:T.txD,marginTop:4,display:"flex",alignItems:"center",gap:4}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            オフライン — オンライン復帰時に送信されます
+          </div>}
           {/* Poll */}
           {p.type==="poll"&&p.pollOptions&&(
             <PollView options={p.pollOptions} votes={p.pollVotes||{}} userId={userId} onVote={opt=>votePoll(p.id,opt,userId)}/>
@@ -484,7 +494,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[]})=>{
           </div>}
         </div>
         {/* Comment section */}
-        {expanded&&<CommentSection postId={p.id} user={user} onCountChange={delta=>updateCommentCount(p.id,delta)} members={members}/>}
+        {expanded&&<CommentSection postId={p.id} user={user} onCountChange={delta=>updateCommentCount(p.id,delta)} members={members} onReport={setReportTarget}/>}
       </div>
     );
   };

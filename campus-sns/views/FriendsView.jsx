@@ -3,7 +3,7 @@ import { T } from '../theme.js';
 import { I } from '../icons.jsx';
 import { Av, Loader, useQRCode } from '../shared.jsx';
 
-export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM,userId,lookupById,groups=[],createGroup,leaveGroup,onOpenGroup,blockUser,unblockUser,isBlocked,blocks=[]})=>{
+export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM,userId,lookupById,groups=[],createGroup,leaveGroup,onOpenGroup,blockUser,unblockUser,isBlocked,blocks=[],muteUser,unmuteUser,isMuted,mutes=[]})=>{
   const [addOpen,setAddOpen]=useState(false);
   const [addTab,setAddTab]=useState('requests');
   const [searchQ,setSearchQ]=useState('');
@@ -125,7 +125,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
   };
 
   /* ── Shared modal wrapper ── */
-  const addTabs=[{id:'requests',label:'申請',cnt:pendingCount},{id:'search',label:'検索'},{id:'qr',label:'QR/ID'},{id:'blocked',label:'ブロック',cnt:blocks.length||0}];
+  const addTabs=[{id:'requests',label:'申請',cnt:pendingCount},{id:'search',label:'検索'},{id:'qr',label:'QR/ID'},{id:'blocked',label:'ブロック',cnt:blocks.length||0},{id:'muted',label:'ミュート',cnt:mutes.length||0}];
 
   const ModalWrap=({children,onClose})=>(
     <>
@@ -222,6 +222,14 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
           {blocks.map(b=>{const u={name:b.name,av:b.avatar,col:b.color};return <div key={b.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
             <Av u={u} sz={40}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{b.name}</div>{b.dept&&<div style={{fontSize:11,color:T.txD}}>{b.dept}</div>}</div>
             <button onClick={()=>doAction(`ub_${b.blockedId}`,()=>unblockUser(b.blockedId))} disabled={actionLoading===`ub_${b.blockedId}`}
+              style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:T.txD}}>解除</button>
+          </div>;})}
+        </div>}
+        {addTab==='muted'&&<div style={{padding:"8px 0"}}>
+          {mutes.length===0&&<div style={{textAlign:"center",padding:"32px 20px",color:T.txD,fontSize:13}}>ミュート中のユーザーはいません</div>}
+          {mutes.map(m=>{const p=m.profiles||{};const u={name:p.name||`User ${m.muted_id}`,av:p.avatar_url,col:'#888'};return <div key={m.muted_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
+            <Av u={u} sz={40}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{u.name}</div></div>
+            <button onClick={()=>doAction(`um_${m.muted_id}`,()=>unmuteUser(m.muted_id))} disabled={actionLoading===`um_${m.muted_id}`}
               style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:T.txD}}>解除</button>
           </div>;})}
         </div>}
@@ -350,6 +358,12 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
                 onMouseLeave={e=>{e.currentTarget.style.opacity=".4";e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.txD;}} title="フレンド解除">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
+              {muteUser&&<button onClick={e=>{e.stopPropagation();if(isMuted&&isMuted(f.friendId)){doAction(`um_${f.friendId}`,()=>unmuteUser(f.friendId));}else{doAction(`mu_${f.friendId}`,()=>muteUser(f.friendId));}}} disabled={actionLoading===`mu_${f.friendId}`||actionLoading===`um_${f.friendId}`}
+                style={{width:32,height:32,borderRadius:8,border:"none",background:isMuted&&isMuted(f.friendId)?`${T.accent}18`:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:isMuted&&isMuted(f.friendId)?T.accent:T.txD,transition:"all .15s",opacity:isMuted&&isMuted(f.friendId)?1:.4}}
+                onMouseEnter={e=>{e.currentTarget.style.opacity="1";}}
+                onMouseLeave={e=>{if(!(isMuted&&isMuted(f.friendId)))e.currentTarget.style.opacity=".4";}} title={isMuted&&isMuted(f.friendId)?"ミュート解除":"ミュート"}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.12 1.5-.34 2.18"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              </button>}
               {blockUser&&<button onClick={e=>{e.stopPropagation();if(confirm(`${f.name}さんをブロックしますか？\n\n・フレンドから削除されます\n・投稿やDMが表示されなくなります`)){doAction(`bl_${f.friendId}`,()=>blockUser(f.friendId));}}} disabled={actionLoading===`bl_${f.friendId}`}
                 style={{width:32,height:32,borderRadius:8,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txD,transition:"all .15s",opacity:.4}}
                 onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.background=`${T.red}12`;e.currentTarget.style.color=T.red;}}

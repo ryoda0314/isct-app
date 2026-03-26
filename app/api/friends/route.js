@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { getBlockedIds } from '../../../lib/blocks.js';
+import { sendPushToUser } from '../../../lib/push.js';
 
 // GET: list friends, pending requests, sent requests, or search users
 export async function GET(request) {
@@ -246,11 +247,13 @@ export async function POST(request) {
         const { data: myProfile } = await sb.from('profiles').select('name').eq('moodle_id', userid).single();
         const myName = myProfile?.name || `User ${userid}`;
 
+        const acceptText = `${myName}さんがフレンド申請を承認しました`;
         await sb.from('notifications').insert({
           moodle_user_id: to_user_id,
           type: 'friend_request',
-          text: `${myName}さんがフレンド申請を承認しました`,
+          text: acceptText,
         });
+        sendPushToUser(to_user_id, { title: '友達', body: acceptText }).catch(() => {});
         return NextResponse.json({ ok: true, status: 'accepted' });
       }
       // We already sent a pending request
@@ -276,11 +279,13 @@ export async function POST(request) {
     // Send notification
     const { data: myProfile } = await sb.from('profiles').select('name').eq('moodle_id', userid).single();
     const myName = myProfile?.name || `User ${userid}`;
+    const reqText = `${myName}さんから友達申請が届きました`;
     await sb.from('notifications').insert({
       moodle_user_id: to_user_id,
       type: 'friend_request',
-      text: `${myName}さんから友達申請が届きました`,
+      text: reqText,
     });
+    sendPushToUser(to_user_id, { title: '友達申請', body: reqText }).catch(() => {});
 
     return NextResponse.json({ ok: true, status: 'pending' });
   } catch (err) {
@@ -326,11 +331,13 @@ export async function PATCH(request) {
     if (action === 'accept') {
       const { data: myProfile } = await sb.from('profiles').select('name').eq('moodle_id', userid).single();
       const myName = myProfile?.name || `User ${userid}`;
+      const patchText = `${myName}さんがフレンド申請を承認しました`;
       await sb.from('notifications').insert({
         moodle_user_id: row.requester_id,
         type: 'friend_request',
-        text: `${myName}さんがフレンド申請を承認しました`,
+        text: patchText,
       });
+      sendPushToUser(row.requester_id, { title: '友達', body: patchText }).catch(() => {});
     }
 
     return NextResponse.json({ ok: true });

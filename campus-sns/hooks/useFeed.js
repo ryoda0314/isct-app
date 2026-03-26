@@ -161,7 +161,7 @@ export function useFeed(courseId) {
     return () => { sb.removeChannel(channel); };
   }, [courseId]);
 
-  // Send post (optimistic) — supports poll_options for polls
+  // Send post (optimistic) — supports poll_options for polls + offline queue
   const sendPost = useCallback(async (text, type, currentUser, extra = {}) => {
     if (!text.trim() || !courseId) return;
     const yg = currentUser?.yearGroup || null;
@@ -184,7 +184,20 @@ export function useFeed(courseId) {
       reactions: {},
       attachments: null,
       pinned: false,
+      queued: false,
     };
+
+    // If offline, queue for later (file uploads cannot be queued)
+    if (!navigator.onLine && !(extra.files?.length > 0)) {
+      optimistic.queued = true;
+      idsRef.current.add(tempId);
+      setPosts(prev => [optimistic, ...prev]);
+      if (extra.onOfflineQueue) {
+        extra.onOfflineQueue({ courseId, text: text.trim(), type: type || 'discussion', yearGroup: yg, pollOptions: extra.pollOptions || null });
+      }
+      return;
+    }
+
     idsRef.current.add(tempId);
     setPosts(prev => [optimistic, ...prev]);
 
@@ -195,7 +208,6 @@ export function useFeed(courseId) {
 
       let r;
       if (extra.files && extra.files.length > 0) {
-        // Use FormData for file uploads
         const fd = new FormData();
         fd.append('json', JSON.stringify(body));
         extra.files.forEach(f => fd.append('files', f));
@@ -222,9 +234,15 @@ export function useFeed(courseId) {
       }
     } catch (e) {
       console.error('[useFeed POST error]', e);
-      setPosts(prev => prev.filter(p => p.id !== tempId));
-      idsRef.current.delete(tempId);
-      showToast('投稿に失敗しました');
+      // Network error → queue if possible
+      if (!(extra.files?.length > 0) && extra.onOfflineQueue) {
+        setPosts(prev => prev.map(p => p.id === tempId ? { ...p, queued: true } : p));
+        extra.onOfflineQueue({ courseId, text: text.trim(), type: type || 'discussion', yearGroup: yg, pollOptions: extra.pollOptions || null });
+      } else {
+        setPosts(prev => prev.filter(p => p.id !== tempId));
+        idsRef.current.delete(tempId);
+        showToast('投稿に失敗しました');
+      }
     }
   }, [courseId]);
 

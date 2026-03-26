@@ -5,6 +5,7 @@ import { isEnrolledInCourse } from '../../../lib/auth/course-enrollment.js';
 import { notifyMentions } from '../../../lib/mentions.js';
 import { checkNgWords } from '../../../lib/ng-filter.js';
 import { getBlockedIds } from '../../../lib/blocks.js';
+import { getMutedIds } from '../../../lib/mutes.js';
 
 const MAX_TEXT_LENGTH = 5000;
 const VALID_TYPES = ['question', 'material', 'info', 'discussion', 'poll', 'anon'];
@@ -85,9 +86,10 @@ export async function GET(request) {
       return NextResponse.json({ error: `DB query failed: ${error.message}` }, { status: 500 });
     }
 
-    // Filter out posts from blocked users
-    const blockedIds = await getBlockedIds(userid);
-    const filterBlocked = (list) => blockedIds.size === 0 ? list : list.filter(p => !blockedIds.has(p.moodle_user_id));
+    // Filter out posts from blocked/muted users
+    const [blockedIds, mutedIds] = await Promise.all([getBlockedIds(userid), getMutedIds(userid)]);
+    const isHidden = (uid) => blockedIds.has(uid) || mutedIds.has(uid);
+    const filterBlocked = (list) => (blockedIds.size === 0 && mutedIds.size === 0) ? list : list.filter(p => !isHidden(p.moodle_user_id));
 
     if (search) {
       const posts = filterBlocked(data).map(p => ({

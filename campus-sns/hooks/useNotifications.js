@@ -3,6 +3,37 @@ import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { isDemoMode } from '../demoMode.js';
 import { DEMO_NOTIFICATIONS } from '../demoData.js';
 
+// Subscribe to Web Push and register with server
+async function subscribePush() {
+  try {
+    const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!vapidKey || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      });
+    }
+    const { endpoint, keys } = sub.toJSON();
+    await fetch('/api/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint, keys }),
+    });
+  } catch {}
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
 export function useNotifications(enabled = true) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +59,7 @@ export function useNotifications(enabled = true) {
       }));
       notifs.forEach(n => idsRef.current.add(n.id));
       setNotifications(notifs);
+      subscribePush();
     } catch {}
     setLoading(false);
   }, []);

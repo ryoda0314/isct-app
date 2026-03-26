@@ -3,6 +3,8 @@ import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { checkNgWords } from '../../../lib/ng-filter.js';
 import { getBlockedIds } from '../../../lib/blocks.js';
+import { getMutedIds } from '../../../lib/mutes.js';
+import { requireTelecomAllowed } from '../../../lib/telecom-restriction.js';
 
 // GET: list DM conversations for current user
 export async function GET(request) {
@@ -31,13 +33,13 @@ export async function GET(request) {
       if (pData) pData.forEach(p => { profiles[p.moodle_id] = p; });
     }
 
-    // Filter out conversations with blocked users
-    const blockedIds = await getBlockedIds(userid);
+    // Filter out conversations with blocked/muted users
+    const [blockedIds, mutedIds] = await Promise.all([getBlockedIds(userid), getMutedIds(userid)]);
 
     const convos = data
       .filter(c => {
         const otherId = c.user1_id === userid ? c.user2_id : c.user1_id;
-        return !blockedIds.has(otherId);
+        return !blockedIds.has(otherId) && !mutedIds.has(otherId);
       })
       .map(c => {
         const otherId = c.user1_id === userid ? c.user2_id : c.user1_id;
@@ -112,6 +114,9 @@ export async function PATCH(request) {
 // POST: send a DM
 export async function POST(request) {
   try {
+    const blocked = await requireTelecomAllowed();
+    if (blocked) return blocked;
+
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
     const { userid } = auth;

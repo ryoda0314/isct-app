@@ -5,6 +5,7 @@ import { isEnrolledInCourse } from '../../../lib/auth/course-enrollment.js';
 import { notifyMentions } from '../../../lib/mentions.js';
 import { checkNgWords } from '../../../lib/ng-filter.js';
 import { getBlockedIds } from '../../../lib/blocks.js';
+import { getMutedIds } from '../../../lib/mutes.js';
 
 const MAX_TEXT_LENGTH = 2000;
 const toMoodleId = (id) => id?.startsWith('mc_') ? id.slice(3) : id;
@@ -31,9 +32,10 @@ export async function GET(request) {
       return NextResponse.json({ error: `DB query failed: ${error.message}` }, { status: 500 });
     }
 
-    // Filter out comments from blocked users
-    const blockedIds = await getBlockedIds(auth.userid);
-    const filtered = blockedIds.size === 0 ? data : data.filter(c => !blockedIds.has(c.moodle_user_id));
+    // Filter out comments from blocked/muted users
+    const [blockedIds, mutedIds] = await Promise.all([getBlockedIds(auth.userid), getMutedIds(auth.userid)]);
+    const isHidden = (uid) => blockedIds.has(uid) || mutedIds.has(uid);
+    const filtered = (blockedIds.size === 0 && mutedIds.size === 0) ? data : data.filter(c => !isHidden(c.moodle_user_id));
     return NextResponse.json(filtered);
   } catch (err) {
     console.error('[Comments GET]', err);

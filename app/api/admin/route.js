@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
+import { sendPushToUser } from '../../../lib/push.js';
 
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -449,13 +450,23 @@ export async function POST(request) {
       return NextResponse.json({ ok: true });
     }
 
-    // --- Edit profile ---
+    // --- Edit profile (admin forced name change) ---
     if (action === 'edit_profile') {
       const { moodleUserId, name } = body;
       if (!moodleUserId || !name?.trim()) return NextResponse.json({ error: 'moodleUserId and name required' }, { status: 400 });
+      // NG word check
+      const ngHits = await checkNgWords(sb, name.trim());
+      if (ngHits.length > 0) {
+        return NextResponse.json({ error: `NGワードが含まれています: ${ngHits.map(w => w.word).join(', ')}` }, { status: 400 });
+      }
+      const { data: oldProfile } = await sb.from('profiles').select('name').eq('moodle_id', moodleUserId).maybeSingle();
       const { error } = await sb.from('profiles').update({ name: name.trim() }).eq('moodle_id', moodleUserId);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      await auditLog(sb, auth.userid, 'edit_profile', 'user', moodleUserId, { name: name.trim() });
+      await auditLog(sb, auth.userid, 'edit_profile', 'user', moodleUserId, { oldName: oldProfile?.name, newName: name.trim() });
+      // Notify the user
+      const notifText = `管理者によって表示名が「${name.trim()}」に変更されました`;
+      await sb.from('notifications').insert({ moodle_user_id: moodleUserId, type: 'system', text: notifText });
+      sendPushToUser(moodleUserId, { title: 'お知らせ', body: notifText }).catch(() => {});
       return NextResponse.json({ ok: true });
     }
 
@@ -597,6 +608,19 @@ export async function POST(request) {
       const { error } = await sb.from('circle_messages').delete().eq('id', messageId);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       await auditLog(sb, auth.userid, 'delete_circle_message', 'circle_message', messageId);
+      return NextResponse.json({ ok: true });
+    }
+
+    // --- Telecom restriction toggle (電気通信事業の届出前制限) ---
+    if (action === 'toggle_telecom_restriction') {
+      const { enabled, message } = body;
+      const { error } = await sb.from('site_settings').upsert({
+        key: 'telecom_restriction',
+        value: { enabled: !!enabled, message: message || '', updatedAt: new Date().toISOString() },
+        updated_by: auth.userid, updated_at: new Date().toISOString(),
+      }, { onConflict: 'key' });
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      await auditLog(sb, auth.userid, enabled ? 'enable_telecom_restriction' : 'disable_telecom_restriction', 'setting', 'telecom_restriction');
       return NextResponse.json({ ok: true });
     }
 
