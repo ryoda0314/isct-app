@@ -1013,34 +1013,54 @@ const PERIOD_TIMES = ["8:50–10:30", "10:45–12:25", "13:20–15:00", "15:15�
 const SyllabusTab = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [scraping, setScraping] = useState(false);
+  const [scrapeTarget, setScrapeTarget] = useState({ dept: "", year: "" });
+  const [scraping, setScraping] = useState("");  // "dept_year" while scraping
   const [search, setSearch] = useState("");
   const [filterDept, setFilterDept] = useState("");
   const [filterQuarter, setFilterQuarter] = useState("");
   const [filterDay, setFilterDay] = useState("");
   const [filterYear, setFilterYear] = useState("");
-  const [viewMode, setViewMode] = useState("table"); // table | grid
+  const [viewMode, setViewMode] = useState("table");
+  const [dbLookup, setDbLookup] = useState(true);
+  const [togglingLookup, setTogglingLookup] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch(`${API}/api/admin?action=syllabus`).then(r => r.json()).then(setData).catch(() => {}).finally(() => setLoading(false));
+    fetch(`${API}/api/admin?action=syllabus`).then(r => r.json()).then(d => {
+      setData(d);
+      if (d?.dbLookupEnabled !== undefined) setDbLookup(d.dbLookupEnabled);
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const handleScrape = async () => {
-    if (!confirm("シラバスサイトから全学科の時間割データを取得します。数分かかる場合があります。")) return;
-    setScraping(true);
+  const toggleDbLookup = async (enabled) => {
+    setTogglingLookup(true);
     try {
-      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "scrape_syllabus" }) });
+      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_site_setting", key: "syllabus_db_lookup", value: { enabled } }) });
+      if (r.ok) setDbLookup(enabled);
+    } catch {}
+    finally { setTogglingLookup(false); }
+  };
+
+  const handleScrape = async (dept, year) => {
+    const key = `${dept}_${year}`;
+    setScraping(key);
+    try {
+      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "scrape_syllabus", dept, year }) });
       const d = await r.json();
-      if (r.ok) { alert(`取得完了: ${d.count}件の授業データを収集しました`); load(); }
+      if (r.ok) load();
       else alert(d.error || "取得に失敗しました");
     } catch { alert("通信エラー"); }
-    finally { setScraping(false); }
+    finally { setScraping(""); }
   };
 
   const courses = data?.courses || [];
+  const departments = data?.departments || [];
+  const years = data?.years || [];
+  const stats = data?.stats || {};
+
+  // Apply client-side filters
   const filtered = courses.filter(c => {
     if (filterYear && c.year !== filterYear) return false;
     if (filterDept && c.dept !== filterDept) return false;
@@ -1053,26 +1073,22 @@ const SyllabusTab = () => {
     return true;
   });
 
-  // Stats
-  const deptCounts = {};
+  // Quarter stats from filtered data
   const quarterCounts = {};
-  const dayCounts = {};
   for (const c of courses) {
-    deptCounts[c.dept] = (deptCounts[c.dept] || 0) + 1;
     if (c.quarter) quarterCounts[c.quarter] = (quarterCounts[c.quarter] || 0) + 1;
-    if (c.day) dayCounts[c.day] = (dayCounts[c.day] || 0) + 1;
   }
 
-  // Grid view data: build 5x5 grid for selected quarter
+  // Grid view
   const buildGrid = () => {
     const grid = Array.from({ length: 5 }, () => Array.from({ length: 5 }, () => []));
     const dayMap = { "月": 0, "火": 1, "水": 2, "木": 3, "金": 4 };
     for (const c of filtered) {
-      if (!c.day || !c.periodStart) continue;
+      if (!c.day || !c.period_start) continue;
       const col = dayMap[c.day];
       if (col === undefined) continue;
-      const rowStart = Math.floor((c.periodStart - 1) / 2);
-      const rowEnd = c.periodEnd ? Math.floor((c.periodEnd - 1) / 2) : rowStart;
+      const rowStart = Math.floor((c.period_start - 1) / 2);
+      const rowEnd = c.period_end ? Math.floor((c.period_end - 1) / 2) : rowStart;
       for (let row = rowStart; row <= rowEnd && row < 5; row++) {
         grid[row][col].push(c);
       }
@@ -1084,26 +1100,23 @@ const SyllabusTab = () => {
   const uniqueQuarters = [...new Set(courses.map(c => c.quarter).filter(Boolean))].sort();
   const uniqueDepts = [...new Set(courses.map(c => c.dept).filter(Boolean))].sort();
 
+  // Group departments by school for the scrape panel
+  const bySchool = {};
+  for (const d of departments) {
+    if (!bySchool[d.school]) bySchool[d.school] = [];
+    bySchool[d.school].push(d);
+  }
+
   return (
     <div style={{ padding: 16 }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>時間割データ</div>
-          {data?.timestamp && (
-            <div style={{ fontSize: 11, color: T.txD, marginTop: 2 }}>
-              最終取得: {new Date(data.timestamp).toLocaleString("ja-JP")}
-            </div>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>時間割データ</div>
+        {courses.length > 0 && (
           <Btn onClick={() => setViewMode(viewMode === "table" ? "grid" : "table")} color={T.accent} small>
             {viewMode === "table" ? "時間割表示" : "一覧表示"}
           </Btn>
-          <Btn onClick={handleScrape} color={T.green} disabled={scraping}>
-            {scraping ? "取得中..." : "シラバスから取得"}
-          </Btn>
-        </div>
+        )}
       </div>
 
       {/* Stats */}
@@ -1126,7 +1139,7 @@ const SyllabusTab = () => {
         <select value={filterDept} onChange={e => setFilterDept(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
           <option value="">全学科</option>
           {uniqueDepts.map(d => {
-            const info = data?.depts?.[d];
+            const info = departments.find(x => x.key === d);
             return <option key={d} value={d}>{d} ({info?.label || d})</option>;
           })}
         </select>
@@ -1138,21 +1151,12 @@ const SyllabusTab = () => {
           <option value="">全曜日</option>
           {DAY_LABELS.map(d => <option key={d} value={d}>{d}曜</option>)}
         </select>
-        {(search || filterDept || filterQuarter || filterDay) && (
+        {(search || filterDept || filterQuarter || filterDay || filterYear) && (
           <span style={{ fontSize: 12, color: T.txD }}>{filtered.length}件</span>
         )}
       </div>
 
       {loading && <div style={{ color: T.txD, fontSize: 13, padding: 20 }}>読み込み中...</div>}
-
-      {!loading && courses.length === 0 && (
-        <div style={{ padding: 40, textAlign: "center" }}>
-          <div style={{ fontSize: 14, color: T.txD, marginBottom: 12 }}>時間割データがありません</div>
-          <Btn onClick={handleScrape} color={T.accent} disabled={scraping}>
-            {scraping ? "取得中..." : "シラバスから時間割を取得"}
-          </Btn>
-        </div>
-      )}
 
       {/* Grid View */}
       {!loading && courses.length > 0 && viewMode === "grid" && (() => {
@@ -1207,7 +1211,7 @@ const SyllabusTab = () => {
             </thead>
             <tbody>
               {filtered.map((c, i) => (
-                <tr key={i} style={{ borderBottom: `1px solid ${T.bd}` }}>
+                <tr key={c.id || i} style={{ borderBottom: `1px solid ${T.bd}` }}>
                   <td style={{ padding: "6px 6px", color: T.accent, fontFamily: "monospace", fontWeight: 600, fontSize: 12, whiteSpace: "nowrap" }}>{c.code}</td>
                   <td style={{ padding: "6px 6px", color: T.txH, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name || "-"}</td>
                   <td style={{ padding: "6px 6px" }}><Badge text={c.dept} color={T.accent} /></td>
@@ -1228,24 +1232,88 @@ const SyllabusTab = () => {
         </div>
       )}
 
-      {/* Department stats */}
-      {data?.depts && Object.keys(data.depts).length > 0 && (
-        <div style={{ marginTop: 24 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 8 }}>学科別取得状況</div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {Object.entries(data.depts).map(([key, info]) => (
-              <div key={key} style={{ padding: "8px 14px", borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}`, fontSize: 12 }}>
-                <span style={{ fontWeight: 600, color: T.txH }}>{key.replace(/_\d{4}$/, '')}</span>
-                {info.year && <span style={{ color: T.txD, marginLeft: 4, fontSize: 10 }}>{info.year}</span>}
-                <span style={{ color: T.txD, marginLeft: 6 }}>{info.label}</span>
-                <span style={{ color: info.error ? T.red : T.green, marginLeft: 6, fontWeight: 500 }}>
-                  {info.error ? "エラー" : `${info.count}件`}
-                </span>
-              </div>
+      {/* Scrape Panel: department picker */}
+      <div style={{ marginTop: 24, padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>シラバスから取得</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+          <select value={scrapeTarget.year} onChange={e => setScrapeTarget(p => ({ ...p, year: e.target.value }))} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
+            <option value="">年度を選択</option>
+            {years.map(y => <option key={y} value={y}>{y}年度</option>)}
+          </select>
+          <select value={scrapeTarget.dept} onChange={e => setScrapeTarget(p => ({ ...p, dept: e.target.value }))} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
+            <option value="">学科を選択</option>
+            {Object.entries(bySchool).map(([school, depts]) => (
+              <optgroup key={school} label={school}>
+                {depts.map(d => <option key={d.key} value={d.key}>{d.key} - {d.label}</option>)}
+              </optgroup>
             ))}
-          </div>
+          </select>
+          <Btn
+            onClick={() => handleScrape(scrapeTarget.dept, scrapeTarget.year)}
+            color={T.green}
+            disabled={!scrapeTarget.dept || !scrapeTarget.year || !!scraping}
+          >
+            {scraping === `${scrapeTarget.dept}_${scrapeTarget.year}` ? "取得中..." : "取得"}
+          </Btn>
         </div>
-      )}
+
+        {/* Per-dept × year status table */}
+        {departments.length > 0 && (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+              <thead>
+                <tr>
+                  <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>学科</th>
+                  {years.map(y => <th key={y} style={{ padding: "6px 8px", textAlign: "center", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>{y}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(bySchool).map(([school, depts]) => (
+                  <React.Fragment key={school}>
+                    <tr><td colSpan={1 + years.length} style={{ padding: "6px 8px", fontWeight: 700, fontSize: 11, color: T.txD, background: T.bg2, borderBottom: `1px solid ${T.bd}` }}>{school}</td></tr>
+                    {depts.map(d => (
+                      <tr key={d.key} style={{ borderBottom: `1px solid ${T.bd}` }}>
+                        <td style={{ padding: "4px 8px", color: T.txH, fontWeight: 500 }}>{d.key} <span style={{ color: T.txD, fontWeight: 400 }}>{d.label}</span></td>
+                        {years.map(y => {
+                          const s = stats[`${d.key}_${y}`];
+                          const isScraping = scraping === `${d.key}_${y}`;
+                          return (
+                            <td key={y} style={{ padding: "4px 8px", textAlign: "center" }}>
+                              {s ? (
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                                  <span style={{ color: T.green, fontWeight: 600 }}>{s.count}</span>
+                                  <button onClick={() => handleScrape(d.key, y)} disabled={!!scraping} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", padding: 0, fontSize: 10 }} title="再取得">{isScraping ? "..." : "↻"}</button>
+                                </span>
+                              ) : (
+                                <button onClick={() => handleScrape(d.key, y)} disabled={!!scraping} style={{ background: "none", border: `1px solid ${T.bd}`, borderRadius: 6, padding: "2px 8px", color: T.txD, cursor: "pointer", fontSize: 10 }}>{isScraping ? "..." : "取得"}</button>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* DB lookup toggle */}
+        <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 10, background: T.bg2, border: `1px solid ${T.bd}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>DB優先ルックアップ</div>
+            <div style={{ fontSize: 11, color: T.txD, marginTop: 2 }}>ONにすると時間割取得時にDBを先に検索し、なければスクレイピング</div>
+          </div>
+          <button
+            onClick={() => toggleDbLookup(!dbLookup)}
+            disabled={togglingLookup}
+            style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: togglingLookup ? "wait" : "pointer", background: dbLookup ? T.green : T.bd, position: "relative", transition: "background 0.2s" }}
+          >
+            <div style={{ width: 18, height: 18, borderRadius: 9, background: "#fff", position: "absolute", top: 3, left: dbLookup ? 23 : 3, transition: "left 0.2s" }} />
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { sendPushToUser } from '../../../lib/push.js';
-import { getCachedSyllabus, fetchAllSyllabus, getDeptList } from '../../../lib/api/syllabus-bulk.js';
+import { getSyllabusFromDB, getSyllabusStats, fetchDeptSyllabus, getDeptList } from '../../../lib/api/syllabus-bulk.js';
 
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -388,17 +388,18 @@ export async function GET(request) {
 
     // --- Syllabus / timetable data ---
     if (action === 'syllabus') {
-      const cached = getCachedSyllabus();
-      if (!cached) {
-        return NextResponse.json({
-          courses: [], depts: {}, timestamp: null,
-          availableDepts: getDeptList(),
-        });
-      }
-      return NextResponse.json({
-        ...cached,
-        availableDepts: getDeptList(),
-      });
+      const dept = searchParams.get('dept') || '';
+      const year = searchParams.get('year') || '';
+      const quarter = searchParams.get('quarter') || '';
+      const day = searchParams.get('day') || '';
+      const search = searchParams.get('search') || '';
+      const [courses, stats, lookupSetting] = await Promise.all([
+        getSyllabusFromDB({ dept, year, quarter, day, search }),
+        getSyllabusStats(),
+        sb.from('site_settings').select('value').eq('key', 'syllabus_db_lookup').maybeSingle(),
+      ]);
+      const dbLookupEnabled = lookupSetting?.data?.value?.enabled !== false;
+      return NextResponse.json({ courses, stats, dbLookupEnabled, ...getDeptList() });
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
@@ -670,17 +671,14 @@ export async function POST(request) {
       return NextResponse.json({ ok: true });
     }
 
-    // --- Syllabus bulk scrape ---
+    // --- Syllabus scrape (per department + year) ---
     if (action === 'scrape_syllabus') {
-      await auditLog(sb, auth.userid, 'scrape_syllabus', 'system', null);
+      const { dept, year } = body;
+      if (!dept || !year) return NextResponse.json({ error: 'dept and year required' }, { status: 400 });
+      await auditLog(sb, auth.userid, 'scrape_syllabus', 'syllabus', `${dept}_${year}`);
       try {
-        const result = await fetchAllSyllabus(true);
-        return NextResponse.json({
-          ok: true,
-          count: result.courses.length,
-          depts: result.depts,
-          timestamp: result.timestamp,
-        });
+        const result = await fetchDeptSyllabus(dept, year);
+        return NextResponse.json({ ok: true, ...result });
       } catch (e) {
         return NextResponse.json({ error: e.message }, { status: 500 });
       }
