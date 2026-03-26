@@ -5,8 +5,6 @@ import { isEnrolledInCourse } from '../../../lib/auth/course-enrollment.js';
 import { checkNgWords } from '../../../lib/ng-filter.js';
 import { getBlockedIds } from '../../../lib/blocks.js';
 import { getMutedIds } from '../../../lib/mutes.js';
-import { requireTelecomAllowed } from '../../../lib/telecom-restriction.js';
-
 const MAX_TEXT_LENGTH = 2000;
 const toMoodleId = (id) => id?.startsWith('mc_') ? id.slice(3) : id;
 
@@ -57,9 +55,6 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const blocked = await requireTelecomAllowed();
-    if (blocked) return blocked;
-
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
     const { wstoken, userid, fullname } = auth;

@@ -370,7 +370,7 @@ export default function App(){
   const courseContent=()=>{
     if(!cc) return null;
     if(ch==="timeline") return <FeedView course={cc} mob={mob} bmarks={bmarks} togBmark={togBmark} courses={allCourses} onOfflineQueue={enqueueOffline}/>;
-    if(ch==="chat") return TR?<TelecomBlockView title="チャットは現在利用できません"/>:<ChatView course={cc} mob={mob}/>;
+    if(ch==="chat") return <ChatView course={cc} mob={mob}/>;
     if(ch==="assignments") return <AsgnView asgn={asgn} setAsgn={setAsgn} course={cc} mob={mob} courses={allCourses}/>;
     if(ch==="materials") return <MatView course={cc} mob={mob}/>;
     if(ch==="reviews") return <ReviewView reviews={reviews} setReviews={setReviews} course={cc} mob={mob} courses={allCourses}/>;
@@ -379,7 +379,7 @@ export default function App(){
   const deptContent=()=>{
     if(!cd) return null;
     if(ch==="timeline") return <FeedView dept={cd} mob={mob} courses={allCourses} onOfflineQueue={enqueueOffline}/>;
-    if(ch==="chat") return TR?<TelecomBlockView title="チャットは現在利用できません"/>:<ChatView dept={cd} mob={mob}/>;
+    if(ch==="chat") return <ChatView dept={cd} mob={mob}/>;
     return null;
   };
 
