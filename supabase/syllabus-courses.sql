@@ -7,6 +7,7 @@ create table if not exists syllabus_courses (
   id              bigint generated always as identity primary key,
   code            text not null,            -- 科目コード (e.g. MEC.C201)
   name            text,                     -- 科目名
+  teacher         text,                     -- 教員名 (e.g. 荒木 稚子, 各 教員)
   section         text not null default '',  -- セクション (e.g. 14-RW, S16, B)
   dept            text not null,            -- 学科キー (e.g. MEC, CSC)
   year            text not null,            -- 年度 (e.g. 2025, 2026)
@@ -40,5 +41,8 @@ alter table syllabus_courses enable row level security;
 -- =============================================================
 -- 既存テーブルへの追加（既にテーブル作成済みの場合はこちらを実行）
 -- =============================================================
--- alter table syllabus_courses add column if not exists section text;
+-- alter table syllabus_courses add column if not exists section text not null default '';
+-- alter table syllabus_courses add column if not exists teacher text;
+-- DROP INDEX IF EXISTS idx_syllabus_code_year_url;
+-- CREATE UNIQUE INDEX IF NOT EXISTS idx_syllabus_code_year_url_section ON syllabus_courses(code, year, syllabus_url, section);
 -- create index if not exists idx_syllabus_code_year_section on syllabus_courses(code, year, section);
