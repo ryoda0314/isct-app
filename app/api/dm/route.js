@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { checkNgWords } from '../../../lib/ng-filter.js';
+import { getBlockedIds } from '../../../lib/blocks.js';
 
 // GET: list DM conversations for current user
 export async function GET(request) {
@@ -30,26 +31,34 @@ export async function GET(request) {
       if (pData) pData.forEach(p => { profiles[p.moodle_id] = p; });
     }
 
-    const convos = data.map(c => {
-      const otherId = c.user1_id === userid ? c.user2_id : c.user1_id;
-      const profile = profiles[otherId] || { name: `User ${otherId}`, avatar: '?', color: '#888' };
-      const msgs = (c.dm_messages || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-      const lastRead = c.last_read || {};
-      return {
-        id: c.id,
-        withId: otherId,
-        withName: profile.name,
-        withAvatar: profile.avatar,
-        withColor: profile.color,
-        lastRead,
-        msgs: msgs.map(m => ({
-          id: m.id,
-          uid: m.sender_id,
-          text: m.text,
-          ts: m.created_at,
-        })),
-      };
-    });
+    // Filter out conversations with blocked users
+    const blockedIds = await getBlockedIds(userid);
+
+    const convos = data
+      .filter(c => {
+        const otherId = c.user1_id === userid ? c.user2_id : c.user1_id;
+        return !blockedIds.has(otherId);
+      })
+      .map(c => {
+        const otherId = c.user1_id === userid ? c.user2_id : c.user1_id;
+        const profile = profiles[otherId] || { name: `User ${otherId}`, avatar: '?', color: '#888' };
+        const msgs = (c.dm_messages || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        const lastRead = c.last_read || {};
+        return {
+          id: c.id,
+          withId: otherId,
+          withName: profile.name,
+          withAvatar: profile.avatar,
+          withColor: profile.color,
+          lastRead,
+          msgs: msgs.map(m => ({
+            id: m.id,
+            uid: m.sender_id,
+            text: m.text,
+            ts: m.created_at,
+          })),
+        };
+      });
 
     return NextResponse.json(convos);
   } catch (err) {
@@ -122,6 +131,14 @@ export async function POST(request) {
     }
 
     const sb = getSupabaseAdmin();
+
+    // Check block status before allowing DM
+    if (to_user_id) {
+      const blockedIds = await getBlockedIds(userid);
+      if (blockedIds.has(to_user_id)) {
+        return NextResponse.json({ error: 'このユーザーにメッセージを送信できません' }, { status: 403 });
+      }
+    }
 
     await sb.from('profiles').upsert(
       { moodle_id: userid, name: `User ${userid}` },

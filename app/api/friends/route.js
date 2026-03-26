@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
+import { getBlockedIds } from '../../../lib/blocks.js';
 
 // GET: list friends, pending requests, sent requests, or search users
 export async function GET(request) {
@@ -115,6 +116,9 @@ export async function GET(request) {
         .limit(20);
       if (error) throw error;
 
+      // Filter out blocked users from search results
+      const blockedIds = await getBlockedIds(userid);
+
       // Get friendship statuses for results
       const resultIds = (pData || []).map(p => p.moodle_id);
       let friendshipMap = {};
@@ -135,14 +139,16 @@ export async function GET(request) {
         }
       }
 
-      const results = (pData || []).map(p => ({
-        moodleId: p.moodle_id,
-        name: p.name,
-        avatar: p.avatar,
-        color: p.color,
-        dept: p.dept,
-        friendship: friendshipMap[p.moodle_id] || null,
-      }));
+      const results = (pData || [])
+        .filter(p => !blockedIds.has(p.moodle_id))
+        .map(p => ({
+          moodleId: p.moodle_id,
+          name: p.name,
+          avatar: p.avatar,
+          color: p.color,
+          dept: p.dept,
+          friendship: friendshipMap[p.moodle_id] || null,
+        }));
       return NextResponse.json(results);
     }
 
@@ -199,6 +205,12 @@ export async function POST(request) {
     }
 
     const sb = getSupabaseAdmin();
+
+    // Check block status before allowing friend request
+    const blockedIds = await getBlockedIds(userid);
+    if (blockedIds.has(to_user_id)) {
+      return NextResponse.json({ error: 'Cannot send request' }, { status: 403 });
+    }
 
     // Ensure own profile exists
     await sb.from('profiles').upsert(

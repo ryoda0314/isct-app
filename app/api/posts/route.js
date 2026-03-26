@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { isEnrolledInCourse } from '../../../lib/auth/course-enrollment.js';
 import { notifyMentions } from '../../../lib/mentions.js';
 import { checkNgWords } from '../../../lib/ng-filter.js';
+import { getBlockedIds } from '../../../lib/blocks.js';
 
 const MAX_TEXT_LENGTH = 5000;
 const VALID_TYPES = ['question', 'material', 'info', 'discussion', 'poll', 'anon'];
@@ -84,8 +85,12 @@ export async function GET(request) {
       return NextResponse.json({ error: `DB query failed: ${error.message}` }, { status: 500 });
     }
 
+    // Filter out posts from blocked users
+    const blockedIds = await getBlockedIds(userid);
+    const filterBlocked = (list) => blockedIds.size === 0 ? list : list.filter(p => !blockedIds.has(p.moodle_user_id));
+
     if (search) {
-      const posts = data.map(p => ({
+      const posts = filterBlocked(data).map(p => ({
         ...p,
         comment_count: p.comments?.[0]?.count || 0,
         comments: undefined,
@@ -93,9 +98,13 @@ export async function GET(request) {
       return NextResponse.json({ posts, pinnedPosts: [], hasMore: false });
     }
 
+    // Filter blocked from pinned too
+    pinnedPosts = filterBlocked(pinnedPosts);
+
     // Flatten comment count from [{count: N}] to comment_count: N
-    const hasMore = data.length > limit;
-    const posts = (hasMore ? data.slice(0, limit) : data).map(p => ({
+    const filtered = filterBlocked(data);
+    const hasMore = filtered.length > limit;
+    const posts = (hasMore ? filtered.slice(0, limit) : filtered).map(p => ({
       ...p,
       comment_count: p.comments?.[0]?.count || 0,
       comments: undefined,

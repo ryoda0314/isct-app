@@ -121,7 +121,7 @@ const CredForm=({form,setForm,showPw,showTotp,setShowPw,setShowTotp,onSave,savin
 );
 
 /* ─── メイン ─── */
-export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accentPref="default",setAccentPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout,appLock})=>{
+export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accentPref="default",setAccentPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout,appLock,blocks=[],unblockUser})=>{
   const done=asgn.filter(a=>a.st==="completed").length;
   const total=asgn.length;
 
@@ -916,6 +916,25 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               })();
             }}/>
         </GCard>
+
+        {/* ═══ ブロックリスト ═══ */}
+        {blocks.length>0&&<>
+          <GHead>ブロック中のユーザー ({blocks.length})</GHead>
+          <GCard>
+            {blocks.map((b,i)=><GRow key={b.id}
+              last={i===blocks.length-1}
+              icon={<Av u={{name:b.name,av:b.avatar,col:b.color}} sz={24}/>}
+              label={b.name}
+              sub={b.dept||'ブロック中'}
+              onClick={()=>{
+                if(confirm(`${b.name}さんのブロックを解除しますか？`)){
+                  unblockUser&&unblockUser(b.blockedId);
+                }
+              }}
+              right={<span style={{fontSize:11,fontWeight:500,color:T.txD,padding:"4px 10px",borderRadius:6,border:`1px solid ${T.bd}`}}>解除</span>}
+            />)}
+          </GCard>
+        </>}
 
         {/* ═══ その他 ═══ */}
         <GHead>その他</GHead>

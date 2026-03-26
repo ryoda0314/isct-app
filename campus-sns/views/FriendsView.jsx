@@ -3,7 +3,7 @@ import { T } from '../theme.js';
 import { I } from '../icons.jsx';
 import { Av, Loader, useQRCode } from '../shared.jsx';
 
-export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM,userId,lookupById,groups=[],createGroup,leaveGroup,onOpenGroup})=>{
+export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM,userId,lookupById,groups=[],createGroup,leaveGroup,onOpenGroup,blockUser,unblockUser,isBlocked,blocks=[]})=>{
   const [addOpen,setAddOpen]=useState(false);
   const [addTab,setAddTab]=useState('requests');
   const [searchQ,setSearchQ]=useState('');
@@ -125,7 +125,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
   };
 
   /* ── Shared modal wrapper ── */
-  const addTabs=[{id:'requests',label:'申請',cnt:pendingCount},{id:'search',label:'検索'},{id:'qr',label:'QR/ID'}];
+  const addTabs=[{id:'requests',label:'申請',cnt:pendingCount},{id:'search',label:'検索'},{id:'qr',label:'QR/ID'},{id:'blocked',label:'ブロック',cnt:blocks.length||0}];
 
   const ModalWrap=({children,onClose})=>(
     <>
@@ -217,6 +217,14 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
             {lookupResult==='not_found'&&<div style={{marginTop:8,fontSize:12,color:T.red,textAlign:"center"}}>見つかりません</div>}
           </div>
         </div></div>}
+        {addTab==='blocked'&&<div style={{padding:"8px 0"}}>
+          {blocks.length===0&&<div style={{textAlign:"center",padding:"32px 20px",color:T.txD,fontSize:13}}>ブロック中のユーザーはいません</div>}
+          {blocks.map(b=>{const u={name:b.name,av:b.avatar,col:b.color};return <div key={b.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
+            <Av u={u} sz={40}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{b.name}</div>{b.dept&&<div style={{fontSize:11,color:T.txD}}>{b.dept}</div>}</div>
+            <button onClick={()=>doAction(`ub_${b.blockedId}`,()=>unblockUser(b.blockedId))} disabled={actionLoading===`ub_${b.blockedId}`}
+              style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:T.txD}}>解除</button>
+          </div>;})}
+        </div>}
       </div>
     </ModalWrap>
   );
@@ -342,6 +350,12 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
                 onMouseLeave={e=>{e.currentTarget.style.opacity=".4";e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.txD;}} title="フレンド解除">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
+              {blockUser&&<button onClick={e=>{e.stopPropagation();if(confirm(`${f.name}さんをブロックしますか？\n\n・フレンドから削除されます\n・投稿やDMが表示されなくなります`)){doAction(`bl_${f.friendId}`,()=>blockUser(f.friendId));}}} disabled={actionLoading===`bl_${f.friendId}`}
+                style={{width:32,height:32,borderRadius:8,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txD,transition:"all .15s",opacity:.4}}
+                onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.background=`${T.red}12`;e.currentTarget.style.color=T.red;}}
+                onMouseLeave={e=>{e.currentTarget.style.opacity=".4";e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.txD;}} title="ブロック">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              </button>}
             </div>
           </div>;
         })}

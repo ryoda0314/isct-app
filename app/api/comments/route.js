@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { isEnrolledInCourse } from '../../../lib/auth/course-enrollment.js';
 import { notifyMentions } from '../../../lib/mentions.js';
 import { checkNgWords } from '../../../lib/ng-filter.js';
+import { getBlockedIds } from '../../../lib/blocks.js';
 
 const MAX_TEXT_LENGTH = 2000;
 const toMoodleId = (id) => id?.startsWith('mc_') ? id.slice(3) : id;
@@ -29,7 +30,11 @@ export async function GET(request) {
       console.error('[Comments GET]', error.message);
       return NextResponse.json({ error: `DB query failed: ${error.message}` }, { status: 500 });
     }
-    return NextResponse.json(data);
+
+    // Filter out comments from blocked users
+    const blockedIds = await getBlockedIds(auth.userid);
+    const filtered = blockedIds.size === 0 ? data : data.filter(c => !blockedIds.has(c.moodle_user_id));
+    return NextResponse.json(filtered);
   } catch (err) {
     console.error('[Comments GET]', err);
     return NextResponse.json({ error: `Internal error: ${err.message}` }, { status: 500 });
