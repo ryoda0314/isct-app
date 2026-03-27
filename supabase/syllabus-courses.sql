@@ -12,7 +12,7 @@ create table if not exists syllabus_courses (
   dept            text not null,            -- 学科キー (e.g. MEC, CSC)
   year            text not null,            -- 年度 (e.g. 2025, 2026)
   day             text,                     -- 曜日 (月,火,水,木,金)
-  per             text,                     -- 時限 (e.g. 木1-4)
+  per             text not null default '',  -- 時限 (e.g. 木1-4)
   period_start    int,                      -- 開始時限
   period_end      int,                      -- 終了時限
   room            text,                     -- 教室 (e.g. M-B07(H101))
@@ -22,9 +22,9 @@ create table if not exists syllabus_courses (
   fetched_at      timestamptz default now() -- 取得日時
 );
 
--- 同じ科目コード+年度+URL+セクションは重複させない
-create unique index if not exists idx_syllabus_code_year_url_section
-  on syllabus_courses(code, year, syllabus_url, section);
+-- 同じ科目コード+年度+URL+セクション+時限は重複させない
+create unique index if not exists idx_syllabus_code_year_url_section_per
+  on syllabus_courses(code, year, syllabus_url, section, per);
 
 -- セクション付き検索用
 create index if not exists idx_syllabus_code_year_section
@@ -43,6 +43,10 @@ alter table syllabus_courses enable row level security;
 -- =============================================================
 -- alter table syllabus_courses add column if not exists section text not null default '';
 -- alter table syllabus_courses add column if not exists teacher text;
+-- alter table syllabus_courses alter column per set default '';
+-- update syllabus_courses set per = '' where per is null;
+-- alter table syllabus_courses alter column per set not null;
 -- DROP INDEX IF EXISTS idx_syllabus_code_year_url;
--- CREATE UNIQUE INDEX IF NOT EXISTS idx_syllabus_code_year_url_section ON syllabus_courses(code, year, syllabus_url, section);
+-- DROP INDEX IF EXISTS idx_syllabus_code_year_url_section;
+-- CREATE UNIQUE INDEX IF NOT EXISTS idx_syllabus_code_year_url_section_per ON syllabus_courses(code, year, syllabus_url, section, per);
 -- create index if not exists idx_syllabus_code_year_section on syllabus_courses(code, year, section);
