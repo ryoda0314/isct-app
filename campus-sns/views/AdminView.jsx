@@ -1212,8 +1212,11 @@ const SyllabusTab = () => {
 const SyllabusFetchTab = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [scrapeTarget, setScrapeTarget] = useState({ dept: "", year: "" });
-  const [scraping, setScraping] = useState("");
+  const [scrapeYear, setScrapeYear] = useState("");
+  const [selectedDepts, setSelectedDepts] = useState(new Set());
+  const [scraping, setScraping] = useState(""); // current dept_year being scraped
+  const [queue, setQueue] = useState([]); // remaining [{dept, year}]
+  const [batchResults, setBatchResults] = useState([]); // [{dept, year, ok, count?, error?}]
   const [progress, setProgress] = useState(null);
   const [dbLookup, setDbLookup] = useState(true);
   const [togglingLookup, setTogglingLookup] = useState(false);
@@ -1237,6 +1240,7 @@ const SyllabusFetchTab = () => {
     finally { setTogglingLookup(false); }
   };
 
+  // Poll progress during scraping
   useEffect(() => {
     if (!scraping) { setProgress(null); return; }
     const id = setInterval(async () => {
@@ -1249,28 +1253,85 @@ const SyllabusFetchTab = () => {
     return () => clearInterval(id);
   }, [scraping]);
 
-  const handleScrape = async (dept, year) => {
+  // Process queue sequentially
+  const scrapeSingle = async (dept, year) => {
     const key = `${dept}_${year}`;
     setScraping(key);
     setProgress({ total: 0, done: 0, phase: "listing", current: "" });
     try {
       const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "scrape_syllabus", dept, year }) });
       const d = await r.json();
-      if (r.ok) { load(); alert(`${dept} ${year}: ${d.added || 0}件取得完了`); }
-      else alert(`取得失敗: ${d.error || "不明なエラー"}${d.detail ? "\n\n" + d.detail : ""}`);
-    } catch (e) { alert(`通信エラー: ${e.message}`); }
-    finally { setScraping(""); setProgress(null); }
+      if (r.ok) return { dept, year, ok: true, count: d.added || 0 };
+      return { dept, year, ok: false, error: d.error || "不明なエラー" };
+    } catch (e) {
+      return { dept, year, ok: false, error: e.message };
+    } finally {
+      setScraping("");
+      setProgress(null);
+    }
+  };
+
+  const handleBatchScrape = async (deptList, year) => {
+    setBatchResults([]);
+    setQueue(deptList.map(d => ({ dept: d, year })));
+    const results = [];
+    for (const dept of deptList) {
+      setQueue(prev => prev.filter(q => q.dept !== dept));
+      const result = await scrapeSingle(dept, year);
+      results.push(result);
+      setBatchResults(prev => [...prev, result]);
+    }
+    load();
+    const ok = results.filter(r => r.ok);
+    const fail = results.filter(r => !r.ok);
+    let msg = `取得完了: ${ok.length}/${results.length} 学科成功`;
+    if (ok.length > 0) msg += `\n合計 ${ok.reduce((s, r) => s + r.count, 0)} 件`;
+    if (fail.length > 0) msg += `\n\n失敗: ${fail.map(r => `${r.dept} (${r.error})`).join(", ")}`;
+    alert(msg);
+  };
+
+  const handleScrape = async (dept, year) => {
+    setBatchResults([]);
+    const result = await scrapeSingle(dept, year);
+    setBatchResults([result]);
+    load();
+    if (result.ok) alert(`${dept} ${year}: ${result.count}件取得完了`);
+    else alert(`取得失敗: ${result.error}`);
   };
 
   const departments = data?.departments || [];
   const years = data?.years || [];
   const stats = data?.stats || {};
+  const isBusy = !!scraping || queue.length > 0;
 
   const bySchool = {};
   for (const d of departments) {
     if (!bySchool[d.school]) bySchool[d.school] = [];
     bySchool[d.school].push(d);
   }
+
+  const toggleDept = (key) => {
+    setSelectedDepts(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleSchool = (school) => {
+    const depts = bySchool[school] || [];
+    const allSelected = depts.every(d => selectedDepts.has(d.key));
+    setSelectedDepts(prev => {
+      const next = new Set(prev);
+      for (const d of depts) { allSelected ? next.delete(d.key) : next.add(d.key); }
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedDepts.size === departments.length) setSelectedDepts(new Set());
+    else setSelectedDepts(new Set(departments.map(d => d.key)));
+  };
 
   return (
     <div style={{ padding: 16 }}>
@@ -1283,34 +1344,70 @@ const SyllabusFetchTab = () => {
           {/* Scrape controls */}
           <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>シラバスから取得</div>
+
+            {/* Year + action buttons */}
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
-              <select value={scrapeTarget.year} onChange={e => setScrapeTarget(p => ({ ...p, year: e.target.value }))} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
+              <select value={scrapeYear} onChange={e => setScrapeYear(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
                 <option value="">年度を選択</option>
                 {years.map(y => <option key={y} value={y}>{y}年度</option>)}
               </select>
-              <select value={scrapeTarget.dept} onChange={e => setScrapeTarget(p => ({ ...p, dept: e.target.value }))} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-                <option value="">学科を選択</option>
-                {Object.entries(bySchool).map(([school, depts]) => (
-                  <optgroup key={school} label={school}>
-                    {depts.map(d => <option key={d.key} value={d.key}>{d.key} - {d.label}</option>)}
-                  </optgroup>
-                ))}
-              </select>
-              <Btn
-                onClick={() => handleScrape(scrapeTarget.dept, scrapeTarget.year)}
-                color={T.green}
-                disabled={!scrapeTarget.dept || !scrapeTarget.year || !!scraping}
-              >
-                {scraping === `${scrapeTarget.dept}_${scrapeTarget.year}` ? "取得中..." : "取得"}
+              <Btn onClick={selectAll} color={T.txD} small>
+                {selectedDepts.size === departments.length ? "全解除" : "全選択"}
               </Btn>
+              <Btn
+                onClick={() => handleBatchScrape([...selectedDepts], scrapeYear)}
+                color={T.green}
+                disabled={!scrapeYear || selectedDepts.size === 0 || isBusy}
+              >
+                {isBusy ? "取得中..." : `選択した${selectedDepts.size}学科を取得`}
+              </Btn>
+            </div>
+
+            {/* Department chips grouped by school */}
+            <div style={{ marginBottom: 12 }}>
+              {Object.entries(bySchool).map(([school, depts]) => {
+                const allSelected = depts.every(d => selectedDepts.has(d.key));
+                return (
+                  <div key={school} style={{ marginBottom: 8 }}>
+                    <button
+                      onClick={() => toggleSchool(school)}
+                      style={{ background: "none", border: "none", padding: "2px 0", cursor: "pointer", fontSize: 11, fontWeight: 700, color: allSelected ? T.accent : T.txD, marginBottom: 4, display: "block" }}
+                    >{school}</button>
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {depts.map(d => {
+                        const sel = selectedDepts.has(d.key);
+                        const done = batchResults.find(r => r.dept === d.key);
+                        return (
+                          <button
+                            key={d.key}
+                            onClick={() => toggleDept(d.key)}
+                            disabled={isBusy}
+                            style={{
+                              padding: "3px 8px", borderRadius: 6, fontSize: 11, cursor: isBusy ? "default" : "pointer",
+                              border: `1px solid ${done ? (done.ok ? T.green : T.red) : sel ? T.accent : T.bd}`,
+                              background: done ? (done.ok ? `${T.green}15` : `${T.red}15`) : sel ? `${T.accent}15` : T.bg2,
+                              color: done ? (done.ok ? T.green : T.red) : sel ? T.accent : T.txD,
+                              fontWeight: sel ? 600 : 400,
+                            }}
+                          >
+                            {d.key}
+                            {done && done.ok && <span style={{ marginLeft: 3 }}>{done.count}</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Progress indicator */}
             {scraping && progress && (
-              <div style={{ marginBottom: 12, padding: "10px 14px", borderRadius: 10, background: T.bg2, border: `1px solid ${T.accent}40` }}>
+              <div style={{ padding: "10px 14px", borderRadius: 10, background: T.bg2, border: `1px solid ${T.accent}40` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: T.txH }}>
                     {scraping.replace("_", " ")} — {progress.phase === "listing" ? "一覧取得中..." : progress.phase === "saving" ? "DB保存中..." : `詳細取得中 ${progress.done}/${progress.total}`}
+                    {queue.length > 0 && <span style={{ color: T.txD, fontWeight: 400 }}> (残り {queue.length} 学科)</span>}
                   </span>
                   {progress.current && <span style={{ fontSize: 11, color: T.accent, fontFamily: "monospace" }}>{progress.current}</span>}
                 </div>
@@ -1350,10 +1447,10 @@ const SyllabusFetchTab = () => {
                                   {s ? (
                                     <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
                                       <span style={{ color: T.green, fontWeight: 600 }}>{s.count}</span>
-                                      <button onClick={() => handleScrape(d.key, y)} disabled={!!scraping} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", padding: 0, fontSize: 10 }} title="再取得">{isScraping ? "..." : "↻"}</button>
+                                      <button onClick={() => handleScrape(d.key, y)} disabled={isBusy} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", padding: 0, fontSize: 10 }} title="再取得">{isScraping ? "..." : "↻"}</button>
                                     </span>
                                   ) : (
-                                    <button onClick={() => handleScrape(d.key, y)} disabled={!!scraping} style={{ background: "none", border: `1px solid ${T.bd}`, borderRadius: 6, padding: "2px 8px", color: T.txD, cursor: "pointer", fontSize: 10 }}>{isScraping ? "..." : "取得"}</button>
+                                    <button onClick={() => handleScrape(d.key, y)} disabled={isBusy} style={{ background: "none", border: `1px solid ${T.bd}`, borderRadius: 6, padding: "2px 8px", color: T.txD, cursor: "pointer", fontSize: 10 }}>{isScraping ? "..." : "取得"}</button>
                                   )}
                                 </td>
                               );
