@@ -15,7 +15,8 @@ create table if not exists syllabus_courses (
   per             text not null default '',  -- 時限 (e.g. 木1-4)
   period_start    int,                      -- 開始時限
   period_end      int,                      -- 終了時限
-  room            text,                     -- 教室 (e.g. M-B07(H101))
+  room            text,                     -- 教室 (e.g. W5-106, 建築製図室)
+  building        text,                     -- 建物コード (e.g. W5, M, S4) マップナビ用
   quarter         text,                     -- クォーター (e.g. 1Q, 1-2Q)
   syllabus_url    text,                     -- シラバスページURL
   school          text,                     -- 学院名 (e.g. 工学院)
@@ -34,6 +35,7 @@ create index if not exists idx_syllabus_code_year_section
 create index if not exists idx_syllabus_dept_year on syllabus_courses(dept, year);
 create index if not exists idx_syllabus_quarter on syllabus_courses(quarter);
 create index if not exists idx_syllabus_day on syllabus_courses(day);
+create index if not exists idx_syllabus_building on syllabus_courses(building);
 
 -- RLS: service_role のみ読み書き可
 alter table syllabus_courses enable row level security;
@@ -50,3 +52,5 @@ alter table syllabus_courses enable row level security;
 -- DROP INDEX IF EXISTS idx_syllabus_code_year_url_section;
 -- CREATE UNIQUE INDEX IF NOT EXISTS idx_syllabus_code_year_url_section_per ON syllabus_courses(code, year, syllabus_url, section, per);
 -- create index if not exists idx_syllabus_code_year_section on syllabus_courses(code, year, section);
+-- alter table syllabus_courses add column if not exists building text;
+-- create index if not exists idx_syllabus_building on syllabus_courses(building);
