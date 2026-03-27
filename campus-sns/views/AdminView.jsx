@@ -1171,7 +1171,7 @@ const SyllabusTab = () => {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: `2px solid ${T.bd}` }}>
-                {["科目コード", "科目名", "教員", "学科", "年度", "曜日", "時限", "教室", "Q"].map(h => (
+                {["科目コード", "科目名", "教員", "学科", "年度", "曜日", "時限", "教室", "建物", "Q"].map(h => (
                   <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: T.txD, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -1187,6 +1187,7 @@ const SyllabusTab = () => {
                   <td style={{ padding: "6px 6px", color: T.txH, textAlign: "center" }}>{c.day || "-"}</td>
                   <td style={{ padding: "6px 6px", color: T.tx, whiteSpace: "nowrap" }}>{c.per || "-"}</td>
                   <td style={{ padding: "6px 6px", color: T.tx, fontFamily: "monospace", fontSize: 11 }}>{c.room || "-"}</td>
+                  <td style={{ padding: "6px 6px" }}>{c.building ? <Badge text={c.building} color={T.blue || "#3b82f6"} /> : "-"}</td>
                   <td style={{ padding: "6px 6px" }}>{c.quarter ? <Badge text={c.quarter} color={T.green} /> : "-"}</td>
                 </tr>
               ))}
