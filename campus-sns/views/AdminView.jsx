@@ -1038,7 +1038,20 @@ const SyllabusTab = () => {
   const filtered = courses.filter(c => {
     if (filterYear && c.year !== filterYear) return false;
     if (filterDept && c.dept !== filterDept) return false;
-    if (filterQuarter && c.quarter !== filterQuarter) return false;
+    if (filterQuarter) {
+      if (!c.quarter) return false;
+      // Match individual quarter: "1Q" matches "1-2Q", "1・3Q", "1Q"
+      const q = parseInt(filterQuarter);
+      const m = c.quarter.match(/(\d)[・\-]?(\d)?Q/);
+      if (!m) return false;
+      const q1 = parseInt(m[1]);
+      const q2 = m[2] ? parseInt(m[2]) : q1;
+      // Range (1-2Q): check if q is between q1 and q2
+      // Non-contiguous (1・3Q): check if q is q1 or q2
+      const isRange = c.quarter.includes('-');
+      if (isRange) { if (q < q1 || q > q2) return false; }
+      else { if (q !== q1 && q !== q2) return false; }
+    }
     if (filterDay && c.day !== filterDay) return false;
     if (search) {
       const s = search.toLowerCase();
@@ -1112,7 +1125,7 @@ const SyllabusTab = () => {
         </select>
         <select value={filterQuarter} onChange={e => setFilterQuarter(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
           <option value="">全クォーター</option>
-          {uniqueQuarters.map(q => <option key={q} value={q}>{q}</option>)}
+          {["1", "2", "3", "4"].map(q => <option key={q} value={q}>{q}Q</option>)}
         </select>
         <select value={filterDay} onChange={e => setFilterDay(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
           <option value="">全曜日</option>
