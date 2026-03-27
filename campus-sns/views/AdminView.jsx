@@ -1200,7 +1200,7 @@ const SyllabusTab = () => {
                   <td style={{ padding: "6px 6px", color: T.txH, textAlign: "center" }}>{c.day || "-"}</td>
                   <td style={{ padding: "6px 6px", color: T.tx, whiteSpace: "nowrap" }}>{c.per || "-"}</td>
                   <td style={{ padding: "6px 6px", color: T.tx, fontFamily: "monospace", fontSize: 11 }}>{c.room || "-"}</td>
-                  <td style={{ padding: "6px 6px" }}>{c.building ? <Badge text={c.building} color={T.blue || "#3b82f6"} /> : "-"}</td>
+                  <td style={{ padding: "6px 6px", whiteSpace: "nowrap" }}>{c.building ? c.building.split(", ").map(b => <Badge key={b} text={b} color={T.blue || "#3b82f6"} />) : "-"}</td>
                   <td style={{ padding: "6px 6px" }}>{c.quarter ? <Badge text={c.quarter} color={T.green} /> : "-"}</td>
                 </tr>
               ))}
