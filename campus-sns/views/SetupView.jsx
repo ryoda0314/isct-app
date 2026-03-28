@@ -366,8 +366,9 @@ function ErrorBanner({ error }) {
    mode="login"  → ログイン（ISCT資格情報のみ）
    mode="signup" → 新規登録ウィザード（step 0〜2）
    ================================================================ */
-export const SetupView = ({ onComplete, onSkip, mob }) => {
+export const SetupView = ({ onComplete, onSkip, personas, mob }) => {
   const [mode, setMode] = useState(null);
+  const [showPersonaPicker, setShowPersonaPicker] = useState(false);
   const [step, setStep] = useState(0);
   const [connecting, setConnecting] = useState(false);
   const [privacyAgreed, setPrivacyAgreed] = useState(() => {
@@ -582,10 +583,42 @@ export const SetupView = ({ onComplete, onSkip, mob }) => {
               }}>{ICN.login} ログイン</button>
             </div>
             {!privacyAgreed && <p style={{ fontSize: 11, color: T.txD, textAlign: "center", marginTop: 10 }}>利用するには利用規約・プライバシーポリシーへの同意が必要です</p>}
-            <button onClick={onSkip} style={{
+            <button onClick={() => setShowPersonaPicker(true)} style={{
               background: "none", border: "none", color: T.txD, fontSize: 13,
               cursor: "pointer", marginTop: 16, textAlign: "center", padding: 8, width: "100%",
             }}>スキップ（デモモードで表示）</button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ ペルソナ選択モーダル ═══ */}
+      {showPersonaPicker && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.5)", padding: 16 }} onClick={() => setShowPersonaPicker(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 380, background: T.bg2, borderRadius: 16, border: `1px solid ${T.bd}`, overflow: "hidden", animation: "fadeIn .2s ease" }}>
+            <div style={{ padding: "18px 20px 12px", borderBottom: `1px solid ${T.bd}` }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>テストユーザーを選択</div>
+              <div style={{ fontSize: 12, color: T.txD, marginTop: 4 }}>学部ごとの時間割・課題を体験できます</div>
+            </div>
+            <div style={{ padding: "8px 12px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
+              {(personas || []).map(p => (
+                <button key={p.id} onClick={() => { setShowPersonaPicker(false); onSkip(p.id); }}
+                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg3, cursor: "pointer", textAlign: "left", transition: "background .15s" }}
+                  onMouseEnter={e => e.currentTarget.style.background = T.bg2}
+                  onMouseLeave={e => e.currentTarget.style.background = T.bg3}
+                >
+                  <div style={{ width: 42, height: 42, borderRadius: 12, background: `${p.schoolCol}18`, border: `1px solid ${p.schoolCol}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{p.icon}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{p.name}</div>
+                    <div style={{ fontSize: 12, color: p.schoolCol, fontWeight: 500, marginTop: 1 }}>{p.school} {p.dept}</div>
+                    <div style={{ fontSize: 11, color: T.txD, marginTop: 1 }}>{p.year} ・ {(p.q[2] || []).length}科目履修中</div>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+              ))}
+            </div>
+            <div style={{ padding: "8px 12px 14px" }}>
+              <button onClick={() => setShowPersonaPicker(false)} style={{ width: "100%", padding: "10px 0", borderRadius: 10, border: `1px solid ${T.bd}`, background: "transparent", color: T.txD, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>キャンセル</button>
+            </div>
           </div>
         </div>
       )}
