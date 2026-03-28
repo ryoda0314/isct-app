@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 import { createSessionToken, sessionCookieOptions, COOKIE_NAME } from '../../../../../lib/auth/session.js';
 import { getSupabaseAdmin } from '../../../../../lib/supabase/server.js';
+import { invalidateToken } from '../../../../../lib/auth/token-manager.js';
 
 const scrypt = promisify(crypto.scrypt);
 
@@ -52,6 +53,9 @@ export async function POST(request) {
         );
       }
     } catch {}
+
+    // Reset circuit breaker so getToken can re-attempt SSO after login
+    invalidateToken(auth.login_id);
 
     const token = createSessionToken(auth.login_id, auth.moodle_id);
     const response = NextResponse.json({ success: true, moodleUserId: auth.moodle_id });

@@ -282,7 +282,7 @@ export default function App(){
   useEffect(()=>{try{localStorage.setItem("quarter",String(quarter));}catch{}},[quarter]);
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
   useEffect(()=>{try{localStorage.setItem("notifSettings",JSON.stringify(notifSettings));}catch{}},[notifSettings]);
-  const onSetupComplete=async()=>{await fetchData();setAppState("ready");refreshRef.current=setInterval(fetchData,15*60*1000);};
+  const onSetupComplete=async()=>{const ok=await fetchData();if(ok){setAppState("ready");refreshRef.current=setInterval(fetchData,15*60*1000);}else{console.error("[App] fetchData failed after setup, retrying in 3s...");setTimeout(async()=>{const retry=await fetchData();if(retry){setAppState("ready");refreshRef.current=setInterval(fetchData,15*60*1000);}else{console.error("[App] fetchData retry also failed");setAppState("setup");}},3000);}};
   const onDemo=()=>{setDemoMode(true);setAllCourses(DEMO_COURSES);setQDataLive(DEMO_QDATA);setAsgn(DEMO_ASGN.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setCurrentUserFromAPI(DEMO_USER);setCid(DEMO_COURSES[0].id);circleInit();try{localStorage.setItem("myLocation","lib");}catch{}setAppState("ready");};
 
   const cc=allCourses.find(c=>c.id===cid);
