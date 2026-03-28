@@ -21,9 +21,16 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
     }
 
-    const users = await fetchEnrolledUsers(wstoken, Number(courseid));
+    let users;
+    try {
+      users = await fetchEnrolledUsers(wstoken, Number(courseid));
+    } catch (e) {
+      console.error(`[Members] fetchEnrolledUsers failed for course ${courseid}:`, e.message);
+      // Moodle may deny access (missing capability) — return empty list instead of 500
+      return NextResponse.json({ members: [] });
+    }
 
-    const members = users.map(u => ({
+    const members = (users || []).map(u => ({
       id: u.id,
       name: u.fullname || '',
       avatar: u.profileimageurl || '',
@@ -31,7 +38,7 @@ export async function GET(request) {
 
     return NextResponse.json({ members });
   } catch (err) {
-    console.error('[members]', err.message);
+    console.error('[Members] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

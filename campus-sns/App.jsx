@@ -138,7 +138,6 @@ export default function App(){
   const [quarter,setQuarter]=useState(()=>{try{const v=localStorage.getItem("quarter");return v?Number(v):2;}catch{return 2;}});
   const [qDataLive,setQDataLive]=useState(null);
   const qd=(qDataLive&&qDataLive[quarter])||QData[quarter]||{C:[],TT:[]};
-  console.log("[App][DEBUG] qd derivation:", {quarter, hasQDataLive:!!qDataLive, qDataLiveKeys:qDataLive?Object.keys(qDataLive):[], selectedQHasData:!!(qDataLive&&qDataLive[quarter]), coursesInQd:qd.C?.length??0, ttFilledCells:qd.TT?.flat?.()?.filter(Boolean)?.length??0});
   const [allCourses,setAllCourses]=useState([]);
   const [view,setViewRaw]=useState("home");
   const viewHistRef=useRef([]);
