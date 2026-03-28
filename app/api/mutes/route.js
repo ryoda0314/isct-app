@@ -15,7 +15,8 @@ export async function GET(request) {
       .order('created_at', { ascending: false });
     if (error) throw error;
     return NextResponse.json(data || []);
-  } catch {
+  } catch (err) {
+    console.error('[Mutes] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

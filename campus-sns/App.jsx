@@ -214,7 +214,7 @@ export default function App(){
     try{
       const r=await fetch(`${API}/api/data/all`);
       if(r.status===401){setAppState("setup");return false;}
-      if(!r.ok) return false;
+      if(!r.ok){console.error(`[App] /api/data/all failed: ${r.status} ${r.statusText}`);return false;}
       const d=await r.json();
       console.log("[App][DEBUG] /api/data/all response:", JSON.stringify({
         hasQData: !!d.qData,

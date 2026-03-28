@@ -90,6 +90,7 @@ export async function GET(request) {
     const isAdmin = await checkAdmin(userid);
     return NextResponse.json({ qData, courses, assignments, user: { userid, fullname, isAdmin } });
   } catch (err) {
+    console.error('[All] Unhandled error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
