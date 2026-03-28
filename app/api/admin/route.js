@@ -678,6 +678,14 @@ export async function POST(request) {
       return NextResponse.json({ ok: true });
     }
 
+    // --- Clear syllabus schedule cache ---
+    if (action === 'clear_schedule_cache') {
+      const { clearScheduleCache } = await import('../../../lib/api/syllabus-scraper.js');
+      clearScheduleCache();
+      await auditLog(sb, auth.userid, 'clear_schedule_cache', 'syllabus', '');
+      return NextResponse.json({ ok: true });
+    }
+
     // --- Syllabus scrape (per department + year) ---
     if (action === 'scrape_syllabus') {
       const { dept, year } = body;
