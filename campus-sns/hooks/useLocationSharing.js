@@ -412,12 +412,20 @@ export const getSpot = id => spotMap[id] || null;
 // M-278(H121)→本館, I1-256(I121)→石川台1号館, SL-101(S011)→南講義棟
 export function roomToSpot(room) {
   if (!room || room === '未設定') return null;
+  // カンマ区切り: 各パートを順に試す ("建築製図室, W9-511設計製図室" etc.)
+  if (/[,、]/.test(room)) {
+    for (const part of room.split(/[,、]\s*/)) {
+      const spot = roomToSpot(part.trim());
+      if (spot) return spot;
+    }
+    return null;
+  }
   let m;
-  // 複合建物コード: WL1→wl1, SL→sl, SE3→se3, NE2→ne2, IE1→ie1
-  m = room.match(/^(WL|SL|SE|NE|IE)(\d?)-/);
-  if (m) return spotMap[`${m[1].toLowerCase()}${m[2]}`] || null;
-  // W2-401, S2-203, E1-xxx, I1-256, I3-203 (1文字+数字-教室番号)
-  m = room.match(/^([WSEI])(\d)-/);
+  // 複合建物コード: WL1→wl1, SL→sl, SE3→se3, NE2→ne2, NE3A→ne3a, IE1→ie1
+  m = room.match(/^(WL|SL|SE|NE|IE)(\d?[A-Z]?)-/);
+  if (m) { const id = `${m[1].toLowerCase()}${m[2].toLowerCase()}`; return spotMap[id === 'ne3' ? 'ne3a' : id] || null; }
+  // W2-401, S2-203, E1-xxx, I1-256, W8E-306 (1文字+数字+末尾文字許容)
+  m = room.match(/^([WSEI])(\d)[A-Z]*-/);
   if (m) {
     const prefix = {W:'w',S:'s',E:'e',I:'i'}[m[1]];
     return spotMap[`${prefix}${m[2]}`] || null;
@@ -436,8 +444,15 @@ export function roomToSpot(room) {
   m = room.match(/^(?:石川台|石)(\d)号館/); if (m) return spotMap[`i${m[1]}`] || null;
   m = room.match(/^西(\d)号館/); if (m) return spotMap[`w${m[1]}`] || null;
   m = room.match(/^南(\d)号館/); if (m) return spotMap[`s${m[1]}`] || null;
-  // N-xx → 北1号館
-  if (/^N-/.test(room)) return spotMap['n1'] || null;
+  // N + (任意の数字) + - → 北x号館
+  m = room.match(/^N(\d)?-/);
+  if (m) return spotMap[`n${m[1] || '1'}`] || null;
+  // 日本語特殊教室名 → 建物SPOT
+  if (/建築製図室/.test(room)) return spotMap['w5'] || null;
+  if (/GSIC/.test(room)) return spotMap['s3'] || null;
+  if (/情報工学系計算機室/.test(room)) return spotMap['w8'] || null;
+  if (/情報ネットワーク演習室/.test(room)) return spotMap['s4'] || null;
+  if (/屋内運動場/.test(room)) return spotMap['gym'] || null;
   return null;
 }
 
