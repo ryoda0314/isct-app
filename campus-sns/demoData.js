@@ -35,11 +35,10 @@ function buildDemoTT(courses) {
   return grid;
 }
 
+// NOTE: 全クォーターの qdata は buildDemoDataForPersona() で動的生成される
+// この定数は後方互換用（直接参照している箇所向け）
 const DEMO_QDATA = {
-  1: { C: CSC_Q1, TT: buildDemoTT(CSC_Q1) },
-  2: { C: DEMO_COURSES, TT: buildDemoTT(DEMO_COURSES) },
-  3: { C: CSC_Q3, TT: buildDemoTT(CSC_Q3) },
-  4: { C: CSC_Q4, TT: buildDemoTT(CSC_Q4) },
+  2: { C: DEMO_COURSES, TT: buildDemoTT(DEMO_COURSES) }
 };
 
 // ── 課題 ──
