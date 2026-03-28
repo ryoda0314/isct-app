@@ -754,7 +754,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
                 const sel=themePref===m.id;
                 return <button key={m.id} onClick={e=>{e.stopPropagation();setThemePref?.(m.id);}}
                   style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:"transparent",color:sel?m.col:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
-                  <span style={{marginRight:4}}>{m.emoji}</span>{m.name}
+                  <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:m.col,marginRight:6,verticalAlign:"middle"}}/>{m.name}
                 </button>;
               })}
             </div>

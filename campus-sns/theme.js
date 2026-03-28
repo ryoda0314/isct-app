@@ -68,12 +68,12 @@ const TMDU = {
 };
 
 const SCITOKYO = {
-  bg:"#10101c", bg2:"#161628", bg3:"#1e1e34", bg4:"#262640",
-  hover:"#2e2e4c", accent:"#5c3ec4", accentSoft:"#7c5ee8",
+  bg:"#121218", bg2:"#18181f", bg3:"#202028", bg4:"#282832",
+  hover:"#30303c", accent:"#6e58a8", accentSoft:"#8a78c0",
   green:"#3dae72", red:"#e5534b", orange:"#d4843e", yellow:"#c6a236",
-  tx:"#a0a0c0", txH:"#d8d8f0", txD:"#606080",
-  bd:"#262640", bdL:"#363654",
-  on:"#3dae72", idle:"#c6a236", off:"#505068",
+  tx:"#a0a0b4", txH:"#d4d4e4", txD:"#646478",
+  bd:"#282834", bdL:"#363644",
+  on:"#3dae72", idle:"#c6a236", off:"#505060",
 };
 
 // ── 季節テーマ ──────────────────────────────────
@@ -187,13 +187,13 @@ export const THEME_MODES = {
     { id:"scitokyo", name:"Science Tokyo", col:"#5c3ec4" },
   ],
   soft: [
-    { id:"sakura",   name:"桜",       col:"#d4507a", emoji:"🌸" },
-    { id:"lavender", name:"ラベンダー", col:"#8b60c8", emoji:"💜" },
-    { id:"mint",     name:"ミント",    col:"#3a9878", emoji:"🍃" },
-    { id:"sky",      name:"スカイ",    col:"#4a80c8", emoji:"☁️" },
-    { id:"peach",    name:"ピーチ",    col:"#d07848", emoji:"🍑" },
-    { id:"lemon",    name:"レモン",    col:"#a89030", emoji:"🍋" },
-    { id:"coral",    name:"コーラル",  col:"#d0605a", emoji:"🪸" },
+    { id:"sakura",   name:"桜",       col:"#d4507a" },
+    { id:"lavender", name:"ラベンダー", col:"#8b60c8" },
+    { id:"mint",     name:"ミント",    col:"#3a9878" },
+    { id:"sky",      name:"スカイ",    col:"#4a80c8" },
+    { id:"peach",    name:"ピーチ",    col:"#d07848" },
+    { id:"lemon",    name:"レモン",    col:"#a89030" },
+    { id:"coral",    name:"コーラル",  col:"#d0605a" },
   ],
   season: [
     { id:"shinryoku",name:"新緑", col:"#2e8b57", emoji:"🌿" },
