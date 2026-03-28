@@ -174,12 +174,9 @@ const CORAL = {
 
 export const THEME_MODES = {
   base: [
-    { id:"dark",  name:"ダーク"   },
-    { id:"dim",   name:"ディム"   },
-    { id:"light", name:"ライト"   },
-    { id:"oled",  name:"OLED"     },
-    { id:"sepia", name:"セピア"   },
-    { id:"auto",  name:"自動"     },
+    { id:"dark",  name:"ダーク" },
+    { id:"light", name:"ライト" },
+    { id:"auto",  name:"自動"   },
   ],
   brand: [
     { id:"titech",   name:"東工大ブルー", col:"#1e7ac8" },
