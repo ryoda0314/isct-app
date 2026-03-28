@@ -3,6 +3,8 @@ import { verifySession, COOKIE_NAME } from '../../../../../lib/auth/session.js';
 import { getSupabaseAdmin } from '../../../../../lib/supabase/server.js';
 
 const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+const DELAY_PER_ATTEMPT = [0, 0, 1000, 2000, 4000]; // exponential backoff (ms)
 
 /** POST: 確認コードを検証してメール連携を確定 */
 export async function POST(request) {
@@ -37,11 +39,15 @@ export async function POST(request) {
       return NextResponse.json({ error: '確認コードの有効期限が切れました。再度送信してください' }, { status: 410 });
     }
 
-    // Attempt limit
+    // Attempt limit with lockout
     if (record.attempts >= MAX_ATTEMPTS) {
       await sb.from('email_verification').delete().eq('email', email.toLowerCase());
-      return NextResponse.json({ error: '試行回数の上限に達しました。再度メールアドレスを送信してください' }, { status: 429 });
+      return NextResponse.json({ error: '試行回数の上限に達しました。15分後に再度お試しください' }, { status: 429 });
     }
+
+    // Exponential backoff delay
+    const delay = DELAY_PER_ATTEMPT[Math.min(record.attempts, DELAY_PER_ATTEMPT.length - 1)];
+    if (delay > 0) await new Promise(r => setTimeout(r, delay));
 
     // Wrong code — increment attempts
     if (record.code !== code.trim()) {

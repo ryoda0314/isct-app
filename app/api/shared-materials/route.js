@@ -6,6 +6,8 @@ const toMoodleId = (id) => id?.startsWith('mc_') ? id.slice(3) : id;
 
 // H4: File upload restrictions
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_USER_STORAGE = 100 * 1024 * 1024; // 100MB total per user
+const MAX_UPLOADS_PER_HOUR = 20;
 const BLOCKED_EXTENSIONS = new Set([
   '.html', '.htm', '.xhtml', '.js', '.jsx', '.ts', '.tsx',
   '.svg', '.xml', '.php', '.asp', '.aspx', '.jsp',
@@ -47,7 +49,7 @@ export async function GET(request) {
 
     return NextResponse.json(files);
   } catch (err) {
-    console.error('[SharedMaterials] GET error:', err.message, err.stack);
+    console.error('[SharedMaterials] GET error:', err.message);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -84,6 +86,23 @@ export async function POST(request) {
     }
 
     const sb = getSupabaseAdmin();
+
+    // Per-user quota: total storage and upload rate
+    const { data: userFiles } = await sb
+      .from('shared_materials')
+      .select('filesize, created_at')
+      .eq('moodle_user_id', userid);
+    if (userFiles) {
+      const totalBytes = userFiles.reduce((sum, f) => sum + (f.filesize || 0), 0);
+      if (totalBytes + file.size > MAX_USER_STORAGE) {
+        return NextResponse.json({ error: 'ストレージ上限(100MB)に達しています' }, { status: 400 });
+      }
+      const oneHourAgo = new Date(Date.now() - 3600_000).toISOString();
+      const recentCount = userFiles.filter(f => f.created_at > oneHourAgo).length;
+      if (recentCount >= MAX_UPLOADS_PER_HOUR) {
+        return NextResponse.json({ error: 'アップロード頻度の上限です。しばらくお待ちください' }, { status: 429 });
+      }
+    }
 
     await sb.from('profiles').upsert(
       { moodle_id: userid, name: fullname || `User ${userid}` },

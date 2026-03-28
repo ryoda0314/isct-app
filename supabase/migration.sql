@@ -64,9 +64,7 @@ alter table notifications enable row level security;
 
 create policy "anon_select_profiles" on profiles for select to anon using (true);
 create policy "anon_select_messages" on messages for select to anon using (true);
-create policy "anon_select_dm_conversations" on dm_conversations for select to anon using (true);
-create policy "anon_select_dm_messages" on dm_messages for select to anon using (true);
-create policy "anon_select_notifications" on notifications for select to anon using (true);
+-- dm_conversations, dm_messages, notifications: anon アクセ��不可 (service_role のみ)
 
 -- 7. Realtime有効化
 -- Supabase Dashboard → Database → Replication で以下を有効化:
@@ -111,7 +109,7 @@ create table if not exists friendships (
 create index if not exists idx_friendships_requester on friendships(requester_id, status);
 create index if not exists idx_friendships_addressee on friendships(addressee_id, status);
 alter table friendships enable row level security;
-create policy "anon_select_friendships" on friendships for select to anon using (true);
+-- friendships: anon アクセス不可 (service_role のみ)
 alter publication supabase_realtime add table friendships;
 
 -- 10. groups: グループ
@@ -148,9 +146,7 @@ alter table groups enable row level security;
 alter table group_members enable row level security;
 alter table group_messages enable row level security;
 
-create policy "anon_select_groups" on groups for select to anon using (true);
-create policy "anon_select_group_members" on group_members for select to anon using (true);
-create policy "anon_select_group_messages" on group_messages for select to anon using (true);
+-- groups, group_members, group_messages: anon アクセス不可 (service_role のみ)
 
 alter publication supabase_realtime add table group_members;
 alter publication supabase_realtime add table group_messages;
@@ -194,7 +190,7 @@ create table if not exists bookmarks (
 );
 create index if not exists idx_bookmarks_user on bookmarks(moodle_user_id);
 alter table bookmarks enable row level security;
-create policy "anon_select_bookmarks" on bookmarks for select to anon using (true);
+-- bookmarks: anon アクセス不可 (service_role の��)
 
 -- 16. posts 拡張カラム
 alter table posts add column if not exists poll_options jsonb;
@@ -235,7 +231,7 @@ create table if not exists event_rsvps (
   unique(event_id, moodle_user_id)
 );
 alter table event_rsvps enable row level security;
-create policy "anon_select_event_rsvps" on event_rsvps for select to anon using (true);
+-- event_rsvps: anon アクセス不可 (service_role のみ)
 
 -- 22. user_credentials: 暗号化クレデンシャルの永続化 (Vercelコールドスタート対策)
 create table if not exists user_credentials (

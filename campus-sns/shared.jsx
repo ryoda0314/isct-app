@@ -2,13 +2,17 @@ import React, { useState, useEffect, useMemo } from "react";
 import { T } from "./theme.js";
 import { I } from "./icons.jsx";
 
+// --- CDN Loader Helpers (with SRI) ---
+const _loadCSS=(href,integrity)=>{const el=document.createElement("link");el.rel="stylesheet";el.href=href;if(integrity){el.integrity=integrity;el.crossOrigin="anonymous";}document.head.appendChild(el);};
+const _loadJS=(src,integrity,onload)=>{const el=document.createElement("script");el.src=src;if(integrity){el.integrity=integrity;el.crossOrigin="anonymous";}if(onload)el.onload=onload;document.head.appendChild(el);return el;};
+
 // --- KaTeX Loader ---
 const useKatex=()=>{
   const [ready,setReady]=useState(typeof window!=="undefined"&&!!window.katex);
   useEffect(()=>{
     if(window.katex){setReady(true);return;}
-    const css=document.createElement("link");css.rel="stylesheet";css.href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css";document.head.appendChild(css);
-    const js=document.createElement("script");js.src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js";js.onload=()=>setReady(true);document.head.appendChild(js);
+    _loadCSS("https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css","sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV");
+    _loadJS("https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js","sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8",()=>setReady(true));
   },[]);
   return ready;
 };
@@ -18,7 +22,7 @@ const useQRCode=()=>{
   const [ready,setReady]=useState(typeof window!=="undefined"&&!!window.qrcode);
   useEffect(()=>{
     if(window.qrcode){setReady(true);return;}
-    const js=document.createElement("script");js.src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js";js.onload=()=>setReady(true);document.head.appendChild(js);
+    _loadJS("https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js","sha384-mZT2gIty7ZDdOGkxfP6joZcYdMW1Jvj9dRlfpTmaJAKKXTqzygtB22k7FLe+KZC1",()=>setReady(true));
   },[]);
   return ready;
 };
@@ -28,10 +32,10 @@ const useLeaflet=()=>{
   const [ready,setReady]=useState(typeof window!=="undefined"&&!!window.L);
   useEffect(()=>{
     if(window.L){setReady(true);return;}
-    const css=document.createElement("link");css.rel="stylesheet";css.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";document.head.appendChild(css);
-    const js=document.createElement("script");js.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";js.onload=()=>{
+    _loadCSS("https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css","sha384-c6Rcwz4e4CITMbu/NBmnNS8yN2sC3cUElMEMfP3vqqKFp7GOYaaBBCqmaWBjmkjb");
+    _loadJS("https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js","sha384-NElt3Op+9NBMCYaef5HxeJmU4Xeard/Lku8ek6hoPTvYkQPh3zLIrJP7KiRocsxO",()=>{
       const rot=document.createElement("script");rot.src="/js/leaflet-rotate-src.js";rot.onload=()=>setReady(true);rot.onerror=()=>setReady(true);document.head.appendChild(rot);
-    };document.head.appendChild(js);
+    });
   },[]);
   return ready;
 };
@@ -41,8 +45,8 @@ const useHighlight=()=>{
   const [ready,setReady]=useState(typeof window!=="undefined"&&!!window.hljs);
   useEffect(()=>{
     if(window.hljs){setReady(true);return;}
-    const css=document.createElement("link");css.rel="stylesheet";css.href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css";document.head.appendChild(css);
-    const js=document.createElement("script");js.src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js";js.onload=()=>setReady(true);document.head.appendChild(js);
+    _loadCSS("https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css","sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH");
+    _loadJS("https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js","sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp",()=>setReady(true));
   },[]);
   return ready;
 };
@@ -89,13 +93,15 @@ const Tx=({children,style:s})=>{
       out=out.replace(/\$(.+?)\$/g,(_,m)=>{
         try{return ph(window.katex.renderToString(m,{displayMode:false,throwOnError:false}));}catch{return _;}
       });
-      // 3) Text-level formatting (safe — no HTML in these segments)
+      // 3) Text-level formatting — escape all captured content
       // bold
-      out=out.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+      out=out.replace(/\*\*(.+?)\*\*/g,(_,text)=>ph(`<strong>${_esc(text)}</strong>`));
       // @mentions → placeholder (protect color codes like #6375f0 from hashtag regex)
       out=out.replace(/@(\S+)/g,(_,name)=>ph(`<span style="color:#6375f0;font-weight:600">@${_esc(name)}</span>`));
       // #hashtags
       out=out.replace(/#([^\s#]+)/g,(_,tag)=>ph(`<span class="hashtag" style="color:#6375f0;font-weight:500;cursor:pointer" data-tag="${_esc(tag)}">#${_esc(tag)}</span>`));
+      // 3.5) Escape remaining plain text (everything outside placeholders)
+      out=out.split(/(\x00\d+\x00)/g).map((seg,i)=>i%2===0?_esc(seg):seg).join('');
       // 4) Restore placeholders
       out=out.replace(/\x00(\d+)\x00/g,(_,i)=>held[+i]);
       return out;

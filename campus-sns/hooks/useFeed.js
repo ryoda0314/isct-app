@@ -50,7 +50,7 @@ export function useFeed(courseId) {
     (async () => {
       try {
         const r = await fetch(`/api/posts?course_id=${courseId}&limit=${PAGE_SIZE}`);
-        if (!r.ok) { console.error('[useFeed GET]', r.status, await r.text()); setLoading(false); return; }
+        if (!r.ok) { console.error('[useFeed GET]', r.status); setLoading(false); return; }
         const res = await r.json();
         // Support both old format (array) and new format ({posts, hasMore})
         const data = Array.isArray(res) ? res : res.posts || [];
@@ -227,7 +227,7 @@ export function useFeed(courseId) {
           post.id === tempId ? mapPost(p) : post
         ));
       } else {
-        console.error('[useFeed POST]', r.status, await r.text());
+        console.error('[useFeed POST]', r.status);
         setPosts(prev => prev.filter(p => p.id !== tempId));
         idsRef.current.delete(tempId);
         showToast('投稿に失敗しました');

@@ -26,7 +26,7 @@ export function useChat(courseId) {
     (async () => {
       try {
         const r = await fetch(`/api/messages?course_id=${courseId}`);
-        if (!r.ok) { console.error('[useChat GET]', r.status, await r.text()); setLoading(false); return; }
+        if (!r.ok) { console.error('[useChat GET]', r.status); setLoading(false); return; }
         const data = await r.json();
         const msgs = data.map(m => ({
           id: m.id,
@@ -128,7 +128,7 @@ export function useChat(courseId) {
           } : msg
         ));
       } else {
-        console.error('[useChat POST]', r.status, await r.text());
+        console.error('[useChat POST]', r.status);
       }
     } catch (e) { console.error('[useChat POST error]', e); }
   }, [courseId]);
