@@ -745,6 +745,19 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
                 </button>;
               })}
             </div>
+            {/* ソフトテーマ */}
+            <div style={{marginTop:12,marginBottom:4}}>
+              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>ソフト</span>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {THEME_MODES.soft.map(m=>{
+                const sel=themePref===m.id;
+                return <button key={m.id} onClick={e=>{e.stopPropagation();setThemePref?.(m.id);}}
+                  style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:"transparent",color:sel?m.col:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
+                  <span style={{marginRight:4}}>{m.emoji}</span>{m.name}
+                </button>;
+              })}
+            </div>
             {/* 季節テーマ */}
             <div style={{marginTop:12,marginBottom:4}}>
               <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>季節</span>
@@ -764,10 +777,10 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
               <span style={{color:T.txD,display:"flex"}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12" r="2.5"/><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12a10 10 0 005.012 8.662"/></svg></span>
               <span style={{fontSize:13,fontWeight:600,color:T.txH}}>テーマカラー</span>
-              {["titech","tmdu","scitokyo","sakura","shinryoku","koyo","yuki"].includes(themePref)&&
+              {["titech","tmdu","scitokyo","sakura","shinryoku","koyo","yuki","lavender","mint","sky","peach","lemon","coral"].includes(themePref)&&
                 <span style={{fontSize:10,color:T.txD,fontStyle:"italic"}}>(ブランド・季節テーマでは固定)</span>}
             </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:8,opacity:["titech","tmdu","scitokyo","sakura","shinryoku","koyo","yuki"].includes(themePref)?0.4:1,pointerEvents:["titech","tmdu","scitokyo","sakura","shinryoku","koyo","yuki"].includes(themePref)?"none":"auto",transition:"opacity .15s"}}>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8,opacity:["titech","tmdu","scitokyo","sakura","shinryoku","koyo","yuki","lavender","mint","sky","peach","lemon","coral"].includes(themePref)?0.4:1,pointerEvents:["titech","tmdu","scitokyo","sakura","shinryoku","koyo","yuki","lavender","mint","sky","peach","lemon","coral"].includes(themePref)?"none":"auto",transition:"opacity .15s"}}>
               {ACCENT_PRESETS.map(p=>{
                 const sel=accentPref===p.id;
                 return <button key={p.id} onClick={e=>{e.stopPropagation();setAccentPref?.(p.id);}}

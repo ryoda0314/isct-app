@@ -114,6 +114,62 @@ const YUKI = {
   on:"#3a9060", idle:"#a89030", off:"#a0aab4",
 };
 
+// ── ソフトテーマ（春トーンのカラーバリエーション）───
+
+const LAVENDER = {
+  bg:"#f6f3fd", bg2:"#faf8ff", bg3:"#eee8f8", bg4:"#e4dcf0",
+  hover:"#d8cee8", accent:"#8b60c8", accentSoft:"#a680e0",
+  green:"#4a9060", red:"#d44050", orange:"#d08040", yellow:"#b89030",
+  tx:"#5e4870", txH:"#221430", txD:"#9480a8",
+  bd:"#ddd4ea", bdL:"#cec4de",
+  on:"#4a9060", idle:"#b89030", off:"#ada0b8",
+};
+
+const MINT = {
+  bg:"#f0f8f5", bg2:"#f6fcf9", bg3:"#e2f0ea", bg4:"#d4e6dc",
+  hover:"#c6dcd0", accent:"#3a9878", accentSoft:"#58b898",
+  green:"#3a9878", red:"#d44050", orange:"#d08040", yellow:"#b89030",
+  tx:"#406858", txH:"#142820", txD:"#80a894",
+  bd:"#cce0d4", bdL:"#bcd4c6",
+  on:"#3a9878", idle:"#b89030", off:"#a0b4a8",
+};
+
+const SKY = {
+  bg:"#f0f5fc", bg2:"#f6faff", bg3:"#e2ecf8", bg4:"#d4e0f0",
+  hover:"#c6d4e8", accent:"#4a80c8", accentSoft:"#689ce0",
+  green:"#4a9060", red:"#d44050", orange:"#d08040", yellow:"#b89030",
+  tx:"#405868", txH:"#141e30", txD:"#8098b0",
+  bd:"#ccd8e8", bdL:"#bccadc",
+  on:"#4a9060", idle:"#b89030", off:"#a0acb8",
+};
+
+const PEACH = {
+  bg:"#fdf5f0", bg2:"#fff9f5", bg3:"#f8ece4", bg4:"#f0dfd4",
+  hover:"#e8d2c6", accent:"#d07848", accentSoft:"#e09468",
+  green:"#4a9060", red:"#d44050", orange:"#d07848", yellow:"#b89030",
+  tx:"#6e5040", txH:"#2e1c14", txD:"#a88878",
+  bd:"#e8d4c8", bdL:"#dcc6b8",
+  on:"#4a9060", idle:"#b89030", off:"#b8a8a0",
+};
+
+const LEMON = {
+  bg:"#faf8f0", bg2:"#fdfcf5", bg3:"#f2eee2", bg4:"#e8e2d4",
+  hover:"#ded8c8", accent:"#a89030", accentSoft:"#c0a850",
+  green:"#4a9060", red:"#d44050", orange:"#d08040", yellow:"#a89030",
+  tx:"#605840", txH:"#282014", txD:"#a09878",
+  bd:"#e0dac6", bdL:"#d4ccb6",
+  on:"#4a9060", idle:"#a89030", off:"#b0a898",
+};
+
+const CORAL = {
+  bg:"#fdf4f2", bg2:"#fff8f6", bg3:"#f8e8e4", bg4:"#f0dcd6",
+  hover:"#e8d0c8", accent:"#d0605a", accentSoft:"#e0807a",
+  green:"#4a9060", red:"#d0605a", orange:"#d08040", yellow:"#b89030",
+  tx:"#6e4844", txH:"#2e1814", txD:"#a08078",
+  bd:"#e8d4d0", bdL:"#dcc4be",
+  on:"#4a9060", idle:"#b89030", off:"#b8a0a0",
+};
+
 // ── テーマモード定義 ──────────────────────────────
 
 export const THEME_MODES = {
@@ -130,8 +186,16 @@ export const THEME_MODES = {
     { id:"tmdu",     name:"医科歯科",     col:"#00897b" },
     { id:"scitokyo", name:"Science Tokyo", col:"#5c3ec4" },
   ],
+  soft: [
+    { id:"sakura",   name:"桜",       col:"#d4507a", emoji:"🌸" },
+    { id:"lavender", name:"ラベンダー", col:"#8b60c8", emoji:"💜" },
+    { id:"mint",     name:"ミント",    col:"#3a9878", emoji:"🍃" },
+    { id:"sky",      name:"スカイ",    col:"#4a80c8", emoji:"☁️" },
+    { id:"peach",    name:"ピーチ",    col:"#d07848", emoji:"🍑" },
+    { id:"lemon",    name:"レモン",    col:"#a89030", emoji:"🍋" },
+    { id:"coral",    name:"コーラル",  col:"#d0605a", emoji:"🪸" },
+  ],
   season: [
-    { id:"sakura",   name:"桜",   col:"#d4507a", emoji:"🌸" },
     { id:"shinryoku",name:"新緑", col:"#2e8b57", emoji:"🌿" },
     { id:"koyo",     name:"紅葉", col:"#d4782a", emoji:"🍁" },
     { id:"yuki",     name:"雪",   col:"#4a80b4", emoji:"❄️" },
@@ -142,6 +206,7 @@ const BASES = {
   dark:DARK, light:LIGHT, oled:OLED, dim:DIM, sepia:SEPIA,
   titech:TITECH, tmdu:TMDU, scitokyo:SCITOKYO,
   sakura:SAKURA, shinryoku:SHINRYOKU, koyo:KOYO, yuki:YUKI,
+  lavender:LAVENDER, mint:MINT, sky:SKY, peach:PEACH, lemon:LEMON, coral:CORAL,
 };
 
 // ── テーマカラープリセット ─────────────────────────
@@ -171,7 +236,7 @@ export let T = DARK;
 let _accentId = "default";
 
 // ブランド・季節テーマはアクセントカラー固定（テーマ自体がカラーを持つ）
-const FIXED_ACCENT_MODES = new Set(["titech","tmdu","scitokyo","sakura","shinryoku","koyo","yuki"]);
+const FIXED_ACCENT_MODES = new Set(["titech","tmdu","scitokyo","sakura","shinryoku","koyo","yuki","lavender","mint","sky","peach","lemon","coral"]);
 
 export const updateT = (mode, accentId) => {
   if (accentId !== undefined) _accentId = accentId;
@@ -191,7 +256,7 @@ export const updateT = (mode, accentId) => {
 };
 
 // light系テーマの判定
-const LIGHT_MODES = new Set(["light","sepia","sakura","shinryoku","yuki"]);
+const LIGHT_MODES = new Set(["light","sepia","sakura","shinryoku","yuki","lavender","mint","sky","peach","lemon","coral"]);
 export const isDarkMode = (mode) => !LIGHT_MODES.has(mode);
 
-export { DARK, LIGHT, OLED, DIM, SEPIA, TITECH, TMDU, SCITOKYO, SAKURA, SHINRYOKU, KOYO, YUKI, ThemeCtx, useTheme };
+export { DARK, LIGHT, OLED, DIM, SEPIA, TITECH, TMDU, SCITOKYO, SAKURA, SHINRYOKU, KOYO, YUKI, LAVENDER, MINT, SKY, PEACH, LEMON, CORAL, ThemeCtx, useTheme };
