@@ -95,6 +95,6 @@ export async function GET(request) {
     return NextResponse.json({ qData, courses, assignments, user: { userid, fullname, isAdmin } });
   } catch (err) {
     console.error('[All] Unhandled error:', err.message, err.stack);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error', _debug: err.message, _stack: err.stack?.split('\n').slice(0, 5) }, { status: 500 });
   }
 }
