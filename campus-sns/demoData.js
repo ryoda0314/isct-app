@@ -692,7 +692,7 @@ const CSC_Q4 = [
 // ── 工学院 機械系 (MEC) ──
 const MEC_Q1 = [
   { id: "mc_q1_201", moodleId: 2101, code: "MEC.T101", name: "静力学", per: "月1-2", room: "S5-21", col: "#e5534b", mem: 130, quarter: 1, building: "s5", bldg: "南5号館" },
-  { id: "mc_q1_202", moodleId: 2102, code: "MCS.T201", name: "微分積分学第一", per: "火1-2", room: "W5-21", col: "#6375f0", mem: 200, quarter: 1, building: "w5", bldg: "西5号館" },
+  { id: "mc_q1_202", moodleId: 2102, code: "LAS.S201", name: "微分積分学第一", per: "火1-2", room: "W5-21", col: "#6375f0", mem: 200, quarter: 1, building: "w5", bldg: "西5号館" },
   { id: "mc_q1_203", moodleId: 2103, code: "LAS.M101", name: "物理学基礎", per: "水1-2", room: "W5-32", col: "#2d9d8f", mem: 180, quarter: 1, building: "w5", bldg: "西5号館" },
   { id: "mc_q1_204", moodleId: 2104, code: "LAS.A101", name: "英語第一 S", per: "木1-2", room: "W9-31", col: "#3dae72", mem: 30, quarter: 1, building: "w9", bldg: "西9号館" },
   { id: "mc_q1_205", moodleId: 2105, code: "MEC.T111", name: "製図基礎", per: "金3-4", room: "S5-115", col: "#b86040", mem: 50, quarter: 1, building: "s5", bldg: "南5号館" },
@@ -705,7 +705,7 @@ const MEC_Q2 = [
   { id: "mc_204", moodleId: 204, code: "MEC.T231", name: "機械力学", per: "水1-2", room: "W6-31", col: "#cf7c3e", mem: 95, quarter: 2, building: "w6", bldg: "西6号館" },
   { id: "mc_205", moodleId: 205, code: "MEC.T241", name: "機械製図", per: "水5-8", room: "S5-115", col: "#b86040", mem: 45, quarter: 2, building: "s5", bldg: "南5号館" },
   { id: "mc_206", moodleId: 206, code: "LAS.A101", name: "英語第二 S", per: "木1-2", room: "W9-31", col: "#3dae72", mem: 30, quarter: 2, building: "w9", bldg: "西9号館" },
-  { id: "mc_207", moodleId: 207, code: "MCS.T203", name: "微分積分学第二", per: "金1-2", room: "W5-21", col: "#6375f0", mem: 180, quarter: 2, building: "w5", bldg: "西5号館" },
+  { id: "mc_207", moodleId: 207, code: "LAS.S203", name: "微分積分学第二", per: "金1-2", room: "W5-21", col: "#6375f0", mem: 180, quarter: 2, building: "w5", bldg: "西5号館" },
   { id: "mc_208", moodleId: 208, code: "LAS.C103", name: "東工大立志プロジェクト", per: "金5-6", room: "WL1-301", col: "#c75d8e", mem: 200, quarter: 2, building: "wl1", bldg: "西講義棟1" },
 ];
 const MEC_Q3 = [
@@ -726,8 +726,8 @@ const MEC_Q4 = [
 // ── 理学院 物理学系 (PHY) ──
 const PHY_Q1 = [
   { id: "mc_q1_301", moodleId: 3101, code: "PHY.S110", name: "力学基礎", per: "月1-2", room: "W5-21", col: "#4a7cf7", mem: 90, quarter: 1, building: "w5", bldg: "西5号館" },
-  { id: "mc_q1_302", moodleId: 3102, code: "MCS.T201", name: "微分積分学第一", per: "火1-2", room: "W5-21", col: "#6375f0", mem: 200, quarter: 1, building: "w5", bldg: "西5号館" },
-  { id: "mc_q1_303", moodleId: 3103, code: "MCS.T211", name: "線形代数学第一", per: "水1-2", room: "W5-32", col: "#a855c7", mem: 200, quarter: 1, building: "w5", bldg: "西5号館" },
+  { id: "mc_q1_302", moodleId: 3102, code: "MTH.T201", name: "微分積分学第一", per: "火1-2", room: "W5-21", col: "#6375f0", mem: 200, quarter: 1, building: "w5", bldg: "西5号館" },
+  { id: "mc_q1_303", moodleId: 3103, code: "MTH.T211", name: "線形代数学第一", per: "水1-2", room: "W5-32", col: "#a855c7", mem: 200, quarter: 1, building: "w5", bldg: "西5号館" },
   { id: "mc_q1_304", moodleId: 3104, code: "PHY.S120", name: "電磁気学第一", per: "木3-4", room: "W5-21", col: "#5681e8", mem: 85, quarter: 1, building: "w5", bldg: "西5号館" },
   { id: "mc_q1_305", moodleId: 3105, code: "LAS.A101", name: "英語第一 S", per: "木1-2", room: "W9-31", col: "#3dae72", mem: 30, quarter: 1, building: "w9", bldg: "西9号館" },
   { id: "mc_q1_306", moodleId: 3106, code: "LAS.C101", name: "化学基礎", per: "金1-2", room: "W5-32", col: "#2d9d8f", mem: 170, quarter: 1, building: "w5", bldg: "西5号館" },
@@ -760,7 +760,7 @@ const PHY_Q4 = [
 // ── 物質理工学院 応用化学系 (CAP) ──
 const CAP_Q1 = [
   { id: "mc_q1_401", moodleId: 4101, code: "CAP.A101", name: "有機化学第一", per: "月1-2", room: "S4-21", col: "#5cb88a", mem: 75, quarter: 1, building: "s4", bldg: "南4号館" },
-  { id: "mc_q1_402", moodleId: 4102, code: "MCS.T201", name: "微分積分学第一", per: "火1-2", room: "W5-21", col: "#6375f0", mem: 200, quarter: 1, building: "w5", bldg: "西5号館" },
+  { id: "mc_q1_402", moodleId: 4102, code: "LAS.S201", name: "微分積分学第一", per: "火1-2", room: "W5-21", col: "#6375f0", mem: 200, quarter: 1, building: "w5", bldg: "西5号館" },
   { id: "mc_q1_403", moodleId: 4103, code: "LAS.M101", name: "物理学基礎", per: "水1-2", room: "W5-32", col: "#2d9d8f", mem: 180, quarter: 1, building: "w5", bldg: "西5号館" },
   { id: "mc_q1_404", moodleId: 4104, code: "CAP.A111", name: "物理化学第一", per: "木3-4", room: "S4-32", col: "#3dae72", mem: 68, quarter: 1, building: "s4", bldg: "南4号館" },
   { id: "mc_q1_405", moodleId: 4105, code: "LAS.A101", name: "英語第一 S", per: "木1-2", room: "W9-31", col: "#3dae72", mem: 30, quarter: 1, building: "w9", bldg: "西9号館" },
@@ -773,7 +773,7 @@ const CAP_Q2 = [
   { id: "mc_404", moodleId: 404, code: "CAP.A231", name: "分析化学", per: "水1-2", room: "S4-115", col: "#c6a236", mem: 55, quarter: 2, building: "s4", bldg: "南4号館" },
   { id: "mc_405", moodleId: 405, code: "CAP.A241", name: "化学実験第二", per: "水5-8", room: "S4-B1", col: "#d4843e", mem: 35, quarter: 2, building: "s4", bldg: "南4号館" },
   { id: "mc_406", moodleId: 406, code: "LAS.A101", name: "英語第二 S", per: "木1-2", room: "W9-31", col: "#3dae72", mem: 30, quarter: 2, building: "w9", bldg: "西9号館" },
-  { id: "mc_407", moodleId: 407, code: "MCS.T203", name: "微分積分学第二", per: "金1-2", room: "W5-21", col: "#6375f0", mem: 180, quarter: 2, building: "w5", bldg: "西5号館" },
+  { id: "mc_407", moodleId: 407, code: "LAS.S203", name: "微分積分学第二", per: "金1-2", room: "W5-21", col: "#6375f0", mem: 180, quarter: 2, building: "w5", bldg: "西5号館" },
   { id: "mc_408", moodleId: 408, code: "LAS.C103", name: "東工大立志プロジェクト", per: "金5-6", room: "WL1-301", col: "#c75d8e", mem: 200, quarter: 2, building: "wl1", bldg: "西講義棟1" },
 ];
 const CAP_Q3 = [
