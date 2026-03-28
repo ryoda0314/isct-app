@@ -31,6 +31,7 @@ export async function GET(request) {
     try {
       raw = await fetchUserCourses(wstoken, userid);
       console.log(`[All] fetchUserCourses OK: ${raw?.length ?? 0} courses`);
+      console.log(`[All] Moodle courses:`, JSON.stringify(raw?.map(c => ({ id: c.id, shortname: c.shortname, fullname: c.fullname, visible: c.visible })) || []));
     } catch (e) {
       console.error('[All] fetchUserCourses FAILED:', e.message);
       throw e;
@@ -92,7 +93,9 @@ export async function GET(request) {
     }
 
     const isAdmin = await checkAdmin(userid);
-    return NextResponse.json({ qData, courses, assignments, user: { userid, fullname, isAdmin } });
+    // DEBUG: include raw Moodle course list (remove after verification)
+    const _moodleRaw = (raw || []).map(c => ({ id: c.id, shortname: c.shortname, fullname: c.fullname, visible: c.visible }));
+    return NextResponse.json({ qData, courses, assignments, user: { userid, fullname, isAdmin }, _moodleRaw });
   } catch (err) {
     console.error('[All] Unhandled error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error', _debug: err.message, _stack: err.stack?.split('\n').slice(0, 5) }, { status: 500 });
