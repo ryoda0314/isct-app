@@ -138,6 +138,7 @@ export default function App(){
   const [quarter,setQuarter]=useState(()=>{try{const v=localStorage.getItem("quarter");return v?Number(v):2;}catch{return 2;}});
   const [qDataLive,setQDataLive]=useState(null);
   const qd=(qDataLive&&qDataLive[quarter])||QData[quarter]||{C:[],TT:[]};
+  console.log("[App][DEBUG] qd derivation:", {quarter, hasQDataLive:!!qDataLive, qDataLiveKeys:qDataLive?Object.keys(qDataLive):[], selectedQHasData:!!(qDataLive&&qDataLive[quarter]), coursesInQd:qd.C?.length??0, ttFilledCells:qd.TT?.flat?.()?.filter(Boolean)?.length??0});
   const [allCourses,setAllCourses]=useState([]);
   const [view,setViewRaw]=useState("home");
   const viewHistRef=useRef([]);
@@ -215,6 +216,15 @@ export default function App(){
       if(r.status===401){setAppState("setup");return false;}
       if(!r.ok) return false;
       const d=await r.json();
+      console.log("[App][DEBUG] /api/data/all response:", JSON.stringify({
+        hasQData: !!d.qData,
+        qDataKeys: d.qData ? Object.keys(d.qData) : [],
+        qDataSummary: d.qData ? Object.fromEntries(Object.entries(d.qData).map(([q,v])=>[q,{courses:v.C?.length??0,ttFilled:v.TT?.flat().filter(Boolean).length??0}])) : null,
+        coursesCount: d.courses?.length ?? 0,
+        assignmentsCount: d.assignments?.length ?? 0,
+        user: d.user,
+        error: d.error
+      }));
       if(d.qData) setQDataLive(d.qData);
       if(d.courses){setAllCourses(d.courses);if(d.courses[0]&&!cid)setCid(d.courses[0].id);}
       if(d.assignments) setAsgn(d.assignments.map(a=>({...a,due:new Date(a.due)})));

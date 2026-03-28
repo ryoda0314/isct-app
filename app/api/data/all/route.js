@@ -27,19 +27,33 @@ export async function GET(request) {
 
     // Courses + schedule from syllabus
     const raw = await fetchUserCourses(wstoken, userid);
+    console.log(`[All][DEBUG] Moodle raw courses: ${raw?.length ?? 'null/undefined'}`);
+    if (raw?.length) {
+      raw.forEach((mc, i) => console.log(`[All][DEBUG]   raw[${i}]: id=${mc.id} shortname="${mc.shortname}" fullname="${mc.fullname}" visible=${mc.visible}`));
+    }
+
     let scheduleMap = {};
     try {
       scheduleMap = await fetchScheduleForCourses(raw);
     } catch (e) {
       console.error('[All] Syllabus scrape failed:', e.message);
     }
+    console.log(`[All][DEBUG] scheduleMap keys: ${JSON.stringify(Object.keys(scheduleMap))}`);
+    for (const [k, v] of Object.entries(scheduleMap)) {
+      console.log(`[All][DEBUG]   scheduleMap["${k}"]: per=${v.per} room=${v.room} quarter=${v.quarter}`);
+    }
+
     const courses = transformCourses(raw, scheduleMap);
+    console.log(`[All][DEBUG] transformCourses output: ${courses.length} courses`);
+    courses.forEach((c, i) => console.log(`[All][DEBUG]   course[${i}]: id=${c.id} code=${c.code} name="${c.name}" per=${c.per} room=${c.room} quarter=${c.quarter} periodStart=${c.periodStart} periodEnd=${c.periodEnd}`));
 
     // Timetable
     const byQ = groupByQuarter(courses);
+    console.log(`[All][DEBUG] groupByQuarter: ${JSON.stringify(Object.fromEntries(Object.entries(byQ).map(([q, arr]) => [q, arr.length])))}`);
     const qData = {};
     for (const [q, qCourses] of Object.entries(byQ)) {
       qData[q] = { C: qCourses, TT: buildTimetable(qCourses) };
+      console.log(`[All][DEBUG] qData[${q}]: ${qCourses.length} courses, TT grid filled cells: ${qData[q].TT.flat().filter(Boolean).length}`);
     }
 
     // Assignments
