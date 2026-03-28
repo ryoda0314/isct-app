@@ -214,6 +214,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const layersRef=useRef([]);
   const overlayRef=useRef(null);
   const gpsMarkerRef=useRef(null);
+  const gpsCircleRef=useRef(null);
   const {origin,setOrigin,destination,setDestination,route,swap,gpsOriginPos,setGpsOriginPos}=useNavigation();
   const [selectMode,setSelectMode]=useState(null);
   const [panelMin,setPanelMin]=useState(false);
@@ -227,6 +228,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const [heading,setHeading]=useState(null);
   const headingRef=useRef(null);
   const watchIdRef=useRef(null);
+  const prevGpsRef=useRef(null);
+  const GPS_SMOOTH=0.35;
   const routeCoordsRef=useRef(null);
   const initialBearingRef=useRef(null);
   const compassPermRef=useRef(false); // コンパス権限取得済みか
@@ -244,7 +247,12 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     if(guiding||!navigator.geolocation)return;
     const id=navigator.geolocation.watchPosition(
       (pos)=>{
-        const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+        const {latitude:rawLat,longitude:rawLng,accuracy}=pos.coords;
+        const prev=prevGpsRef.current;
+        const A=GPS_SMOOTH;
+        const lat=prev?prev.lat+A*(rawLat-prev.lat):rawLat;
+        const lng=prev?prev.lng+A*(rawLng-prev.lng):rawLng;
+        prevGpsRef.current={lat,lng};
         setGpsPos({lat,lng,accuracy});
         // 初回GPS取得時にマップを現在地へ移動
         if(!gpsCenteredRef.current&&mapInst.current){
@@ -253,9 +261,9 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         }
       },
       ()=>{},
-      {enableHighAccuracy:true,timeout:10000,maximumAge:5000}
+      {enableHighAccuracy:true,timeout:10000,maximumAge:2000}
     );
-    return ()=>navigator.geolocation.clearWatch(id);
+    return ()=>{navigator.geolocation.clearWatch(id);prevGpsRef.current=null;};
   },[guiding]);
 
   // ルート座標をrefに同期（watchPositionコールバック内で参照するため）
@@ -289,7 +297,12 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     if(!navigator.geolocation||watchIdRef.current!=null)return;
     const id=navigator.geolocation.watchPosition(
       (pos)=>{
-        const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+        const {latitude:rawLat,longitude:rawLng,accuracy}=pos.coords;
+        const prev=prevGpsRef.current;
+        const A=GPS_SMOOTH;
+        const lat=prev?prev.lat+A*(rawLat-prev.lat):rawLat;
+        const lng=prev?prev.lng+A*(rawLng-prev.lng):rawLng;
+        prevGpsRef.current={lat,lng};
         setGpsPos({lat,lng,accuracy});
         // ルートが存在する場合、逸脱時のみ再計算
         const rc=routeCoordsRef.current;
@@ -304,7 +317,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         }
       },
       ()=>{},
-      {enableHighAccuracy:true,timeout:10000,maximumAge:5000}
+      {enableHighAccuracy:true,timeout:10000,maximumAge:2000}
     );
     watchIdRef.current=id;
   },[setOrigin]);
@@ -397,16 +410,22 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     // guiding && !following の時は何もしない（ユーザーが自由操作中）
   },[guiding,following,heading]);
 
-  // GPSマーカーの方向矢印をheading変化に追従させる
+  // GPSマーカーの方向矢印をheading変化に追従させる（DOM直接操作）
   useEffect(()=>{
-    if(!gpsMarkerRef.current||!window.L)return;
+    if(!gpsMarkerRef.current) return;
+    const el=gpsMarkerRef.current.getElement?.();
+    if(!el) return;
+    const arrow=el.querySelector('.gps-arrow');
+    if(!arrow) return;
     const hd=headingRef.current;
-    // マップがsetBearingで回転中は矢印を常に上向き(0)にする（マップ自体が回転してるため）
     const mapBearing=(mapInst.current&&typeof mapInst.current.getBearing==='function')?mapInst.current.getBearing():0;
     const arrowAngle=hd!=null?hd+mapBearing:null;
-    const arrowHtml=arrowAngle!=null?`<div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%) rotate(${arrowAngle}deg);transform-origin:center 24px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:14px solid #4285f4;filter:drop-shadow(0 0 3px rgba(66,133,244,.6));z-index:2"></div>`:"";
-    const icon=window.L.divIcon({className:"",html:`<div style="position:relative">${arrowHtml}<div style="position:absolute;inset:-10px;border-radius:50%;background:#4285f420;border:1.5px solid #4285f440;animation:locPulse 2s ease-in-out infinite"></div><div style="width:12px;height:12px;border-radius:50%;background:#4285f4;border:2.5px solid #fff;box-shadow:0 0 6px rgba(66,133,244,.5)"></div></div>`,iconSize:[12,12],iconAnchor:[6,6]});
-    gpsMarkerRef.current.setIcon(icon);
+    if(arrowAngle!=null){
+      arrow.style.display='block';
+      arrow.style.transform=`translateX(-50%) rotate(${arrowAngle}deg)`;
+    }else{
+      arrow.style.display='none';
+    }
   },[heading,guiding,following]);
 
   // 案内開始/終了
@@ -519,7 +538,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     mapInst.current=map;
     map.on("click",()=>{if(navPhaseRef.current==="search")setSearchMin(true);});
     map.on("dragstart",()=>{if(guidingRef.current)setFollowing(false);});
-    return()=>{map.remove();mapInst.current=null;};
+    return()=>{map.remove();mapInst.current=null;gpsMarkerRef.current=null;gpsCircleRef.current=null;};
   },[leafletReady]);
 
   // refs for click handler
@@ -541,7 +560,6 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     const map=mapInst.current;
     layersRef.current.forEach(l=>{try{map.removeLayer(l);}catch{}});
     layersRef.current=[];
-    gpsMarkerRef.current=null;
 
     const originSpot=origin==="__gps__"&&gpsOriginPos?{id:"__gps__",label:"現在地",lat:gpsOriginPos.lat,lng:gpsOriginPos.lng,col:"#4285f4"}:NAV_SPOTS.find(s=>s.id===origin);
     const destSpot=NAV_SPOTS.find(s=>s.id===destination);
@@ -672,23 +690,6 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       layersRef.current.push(m);
     }
 
-    // GPS位置マーカー
-    if(gpsPos){
-      const hd=headingRef.current;
-      const mapBearing=(map&&typeof map.getBearing==='function')?map.getBearing():0;
-      const arrowAngle=hd!=null?hd+mapBearing:null;
-      const arrowHtml=arrowAngle!=null?`<div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%) rotate(${arrowAngle}deg);transform-origin:center 24px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:14px solid #4285f4;filter:drop-shadow(0 0 3px rgba(66,133,244,.6));z-index:2"></div>`:"";
-      const gpsDot=L.divIcon({className:"",html:`<div style="position:relative">${arrowHtml}<div style="position:absolute;inset:-10px;border-radius:50%;background:#4285f420;border:1.5px solid #4285f440;animation:locPulse 2s ease-in-out infinite"></div><div style="width:12px;height:12px;border-radius:50%;background:#4285f4;border:2.5px solid #fff;box-shadow:0 0 6px rgba(66,133,244,.5)"></div></div>`,iconSize:[12,12],iconAnchor:[6,6]});
-      const gm=L.marker([gpsPos.lat,gpsPos.lng],{icon:gpsDot,zIndexOffset:900}).addTo(map);
-      gm.bindTooltip(`<b>現在地</b>`,{direction:"top",offset:[0,-10],className:"nav-tip"});
-      gpsMarkerRef.current=gm;
-      layersRef.current.push(gm);
-      if(gpsPos.accuracy&&gpsPos.accuracy<500){
-        const circle=L.circle([gpsPos.lat,gpsPos.lng],{radius:gpsPos.accuracy,color:"#4285f4",fillColor:"#4285f4",fillOpacity:0.08,weight:1,opacity:0.3}).addTo(map);
-        layersRef.current.push(circle);
-      }
-    }
-
     // detailフェーズ: 目的地にズーム
     if(!route&&destSpot&&!originSpot){
       map.flyTo([destSpot.lat,destSpot.lng],18,{duration:.4});
@@ -697,6 +698,36 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       map.fitBounds(L.latLngBounds([[originSpot.lat,originSpot.lng],[destSpot.lat,destSpot.lng]]).pad(0.3));
     }
   },[leafletReady,origin,destination,route,gpsPos,gpsOriginPos,guiding,navPhase,spotGroup]);
+
+  // GPS位置マーカー — 永続refでスムーズ移動
+  useEffect(()=>{
+    if(!mapInst.current||!leafletReady) return;
+    const L=window.L;
+    const map=mapInst.current;
+    if(!gpsPos){
+      if(gpsMarkerRef.current){map.removeLayer(gpsMarkerRef.current);gpsMarkerRef.current=null;}
+      if(gpsCircleRef.current){map.removeLayer(gpsCircleRef.current);gpsCircleRef.current=null;}
+      return;
+    }
+    if(gpsMarkerRef.current){
+      gpsMarkerRef.current.setLatLng([gpsPos.lat,gpsPos.lng]);
+    }else{
+      const gpsDot=L.divIcon({className:"gps-smooth",html:`<div style="position:relative"><div class="gps-arrow" style="display:none;position:absolute;top:-18px;left:50%;transform-origin:center 24px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:14px solid #4285f4;filter:drop-shadow(0 0 3px rgba(66,133,244,.6));z-index:2;transition:transform .15s ease-out"></div><div style="position:absolute;inset:-10px;border-radius:50%;background:#4285f420;border:1.5px solid #4285f440;animation:locPulse 2s ease-in-out infinite"></div><div style="width:12px;height:12px;border-radius:50%;background:#4285f4;border:2.5px solid #fff;box-shadow:0 0 6px rgba(66,133,244,.5)"></div></div>`,iconSize:[12,12],iconAnchor:[6,6]});
+      const gm=L.marker([gpsPos.lat,gpsPos.lng],{icon:gpsDot,zIndexOffset:900}).addTo(map);
+      gm.bindTooltip(`<b>現在地</b>`,{direction:"top",offset:[0,-10],className:"nav-tip"});
+      gpsMarkerRef.current=gm;
+    }
+    if(gpsPos.accuracy&&gpsPos.accuracy<500){
+      if(gpsCircleRef.current){
+        gpsCircleRef.current.setLatLng([gpsPos.lat,gpsPos.lng]);
+        gpsCircleRef.current.setRadius(gpsPos.accuracy);
+      }else{
+        gpsCircleRef.current=L.circle([gpsPos.lat,gpsPos.lng],{radius:gpsPos.accuracy,color:"#4285f4",fillColor:"#4285f4",fillOpacity:0.08,weight:1,opacity:0.3}).addTo(map);
+      }
+    }else if(gpsCircleRef.current){
+      map.removeLayer(gpsCircleRef.current);gpsCircleRef.current=null;
+    }
+  },[leafletReady,gpsPos]);
 
   /* ── Inline search for search phase ── */
   const [searchQ,setSearchQ]=useState("");
@@ -1052,6 +1083,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
 @keyframes navPinPop{0%{opacity:0;transform:scale(.3) translateY(8px)}60%{opacity:1;transform:scale(1.08) translateY(-1px)}100%{opacity:1;transform:scale(1) translateY(0)}}
 @keyframes navPinDot{0%{transform:scale(.5)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
 @keyframes locPulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.5)}}
+.gps-smooth{transition:transform .3s ease-out!important}
     `}</style>
     {/* Full-screen map */}
     <div ref={mapRef} style={{position:"absolute",inset:0}}/>

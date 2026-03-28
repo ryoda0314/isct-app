@@ -38,6 +38,8 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob,gpsPos})=>{
   const mapRef=useRef(null);
   const mapInst=useRef(null);
   const markersRef=useRef([]);
+  const gpsMarkerRef=useRef(null);
+  const gpsCircleRef=useRef(null);
   const overlayRef=useRef(null);
   const [overlayOp,setOverlayOp]=useState(0.35);
   const [selSpot,setSelSpot]=useState(null);
@@ -99,7 +101,7 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob,gpsPos})=>{
       .addAttribution('&copy; Esri, Maxar, Earthstar Geographics')
       .addTo(map);
     mapInst.current=map;
-    return()=>{map.remove();mapInst.current=null;};
+    return()=>{map.remove();mapInst.current=null;gpsMarkerRef.current=null;gpsCircleRef.current=null;};
   },[leafletReady]);
 
   // overlay opacity sync
@@ -144,29 +146,6 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob,gpsPos})=>{
       markersRef.current.push(m);
     }
 
-    // GPS位置マーカー（実際の現在地）
-    if(gpsPos){
-      const hd=headingRef.current;
-      const arrowHtml=hd!=null?`<div style="position:absolute;top:-22px;left:50%;transform:translateX(-50%) rotate(${hd}deg);transform-origin:center 29px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:14px solid #4285f4;filter:drop-shadow(0 0 3px rgba(66,133,244,.6))"></div>`:"";
-      const gpsPulse=L.divIcon({
-        className:"",
-        html:`<div style="position:relative;transform:translate(-50%,-50%)">
-          ${arrowHtml}
-          <div style="position:absolute;inset:-12px;border-radius:50%;background:#4285f420;border:1.5px solid #4285f440;animation:locPulse 2s ease-in-out infinite"></div>
-          <div style="width:14px;height:14px;border-radius:50%;background:#4285f4;border:3px solid #fff;box-shadow:0 0 6px rgba(66,133,244,.5)"></div>
-        </div>`,
-        iconSize:[0,0],iconAnchor:[0,0],
-      });
-      const gm=L.marker([gpsPos.lat,gpsPos.lng],{icon:gpsPulse,zIndexOffset:1000}).addTo(map);
-      gm.bindTooltip(`<b>現在地</b><br/><span style="color:${T.txD}">GPS精度: ${gpsPos.accuracy?Math.round(gpsPos.accuracy)+"m":"不明"}</span>`,{className:"spot-tip",direction:"top",offset:[0,-10]});
-      markersRef.current.push(gm);
-      // 精度円
-      if(gpsPos.accuracy&&gpsPos.accuracy<500){
-        const circle=L.circle([gpsPos.lat,gpsPos.lng],{radius:gpsPos.accuracy,color:"#4285f4",fillColor:"#4285f4",fillOpacity:0.08,weight:1,opacity:0.3}).addTo(map);
-        markersRef.current.push(circle);
-      }
-    }
-
     // all geo spots as faint dots (no users)
     SPOTS.forEach(s=>{
       if(!s.id||s.lat==null||grouped[s.id])return;
@@ -205,7 +184,63 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob,gpsPos})=>{
       // ルート全体が見えるようにフィット（GPS追従でない場合）
       if(!compassOn&&!gpsPos){map.fitBounds(L.latLngBounds(latlngs).pad(0.25));}
     }
-  },[leafletReady,peers,myLoc,grouped,gpsPos,heading,navMode,navDest,nav.route]);
+  },[leafletReady,peers,myLoc,grouped,navMode,navDest,nav.route]);
+
+  // GPS位置マーカー — 永続refでスムーズ移動
+  useEffect(()=>{
+    if(!mapInst.current||!leafletReady) return;
+    const L=window.L;
+    const map=mapInst.current;
+    if(!gpsPos){
+      if(gpsMarkerRef.current){map.removeLayer(gpsMarkerRef.current);gpsMarkerRef.current=null;}
+      if(gpsCircleRef.current){map.removeLayer(gpsCircleRef.current);gpsCircleRef.current=null;}
+      return;
+    }
+    if(gpsMarkerRef.current){
+      // 既存マーカー — setLatLngでスムーズ移動（CSS transitionが補間）
+      gpsMarkerRef.current.setLatLng([gpsPos.lat,gpsPos.lng]);
+    }else{
+      // 初回作成
+      const gpsPulse=L.divIcon({
+        className:"gps-smooth",
+        html:`<div style="position:relative;transform:translate(-50%,-50%)">
+          <div class="gps-arrow" style="display:none;position:absolute;top:-22px;left:50%;transform-origin:center 29px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:14px solid #4285f4;filter:drop-shadow(0 0 3px rgba(66,133,244,.6));transition:transform .15s ease-out"></div>
+          <div style="position:absolute;inset:-12px;border-radius:50%;background:#4285f420;border:1.5px solid #4285f440;animation:locPulse 2s ease-in-out infinite"></div>
+          <div style="width:14px;height:14px;border-radius:50%;background:#4285f4;border:3px solid #fff;box-shadow:0 0 6px rgba(66,133,244,.5)"></div>
+        </div>`,
+        iconSize:[0,0],iconAnchor:[0,0],
+      });
+      const gm=L.marker([gpsPos.lat,gpsPos.lng],{icon:gpsPulse,zIndexOffset:1000}).addTo(map);
+      gm.bindTooltip(`<b>現在地</b>`,{className:"spot-tip",direction:"top",offset:[0,-10]});
+      gpsMarkerRef.current=gm;
+    }
+    // 精度円
+    if(gpsPos.accuracy&&gpsPos.accuracy<500){
+      if(gpsCircleRef.current){
+        gpsCircleRef.current.setLatLng([gpsPos.lat,gpsPos.lng]);
+        gpsCircleRef.current.setRadius(gpsPos.accuracy);
+      }else{
+        gpsCircleRef.current=L.circle([gpsPos.lat,gpsPos.lng],{radius:gpsPos.accuracy,color:"#4285f4",fillColor:"#4285f4",fillOpacity:0.08,weight:1,opacity:0.3}).addTo(map);
+      }
+    }else if(gpsCircleRef.current){
+      map.removeLayer(gpsCircleRef.current);gpsCircleRef.current=null;
+    }
+  },[leafletReady,gpsPos]);
+
+  // GPS方向矢印 — DOM直接操作で高頻度heading更新に対応
+  useEffect(()=>{
+    if(!gpsMarkerRef.current) return;
+    const el=gpsMarkerRef.current.getElement?.();
+    if(!el) return;
+    const arrow=el.querySelector('.gps-arrow');
+    if(!arrow) return;
+    if(heading!=null){
+      arrow.style.display='block';
+      arrow.style.transform=`translateX(-50%) rotate(${heading}deg)`;
+    }else{
+      arrow.style.display='none';
+    }
+  },[heading]);
 
   // コンパス or 案内モード時、GPS位置に自動追従
   useEffect(()=>{
@@ -230,6 +265,7 @@ const MapTab=({peers,myLoc,mySpot,grouped,mob,gpsPos})=>{
 .spot-tip{background:${T.bg2}!important;color:${T.txH}!important;border:1px solid ${T.bdL}!important;border-radius:8px!important;padding:6px 10px!important;font-size:11px!important;font-weight:500!important;font-family:'Inter',sans-serif!important;box-shadow:0 4px 16px rgba(0,0,0,.45)!important;white-space:nowrap!important;opacity:0;animation:tipIn .15s ease-out forwards!important}
 .spot-tip .leaflet-tooltip-arrow{display:none!important}
 @keyframes tipIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.gps-smooth{transition:transform .3s ease-out!important}
 .compass-on .leaflet-control-container{transform:rotate(${heading!=null?heading:0}deg)!important;transition:transform .15s ease-out!important}
 .compass-on .leaflet-tooltip{transform:rotate(${heading!=null?heading:0}deg)!important}
       `}</style>
@@ -409,9 +445,12 @@ export const LocationView=({mob,user={},friendIds,friends=[]})=>{
   const [gpsStatus,setGpsStatus]=useState("idle"); // "idle"|"loading"|"watching"|"error"
   const [gpsMsg,setGpsMsg]=useState("");
   const watchIdRef=useRef(null);
+  const prevGpsRef=useRef(null);
+  const GPS_SMOOTH=0.35; // exponential smoothing factor
 
   const stopGps=useCallback(()=>{
     if(watchIdRef.current!=null){navigator.geolocation.clearWatch(watchIdRef.current);watchIdRef.current=null;}
+    prevGpsRef.current=null;
     setGpsStatus("idle");setGpsMsg("");
   },[]);
 
@@ -421,7 +460,12 @@ export const LocationView=({mob,user={},friendIds,friends=[]})=>{
     setGpsStatus("loading");setGpsMsg("");
     const id=navigator.geolocation.watchPosition(
       (pos)=>{
-        const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+        const {latitude:rawLat,longitude:rawLng,accuracy}=pos.coords;
+        const prev=prevGpsRef.current;
+        const A=GPS_SMOOTH;
+        const lat=prev?prev.lat+A*(rawLat-prev.lat):rawLat;
+        const lng=prev?prev.lng+A*(rawLng-prev.lng):rawLng;
+        prevGpsRef.current={lat,lng};
         setGpsPos({lat,lng,accuracy});
         const {spot,distance}=findNearestSpot(lat,lng);
         const inCampus=pointInPolygon(lat,lng,CAMPUS_BOUNDARY);
@@ -442,7 +486,7 @@ export const LocationView=({mob,user={},friendIds,friends=[]})=>{
         else setGpsMsg("タイムアウトしました");
         watchIdRef.current=null;
       },
-      {enableHighAccuracy:true,timeout:10000,maximumAge:5000}
+      {enableHighAccuracy:true,timeout:10000,maximumAge:2000}
     );
     watchIdRef.current=id;
   },[setMyLoc]);
