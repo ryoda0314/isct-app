@@ -67,12 +67,21 @@ const DEMO_COMMENTS={
   ],
 };
 
+// ── Login prompt (inline) ──
+const LoginPrompt=({msg,onLogin})=>(
+  <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:10,background:T.bg3,border:`1px solid ${T.bd}`,marginTop:8}}>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+    <span style={{fontSize:12,color:T.txD,flex:1}}>{msg||"ログインすると投稿・コメントできます"}</span>
+    {onLogin&&<span onClick={onLogin} style={{fontSize:12,color:T.accent,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>ログイン</span>}
+  </div>
+);
+
 // ── Comment section ──
-const CommentSection=({postId,user,onCountChange})=>{
+const CommentSection=({postId,user,onCountChange,loggedIn,onLogin})=>{
   const [comments,setComments]=useState(()=>DEMO_COMMENTS[postId]||[]);
   const [txt,setTxt]=useState("");
   const send=()=>{
-    if(!txt.trim()) return;
+    if(!loggedIn||!txt.trim()) return;
     setComments(p=>[...p,{id:`c_${Date.now()}`,uid:user.moodleId||user.id,name:user.name,color:user.col,text:txt.trim(),ts:new Date()}]);
     onCountChange?.(1);
     setTxt("");
@@ -92,19 +101,23 @@ const CommentSection=({postId,user,onCountChange})=>{
           </div>
         </div>
       ))}
-      <div style={{display:"flex",gap:6,alignItems:"center",marginTop:4}}>
-        <input value={txt} onChange={e=>setTxt(e.target.value)}
-          onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
-          placeholder="返信を書く..."
-          style={{flex:1,padding:"6px 10px",borderRadius:16,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
-        <div onClick={send} style={{cursor:"pointer",color:txt.trim()?T.accent:T.txD,display:"flex",opacity:txt.trim()?1:.4}}>{I.send}</div>
-      </div>
+      {loggedIn?(
+        <div style={{display:"flex",gap:6,alignItems:"center",marginTop:4}}>
+          <input value={txt} onChange={e=>setTxt(e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
+            placeholder="返信を書く..."
+            style={{flex:1,padding:"6px 10px",borderRadius:16,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
+          <div onClick={send} style={{cursor:"pointer",color:txt.trim()?T.accent:T.txD,display:"flex",opacity:txt.trim()?1:.4}}>{I.send}</div>
+        </div>
+      ):(
+        <LoginPrompt msg="ログインするとコメントできます" onLogin={onLogin}/>
+      )}
     </div>
   );
 };
 
 // ── Main View ──
-export const FreshmanBoardView=({mob})=>{
+export const FreshmanBoardView=({mob,loggedIn,onLogin})=>{
   const user=useCurrentUser();
   const [cat,setCat]=useState(null); // null = top page, category id = board view
   const [posts,setPosts]=useState(DEMO_BOARD_POSTS);
@@ -118,19 +131,20 @@ export const FreshmanBoardView=({mob})=>{
   const userId=user.moodleId||user.id;
 
   const toggleLike=useCallback((postId)=>{
+    if(!loggedIn){showToast("いいねするにはログインが必要です");return;}
     setPosts(p=>p.map(post=>{
       if(post.id!==postId) return post;
       const liked=post.likes.includes(userId);
       return {...post,likes:liked?post.likes.filter(u=>u!==userId):[...post.likes,userId]};
     }));
-  },[userId]);
+  },[userId,loggedIn]);
 
   const updateCommentCount=useCallback((postId,delta)=>{
     setPosts(p=>p.map(post=>post.id===postId?{...post,commentCount:(post.commentCount||0)+delta}:post));
   },[]);
 
   const sendPost=()=>{
-    if(!txt.trim()) return;
+    if(!loggedIn||!txt.trim()) return;
     const target=cat||newCat;
     setPosts(prev=>[{id:`fb_${Date.now()}`,cat:target,uid:userId,name:user.name,color:user.col,yr:user.yr||1,text:txt.trim(),likes:[],commentCount:0,ts:new Date()},...prev]);
     setTxt("");setComposing(false);
@@ -216,7 +230,7 @@ export const FreshmanBoardView=({mob})=>{
             {/* Comments / replies */}
             <div style={{marginTop:16}}>
               <div style={{fontSize:13,fontWeight:600,color:T.txH,marginBottom:8}}>返信</div>
-              <CommentSection postId={threadPost.id} user={user} onCountChange={delta=>updateCommentCount(threadPost.id,delta)}/>
+              <CommentSection postId={threadPost.id} user={user} onCountChange={delta=>updateCommentCount(threadPost.id,delta)} loggedIn={loggedIn} onLogin={onLogin}/>
             </div>
           </div>
         </div>
@@ -270,6 +284,8 @@ export const FreshmanBoardView=({mob})=>{
               );
             })}
           </div>
+
+          <div style={{borderBottom:`1px solid ${T.bd}`,marginBottom:mob?14:20}}/>
 
           {/* Recent threads per category */}
           {CATEGORIES.map(c=>{
@@ -375,10 +391,17 @@ export const FreshmanBoardView=({mob})=>{
             </div>
           ))}
         </div>
-        <div onClick={()=>setComposing(true)} style={{display:"flex",alignItems:"center",gap:4,padding:"5px 12px",borderRadius:8,background:activeCat.color,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>
-          <span style={{display:"flex"}}>{I.plus}</span>
-          <span>投稿</span>
-        </div>
+        {loggedIn?(
+          <div onClick={()=>setComposing(true)} style={{display:"flex",alignItems:"center",gap:4,padding:"5px 12px",borderRadius:8,background:activeCat.color,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+            <span style={{display:"flex"}}>{I.plus}</span>
+            <span>投稿</span>
+          </div>
+        ):(
+          <div onClick={onLogin} style={{display:"flex",alignItems:"center",gap:4,padding:"5px 12px",borderRadius:8,background:T.bg3,color:T.txD,fontSize:12,fontWeight:500,border:`1px solid ${T.bd}`,cursor:onLogin?"pointer":"default"}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            <span>ログインで投稿</span>
+          </div>
+        )}
       </div>
 
       {/* Compose modal */}

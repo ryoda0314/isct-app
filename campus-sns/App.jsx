@@ -136,6 +136,8 @@ export default function App(){
   updateStatusBarTheme(T.bg2);
   useEffect(()=>{document.documentElement.style.background=T.bg;document.body.style.background=T.bg;},[themeMode,accentPref]);
   const [mockMode,setMockMode]=useState(false);
+  const [guestBoard,setGuestBoard]=useState(()=>typeof window!=="undefined"&&window.location.hash==="#freshman");
+  const [fromBoard,setFromBoard]=useState(false);
   const [quarter,setQuarter]=useState(()=>{try{const v=localStorage.getItem("quarter");return v?Number(v):2;}catch{return 2;}});
   const [qDataLive,setQDataLive]=useState(null);
   const qd=(qDataLive&&qDataLive[quarter])||QData[quarter]||{C:[],TT:[]};
@@ -245,16 +247,20 @@ export default function App(){
           const ok=await fetchData();
           if(ok){
             setAppState("ready");
+            if(guestBoard) setGuestBoard(false); // logged in, exit guest mode
             refreshRef.current=setInterval(fetchData,15*60*1000);
             fetchSiteSettings();
           }else{
-            setAppState("setup");
+            if(guestBoard){setAppState("ready");setViewRaw("freshman");}
+            else setAppState("setup");
           }
         }else{
-          setAppState("setup");
+          if(guestBoard){setAppState("ready");setViewRaw("freshman");}
+          else setAppState("setup");
         }
       }catch{
-        setAppState("setup");
+        if(guestBoard){setAppState("ready");setViewRaw("freshman");}
+        else setAppState("setup");
       }
     })();
     return()=>{if(refreshRef.current)clearInterval(refreshRef.current)};
@@ -400,7 +406,24 @@ export default function App(){
       <style>{`@keyframes spLogoIn{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}@keyframes spFadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes spDot{0%,80%,100%{transform:scale(.5);opacity:.3}40%{transform:scale(1.2);opacity:1}}html,body{background:${T.bg};margin:0}`}</style>
     </div>
   );
-  if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={onDemo} personas={DEMO_PERSONAS} mob={mob} dark={dark}/>;
+  // --- GUEST BOARD (direct link #freshman) ---
+  const guestLogin=()=>{setFromBoard(true);setGuestBoard(false);window.location.hash="";setMockMode(false);setAppState("setup");};
+  const backToBoard=()=>{setFromBoard(false);setGuestBoard(true);window.location.hash="freshman";setAppState("ready");setViewRaw("freshman");};
+
+  if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={onDemo} personas={DEMO_PERSONAS} mob={mob} dark={dark} onBackToBoard={fromBoard?backToBoard:null}/>;
+
+  if(guestBoard){
+    return(
+      <div style={{display:"flex",flexDirection:"column",height:"100vh",background:T.bg,color:T.tx,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
+        {/* Guest header */}
+        <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:10,padding:"0 16px",height:48,borderBottom:`1px solid ${T.bd}`,background:T.bg2}}>
+          <div style={{fontWeight:700,fontSize:15,color:T.txH,flex:1}}>新入生掲示板</div>
+          <button onClick={guestLogin} style={{padding:"6px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>ログイン / 新規登録</button>
+        </div>
+        <FreshmanBoardView mob={mob} loggedIn={false} onLogin={guestLogin}/>
+      </div>
+    );
+  }
 
   // --- DESKTOP ---
   if(!mob){
@@ -438,7 +461,7 @@ export default function App(){
           {view==="circles"&&(TR?<TelecomBlockView title="サークルは現在利用できません"/>:<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate}/>)}
           {view==="acadCal"&&<AcademicCalendarView mob={false}/>}
           {view==="admin"&&<AdminView mob={false} courses={allCourses} depts={userDepts} schools={userSchools}/>}
-          {view==="freshman"&&<FreshmanBoardView mob={false}/>}
+          {view==="freshman"&&<FreshmanBoardView mob={false} loggedIn={!!user.moodleId} onLogin={()=>{setGuestBoard(false);setMockMode(false);setAppState("setup");}}/>}
         </div>
         {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
         <Toasts/>
@@ -475,7 +498,7 @@ export default function App(){
         {view==="circles"&&(TR?<><MHdr title="サークル" back={mBack}/><TelecomBlockView title="サークルは現在利用できません" onBack={goBack}/></>:<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} onBack={mBack}/>)}
         {view==="acadCal"&&<><MHdr title="学年暦" back={mBack}/><AcademicCalendarView mob/></>}
         {view==="admin"&&<><MHdr title="管理者" back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
-        {view==="freshman"&&<><MHdr title="新入生掲示板" back={mBack}/><FreshmanBoardView mob/></>}
+        {view==="freshman"&&<><MHdr title="新入生掲示板" back={mBack}/><FreshmanBoardView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestBoard(false);setMockMode(false);setAppState("setup");}}/></>}
       </div>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread}/>
       <div style={{height:14,background:T.bg2,flexShrink:0}}/>
