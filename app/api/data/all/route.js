@@ -24,29 +24,18 @@ export async function GET(request) {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
     const { wstoken, userid, fullname } = auth;
-    console.log(`[All] Auth OK: user=${userid}`);
 
     // Courses + schedule from syllabus
-    let raw;
-    try {
-      raw = await fetchUserCourses(wstoken, userid);
-      console.log(`[All] fetchUserCourses OK: ${raw?.length ?? 0} courses`);
-      console.log(`[All] Moodle courses:`, JSON.stringify(raw?.map(c => ({ id: c.id, shortname: c.shortname, fullname: c.fullname, visible: c.visible })) || []));
-    } catch (e) {
-      console.error('[All] fetchUserCourses FAILED:', e.message);
-      throw e;
-    }
-
+    const raw = await fetchUserCourses(wstoken, userid);
     let scheduleMap = {};
     try {
       scheduleMap = await fetchScheduleForCourses(raw);
-      console.log(`[All] scheduleMap: ${Object.keys(scheduleMap).length} entries`);
     } catch (e) {
       console.error('[All] Syllabus scrape failed:', e.message);
     }
 
     const courses = transformCourses(raw, scheduleMap);
-    console.log(`[All] ${raw?.length ?? 0} raw → ${courses.length} courses, ${Object.keys(scheduleMap).length} schedule entries`);
+    console.log(`[All] user=${userid} ${raw?.length ?? 0} raw → ${courses.length} courses, ${Object.keys(scheduleMap).length} schedule entries`);
 
     // Timetable
     const byQ = groupByQuarter(courses);
@@ -59,14 +48,7 @@ export async function GET(request) {
     const courseIdMap = {};
     courses.forEach(c => { courseIdMap[c.moodleId] = c.id; });
     const moodleIds = courses.map(c => c.moodleId);
-    let moodleAsgn;
-    try {
-      moodleAsgn = await fetchAssignments(wstoken, moodleIds);
-      console.log(`[All] fetchAssignments OK: ${moodleAsgn?.courses?.length ?? '?'} course entries`);
-    } catch (e) {
-      console.error('[All] fetchAssignments FAILED:', e.message);
-      throw e;
-    }
+    const moodleAsgn = await fetchAssignments(wstoken, moodleIds);
     let assignments = transformAssignments(moodleAsgn, courseIdMap);
 
     // Fetch submission status with concurrency limit to avoid overwhelming Moodle
@@ -93,11 +75,9 @@ export async function GET(request) {
     }
 
     const isAdmin = await checkAdmin(userid);
-    // DEBUG: include raw Moodle course list (remove after verification)
-    const _moodleRaw = (raw || []).map(c => ({ id: c.id, shortname: c.shortname, fullname: c.fullname, visible: c.visible }));
-    return NextResponse.json({ qData, courses, assignments, user: { userid, fullname, isAdmin }, _moodleRaw });
+    return NextResponse.json({ qData, courses, assignments, user: { userid, fullname, isAdmin } });
   } catch (err) {
     console.error('[All] Unhandled error:', err.message, err.stack);
-    return NextResponse.json({ error: 'Internal error', _debug: err.message, _stack: err.stack?.split('\n').slice(0, 5) }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
