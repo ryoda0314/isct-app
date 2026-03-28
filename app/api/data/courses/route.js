@@ -11,6 +11,7 @@ export async function GET(request) {
     const raw = await fetchUserCourses(wstoken, userid);
     return NextResponse.json({ courses: transformCourses(raw) });
   } catch (err) {
+    console.error('[Courses] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

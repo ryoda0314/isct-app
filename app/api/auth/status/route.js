@@ -79,6 +79,7 @@ export async function GET(request) {
 
     return NextResponse.json({ hasCredentials: false, isAuthenticated: false });
   } catch (err) {
+    console.error('[AuthStatus] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

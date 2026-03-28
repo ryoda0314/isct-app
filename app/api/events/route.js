@@ -35,6 +35,7 @@ export async function GET(request) {
     (data || []).forEach(r => { rsvpMap[r.event_id] = r.status; });
     return NextResponse.json(rsvpMap);
   } catch (err) {
+    console.error('[Events] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -68,6 +69,7 @@ export async function POST(request) {
     if (error) throw error;
     return NextResponse.json(data);
   } catch (err) {
+    console.error('[Events] POST error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -94,6 +96,7 @@ export async function DELETE(request) {
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (err) {
+    console.error('[Events] DELETE error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

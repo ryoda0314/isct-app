@@ -24,6 +24,7 @@ export async function POST(request) {
     if (error) throw error;
     return NextResponse.json({ ok: true });
   } catch (err) {
+    console.error('[Push] POST error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -46,6 +47,7 @@ export async function DELETE(request) {
       .eq('endpoint', endpoint);
     return NextResponse.json({ ok: true });
   } catch (err) {
+    console.error('[Push] DELETE error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

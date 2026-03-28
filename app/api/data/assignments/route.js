@@ -35,6 +35,7 @@ export async function GET(request) {
 
     return NextResponse.json({ assignments });
   } catch (err) {
+    console.error('[Assignments] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

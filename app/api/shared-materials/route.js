@@ -47,6 +47,7 @@ export async function GET(request) {
 
     return NextResponse.json(files);
   } catch (err) {
+    console.error('[SharedMaterials] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

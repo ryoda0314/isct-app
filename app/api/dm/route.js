@@ -64,6 +64,7 @@ export async function GET(request) {
 
     return NextResponse.json(convos);
   } catch (err) {
+    console.error('[DM] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -107,6 +108,7 @@ export async function PATCH(request) {
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (err) {
+    console.error('[DM] PATCH error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -202,6 +204,7 @@ export async function POST(request) {
     if (error) throw error;
     return NextResponse.json({ ...data, conversation_id: convId });
   } catch (err) {
+    console.error('[DM] POST error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

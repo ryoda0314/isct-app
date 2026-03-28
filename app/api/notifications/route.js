@@ -20,6 +20,7 @@ export async function GET(request) {
     if (error) throw error;
     return NextResponse.json(data);
   } catch (err) {
+    console.error('[Notifications] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -52,6 +53,7 @@ export async function PATCH(request) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
+    console.error('[Notifications] PATCH error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

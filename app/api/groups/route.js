@@ -72,6 +72,7 @@ export async function GET(request) {
 
     return NextResponse.json(result);
   } catch (err) {
+    console.error('[Groups] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -120,6 +121,7 @@ export async function POST(request) {
 
     return NextResponse.json({ ok: true, group_id: group.id });
   } catch (err) {
+    console.error('[Groups] POST error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -148,6 +150,7 @@ export async function DELETE(request) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
+    console.error('[Groups] DELETE error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

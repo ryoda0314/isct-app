@@ -57,6 +57,7 @@ export async function GET(request) {
 
     return NextResponse.json(messages);
   } catch (err) {
+    console.error('[GroupMessages] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -104,6 +105,7 @@ export async function POST(request) {
 
     return NextResponse.json(data);
   } catch (err) {
+    console.error('[GroupMessages] POST error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

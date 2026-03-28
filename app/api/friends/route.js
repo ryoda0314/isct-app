@@ -189,6 +189,7 @@ export async function GET(request) {
 
     return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
   } catch (err) {
+    console.error('[Friends] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -289,6 +290,7 @@ export async function POST(request) {
 
     return NextResponse.json({ ok: true, status: 'pending' });
   } catch (err) {
+    console.error('[Friends] POST error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -342,6 +344,7 @@ export async function PATCH(request) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
+    console.error('[Friends] PATCH error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -371,6 +374,7 @@ export async function DELETE(request) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
+    console.error('[Friends] DELETE error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

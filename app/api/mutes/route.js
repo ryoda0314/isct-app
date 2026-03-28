@@ -10,7 +10,7 @@ export async function GET(request) {
     const sb = getSupabaseAdmin();
     const { data, error } = await sb
       .from('user_mutes')
-      .select('muted_id, created_at, profiles!user_mutes_muted_id_fkey(name, avatar_url)')
+      .select('muted_id, created_at')
       .eq('muter_id', auth.userid)
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -36,7 +36,8 @@ export async function POST(request) {
       .upsert({ muter_id: auth.userid, muted_id }, { onConflict: 'muter_id,muted_id' });
     if (error) throw error;
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (err) {
+    console.error('[Mutes] POST error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -55,7 +56,8 @@ export async function DELETE(request) {
       .eq('muter_id', auth.userid)
       .eq('muted_id', muted_id);
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (err) {
+    console.error('[Mutes] DELETE error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

@@ -52,6 +52,7 @@ export async function POST(request) {
     const response = NextResponse.json({ success: true, portalOnly: true });
     return response;
   } catch (err) {
+    console.error('[AuthSetup] POST error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

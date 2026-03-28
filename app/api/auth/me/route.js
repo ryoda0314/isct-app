@@ -32,6 +32,7 @@ export async function GET(request) {
 
     return NextResponse.json({ userid: auth.userid, fullname: auth.fullname, isAdmin });
   } catch (err) {
+    console.error('[AuthMe] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

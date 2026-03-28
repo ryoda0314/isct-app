@@ -30,6 +30,7 @@ export async function GET(request) {
 
     return NextResponse.json({ qData, allCourses: courses });
   } catch (err) {
+    console.error('[Timetable] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
