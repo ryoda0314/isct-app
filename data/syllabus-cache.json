@@ -1,5 +1,5 @@
 {
-  "timestamp": 1774692918507,
+  "timestamp": 1774716023298,
   "courses": {
     "MEC.C201": {
       "per": "木1-4",
@@ -296,6 +296,42 @@
       "periodEnd": null,
       "room": null,
       "quarter": "4Q"
+    },
+    "DSA.B201:2": {
+      "per": "水5-6",
+      "day": "水",
+      "periodStart": 5,
+      "periodEnd": 6,
+      "room": "南4号館3階第2演習室",
+      "quarter": "3Q",
+      "building": "S4"
+    },
+    "DSA.B201": {
+      "per": "水5-6",
+      "day": "水",
+      "periodStart": 5,
+      "periodEnd": 6,
+      "room": "南4号館3階第2演習室",
+      "quarter": "3Q",
+      "building": "S4"
+    },
+    "DSA.B202:2": {
+      "per": "水5-6",
+      "day": "水",
+      "periodStart": 5,
+      "periodEnd": 6,
+      "room": "南4号館3階第2演習室",
+      "quarter": "4Q",
+      "building": "S4"
+    },
+    "DSA.B202": {
+      "per": "水5-6",
+      "day": "水",
+      "periodStart": 5,
+      "periodEnd": 6,
+      "room": "南4号館3階第2演習室",
+      "quarter": "4Q",
+      "building": "S4"
     }
   }
 }

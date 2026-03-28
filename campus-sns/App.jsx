@@ -33,6 +33,7 @@ import { NavigationView } from "./views/NavigationView.jsx";
 import { FriendsView } from "./views/FriendsView.jsx";
 import { CircleView } from "./views/CircleView.jsx";
 import { AdminView } from "./views/AdminView.jsx";
+import { FreshmanBoardView } from "./views/FreshmanBoardView.jsx";
 import { AcademicCalendarView } from "./views/AcademicCalendarView.jsx";
 import { ACADEMIC_EVENTS } from "./academicCalendar.js";
 import { useFriends } from "./hooks/useFriends.js";
@@ -403,7 +404,7 @@ export default function App(){
 
   // --- DESKTOP ---
   if(!mob){
-    const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",acadCal:"学年暦",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",location:"友達の居場所",navigation:"キャンパスナビ",friends:"友達",circles:"サークル",admin:"管理者"};
+    const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",acadCal:"学年暦",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",location:"友達の居場所",navigation:"キャンパスナビ",friends:"友達",circles:"サークル",admin:"管理者",freshman:"新入生掲示板"};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:"タイムライン",chat:"チャット",assignments:"課題",materials:"教材",reviews:"レビュー"}[ch]}</>;
       if(view==="dept"&&cd) return <><span style={{color:cd.col}}>{cd.prefix.startsWith("school:")?cd.name:cd.prefix}</span> {cd.prefix.startsWith("school:")?"":`${cd.name} `}— {{timeline:"タイムライン",chat:"チャット"}[ch]||""}</>;
@@ -437,6 +438,7 @@ export default function App(){
           {view==="circles"&&(TR?<TelecomBlockView title="サークルは現在利用できません"/>:<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate}/>)}
           {view==="acadCal"&&<AcademicCalendarView mob={false}/>}
           {view==="admin"&&<AdminView mob={false} courses={allCourses} depts={userDepts} schools={userSchools}/>}
+          {view==="freshman"&&<FreshmanBoardView mob={false}/>}
         </div>
         {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
         <Toasts/>
@@ -473,6 +475,7 @@ export default function App(){
         {view==="circles"&&(TR?<><MHdr title="サークル" back={mBack}/><TelecomBlockView title="サークルは現在利用できません" onBack={goBack}/></>:<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} onBack={mBack}/>)}
         {view==="acadCal"&&<><MHdr title="学年暦" back={mBack}/><AcademicCalendarView mob/></>}
         {view==="admin"&&<><MHdr title="管理者" back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
+        {view==="freshman"&&<><MHdr title="新入生掲示板" back={mBack}/><FreshmanBoardView mob/></>}
       </div>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread}/>
       <div style={{height:14,background:T.bg2,flexShrink:0}}/>

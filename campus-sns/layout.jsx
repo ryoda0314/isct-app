@@ -14,7 +14,7 @@ const SideItem=({icon,label,on,click,badge})=>(
 
 const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,courses=[],depts=[],schools=[],user={},quarter,pendingFriendCount=0})=>{
   const [moreOpen,setMoreOpen]=useState(false);
-  const extras=["grades","pomo","events","reviews","bmarks","location","acadCal"];
+  const extras=["grades","pomo","events","reviews","bmarks","location","acadCal","freshman"];
   const isExtra=extras.includes(view);
   return(
   <div style={{width:180,background:T.bg2,display:"flex",flexDirection:"column",borderRight:`1px solid ${T.bd}`,flexShrink:0,overflowY:"auto"}}>
@@ -30,6 +30,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
       <SideItem icon={I.cal} label="カレンダー" on={view==="calendar"} click={()=>setView("calendar")}/>
       <SideItem icon={I.circle} label="サークル" on={view==="circles"} click={()=>setView("circles")}/>
       <SideItem icon={I.map} label="キャンパスナビ" on={view==="navigation"} click={()=>setView("navigation")}/>
+      <SideItem icon={I.grad} label="新入生掲示板" on={view==="freshman"} click={()=>setView("freshman")}/>
       <SideItem icon={I.more} label="ツール" on={moreOpen||isExtra} click={()=>setMoreOpen(p=>!p)}/>
     </div>
     {schools.length>0&&<>
@@ -141,7 +142,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[]})=>{
 // ============================================================
 
 const MNav=({view,setView,ac,unreadN,dmUnread})=>{
-  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal"];
+  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal","freshman"];
   const isMore=moreViews.includes(view);
   return(
   <nav style={{display:"flex",background:T.bg2,borderTop:`1px solid ${T.bd}`,flexShrink:0}}>
@@ -172,6 +173,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
     ]},
     {title:"キャンパス",items:[
       {id:"location",i:I.pin,l:"友達の居場所"},
+      {id:"freshman",i:I.grad,l:"新入生掲示板"},
     ]},
     {title:"その他",items:otherItems},
   ];
