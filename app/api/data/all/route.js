@@ -24,12 +24,22 @@ export async function GET(request) {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
     const { wstoken, userid, fullname } = auth;
+    console.log(`[All] Auth OK: user=${userid}`);
 
     // Courses + schedule from syllabus
-    const raw = await fetchUserCourses(wstoken, userid);
+    let raw;
+    try {
+      raw = await fetchUserCourses(wstoken, userid);
+      console.log(`[All] fetchUserCourses OK: ${raw?.length ?? 0} courses`);
+    } catch (e) {
+      console.error('[All] fetchUserCourses FAILED:', e.message);
+      throw e;
+    }
+
     let scheduleMap = {};
     try {
       scheduleMap = await fetchScheduleForCourses(raw);
+      console.log(`[All] scheduleMap: ${Object.keys(scheduleMap).length} entries`);
     } catch (e) {
       console.error('[All] Syllabus scrape failed:', e.message);
     }
@@ -48,7 +58,14 @@ export async function GET(request) {
     const courseIdMap = {};
     courses.forEach(c => { courseIdMap[c.moodleId] = c.id; });
     const moodleIds = courses.map(c => c.moodleId);
-    const moodleAsgn = await fetchAssignments(wstoken, moodleIds);
+    let moodleAsgn;
+    try {
+      moodleAsgn = await fetchAssignments(wstoken, moodleIds);
+      console.log(`[All] fetchAssignments OK: ${moodleAsgn?.courses?.length ?? '?'} course entries`);
+    } catch (e) {
+      console.error('[All] fetchAssignments FAILED:', e.message);
+      throw e;
+    }
     let assignments = transformAssignments(moodleAsgn, courseIdMap);
 
     // Fetch submission status with concurrency limit to avoid overwhelming Moodle
