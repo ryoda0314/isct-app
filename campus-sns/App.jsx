@@ -216,15 +216,6 @@ export default function App(){
       if(r.status===401){setAppState("setup");return false;}
       if(!r.ok){console.error(`[App] /api/data/all failed: ${r.status} ${r.statusText}`);return false;}
       const d=await r.json();
-      console.log("[App][DEBUG] /api/data/all response:", JSON.stringify({
-        hasQData: !!d.qData,
-        qDataKeys: d.qData ? Object.keys(d.qData) : [],
-        qDataSummary: d.qData ? Object.fromEntries(Object.entries(d.qData).map(([q,v])=>[q,{courses:v.C?.length??0,ttFilled:v.TT?.flat().filter(Boolean).length??0}])) : null,
-        coursesCount: d.courses?.length ?? 0,
-        assignmentsCount: d.assignments?.length ?? 0,
-        user: d.user,
-        error: d.error
-      }));
       if(d.qData) setQDataLive(d.qData);
       if(d.courses){setAllCourses(d.courses);if(d.courses[0]&&!cid)setCid(d.courses[0].id);}
       if(d.assignments) setAsgn(d.assignments.map(a=>({...a,due:new Date(a.due)})));
