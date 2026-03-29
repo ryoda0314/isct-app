@@ -92,7 +92,18 @@ export function middleware(request) {
     }
   }
 
-  const res = NextResponse.next();
+  // Generate nonce for CSP (allows Next.js inline scripts)
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+
+  // Pass nonce to Next.js via request header so Server Components can read it
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+
+  const res = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 
   // Add CORS headers for Capacitor native app
   if (isCapacitorOrigin && isApi) {
@@ -111,12 +122,12 @@ export function middleware(request) {
   // M2: HSTS
   res.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
 
-  // M1: Content-Security-Policy
+  // M1: Content-Security-Policy with nonce for inline scripts
   res.headers.set(
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "script-src 'self' https://cdnjs.cloudflare.com",
+      `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://cdnjs.cloudflare.com`,
       "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
       "img-src 'self' https: data: blob:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lms.s.isct.ac.jp https://api.open-meteo.com https://geocoding-api.open-meteo.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com https://server.arcgisonline.com https://tile.openstreetmap.org",
