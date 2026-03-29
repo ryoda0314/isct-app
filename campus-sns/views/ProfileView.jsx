@@ -686,24 +686,26 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             </div>
           </div>}
           {(()=>{
-            // コースから学院・学系を自動検出（サイドバーと同じロジック）
+            // コースから学院・学系を自動検出（初期値として使用、ユーザー手動設定を優先）
             const courseDeptPrefixes=[...new Set((courses||[]).map(c=>c.code?.split('.')[0]).filter(Boolean))];
             const courseDepts=courseDeptPrefixes.filter(p=>DEPTS[p]).map(p=>({prefix:p,...DEPTS[p]}));
             const courseSchoolKeys=[...new Set(courseDepts.map(d=>d.school))];
             const courseSchools=courseSchoolKeys.filter(k=>SCHOOLS[k]).map(k=>({key:k,...SCHOOLS[k]}));
-            // 学院: student ID からの自動検出 or コースから
-            const schoolKey=user.school||(courseSchools.length===1?courseSchools[0].key:null);
-            const schoolInfo=schoolKey?SCHOOLS[schoolKey]:null;
-            // 学系: コースから自動検出を優先、なければ手動設定
-            const deptKey=(courseDepts.length===1?courseDepts[0].prefix:null)||user.myDept||null;
+            // 学系: 手動設定 > コース自動検出
+            const deptKey=user.myDept||(courseDepts.length===1?courseDepts[0].prefix:null)||null;
             const deptInfo=deptKey?DEPTS[deptKey]:null;
+            // 学院: 手動設定した学系から逆引き > student ID > コース自動検出
+            const schoolKey=(deptInfo?deptInfo.school:null)||user.school||(courseSchools.length===1?courseSchools[0].key:null);
+            const schoolInfo=schoolKey?SCHOOLS[schoolKey]:null;
+            const isAutoDetected=!user.myDept&&courseDepts.length===1;
             return<>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v3"/></svg>}
-            label="所属学院" sub={schoolInfo?"学籍番号・履修科目から自動検出":"タップして設定"}
+            label="所属学院" sub={isAutoDetected?"履修科目から自動検出 — タップで変更":"タップして変更"}
+            onClick={()=>{setDeptOpen(p=>!p);if(!deptSchool){setDeptSchool(schoolKey||(courseSchools[0]?.key)||null);}}}
             right={schoolInfo?<span style={{fontSize:13,fontWeight:600,color:schoolInfo.col}}>{schoolInfo.name}</span>:<span style={{fontSize:13,fontWeight:600,color:T.txD}}>未設定</span>}/>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>}
-            label="所属学系" sub={deptInfo&&courseDepts.length===1?"履修科目から自動検出 — タップで変更":"プロフィールに表示される学系"}
-            onClick={()=>{setDeptOpen(p=>!p);if(!deptSchool){setDeptSchool(user.school||schoolKey||(courseSchools[0]?.key)||null);}}}
+            label="所属学系" sub={isAutoDetected?"履修科目から自動検出 — タップで変更":"タップして変更"}
+            onClick={()=>{setDeptOpen(p=>!p);if(!deptSchool){setDeptSchool(schoolKey||(courseSchools[0]?.key)||null);}}}
             right={deptInfo?<span style={{fontSize:13,fontWeight:600,color:deptInfo.col||T.accent}}>{deptInfo.name}</span>:<span style={{fontSize:13,fontWeight:600,color:T.txD}}>未設定</span>}/>
           </>;})()}
           {deptOpen&&<div style={{padding:"8px 14px 12px"}}>
@@ -731,7 +733,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               );})}
             </div>
             <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",marginTop:8}}>
-              {user.myDept&&<button onClick={()=>{setDeptSchool(null);updateUserPref({myDept:null});}} style={{background:"none",border:"none",color:T.txD,fontSize:10,cursor:"pointer",padding:0}}>リセット</button>}
+              {user.myDept&&<button onClick={()=>{setDeptSchool(null);updateUserPref({myDept:null});}} style={{background:"none",border:"none",color:T.txD,fontSize:10,cursor:"pointer",padding:0}}>リセット（自動検出に戻す）</button>}
             </div>
             <style>{`@keyframes deptPop{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}`}</style>
           </div>}
