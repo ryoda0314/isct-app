@@ -56,11 +56,12 @@ export function setCurrentUserFromAPI(d) {
     }
   }
 
-  // DB に保存済みの dept / unit / yearGroup をローカル pref にも反映
+  // API から取得した値をローカル pref に常に反映（API が source of truth）
   let changed = false;
-  if (d.dept && !pref.myDept) { pref = { ...pref, myDept: d.dept }; changed = true; }
-  if (d.unit && !pref.myUnit) { pref = { ...pref, myUnit: d.unit }; changed = true; }
-  if ((d.yearGroup || cached.yearGroup) && !pref.yearGroup) { pref = { ...pref, yearGroup: d.yearGroup || cached.yearGroup }; changed = true; }
+  if (d.dept && pref.myDept !== d.dept) { pref = { ...pref, myDept: d.dept }; changed = true; }
+  if (d.unit && pref.myUnit !== d.unit) { pref = { ...pref, myUnit: d.unit }; changed = true; }
+  const effectiveYG = d.yearGroup || cached.yearGroup;
+  if (effectiveYG && pref.yearGroup !== effectiveYG) { pref = { ...pref, yearGroup: effectiveYG }; changed = true; }
   if (changed) { try { localStorage.setItem("userPref", JSON.stringify(pref)); } catch {} }
 
   notify();
