@@ -540,6 +540,9 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
           {allItems.slice(maxShow).some(it=>it.type==="ev")&&<span style={{width:mob?4:5,height:mob?4:5,borderRadius:"50%",background:T.accent,flexShrink:0}}/>}
           <span style={{fontSize:mob?7:8,color:T.txD}}>+{allItems.length-maxShow}</span>
         </div>}
+        {valid&&dayData.classes.length>0&&<div style={{display:"flex",gap:mob?1:2,flexWrap:"wrap",padding:"1px 2px",marginTop:"auto"}}>
+          {dayData.classes.map((c,ci)=><span key={ci} style={{width:mob?5:6,height:mob?5:6,borderRadius:mob?1:2,background:c.course.col,flexShrink:0,opacity:.8}} title={`${c.pd.l} ${c.course.name}`}/>)}
+        </div>}
       </div>;
     })}
   </div>;
