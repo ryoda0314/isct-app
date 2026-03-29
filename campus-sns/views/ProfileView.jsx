@@ -719,40 +719,40 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             <style>{`@keyframes deptPop{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}`}</style>
           </div>}
           {/* ── ユニット設定 ── */}
-          {(()=>{const autoYg=user.yearGroup||"";const effectiveYg=unitYg||autoYg;return<>
+          {(()=>{const autoYg=user.yearGroup||"";const effectiveYg=unitYg||autoYg;const hasUnit=!!user.myUnit;const unitParts=hasUnit?user.myUnit.split("-"):[];return<>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>}
             label="ユニット" sub="1年生の学院横断グループ"
             onClick={()=>{setUnitOpen(p=>!p);if(!unitYg&&autoYg)setUnitYg(autoYg);}}
-            right={<span style={{fontSize:13,fontWeight:600,color:user.myUnit?UNIT_COL:T.txD}}>{user.myUnit?`${user.myUnit.split("-")[0]} / ユニット${user.myUnit.split("-")[1]}`:"未設定"}</span>}/>
-          {unitOpen&&<div style={{padding:"8px 14px 12px",display:"flex",flexDirection:"column",gap:10}}>
-            <div>
-              <div style={{fontSize:11,color:T.txD,marginBottom:6,fontWeight:500}}>学年グループ</div>
-              {autoYg?<div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{padding:"7px 16px",borderRadius:8,border:`1px solid ${UNIT_COL}`,background:`${UNIT_COL}14`,color:UNIT_COL,fontSize:13,fontWeight:700}}>{autoYg}</span>
-                <span style={{fontSize:10,color:T.txD}}>学籍番号から自動検出</span>
-              </div>:<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            right={hasUnit?<span style={{fontSize:13,fontWeight:600,color:UNIT_COL}}>{unitParts[0]} / U{unitParts[1]}</span>:<span style={{fontSize:13,fontWeight:600,color:T.txD}}>未設定</span>}/>
+          {unitOpen&&<div style={{padding:"10px 14px 14px"}}>
+            {!autoYg&&<>
+              <div style={{fontSize:11,color:T.txD,marginBottom:8,fontWeight:500}}>学年グループ</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
                 {["23B","24B","25B","26B"].map(yg=>{const sel=unitYg===yg;return(
                   <button key={yg} onClick={e=>{e.stopPropagation();setUnitYg(sel?"":yg);}}
                     style={{padding:"7px 16px",borderRadius:8,border:`1px solid ${sel?UNIT_COL:T.bd}`,background:sel?`${UNIT_COL}14`:"transparent",color:sel?UNIT_COL:T.txD,fontSize:13,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
                     {yg}
                   </button>
                 );})}
-              </div>}
-            </div>
-            <div>
-              <div style={{fontSize:11,color:T.txD,marginBottom:6,fontWeight:500}}>ユニット番号</div>
-              <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                <input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="例: 7" value={unitInput} onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setUnitInput(v);}}
-                  style={{width:80,padding:"8px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,fontWeight:600,textAlign:"center",outline:"none"}}/>
               </div>
-            </div>
-            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            </>}
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{padding:"9px 14px",borderRadius:8,background:`${UNIT_COL}10`,border:`1px solid ${UNIT_COL}30`,color:UNIT_COL,fontSize:14,fontWeight:700,flexShrink:0}}>{effectiveYg||"?"}</div>
+              <span style={{fontSize:16,color:T.txD,fontWeight:300}}>/</span>
+              <div style={{display:"flex",alignItems:"center",gap:6,flex:1}}>
+                <span style={{fontSize:13,color:T.txD,fontWeight:500,flexShrink:0}}>ユニット</span>
+                <input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="番号" value={unitInput} onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setUnitInput(v);}}
+                  onKeyDown={e=>{if(e.key==="Enter"&&effectiveYg&&unitInput){updateUserPref({myUnit:`${effectiveYg}-${unitInput}`});setUnitOpen(false);}}}
+                  style={{width:56,padding:"9px 0",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:16,fontWeight:700,textAlign:"center",outline:"none"}}/>
+              </div>
               <button onClick={()=>{if(effectiveYg&&unitInput){updateUserPref({myUnit:`${effectiveYg}-${unitInput}`});setUnitOpen(false);}}}
-                style={{padding:"8px 20px",borderRadius:8,border:"none",background:effectiveYg&&unitInput?UNIT_COL:T.bg4,color:effectiveYg&&unitInput?"#fff":T.txD,fontSize:12,fontWeight:600,cursor:effectiveYg&&unitInput?"pointer":"default",transition:"all .15s"}}>
+                style={{padding:"9px 18px",borderRadius:8,border:"none",background:effectiveYg&&unitInput?UNIT_COL:T.bg4,color:effectiveYg&&unitInput?"#fff":T.txD,fontSize:13,fontWeight:600,cursor:effectiveYg&&unitInput?"pointer":"default",transition:"all .15s",flexShrink:0}}>
                 設定
               </button>
-              {user.myUnit&&<button onClick={()=>{setUnitInput("");setUnitYg("");updateUserPref({myUnit:null});}} style={{background:"none",border:"none",color:T.txD,fontSize:11,cursor:"pointer"}}>リセット</button>}
             </div>
+            {hasUnit&&<div style={{marginTop:8,display:"flex",justifyContent:"flex-end"}}>
+              <button onClick={()=>{setUnitInput("");setUnitYg("");updateUserPref({myUnit:null});}} style={{background:"none",border:"none",color:T.txD,fontSize:11,cursor:"pointer"}}>リセット</button>
+            </div>}
           </div>}
           </>;})()}
           {/* ── テーマ設定セクション ── */}
