@@ -294,7 +294,10 @@ export default function App(){
   },[userDepts]);
   const userUnit=useMemo(()=>{
     if(!user.myUnit) return null;
-    return {id:user.myUnit,name:`ユニット${user.myUnit}`,col:UNIT_COL,prefix:`unit:${user.myUnit}`};
+    const parts=user.myUnit.split("-");
+    const yg=parts[0]||"";
+    const num=parts[1]||user.myUnit;
+    return {id:user.myUnit,yg,num,name:`ユニット${num}`,col:UNIT_COL,prefix:`unit:${user.myUnit}`};
   },[user.myUnit]);
   const cd=userDepts.find(d=>d.prefix===did)||userSchools.find(s=>s.prefix===did)||(userUnit&&did===userUnit.prefix?userUnit:null);
   const qCourseIds=useMemo(()=>new Set(allCourses.filter(c=>c.quarter===quarter).map(c=>c.id)),[allCourses,quarter]);

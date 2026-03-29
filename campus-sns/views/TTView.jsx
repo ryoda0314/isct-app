@@ -219,10 +219,10 @@ export const CSelect=({setCid,setView,setCh,courses=[],depts=[],schools=[],setDi
         </div>)}
       </>}
       {userUnit&&<>
-        <div style={{fontSize:12,fontWeight:700,color:T.txD,marginTop:8,marginBottom:6,letterSpacing:.3}}>ユニット</div>
-        <div onClick={()=>{setDid?.(`unit:${userUnit.id}`);setCh("timeline");setView("dept");}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:8,borderLeft:`3px solid ${userUnit.col}`,cursor:"pointer"}}>
-          <div style={{width:38,height:38,borderRadius:10,background:userUnit.col,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:12,flexShrink:0}}>U{userUnit.id}</div>
-          <div style={{flex:1}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>ユニット{userUnit.id}</div><div style={{fontSize:12,color:T.txD}}>学院横断グループ</div></div>
+        <div style={{fontSize:12,fontWeight:700,color:T.txD,marginTop:8,marginBottom:6,letterSpacing:.3}}>ユニット — {userUnit.yg}</div>
+        <div onClick={()=>{setDid?.(userUnit.prefix);setCh("timeline");setView("dept");}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:8,borderLeft:`3px solid ${userUnit.col}`,cursor:"pointer"}}>
+          <div style={{width:38,height:38,borderRadius:10,background:userUnit.col,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:12,flexShrink:0}}>U{userUnit.num}</div>
+          <div style={{flex:1}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>ユニット{userUnit.num}</div><div style={{fontSize:12,color:T.txD}}>{userUnit.yg} 学院横断グループ</div></div>
           <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
         </div>
       </>}
