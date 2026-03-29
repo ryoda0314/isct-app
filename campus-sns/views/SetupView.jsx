@@ -705,9 +705,8 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
             </div>
             {hasIsct && <DoneBanner />}
             <div style={{ marginTop: 24 }}>
-              <button onClick={nextStep} style={primaryBtnStyle(true)}>{hasIsct ? "次へ" : "スキップして次へ"}</button>
+              <button onClick={nextStep} disabled={!hasIsct} style={primaryBtnStyle(hasIsct)}>次へ</button>
             </div>
-            {!hasIsct && <p style={{ fontSize: 11, color: T.txD, textAlign: "center", marginTop: 10 }}>あとから設定することもできます</p>}
           </div>
         </div>
       )}
@@ -737,9 +736,8 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
             </div>
             {hasPortal && <DoneBanner />}
             <div style={{ marginTop: 24 }}>
-              <button onClick={nextStep} style={primaryBtnStyle(true)}>{hasPortal ? "次へ" : "スキップして次へ"}</button>
+              <button onClick={nextStep} disabled={!hasPortal} style={primaryBtnStyle(hasPortal)}>次へ</button>
             </div>
-            {!hasPortal && <p style={{ fontSize: 11, color: T.txD, textAlign: "center", marginTop: 10 }}>あとから設定することもできます</p>}
           </div>
         </div>
       )}
