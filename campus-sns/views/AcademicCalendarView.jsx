@@ -53,32 +53,35 @@ export const AcademicCalendarView=({mob})=>{
   return(
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:mob?"0 0 20px":0}}>
       <div style={{maxWidth:640,margin:"0 auto",padding:"0 16px"}}>
-        {/* Header */}
-        <div style={{padding:"16px 0 8px",display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:36,height:36,borderRadius:10,background:`${T.accent}15`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+        {/* Sticky Header */}
+        <div style={{position:"sticky",top:0,zIndex:10,background:T.bg,paddingTop:mob?"env(safe-area-inset-top)":0}}>
+          <div style={{padding:"12px 0 6px",display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:36,height:36,borderRadius:10,background:`${T.accent}15`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+            </div>
+            <div>
+              <div style={{fontSize:18,fontWeight:800,color:T.txH}}>学年暦 {selYear}</div>
+              <div style={{fontSize:12,color:T.txD}}>東京科学大学 理工学系 授業日程</div>
+            </div>
           </div>
-          <div>
-            <div style={{fontSize:18,fontWeight:800,color:T.txH}}>学年暦 {selYear}</div>
-            <div style={{fontSize:12,color:T.txD}}>東京科学大学 理工学系 授業日程</div>
+
+          {/* Year selector */}
+          <div style={{display:"flex",gap:6,padding:"4px 0 6px"}}>
+            {[2025,2026].map(y=>
+              <button key={y} onClick={()=>setSelYear(y)}
+                style={{padding:"5px 14px",borderRadius:8,border:`1px solid ${selYear===y?T.accent:T.bd}`,background:selYear===y?`${T.accent}15`:"transparent",color:selYear===y?T.accent:T.txD,fontSize:13,fontWeight:selYear===y?700:500,cursor:"pointer",transition:"all .12s"}}>
+                {y}年度
+              </button>
+            )}
           </div>
-        </div>
 
-        {/* Year selector */}
-        <div style={{display:"flex",gap:6,padding:"4px 0 8px"}}>
-          {[2025,2026].map(y=>
-            <button key={y} onClick={()=>setSelYear(y)}
-              style={{padding:"5px 14px",borderRadius:8,border:`1px solid ${selYear===y?T.accent:T.bd}`,background:selYear===y?`${T.accent}15`:"transparent",color:selYear===y?T.accent:T.txD,fontSize:13,fontWeight:selYear===y?700:500,cursor:"pointer",transition:"all .12s"}}>
-              {y}年度
-            </button>
-          )}
-        </div>
-
-        {/* Legend */}
-        <div style={{display:"flex",flexWrap:"wrap",gap:6,padding:"4px 0 12px"}}>
-          {[["授業",T.accent],["祝日","#ef4444"],["行事","#0ea5e9"],["休講","#6b7280"],["試験","#d97706"],["休暇","#10b981"]].map(([l,c])=>
-            <span key={l} style={{fontSize:10,fontWeight:600,color:c,background:`${c}12`,padding:"2px 6px",borderRadius:4}}>{l}</span>
-          )}
+          {/* Legend */}
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,padding:"2px 0 8px"}}>
+            {[["授業",T.accent],["祝日","#ef4444"],["行事","#0ea5e9"],["休講","#6b7280"],["試験","#d97706"],["休暇","#10b981"]].map(([l,c])=>
+              <span key={l} style={{fontSize:10,fontWeight:600,color:c,background:`${c}12`,padding:"2px 6px",borderRadius:4}}>{l}</span>
+            )}
+          </div>
+          <div style={{borderBottom:`1px solid ${T.bd}`}}/>
         </div>
 
         {/* Months */}
