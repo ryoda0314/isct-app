@@ -685,9 +685,12 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               </div>
             </div>
           </div>}
+          {user.school&&SCHOOLS[user.school]&&<GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v3"/></svg>}
+            label="所属学院" sub="学籍番号から自動検出"
+            right={<span style={{fontSize:13,fontWeight:600,color:SCHOOLS[user.school].col}}>{SCHOOLS[user.school].name}</span>}/>}
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>}
             label="所属学系" sub="プロフィールに表示される学系"
-            onClick={()=>setDeptOpen(p=>!p)}
+            onClick={()=>{setDeptOpen(p=>!p);if(!deptSchool&&user.school)setDeptSchool(user.school);}}
             right={<span style={{fontSize:13,fontWeight:600,color:user.myDept?DEPTS[user.myDept]?.col||T.accent:T.txD}}>{user.myDept?DEPTS[user.myDept]?.name||user.myDept:"未設定"}</span>}/>
           {deptOpen&&<div style={{padding:"8px 14px 12px"}}>
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
