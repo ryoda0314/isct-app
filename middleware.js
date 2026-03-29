@@ -41,8 +41,9 @@ export function middleware(request) {
 
   // M4: Rate limit API endpoints (tiered)
   if (isApi) {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      || request.headers.get('x-real-ip')
+    // H11: Prefer x-real-ip (set by Vercel/trusted proxy, not spoofable)
+    const ip = request.headers.get('x-real-ip')
+      || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       || '127.0.0.1';
     // Check global limit first
     if (!checkRateLimit(ip, 'global')) {
@@ -115,7 +116,7 @@ export function middleware(request) {
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
+      "script-src 'self' https://cdnjs.cloudflare.com",
       "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
       "img-src 'self' https: data: blob:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lms.s.isct.ac.jp https://api.open-meteo.com https://geocoding-api.open-meteo.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com https://server.arcgisonline.com https://tile.openstreetmap.org",

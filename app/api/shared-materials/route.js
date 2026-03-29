@@ -109,8 +109,14 @@ export async function POST(request) {
       { onConflict: 'moodle_id', ignoreDuplicates: true }
     );
 
+    // H9: Sanitize courseId to prevent path traversal
+    const safeCourseId = String(courseId).replace(/[^a-zA-Z0-9_\-]/g, '_');
+    if (!safeCourseId) {
+      return NextResponse.json({ error: 'Invalid course_id' }, { status: 400 });
+    }
+
     const ts = Date.now();
-    const storagePath = `${courseId}/${ts}${ext}`;
+    const storagePath = `${safeCourseId}/${ts}${ext}`;
     const buf = Buffer.from(await file.arrayBuffer());
 
     const { error: uploadErr } = await sb.storage

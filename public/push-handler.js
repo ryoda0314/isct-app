@@ -27,7 +27,17 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || '/';
+  const rawUrl = event.notification.data?.url || '/';
+  // H8: Prevent open redirect — only allow same-origin or relative URLs
+  let url = '/';
+  try {
+    const resolved = new URL(rawUrl, self.location.origin);
+    if (resolved.origin === self.location.origin) {
+      url = resolved.href;
+    }
+  } catch {
+    url = self.location.origin + '/';
+  }
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       // Focus existing tab if possible

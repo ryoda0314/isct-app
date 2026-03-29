@@ -139,10 +139,13 @@ export async function POST(request) {
 
     const sb = getSupabaseAdmin();
 
-    // Check block status before allowing DM
+    // Check block status before allowing DM (both directions)
     if (to_user_id) {
-      const blockedIds = await getBlockedIds(userid);
-      if (blockedIds.has(to_user_id)) {
+      const [blockedIds, blockedByIds] = await Promise.all([
+        getBlockedIds(userid),
+        getBlockedIds(to_user_id),
+      ]);
+      if (blockedIds.has(to_user_id) || blockedByIds.has(userid)) {
         return NextResponse.json({ error: 'このユーザーにメッセージを送信できません' }, { status: 403 });
       }
     }
@@ -154,7 +157,7 @@ export async function POST(request) {
 
     let convId = conversation_id;
 
-    // If conversation_id is provided, verify user is a participant
+    // If conversation_id is provided, verify user is a participant + block check
     if (convId) {
       const { data: conv } = await sb
         .from('dm_conversations')
@@ -163,6 +166,13 @@ export async function POST(request) {
         .single();
       if (!conv || (conv.user1_id !== userid && conv.user2_id !== userid)) {
         return NextResponse.json({ error: 'Not a participant' }, { status: 403 });
+      }
+      // H6: Block check even when using existing conversation_id
+      const otherId = conv.user1_id === userid ? conv.user2_id : conv.user1_id;
+      const blockedIds = await getBlockedIds(userid);
+      const blockedByIds = await getBlockedIds(otherId);
+      if (blockedIds.has(otherId) || blockedByIds.has(userid)) {
+        return NextResponse.json({ error: 'このユーザーにメッセージを送信できません' }, { status: 403 });
       }
     }
 

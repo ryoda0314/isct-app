@@ -4,6 +4,22 @@ import { loadCredentials } from '../../../../lib/credentials.js';
 
 export const maxDuration = 30;
 
+// H5: SSRF protection — only allow portal-related domains
+const ALLOWED_HOSTS = [
+  'portal.nap.gsic.titech.ac.jp',
+  'portal.isct.ac.jp',
+  'www.ocw.titech.ac.jp',
+  'kyomu.gakumu.titech.ac.jp',
+  'kyomu0.gakumu.titech.ac.jp',
+];
+function isAllowedUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (!['https:', 'http:'].includes(parsed.protocol)) return false;
+    return ALLOWED_HOSTS.some(h => parsed.hostname === h || parsed.hostname.endsWith('.' + h));
+  } catch { return false; }
+}
+
 /* Re-use cookie cache from the page route */
 const portalCache = (() => {
   // Access the same cache via a global variable
@@ -15,6 +31,11 @@ export async function GET(req) {
   const targetUrl = new URL(req.url).searchParams.get('url');
   if (!targetUrl) {
     return new NextResponse('Missing url', { status: 400 });
+  }
+
+  // H5: SSRF protection
+  if (!isAllowedUrl(targetUrl)) {
+    return new NextResponse('URL not allowed', { status: 403 });
   }
 
   // Auth check

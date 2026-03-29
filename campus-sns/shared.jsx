@@ -6,6 +6,17 @@ import { I } from "./icons.jsx";
 const _loadCSS=(href,integrity)=>{const el=document.createElement("link");el.rel="stylesheet";el.href=href;if(integrity){el.integrity=integrity;el.crossOrigin="anonymous";}document.head.appendChild(el);};
 const _loadJS=(src,integrity,onload)=>{const el=document.createElement("script");el.src=src;if(integrity){el.integrity=integrity;el.crossOrigin="anonymous";}if(onload)el.onload=onload;document.head.appendChild(el);return el;};
 
+// --- DOMPurify Loader (XSS protection for dangerouslySetInnerHTML) ---
+const usePurify=()=>{
+  const [ready,setReady]=useState(typeof window!=="undefined"&&!!window.DOMPurify);
+  useEffect(()=>{
+    if(window.DOMPurify){setReady(true);return;}
+    _loadJS("https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.4/purify.min.js","sha384-nyLyTJPfGMBu0rveSqP7s5bfJcJmcMRKW8vsEkBq1PASC2iEcdz0VNdczG9MhyTZ",()=>setReady(true));
+  },[]);
+  return ready;
+};
+const _sanitize=html=>window.DOMPurify?window.DOMPurify.sanitize(html,{ADD_TAGS:["annotation","semantics","mrow","mi","mo","mn","msup","msub","mfrac","mover","munder","mspace","mtable","mtr","mtd","msqrt","mroot","menclose","mstyle","mtext","merror","mpadded","mphantom"],ADD_ATTR:["xmlns","encoding","mathvariant","displaystyle","scriptlevel","fence","stretchy","symmetric","maxsize","minsize","largeop","movablelimits","accent","accentunder","align","rowalign","columnalign","columnwidth","data-tag"],FORBID_TAGS:["style"],FORBID_ATTR:["onerror","onload","onclick","onmouseover","onfocus"]}):html;
+
 // --- KaTeX Loader ---
 const useKatex=()=>{
   const [ready,setReady]=useState(typeof window!=="undefined"&&!!window.katex);
@@ -55,15 +66,15 @@ const useHighlight=()=>{
 // Supports ```code blocks```, $$...$$ (display), $...$ (inline), **bold**, @mentions, #hashtags
 const _esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const _codeBlock=(highlighted,lang,raw)=>{
-  const esc=raw.replace(/\\/g,"\\\\").replace(/'/g,"\\'").replace(/\n/g,"\\n");
   const langLabel=lang?`<span style="color:#888;font-size:11px;font-weight:500;user-select:none">${_esc(lang)}</span>`:"";
-  const copyBtn=`<button onclick="var b=this;navigator.clipboard.writeText('${esc}');b.textContent='\\u2713 コピーしました';setTimeout(function(){b.textContent='コピー'},1500)" style="padding:5px 14px;border-radius:5px;border:1px solid #444;background:#2a2a3e;color:#aaa;font-size:12px;cursor:pointer;font-family:inherit;transition:background .15s;-webkit-tap-highlight-color:transparent" ontouchstart="this.style.background='#3a3a5e'" ontouchend="this.style.background='#2a2a3e'">コピー</button>`;
+  const copyBtn=`<button class="code-copy-btn" data-code="${_esc(raw)}" style="padding:5px 14px;border-radius:5px;border:1px solid #444;background:#2a2a3e;color:#aaa;font-size:12px;cursor:pointer;font-family:inherit;transition:background .15s;-webkit-tap-highlight-color:transparent">コピー</button>`;
   const toolbar=`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#181825;border-radius:0 0 8px 8px;border-top:1px solid #2a2a3e">${langLabel}${copyBtn}</div>`;
   return `<div style="margin:4px 0;border-radius:8px;overflow:hidden;background:#1e1e2e"><pre style="margin:0;padding:10px 12px;overflow-x:auto;font-size:12.5px;line-height:1.5;background:transparent"><code${highlighted?' class="hljs"':' style="color:#cdd6f4"'}>${highlighted||_esc(raw)}</code></pre>${toolbar}</div>`;
 };
 const Tx=({children,style:s})=>{
   const k=useKatex();
   const hl=useHighlight();
+  const dp=usePurify();
   const html=useMemo(()=>{
     if(!children||typeof children!=="string")return null;
     if(!k)return null;
@@ -106,9 +117,16 @@ const Tx=({children,style:s})=>{
       out=out.replace(/\x00(\d+)\x00/g,(_,i)=>held[+i]);
       return out;
     }catch{return null;}
-  },[children,k,hl]);
+  },[children,k,hl,dp]);
+  // Event delegation for code copy buttons (no inline onclick)
+  const handleClick=React.useCallback(e=>{
+    const btn=e.target.closest(".code-copy-btn");
+    if(!btn)return;
+    const code=btn.getAttribute("data-code");
+    if(code)navigator.clipboard.writeText(code).then(()=>{btn.textContent="\u2713 コピーしました";setTimeout(()=>{btn.textContent="コピー"},1500)}).catch(()=>{});
+  },[]);
   if(!children)return null;
-  if(html)return <div style={s} dangerouslySetInnerHTML={{__html:html}}/>;
+  if(html)return <div style={s} onClick={handleClick} dangerouslySetInnerHTML={{__html:_sanitize(html)}}/>;
   // fallback: no katex yet, just render with mentions and hashtags
   const parts=(children+"").split(/([@#]\S+)/g);
   return <div style={s}>{parts.map((p,i)=>p.startsWith("@")?<span key={i} style={{color:"#6375f0",fontWeight:600}}>{p}</span>:p.startsWith("#")?<span key={i} style={{color:"#6375f0",fontWeight:500,cursor:"pointer"}}>{p}</span>:p)}</div>;

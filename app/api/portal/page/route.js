@@ -13,6 +13,22 @@ const loginPromises = new Map();
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+// H5: SSRF protection — only allow portal-related domains
+const ALLOWED_HOSTS = [
+  'portal.nap.gsic.titech.ac.jp',
+  'portal.isct.ac.jp',
+  'www.ocw.titech.ac.jp',
+  'kyomu.gakumu.titech.ac.jp',
+  'kyomu0.gakumu.titech.ac.jp',
+];
+function isAllowedUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (!['https:', 'http:'].includes(parsed.protocol)) return false;
+    return ALLOWED_HOSTS.some(h => parsed.hostname === h || parsed.hostname.endsWith('.' + h));
+  } catch { return false; }
+}
+
 const PORTAL_LOGIN_URL =
   'https://portal.nap.gsic.titech.ac.jp/GetAccess/Login?Template=userpass_key&AUTHMETHOD=UserPassword&GAREASONCODE=-1&GARESOURCEID=resourcelistID2&GAURI=https://portal.nap.gsic.titech.ac.jp/GetAccess/ResourceList&Reason=-1&APPID=resourcelistID2&URI=https://portal.nap.gsic.titech.ac.jp/GetAccess/ResourceList';
 
@@ -188,6 +204,11 @@ export async function GET(request) {
       });
     }
 
+    /* ── H5: SSRF protection — reject disallowed URLs ── */
+    if (!isAllowedUrl(targetUrl)) {
+      return htmlError('許可されていないURLです');
+    }
+
     /* ── Full proxy: rewrite all URLs, return self-contained HTML ── */
     const data = await ensurePortalData(session.loginId, creds);
     let browser;
@@ -258,6 +279,7 @@ export async function GET(request) {
     }
   } catch (err) {
     console.error('[Portal Page] Error:', err.message, err.stack);
-    return NextResponse.json({ error: `Portal: ${err.message}` }, { status: 500 });
+    console.error('[Portal Page] Error:', err.message);
+    return NextResponse.json({ error: 'Portal error' }, { status: 500 });
   }
 }

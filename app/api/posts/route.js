@@ -70,7 +70,9 @@ export async function GET(request) {
     query = query.or('pinned.is.null,pinned.eq.false');
 
     if (search) {
-      query = query.ilike('text', `%${search}%`);
+      // H13: Limit search query length to prevent abuse
+      const safeSearch = search.slice(0, 200);
+      query = query.ilike('text', `%${safeSearch}%`);
       query = query.limit(50);
     } else {
       query = query.limit(limit + 1);
