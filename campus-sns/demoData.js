@@ -1468,7 +1468,7 @@ function buildDemoDataForPersona(personaId) {
     4: { C: q4, TT: buildDemoTT(q4) },
   };
   const asgn = p.asgn || buildPersonaAsgn(q1, q2);
-  const user = { userid: 99999, fullname: p.name, yearGroup: p.yearGroup };
+  const user = { userid: 99999, fullname: p.name, yearGroup: p.yearGroup, studentId: p.studentId };
 
   // ペルソナ固有のデータでグローバル DEMO_* を書き換え
   activatePersonaData(p.id, q2);

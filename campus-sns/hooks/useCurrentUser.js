@@ -1,5 +1,18 @@
 import { useState, useEffect } from 'react';
-import { ME } from '../data.js';
+import { ME, SCHOOLS } from '../data.js';
+
+const SCHOOL_NUM_MAP = {
+  "0": "science", "1": "engineering", "2": "matsci",
+  "3": "computing", "4": "lifesci", "5": "envsoc",
+};
+
+function parseStudentId(id) {
+  if (!id || id.length < 4) return null;
+  const m = id.match(/^(\d{2})([BMDR])(\d)/i);
+  if (!m) return null;
+  const schoolKey = SCHOOL_NUM_MAP[m[3]] || null;
+  return { yearGroup: m[1] + m[2].toUpperCase(), schoolKey, schoolName: schoolKey ? SCHOOLS[schoolKey]?.name : null };
+}
 
 let cached = null;
 let listeners = new Set();
@@ -14,26 +27,42 @@ function loadPref() {
 
 let pref = loadPref();
 
+function merge() {
+  // pref の null/undefined で cached の有効値を潰さないようマージ
+  const out = { ...cached };
+  for (const k of Object.keys(pref)) {
+    if (pref[k] != null) out[k] = pref[k];
+    else if (!(k in out) || out[k] == null) out[k] = pref[k];
+  }
+  return out;
+}
+
 function notify() {
-  listeners.forEach(fn => fn({ ...cached, ...pref }));
+  const u = merge();
+  listeners.forEach(fn => fn(u));
 }
 
 export function setCurrentUserFromAPI(d) {
   if (!d?.userid) return;
   cached = { ...ME, ...d, moodleId: d.userid, name: d.fullname || '', id: String(d.userid), isAdmin: !!d.isAdmin };
+
+  // 学籍番号から学年グループ・学院を自動推定
+  const sid = d.studentId || d.portalUserId || null;
+  if (sid) {
+    const parsed = parseStudentId(sid);
+    if (parsed) {
+      if (!cached.yearGroup && parsed.yearGroup) cached.yearGroup = parsed.yearGroup;
+      if (!cached.school && parsed.schoolKey) cached.school = parsed.schoolKey;
+    }
+  }
+
   // DB に保存済みの dept / unit / yearGroup をローカル pref にも反映
-  if (d.dept && !pref.myDept) {
-    pref = { ...pref, myDept: d.dept };
-    try { localStorage.setItem("userPref", JSON.stringify(pref)); } catch {}
-  }
-  if (d.unit && !pref.myUnit) {
-    pref = { ...pref, myUnit: d.unit };
-    try { localStorage.setItem("userPref", JSON.stringify(pref)); } catch {}
-  }
-  if (d.yearGroup && !pref.yearGroup) {
-    pref = { ...pref, yearGroup: d.yearGroup };
-    try { localStorage.setItem("userPref", JSON.stringify(pref)); } catch {}
-  }
+  let changed = false;
+  if (d.dept && !pref.myDept) { pref = { ...pref, myDept: d.dept }; changed = true; }
+  if (d.unit && !pref.myUnit) { pref = { ...pref, myUnit: d.unit }; changed = true; }
+  if ((d.yearGroup || cached.yearGroup) && !pref.yearGroup) { pref = { ...pref, yearGroup: d.yearGroup || cached.yearGroup }; changed = true; }
+  if (changed) { try { localStorage.setItem("userPref", JSON.stringify(pref)); } catch {} }
+
   notify();
 }
 
@@ -68,13 +97,12 @@ export function updateUserPref(patch) {
 }
 
 export function useCurrentUser(enabled = true) {
-  const base = cached || ME;
-  const [user, setUser] = useState({ ...base, ...pref });
+  const [user, setUser] = useState(() => cached ? merge() : { ...(cached || ME), ...pref });
 
   useEffect(() => {
     const handler = (u) => setUser(u);
     listeners.add(handler);
-    if (cached) { handler({ ...cached, ...pref }); return () => listeners.delete(handler); }
+    if (cached) { handler(merge()); return () => listeners.delete(handler); }
     if (enabled) {
       (async () => {
         try {
