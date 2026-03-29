@@ -20,6 +20,7 @@ const tabs = [
   { id: "map", label: "地図編集", icon: I.pin },
   { id: "syllabus", label: "時間割データ", icon: I.cal },
   { id: "syllabus_fetch", label: "時間割取得", icon: I.cal },
+  { id: "exams", label: "期末試験", icon: I.clip },
   { id: "settings", label: "設定", icon: I.shield },
 ];
 
@@ -1503,6 +1504,234 @@ const SyllabusFetchTab = () => {
   );
 };
 
+// ---- Exam Timetable Tab ----
+const ExamTab = () => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [filterDate, setFilterDate] = useState("");
+  const [filterPeriod, setFilterPeriod] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [addMode, setAddMode] = useState(false);
+  const [addForm, setAddForm] = useState({ date: "", day: "", period: "", code: "", name: "", instructor: "", room: "" });
+  const [bulkText, setBulkText] = useState("");
+  const [bulkMode, setBulkMode] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch(`${API}/api/admin?action=exams`).then(r => r.json()).then(d => setData(d)).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const exams = data?.exams || [];
+  const total = data?.total || exams.length;
+
+  const dates = [...new Set(exams.map(e => e.date).filter(Boolean))].sort();
+  const periods = [...new Set(exams.map(e => e.period).filter(Boolean))].sort();
+
+  const filtered = exams.filter(e => {
+    if (filterDate && e.date !== filterDate) return false;
+    if (filterPeriod && e.period !== filterPeriod) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      if (!e.code?.toLowerCase().includes(s) && !e.name?.toLowerCase().includes(s) && !e.instructor?.toLowerCase().includes(s) && !e.room?.toLowerCase().includes(s)) return false;
+    }
+    return true;
+  });
+
+  const fmtDate = d => {
+    if (!d) return "";
+    const dt = new Date(d + "T00:00:00");
+    const days = ["日", "月", "火", "水", "木", "金", "土"];
+    return `${dt.getMonth() + 1}/${dt.getDate()}(${days[dt.getDay()]})`;
+  };
+
+  const saveEdit = async () => {
+    if (!editId) return;
+    try {
+      await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_exam", id: editId, ...editForm }) });
+      setEditId(null);
+      load();
+    } catch {}
+  };
+
+  const deleteExam = async (id) => {
+    if (!confirm("この試験を削除しますか？")) return;
+    try {
+      await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_exam", id }) });
+      load();
+    } catch {}
+  };
+
+  const addExam = async () => {
+    if (!addForm.date || !addForm.code || !addForm.period) return;
+    // auto-fill day from date
+    const dt = new Date(addForm.date + "T00:00:00");
+    const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
+    const day = addForm.day || dayNames[dt.getDay()];
+    try {
+      await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "add_exam", ...addForm, day }) });
+      setAddForm({ date: "", day: "", period: "", code: "", name: "", instructor: "", room: "" });
+      setAddMode(false);
+      load();
+    } catch {}
+  };
+
+  const bulkImport = async () => {
+    if (!bulkText.trim()) return;
+    try {
+      // Parse tab/comma separated lines: date, period, code, name, instructor, room
+      const lines = bulkText.trim().split("\n").map(l => l.split(/\t|,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(c => c.replace(/^"|"$/g, "").trim()));
+      const entries = lines.filter(l => l.length >= 4).map(l => {
+        const [date, period, code, name, instructor, room] = l;
+        const dt = new Date(date + "T00:00:00");
+        const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
+        return { date, day: dayNames[dt.getDay()] || "", period, code: code.replace(/-\d+$/, ""), codeRaw: code, name: name || "", instructor: instructor || "", room: room || "" };
+      });
+      if (entries.length === 0) { alert("有効な行がありません"); return; }
+      await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "bulk_import_exams", entries }) });
+      setBulkText("");
+      setBulkMode(false);
+      load();
+    } catch {}
+  };
+
+  const inputSt = { padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none" };
+  const selectSt = { ...inputSt, cursor: "pointer" };
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>期末試験データ</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <Btn onClick={() => { setAddMode(!addMode); setBulkMode(false); }} color={T.green} small>{I.plus} 追加</Btn>
+          <Btn onClick={() => { setBulkMode(!bulkMode); setAddMode(false); }} color={T.accent} small>{I.upload} 一括登録</Btn>
+          <Btn onClick={load} color={T.txD} small>{I.reset} 更新</Btn>
+        </div>
+      </div>
+
+      {/* 一括登録モード */}
+      {bulkMode && (
+        <div style={{ marginBottom: 16, padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>一括登録（CSV/TSV）</div>
+          <div style={{ fontSize: 11, color: T.txD, marginBottom: 8 }}>形式: 日付, 時限, 科目コード, 科目名, 教員, 講義室（1行1件）</div>
+          <div style={{ fontSize: 11, color: T.txD, marginBottom: 8 }}>例: 2026-01-28, 1-2, CSC.T263, 関数型プログラミング基礎, 渡部 卓雄, M-278(H121)</div>
+          <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={6} placeholder="ここに貼り付け..." style={{ ...inputSt, width: "100%", resize: "vertical", fontFamily: "monospace", fontSize: 12 }} />
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <Btn onClick={bulkImport} color={T.accent}>登録</Btn>
+            <Btn onClick={() => setBulkMode(false)} color={T.txD}>キャンセル</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* 個別追加モード */}
+      {addMode && (
+        <div style={{ marginBottom: 16, padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>試験追加</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+            <input type="date" value={addForm.date} onChange={e => setAddForm(f => ({ ...f, date: e.target.value }))} style={{ ...inputSt, width: 150 }} />
+            <select value={addForm.period} onChange={e => setAddForm(f => ({ ...f, period: e.target.value }))} style={selectSt}>
+              <option value="">時限</option>
+              {["1-2", "3-4", "5-6", "7-8", "9-10", "1-4", "3-8", "5-8"].map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <input value={addForm.code} onChange={e => setAddForm(f => ({ ...f, code: e.target.value }))} placeholder="科目コード" style={{ ...inputSt, width: 130 }} />
+            <input value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))} placeholder="科目名" style={{ ...inputSt, width: 200 }} />
+            <input value={addForm.instructor} onChange={e => setAddForm(f => ({ ...f, instructor: e.target.value }))} placeholder="教員" style={{ ...inputSt, width: 150 }} />
+            <input value={addForm.room} onChange={e => setAddForm(f => ({ ...f, room: e.target.value }))} placeholder="講義室" style={{ ...inputSt, width: 150 }} />
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <Btn onClick={addExam} color={T.green}>追加</Btn>
+            <Btn onClick={() => setAddMode(false)} color={T.txD}>キャンセル</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* フィルター */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <SearchBar value={search} onChange={setSearch} onSearch={() => {}} placeholder="科目コード・名前で検索..." width={200} />
+        <select value={filterDate} onChange={e => setFilterDate(e.target.value)} style={selectSt}>
+          <option value="">全日程</option>
+          {dates.map(d => <option key={d} value={d}>{fmtDate(d)}</option>)}
+        </select>
+        <select value={filterPeriod} onChange={e => setFilterPeriod(e.target.value)} style={selectSt}>
+          <option value="">全時限</option>
+          {periods.map(p => <option key={p} value={p}>{p}限</option>)}
+        </select>
+        <span style={{ fontSize: 12, color: T.txD }}>{filtered.length} / {total} 件</span>
+      </div>
+
+      {loading && <div style={{ textAlign: "center", padding: 40, color: T.txD }}>読み込み中...</div>}
+
+      {!loading && filtered.length === 0 && (
+        <div style={{ textAlign: "center", padding: 40, color: T.txD }}>
+          {exams.length === 0 ? "試験データがありません。一括登録または個別追加で登録してください。" : "条件に一致する試験がありません"}
+        </div>
+      )}
+
+      {/* テーブル */}
+      {!loading && filtered.length > 0 && (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: `2px solid ${T.bd}` }}>
+                {["日付", "時限", "科目コード", "科目名", "教員", "講義室", "操作"].map(h => (
+                  <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: T.txD, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((e, i) => {
+                const isEditing = editId === (e.id || i);
+                return (
+                  <tr key={e.id || i} style={{ borderBottom: `1px solid ${T.bd}`, background: isEditing ? `${T.accent}08` : "transparent" }}>
+                    <td style={{ padding: "8px 10px", whiteSpace: "nowrap", color: T.txH }}>{fmtDate(e.date)}</td>
+                    <td style={{ padding: "8px 10px", color: T.txH }}>{e.period}</td>
+                    <td style={{ padding: "8px 10px" }}>
+                      {isEditing
+                        ? <input value={editForm.code || ""} onChange={ev => setEditForm(f => ({ ...f, code: ev.target.value }))} style={{ ...inputSt, width: 110 }} />
+                        : <span style={{ fontWeight: 600, color: T.accent }}>{e.codeRaw || e.code}</span>}
+                    </td>
+                    <td style={{ padding: "8px 10px" }}>
+                      {isEditing
+                        ? <input value={editForm.name || ""} onChange={ev => setEditForm(f => ({ ...f, name: ev.target.value }))} style={{ ...inputSt, width: 180 }} />
+                        : <span style={{ color: T.txH }}>{e.name}</span>}
+                    </td>
+                    <td style={{ padding: "8px 10px" }}>
+                      {isEditing
+                        ? <input value={editForm.instructor || ""} onChange={ev => setEditForm(f => ({ ...f, instructor: ev.target.value }))} style={{ ...inputSt, width: 120 }} />
+                        : <span style={{ color: T.txD, fontSize: 12 }}>{e.instructor}</span>}
+                    </td>
+                    <td style={{ padding: "8px 10px" }}>
+                      {isEditing
+                        ? <input value={editForm.room || ""} onChange={ev => setEditForm(f => ({ ...f, room: ev.target.value }))} style={{ ...inputSt, width: 120 }} />
+                        : <span style={{ color: T.txD, fontSize: 12 }}>{e.room}</span>}
+                    </td>
+                    <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
+                      {isEditing ? (
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <Btn onClick={saveEdit} color={T.green} small>{I.chk}</Btn>
+                          <Btn onClick={() => setEditId(null)} color={T.txD} small>{I.x}</Btn>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <Btn onClick={() => { setEditId(e.id || i); setEditForm({ code: e.codeRaw || e.code, name: e.name, instructor: e.instructor, room: e.room }); }} color={T.accent} small>{I.pen}</Btn>
+                          <Btn onClick={() => deleteExam(e.id || i)} color={T.red} small>{I.trash}</Btn>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const SettingsTab = () => {
   const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1766,6 +1995,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "map" && <MapEditorView mob={mob} />}
         {tab === "syllabus" && <SyllabusTab />}
         {tab === "syllabus_fetch" && <SyllabusFetchTab />}
+        {tab === "exams" && <ExamTab />}
         {tab === "settings" && <SettingsTab />}
       </div>
     </div>
