@@ -388,6 +388,18 @@ export async function GET(request) {
       });
     }
 
+    // --- Exam schedules ---
+    if (action === 'exams') {
+      const year = searchParams.get('year') || '';
+      const quarter = searchParams.get('quarter') || '';
+      let query = sb.from('exam_schedules').select('*').order('date').order('period');
+      if (year) query = query.eq('year', year);
+      if (quarter) query = query.eq('quarter', quarter);
+      const { data, error } = await query;
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
+      return NextResponse.json({ exams: data || [], total: (data || []).length });
+    }
+
     // --- Syllabus scrape progress ---
     if (action === 'scrape_progress') {
       const key = searchParams.get('key') || '';
@@ -702,6 +714,63 @@ export async function POST(request) {
         console.error(`[Admin] scrape_syllabus ${dept}_${year} failed:`, e);
         return NextResponse.json({ error: e.message, detail: e.stack?.split('\n').slice(0, 5).join('\n') }, { status: 500 });
       }
+    }
+
+    // --- Exam schedules CRUD ---
+    if (action === 'add_exam') {
+      const { code, code_raw, name, date, day, period, room, instructor, year, quarter } = body;
+      if (!code || !name || !date || !period) {
+        return NextResponse.json({ error: 'code, name, date, period required' }, { status: 400 });
+      }
+      const { data, error } = await sb.from('exam_schedules').insert({
+        code, code_raw: code_raw || null, name, date, day: day || null,
+        period, room: room || null, instructor: instructor || null,
+        year: year || '2025', quarter: quarter || '4Q', created_by: auth.userid,
+      }).select().single();
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: error.message }, { status: 500 }); }
+      await auditLog(sb, auth.userid, 'add_exam', 'exam', data.id, { code, name });
+      return NextResponse.json({ ok: true, exam: data });
+    }
+
+    if (action === 'update_exam') {
+      const { id, ...updates } = body;
+      if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+      delete updates.action;
+      updates.updated_at = new Date().toISOString();
+      const { error } = await sb.from('exam_schedules').update(updates).eq('id', id);
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: error.message }, { status: 500 }); }
+      await auditLog(sb, auth.userid, 'update_exam', 'exam', id, updates);
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === 'delete_exam') {
+      const { id } = body;
+      if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+      const { error } = await sb.from('exam_schedules').delete().eq('id', id);
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: error.message }, { status: 500 }); }
+      await auditLog(sb, auth.userid, 'delete_exam', 'exam', id);
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === 'bulk_import_exams') {
+      const { entries } = body;
+      if (!entries || !Array.isArray(entries) || entries.length === 0) {
+        return NextResponse.json({ error: 'entries array required' }, { status: 400 });
+      }
+      const rows = entries.map(e => ({
+        code: e.code, code_raw: e.code_raw || null, name: e.name,
+        date: e.date, day: e.day || null, period: e.period,
+        room: e.room || null, instructor: e.instructor || null,
+        year: e.year || '2025', quarter: e.quarter || '4Q',
+        created_by: auth.userid,
+      })).filter(r => r.code && r.name && r.date && r.period);
+      if (rows.length === 0) return NextResponse.json({ error: 'No valid entries' }, { status: 400 });
+      const { error, count } = await sb.from('exam_schedules').upsert(rows, {
+        onConflict: 'code,date,period', ignoreDuplicates: false,
+      });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: error.message }, { status: 500 }); }
+      await auditLog(sb, auth.userid, 'bulk_import_exams', 'exam', '', { count: rows.length });
+      return NextResponse.json({ ok: true, imported: rows.length });
     }
 
     // --- Bulk update profiles (dept/year) ---
