@@ -10,6 +10,8 @@ export function MatrixInput({ matrix, setMatrix }) {
   const [expanded, setExpanded] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingFile, setPendingFile] = useState(null);
   const fileRef = useRef(null);
   const filled = COLS.every(c => ROWS.every(r => matrix[c]?.[r]));
 
@@ -33,14 +35,29 @@ export function MatrixInput({ matrix, setMatrix }) {
     }
   };
 
-  const handleScan = useCallback(async (e) => {
+  const onFileSelect = useCallback((e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setPendingFile(file);
+    setConfirmOpen(true);
+    if (fileRef.current) fileRef.current.value = '';
+  }, []);
+
+  const handleDecline = useCallback(() => {
+    setConfirmOpen(false);
+    setPendingFile(null);
+    setExpanded(true);
+    setScanMsg({ type: 'info', text: '下の表から手入力できます。' });
+  }, []);
+
+  const handleConfirmScan = useCallback(async () => {
+    setConfirmOpen(false);
+    if (!pendingFile) return;
     setScanning(true);
     setScanMsg(null);
     try {
       const form = new FormData();
-      form.append('image', file);
+      form.append('image', pendingFile);
       const res = await fetch('/api/matrix/scan', { method: 'POST', body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '読み取りに失敗しました');
@@ -61,8 +78,8 @@ export function MatrixInput({ matrix, setMatrix }) {
       setScanMsg({ type: 'err', text: err.message });
     }
     setScanning(false);
-    if (fileRef.current) fileRef.current.value = '';
-  }, [setMatrix]);
+    setPendingFile(null);
+  }, [pendingFile, setMatrix]);
 
   return (
     <div>
@@ -78,7 +95,7 @@ export function MatrixInput({ matrix, setMatrix }) {
 
       {/* 画像読み取りボタン */}
       <div style={{ marginTop: 8 }}>
-        <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleScan} />
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={onFileSelect} />
         <button onClick={() => fileRef.current?.click()} disabled={scanning} style={{
           width: "100%", padding: "10px 0", borderRadius: 8,
           border: `1px solid ${T.accent}40`, background: `${T.accent}08`,
@@ -91,11 +108,48 @@ export function MatrixInput({ matrix, setMatrix }) {
         </button>
       </div>
 
+      {/* 同意確認ダイアログ */}
+      {confirmOpen && <>
+        <div onClick={handleDecline} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 999 }} />
+        <div style={{
+          position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+          width: "min(360px, 90vw)", background: T.bg2, borderRadius: 14,
+          border: `1px solid ${T.bd}`, boxShadow: "0 8px 32px rgba(0,0,0,.4)",
+          padding: 20, zIndex: 1000,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.yellow || "#eab308"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>外部AI送信の確認</span>
+          </div>
+          <p style={{ fontSize: 13, color: T.tx, lineHeight: 1.7, margin: "0 0 6px" }}>
+            カード画像を<strong style={{ color: T.txH }}>外部AIサービス（OpenAI）</strong>に送信して文字を読み取ります。
+          </p>
+          <ul style={{ fontSize: 12, color: T.txD, lineHeight: 1.7, margin: "0 0 14px", paddingLeft: 18 }}>
+            <li>画像はOpenAIのサーバーに送信されます</li>
+            <li>API経由のデータはAIの学習には使用されません</li>
+            <li>送信に同意しない場合は手入力できます</li>
+          </ul>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={handleDecline} style={{
+              flex: 1, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 600,
+              border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, cursor: "pointer",
+            }}>手入力する</button>
+            <button onClick={handleConfirmScan} style={{
+              flex: 1, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 600,
+              border: "none", background: T.accent, color: "#fff", cursor: "pointer",
+            }}>同意して読み取り</button>
+          </div>
+        </div>
+      </>}
+
       {scanMsg && (
         <div style={{
           marginTop: 6, padding: "8px 12px", borderRadius: 8, fontSize: 12,
-          background: scanMsg.type === 'ok' ? `${T.green}14` : `${T.red}14`,
-          color: scanMsg.type === 'ok' ? T.green : T.red,
+          background: scanMsg.type === 'ok' ? `${T.green}14` : scanMsg.type === 'info' ? `${T.accent}14` : `${T.red}14`,
+          color: scanMsg.type === 'ok' ? T.green : scanMsg.type === 'info' ? T.accent : T.red,
         }}>{scanMsg.text}</div>
       )}
 

@@ -4,6 +4,21 @@ import OpenAI from 'openai';
 const COLS = ['A','B','C','D','E','F','G','H','I','J'];
 const ROWS = ['1','2','3','4','5','6','7'];
 
+// IPあたり: 1時間に3回まで（マトリクスカードは1回読めれば十分）
+const scanHits = new Map();
+const SCAN_LIMIT = 3;
+const SCAN_WINDOW = 60 * 60 * 1000; // 1h
+// 5分ごとに古いエントリを掃除
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of scanHits) {
+    if (now - v.s > SCAN_WINDOW) scanHits.delete(k);
+  }
+}, 5 * 60 * 1000);
+
+// ファイルサイズ上限: 5MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
 const PROMPT = `この画像はマトリクス認証カードです。
 列ヘッダ: A B C D E F G H I J
 行ヘッダ: 1 2 3 4 5 6 7
@@ -13,6 +28,24 @@ const PROMPT = `この画像はマトリクス認証カードです。
 
 export async function POST(request) {
   try {
+    // レート制限チェック
+    const ip = request.headers.get('x-real-ip')
+      || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || '127.0.0.1';
+    const now = Date.now();
+    let rec = scanHits.get(ip);
+    if (!rec || now - rec.s > SCAN_WINDOW) {
+      rec = { s: now, c: 0 };
+      scanHits.set(ip, rec);
+    }
+    rec.c++;
+    if (rec.c > SCAN_LIMIT) {
+      return NextResponse.json(
+        { error: `読み取り回数の上限に達しました（${SCAN_LIMIT}回/時間）。手入力してください。` },
+        { status: 429 },
+      );
+    }
+
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: 'AI APIが設定されていません' }, { status: 501 });
@@ -22,6 +55,10 @@ export async function POST(request) {
     const file = formData.get('image');
     if (!file) {
       return NextResponse.json({ error: '画像が必要です' }, { status: 400 });
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: '画像サイズは5MB以下にしてください' }, { status: 400 });
     }
 
     const bytes = await file.arrayBuffer();
