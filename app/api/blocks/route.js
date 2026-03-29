@@ -54,7 +54,8 @@ export async function POST(request) {
     const { userid } = auth;
     const { user_id } = await request.json();
 
-    if (!user_id || user_id === userid) {
+    const numBlock = Number(user_id);
+    if (!user_id || !Number.isFinite(numBlock) || numBlock === userid) {
       return NextResponse.json({ error: 'Invalid user' }, { status: 400 });
     }
 
@@ -63,7 +64,7 @@ export async function POST(request) {
     // Insert block record
     const { error } = await sb
       .from('user_blocks')
-      .insert({ blocker_id: userid, blocked_id: user_id });
+      .insert({ blocker_id: userid, blocked_id: numBlock });
 
     if (error) {
       if (error.code === '23505') {
@@ -77,7 +78,7 @@ export async function POST(request) {
       .from('friendships')
       .delete()
       .or(
-        `and(requester_id.eq.${userid},addressee_id.eq.${user_id}),and(requester_id.eq.${user_id},addressee_id.eq.${userid})`
+        `and(requester_id.eq.${userid},addressee_id.eq.${numBlock}),and(requester_id.eq.${numBlock},addressee_id.eq.${userid})`
       );
 
     return NextResponse.json({ ok: true });
@@ -95,7 +96,8 @@ export async function DELETE(request) {
     const { userid } = auth;
     const { user_id } = await request.json();
 
-    if (!user_id) {
+    const numUnblock = Number(user_id);
+    if (!user_id || !Number.isFinite(numUnblock)) {
       return NextResponse.json({ error: 'user_id required' }, { status: 400 });
     }
 
@@ -105,7 +107,7 @@ export async function DELETE(request) {
       .from('user_blocks')
       .delete()
       .eq('blocker_id', userid)
-      .eq('blocked_id', user_id);
+      .eq('blocked_id', numUnblock);
 
     if (error) throw error;
     return NextResponse.json({ ok: true });

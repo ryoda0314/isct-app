@@ -17,12 +17,12 @@ export async function GET(request) {
 
     if (error) {
       console.error('[Bookmarks GET]', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Internal error' }, { status: 500 });
     }
     return NextResponse.json(data.map(b => b.post_id));
   } catch (err) {
     console.error('[Bookmarks GET]', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
@@ -45,12 +45,12 @@ export async function POST(request) {
 
     if (error) {
       console.error('[Bookmarks POST]', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Internal error' }, { status: 500 });
     }
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('[Bookmarks POST]', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
@@ -72,11 +72,11 @@ export async function DELETE(request) {
 
     if (error) {
       console.error('[Bookmarks DELETE]', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Internal error' }, { status: 500 });
     }
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('[Bookmarks DELETE]', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

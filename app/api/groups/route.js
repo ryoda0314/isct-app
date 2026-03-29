@@ -95,6 +95,9 @@ export async function POST(request) {
     if (!member_ids || !Array.isArray(member_ids) || member_ids.length === 0) {
       return NextResponse.json({ error: 'member_ids required' }, { status: 400 });
     }
+    if (member_ids.length > 100) {
+      return NextResponse.json({ error: 'Too many members' }, { status: 400 });
+    }
 
     const sb = getSupabaseAdmin();
 

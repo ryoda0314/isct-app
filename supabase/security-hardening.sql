@@ -161,12 +161,12 @@ create policy "deny_all_user_blocks" on user_blocks
 --    then replace these blanket policies with user-scoped ones.
 --
 --    IMMEDIATE MITIGATION: Restrict anon SELECT on profiles to
---    only return non-sensitive columns via column-level grants:
---    (Run in Supabase SQL Editor when ready)
---
---    revoke select on profiles from anon;
---    grant select (moodle_id, name, avatar, color, status) on profiles to anon;
---
---    This hides sensitive columns from anon PostgREST queries:
---      banned, banned_at, ban_reason, last_active_at, dept, created_at
+--    only return non-sensitive columns via column-level grants.
 -- =============================================================
+
+-- 8. profiles テーブル: anon に公開するカラムを限定
+--    Realtime 用に anon SELECT は必要だが、全カラム公開は不要。
+--    これにより banned, banned_at, ban_reason, last_active_at, dept,
+--    created_at が anon PostgREST クエリから隠される。
+revoke select on profiles from anon;
+grant select (moodle_id, name, avatar, color, status) on profiles to anon;

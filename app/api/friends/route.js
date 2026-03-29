@@ -106,7 +106,7 @@ export async function GET(request) {
     }
 
     if (type === 'search') {
-      const q = searchParams.get('q') || '';
+      const q = (searchParams.get('q') || '').slice(0, 100);
       if (!q.trim()) return NextResponse.json([]);
 
       const { data: pData, error } = await sb
@@ -202,7 +202,8 @@ export async function POST(request) {
     const { userid, fullname } = auth;
     const { to_user_id } = await request.json();
 
-    if (!to_user_id || to_user_id === userid) {
+    const numTo = Number(to_user_id);
+    if (!to_user_id || !Number.isFinite(numTo) || numTo === userid) {
       return NextResponse.json({ error: 'Invalid user' }, { status: 400 });
     }
 
@@ -210,7 +211,7 @@ export async function POST(request) {
 
     // Check block status before allowing friend request
     const blockedIds = await getBlockedIds(userid);
-    if (blockedIds.has(to_user_id)) {
+    if (blockedIds.has(numTo)) {
       return NextResponse.json({ error: 'Cannot send request' }, { status: 403 });
     }
 
@@ -225,7 +226,7 @@ export async function POST(request) {
       .from('friendships')
       .select('*')
       .or(
-        `and(requester_id.eq.${userid},addressee_id.eq.${to_user_id}),and(requester_id.eq.${to_user_id},addressee_id.eq.${userid})`
+        `and(requester_id.eq.${userid},addressee_id.eq.${numTo}),and(requester_id.eq.${numTo},addressee_id.eq.${userid})`
       );
 
     if (existing && existing.length > 0) {
@@ -250,11 +251,11 @@ export async function POST(request) {
 
         const acceptText = `${myName}さんがフレンド申請を承認しました`;
         await sb.from('notifications').insert({
-          moodle_user_id: to_user_id,
+          moodle_user_id: numTo,
           type: 'friend_request',
           text: acceptText,
         });
-        sendPushToUser(to_user_id, { title: '友達', body: acceptText }).catch(() => {});
+        sendPushToUser(numTo, { title: '友達', body: acceptText }).catch(() => {});
         return NextResponse.json({ ok: true, status: 'accepted' });
       }
       // We already sent a pending request
@@ -265,7 +266,7 @@ export async function POST(request) {
       if (row.status === 'rejected') {
         const { error } = await sb
           .from('friendships')
-          .update({ status: 'pending', requester_id: userid, addressee_id: to_user_id, updated_at: new Date().toISOString() })
+          .update({ status: 'pending', requester_id: userid, addressee_id: numTo, updated_at: new Date().toISOString() })
           .eq('id', row.id);
         if (error) throw error;
       }
@@ -273,7 +274,7 @@ export async function POST(request) {
       // New request
       const { error } = await sb
         .from('friendships')
-        .insert({ requester_id: userid, addressee_id: to_user_id, status: 'pending' });
+        .insert({ requester_id: userid, addressee_id: numTo, status: 'pending' });
       if (error) throw error;
     }
 
@@ -282,11 +283,11 @@ export async function POST(request) {
     const myName = myProfile?.name || `User ${userid}`;
     const reqText = `${myName}さんから友達申請が届きました`;
     await sb.from('notifications').insert({
-      moodle_user_id: to_user_id,
+      moodle_user_id: numTo,
       type: 'friend_request',
       text: reqText,
     });
-    sendPushToUser(to_user_id, { title: '友達申請', body: reqText }).catch(() => {});
+    sendPushToUser(numTo, { title: '友達申請', body: reqText }).catch(() => {});
 
     return NextResponse.json({ ok: true, status: 'pending' });
   } catch (err) {
@@ -357,7 +358,8 @@ export async function DELETE(request) {
     const { userid } = auth;
     const { friend_id } = await request.json();
 
-    if (!friend_id) {
+    const numFriend = Number(friend_id);
+    if (!friend_id || !Number.isFinite(numFriend)) {
       return NextResponse.json({ error: 'friend_id required' }, { status: 400 });
     }
 
@@ -368,7 +370,7 @@ export async function DELETE(request) {
       .delete()
       .eq('status', 'accepted')
       .or(
-        `and(requester_id.eq.${userid},addressee_id.eq.${friend_id}),and(requester_id.eq.${friend_id},addressee_id.eq.${userid})`
+        `and(requester_id.eq.${userid},addressee_id.eq.${numFriend}),and(requester_id.eq.${numFriend},addressee_id.eq.${userid})`
       );
     if (error) throw error;
 

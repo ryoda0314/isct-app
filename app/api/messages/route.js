@@ -23,7 +23,7 @@ export async function GET(request) {
       enrolled = await isEnrolledInCourse(wstoken, userid, toMoodleId(courseId));
     } catch (e) {
       console.error('[Messages GET] enrollment check failed:', e.message);
-      return NextResponse.json({ error: `Enrollment check failed: ${e.message}` }, { status: 500 });
+      return NextResponse.json({ error: 'Internal error' }, { status: 500 });
     }
     if (!enrolled) {
       return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
@@ -39,7 +39,7 @@ export async function GET(request) {
 
     if (error) {
       console.error('[Messages GET] query:', error.message, error.details, error.hint);
-      return NextResponse.json({ error: `DB query failed: ${error.message}` }, { status: 500 });
+      return NextResponse.json({ error: 'Internal error' }, { status: 500 });
     }
 
     // Filter out messages from blocked/muted users
@@ -49,7 +49,7 @@ export async function GET(request) {
     return NextResponse.json(filtered);
   } catch (err) {
     console.error('[Messages GET]', err);
-    return NextResponse.json({ error: `Internal error: ${err.message}` }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
@@ -79,7 +79,7 @@ export async function POST(request) {
       enrolled = await isEnrolledInCourse(wstoken, userid, toMoodleId(course_id));
     } catch (e) {
       console.error('[Messages POST] enrollment check failed:', e.message);
-      return NextResponse.json({ error: `Enrollment check failed: ${e.message}` }, { status: 500 });
+      return NextResponse.json({ error: 'Internal error' }, { status: 500 });
     }
     if (!enrolled) {
       return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
@@ -115,12 +115,12 @@ export async function POST(request) {
 
     if (error) {
       console.error('[Messages POST] insert:', error.message, error.details, error.hint);
-      return NextResponse.json({ error: `Insert failed: ${error.message}` }, { status: 500 });
+      return NextResponse.json({ error: 'Internal error' }, { status: 500 });
     }
     return NextResponse.json(data);
   } catch (err) {
     console.error('[Messages POST]', err);
-    return NextResponse.json({ error: `Internal error: ${err.message}` }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
@@ -176,10 +176,10 @@ export async function PATCH(request) {
       .select('*, profiles(name, avatar, color)')
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) { console.error('[Messages PATCH]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
     return NextResponse.json(data);
   } catch (err) {
     console.error('[Messages PATCH]', err);
-    return NextResponse.json({ error: `Internal error: ${err.message}` }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

@@ -22,11 +22,11 @@ export async function POST(request) {
 
     if (error) {
       console.error('[Bookmarks/posts]', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Internal error' }, { status: 500 });
     }
     return NextResponse.json(data);
   } catch (err) {
     console.error('[Bookmarks/posts]', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

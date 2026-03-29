@@ -15,7 +15,7 @@ const usePurify=()=>{
   },[]);
   return ready;
 };
-const _sanitize=html=>window.DOMPurify?window.DOMPurify.sanitize(html,{ADD_TAGS:["annotation","semantics","mrow","mi","mo","mn","msup","msub","mfrac","mover","munder","mspace","mtable","mtr","mtd","msqrt","mroot","menclose","mstyle","mtext","merror","mpadded","mphantom"],ADD_ATTR:["xmlns","encoding","mathvariant","displaystyle","scriptlevel","fence","stretchy","symmetric","maxsize","minsize","largeop","movablelimits","accent","accentunder","align","rowalign","columnalign","columnwidth","data-tag"],FORBID_TAGS:["style"],FORBID_ATTR:["onerror","onload","onclick","onmouseover","onfocus"]}):html;
+const _sanitize=html=>window.DOMPurify?window.DOMPurify.sanitize(html,{ADD_TAGS:["annotation","semantics","mrow","mi","mo","mn","msup","msub","mfrac","mover","munder","mspace","mtable","mtr","mtd","msqrt","mroot","menclose","mstyle","mtext","merror","mpadded","mphantom"],ADD_ATTR:["xmlns","encoding","mathvariant","displaystyle","scriptlevel","fence","stretchy","symmetric","maxsize","minsize","largeop","movablelimits","accent","accentunder","align","rowalign","columnalign","columnwidth","data-tag"],FORBID_TAGS:["style"],FORBID_ATTR:["onerror","onload","onclick","onmouseover","onfocus"]}):"";
 
 // --- KaTeX Loader ---
 const useKatex=()=>{

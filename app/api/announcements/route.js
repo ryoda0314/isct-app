@@ -16,7 +16,7 @@ export async function GET(request) {
       .order('created_at', { ascending: false })
       .limit(20);
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) { console.error('[Announcements GET]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
     return NextResponse.json(data || []);
   } catch (e) {
     console.error('[Announcements GET]', e);
