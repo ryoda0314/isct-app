@@ -440,7 +440,7 @@ export default function App(){
   const guestLogin=()=>{setFromGuest(guestMode);setGuestMode(null);window.location.hash="";setMockMode(false);setAppState("setup");};
   const backToGuest=()=>{const mode=fromGuest||"freshman";setFromGuest(null);setGuestMode(mode);window.location.hash=mode==="navi"?"navi":"freshman";setAppState("ready");setViewRaw(mode==="navi"?"navigation":"freshman");};
 
-  if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={onDemo} personas={DEMO_PERSONAS} mob={mob} dark={dark} onBackToBoard={fromGuest?backToGuest:null}/>;
+  if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={onDemo} personas={DEMO_PERSONAS} mob={mob} dark={dark} onBackToBoard={fromGuest?backToGuest:null} backLabel={fromGuest==="navi"?"キャンパスナビに戻る":undefined}/>;
 
   if(guestMode){
     return(

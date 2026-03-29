@@ -366,7 +366,7 @@ function ErrorBanner({ error }) {
    mode="login"  → ログイン（ISCT資格情報のみ）
    mode="signup" → 新規登録ウィザード（step 0〜2）
    ================================================================ */
-export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard }) => {
+export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, backLabel }) => {
   const [mode, setMode] = useState(null);
   const [showPersonaPicker, setShowPersonaPicker] = useState(false);
   const [step, setStep] = useState(0);
@@ -585,7 +585,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard }) 
                 width: "100%", padding: "12px 0", borderRadius: 10,
                 border: `1px solid ${T.bd}`, background: T.bg2, color: T.txD,
                 fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>新入生掲示板に戻る</button>}
+              }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>{backLabel||"新入生掲示板に戻る"}</button>}
             </div>
             {!privacyAgreed && <p style={{ fontSize: 11, color: T.txD, textAlign: "center", marginTop: 10 }}>利用するには利用規約・プライバシーポリシーへの同意が必要です</p>}
             <button onClick={() => setShowPersonaPicker(true)} style={{

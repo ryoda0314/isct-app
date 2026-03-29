@@ -19,22 +19,22 @@ function detect(ua) {
 
 /* ─── Inline SVG Icons ─── */
 const ShareIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6375f0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#28c868" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
   </svg>
 );
 const PlusBoxIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6375f0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#28c868" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
   </svg>
 );
 const MenuDotsIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6375f0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="5" r="1.5" fill="#6375f0"/><circle cx="12" cy="12" r="1.5" fill="#6375f0"/><circle cx="12" cy="19" r="1.5" fill="#6375f0"/>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#28c868" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="5" r="1.5" fill="#28c868"/><circle cx="12" cy="12" r="1.5" fill="#28c868"/><circle cx="12" cy="19" r="1.5" fill="#28c868"/>
   </svg>
 );
 const ExternalIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6375f0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#28c868" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
   </svg>
 );
@@ -50,14 +50,14 @@ const CopyIcon = () => (
 );
 
 /* ─── Styles ─── */
-const ACCENT = "#6375f0";
-const BG = "#111113";
-const BG2 = "#1a1a1f";
-const BG3 = "#222228";
-const TX = "#b0b0b8";
-const TXH = "#dddde0";
-const GREEN = "#3dae72";
-const BD = "#2a2a34";
+const ACCENT = "#28c868";
+const BG = "#eef5fb";
+const BG2 = "#f6fafd";
+const BG3 = "#e0ecf6";
+const TX = "#3a5870";
+const TXH = "#0e2030";
+const GREEN = "#28c868";
+const BD = "#c8dcea";
 
 const S = {
   page: {
@@ -77,7 +77,7 @@ const S = {
   },
   appIcon: {
     width: 64, height: 64, borderRadius: 16,
-    boxShadow: "0 6px 24px rgba(99,117,240,0.3)",
+    boxShadow: "0 6px 24px rgba(40,200,104,0.3)",
   },
   appName: {
     fontSize: 20, fontWeight: 700, color: TXH, margin: 0,
@@ -132,7 +132,7 @@ const S = {
   sourceTag: {
     display: "inline-flex", alignItems: "center", gap: 6,
     padding: "4px 10px", borderRadius: 16,
-    background: "rgba(99,117,240,0.12)", border: "1px solid rgba(99,117,240,0.25)",
+    background: "rgba(40,200,104,0.12)", border: "1px solid rgba(40,200,104,0.25)",
     fontSize: 12, fontWeight: 500, color: ACCENT,
   },
   tipBox: {
