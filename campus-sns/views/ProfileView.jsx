@@ -5,6 +5,7 @@ import { Av } from '../shared.jsx';
 import { updateUserPref } from '../hooks/useCurrentUser.js';
 import { MatrixInput, COLS, ROWS } from '../components/MatrixInput.jsx';
 import { QA_ALL, QA_DEFAULT } from './HomeView.jsx';
+import { isNative } from '../capacitor.js';
 import { NAV_QUICK_DEFAULT, SPOT_GROUPS } from './NavigationView.jsx';
 import { SPOTS, SPOT_CATS } from '../hooks/useLocationSharing.js';
 import { TIMEOUT_OPTIONS } from '../hooks/useAppLock.js';
@@ -550,7 +551,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             onClick={()=>setQaOpen(p=>!p)}/>
           {qaOpen&&<div style={{padding:"8px 14px 12px"}}>
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {QA_ALL.map(q=>{
+              {QA_ALL.filter(q=>isNative()||!(q.id==="portal"||q.id==="isctportal")).map(q=>{
                 const on=qaIds.includes(q.id);
                 const full=!on&&qaIds.length>=4;
                 const portalIcon=<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>;

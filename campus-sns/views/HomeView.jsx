@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
@@ -6,6 +6,7 @@ import { NOW, uDue, pDone } from "../utils.jsx";
 import { Tag } from "../shared.jsx";
 import { useLocationSharing, getSpot } from "../hooks/useLocationSharing.js";
 import { getAcademicInfo } from "../academicCalendar.js";
+import { PERIOD_TIMES } from "../examData.js";
 import { isNative } from "../capacitor.js";
 import { openPortal, openIsctPortal } from "../plugins/portalWebView.js";
 import { AnnouncementBanner } from "../AnnouncementBanner.jsx";
@@ -55,9 +56,9 @@ const getQA=()=>{try{const v=localStorage.getItem("quickAccess");return v?JSON.p
 
 export { QA_ALL, QA_DEFAULT };
 
-export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvents=[],quarter,hiddenSet=new Set(),qd,goToBuilding,setDid,userDepts=[],userSchools=[],userUnit})=>{
+export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvents=[],quarter,hiddenSet=new Set(),qd,qDataAll={},goToBuilding,setDid,userDepts=[],userSchools=[],userUnit})=>{
   const [qaIds]=useState(getQA);
-  const qaItems=qaIds.map(id=>QA_ALL.find(q=>q.id===id)).filter(Boolean);
+  const qaItems=qaIds.map(id=>QA_ALL.find(q=>q.id===id)).filter(Boolean).filter(q=>isNative()||!(q.id==="portal"||q.id==="isctportal"));
   const [now,setNow]=useState(()=>new Date());
   const [wx,setWx]=useState(()=>{try{const v=localStorage.getItem("wxCache");if(v){const d=JSON.parse(v);if(Date.now()-d._ts<30*60*1000)return d;}return null;}catch{return null;}});
   const [loc,setLoc]=useState(()=>{try{const v=localStorage.getItem("wxLoc");return v?JSON.parse(v):DEF_LOC;}catch{return DEF_LOC;}});
@@ -72,11 +73,19 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
   const [isctLoading,setIsctLoading]=useState(false);
   const {myLoc}=useLocationSharing({id:user.moodleId||user.id,name:user.name,col:user.col,av:user.av});
   const mySpot=getSpot(myLoc);
+  const [exams,setExams]=useState([]);
 
   useEffect(()=>{
     const tid=setInterval(()=>setNow(new Date()),60000);
     return()=>clearInterval(tid);
   },[]);
+  useEffect(()=>{fetch("/api/exams").then(r=>r.json()).then(d=>setExams(d.exams||[])).catch(()=>{});},[]);
+  const myExams=useMemo(()=>{
+    if(!courses?.length||!exams.length)return [];
+    const rawSet=new Set(),baseSet=new Set();
+    courses.forEach(c=>{if(c.codeRaw&&c.codeRaw!==c.code)rawSet.add(c.codeRaw);else if(c.code)baseSet.add(c.code);});
+    return exams.filter(e=>rawSet.has(e.code_raw)||baseSet.has(e.code));
+  },[exams,courses]);
   useEffect(()=>{try{localStorage.setItem("wxLoc",JSON.stringify(loc));}catch{}},[loc]);
   useEffect(()=>{if(!isNative())fetch("/api/portal/page?warmup=1",{cache:"no-store"}).catch(()=>{});},[]);
   useEffect(()=>{
@@ -123,25 +132,48 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
     return()=>clearTimeout(tid);
   },[locQ]);
 
-  // 今日の授業
-  const dow=now.getDay(),di=dow>=1&&dow<=5?dow-1:-1;
+  // 今日の授業（学年暦対応: 祝日・休暇・振替授業を考慮）
+  const DOW_MAP={"月":0,"火":1,"水":2,"木":3,"金":4};
+  const curTT=qd?.TT||[];
+  const getTT=q=>{const d=qDataAll[q];return d?.TT||curTT;};
   const nowMin=now.getHours()*60+now.getMinutes();
-  const todayClasses=di>=0?PD.map((pd,pi)=>{const co=qd?.TT?.[pi]?.[di];if(!co)return null;const sM=pd.s[0]*60+pd.s[1],eM=pd.e[0]*60+pd.e[1];const st=nowMin>=eM?"done":nowMin>=sM?"now":"next";return{co,pd,pi,st,sM,eM,type:"class"};}).filter(Boolean):[];
+  const todayClasses=(()=>{
+    const acal=getAcademicInfo(now);
+    const hasAcad=acal.items.length>0||acal.period;
+    if(hasAcad){
+      const classItems=acal.items.filter(it=>it.type==="class");
+      if(classItems.length===0) return [];
+      const results=[];
+      for(const item of classItems){
+        const di=DOW_MAP[item.dow];
+        if(di===undefined) continue;
+        const tt=getTT(item.q);
+        PD.forEach((pd,pi)=>{const co=tt[pi]?.[di];if(!co)return;const sM=pd.s[0]*60+pd.s[1],eM=pd.e[0]*60+pd.e[1];const st=nowMin>=eM?"done":nowMin>=sM?"now":"next";results.push({co,pd,pi,st,sM,eM,type:"class",sub:item.sub,dow:item.dow});});
+      }
+      return results;
+    }
+    const dow=now.getDay(),di=dow>=1&&dow<=5?dow-1:-1;
+    if(di<0) return [];
+    return PD.map((pd,pi)=>{const co=curTT[pi]?.[di];if(!co)return null;const sM=pd.s[0]*60+pd.s[1],eM=pd.e[0]*60+pd.e[1];const st=nowMin>=eM?"done":nowMin>=sM?"now":"next";return{co,pd,pi,st,sM,eM,type:"class"};}).filter(Boolean);
+  })();
 
   const vis=asgn.filter(a=>!hiddenSet.has(a.id));
   const active=vis.filter(a=>a.st!=="completed");
   const upcoming=[...active].filter(a=>a.due>=NOW).sort((a,b)=>a.due-b.due).slice(0,mob?4:8);
 
-  // 今日のタイムライン: 授業+予定+締切を時刻順に統合
+  // 今日のタイムライン: 授業+予定+締切+試験を時刻順に統合
   const todayKey=`${NOW.getFullYear()}-${NOW.getMonth()}-${NOW.getDate()}`;
+  const todayDateStr=`${NOW.getFullYear()}-${String(NOW.getMonth()+1).padStart(2,"0")}-${String(NOW.getDate()).padStart(2,"0")}`;
   const todayEvents=myEvents.filter(e=>{const d=e.date instanceof Date?e.date:new Date(e.date);return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`===todayKey;});
   const todayAsgn=vis.filter(a=>{const d=a.due;return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`===todayKey&&a.st!=="completed";});
+  const todayExams=myExams.filter(e=>e.date===todayDateStr);
 
   // 全アイテムを統合して時刻ソート
   const timeline=[];
   todayClasses.forEach(c=>timeline.push({...c,sortMin:c.sM}));
   todayEvents.forEach(ev=>{const d=ev.date instanceof Date?ev.date:new Date(ev.date);const m=d.getHours()*60+d.getMinutes();timeline.push({type:"event",ev,sM:m,sortMin:m,st:nowMin>m+60?"done":nowMin>=m?"now":"next"});});
   todayAsgn.forEach(a=>{const d=a.due;const m=d.getHours()*60+d.getMinutes();const co=courses.find(x=>x.id===a.cid);timeline.push({type:"deadline",a,co,sM:m,sortMin:m,st:a.due<NOW?"done":"next"});});
+  todayExams.forEach(ex=>{const pt=PERIOD_TIMES[ex.period];if(!pt)return;const [sh,sm]=pt.start.split(":").map(Number);const [eh,em]=pt.end.split(":").map(Number);const sM=sh*60+sm,eM=eh*60+em;const co=courses.find(c=>c.codeRaw===ex.code_raw||(c.code&&c.code===ex.code));timeline.push({type:"exam",ex,co,sM,eM,sortMin:sM,st:nowMin>=eM?"done":nowMin>=sM?"now":"next"});});
   timeline.sort((a,b)=>a.sortMin-b.sortMin);
 
   const gcol=mob?2:3;
@@ -407,7 +439,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                   </div>
                   <div style={{width:3,borderRadius:2,background:done?T.txD:co.col,flexShrink:0}}/>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:12,fontWeight:600,color:done?T.txD:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{co.name}</div>
+                    <div style={{fontSize:12,fontWeight:600,color:done?T.txD:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{co.name}{item.sub&&<span style={{fontSize:9,fontWeight:700,color:"#d97706",background:"#d9770615",padding:"1px 4px",borderRadius:3,marginLeft:4,verticalAlign:"middle"}}>振替</span>}{item.dow&&DAY_NAMES[now.getDay()]!==item.dow&&<span style={{fontSize:9,fontWeight:600,color:T.txD,background:T.bg3,padding:"1px 4px",borderRadius:3,marginLeft:4,verticalAlign:"middle"}}>{item.dow}曜</span>}</div>
                     <div style={{display:"flex",gap:6,fontSize:10,color:T.txD,marginTop:1,alignItems:"center"}}>
                       <span>{fPdTime(...pd.s)}–{fPdTime(...pd.e)}</span>
                       {co.room&&<span>{co.room}{co.bldg?` (${co.bldg})`:""}</span>}
@@ -432,6 +464,26 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                     <div style={{fontSize:12,fontWeight:600,color:done?T.txD:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.title}</div>
                     {ev.memo&&<div style={{fontSize:10,color:T.txD,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.memo}</div>}
                   </div>
+                </div>;
+              }
+              if(item.type==="exam"){
+                const {ex,co}=item;const ecol=co?.col||"#d97706";const pt=PERIOD_TIMES[ex.period];
+                const tStr=pt?`${pt.start}–${pt.end}`:`${ex.period}限`;
+                return <div key={`x${idx}`} onClick={()=>setView("exams")} style={{display:"flex",gap:8,padding:"6px 10px",borderRadius:8,background:act?`${ecol}12`:`#d9770608`,border:`1px solid ${act?ecol:"#d9770620"}`,cursor:"pointer",opacity:done?.4:1}}>
+                  <div style={{width:38,flexShrink:0,textAlign:"center"}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"#d97706"}}>試験</div>
+                    <div style={{fontSize:9,color:T.txD}}>{ex.period}限</div>
+                  </div>
+                  <div style={{width:3,borderRadius:2,background:"#d97706",flexShrink:0}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:600,color:done?T.txD:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ex.name}<span style={{fontSize:9,fontWeight:700,color:"#d97706",background:"#d9770615",padding:"1px 4px",borderRadius:3,marginLeft:4,verticalAlign:"middle"}}>期末試験</span></div>
+                    <div style={{display:"flex",gap:6,fontSize:10,color:T.txD,marginTop:1,alignItems:"center"}}>
+                      <span>{tStr}</span>
+                      {ex.room&&<span>{ex.room}</span>}
+                      {ex.instructor&&<span>{ex.instructor}</span>}
+                    </div>
+                  </div>
+                  {act&&<span style={{fontSize:8,fontWeight:700,color:"#d97706",background:"#d9770620",padding:"1px 5px",borderRadius:3,alignSelf:"center",flexShrink:0}}>NOW</span>}
                 </div>;
               }
               if(item.type==="deadline"){
