@@ -493,7 +493,7 @@ export default function App(){
           {view==="acadCal"&&<AcademicCalendarView mob={false}/>}
           {view==="exams"&&(L?<LockedView title="期末試験"/>:<ExamView courses={allCourses} mob={false} goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/>)}
           {view==="admin"&&<AdminView mob={false} courses={allCourses} depts={userDepts} schools={userSchools}/>}
-          {view==="freshman"&&<FreshmanBoardView mob={false} loggedIn={!!user.moodleId} onLogin={()=>{setGuestBoard(false);setMockMode(false);setAppState("setup");}}/>}
+          {view==="freshman"&&<FreshmanBoardView mob={false} loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/>}
         </div>
         {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
         <DemoBanner/>
@@ -532,7 +532,7 @@ export default function App(){
         {view==="acadCal"&&<AcademicCalendarView mob/>}
         {view==="exams"&&(L?<><MHdr title="期末試験" back={mBack}/><LockedView title="期末試験"/></>:<><MHdr title="期末試験" back={mBack}/><ExamView courses={allCourses} mob goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/></>)}
         {view==="admin"&&<><MHdr title="管理者" back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
-        {view==="freshman"&&<><MHdr title="新入生掲示板" back={mBack}/><FreshmanBoardView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestBoard(false);setMockMode(false);setAppState("setup");}}/></>}
+        {view==="freshman"&&<><MHdr title="新入生掲示板" back={mBack}/><FreshmanBoardView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/></>}
       </div>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread}/>
       <div style={{height:14,background:T.bg2,flexShrink:0}}/>
