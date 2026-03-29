@@ -29,7 +29,7 @@ const rangesOverlap=(s1h,s1m,e1h,e1m,s2h,s2m,e2h,e2m)=>{
 
 const getMonday=d=>{const dt=new Date(d);const day=dt.getDay();const diff=day===0?-6:1-day;dt.setDate(dt.getDate()+diff);dt.setHours(0,0,0,0);return dt;};
 
-export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
+export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},mob})=>{
   const [viewMode,setViewMode]=useState("month");
   const [calMonth,setCalMonth]=useState(()=>({y:NOW.getFullYear(),m:NOW.getMonth()}));
   const [weekStart,setWeekStart]=useState(()=>getMonday(NOW));
@@ -106,6 +106,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
 
   // Timetable classes for a given date (academic calendar aware)
   const curTT=qd?.TT||[];
+  const getTT=q=>{const d=qDataAll[q];return d?.TT||curTT;};
   const DOW_MAP={"月":0,"火":1,"水":2,"木":3,"金":4};
   const getClasses=date=>{
     const info=getAcademicInfo(date);
@@ -117,7 +118,8 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
       for(const item of classItems){
         const di=DOW_MAP[item.dow];
         if(di===undefined) continue;
-        PD.forEach((pd,pi)=>{const co=curTT[pi]?.[di];if(co) results.push({type:"class",course:co,pd,pi,n:item.n,sub:item.sub,dow:item.dow});});
+        const tt=getTT(item.q);
+        PD.forEach((pd,pi)=>{const co=tt[pi]?.[di];if(co) results.push({type:"class",course:co,pd,pi,n:item.n,sub:item.sub,dow:item.dow});});
       }
       return results;
     }

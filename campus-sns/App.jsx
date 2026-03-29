@@ -451,7 +451,7 @@ export default function App(){
           {view==="notif"&&(L?<LockedView title="通知"/>:<NotifView mob={false}/>)}
           {view==="grades"&&(L?<LockedView title="成績"/>:<GradeView mob={false}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
-          {view==="calendar"&&(L?<LockedView title="カレンダー"/>:<CalendarView myEvents={myEvents} setMyEvents={setMyEvents} asgn={asgn} courses={allCourses} qd={qd} mob={false}/>)}
+          {view==="calendar"&&(L?<LockedView title="カレンダー"/>:<CalendarView myEvents={myEvents} setMyEvents={setMyEvents} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob={false}/>)}
           {view==="events"&&<EventView events={allEvents} mob={false} rsvps={rsvps} onRsvp={handleRsvp}/>}
           {view==="reviews"&&(L?<LockedView title="授業レビュー"/>:<ReviewView reviews={reviews} setReviews={setReviews} mob={false} courses={allCourses}/>)}
           {view==="bmarks"&&(L?<LockedView title="ブックマーク"/>:<BookmarkView bmarks={bmarks} mob={false} setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/>)}
@@ -489,7 +489,7 @@ export default function App(){
         {view==="notif"&&(L?<><MHdr title="通知" back={mBack}/><LockedView title="通知"/></>:<><MHdr title="通知" back={mBack}/><NotifView mob/></>)}
         {view==="grades"&&(L?<><MHdr title="成績" back={mBack}/><LockedView title="成績"/></>:<><MHdr title="成績" back={mBack}/><GradeView mob/></>)}
         {view==="pomo"&&<><MHdr title="ポモドーロ" back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
-        {view==="calendar"&&(L?<><MHdr title="カレンダー" back={mBack}/><LockedView title="カレンダー"/></>:<><MHdr title="カレンダー" back={mBack}/><CalendarView myEvents={myEvents} setMyEvents={setMyEvents} asgn={asgn} courses={allCourses} qd={qd} mob/></>)}
+        {view==="calendar"&&(L?<><MHdr title="カレンダー" back={mBack}/><LockedView title="カレンダー"/></>:<><MHdr title="カレンダー" back={mBack}/><CalendarView myEvents={myEvents} setMyEvents={setMyEvents} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob/></>)}
         {view==="events"&&<><MHdr title="イベント" back={mBack}/><EventView events={allEvents} mob rsvps={rsvps} onRsvp={handleRsvp}/></>}
         {view==="reviews"&&(L?<><MHdr title="授業レビュー" back={mBack}/><LockedView title="授業レビュー"/></>:<><MHdr title="授業レビュー" back={mBack}/><ReviewView reviews={reviews} setReviews={setReviews} mob courses={allCourses}/></>)}
         {view==="bmarks"&&(L?<><MHdr title="ブックマーク" back={mBack}/><LockedView title="ブックマーク"/></>:<><MHdr title="ブックマーク" back={mBack}/><BookmarkView bmarks={bmarks} mob setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/></>)}
