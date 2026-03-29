@@ -694,15 +694,15 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             // 学院: student ID からの自動検出 or コースから
             const schoolKey=user.school||(courseSchools.length===1?courseSchools[0].key:null);
             const schoolInfo=schoolKey?SCHOOLS[schoolKey]:null;
-            // 学系: 手動設定 or コースから
-            const deptKey=user.myDept||(courseDepts.length===1?courseDepts[0].prefix:null);
+            // 学系: コースから自動検出を優先、なければ手動設定
+            const deptKey=(courseDepts.length===1?courseDepts[0].prefix:null)||user.myDept||null;
             const deptInfo=deptKey?DEPTS[deptKey]:null;
             return<>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v3"/></svg>}
             label="所属学院" sub={schoolInfo?"学籍番号・履修科目から自動検出":"タップして設定"}
             right={schoolInfo?<span style={{fontSize:13,fontWeight:600,color:schoolInfo.col}}>{schoolInfo.name}</span>:<span style={{fontSize:13,fontWeight:600,color:T.txD}}>未設定</span>}/>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>}
-            label="所属学系" sub={deptInfo&&!user.myDept?"履修科目から自動検出 — タップで変更":"プロフィールに表示される学系"}
+            label="所属学系" sub={deptInfo&&courseDepts.length===1?"履修科目から自動検出 — タップで変更":"プロフィールに表示される学系"}
             onClick={()=>{setDeptOpen(p=>!p);if(!deptSchool){setDeptSchool(user.school||schoolKey||(courseSchools[0]?.key)||null);}}}
             right={deptInfo?<span style={{fontSize:13,fontWeight:600,color:deptInfo.col||T.accent}}>{deptInfo.name}</span>:<span style={{fontSize:13,fontWeight:600,color:T.txD}}>未設定</span>}/>
           </>;})()}
