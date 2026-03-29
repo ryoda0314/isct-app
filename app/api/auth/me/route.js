@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
+import { loadCredentials } from '../../../../lib/credentials.js';
 
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -12,11 +13,23 @@ async function checkAdmin(userid) {
 }
 
 /** 学籍番号 "25B10001" → { yearGroup: "25B", schoolNum: "1" } */
-function parseLoginId(id) {
+function parseStudentId(id) {
   if (!id) return null;
   const m = id.match(/^(\d{2})([BMDR])(\d)/i);
   if (!m) return null;
   return { yearGroup: m[1] + m[2].toUpperCase(), schoolNum: m[3] };
+}
+
+/** loginId or portalUserId から学籍番号を取得 */
+async function resolveStudentId(loginId) {
+  // まず loginId 自体が学籍番号形式か試す
+  if (parseStudentId(loginId)) return loginId;
+  // 違う場合、クレデンシャルから portalUserId を取得
+  try {
+    const creds = await loadCredentials(loginId);
+    if (creds?.portalUserId) return creds.portalUserId;
+  } catch {}
+  return null;
 }
 
 export async function GET(request) {
@@ -39,15 +52,21 @@ export async function GET(request) {
     }
 
     let yearGroup = profile?.year_group || null;
+    let studentId = null;
 
-    // loginId (学籍番号) から year_group を自動設定（未設定の場合）
-    const parsed = parseLoginId(auth.loginId);
-    if (!yearGroup && parsed) {
-      yearGroup = parsed.yearGroup;
-      sb.from('profiles').update({ year_group: yearGroup }).eq('moodle_id', auth.userid).then(() => {}).catch(() => {});
+    // 学籍番号を解決（loginId or portalUserId）
+    const sid = await resolveStudentId(auth.loginId);
+    if (sid) {
+      studentId = sid;
+      const parsed = parseStudentId(sid);
+      // year_group が未設定なら自動設定してDB保存
+      if (!yearGroup && parsed) {
+        yearGroup = parsed.yearGroup;
+        sb.from('profiles').update({ year_group: yearGroup }).eq('moodle_id', auth.userid).then(() => {}).catch(() => {});
+      }
     }
 
-    return NextResponse.json({ userid: auth.userid, fullname: auth.fullname, isAdmin, dept: profile?.dept || null, yearGroup, unit: profile?.unit || null, studentId: auth.loginId || null });
+    return NextResponse.json({ userid: auth.userid, fullname: auth.fullname, isAdmin, dept: profile?.dept || null, yearGroup, unit: profile?.unit || null, studentId });
   } catch (err) {
     console.error('[AuthMe] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
