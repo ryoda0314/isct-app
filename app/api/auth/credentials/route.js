@@ -91,19 +91,22 @@ export async function DELETE(request) {
     const userId = auth.userid;
 
     try {
-      // Delete in dependency order to avoid FK issues
-      // 1. Comments by this user
+      // Delete in dependency order — all FK references must be removed
+      // before the profile row can be deleted.
+
+      // 1. Comments by this user + comments on user's posts
       await sb.from('comments').delete().eq('moodle_user_id', userId);
-      // 2. Posts by this user (and their comments)
       const { data: userPosts } = await sb.from('posts').select('id').eq('moodle_user_id', userId);
       if (userPosts?.length) {
         const postIds = userPosts.map(p => p.id);
         await sb.from('comments').delete().in('post_id', postIds);
         await sb.from('posts').delete().in('id', postIds);
       }
-      // 3. Messages (course chat)
+
+      // 2. Messages (course chat)
       await sb.from('messages').delete().eq('moodle_user_id', userId);
-      // 4. DM messages & conversations
+
+      // 3. DM messages & conversations
       await sb.from('dm_messages').delete().eq('sender_id', userId);
       const { data: convs } = await sb.from('dm_conversations').select('id').or(`user1_id.eq.${userId},user2_id.eq.${userId}`);
       if (convs?.length) {
@@ -111,9 +114,11 @@ export async function DELETE(request) {
         await sb.from('dm_messages').delete().in('conversation_id', convIds);
         await sb.from('dm_conversations').delete().in('id', convIds);
       }
-      // 5. Friendships
-      await sb.from('friendships').delete().or(`user_id.eq.${userId},friend_id.eq.${userId}`);
-      // 6. Group memberships (and empty groups)
+
+      // 4. Friendships (requester_id / addressee_id)
+      await sb.from('friendships').delete().or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
+
+      // 5. Group memberships (and empty groups)
       const { data: memberships } = await sb.from('group_members').select('group_id').eq('user_id', userId);
       await sb.from('group_members').delete().eq('user_id', userId);
       if (memberships?.length) {
@@ -125,23 +130,65 @@ export async function DELETE(request) {
           }
         }
       }
-      // 7. Notifications
-      await sb.from('notifications').delete().eq('user_id', userId);
-      // 8. Event RSVPs
-      await sb.from('event_rsvps').delete().eq('user_id', userId);
-      // 9. Bookmarks
-      await sb.from('bookmarks').delete().eq('user_id', userId);
-      // 10. Shared materials
-      const { data: mats } = await sb.from('shared_materials').select('id, storage_path').eq('uploader_id', userId);
+
+      // 6. Circle-related data (tables may not exist yet)
+      try {
+        await sb.from('circle_fee_logs').delete().or(`actor_id.eq.${userId},target_id.eq.${userId}`);
+        await sb.from('circle_fee_assignments').delete().eq('user_id', userId);
+        await sb.from('circle_join_applications').update({ reviewed_by: null }).eq('reviewed_by', userId);
+        await sb.from('circle_join_applications').delete().eq('user_id', userId);
+        await sb.from('circle_event_rsvps').delete().eq('user_id', userId);
+        await sb.from('circle_announcements').delete().eq('by_user_id', userId);
+        await sb.from('circle_messages').delete().eq('sender_id', userId);
+        await sb.from('circle_members').delete().eq('user_id', userId);
+      } catch {}
+
+      // 7. Notifications (moodle_user_id)
+      await sb.from('notifications').delete().eq('moodle_user_id', userId);
+
+      // 8. Event RSVPs (moodle_user_id)
+      await sb.from('event_rsvps').delete().eq('moodle_user_id', userId);
+
+      // 9. Bookmarks (moodle_user_id)
+      await sb.from('bookmarks').delete().eq('moodle_user_id', userId);
+
+      // 10. Shared materials (moodle_user_id)
+      const { data: mats } = await sb.from('shared_materials').select('id, storage_path').eq('moodle_user_id', userId);
       if (mats?.length) {
         const paths = mats.map(m => m.storage_path).filter(Boolean);
         if (paths.length) await sb.storage.from('shared-materials').remove(paths);
-        await sb.from('shared_materials').delete().eq('uploader_id', userId);
+        await sb.from('shared_materials').delete().eq('moodle_user_id', userId);
       }
-      // 11. Profile
-      await sb.from('profiles').delete().eq('moodle_id', userId);
-      // 12. Admin entry (if any)
+
+      // 11. User blocks
+      await sb.from('user_blocks').delete().or(`blocker_id.eq.${userId},blocked_id.eq.${userId}`);
+
+      // 12. Reports (anonymize target/resolver, delete where reporter)
+      try {
+        await sb.from('reports').update({ target_user_id: null }).eq('target_user_id', userId);
+        await sb.from('reports').update({ resolved_by: null }).eq('resolved_by', userId);
+        await sb.from('reports').delete().eq('reporter_id', userId);
+      } catch {}
+
+      // 13. Announcements & site_settings (nullify author FK)
+      try {
+        await sb.from('announcements').update({ created_by: null }).eq('created_by', userId);
+        await sb.from('site_settings').update({ updated_by: null }).eq('updated_by', userId);
+        await sb.from('admin_audit_log').delete().eq('admin_id', userId);
+      } catch {}
+
+      // 14. Email verification & email auth (login_id based)
+      await sb.from('email_verification').delete().eq('login_id', auth.loginId);
+      await sb.from('email_auth').delete().eq('login_id', auth.loginId);
+
+      // 15. Push subscriptions (CASCADE handles this, but explicit for safety)
+      await sb.from('push_subscriptions').delete().eq('moodle_id', userId);
+
+      // 16. Admin entry
       await sb.from('admin_users').delete().eq('moodle_user_id', userId);
+
+      // 17. Profile — LAST (all FK references must be cleared first)
+      await sb.from('profiles').delete().eq('moodle_id', userId);
     } catch (e) {
       console.error('[Account Deletion] Error deleting user data:', e.message);
       // Continue with credential deletion even if some data cleanup failed

@@ -100,7 +100,7 @@ export async function GET(request) {
       if (filter === 'banned') query = query.eq('banned', true);
       if (search) query = query.ilike('name', `%${search}%`);
       const { data, error, count } = await query;
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       return NextResponse.json({ users: data || [], total: count || 0, page });
     }
 
@@ -117,7 +117,7 @@ export async function GET(request) {
       if (courseId) query = query.eq('course_id', courseId);
       if (search) query = query.ilike('text', `%${search}%`);
       const { data, error, count } = await query;
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       return NextResponse.json({ posts: data || [], total: count || 0, page });
     }
 
@@ -132,7 +132,7 @@ export async function GET(request) {
         .range(page * limit, (page + 1) * limit - 1);
       if (search) query = query.ilike('text', `%${search}%`);
       const { data, error, count } = await query;
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       return NextResponse.json({ comments: data || [], total: count || 0, page });
     }
 
@@ -149,7 +149,7 @@ export async function GET(request) {
       if (courseId) query = query.eq('course_id', courseId);
       if (search) query = query.ilike('text', `%${search}%`);
       const { data, error, count } = await query;
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       return NextResponse.json({ messages: data || [], total: count || 0, page });
     }
 
@@ -164,7 +164,7 @@ export async function GET(request) {
         .range(page * limit, (page + 1) * limit - 1);
       if (status) query = query.eq('status', status);
       const { data, error, count } = await query;
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       return NextResponse.json({ reports: data || [], total: count || 0, page });
     }
 
@@ -176,7 +176,7 @@ export async function GET(request) {
         .select('*, profiles(name, avatar, color)', { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(page * limit, (page + 1) * limit - 1);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       return NextResponse.json({ announcements: data || [], total: count || 0, page });
     }
 
@@ -188,7 +188,7 @@ export async function GET(request) {
         .select('*, profiles(name, avatar, color)', { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(page * limit, (page + 1) * limit - 1);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       return NextResponse.json({ logs: data || [], total: count || 0, page });
     }
 
@@ -203,7 +203,7 @@ export async function GET(request) {
         .range(page * limit, (page + 1) * limit - 1);
       if (search) query = query.ilike('name', `%${search}%`);
       const { data, error, count } = await query;
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       const circles = (data || []).map(c => ({
         ...c,
         member_count: c.circle_members?.[0]?.count || 0,
@@ -303,16 +303,17 @@ export async function GET(request) {
         .order('created_at', { ascending: false })
         .range(page * limit, (page + 1) * limit - 1);
       if (search) query = query.ilike('text', `%${search}%`);
-      if (userId) query = query.eq('sender_id', parseInt(userId));
+      const parsedUserId = parseInt(userId);
+      if (userId && !isNaN(parsedUserId)) query = query.eq('sender_id', parsedUserId);
       const { data, error, count } = await query;
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       return NextResponse.json({ dms: data || [], total: count || 0, page });
     }
 
     // --- NG words list ---
     if (action === 'ng_words') {
       const { data, error } = await sb.from('ng_words').select('*').order('created_at', { ascending: false });
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       return NextResponse.json({ words: data || [] });
     }
 
@@ -330,7 +331,7 @@ export async function GET(request) {
       if (circleId) query = query.eq('circle_channels.circle_id', circleId);
       if (search) query = query.ilike('text', `%${search}%`);
       const { data, error, count } = await query;
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       return NextResponse.json({ messages: data || [], total: count || 0, page });
     }
 
@@ -450,7 +451,7 @@ export async function POST(request) {
       const { moodleUserId } = body;
       if (!moodleUserId) return NextResponse.json({ error: 'moodleUserId required' }, { status: 400 });
       const { error } = await sb.from('admin_users').upsert({ moodle_user_id: moodleUserId, added_by: auth.userid }, { onConflict: 'moodle_user_id' });
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'add_admin', 'user', moodleUserId);
       return NextResponse.json({ ok: true });
     }
@@ -462,7 +463,7 @@ export async function POST(request) {
         return NextResponse.json({ error: '環境変数で設定された管理者は削除できません' }, { status: 400 });
       }
       const { error } = await sb.from('admin_users').delete().eq('moodle_user_id', moodleUserId);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'remove_admin', 'user', moodleUserId);
       return NextResponse.json({ ok: true });
     }
@@ -474,7 +475,7 @@ export async function POST(request) {
       const { error } = await sb.from('profiles').update({
         banned: true, banned_at: new Date().toISOString(), ban_reason: reason || null,
       }).eq('moodle_id', moodleUserId);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'ban_user', 'user', moodleUserId, { reason });
       return NextResponse.json({ ok: true });
     }
@@ -485,7 +486,7 @@ export async function POST(request) {
       const { error } = await sb.from('profiles').update({
         banned: false, banned_at: null, ban_reason: null,
       }).eq('moodle_id', moodleUserId);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'unban_user', 'user', moodleUserId);
       return NextResponse.json({ ok: true });
     }
@@ -501,7 +502,7 @@ export async function POST(request) {
       }
       const { data: oldProfile } = await sb.from('profiles').select('name').eq('moodle_id', moodleUserId).maybeSingle();
       const { error } = await sb.from('profiles').update({ name: name.trim() }).eq('moodle_id', moodleUserId);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'edit_profile', 'user', moodleUserId, { oldName: oldProfile?.name, newName: name.trim() });
       // Notify the user
       const notifText = `管理者によって表示名が「${name.trim()}」に変更されました`;
@@ -516,7 +517,7 @@ export async function POST(request) {
       if (!circleId) return NextResponse.json({ error: 'circleId required' }, { status: 400 });
       // cascade deletes members, channels, messages, etc.
       const { error } = await sb.from('circles').delete().eq('id', circleId);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'delete_circle', 'circle', circleId);
       return NextResponse.json({ ok: true });
     }
@@ -528,7 +529,7 @@ export async function POST(request) {
       const { error } = await sb.from('site_settings').upsert({
         key, value: value || {}, updated_by: auth.userid, updated_at: new Date().toISOString(),
       }, { onConflict: 'key' });
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'update_site_setting', 'setting', key, { value });
       return NextResponse.json({ ok: true });
     }
@@ -544,7 +545,7 @@ export async function POST(request) {
         status, admin_note: adminNote || null,
         resolved_by: auth.userid, resolved_at: new Date().toISOString(),
       }).eq('id', reportId);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'resolve_report', 'report', reportId, { status, adminNote });
       return NextResponse.json({ ok: true });
     }
@@ -562,7 +563,7 @@ export async function POST(request) {
         type: validTypes.includes(type) ? type : 'info',
         created_by: auth.userid,
       }).select().single();
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'create_announcement', 'announcement', data.id, { title });
       return NextResponse.json({ ok: true, announcement: data });
     }
@@ -576,7 +577,7 @@ export async function POST(request) {
       if (type !== undefined) updates.type = type;
       if (active !== undefined) updates.active = active;
       const { error } = await sb.from('announcements').update(updates).eq('id', announcementId);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'update_announcement', 'announcement', announcementId, updates);
       return NextResponse.json({ ok: true });
     }
@@ -585,7 +586,7 @@ export async function POST(request) {
       const { announcementId } = body;
       if (!announcementId) return NextResponse.json({ error: 'announcementId required' }, { status: 400 });
       const { error } = await sb.from('announcements').delete().eq('id', announcementId);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'delete_announcement', 'announcement', announcementId);
       return NextResponse.json({ ok: true });
     }
@@ -594,6 +595,10 @@ export async function POST(request) {
     if (action === 'add_ng_word') {
       const { word, matchType, wordAction, category } = body;
       if (!word?.trim()) return NextResponse.json({ error: 'word required' }, { status: 400 });
+      // Validate regex patterns to prevent ReDoS
+      if (matchType === 'regex') {
+        try { new RegExp(word.trim()); } catch { return NextResponse.json({ error: 'Invalid regex pattern' }, { status: 400 }); }
+      }
       const { error } = await sb.from('ng_words').insert({
         word: word.trim(),
         match_type: matchType || 'contains',
@@ -601,7 +606,7 @@ export async function POST(request) {
         category: category || 'general',
         added_by: auth.userid,
       });
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'add_ng_word', 'ng_word', word.trim());
       return NextResponse.json({ ok: true });
     }
@@ -611,7 +616,7 @@ export async function POST(request) {
       if (!wordId) return NextResponse.json({ error: 'wordId required' }, { status: 400 });
       const { data: w } = await sb.from('ng_words').select('word').eq('id', wordId).maybeSingle();
       const { error } = await sb.from('ng_words').delete().eq('id', wordId);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'delete_ng_word', 'ng_word', w?.word || wordId);
       return NextResponse.json({ ok: true });
     }
@@ -624,7 +629,7 @@ export async function POST(request) {
       const { data: user } = await sb.from('profiles').select('moodle_id').eq('moodle_id', newOwnerId).maybeSingle();
       if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
       const { error } = await sb.from('circles').update({ owner_id: newOwnerId }).eq('id', circleId);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       // Ensure new owner is a member
       await sb.from('circle_members').upsert({ circle_id: circleId, user_id: newOwnerId }, { onConflict: 'circle_id,user_id' });
       await auditLog(sb, auth.userid, 'transfer_circle_owner', 'circle', circleId, { newOwnerId });
@@ -636,7 +641,7 @@ export async function POST(request) {
       const { messageId } = body;
       if (!messageId) return NextResponse.json({ error: 'messageId required' }, { status: 400 });
       const { error } = await sb.from('dm_messages').delete().eq('id', messageId);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'delete_dm', 'dm', messageId);
       return NextResponse.json({ ok: true });
     }
@@ -646,7 +651,7 @@ export async function POST(request) {
       const { messageId } = body;
       if (!messageId) return NextResponse.json({ error: 'messageId required' }, { status: 400 });
       const { error } = await sb.from('circle_messages').delete().eq('id', messageId);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'delete_circle_message', 'circle_message', messageId);
       return NextResponse.json({ ok: true });
     }
@@ -659,7 +664,7 @@ export async function POST(request) {
         value: { enabled: !!enabled, message: message || '', updatedAt: new Date().toISOString() },
         updated_by: auth.userid, updated_at: new Date().toISOString(),
       }, { onConflict: 'key' });
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, enabled ? 'enable_telecom_restriction' : 'disable_telecom_restriction', 'setting', 'telecom_restriction');
       return NextResponse.json({ ok: true });
     }
@@ -672,7 +677,7 @@ export async function POST(request) {
         value: { enabled: !!enabled, message: message || '', updatedAt: new Date().toISOString() },
         updated_by: auth.userid, updated_at: new Date().toISOString(),
       }, { onConflict: 'key' });
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, enabled ? 'enable_maintenance' : 'disable_maintenance', 'setting', 'maintenance_mode');
       return NextResponse.json({ ok: true });
     }
@@ -689,7 +694,7 @@ export async function POST(request) {
         key: 'feature_flags', value: flags,
         updated_by: auth.userid, updated_at: new Date().toISOString(),
       }, { onConflict: 'key' });
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'toggle_feature', 'setting', feature, { enabled });
       return NextResponse.json({ ok: true });
     }
@@ -712,7 +717,7 @@ export async function POST(request) {
         return NextResponse.json({ ok: true, ...result });
       } catch (e) {
         console.error(`[Admin] scrape_syllabus ${dept}_${year} failed:`, e);
-        return NextResponse.json({ error: e.message, detail: e.stack?.split('\n').slice(0, 5).join('\n') }, { status: 500 });
+        return NextResponse.json({ error: 'Scrape failed' }, { status: 500 });
       }
     }
 
@@ -722,23 +727,34 @@ export async function POST(request) {
       if (!code || !name || !date || !period) {
         return NextResponse.json({ error: 'code, name, date, period required' }, { status: 400 });
       }
+      // Validate exam fields
+      if (year && !/^\d{4}$/.test(year)) return NextResponse.json({ error: 'Invalid year' }, { status: 400 });
+      if (quarter && !['1Q', '2Q', '3Q', '4Q', '1-2Q', '3-4Q'].includes(quarter)) return NextResponse.json({ error: 'Invalid quarter' }, { status: 400 });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return NextResponse.json({ error: 'Invalid date format' }, { status: 400 });
       const { data, error } = await sb.from('exam_schedules').insert({
         code, code_raw: code_raw || null, name, date, day: day || null,
         period, room: room || null, instructor: instructor || null,
         year: year || '2025', quarter: quarter || '4Q', created_by: auth.userid,
       }).select().single();
-      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: error.message }, { status: 500 }); }
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'add_exam', 'exam', data.id, { code, name });
       return NextResponse.json({ ok: true, exam: data });
     }
 
     if (action === 'update_exam') {
-      const { id, ...updates } = body;
+      const { id } = body;
       if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
-      delete updates.action;
-      updates.updated_at = new Date().toISOString();
+      // Whitelist allowed update fields to prevent arbitrary column overwrites
+      const ALLOWED_EXAM_FIELDS = ['code', 'code_raw', 'name', 'date', 'day', 'period', 'room', 'instructor', 'year', 'quarter'];
+      const updates = { updated_at: new Date().toISOString() };
+      for (const f of ALLOWED_EXAM_FIELDS) {
+        if (body[f] !== undefined) updates[f] = body[f];
+      }
+      if (updates.year && !/^\d{4}$/.test(updates.year)) return NextResponse.json({ error: 'Invalid year' }, { status: 400 });
+      if (updates.quarter && !['1Q', '2Q', '3Q', '4Q', '1-2Q', '3-4Q'].includes(updates.quarter)) return NextResponse.json({ error: 'Invalid quarter' }, { status: 400 });
+      if (updates.date && !/^\d{4}-\d{2}-\d{2}$/.test(updates.date)) return NextResponse.json({ error: 'Invalid date format' }, { status: 400 });
       const { error } = await sb.from('exam_schedules').update(updates).eq('id', id);
-      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: error.message }, { status: 500 }); }
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'update_exam', 'exam', id, updates);
       return NextResponse.json({ ok: true });
     }
@@ -747,7 +763,7 @@ export async function POST(request) {
       const { id } = body;
       if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
       const { error } = await sb.from('exam_schedules').delete().eq('id', id);
-      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: error.message }, { status: 500 }); }
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'delete_exam', 'exam', id);
       return NextResponse.json({ ok: true });
     }
@@ -757,6 +773,7 @@ export async function POST(request) {
       if (!entries || !Array.isArray(entries) || entries.length === 0) {
         return NextResponse.json({ error: 'entries array required' }, { status: 400 });
       }
+      if (entries.length > 500) return NextResponse.json({ error: 'Too many entries (max 500)' }, { status: 400 });
       const rows = entries.map(e => ({
         code: e.code, code_raw: e.code_raw || null, name: e.name,
         date: e.date, day: e.day || null, period: e.period,
@@ -765,10 +782,10 @@ export async function POST(request) {
         created_by: auth.userid,
       })).filter(r => r.code && r.name && r.date && r.period);
       if (rows.length === 0) return NextResponse.json({ error: 'No valid entries' }, { status: 400 });
-      const { error, count } = await sb.from('exam_schedules').upsert(rows, {
+      const { error } = await sb.from('exam_schedules').upsert(rows, {
         onConflict: 'code,date,period', ignoreDuplicates: false,
       });
-      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: error.message }, { status: 500 }); }
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'bulk_import_exams', 'exam', '', { count: rows.length });
       return NextResponse.json({ ok: true, imported: rows.length });
     }
@@ -777,11 +794,11 @@ export async function POST(request) {
     if (action === 'bulk_update_profiles') {
       const { field, oldValue, newValue } = body;
       if (!field || !newValue) return NextResponse.json({ error: 'field and newValue required' }, { status: 400 });
-      if (!['dept', 'name'].includes(field)) return NextResponse.json({ error: 'Invalid field' }, { status: 400 });
-      let query = sb.from('profiles').update({ [field]: newValue });
-      if (oldValue) query = query.eq(field, oldValue);
+      if (!['dept'].includes(field)) return NextResponse.json({ error: 'Invalid field' }, { status: 400 });
+      if (!oldValue) return NextResponse.json({ error: 'oldValue required for bulk update' }, { status: 400 });
+      let query = sb.from('profiles').update({ [field]: newValue }).eq(field, oldValue);
       const { error, count } = await query;
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'bulk_update_profiles', 'profiles', field, { oldValue, newValue, count });
       return NextResponse.json({ ok: true, count });
     }

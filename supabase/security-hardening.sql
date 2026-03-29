@@ -56,7 +56,68 @@ create policy "deny_all_email_auth" on email_auth
   for all to anon, authenticated using (false);
 
 -- =============================================================
--- 6. (H14) NOTE on anon SELECT policies for Realtime tables
+-- 6. Explicit DENY policies on private tables
+--    These tables already have RLS enabled + no anon policies,
+--    but adding explicit denies guards against accidental leaks.
+-- =============================================================
+
+-- DM
+drop policy if exists "deny_all_dm_conversations" on dm_conversations;
+create policy "deny_all_dm_conversations" on dm_conversations
+  for all to anon, authenticated using (false);
+
+drop policy if exists "deny_all_dm_messages" on dm_messages;
+create policy "deny_all_dm_messages" on dm_messages
+  for all to anon, authenticated using (false);
+
+-- Notifications
+drop policy if exists "deny_all_notifications" on notifications;
+create policy "deny_all_notifications" on notifications
+  for all to anon, authenticated using (false);
+
+-- Friendships
+drop policy if exists "deny_all_friendships" on friendships;
+create policy "deny_all_friendships" on friendships
+  for all to anon, authenticated using (false);
+
+-- Groups
+do $$ begin
+  if exists (select 1 from information_schema.tables where table_schema='public' and table_name='groups') then
+    execute 'drop policy if exists "deny_all_groups" on groups';
+    execute 'create policy "deny_all_groups" on groups for all to anon, authenticated using (false)';
+    execute 'drop policy if exists "deny_all_group_members" on group_members';
+    execute 'create policy "deny_all_group_members" on group_members for all to anon, authenticated using (false)';
+    execute 'drop policy if exists "deny_all_group_messages" on group_messages';
+    execute 'create policy "deny_all_group_messages" on group_messages for all to anon, authenticated using (false)';
+  end if;
+end $$;
+
+-- Bookmarks / Event RSVPs
+drop policy if exists "deny_all_bookmarks" on bookmarks;
+create policy "deny_all_bookmarks" on bookmarks
+  for all to anon, authenticated using (false);
+
+drop policy if exists "deny_all_event_rsvps" on event_rsvps;
+create policy "deny_all_event_rsvps" on event_rsvps
+  for all to anon, authenticated using (false);
+
+-- Push subscriptions
+drop policy if exists "deny_all_push_subscriptions" on push_subscriptions;
+create policy "deny_all_push_subscriptions" on push_subscriptions
+  for all to anon, authenticated using (false);
+
+-- Admin
+drop policy if exists "deny_all_admin_users" on admin_users;
+create policy "deny_all_admin_users" on admin_users
+  for all to anon, authenticated using (false);
+
+-- Exam schedules
+drop policy if exists "deny_all_exam_schedules" on exam_schedules;
+create policy "deny_all_exam_schedules" on exam_schedules
+  for all to anon, authenticated using (false);
+
+-- =============================================================
+-- 7. (H14) NOTE on anon SELECT policies for Realtime tables
 --
 --    The following tables have `anon SELECT using(true)` policies
 --    because the frontend subscribes to Realtime changes via the
