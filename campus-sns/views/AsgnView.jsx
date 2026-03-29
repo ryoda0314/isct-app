@@ -61,7 +61,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
     setLmsLoading(true);
     try{
       if(isNative()){
-        const r=await fetch("/api/auth/credentials?type=isct");
+        const r=await fetch("/api/auth/credentials?type=isct",{headers:{"x-app-platform":"capacitor"}});
         if(!r.ok)throw new Error("認証情報の取得に失敗");
         const{userId,password,totpCode}=await r.json();
         await openLmsPage(url,{userId,password,totpCode});

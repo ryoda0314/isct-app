@@ -9,10 +9,16 @@ import { generateTOTP } from '../../../../lib/auth/totp.js';
 /**
  * GET /api/auth/credentials
  * Returns credentials for the native Capacitor app auto-login.
+ * Restricted to native app requests only (x-app-platform: capacitor).
  *   ?type=isct  → { userId, password, totpCode }
  *   (default)   → { portalUserId, portalPassword, matrix }
  */
 export async function GET(request) {
+  // Only allow requests from the native Capacitor app
+  if (request.headers.get('x-app-platform') !== 'capacitor') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const cookie = request.cookies.get(COOKIE_NAME)?.value;
   const session = verifySession(cookie);
   if (!session) {
