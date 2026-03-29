@@ -76,6 +76,15 @@ const SCITOKYO = {
   on:"#3dae72", idle:"#c6a236", off:"#505060",
 };
 
+const TSUBAME = {
+  bg:"#0c161e", bg2:"#102028", bg3:"#162a34", bg4:"#1c3440",
+  hover:"#223e4c", accent:"#28c868", accentSoft:"#50e088",
+  green:"#28c868", red:"#e5534b", orange:"#d4843e", yellow:"#dab030",
+  tx:"#88b0c4", txH:"#c8e4f0", txD:"#4e7488",
+  bd:"#1a2e3e", bdL:"#263e50",
+  on:"#28c868", idle:"#dab030", off:"#3e586a",
+};
+
 // ── 季節テーマ ──────────────────────────────────
 
 const SAKURA = {
@@ -182,6 +191,7 @@ export const THEME_MODES = {
     { id:"titech",   name:"東工大ブルー", col:"#1e7ac8" },
     { id:"tmdu",     name:"医科歯科",     col:"#00897b" },
     { id:"scitokyo", name:"Science Tokyo", col:"#5c3ec4" },
+    { id:"tsubame",  name:"ツバメ",        col:"#28c868" },
   ],
   soft: [
     { id:"sakura",   name:"桜",       col:"#d4507a" },
@@ -201,7 +211,7 @@ export const THEME_MODES = {
 
 const BASES = {
   dark:DARK, light:LIGHT, oled:OLED, dim:DIM, sepia:SEPIA,
-  titech:TITECH, tmdu:TMDU, scitokyo:SCITOKYO,
+  titech:TITECH, tmdu:TMDU, scitokyo:SCITOKYO, tsubame:TSUBAME,
   sakura:SAKURA, shinryoku:SHINRYOKU, koyo:KOYO, yuki:YUKI,
   lavender:LAVENDER, mint:MINT, sky:SKY, peach:PEACH, lemon:LEMON, coral:CORAL,
 };
@@ -233,7 +243,7 @@ export let T = DARK;
 let _accentId = "default";
 
 // ブランド・季節テーマはアクセントカラー固定（テーマ自体がカラーを持つ）
-const FIXED_ACCENT_MODES = new Set(["titech","tmdu","scitokyo","sakura","shinryoku","koyo","yuki","lavender","mint","sky","peach","lemon","coral"]);
+const FIXED_ACCENT_MODES = new Set(["titech","tmdu","scitokyo","tsubame","sakura","shinryoku","koyo","yuki","lavender","mint","sky","peach","lemon","coral"]);
 
 export const updateT = (mode, accentId) => {
   if (accentId !== undefined) _accentId = accentId;
@@ -256,4 +266,4 @@ export const updateT = (mode, accentId) => {
 const LIGHT_MODES = new Set(["light","sepia","sakura","shinryoku","yuki","lavender","mint","sky","peach","lemon","coral"]);
 export const isDarkMode = (mode) => !LIGHT_MODES.has(mode);
 
-export { DARK, LIGHT, OLED, DIM, SEPIA, TITECH, TMDU, SCITOKYO, SAKURA, SHINRYOKU, KOYO, YUKI, LAVENDER, MINT, SKY, PEACH, LEMON, CORAL, ThemeCtx, useTheme };
+export { DARK, LIGHT, OLED, DIM, SEPIA, TITECH, TMDU, SCITOKYO, TSUBAME, SAKURA, SHINRYOKU, KOYO, YUKI, LAVENDER, MINT, SKY, PEACH, LEMON, CORAL, ThemeCtx, useTheme };
