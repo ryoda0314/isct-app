@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { NOW, fDS, fDF, fTs, uDue, aMap, sMap } from "../utils.jsx";
 import { Tag } from "../shared.jsx";
 import { getAcademicInfo } from "../academicCalendar.js";
+import { PERIOD_TIMES } from "../examData.js";
 const DAYS=["月","火","水","木","金","土","日"];
 const COLORS=["#6375f0","#e5534b","#3dae72","#a855c7","#d4843e","#c6a236","#2d9d8f","#c75d8e"];
 const dKey=d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -38,8 +39,16 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
   const [form,setForm]=useState({title:"",date:"",time:"",endTime:"",color:COLORS[0],memo:"",repeat:"none"});
   const [savAsFav,setSavAsFav]=useState(false);
   const [favPresets,setFavPresets]=useState(loadFavs);
-  const [filter,setFilter]=useState({ev:true,asgn:true,cls:true});
+  const [filter,setFilter]=useState({ev:true,asgn:true,cls:true,exam:true});
   const togFilter=k=>setFilter(p=>({...p,[k]:!p[k]}));
+  const [exams,setExams]=useState([]);
+  useEffect(()=>{fetch("/api/exams").then(r=>r.json()).then(d=>setExams(d.exams||[])).catch(()=>{});},[]);
+  const myExams=useMemo(()=>{
+    if(!courses?.length||!exams.length)return [];
+    const rawSet=new Set(),baseSet=new Set();
+    courses.forEach(c=>{if(c.codeRaw&&c.codeRaw!==c.code)rawSet.add(c.codeRaw);else if(c.code)baseSet.add(c.code);});
+    return exams.filter(e=>rawSet.has(e.code_raw)||baseSet.has(e.code));
+  },[exams,courses]);
 
   const addFav=p=>{const next=[...favPresets,p];setFavPresets(next);saveFavs(next);};
   const removeFav=label=>{const next=favPresets.filter(f=>f.label!==label);setFavPresets(next);saveFavs(next);};
@@ -131,7 +140,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
 
   const byDay=useMemo(()=>{
     const map={};
-    const ensure=k=>{if(!map[k])map[k]={events:[],asgns:[],classes:[]};return map[k];};
+    const ensure=k=>{if(!map[k])map[k]={events:[],asgns:[],classes:[],exams:[]};return map[k];};
     myEvents.forEach(ev=>{
       ensure(dKey(ev.date)).events.push(ev);
       // Multi-day: also add to each intermediate & end day
@@ -142,14 +151,15 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
       }
     });
     asgn.filter(a=>a.st!=="completed").forEach(a=>{ensure(dKey(a.due)).asgns.push(a);});
+    myExams.forEach(ex=>{const d=new Date(ex.date+"T00:00:00");ensure(dKey(d)).exams.push(ex);});
     return map;
-  },[myEvents,asgn]);
+  },[myEvents,asgn,myExams]);
 
   const getDayData=(date)=>{
-    const base=byDay[dKey(date)]||{events:[],asgns:[],classes:[]};
+    const base=byDay[dKey(date)]||{events:[],asgns:[],classes:[],exams:[]};
     const cls=getClasses(date);
     const acad=getAcademicInfo(date);
-    return{events:filter.ev?base.events:[],asgns:filter.asgn?base.asgns:[],classes:filter.cls?cls:[],acad};
+    return{events:filter.ev?base.events:[],asgns:filter.asgn?base.asgns:[],classes:filter.cls?cls:[],acad,exams:filter.exam?(base.exams||[]):[]};
   };
 
   // Overlap detection for a day
@@ -164,6 +174,10 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
     data.classes.forEach(c=>{
       ranges.push({sh:c.pd.s[0],sm:c.pd.s[1],eh:c.pd.e[0],em:c.pd.e[1],label:c.course.name,color:c.course.col});
     });
+    (data.exams||[]).forEach(ex=>{
+      const pt=PERIOD_TIMES[ex.period];
+      if(pt){const [sh,sm]=pt.start.split(":").map(Number);const [eh,em]=pt.end.split(":").map(Number);ranges.push({sh,sm,eh,em,label:ex.name,color:"#d97706"});}
+    });
     const conflicts=[];
     for(let i=0;i<ranges.length;i++)for(let j=i+1;j<ranges.length;j++){
       if(rangesOverlap(ranges[i].sh,ranges[i].sm,ranges[i].eh,ranges[i].em,ranges[j].sh,ranges[j].sm,ranges[j].eh,ranges[j].em))
@@ -172,7 +186,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
     return conflicts;
   };
 
-  const selDayData=selDay?getDayData(selDay):{events:[],asgns:[],classes:[]};
+  const selDayData=selDay?getDayData(selDay):{events:[],asgns:[],classes:[],exams:[]};
   const selOverlaps=selDay?getOverlaps(selDay):[];
   const maxShow=mob?1:2;
   const quickOptions=useMemo(()=>{
@@ -263,7 +277,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
       </div>
       {/* Filter */}
       <div style={{display:"flex",gap:4,padding:"0 12px 8px"}}>
-        {[{k:"ev",l:"予定",c:T.accent},{k:"asgn",l:"課題",c:T.orange},{k:"cls",l:"授業",c:T.green}].map(f=><button key={f.k} onClick={()=>togFilter(f.k)} style={{padding:"3px 10px",borderRadius:6,border:`1px solid ${filter[f.k]?f.c:T.bd}`,background:filter[f.k]?`${f.c}14`:"transparent",color:filter[f.k]?f.c:T.txD,fontSize:11,fontWeight:filter[f.k]?600:400,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+        {[{k:"ev",l:"予定",c:T.accent},{k:"asgn",l:"課題",c:T.orange},{k:"cls",l:"授業",c:T.green},{k:"exam",l:"試験",c:"#d97706"}].map(f=><button key={f.k} onClick={()=>togFilter(f.k)} style={{padding:"3px 10px",borderRadius:6,border:`1px solid ${filter[f.k]?f.c:T.bd}`,background:filter[f.k]?`${f.c}14`:"transparent",color:filter[f.k]?f.c:T.txD,fontSize:11,fontWeight:filter[f.k]?600:400,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
           <span style={{width:6,height:6,borderRadius:3,background:filter[f.k]?f.c:T.txD}}/>{f.l}
         </button>)}
       </div>
@@ -273,9 +287,9 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
   // ── DAY DETAIL (simple list) ──
   const DayDetail=()=>{
     if(!selDay)return null;
-    const cls=selDayData.classes, evs=selDayData.events, asgns=selDayData.asgns, acad=selDayData.acad;
+    const cls=selDayData.classes, evs=selDayData.events, asgns=selDayData.asgns, acad=selDayData.acad, exs=selDayData.exams||[];
     const acadNonClass=(acad?.items||[]).filter(it=>it.type!=="class");
-    const empty=cls.length===0&&evs.length===0&&asgns.length===0&&acadNonClass.length===0&&!acad?.period;
+    const empty=cls.length===0&&evs.length===0&&asgns.length===0&&exs.length===0&&acadNonClass.length===0&&!acad?.period;
     return <div style={{marginTop:mob?12:0,borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",borderBottom:`1px solid ${T.bd}`}}>
         <span style={{fontSize:14,fontWeight:700,color:T.txH}}>{selDay.getMonth()+1}/{selDay.getDate()} ({DAYS[(selDay.getDay()+6)%7]})</span>
@@ -322,8 +336,23 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
             <div style={{fontSize:11,color:T.txD,flexShrink:0}}>{c.pd.s[0]}:{String(c.pd.s[1]).padStart(2,"0")}–{c.pd.e[0]}:{String(c.pd.e[1]).padStart(2,"0")}</div>
           </div>)}
         </>}
+        {exs.length>0&&<>
+          <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4,marginTop:cls.length?4:0}}>期末試験</div>
+          {exs.map((ex,i)=>{const pt=PERIOD_TIMES[ex.period];const co=courses.find(c=>c.code===ex.code);const col=co?.col||"#d97706";return(
+            <div key={`ex${i}`} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:`${col}10`,borderLeft:`3px solid ${col}`}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:4}}>
+                  <span style={{fontSize:10,fontWeight:700,color:"#d97706",background:"#d9770618",padding:"1px 5px",borderRadius:4,flexShrink:0}}>試験</span>
+                  <span style={{fontSize:11,fontWeight:700,color:col}}>{ex.code}</span>
+                </div>
+                <div style={{fontSize:13,fontWeight:600,color:T.txH,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ex.name}</div>
+                <div style={{fontSize:11,color:T.txD}}>{ex.period}限 · {ex.room}</div>
+              </div>
+              <div style={{fontSize:11,color:T.txD,flexShrink:0}}>{pt?`${pt.start}–${pt.end}`:""}</div>
+            </div>);})}
+        </>}
         {evs.length>0&&<>
-          <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4,marginTop:cls.length?4:0}}>予定</div>
+          <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4,marginTop:(cls.length||exs.length)?4:0}}>予定</div>
           {evs.map(ev=>{const h=ev.date.getHours(),m=ev.date.getMinutes();const end=ev.end?`–${ev.end.getHours()}:${String(ev.end.getMinutes()).padStart(2,"0")}`:"";return(
             <div key={ev.id} onClick={()=>openEdit(ev)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:`${ev.color}10`,borderLeft:`3px solid ${ev.color}`,cursor:"pointer"}}>
               <div style={{width:8,height:8,borderRadius:"50%",background:ev.color,flexShrink:0}}/>
@@ -366,6 +395,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
             data.classes.forEach((c,ci)=>{items.push({type:"cls",sh:c.pd.s[0],sm:c.pd.s[1],eh:c.pd.e[0],em:c.pd.e[1],label:c.course.name,sub:`${c.pd.l} · ${c.course.room}${c.n!=null?` · 第${c.n}回`:""}${c.sub?" (振替)":""}`,col:c.course.col,id:`cls${di}_${ci}`});});
             data.events.forEach(ev=>{const sh=ev.date.getHours(),sm=ev.date.getMinutes();const eh=ev.end?ev.end.getHours():sh+1,em=ev.end?ev.end.getMinutes():sm;items.push({type:"ev",sh,sm,eh,em,label:ev.title,sub:ev.memo||"",col:ev.color,id:ev.id,ev});});
             data.asgns.forEach(a=>{const h=a.due.getHours(),m=a.due.getMinutes();const co=courses.find(x=>x.id===a.cid);items.push({type:"asgn",sh:h,sm:m,eh:h,em:m+30,label:a.title,sub:co?.code||"",col:co?.col||T.orange,id:`a${a.id}`});});
+            (data.exams||[]).forEach((ex,ei)=>{const pt=PERIOD_TIMES[ex.period];if(pt){const [sh,sm]=pt.start.split(":").map(Number);const [eh,em]=pt.end.split(":").map(Number);items.push({type:"exam",sh,sm,eh,em,label:ex.name,sub:`${ex.period}限 · ${ex.room}`,col:"#d97706",id:`ex${di}_${ei}`});}});
             items.sort((a,b)=>a.sh*60+a.sm-b.sh*60-b.sm);
             const dayAcadNonCls=(data.acad?.items||[]).filter(it=>it.type!=="class");
             if(items.length===0&&!isT&&dayAcadNonCls.length===0)return null;
@@ -398,7 +428,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
                         </div>
                         {!mob&&<>
                           <span style={{fontSize:10,color:T.txD,flexShrink:0,padding:"2px 6px",borderRadius:4,background:T.bg3}}>{durStr}</span>
-                          <span style={{fontSize:10,color:T.txD,flexShrink:0,padding:"2px 6px",borderRadius:4,background:`${it.col}14`,color:it.col}}>{isCls?"授業":isAsgn?"課題":"予定"}</span>
+                          <span style={{fontSize:10,color:T.txD,flexShrink:0,padding:"2px 6px",borderRadius:4,background:`${it.col}14`,color:it.col}}>{isCls?"授業":isAsgn?"課題":it.type==="exam"?"試験":"予定"}</span>
                         </>}
                       </div>
                     </div>;
@@ -445,6 +475,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
               data.classes.forEach(c=>{items.push({y:toY(c.pd.s[0],c.pd.s[1]),h:toH(c.pd.s[0],c.pd.s[1],c.pd.e[0],c.pd.e[1]),label:mob?c.course.code.split(".")[1]:c.course.name,sub:`${c.pd.l}${c.n!=null?` #${c.n}`:""}`,col:c.course.col,type:"cls"});});
               data.events.forEach(ev=>{const sh=ev.date.getHours(),sm=ev.date.getMinutes();const eh=ev.end?ev.end.getHours():sh+1,em=ev.end?ev.end.getMinutes():sm;items.push({y:toY(sh,sm),h:toH(sh,sm,eh,em),label:ev.title,sub:`${fTs(ev.date)}`,col:ev.color,type:"ev"});});
               data.asgns.forEach(a=>{const h=a.due.getHours(),m=a.due.getMinutes();items.push({y:toY(h,m),h:HH/2,label:mob?a.title.slice(0,4):a.title,sub:"締切",col:courses.find(x=>x.id===a.cid)?.col||T.orange,type:"asgn"});});
+              (data.exams||[]).forEach(ex=>{const pt=PERIOD_TIMES[ex.period];if(pt){const [sh,sm]=pt.start.split(":").map(Number);const [eh,em]=pt.end.split(":").map(Number);items.push({y:toY(sh,sm),h:toH(sh,sm,eh,em),label:mob?ex.code.split(".")[1]:ex.name,sub:`${ex.period}限`,col:"#d97706",type:"exam"});}});
               return <div key={di} style={{position:"relative",height:(EH-SH)*HH,borderLeft:`1px solid transparent`}}>
                 {items.map((it,ii)=><div key={ii} style={{position:"absolute",top:it.y,left:1,right:1,height:it.h,borderRadius:4,background:`${it.col}20`,borderLeft:`2px solid ${it.col}`,padding:"2px 3px",overflow:"hidden",cursor:"pointer",zIndex:1}} onClick={()=>setSelDay(d)}>
                   <div style={{fontSize:mob?7:9,fontWeight:600,color:it.col,lineHeight:"12px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.label}</div>
@@ -468,15 +499,16 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
       const date=valid?new Date(calMonth.y,calMonth.m,day):null;
       const isToday=date&&isSameDay(date,NOW);
       const isSel=date&&selDay&&isSameDay(date,selDay);
-      const dayData=date?getDayData(date):{events:[],asgns:[],classes:[]};
+      const dayData=date?getDayData(date):{events:[],asgns:[],classes:[],exams:[]};
       const evItems=dayData.events.map(e=>{const h=e.date.getHours(),m=e.date.getMinutes();return{type:"ev",label:e.title,col:e.color,id:e.id,time:`${h}:${String(m).padStart(2,"0")}`,hasEnd:!!e.end};});
       const asgnItems=dayData.asgns.map(a=>{const co=courses.find(x=>x.id===a.cid);const h=a.due.getHours(),m=a.due.getMinutes();const dl=uDue(a.due);return{type:"asgn",label:a.title,col:co?.col||T.accent,id:a.id,time:`${h}:${String(m).padStart(2,"0")}`,urgent:dl.u};});
+      const examItems=(dayData.exams||[]).map((ex,idx)=>{const pt=PERIOD_TIMES[ex.period];return{type:"exam",label:ex.name,col:"#d97706",id:`ex${idx}`,time:pt?.start||"00:00"};});
       const acadItems=(dayData.acad?.items||[]).filter(it=>it.type!=="class").map((it,idx)=>{
         const cfg={holiday:{col:"#ef4444",l:it.label},event:{col:"#0ea5e9",l:it.label},cancel:{col:"#6b7280",l:"休講"},exam:{col:"#d97706",l:it.label}}[it.type];
         return cfg?{type:"acad",label:cfg.l,col:cfg.col,id:`ac${idx}`,time:"00:00"}:null;
       }).filter(Boolean);
       const isHoliday=dayData.acad?.items.some(it=>it.type==="holiday");
-      const allItems=[...acadItems,...evItems,...asgnItems].sort((a,b)=>(a.time>b.time?1:-1));
+      const allItems=[...acadItems,...examItems,...evItems,...asgnItems].sort((a,b)=>(a.time>b.time?1:-1));
       const hasOverlap=date&&getOverlaps(date).length>0;
       const isSun=date&&date.getDay()===0;
       const isSat=date&&date.getDay()===6;
@@ -488,6 +520,11 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
         {valid&&allItems.slice(0,maxShow).map(it=>it.type==="acad"
           ?<div key={it.id} style={{display:"flex",alignItems:"center",gap:mob?2:3,padding:mob?"1px 2px":"2px 3px",borderRadius:3,background:`${it.col}14`,overflow:"hidden"}}>
             <span style={{fontSize:mob?7:8,fontWeight:700,color:it.col,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"12px"}}>{it.label}</span>
+          </div>
+          :it.type==="exam"
+          ?<div key={it.id} style={{display:"flex",alignItems:"center",gap:mob?2:3,padding:mob?"1px 2px":"2px 3px",borderRadius:3,background:`${it.col}14`,borderLeft:`2px solid ${it.col}`,overflow:"hidden"}}>
+            {!mob&&<span style={{fontSize:7,fontWeight:700,color:it.col,flexShrink:0,lineHeight:"10px"}}>試験</span>}
+            <span style={{fontSize:mob?7:8,fontWeight:600,color:it.col,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"12px"}}>{it.label}</span>
           </div>
           :it.type==="ev"
           ?<div key={it.id} style={{display:"flex",alignItems:"center",gap:mob?2:3,padding:mob?"1px 2px":"2px 3px",borderRadius:3,background:`${it.col}14`,overflow:"hidden"}}>
