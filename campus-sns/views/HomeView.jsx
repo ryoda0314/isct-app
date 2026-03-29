@@ -375,6 +375,18 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
           <button onClick={()=>setView("courseSelect")} style={{background:"none",border:"none",color:T.accentSoft,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:2}}>すべて {I.arr}</button>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          {/* テスト広場 — 全ユーザー共通 */}
+          <div onClick={()=>{setDid?.("global:sandbox");setCh("chat");setView("dept");}}
+            style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,borderLeft:"3px solid #6366f1",cursor:"pointer"}}>
+            <div style={{width:32,height:32,borderRadius:8,background:"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:12,fontWeight:600,color:T.txH}}>テスト広場</div>
+              <div style={{fontSize:10,color:T.txD}}>全員参加の書き込みテスト</div>
+            </div>
+            <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
+          </div>
           {userSchools.map(s=><div key={s.prefix} onClick={()=>{setDid?.(s.prefix);setCh("chat");setView("dept");}}
             style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,borderLeft:`3px solid ${s.col}`,cursor:"pointer"}}>
             <div style={{width:32,height:32,borderRadius:8,background:s.col,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>

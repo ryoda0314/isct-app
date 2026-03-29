@@ -33,6 +33,17 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
       <SideItem icon={I.grad} label="新入生掲示板" on={view==="freshman"} click={()=>setView("freshman")}/>
       <SideItem icon={I.more} label="ツール" on={moreOpen||isExtra} click={()=>setMoreOpen(p=>!p)}/>
     </div>
+    <div style={{width:"calc(100% - 20px)",height:1,background:T.bd,margin:"6px 10px"}}/>
+    <div style={{padding:"0 6px"}}>
+      {(()=>{const on=did==="global:sandbox"&&view==="dept";return(
+        <button onClick={()=>{setDid("global:sandbox");setView("dept");setCh("chat");}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"5px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?"#6366f114":"transparent",color:on?T.txH:T.tx,fontSize:12,textAlign:"left",borderLeft:on?"2px solid #6366f1":"2px solid transparent"}}>
+          <div style={{width:24,height:24,borderRadius:6,background:on?"#6366f1":"#6366f130",display:"flex",alignItems:"center",justifyContent:"center",color:on?"#fff":"#6366f1",fontSize:10,fontWeight:700,flexShrink:0}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          </div>
+          <span>テスト広場</span>
+        </button>
+      );})()}
+    </div>
     {schools.length>0&&<>
       <div style={{width:"calc(100% - 20px)",height:1,background:T.bd,margin:"6px 10px"}}/>
       <div style={{padding:"0 10px 2px",fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>学院</div>
