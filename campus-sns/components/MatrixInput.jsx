@@ -11,7 +11,6 @@ export function MatrixInput({ matrix, setMatrix }) {
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pendingFile, setPendingFile] = useState(null);
   const fileRef = useRef(null);
   const filled = COLS.every(c => ROWS.every(r => matrix[c]?.[r]));
 
@@ -35,29 +34,25 @@ export function MatrixInput({ matrix, setMatrix }) {
     }
   };
 
-  const onFileSelect = useCallback((e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPendingFile(file);
-    setConfirmOpen(true);
-    if (fileRef.current) fileRef.current.value = '';
-  }, []);
-
   const handleDecline = useCallback(() => {
     setConfirmOpen(false);
-    setPendingFile(null);
     setExpanded(true);
     setScanMsg({ type: 'info', text: '下の表から手入力できます。' });
   }, []);
 
-  const handleConfirmScan = useCallback(async () => {
+  const handleAgree = useCallback(() => {
     setConfirmOpen(false);
-    if (!pendingFile) return;
+    fileRef.current?.click();
+  }, []);
+
+  const handleScan = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     setScanning(true);
     setScanMsg(null);
     try {
       const form = new FormData();
-      form.append('image', pendingFile);
+      form.append('image', file);
       const res = await fetch('/api/matrix/scan', { method: 'POST', body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '読み取りに失敗しました');
@@ -78,8 +73,8 @@ export function MatrixInput({ matrix, setMatrix }) {
       setScanMsg({ type: 'err', text: err.message });
     }
     setScanning(false);
-    setPendingFile(null);
-  }, [pendingFile, setMatrix]);
+    if (fileRef.current) fileRef.current.value = '';
+  }, [setMatrix]);
 
   return (
     <div>
@@ -95,8 +90,8 @@ export function MatrixInput({ matrix, setMatrix }) {
 
       {/* 画像読み取りボタン */}
       <div style={{ marginTop: 8 }}>
-        <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={onFileSelect} />
-        <button onClick={() => fileRef.current?.click()} disabled={scanning} style={{
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleScan} />
+        <button onClick={() => setConfirmOpen(true)} disabled={scanning} style={{
           width: "100%", padding: "10px 0", borderRadius: 8,
           border: `1px solid ${T.accent}40`, background: `${T.accent}08`,
           color: T.accent, fontSize: 12, fontWeight: 600, cursor: scanning ? "wait" : "pointer",
@@ -137,7 +132,7 @@ export function MatrixInput({ matrix, setMatrix }) {
               flex: 1, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 600,
               border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, cursor: "pointer",
             }}>手入力する</button>
-            <button onClick={handleConfirmScan} style={{
+            <button onClick={handleAgree} style={{
               flex: 1, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 600,
               border: "none", background: T.accent, color: "#fff", cursor: "pointer",
             }}>同意して読み取り</button>

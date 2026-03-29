@@ -147,7 +147,7 @@ export const PrivacyPolicyView = ({ mob, onBack, embedded }) => {
   const [expandedIdx, setExpandedIdx] = useState(null);
 
   const content = (
-    <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+    <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", userSelect: "none", WebkitUserSelect: "none" }}>
       <div style={{
         padding: mob ? "20px 18px 40px" : "32px 40px 48px",
         maxWidth: 640, margin: "0 auto", boxSizing: "border-box",
