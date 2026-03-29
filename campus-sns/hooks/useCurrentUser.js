@@ -21,13 +21,17 @@ function notify() {
 export function setCurrentUserFromAPI(d) {
   if (!d?.userid) return;
   cached = { ...ME, ...d, moodleId: d.userid, name: d.fullname || '', id: String(d.userid), isAdmin: !!d.isAdmin };
-  // DB に保存済みの dept / unit をローカル pref にも反映
+  // DB に保存済みの dept / unit / yearGroup をローカル pref にも反映
   if (d.dept && !pref.myDept) {
     pref = { ...pref, myDept: d.dept };
     try { localStorage.setItem("userPref", JSON.stringify(pref)); } catch {}
   }
   if (d.unit && !pref.myUnit) {
     pref = { ...pref, myUnit: d.unit };
+    try { localStorage.setItem("userPref", JSON.stringify(pref)); } catch {}
+  }
+  if (d.yearGroup && !pref.yearGroup) {
+    pref = { ...pref, yearGroup: d.yearGroup };
     try { localStorage.setItem("userPref", JSON.stringify(pref)); } catch {}
   }
   notify();
@@ -52,6 +56,13 @@ export function updateUserPref(patch) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ unit: patch.myUnit }),
+    }).catch(() => {});
+  }
+  if ('yearGroup' in patch) {
+    fetch('/api/auth/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ yearGroup: patch.yearGroup }),
     }).catch(() => {});
   }
 }

@@ -19,7 +19,7 @@ export async function GET(request) {
     const sb = getSupabaseAdmin();
     const [isAdmin, profile] = await Promise.all([
       checkAdmin(auth.userid),
-      sb.from('profiles').select('banned, ban_reason, dept').eq('moodle_id', auth.userid).maybeSingle().then(r => r.data),
+      sb.from('profiles').select('banned, ban_reason, dept, year_group, unit').eq('moodle_id', auth.userid).maybeSingle().then(r => r.data),
     ]);
 
     if (profile?.banned) {
@@ -30,7 +30,7 @@ export async function GET(request) {
       }, { status: 403 });
     }
 
-    return NextResponse.json({ userid: auth.userid, fullname: auth.fullname, isAdmin, dept: profile?.dept || null });
+    return NextResponse.json({ userid: auth.userid, fullname: auth.fullname, isAdmin, dept: profile?.dept || null, yearGroup: profile?.year_group || null, unit: profile?.unit || null });
   } catch (err) {
     console.error('[AuthMe] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
@@ -52,6 +52,24 @@ export async function PATCH(request) {
         return NextResponse.json({ error: 'Invalid dept' }, { status: 400 });
       }
       updates.dept = dept;
+    }
+
+    // unit: e.g. "25B-7" or null
+    if ('unit' in body) {
+      const unit = body.unit;
+      if (unit !== null && (typeof unit !== 'string' || unit.length > 20)) {
+        return NextResponse.json({ error: 'Invalid unit' }, { status: 400 });
+      }
+      updates.unit = unit;
+    }
+
+    // year_group: e.g. "25B" or null
+    if ('yearGroup' in body) {
+      const yg = body.yearGroup;
+      if (yg !== null && (typeof yg !== 'string' || yg.length > 5)) {
+        return NextResponse.json({ error: 'Invalid yearGroup' }, { status: 400 });
+      }
+      updates.year_group = yg;
     }
 
     if (Object.keys(updates).length === 0) {
