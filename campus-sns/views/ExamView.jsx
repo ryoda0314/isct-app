@@ -29,13 +29,13 @@ const countdownText = dateStr => {
 export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, setCh }) => {
   const [showAll, setShowAll] = useState(false);
 
-  // ユーザーの履修科目コード (ベースコード)
+  // 該当する試験 (codeRaw でセクション絞り込み)
+  const myExams = useMemo(() => findMyExams(courses), [courses]);
+
+  // ベースコードセット (色取得・履修判定用)
   const myCodes = useMemo(() => {
     return courses.map(c => c.code?.replace(/-\d+$/, "")).filter(Boolean);
   }, [courses]);
-
-  // 該当する試験
-  const myExams = useMemo(() => findMyExams(myCodes), [myCodes]);
 
   // コースコード → コース情報マップ (色取得用)
   const codeMap = useMemo(() => {

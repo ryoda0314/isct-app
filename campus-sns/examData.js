@@ -216,10 +216,20 @@ export const EXAMS = [
   { date: "2026-02-06", day: "金", period: "7-8", code: "MAT.P214", codeRaw: "MAT.P214", name: "有機化学(反応)B", instructor: "早川 晃鏡", room: "S8-102" },
 ];
 
-// ユーザーの履修科目コードから該当試験を検索
-// courseCodesは ["CSC.T263", "LAS.P104", ...] のような配列
-export function findMyExams(courseCodes) {
-  if (!courseCodes || courseCodes.length === 0) return [];
-  const codeSet = new Set(courseCodes.map(c => c.replace(/-\d+$/, "")));
-  return EXAMS.filter(e => codeSet.has(e.code));
+// ユーザーの履修科目から該当試験を検索
+// courses は [{code: "LAL.S204", codeRaw: "LAL.S204-07"}, ...] のような配列
+export function findMyExams(courses) {
+  if (!courses || courses.length === 0) return [];
+  // セクション付きコード → codeRaw で完全マッチ
+  const rawSet = new Set();
+  // セクションなしコード → ベースcode でマッチ（フォールバック）
+  const baseOnlySet = new Set();
+  for (const c of courses) {
+    if (c.codeRaw && c.codeRaw !== c.code) {
+      rawSet.add(c.codeRaw);
+    } else if (c.code) {
+      baseOnlySet.add(c.code);
+    }
+  }
+  return EXAMS.filter(e => rawSet.has(e.codeRaw) || baseOnlySet.has(e.code));
 }
