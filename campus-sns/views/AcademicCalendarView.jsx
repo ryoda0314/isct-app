@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { T } from "../theme.js";
 import { getAcademicInfo } from "../academicCalendar.js";
 
@@ -17,16 +17,18 @@ const periodCol={exam:"#d97706",break:"#10b981",prep:"#6366f1"};
 export const AcademicCalendarView=({mob})=>{
   const curRef=useRef(null);
   const today=useMemo(()=>new Date(),[]);
+  const defaultYear=useMemo(()=>today.getMonth()>=3?today.getFullYear():today.getFullYear()-1,[today]);
+  const [selYear,setSelYear]=useState(defaultYear);
 
   useEffect(()=>{
     const t=setTimeout(()=>curRef.current?.scrollIntoView({block:"start"}),150);
     return()=>clearTimeout(t);
-  },[]);
+  },[selYear]);
 
   const months=useMemo(()=>{
     const arr=[];
     for(let i=0;i<14;i++){
-      const year=i<11?2026:2027;
+      const year=i<11?selYear:selYear+1;
       const month=(1+i)%12;
       const dim=new Date(year,month+1,0).getDate();
       const entries=[];
@@ -43,7 +45,7 @@ export const AcademicCalendarView=({mob})=>{
       arr.push({year,month,entries});
     }
     return arr;
-  },[]);
+  },[selYear]);
 
   const isCurMonth=(y,m)=>today.getFullYear()===y&&today.getMonth()===m;
   const isToday=(y,m,d)=>isCurMonth(y,m)&&today.getDate()===d;
@@ -57,9 +59,19 @@ export const AcademicCalendarView=({mob})=>{
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
           </div>
           <div>
-            <div style={{fontSize:18,fontWeight:800,color:T.txH}}>学年暦 2026</div>
+            <div style={{fontSize:18,fontWeight:800,color:T.txH}}>学年暦 {selYear}</div>
             <div style={{fontSize:12,color:T.txD}}>東京科学大学 理工学系 授業日程</div>
           </div>
+        </div>
+
+        {/* Year selector */}
+        <div style={{display:"flex",gap:6,padding:"4px 0 8px"}}>
+          {[2025,2026].map(y=>
+            <button key={y} onClick={()=>setSelYear(y)}
+              style={{padding:"5px 14px",borderRadius:8,border:`1px solid ${selYear===y?T.accent:T.bd}`,background:selYear===y?`${T.accent}15`:"transparent",color:selYear===y?T.accent:T.txD,fontSize:13,fontWeight:selYear===y?700:500,cursor:"pointer",transition:"all .12s"}}>
+              {y}年度
+            </button>
+          )}
         </div>
 
         {/* Legend */}
