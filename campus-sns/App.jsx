@@ -360,6 +360,16 @@ export default function App(){
   </div>;
   const L=mockMode;
 
+  // Demo mode banner — persistent login/signup prompt
+  const demoReady=isDemoMode()&&appState==="ready";
+  const exitDemo=()=>{setDemoMode(false);if(refreshRef.current)clearInterval(refreshRef.current);setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
+  const DemoBanner=()=>!demoReady?null:(
+    <div style={{position:"fixed",bottom:mob?68:0,left:0,right:0,zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"10px 16px",background:`linear-gradient(135deg,${T.accent}18,${T.accentSoft||T.accent}22)`,borderTop:`1px solid ${T.accent}30`,backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)"}}>
+      <span style={{fontSize:13,color:T.txH,fontWeight:500}}>デモモードで表示中</span>
+      <button onClick={exitDemo} style={{padding:"7px 20px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>ログイン / 新規登録</button>
+    </div>
+  );
+
   // App lock screen (PIN pad + biometric)
 
   // --- Header for mobile ---
@@ -484,6 +494,7 @@ export default function App(){
           {view==="freshman"&&<FreshmanBoardView mob={false} loggedIn={!!user.moodleId} onLogin={()=>{setGuestBoard(false);setMockMode(false);setAppState("setup");}}/>}
         </div>
         {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
+        <DemoBanner/>
         <Toasts/>
         <style>{`*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${T.bd};border-radius:3px}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit}`}</style>
       </div>
@@ -524,6 +535,7 @@ export default function App(){
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread}/>
       <div style={{height:14,background:T.bg2,flexShrink:0}}/>
       {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
+      <DemoBanner/>
       <Toasts/>
       <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}`}</style>
     </div>

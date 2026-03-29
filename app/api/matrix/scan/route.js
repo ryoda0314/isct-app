@@ -1,20 +1,31 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 const COLS = ['A','B','C','D','E','F','G','H','I','J'];
 const ROWS = ['1','2','3','4','5','6','7'];
 
-// IPあたり: 1時間に3回まで（マトリクスカードは1回読めれば十分）
-const scanHits = new Map();
+// ユーザーあたり: 1時間に3回まで（マトリクスカードは1回読めれば十分）
+// Supabaseで永続化し、serverlessコールドスタートでもリセットされない
 const SCAN_LIMIT = 3;
-const SCAN_WINDOW = 60 * 60 * 1000; // 1h
-// 5分ごとに古いエントリを掃除
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of scanHits) {
-    if (now - v.s > SCAN_WINDOW) scanHits.delete(k);
-  }
-}, 5 * 60 * 1000);
+const SCAN_WINDOW_MS = 60 * 60 * 1000; // 1h
+
+async function checkUserScanLimit(userid) {
+  const sb = getSupabaseAdmin();
+  const cutoff = new Date(Date.now() - SCAN_WINDOW_MS).toISOString();
+  const { count } = await sb
+    .from('matrix_scan_log')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userid)
+    .gte('created_at', cutoff);
+  return (count ?? 0) < SCAN_LIMIT;
+}
+
+async function logScan(userid) {
+  const sb = getSupabaseAdmin();
+  await sb.from('matrix_scan_log').insert({ user_id: userid }).catch(() => {});
+}
 
 // ファイルサイズ上限: 5MB
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -28,18 +39,13 @@ const PROMPT = `この画像はマトリクス認証カードです。
 
 export async function POST(request) {
   try {
-    // レート制限チェック
-    const ip = request.headers.get('x-real-ip')
-      || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      || '127.0.0.1';
-    const now = Date.now();
-    let rec = scanHits.get(ip);
-    if (!rec || now - rec.s > SCAN_WINDOW) {
-      rec = { s: now, c: 0 };
-      scanHits.set(ip, rec);
-    }
-    rec.c++;
-    if (rec.c > SCAN_LIMIT) {
+    // 認証チェック — ログインユーザーのみ利用可能
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+
+    // ユーザー単位レート制限（Supabase永続化）
+    const allowed = await checkUserScanLimit(auth.userid);
+    if (!allowed) {
       return NextResponse.json(
         { error: `読み取り回数の上限に達しました（${SCAN_LIMIT}回/時間）。手入力してください。` },
         { status: 429 },
@@ -85,6 +91,9 @@ export async function POST(request) {
       }],
     });
 
+    // スキャン実行をログに記録（レート制限カウント）
+    await logScan(auth.userid);
+
     const text = response.choices?.[0]?.message?.content?.trim();
     if (!text) {
       return NextResponse.json({ error: '読み取りに失敗しました' }, { status: 500 });
@@ -96,15 +105,20 @@ export async function POST(request) {
       return NextResponse.json({ error: '結果のパースに失敗しました' }, { status: 500 });
     }
 
-    const matrix = JSON.parse(jsonMatch[0]);
+    const raw = JSON.parse(jsonMatch[0]);
 
-    // バリデーション
+    // サニタイズ: 想定されるキー(A-J, 1-7)のみ、値は大文字1文字のみ通す
+    const matrix = {};
     let cells = 0;
     for (const col of COLS) {
-      if (!matrix[col] || typeof matrix[col] !== 'object') continue;
+      if (!raw[col] || typeof raw[col] !== 'object') continue;
+      matrix[col] = {};
       for (const row of ROWS) {
-        const v = matrix[col][row];
-        if (typeof v === 'string' && /^[A-Z]$/.test(v)) cells++;
+        const v = raw[col][row];
+        if (typeof v === 'string' && /^[A-Z]$/.test(v)) {
+          matrix[col][row] = v;
+          cells++;
+        }
       }
     }
 
