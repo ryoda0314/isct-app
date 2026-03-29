@@ -286,8 +286,10 @@ export default function App(){
   const cc=allCourses.find(c=>c.id===cid);
   const userDepts=useMemo(()=>{
     const ps=[...new Set(allCourses.map(c=>c.code.split('.')[0]))];
+    // プロフィールで手動設定した学系も含める
+    if(user.myDept&&DEPTS[user.myDept]&&!ps.includes(user.myDept)) ps.push(user.myDept);
     return ps.filter(p=>DEPTS[p]).map(p=>({id:`dept:${p}`,prefix:p,...DEPTS[p]}));
-  },[allCourses]);
+  },[allCourses,user.myDept]);
   const userSchools=useMemo(()=>{
     const sks=[...new Set(userDepts.map(d=>d.school))];
     return sks.filter(k=>SCHOOLS[k]).map(k=>({id:`school:${k}`,prefix:`school:${k}`,name:SCHOOLS[k].name,col:SCHOOLS[k].col}));
