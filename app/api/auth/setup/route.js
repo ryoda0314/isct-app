@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { saveCredentials, deleteCredentials, hasCredentials } from '../../../../lib/credentials.js';
 import { getToken, invalidateToken } from '../../../../lib/auth/token-manager.js';
-import { createSessionToken, sessionCookieOptions, COOKIE_NAME } from '../../../../lib/auth/session.js';
+import { createSessionToken, sessionCookieOptions, COOKIE_NAME, verifySession } from '../../../../lib/auth/session.js';
+import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 export async function POST(request) {
   try {
@@ -33,10 +34,23 @@ export async function POST(request) {
       ...credData,
     });
 
+    // portalUserId (学籍番号) を profiles に保存
+    const saveStudentId = async (moodleId) => {
+      if (!portalUserId) return;
+      try {
+        const sb = getSupabaseAdmin();
+        const m = portalUserId.match(/^(\d{2})([BMDR])(\d)/i);
+        const updates = { student_id: portalUserId };
+        if (m) updates.year_group = m[1] + m[2].toUpperCase();
+        await sb.from('profiles').update(updates).eq('moodle_id', moodleId).is('student_id', null);
+      } catch {}
+    };
+
     if (hasIsct) {
       invalidateToken(loginId);
       try {
         const { userid } = await getToken(loginId);
+        saveStudentId(userid);
         const token = createSessionToken(loginId, userid);
         const response = NextResponse.json({ success: true, moodleUserId: userid });
         response.cookies.set(COOKIE_NAME, token, sessionCookieOptions());
@@ -49,6 +63,11 @@ export async function POST(request) {
     }
 
     // Portal only — save credentials but skip LMS login
+    // 既存セッションがあれば student_id を保存
+    const cookie = request.cookies.get(COOKIE_NAME)?.value;
+    const session = verifySession(cookie);
+    if (session?.moodleUserId) saveStudentId(session.moodleUserId);
+
     const response = NextResponse.json({ success: true, portalOnly: true });
     return response;
   } catch (err) {

@@ -276,11 +276,6 @@ alter table email_verification enable row level security;
 alter table profiles add column if not exists year_group text;  -- e.g. '25B'
 alter table profiles add column if not exists unit       text;  -- e.g. '25B-7'
 
--- 既存ユーザーの year_group を学籍番号 (user_tokens.login_id) から自動バックフィル
--- login_id フォーマット: "25B10001" → year_group = "25B" (先頭2桁 + 3桁目の英字)
-update profiles p
-set year_group = upper(substring(ut.login_id from 1 for 3))
-from user_tokens ut
-where ut.moodle_user_id = p.moodle_id
-  and p.year_group is null
-  and ut.login_id ~ '^[0-9]{2}[BbMmDdRr]';
+-- student_id: 学籍番号（portalUserId）をプロフィールに保存
+-- コードが /api/auth/me で自動的に設定する
+alter table profiles add column if not exists student_id text;

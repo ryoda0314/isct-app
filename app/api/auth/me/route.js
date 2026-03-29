@@ -20,14 +20,46 @@ function parseStudentId(id) {
   return { yearGroup: m[1] + m[2].toUpperCase(), schoolNum: m[3] };
 }
 
-/** loginId or portalUserId から学籍番号を取得 */
-async function resolveStudentId(loginId) {
-  // まず loginId 自体が学籍番号形式か試す
+/**
+ * 学籍番号を解決する（複数ソースから探す）
+ * 1. profiles.student_id（DB保存済み）
+ * 2. loginId 自体が学籍番号形式
+ * 3. クレデンシャルの portalUserId
+ * 4. user_credentials から学籍番号形式の login_id を検索
+ */
+async function resolveStudentId(loginId, profileStudentId) {
+  // 1. DB に保存済み
+  if (profileStudentId && parseStudentId(profileStudentId)) return profileStudentId;
+  // 2. loginId 自体が学籍番号形式
   if (parseStudentId(loginId)) return loginId;
-  // 違う場合、クレデンシャルから portalUserId を取得
+  // 3. クレデンシャルから portalUserId を取得
   try {
     const creds = await loadCredentials(loginId);
-    if (creds?.portalUserId) return creds.portalUserId;
+    if (creds?.portalUserId && parseStudentId(creds.portalUserId)) return creds.portalUserId;
+  } catch {}
+  // 4. user_credentials テーブルから学籍番号形式の login_id を検索
+  //    (ISCTとPortalが別々に保存された場合のフォールバック)
+  try {
+    const sb = getSupabaseAdmin();
+    const { data } = await sb.from('user_credentials')
+      .select('login_id')
+      .filter('login_id', 'neq', loginId);
+    if (data) {
+      for (const row of data) {
+        if (parseStudentId(row.login_id)) {
+          // この login_id のクレデンシャルを復号して確認
+          try {
+            const creds = await loadCredentials(row.login_id);
+            // portalUserId があればそれが学籍番号
+            if (creds?.portalUserId && parseStudentId(creds.portalUserId)) return creds.portalUserId;
+            // userId 自体が学籍番号形式ならそれを使う
+            if (parseStudentId(creds?.userId)) return creds.userId;
+          } catch {}
+          // 復号できなくても login_id 自体が学籍番号形式ならそれを使う
+          return row.login_id;
+        }
+      }
+    }
   } catch {}
   return null;
 }
@@ -40,7 +72,7 @@ export async function GET(request) {
     const sb = getSupabaseAdmin();
     const [isAdmin, profile] = await Promise.all([
       checkAdmin(auth.userid),
-      sb.from('profiles').select('banned, ban_reason, dept, year_group, unit').eq('moodle_id', auth.userid).maybeSingle().then(r => r.data),
+      sb.from('profiles').select('banned, ban_reason, dept, year_group, unit, student_id').eq('moodle_id', auth.userid).maybeSingle().then(r => r.data),
     ]);
 
     if (profile?.banned) {
@@ -52,17 +84,25 @@ export async function GET(request) {
     }
 
     let yearGroup = profile?.year_group || null;
-    let studentId = null;
+    let studentId = profile?.student_id || null;
 
-    // 学籍番号を解決（loginId or portalUserId）
-    const sid = await resolveStudentId(auth.loginId);
-    if (sid) {
-      studentId = sid;
-      const parsed = parseStudentId(sid);
-      // year_group が未設定なら自動設定してDB保存
-      if (!yearGroup && parsed) {
-        yearGroup = parsed.yearGroup;
-        sb.from('profiles').update({ year_group: yearGroup }).eq('moodle_id', auth.userid).then(() => {}).catch(() => {});
+    // student_id / year_group が未設定なら自動解決
+    if (!studentId || !yearGroup) {
+      const sid = await resolveStudentId(auth.loginId, studentId);
+      if (sid) {
+        studentId = sid;
+        const parsed = parseStudentId(sid);
+        if (!yearGroup && parsed) yearGroup = parsed.yearGroup;
+
+        // DB に保存（次回以降は即座に返せる）
+        const updates = {};
+        if (!profile?.student_id && studentId) updates.student_id = studentId;
+        if (!profile?.year_group && yearGroup) updates.year_group = yearGroup;
+        if (Object.keys(updates).length > 0) {
+          sb.from('profiles').update(updates).eq('moodle_id', auth.userid).then(() => {
+            console.log(`[AuthMe] Auto-set for user ${auth.userid}:`, updates);
+          }).catch(() => {});
+        }
       }
     }
 
