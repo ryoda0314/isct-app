@@ -21,9 +21,13 @@ function notify() {
 export function setCurrentUserFromAPI(d) {
   if (!d?.userid) return;
   cached = { ...ME, ...d, moodleId: d.userid, name: d.fullname || '', id: String(d.userid), isAdmin: !!d.isAdmin };
-  // DB に保存済みの dept をローカル pref にも反映
+  // DB に保存済みの dept / unit をローカル pref にも反映
   if (d.dept && !pref.myDept) {
     pref = { ...pref, myDept: d.dept };
+    try { localStorage.setItem("userPref", JSON.stringify(pref)); } catch {}
+  }
+  if (d.unit && !pref.myUnit) {
+    pref = { ...pref, myUnit: d.unit };
     try { localStorage.setItem("userPref", JSON.stringify(pref)); } catch {}
   }
   notify();
@@ -35,12 +39,19 @@ export function updateUserPref(patch) {
   try { localStorage.setItem("userPref", JSON.stringify(pref)); } catch {}
   notify();
 
-  // myDept が変更されたら DB にも永続化
+  // myDept / myUnit が変更されたら DB にも永続化
   if ('myDept' in patch) {
     fetch('/api/auth/me', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ dept: patch.myDept }),
+    }).catch(() => {});
+  }
+  if ('myUnit' in patch) {
+    fetch('/api/auth/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ unit: patch.myUnit }),
     }).catch(() => {});
   }
 }

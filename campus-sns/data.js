@@ -59,4 +59,7 @@ const DEPTS={
   MOT:{name:"技術経営専門職学位課程",school:"envsoc",col:"#61afef"},
 };
 
-export { ME, C, QData, U, POSTS, REPS, MSGS, ASGN0, MYTK0, DMS0, EVENTS0, evCat, GRADES0, PAST_GPA, ATT0, REVIEWS0, NOTIF0, MYEVENTS0, SCHOOLS, DEPTS };
+// ユニット（1年生の学院横断少人数グループ）
+const UNIT_COL = "#f59e0b"; // ユニット共通カラー
+
+export { ME, C, QData, U, POSTS, REPS, MSGS, ASGN0, MYTK0, DMS0, EVENTS0, evCat, GRADES0, PAST_GPA, ATT0, REVIEWS0, NOTIF0, MYEVENTS0, SCHOOLS, DEPTS, UNIT_COL };

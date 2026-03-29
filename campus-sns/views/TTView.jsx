@@ -3,7 +3,7 @@ import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefresh,courses=[],hiddenSet=new Set(),goToBuilding})=>{
   const days=["月","火","水","木","金"],daysFull=["Monday","Tuesday","Wednesday","Thursday","Friday"],dayJP=["月曜日","火曜日","水曜日","木曜日","金曜日"];
-  const pds=["1","2","3","4","5"],pdLabel=["1限","2限","3限","4限","5限"],pdTimes=["8:50–10:30","10:45–12:25","13:20–15:00","15:15–16:55","17:10–18:50"];
+  const pds=["1","2","3","4","5"],pdLabel=["1限","2限","3限","4限","5限"],pdTimes=["8:50–10:30","10:45–12:25","13:30–15:10","15:25–17:05","17:15–18:55"];
   const curC=qd.C,curTT=qd.TT;
   const cnt=cid=>asgn.filter(a=>a.cid===cid&&a.st!=="completed"&&!hiddenSet.has(a.id)).length;
   const [qOpen,setQOpen]=useState(false);
@@ -199,7 +199,7 @@ export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefr
   );
 };
 
-export const CSelect=({setCid,setView,setCh,courses=[],depts=[],schools=[],setDid})=>{
+export const CSelect=({setCid,setView,setCh,courses=[],depts=[],schools=[],setDid,userUnit=null})=>{
   return(
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:12}}>
       {schools.length>0&&<>
@@ -218,7 +218,15 @@ export const CSelect=({setCid,setView,setCh,courses=[],depts=[],schools=[],setDi
           <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
         </div>)}
       </>}
-      {(schools.length>0||depts.length>0)&&<div style={{fontSize:12,fontWeight:700,color:T.txD,marginTop:8,marginBottom:6,letterSpacing:.3}}>コース</div>}
+      {userUnit&&<>
+        <div style={{fontSize:12,fontWeight:700,color:T.txD,marginTop:8,marginBottom:6,letterSpacing:.3}}>ユニット</div>
+        <div onClick={()=>{setDid?.(`unit:${userUnit.id}`);setCh("timeline");setView("dept");}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:8,borderLeft:`3px solid ${userUnit.col}`,cursor:"pointer"}}>
+          <div style={{width:38,height:38,borderRadius:10,background:userUnit.col,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:12,flexShrink:0}}>U{userUnit.id}</div>
+          <div style={{flex:1}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>ユニット{userUnit.id}</div><div style={{fontSize:12,color:T.txD}}>学院横断グループ</div></div>
+          <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
+        </div>
+      </>}
+      {(schools.length>0||depts.length>0||userUnit)&&<div style={{fontSize:12,fontWeight:700,color:T.txD,marginTop:8,marginBottom:6,letterSpacing:.3}}>コース</div>}
       {courses.map(co=><div key={co.id} onClick={()=>{setCid(co.id);setCh("timeline");setView("course");}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:8,borderLeft:`3px solid ${co.col}`,cursor:"pointer"}}>
         <div style={{width:38,height:38,borderRadius:10,background:co.col,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:13,flexShrink:0}}>{co.code.slice(0,3)}</div>
         <div style={{flex:1}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{co.name}</div><div style={{fontSize:12,color:T.txD}}>{co.code} · {co.per}</div></div>
