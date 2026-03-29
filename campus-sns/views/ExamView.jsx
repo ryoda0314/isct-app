@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
-import { EXAMS, PERIOD_TIMES, EXAM_LABEL, findMyExams } from "../examData.js";
+import { PERIOD_TIMES } from "../examData.js";
+
+const API = "";
 
 const DAY_COLORS = { "月": "#6375f0", "火": "#e5534b", "水": "#3dae72", "木": "#d4843e", "金": "#a855c7" };
 
@@ -26,18 +28,72 @@ const countdownText = dateStr => {
   return `あと${days}日`;
 };
 
+function findMyExams(allExams, courses) {
+  if (!courses || courses.length === 0 || !allExams.length) return [];
+  const rawSet = new Set();
+  const baseOnlySet = new Set();
+  for (const c of courses) {
+    if (c.codeRaw && c.codeRaw !== c.code) rawSet.add(c.codeRaw);
+    else if (c.code) baseOnlySet.add(c.code);
+  }
+  return allExams.filter(e => rawSet.has(e.code_raw) || baseOnlySet.has(e.code));
+}
+
 export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, setCh }) => {
   const [showAll, setShowAll] = useState(false);
+  const [allExams, setAllExams] = useState([]);
+  const [quarters, setQuarters] = useState([]);
+  const [selYear, setSelYear] = useState("");
+  const [selQ, setSelQ] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  // 該当する試験 (codeRaw でセクション絞り込み)
-  const myExams = useMemo(() => findMyExams(courses), [courses]);
+  const fetchExams = useCallback((year, quarter) => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (year) params.set("year", year);
+    if (quarter) params.set("quarter", quarter);
+    fetch(`${API}/api/exams?${params}`)
+      .then(r => r.json())
+      .then(d => {
+        setAllExams(d.exams || []);
+        if (d.quarters) setQuarters(d.quarters);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
-  // ベースコードセット (色取得・履修判定用)
+  // 初回: クォーター一覧取得 → 最新を自動選択
+  useEffect(() => {
+    fetch(`${API}/api/exams`)
+      .then(r => r.json())
+      .then(d => {
+        const qs = d.quarters || [];
+        setQuarters(qs);
+        if (qs.length > 0) {
+          setSelYear(qs[0].year);
+          setSelQ(qs[0].quarter);
+          // 最新のクォーターのデータだけ再取得
+          fetchExams(qs[0].year, qs[0].quarter);
+        } else {
+          setAllExams(d.exams || []);
+          setLoading(false);
+        }
+      })
+      .catch(() => setLoading(false));
+  }, [fetchExams]);
+
+  const handleQChange = (year, quarter) => {
+    setSelYear(year);
+    setSelQ(quarter);
+    fetchExams(year, quarter);
+  };
+
+  const myExams = useMemo(() => findMyExams(allExams, courses), [allExams, courses]);
+
   const myCodes = useMemo(() => {
     return courses.map(c => c.code?.replace(/-\d+$/, "")).filter(Boolean);
   }, [courses]);
 
-  // コースコード → コース情報マップ (色取得用)
   const codeMap = useMemo(() => {
     const m = {};
     courses.forEach(c => {
@@ -47,26 +103,24 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
     return m;
   }, [courses]);
 
-  // 表示データ: showAll=true なら全試験, false ならマイ試験のみ
-  const displayExams = showAll ? EXAMS : myExams;
+  const displayExams = showAll ? allExams : myExams;
 
-  // 日付でグルーピング
   const grouped = useMemo(() => {
     const map = new Map();
     displayExams.forEach(e => {
       if (!map.has(e.date)) map.set(e.date, []);
       map.get(e.date).push(e);
     });
-    // 日付順
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [displayExams]);
 
-  // 次の試験
   const nextExam = useMemo(() => {
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     return myExams.find(e => e.date >= todayStr) || null;
   }, [myExams]);
+
+  const label = selYear && selQ ? `${selYear}年度 ${selQ} 期末試験` : "期末試験";
 
   const ExamCard = ({ exam }) => {
     const c = codeMap[exam.code];
@@ -82,14 +136,11 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
         border: `1px solid ${isMyExam ? `${col}30` : T.bd}`,
         transition: "all .15s"
       }}>
-        {/* 時間帯 */}
         <div style={{ flexShrink: 0, width: mob ? 56 : 64, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 }}>
           <div style={{ fontSize: mob ? 11 : 12, fontWeight: 700, color: col }}>{exam.period}限</div>
           <div style={{ fontSize: 10, color: T.txD }}>{timeStr}</div>
         </div>
-        {/* 区切り線 */}
         <div style={{ width: 3, borderRadius: 2, background: col, flexShrink: 0 }} />
-        {/* 内容 */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <span style={{ fontSize: mob ? 11 : 12, fontWeight: 700, color: col }}>{exam.code}</span>
@@ -118,15 +169,33 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: mob ? 12 : 20 }}>
       {/* ヘッダー */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: mob ? 18 : 20, fontWeight: 800, color: T.txH }}>{EXAM_LABEL}</h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 8, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h2 style={{ margin: 0, fontSize: mob ? 18 : 20, fontWeight: 800, color: T.txH }}>{label}</h2>
           <div style={{ fontSize: 12, color: T.txD, marginTop: 2 }}>
-            {myExams.length > 0
+            {loading ? "読み込み中..." : myExams.length > 0
               ? `${myExams.length}件の試験が見つかりました`
               : "履修科目の試験はありません"}
           </div>
         </div>
+        {/* クォーターセレクター */}
+        {quarters.length > 1 && (
+          <select
+            value={`${selYear}_${selQ}`}
+            onChange={e => { const [y, q] = e.target.value.split("_"); handleQChange(y, q); }}
+            style={{
+              padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`,
+              background: T.bg2, color: T.txH, fontSize: 12, fontWeight: 600,
+              cursor: "pointer", outline: "none"
+            }}
+          >
+            {quarters.map(q => (
+              <option key={`${q.year}_${q.quarter}`} value={`${q.year}_${q.quarter}`}>
+                {q.year}年度 {q.quarter}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* 次の試験カウントダウン */}
@@ -178,12 +247,16 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
           background: showAll ? `${T.accent}15` : T.bg2, color: showAll ? T.accent : T.txD,
           fontSize: 12, fontWeight: 600, cursor: "pointer"
         }}>
-          全試験一覧 ({EXAMS.length})
+          全試験一覧 ({allExams.length})
         </button>
       </div>
 
       {/* 試験一覧 (日付グループ) */}
-      {grouped.length === 0 && (
+      {loading && (
+        <div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 14 }}>読み込み中...</div>
+      )}
+
+      {!loading && grouped.length === 0 && (
         <div style={{
           textAlign: "center", padding: 40, color: T.txD, fontSize: 14
         }}>
@@ -191,13 +264,12 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
         </div>
       )}
 
-      {grouped.map(([date, exams]) => {
+      {!loading && grouped.map(([date, exams]) => {
         const dayCol = DAY_COLORS[exams[0]?.day] || T.accent;
         const cd = countdownText(date);
         const isPast = cd === "終了";
         return (
           <div key={date} style={{ marginBottom: 20, opacity: isPast ? 0.5 : 1 }}>
-            {/* 日付ヘッダー */}
             <div style={{
               display: "flex", alignItems: "center", gap: 8, marginBottom: 8,
               padding: "6px 0", borderBottom: `2px solid ${dayCol}30`
@@ -220,9 +292,8 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
                 {cd}
               </span>
             </div>
-            {/* その日の試験カード */}
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {exams.map((exam, i) => <ExamCard key={`${exam.codeRaw}-${i}`} exam={exam} />)}
+              {exams.map((exam, i) => <ExamCard key={`${exam.code_raw || exam.code}-${i}`} exam={exam} />)}
             </div>
           </div>
         );

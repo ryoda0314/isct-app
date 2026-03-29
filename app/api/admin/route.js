@@ -783,7 +783,7 @@ export async function POST(request) {
       })).filter(r => r.code && r.name && r.date && r.period);
       if (rows.length === 0) return NextResponse.json({ error: 'No valid entries' }, { status: 400 });
       const { error } = await sb.from('exam_schedules').upsert(rows, {
-        onConflict: 'code,date,period', ignoreDuplicates: false,
+        onConflict: 'code_raw,date,period', ignoreDuplicates: false,
       });
       if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'bulk_import_exams', 'exam', '', { count: rows.length });
