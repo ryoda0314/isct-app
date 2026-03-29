@@ -77,12 +77,12 @@ const SCITOKYO = {
 };
 
 const TSUBAME = {
-  bg:"#0c161e", bg2:"#102028", bg3:"#162a34", bg4:"#1c3440",
-  hover:"#223e4c", accent:"#28c868", accentSoft:"#50e088",
-  green:"#28c868", red:"#e5534b", orange:"#d4843e", yellow:"#dab030",
-  tx:"#88b0c4", txH:"#c8e4f0", txD:"#4e7488",
-  bd:"#1a2e3e", bdL:"#263e50",
-  on:"#28c868", idle:"#dab030", off:"#3e586a",
+  bg:"#eef5fb", bg2:"#f6fafd", bg3:"#e0ecf6", bg4:"#d2e2ee",
+  hover:"#c4d8e6", accent:"#28c868", accentSoft:"#50d888",
+  green:"#28c868", red:"#d44050", orange:"#d08040", yellow:"#d4a420",
+  tx:"#3a5870", txH:"#0e2030", txD:"#7898b0",
+  bd:"#c8dcea", bdL:"#b8cedf",
+  on:"#28c868", idle:"#d4a420", off:"#9cb0c0",
 };
 
 // ── 季節テーマ ──────────────────────────────────
@@ -263,7 +263,7 @@ export const updateT = (mode, accentId) => {
 };
 
 // light系テーマの判定
-const LIGHT_MODES = new Set(["light","sepia","sakura","shinryoku","yuki","lavender","mint","sky","peach","lemon","coral"]);
+const LIGHT_MODES = new Set(["light","sepia","tsubame","sakura","shinryoku","yuki","lavender","mint","sky","peach","lemon","coral"]);
 export const isDarkMode = (mode) => !LIGHT_MODES.has(mode);
 
 export { DARK, LIGHT, OLED, DIM, SEPIA, TITECH, TMDU, SCITOKYO, TSUBAME, SAKURA, SHINRYOKU, KOYO, YUKI, LAVENDER, MINT, SKY, PEACH, LEMON, CORAL, ThemeCtx, useTheme };
