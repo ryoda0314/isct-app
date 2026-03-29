@@ -4,8 +4,8 @@
   "description": "東京科学大学キャンパスSNS",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#111113",
-  "theme_color": "#6375f0",
+  "background_color": "#eef5fb",
+  "theme_color": "#28c868",
   "orientation": "portrait-primary",
   "icons": [
     { "src": "/icons/icon-72x72.png", "sizes": "72x72", "type": "image/png" },

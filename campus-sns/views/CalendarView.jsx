@@ -3,6 +3,7 @@ import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { NOW, fDS, fDF, fTs, uDue, aMap, sMap } from "../utils.jsx";
 import { Tag } from "../shared.jsx";
+import { getAcademicInfo } from "../academicCalendar.js";
 const DAYS=["月","火","水","木","金","土","日"];
 const COLORS=["#6375f0","#e5534b","#3dae72","#a855c7","#d4843e","#c6a236","#2d9d8f","#c75d8e"];
 const dKey=d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -94,13 +95,27 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
   };
   const deleteEvent=id=>{setMyEvents(p=>p.filter(e=>e.id!==id));setEditing(null);setAdding(false);resetForm();};
 
-  // Timetable classes for a given date
+  // Timetable classes for a given date (academic calendar aware)
   const curTT=qd?.TT||[];
+  const DOW_MAP={"月":0,"火":1,"水":2,"木":3,"金":4};
   const getClasses=date=>{
-    const dow=date.getDay();// 0=Sun,1=Mon...
+    const info=getAcademicInfo(date);
+    const hasAcad=info.items.length>0||info.period;
+    if(hasAcad){
+      const classItems=info.items.filter(it=>it.type==="class");
+      if(classItems.length===0) return [];
+      const results=[];
+      for(const item of classItems){
+        const di=DOW_MAP[item.dow];
+        if(di===undefined) continue;
+        PD.forEach((pd,pi)=>{const co=curTT[pi]?.[di];if(co) results.push({type:"class",course:co,pd,pi,n:item.n,sub:item.sub,dow:item.dow});});
+      }
+      return results;
+    }
+    const dow=date.getDay();
     if(dow<1||dow>5)return [];
     const di=dow-1;
-    return PD.map((pd,pi)=>{const co=curTT[pi]?.[di];if(!co)return null;return{type:"class",course:co,pd,pi};}).filter(Boolean);
+    return PD.map((pd,pi)=>{const co=curTT[pi]?.[di];if(!co)return null;return{type:"class",course:co,pd,pi,n:null,sub:false};}).filter(Boolean);
   };
 
   // Build calendar data
@@ -133,7 +148,8 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
   const getDayData=(date)=>{
     const base=byDay[dKey(date)]||{events:[],asgns:[],classes:[]};
     const cls=getClasses(date);
-    return{events:filter.ev?base.events:[],asgns:filter.asgn?base.asgns:[],classes:filter.cls?cls:[]};
+    const acad=getAcademicInfo(date);
+    return{events:filter.ev?base.events:[],asgns:filter.asgn?base.asgns:[],classes:filter.cls?cls:[],acad};
   };
 
   // Overlap detection for a day
@@ -257,8 +273,9 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
   // ── DAY DETAIL (simple list) ──
   const DayDetail=()=>{
     if(!selDay)return null;
-    const cls=selDayData.classes, evs=selDayData.events, asgns=selDayData.asgns;
-    const empty=cls.length===0&&evs.length===0&&asgns.length===0;
+    const cls=selDayData.classes, evs=selDayData.events, asgns=selDayData.asgns, acad=selDayData.acad;
+    const acadNonClass=(acad?.items||[]).filter(it=>it.type!=="class");
+    const empty=cls.length===0&&evs.length===0&&asgns.length===0&&acadNonClass.length===0&&!acad?.period;
     return <div style={{marginTop:mob?12:0,borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",borderBottom:`1px solid ${T.bd}`}}>
         <span style={{fontSize:14,fontWeight:700,color:T.txH}}>{selDay.getMonth()+1}/{selDay.getDate()} ({DAYS[(selDay.getDay()+6)%7]})</span>
@@ -279,12 +296,28 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
         </>}
       </div>
       <div style={{padding:"8px 12px",display:"flex",flexDirection:"column",gap:6}}>
+        {acadNonClass.length>0&&acadNonClass.map((it,i)=>{
+          const cfg={holiday:{col:"#ef4444",tag:"祝日"},event:{col:"#0ea5e9",tag:"行事"},cancel:{col:"#6b7280",tag:"休講"},exam:{col:"#d97706",tag:"試験"}}[it.type];
+          if(!cfg)return null;
+          const lbl=it.type==="cancel"?`${it.q}Q ${it.label}`:it.type==="exam"?`${it.q}Q ${it.label}`:it.label;
+          return <div key={`ac${i}`} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:8,background:`${cfg.col}10`,borderLeft:`3px solid ${cfg.col}`}}>
+            <span style={{fontSize:10,fontWeight:700,color:cfg.col,background:`${cfg.col}18`,padding:"1px 5px",borderRadius:4}}>{cfg.tag}</span>
+            <span style={{fontSize:12,fontWeight:500,color:T.txH}}>{lbl}</span>
+          </div>;
+        })}
+        {acad?.period&&!acadNonClass.some(it=>it.type==="exam")&&<div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:8,background:`${{exam:"#d97706",break:"#10b981",prep:"#6366f1"}[acad.period.t]||T.accent}10`,borderLeft:`3px solid ${{exam:"#d97706",break:"#10b981",prep:"#6366f1"}[acad.period.t]||T.accent}`}}>
+          <span style={{fontSize:11,fontWeight:600,color:{exam:"#d97706",break:"#10b981",prep:"#6366f1"}[acad.period.t]||T.accent}}>{acad.period.l}</span>
+        </div>}
         {cls.length>0&&<>
           <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>授業</div>
           {cls.map((c,i)=><div key={`c${i}`} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:`${c.course.col}10`,borderLeft:`3px solid ${c.course.col}`}}>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.course.name}</div>
-              <div style={{fontSize:11,color:T.txD}}>{c.pd.l} · {c.course.room}</div>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                <span style={{fontSize:13,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.course.name}</span>
+                {c.n!=null&&<span style={{fontSize:9,fontWeight:700,color:c.course.col,background:`${c.course.col}18`,padding:"1px 5px",borderRadius:4,flexShrink:0}}>第{c.n}回</span>}
+                {c.sub&&<span style={{fontSize:9,fontWeight:700,color:"#d97706",background:"#d9770618",padding:"1px 5px",borderRadius:4,flexShrink:0}}>振替</span>}
+              </div>
+              <div style={{fontSize:11,color:T.txD}}>{c.pd.l} · {c.course.room}{c.sub?` (${c.dow}曜授業)`:""}</div>
             </div>
             <div style={{fontSize:11,color:T.txD,flexShrink:0}}>{c.pd.s[0]}:{String(c.pd.s[1]).padStart(2,"0")}–{c.pd.e[0]}:{String(c.pd.e[1]).padStart(2,"0")}</div>
           </div>)}
@@ -330,17 +363,19 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
             const data=getDayData(d);
             const isT=isSameDay(d,NOW);
             const items=[];
-            data.classes.forEach((c,ci)=>{items.push({type:"cls",sh:c.pd.s[0],sm:c.pd.s[1],eh:c.pd.e[0],em:c.pd.e[1],label:c.course.name,sub:`${c.pd.l} · ${c.course.room}`,col:c.course.col,id:`cls${di}_${ci}`});});
+            data.classes.forEach((c,ci)=>{items.push({type:"cls",sh:c.pd.s[0],sm:c.pd.s[1],eh:c.pd.e[0],em:c.pd.e[1],label:c.course.name,sub:`${c.pd.l} · ${c.course.room}${c.n!=null?` · 第${c.n}回`:""}${c.sub?" (振替)":""}`,col:c.course.col,id:`cls${di}_${ci}`});});
             data.events.forEach(ev=>{const sh=ev.date.getHours(),sm=ev.date.getMinutes();const eh=ev.end?ev.end.getHours():sh+1,em=ev.end?ev.end.getMinutes():sm;items.push({type:"ev",sh,sm,eh,em,label:ev.title,sub:ev.memo||"",col:ev.color,id:ev.id,ev});});
             data.asgns.forEach(a=>{const h=a.due.getHours(),m=a.due.getMinutes();const co=courses.find(x=>x.id===a.cid);items.push({type:"asgn",sh:h,sm:m,eh:h,em:m+30,label:a.title,sub:co?.code||"",col:co?.col||T.orange,id:`a${a.id}`});});
             items.sort((a,b)=>a.sh*60+a.sm-b.sh*60-b.sm);
-            if(items.length===0&&!isT)return null;
+            const dayAcadNonCls=(data.acad?.items||[]).filter(it=>it.type!=="class");
+            if(items.length===0&&!isT&&dayAcadNonCls.length===0)return null;
             return(
               <div key={di} style={{marginTop:di?2:0}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,padding:mob?"5px 4px":"4px 6px",position:"sticky",top:0,zIndex:3,background:T.bg}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:mob?"5px 4px":"4px 6px",position:"sticky",top:0,zIndex:3,background:T.bg,flexWrap:"wrap"}}>
                   <span style={{fontSize:mob?13:14,fontWeight:700,color:isT?T.accent:T.txH}}>{d.getMonth()+1}/{d.getDate()}</span>
                   <span style={{fontSize:mob?11:12,fontWeight:600,color:isT?T.accent:di>=5?T.orange:T.txD}}>{DAYS[di]}</span>
                   {isT&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:4,background:`${T.accent}18`,color:T.accent,fontWeight:600}}>TODAY</span>}
+                  {dayAcadNonCls.map((it,ai)=>{const cfg={holiday:{col:"#ef4444",l:it.label},event:{col:"#0ea5e9",l:it.label},cancel:{col:"#6b7280",l:"休講"},exam:{col:"#d97706",l:it.label}}[it.type];return cfg?<span key={`ac${ai}`} style={{fontSize:9,padding:"1px 6px",borderRadius:4,background:`${cfg.col}18`,color:cfg.col,fontWeight:600}}>{cfg.l}</span>:null;})}
                 </div>
                 {items.length===0&&<div style={{padding:"4px 8px",fontSize:11,color:T.txD}}>予定なし</div>}
                 <div style={{display:"flex",flexDirection:"column",gap:2}}>
@@ -407,7 +442,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
             {wDays.map((d,di)=>{
               const data=getDayData(d);
               const items=[];
-              data.classes.forEach(c=>{items.push({y:toY(c.pd.s[0],c.pd.s[1]),h:toH(c.pd.s[0],c.pd.s[1],c.pd.e[0],c.pd.e[1]),label:mob?c.course.code.split(".")[1]:c.course.name,sub:c.pd.l,col:c.course.col,type:"cls"});});
+              data.classes.forEach(c=>{items.push({y:toY(c.pd.s[0],c.pd.s[1]),h:toH(c.pd.s[0],c.pd.s[1],c.pd.e[0],c.pd.e[1]),label:mob?c.course.code.split(".")[1]:c.course.name,sub:`${c.pd.l}${c.n!=null?` #${c.n}`:""}`,col:c.course.col,type:"cls"});});
               data.events.forEach(ev=>{const sh=ev.date.getHours(),sm=ev.date.getMinutes();const eh=ev.end?ev.end.getHours():sh+1,em=ev.end?ev.end.getMinutes():sm;items.push({y:toY(sh,sm),h:toH(sh,sm,eh,em),label:ev.title,sub:`${fTs(ev.date)}`,col:ev.color,type:"ev"});});
               data.asgns.forEach(a=>{const h=a.due.getHours(),m=a.due.getMinutes();items.push({y:toY(h,m),h:HH/2,label:mob?a.title.slice(0,4):a.title,sub:"締切",col:courses.find(x=>x.id===a.cid)?.col||T.orange,type:"asgn"});});
               return <div key={di} style={{position:"relative",height:(EH-SH)*HH,borderLeft:`1px solid transparent`}}>
@@ -436,16 +471,25 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,mob})=>{
       const dayData=date?getDayData(date):{events:[],asgns:[],classes:[]};
       const evItems=dayData.events.map(e=>{const h=e.date.getHours(),m=e.date.getMinutes();return{type:"ev",label:e.title,col:e.color,id:e.id,time:`${h}:${String(m).padStart(2,"0")}`,hasEnd:!!e.end};});
       const asgnItems=dayData.asgns.map(a=>{const co=courses.find(x=>x.id===a.cid);const h=a.due.getHours(),m=a.due.getMinutes();const dl=uDue(a.due);return{type:"asgn",label:a.title,col:co?.col||T.accent,id:a.id,time:`${h}:${String(m).padStart(2,"0")}`,urgent:dl.u};});
-      const allItems=[...evItems,...asgnItems].sort((a,b)=>(a.time>b.time?1:-1));
+      const acadItems=(dayData.acad?.items||[]).filter(it=>it.type!=="class").map((it,idx)=>{
+        const cfg={holiday:{col:"#ef4444",l:it.label},event:{col:"#0ea5e9",l:it.label},cancel:{col:"#6b7280",l:"休講"},exam:{col:"#d97706",l:it.label}}[it.type];
+        return cfg?{type:"acad",label:cfg.l,col:cfg.col,id:`ac${idx}`,time:"00:00"}:null;
+      }).filter(Boolean);
+      const isHoliday=dayData.acad?.items.some(it=>it.type==="holiday");
+      const allItems=[...acadItems,...evItems,...asgnItems].sort((a,b)=>(a.time>b.time?1:-1));
       const hasOverlap=date&&getOverlaps(date).length>0;
       const isSun=date&&date.getDay()===0;
       const isSat=date&&date.getDay()===6;
       return <div key={i} onClick={()=>{if(date)setSelDay(isSel?null:date);}} style={{minHeight:mob?56:88,padding:mob?"2px 1px":"3px",borderRadius:6,background:isSel?`${T.accent}16`:isToday?`${T.accent}08`:valid?T.bg2:"transparent",border:isSel?`1px solid ${T.accent}40`:isToday?`1px solid ${T.accent}20`:`1px solid ${valid?T.bd:"transparent"}`,cursor:valid?"pointer":"default",display:"flex",flexDirection:"column",gap:mob?1:2,overflow:"hidden",position:"relative"}}>
         {valid&&<div style={{display:"flex",justifyContent:"space-between",padding:"0 2px"}}>
-          <span style={{fontSize:mob?9:11,fontWeight:isToday?700:400,color:isToday?T.accent:isSun?T.red:isSat?T.orange:T.txH}}>{day}</span>
+          <span style={{fontSize:mob?9:11,fontWeight:isToday?700:400,color:isToday?T.accent:(isSun||isHoliday)?T.red:isSat?T.orange:T.txH}}>{day}</span>
           {hasOverlap&&<span style={{width:mob?5:6,height:mob?5:6,borderRadius:3,background:T.red,flexShrink:0,marginTop:2}}/>}
         </div>}
-        {valid&&allItems.slice(0,maxShow).map(it=>it.type==="ev"
+        {valid&&allItems.slice(0,maxShow).map(it=>it.type==="acad"
+          ?<div key={it.id} style={{display:"flex",alignItems:"center",gap:mob?2:3,padding:mob?"1px 2px":"2px 3px",borderRadius:3,background:`${it.col}14`,overflow:"hidden"}}>
+            <span style={{fontSize:mob?7:8,fontWeight:700,color:it.col,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"12px"}}>{it.label}</span>
+          </div>
+          :it.type==="ev"
           ?<div key={it.id} style={{display:"flex",alignItems:"center",gap:mob?2:3,padding:mob?"1px 2px":"2px 3px",borderRadius:3,background:`${it.col}14`,overflow:"hidden"}}>
             <span style={{width:mob?4:5,height:mob?4:5,borderRadius:"50%",background:it.col,flexShrink:0}}/>
             {!mob&&<span style={{fontSize:7,color:T.txD,flexShrink:0,lineHeight:"10px"}}>{it.time}</span>}

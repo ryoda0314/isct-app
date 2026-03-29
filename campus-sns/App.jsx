@@ -119,7 +119,7 @@ export default function App(){
   const [appState,setAppState]=useState("loading");
   const ready=appState==="ready";
   const user=useCurrentUser(ready);
-  const [themePref,setThemePref]=useState(()=>{try{const v=localStorage.getItem("themePref");if(v)return v;const m=new Date().getMonth();return m>=2&&m<=4?"sakura":m>=5&&m<=7?"shinryoku":m>=8&&m<=10?"koyo":"yuki";}catch{return "dark";}});
+  const [themePref,setThemePref]=useState(()=>{try{const v=localStorage.getItem("themePref");if(v)return v;return "tsubame";}catch{return "tsubame";}});
   const [accentPref,setAccentPref]=useState(()=>{try{return localStorage.getItem("accentPref")||"default";}catch{return "default";}});
   const [sysDark,setSysDark]=useState(()=>typeof window!=="undefined"&&window.matchMedia?.("(prefers-color-scheme: dark)").matches);
   useEffect(()=>{

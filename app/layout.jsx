@@ -2,7 +2,7 @@ export const metadata = {
   title: "ScienceTokyo App",
   description: "東京科学大学キャンパスSNS",
   manifest: "/manifest.json",
-  themeColor: "#6375f0",
+  themeColor: "#28c868",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

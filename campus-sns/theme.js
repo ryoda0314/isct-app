@@ -238,7 +238,7 @@ export const ACCENT_PRESETS = [
 const ThemeCtx = createContext();
 const useTheme = () => useContext(ThemeCtx);
 
-export let T = DARK;
+export let T = TSUBAME;
 
 let _accentId = "default";
 
