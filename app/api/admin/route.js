@@ -828,35 +828,35 @@ export async function DELETE(request) {
     if (type === 'post') {
       await sb.from('comments').delete().eq('post_id', id);
       const { error } = await sb.from('posts').delete().eq('id', id);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'delete_post', 'post', id);
       return NextResponse.json({ ok: true });
     }
 
     if (type === 'message') {
       const { error } = await sb.from('messages').delete().eq('id', id);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'delete_message', 'message', id);
       return NextResponse.json({ ok: true });
     }
 
     if (type === 'comment') {
       const { error } = await sb.from('comments').delete().eq('id', id);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'delete_comment', 'comment', id);
       return NextResponse.json({ ok: true });
     }
 
     if (type === 'dm') {
       const { error } = await sb.from('dm_messages').delete().eq('id', id);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'delete_dm', 'dm', id);
       return NextResponse.json({ ok: true });
     }
 
     if (type === 'circle_message') {
       const { error } = await sb.from('circle_messages').delete().eq('id', id);
-      if (error) console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'delete_circle_message', 'circle_message', id);
       return NextResponse.json({ ok: true });
     }

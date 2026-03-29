@@ -116,18 +116,57 @@ drop policy if exists "deny_all_exam_schedules" on exam_schedules;
 create policy "deny_all_exam_schedules" on exam_schedules
   for all to anon, authenticated using (false);
 
+-- Reports (moderation data — service_role only)
+drop policy if exists "deny_all_reports" on reports;
+create policy "deny_all_reports" on reports
+  for all to anon, authenticated using (false);
+
+-- NG words (filter config — service_role only)
+drop policy if exists "deny_all_ng_words" on ng_words;
+create policy "deny_all_ng_words" on ng_words
+  for all to anon, authenticated using (false);
+
+-- Admin audit log (sensitive — service_role only)
+drop policy if exists "deny_all_admin_audit_log" on admin_audit_log;
+create policy "deny_all_admin_audit_log" on admin_audit_log
+  for all to anon, authenticated using (false);
+
+-- User mutes
+drop policy if exists "deny_all_user_mutes" on user_mutes;
+create policy "deny_all_user_mutes" on user_mutes
+  for all to anon, authenticated using (false);
+
+-- User blocks
+drop policy if exists "deny_all_user_blocks" on user_blocks;
+create policy "deny_all_user_blocks" on user_blocks
+  for all to anon, authenticated using (false);
+
 -- =============================================================
 -- 7. (H14) NOTE on anon SELECT policies for Realtime tables
 --
 --    The following tables have `anon SELECT using(true)` policies
 --    because the frontend subscribes to Realtime changes via the
 --    anon key:
---      - profiles, messages, posts, shared_materials
+--      - profiles, messages, posts, shared_materials, comments,
+--        announcements, site_settings
 --
 --    RISK: Anyone with the NEXT_PUBLIC_SUPABASE_ANON_KEY can read
 --    ALL rows from these tables directly via PostgREST.
+--    攻撃例: ブラウザconsoleから直接PostgREST APIを叩ける
+--      fetch('https://xxx.supabase.co/rest/v1/profiles?select=*',
+--        { headers: { apikey: '<anon_key>' } })
 --
 --    FUTURE MITIGATION: Migrate Realtime subscriptions to use
 --    authenticated sessions (Supabase Auth) instead of anon key,
 --    then replace these blanket policies with user-scoped ones.
+--
+--    IMMEDIATE MITIGATION: Restrict anon SELECT on profiles to
+--    only return non-sensitive columns via column-level grants:
+--    (Run in Supabase SQL Editor when ready)
+--
+--    revoke select on profiles from anon;
+--    grant select (moodle_id, name, avatar, color, status) on profiles to anon;
+--
+--    This hides sensitive columns from anon PostgREST queries:
+--      banned, banned_at, ban_reason, last_active_at, dept, created_at
 -- =============================================================

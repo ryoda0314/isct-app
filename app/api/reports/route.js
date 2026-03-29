@@ -39,16 +39,17 @@ export async function POST(request) {
       return NextResponse.json({ error: '既にこのコンテンツを通報済みです' }, { status: 409 });
     }
 
+    const trimmedDetail = detail?.trim()?.slice(0, 2000) || null;
     const { error } = await sb.from('reports').insert({
       reporter_id: auth.userid,
       target_type: targetType,
       target_id: String(targetId),
       target_user_id: targetUserId || null,
       reason,
-      detail: detail?.trim() || null,
+      detail: trimmedDetail,
     });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) { console.error('[Reports POST]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error('[Reports POST]', e);
