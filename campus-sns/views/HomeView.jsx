@@ -55,7 +55,7 @@ const getQA=()=>{try{const v=localStorage.getItem("quickAccess");return v?JSON.p
 
 export { QA_ALL, QA_DEFAULT };
 
-export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvents=[],quarter,hiddenSet=new Set(),qd,goToBuilding})=>{
+export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvents=[],quarter,hiddenSet=new Set(),qd,goToBuilding,setDid,userDepts=[],userSchools=[],userUnit})=>{
   const [qaIds]=useState(getQA);
   const qaItems=qaIds.map(id=>QA_ALL.find(q=>q.id===id)).filter(Boolean);
   const [now,setNow]=useState(()=>new Date());
@@ -335,6 +335,49 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
           );
         })}
       </div>
+
+      {/* ── 学院学系チャット ── */}
+      {(userSchools.length>0||userDepts.length>0||userUnit)&&<div style={{padding:"4px 16px 8px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <span style={{fontWeight:700,color:T.txH,fontSize:14}}>学院学系チャット</span>
+          <button onClick={()=>setView("courseSelect")} style={{background:"none",border:"none",color:T.accentSoft,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:2}}>すべて {I.arr}</button>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          {userSchools.map(s=><div key={s.prefix} onClick={()=>{setDid?.(s.prefix);setCh("chat");setView("dept");}}
+            style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,borderLeft:`3px solid ${s.col}`,cursor:"pointer"}}>
+            <div style={{width:32,height:32,borderRadius:8,background:s.col,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:12,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</div>
+              <div style={{fontSize:10,color:T.txD}}>学院チャット</div>
+            </div>
+            <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
+          </div>)}
+          {userDepts.map(d=><div key={d.prefix} onClick={()=>{setDid?.(d.prefix);setCh("chat");setView("dept");}}
+            style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,borderLeft:`3px solid ${d.col}`,cursor:"pointer"}}>
+            <div style={{width:32,height:32,borderRadius:8,background:d.col,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:12,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.prefix} {d.name}</div>
+              <div style={{fontSize:10,color:T.txD}}>学系チャット</div>
+            </div>
+            <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
+          </div>)}
+          {userUnit&&<div onClick={()=>{setDid?.(userUnit.prefix);setCh("chat");setView("dept");}}
+            style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,borderLeft:`3px solid ${userUnit.col}`,cursor:"pointer"}}>
+            <div style={{width:32,height:32,borderRadius:8,background:userUnit.col,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:12,fontWeight:600,color:T.txH}}>ユニット{userUnit.num}</div>
+              <div style={{fontSize:10,color:T.txD}}>{userUnit.yg} ユニットチャット</div>
+            </div>
+            <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
+          </div>}
+        </div>
+      </div>}
 
       {/* ── お知らせバナー ── */}
       <div style={{padding:"0 16px"}}><AnnouncementBanner/></div>
