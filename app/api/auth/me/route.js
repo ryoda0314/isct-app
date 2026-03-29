@@ -11,6 +11,14 @@ async function checkAdmin(userid) {
   return !!data;
 }
 
+/** 学籍番号 "25B10001" → { yearGroup: "25B", schoolNum: "1" } */
+function parseLoginId(id) {
+  if (!id) return null;
+  const m = id.match(/^(\d{2})([BMDR])(\d)/i);
+  if (!m) return null;
+  return { yearGroup: m[1] + m[2].toUpperCase(), schoolNum: m[3] };
+}
+
 export async function GET(request) {
   try {
     const auth = await requireAuth(request);
@@ -30,7 +38,16 @@ export async function GET(request) {
       }, { status: 403 });
     }
 
-    return NextResponse.json({ userid: auth.userid, fullname: auth.fullname, isAdmin, dept: profile?.dept || null, yearGroup: profile?.year_group || null, unit: profile?.unit || null });
+    let yearGroup = profile?.year_group || null;
+
+    // loginId (学籍番号) から year_group を自動設定（未設定の場合）
+    const parsed = parseLoginId(auth.loginId);
+    if (!yearGroup && parsed) {
+      yearGroup = parsed.yearGroup;
+      sb.from('profiles').update({ year_group: yearGroup }).eq('moodle_id', auth.userid).then(() => {}).catch(() => {});
+    }
+
+    return NextResponse.json({ userid: auth.userid, fullname: auth.fullname, isAdmin, dept: profile?.dept || null, yearGroup, unit: profile?.unit || null, studentId: auth.loginId || null });
   } catch (err) {
     console.error('[AuthMe] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
