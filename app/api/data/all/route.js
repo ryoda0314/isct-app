@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
+import { loadCredentials } from '../../../../lib/credentials.js';
 import { fetchUserCourses } from '../../../../lib/api/courses.js';
 import { fetchScheduleForCourses } from '../../../../lib/api/syllabus-scraper.js';
 import { fetchAssignments, fetchSubmissionStatus } from '../../../../lib/api/assignments.js';
@@ -19,6 +20,32 @@ async function checkAdmin(userid) {
   } catch { return false; }
 }
 
+function parseStudentId(id) {
+  if (!id) return null;
+  const m = id.match(/^(\d{2})([BMDR])(\d)/i);
+  if (!m) return null;
+  return { yearGroup: m[1] + m[2].toUpperCase(), schoolNum: m[3] };
+}
+
+async function resolveStudentId(loginId, profileStudentId) {
+  if (profileStudentId && parseStudentId(profileStudentId)) return profileStudentId;
+  if (parseStudentId(loginId)) return loginId;
+  try {
+    const creds = await loadCredentials(loginId);
+    if (creds?.portalUserId && parseStudentId(creds.portalUserId)) return creds.portalUserId;
+  } catch {}
+  try {
+    const sb = getSupabaseAdmin();
+    const { data } = await sb.from('user_credentials').select('login_id').filter('login_id', 'neq', loginId);
+    if (data) {
+      for (const row of data) {
+        if (parseStudentId(row.login_id)) return row.login_id;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 export async function GET(request) {
   try {
     const auth = await requireAuth(request);
@@ -29,7 +56,7 @@ export async function GET(request) {
     const sb = getSupabaseAdmin();
     const [raw, profileRow] = await Promise.all([
       fetchUserCourses(wstoken, userid),
-      sb.from('profiles').select('dept').eq('moodle_id', userid).maybeSingle().then(r => r.data),
+      sb.from('profiles').select('dept, year_group, unit, student_id').eq('moodle_id', userid).maybeSingle().then(r => r.data),
     ]);
     let scheduleMap = {};
     try {
@@ -79,7 +106,26 @@ export async function GET(request) {
     }
 
     const isAdmin = await checkAdmin(userid);
-    return NextResponse.json({ qData, courses, assignments, user: { userid, fullname, isAdmin } });
+
+    // 学籍番号 / year_group を解決
+    let yearGroup = profileRow?.year_group || null;
+    let studentId = profileRow?.student_id || null;
+    if (!studentId || !yearGroup) {
+      const sid = await resolveStudentId(auth.loginId, studentId);
+      if (sid) {
+        studentId = sid;
+        const parsed = parseStudentId(sid);
+        if (!yearGroup && parsed) yearGroup = parsed.yearGroup;
+        const updates = {};
+        if (!profileRow?.student_id && studentId) updates.student_id = studentId;
+        if (!profileRow?.year_group && yearGroup) updates.year_group = yearGroup;
+        if (Object.keys(updates).length > 0) {
+          sb.from('profiles').update(updates).eq('moodle_id', userid).then(() => {}).catch(() => {});
+        }
+      }
+    }
+
+    return NextResponse.json({ qData, courses, assignments, user: { userid, fullname, isAdmin, dept: profileRow?.dept || null, yearGroup, unit: profileRow?.unit || null, studentId } });
   } catch (err) {
     console.error('[All] Unhandled error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
