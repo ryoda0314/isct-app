@@ -20,9 +20,9 @@ create table if not exists exam_schedules (
   updated_at      timestamptz default now()
 );
 
--- 同じ科目コード+日付+時限は重複させない
-create unique index if not exists idx_exam_code_date_period
-  on exam_schedules(code, date, period);
+-- 同じ科目コード(raw)+日付+時限は重複させない（セクション違いで同code+date+periodが複数存在するため code_raw を使用）
+create unique index if not exists idx_exam_coderaw_date_period
+  on exam_schedules(code_raw, date, period);
 
 -- 検索用インデックス
 create index if not exists idx_exam_date on exam_schedules(date);

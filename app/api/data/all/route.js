@@ -26,7 +26,11 @@ export async function GET(request) {
     const { wstoken, userid, fullname } = auth;
 
     // Courses + schedule from syllabus
-    const raw = await fetchUserCourses(wstoken, userid);
+    const sb = getSupabaseAdmin();
+    const [raw, profileRow] = await Promise.all([
+      fetchUserCourses(wstoken, userid),
+      sb.from('profiles').select('dept').eq('moodle_id', userid).maybeSingle().then(r => r.data),
+    ]);
     let scheduleMap = {};
     try {
       scheduleMap = await fetchScheduleForCourses(raw);
@@ -34,7 +38,7 @@ export async function GET(request) {
       console.error('[All] Syllabus scrape failed:', e.message);
     }
 
-    const courses = transformCourses(raw, scheduleMap);
+    const courses = transformCourses(raw, scheduleMap, profileRow?.dept || null);
     console.log(`[All] user=${userid} ${raw?.length ?? 0} raw → ${courses.length} courses, ${Object.keys(scheduleMap).length} schedule entries`);
 
     // Timetable
