@@ -514,8 +514,8 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
 
       {/* ═══ Welcome ═══ */}
       {mode === null && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: mob ? "20px 24px" : "40px" }}>
-          <div style={{ maxWidth: 400, width: "100%", textAlign: "center" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: mob ? "20px 24px" : "40px", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+          <div style={{ maxWidth: 400, width: "100%", textAlign: "center", margin: "auto 0" }}>
             <div style={{
               width: 72, height: 72, borderRadius: 20,
               background: `linear-gradient(135deg, ${T.accent}, ${T.accentSoft})`,
