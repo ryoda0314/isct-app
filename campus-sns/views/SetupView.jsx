@@ -563,6 +563,23 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
               </div>
             </div>
 
+            {/* ── テスト運用中バナー ── */}
+            <div style={{
+              display: "flex", alignItems: "flex-start", gap: 10, padding: "14px 16px",
+              borderRadius: 12, border: `1px solid ${T.orange}30`,
+              background: `${T.orange}06`, marginBottom: 16,
+            }}>
+              <div style={{
+                width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 1,
+                background: `${T.orange}15`, display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.orange} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <div style={{ fontSize: 12, color: T.txD, lineHeight: 1.6 }}>
+                このアプリは現在<span style={{ fontWeight: 700, color: T.orange }}>テスト運用中</span>です。不具合やデータの不整合が発生する可能性があります。問題が発生した場合はご容赦ください。
+              </div>
+            </div>
+
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button onClick={() => { if (!privacyAgreed) return; setMode("signup"); setStep(0); setError(null); }} style={{
                 width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
