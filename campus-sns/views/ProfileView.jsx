@@ -313,7 +313,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
 
   const handleClearCache=()=>{
     try{
-      ["wxLoc","quarter","hiddenAsgn","notifEnabled","notifSettings","fontSize"].forEach(k=>localStorage.removeItem(k));
+      localStorage.clear();
       setCacheCleared(true);setTimeout(()=>setCacheCleared(false),2000);
     }catch{}
   };

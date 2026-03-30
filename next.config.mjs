@@ -10,13 +10,8 @@ const withPWA = withPWAInit({
     importScripts: ['/push-handler.js'],
     runtimeCaching: [
       {
-        // 成績APIはPuppeteerで17秒+かかるため、SWキャッシュをバイパス
-        urlPattern: /\/api\/data\/grades/,
-        handler: "NetworkOnly",
-      },
-      {
-        // ポータルAPIはHTML/JSONを返すためSWキャッシュをバイパス
-        urlPattern: /\/api\/portal\//,
+        // 全APIはユーザー固有データを返すため、SWキャッシュを一切使わない
+        urlPattern: /\/api\//,
         handler: "NetworkOnly",
       },
     ],

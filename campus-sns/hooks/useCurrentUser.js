@@ -25,7 +25,7 @@ function loadPref() {
   } catch { return {}; }
 }
 
-let pref = loadPref();
+let pref = {}; // ログイン後に setCurrentUserFromAPI 経由で設定される
 
 function merge() {
   // pref の null/undefined で cached の有効値を潰さないようマージ
@@ -44,6 +44,8 @@ function notify() {
 
 export function setCurrentUserFromAPI(d) {
   if (!d?.userid) return;
+  // ログイン確定時に localStorage から pref を読み込む（共有端末でも安全）
+  pref = loadPref();
   cached = { ...ME, ...d, moodleId: d.userid, name: d.fullname || '', id: String(d.userid), isAdmin: !!d.isAdmin };
 
   // 学籍番号から学年グループ・学院を自動推定
@@ -97,13 +99,20 @@ export function updateUserPref(patch) {
   }
 }
 
+export function resetCurrentUserCache() {
+  cached = null;
+  pref = {};
+  listeners.clear();
+}
+
 export function useCurrentUser(enabled = true) {
-  const [user, setUser] = useState(() => cached ? merge() : { ...(cached || ME), ...pref });
+  const [user, setUser] = useState(() => cached ? merge() : { ...ME });
 
   useEffect(() => {
     const handler = (u) => setUser(u);
     listeners.add(handler);
-    if (cached) { handler(merge()); return () => listeners.delete(handler); }
+    // cached があっても常にAPIで最新ユーザーを検証する（共有端末対策）
+    if (cached) handler(merge());
     if (enabled) {
       (async () => {
         try {

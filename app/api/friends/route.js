@@ -262,13 +262,14 @@ export async function POST(request) {
       if (row.status === 'pending' && row.requester_id === userid) {
         return NextResponse.json({ error: 'Already sent' }, { status: 409 });
       }
-      // Rejected -> update to pending again
+      // Rejected -> delete old row and create new one with correct direction
       if (row.status === 'rejected') {
+        await sb.from('friendships').delete().eq('id', row.id);
         const { error } = await sb
           .from('friendships')
-          .update({ status: 'pending', requester_id: userid, addressee_id: numTo, updated_at: new Date().toISOString() })
-          .eq('id', row.id);
+          .insert({ requester_id: userid, addressee_id: numTo, status: 'pending' });
         if (error) throw error;
+        // fall through to send notification
       }
     } else {
       // New request

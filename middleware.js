@@ -111,6 +111,12 @@ export function middleware(request) {
     res.headers.set('Access-Control-Allow-Credentials', 'true');
   }
 
+  // ユーザー固有データのキャッシュ防止（CDN/Edge で他人のレスポンスが配信されるのを防ぐ）
+  if (isApi) {
+    res.headers.set('Cache-Control', 'private, no-store, no-cache, must-revalidate');
+    res.headers.set('Vary', 'Cookie');
+  }
+
   res.headers.set('X-Content-Type-Options', 'nosniff');
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');

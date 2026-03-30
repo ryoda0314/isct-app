@@ -3,7 +3,7 @@ import { T } from '../theme.js';
 import { I } from '../icons.jsx';
 import { Av, Loader, useQRCode } from '../shared.jsx';
 
-export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM,userId,lookupById,groups=[],createGroup,leaveGroup,onOpenGroup,blockUser,unblockUser,isBlocked,blocks=[],muteUser,unmuteUser,isMuted,mutes=[]})=>{
+export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM,userId,lookupById,groups=[],createGroup,leaveGroup,onOpenGroup,blockUser,unblockUser,isBlocked,blocks=[],muteUser,unmuteUser,isMuted,mutes=[],refetch})=>{
   const [addOpen,setAddOpen]=useState(false);
   const [addTab,setAddTab]=useState('requests');
   const [searchQ,setSearchQ]=useState('');
@@ -83,7 +83,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
       },100);
     }catch{setScanning(false);}
   };
-  const doAction=async(key,fn)=>{setActionLoading(key);await fn();setActionLoading(null);};
+  const doAction=async(key,fn)=>{setActionLoading(key);await fn();if(refetch)await refetch();setActionLoading(null);};
   const friendStatus=(f)=>{
     if(!f)return null;
     if(f.status==='accepted')return 'friend';
