@@ -126,8 +126,8 @@ const Tx=({children,style:s})=>{
     if(code)navigator.clipboard.writeText(code).then(()=>{btn.textContent="\u2713 コピーしました";setTimeout(()=>{btn.textContent="コピー"},1500)}).catch(()=>{});
   },[]);
   if(!children)return null;
-  if(html)return <div style={s} onClick={handleClick} dangerouslySetInnerHTML={{__html:_sanitize(html)}}/>;
-  // fallback: no katex yet, just render with mentions and hashtags
+  if(html&&dp)return <div style={s} onClick={handleClick} dangerouslySetInnerHTML={{__html:_sanitize(html)}}/>;
+  // fallback: CDN libs not ready yet, render plain text with mentions and hashtags
   const parts=(children+"").split(/([@#]\S+)/g);
   return <div style={s}>{parts.map((p,i)=>p.startsWith("@")?<span key={i} style={{color:"#6375f0",fontWeight:600}}>{p}</span>:p.startsWith("#")?<span key={i} style={{color:"#6375f0",fontWeight:500,cursor:"pointer"}}>{p}</span>:p)}</div>;
 };
