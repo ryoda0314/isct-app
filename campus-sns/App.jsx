@@ -149,6 +149,25 @@ export default function App(){
   const viewHistRef=useRef([]);
   const setView=useCallback((v)=>{setViewRaw(prev=>{if(prev&&prev!==v)viewHistRef.current.push(prev);return v;});},[]);
   const goBack=useCallback(()=>{const h=viewHistRef.current;const prev=h.pop()||"home";setViewRaw(prev);},[]);
+
+  // Android hardware back button
+  useEffect(()=>{
+    if(!isNative())return;
+    let cleanup;
+    (async()=>{
+      try{
+        const {App:CapApp}=await import("@capacitor/app");
+        const handle=CapApp.addListener("backButton",()=>{
+          const h=viewHistRef.current;
+          if(h.length>0){goBack();}
+          else{CapApp.exitApp();}
+        });
+        cleanup=handle;
+      }catch{}
+    })();
+    return()=>{cleanup?.remove?.();};
+  },[goBack]);
+
   const [cid,setCid]=useState(null);
   const [did,setDid]=useState(null);
   const [ch,setCh]=useState("timeline");
