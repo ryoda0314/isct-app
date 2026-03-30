@@ -317,7 +317,7 @@ export default function App(){
   const ac=asgn.filter(a=>a.st!=="completed"&&qCourseIds.has(a.cid)&&!hiddenSet.has(a.id)).length;
   const {unreadCount:unreadN}=useNotifications(ready);
   const {unreadDM:dmUnread,markDMSeen}=useUnreadDM(user?.moodleId||user?.id);
-  const {friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,friendIds:_fIds,isFriend:_isFriend,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,lookupById,refetch:refetchFriends}=useFriends(ready);
+  const {friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,friendIds:_fIds,isFriend:_isFriend,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,lookupById,refetch:refetchFriends}=useFriends(ready,user?.moodleId||user?.id);
   const {blocks:blockList,isBlocked,blockUser,unblockUser}=useBlocks(ready);
   const {mutes:muteList,isMuted,muteUser,unmuteUser}=useMutes();
   const {enqueue:enqueueOffline,pending:offlinePending}=useOfflineQueue();
@@ -329,7 +329,7 @@ export default function App(){
   const navCrs=id=>{setCid(id);setView("course");setCh("assignments");};
   const goToBuilding=(destId,origId)=>{if(destId){setNavDest(destId);setNavOrig(origId||null);setView("navigation");}};
   // togBmark is now from useBookmarks()
-  const {groups:groupList,createGroup,leaveGroup}=useGroups(ready);
+  const {groups:groupList,createGroup,leaveGroup}=useGroups(ready,user?.moodleId||user?.id);
   const {circles:circleList,messages:circleMsgs,discover:circleDiscover,sendMessage:circleSend,createCircle,joinCircle,leaveCircle,addChannel:circleAddCh,deleteChannel:circleDelCh,pinMessage:circlePin,updateCircle:circleUpdate,init:circleInit}=useCircles();
   const startDMFromFriend=(fid,name,avatar,color)=>{setView("dm");};
   const openGroupChat=(g)=>{setView("dm");};

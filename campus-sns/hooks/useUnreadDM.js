@@ -31,27 +31,29 @@ export function useUnreadDM(userId) {
     })();
   }, [userId]);
 
-  // Realtime: increment on new DM from others
+  // Realtime: フィルタなしの dm_messages 購読は全ユーザーのDM本文が流れるため削除
+  // 代わりに notifications テーブル（useNotifications で user フィルタ済み）経由で
+  // DM通知を受け取る。ここでは定期ポーリングで未読数を更新する。
   useEffect(() => {
     if (!userId || isDemoMode()) return;
-    const sb = getSupabaseClient();
-    const channel = sb
-      .channel('dm_unread_badge')
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'dm_messages',
-      }, (payload) => {
-        if (payload.new.sender_id !== userId) {
-          setCount(prev => prev + 1);
-          // Browser push notification for new DM
-          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-            try { new Notification('新しいメッセージ', { body: payload.new.text || 'DMが届きました', icon: '/favicon.ico', tag: 'dm-' + payload.new.conversation_id }); } catch {}
-          }
+    const interval = setInterval(async () => {
+      try {
+        const r = await fetch('/api/dm');
+        if (!r.ok) return;
+        const convos = await r.json();
+        const seen = getSeen();
+        let total = 0;
+        for (const c of convos) {
+          if (!c.msgs?.length) continue;
+          const last = c.msgs[c.msgs.length - 1];
+          const msgTs = new Date(last.ts).getTime();
+          const seenTs = seen[c.id] || 0;
+          if (msgTs > seenTs && last.uid !== userId) total++;
         }
-      })
-      .subscribe();
-    return () => { sb.removeChannel(channel); };
+        setCount(total);
+      } catch {}
+    }, 30_000); // 30秒ごと
+    return () => clearInterval(interval);
   }, [userId]);
 
   const markSeen = useCallback((convId) => {

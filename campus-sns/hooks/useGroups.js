@@ -3,7 +3,7 @@ import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { isDemoMode } from '../demoMode.js';
 import { DEMO_GROUPS } from '../demoData.js';
 
-export function useGroups(enabled = true) {
+export function useGroups(enabled = true, userId = null) {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -24,20 +24,19 @@ export function useGroups(enabled = true) {
 
   useEffect(() => { if (enabled) fetchGroups(); }, [fetchGroups, enabled]);
 
-  // Realtime: listen for group_members changes (join/leave)
+  // Realtime: 自分のグループメンバーシップ変更のみ受信
   useEffect(() => {
-    if (isDemoMode() || !enabled) return;
+    if (isDemoMode() || !enabled || !userId) return;
     const sb = getSupabaseClient();
     const channel = sb
-      .channel('group_members_changes')
+      .channel(`group_members_${userId}`)
       .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'group_members',
+        event: '*', schema: 'public', table: 'group_members',
+        filter: `user_id=eq.${userId}`,
       }, () => { fetchGroups(); })
       .subscribe();
     return () => { sb.removeChannel(channel); };
-  }, [fetchGroups, enabled]);
+  }, [fetchGroups, enabled, userId]);
 
   const createGroup = useCallback(async (name, memberIds) => {
     try {

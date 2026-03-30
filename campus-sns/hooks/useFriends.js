@@ -3,7 +3,7 @@ import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { isDemoMode } from '../demoMode.js';
 import { DEMO_FRIENDS, DEMO_FRIEND_PENDING, DEMO_FRIEND_SENT } from '../demoData.js';
 
-export function useFriends(enabled = true) {
+export function useFriends(enabled = true, userId = null) {
   const [friends, setFriends] = useState([]);
   const [pending, setPending] = useState([]);
   const [sent, setSent] = useState([]);
@@ -32,20 +32,26 @@ export function useFriends(enabled = true) {
 
   useEffect(() => { if (enabled) fetchAll(); }, [fetchAll, enabled]);
 
-  // Realtime subscription
+  // Realtime subscription（自分が関係する変更のみ受信）
   useEffect(() => {
-    if (isDemoMode() || !enabled) return;
+    if (isDemoMode() || !enabled || !userId) return;
     const sb = getSupabaseClient();
-    const channel = sb
-      .channel('friendships_changes')
+    const ch1 = sb
+      .channel(`friendships_req_${userId}`)
       .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'friendships',
+        event: '*', schema: 'public', table: 'friendships',
+        filter: `requester_id=eq.${userId}`,
       }, () => { fetchAll(); })
       .subscribe();
-    return () => { sb.removeChannel(channel); };
-  }, [fetchAll, enabled]);
+    const ch2 = sb
+      .channel(`friendships_addr_${userId}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'friendships',
+        filter: `addressee_id=eq.${userId}`,
+      }, () => { fetchAll(); })
+      .subscribe();
+    return () => { sb.removeChannel(ch1); sb.removeChannel(ch2); };
+  }, [fetchAll, enabled, userId]);
 
   const friendIds = useMemo(() => new Set(friends.map(f => f.friendId)), [friends]);
   const isFriend = useCallback((userId) => friendIds.has(userId), [friendIds]);
