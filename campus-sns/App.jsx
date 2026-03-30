@@ -150,7 +150,7 @@ export default function App(){
   const setView=useCallback((v)=>{setViewRaw(prev=>{if(prev&&prev!==v)viewHistRef.current.push(prev);return v;});},[]);
   const goBack=useCallback(()=>{const h=viewHistRef.current;const prev=h.pop()||"home";setViewRaw(prev);},[]);
 
-  // Android hardware back button
+  // Android hardware back button (native)
   useEffect(()=>{
     if(!isNative())return;
     let cleanup;
@@ -166,6 +166,22 @@ export default function App(){
       }catch{}
     })();
     return()=>{cleanup?.remove?.();};
+  },[goBack]);
+
+  // Android back button (PWA standalone)
+  useEffect(()=>{
+    if(isNative())return;
+    const isAndroid=/android/i.test(navigator.userAgent);
+    const isPWA=window.matchMedia("(display-mode:standalone)").matches;
+    if(!isAndroid||!isPWA)return;
+    history.pushState(null,"");
+    const onPop=()=>{
+      const h=viewHistRef.current;
+      if(h.length>0)goBack();
+      history.pushState(null,"");
+    };
+    window.addEventListener("popstate",onPop);
+    return()=>window.removeEventListener("popstate",onPop);
   },[goBack]);
 
   const [cid,setCid]=useState(null);
