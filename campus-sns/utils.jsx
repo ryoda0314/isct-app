@@ -22,4 +22,8 @@ const parseMention=(text)=>{
 // --- useMediaQuery ---
 const useMobile=()=>{const [m,setM]=useState(typeof window!=="undefined"?window.innerWidth<768:true);useEffect(()=>{const h=()=>setM(window.innerWidth<768);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);return m;};
 
-export { NOW, fT, fTs, fDS, fDF, uDue, pDone, tMap, aMap, sMap, pCol, parseMention, useMobile };
+// breakpoint: mobile(<768) / tablet(768-1079) / desktop(>=1080)
+const getBreakpoint=()=>{if(typeof window==="undefined")return"mobile";const w=window.innerWidth;if(w<768)return"mobile";if(w<1080)return"tablet";return"desktop";};
+const useBreakpoint=()=>{const [bp,setBp]=useState(getBreakpoint);useEffect(()=>{const h=()=>setBp(getBreakpoint());window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);return bp;};
+
+export { NOW, fT, fTs, fDS, fDF, uDue, pDone, tMap, aMap, sMap, pCol, parseMention, useMobile, useBreakpoint };

@@ -9,7 +9,7 @@ import { useCurrentUser, setCurrentUserFromAPI, resetCurrentUserCache } from "./
 import { usePresence } from "./hooks/usePresence.js";
 import { useCourseMembers, resetCourseMembersCache } from "./hooks/useCourseMembers.js";
 import { resetCourseMaterialsCache } from "./hooks/useCourseMaterials.js";
-import { useMobile } from "./utils.jsx";
+import { useMobile, useBreakpoint } from "./utils.jsx";
 import { Av, Loader } from "./shared.jsx";
 import { DSide, DChan, MNav, MoreMenu } from "./layout.jsx";
 import { HomeView } from "./views/HomeView.jsx";
@@ -116,6 +116,7 @@ const LockScreen=({appLock,onLogout})=>{
 // ============================================================
 export default function App(){
   const mob=useMobile();
+  const bp=useBreakpoint(); // "mobile" | "tablet" | "desktop"
   const [appState,setAppState]=useState("loading");
   const ready=appState==="ready";
   const user=useCurrentUser(ready);
@@ -467,9 +468,9 @@ export default function App(){
     return(
       <div style={{display:"flex",height:"100dvh",width:"100vw",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
 
-        <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} dmUnread={dmUnread} courses={allCourses} depts={userDepts} schools={userSchools} user={user} quarter={quarter} pendingFriendCount={pendingFriendCount} userUnit={userUnit}/>
-        {view==="course"&&cc&&<DChan course={cc} ch={ch} setCh={setCh} online={online} members={members}/>}
-        {view==="dept"&&cd&&<DChan dept={cd} ch={ch} setCh={setCh} online={online}/>}
+        <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} dmUnread={dmUnread} courses={allCourses} depts={userDepts} schools={userSchools} user={user} quarter={quarter} pendingFriendCount={pendingFriendCount} userUnit={userUnit} compact={bp==="tablet"}/>
+        {bp==="desktop"&&view==="course"&&cc&&<DChan course={cc} ch={ch} setCh={setCh} online={online} members={members}/>}
+        {bp==="desktop"&&view==="dept"&&cd&&<DChan dept={cd} ch={ch} setCh={setCh} online={online}/>}
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
           <DTop title={dTitle()} color={view==="course"&&cc?cc.col:view==="dept"&&cd?cd.col:undefined}/>
           {view==="home"&&<HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit}/>}

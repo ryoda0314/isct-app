@@ -4,95 +4,97 @@ import { I } from "./icons.jsx";
 import { Av } from "./shared.jsx";
 // ============================================================
 
-const SideItem=({icon,label,on,click,badge})=>(
-  <button onClick={click} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?`${T.accent}14`:"transparent",color:on?T.txH:T.tx,fontSize:12.5,fontWeight:on?600:400,textAlign:"left",borderLeft:on?`2px solid ${T.accent}`:"2px solid transparent"}}>
+const SideItem=({icon,label,on,click,badge,compact})=>(
+  <button onClick={click} title={compact?label:undefined} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:compact?"center":"flex-start",gap:compact?0:8,padding:compact?"7px 0":"7px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?`${T.accent}14`:"transparent",color:on?T.txH:T.tx,fontSize:12.5,fontWeight:on?600:400,textAlign:"left",borderLeft:on?`2px solid ${T.accent}`:"2px solid transparent",position:"relative"}}>
     <span style={{color:on?T.accent:T.txD,display:"flex",flexShrink:0}}>{icon}</span>
-    <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{label}</span>
-    {badge>0&&<span style={{minWidth:16,height:16,borderRadius:8,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{badge}</span>}
+    {!compact&&<span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{label}</span>}
+    {badge>0&&<span style={{minWidth:compact?14:16,height:compact?14:16,borderRadius:8,background:T.red,color:"#fff",fontSize:compact?7:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px",position:compact?"absolute":"static",top:compact?2:undefined,right:compact?2:undefined}}>{badge}</span>}
   </button>
 );
 
-const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,courses=[],depts=[],schools=[],user={},quarter,pendingFriendCount=0,userUnit=null})=>{
+const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,courses=[],depts=[],schools=[],user={},quarter,pendingFriendCount=0,userUnit=null,compact=false})=>{
   const [moreOpen,setMoreOpen]=useState(false);
   const extras=["grades","pomo","events","reviews","bmarks","location","acadCal","exams","freshman"];
   const isExtra=extras.includes(view);
+  const W=compact?56:180;
+  const cp=compact;
   return(
-  <div style={{width:180,background:T.bg2,display:"flex",flexDirection:"column",borderRight:`1px solid ${T.bd}`,flexShrink:0,overflowY:"auto"}}>
-    <div style={{padding:"12px 10px 8px",fontWeight:800,fontSize:15,color:T.txH,letterSpacing:-.3}}>ScienceTokyo App</div>
-    <div style={{padding:"0 6px"}}>
-      <SideItem icon={I.home} label="ホーム" on={view==="home"} click={()=>setView("home")}/>
-      <SideItem icon={I.cal} label="時間割" on={view==="timetable"} click={()=>setView("timetable")}/>
-      <SideItem icon={I.tasks} label="課題" on={view==="tasks"} click={()=>setView("tasks")} badge={ac}/>
-      <SideItem icon={I.mail} label="DM" on={view==="dm"} click={()=>setView("dm")} badge={dmUnread}/>
-      <SideItem icon={I.users} label="友達" on={view==="friends"} click={()=>setView("friends")} badge={pendingFriendCount}/>
-      <SideItem icon={I.bell} label="通知" on={view==="notif"} click={()=>setView("notif")} badge={unreadN}/>
-      <SideItem icon={I.search} label="検索" on={view==="search"} click={()=>setView("search")}/>
-      <SideItem icon={I.cal} label="カレンダー" on={view==="calendar"} click={()=>setView("calendar")}/>
-      <SideItem icon={I.circle} label="サークル" on={view==="circles"} click={()=>setView("circles")}/>
-      <SideItem icon={I.map} label="キャンパスナビ" on={view==="navigation"} click={()=>setView("navigation")}/>
-      <SideItem icon={I.grad} label="新入生掲示板" on={view==="freshman"} click={()=>setView("freshman")}/>
-      <SideItem icon={I.more} label="ツール" on={moreOpen||isExtra} click={()=>setMoreOpen(p=>!p)}/>
+  <div style={{width:W,background:T.bg2,display:"flex",flexDirection:"column",borderRight:`1px solid ${T.bd}`,flexShrink:0,overflowY:"auto",transition:"width .15s ease"}}>
+    <div style={{padding:cp?"10px 0 8px":"12px 10px 8px",fontWeight:800,fontSize:cp?11:15,color:T.txH,letterSpacing:-.3,textAlign:cp?"center":"left"}}>{cp?"ST":"ScienceTokyo App"}</div>
+    <div style={{padding:cp?"0 4px":"0 6px"}}>
+      <SideItem icon={I.home} label="ホーム" on={view==="home"} click={()=>setView("home")} compact={cp}/>
+      <SideItem icon={I.cal} label="時間割" on={view==="timetable"} click={()=>setView("timetable")} compact={cp}/>
+      <SideItem icon={I.tasks} label="課題" on={view==="tasks"} click={()=>setView("tasks")} badge={ac} compact={cp}/>
+      <SideItem icon={I.mail} label="DM" on={view==="dm"} click={()=>setView("dm")} badge={dmUnread} compact={cp}/>
+      <SideItem icon={I.users} label="友達" on={view==="friends"} click={()=>setView("friends")} badge={pendingFriendCount} compact={cp}/>
+      <SideItem icon={I.bell} label="通知" on={view==="notif"} click={()=>setView("notif")} badge={unreadN} compact={cp}/>
+      <SideItem icon={I.search} label="検索" on={view==="search"} click={()=>setView("search")} compact={cp}/>
+      <SideItem icon={I.cal} label="カレンダー" on={view==="calendar"} click={()=>setView("calendar")} compact={cp}/>
+      <SideItem icon={I.circle} label="サークル" on={view==="circles"} click={()=>setView("circles")} compact={cp}/>
+      <SideItem icon={I.map} label="キャンパスナビ" on={view==="navigation"} click={()=>setView("navigation")} compact={cp}/>
+      <SideItem icon={I.grad} label="新入生掲示板" on={view==="freshman"} click={()=>setView("freshman")} compact={cp}/>
+      <SideItem icon={I.more} label="ツール" on={moreOpen||isExtra} click={()=>setMoreOpen(p=>!p)} compact={cp}/>
     </div>
-    <div style={{width:"calc(100% - 20px)",height:1,background:T.bd,margin:"6px 10px"}}/>
-    <div style={{padding:"0 6px"}}>
+    <div style={{width:cp?"calc(100% - 8px)":"calc(100% - 20px)",height:1,background:T.bd,margin:cp?"6px 4px":"6px 10px"}}/>
+    <div style={{padding:cp?"0 4px":"0 6px"}}>
       {(()=>{const on=did==="global:sandbox"&&view==="dept";return(
-        <button onClick={()=>{setDid("global:sandbox");setView("dept");setCh("chat");}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"5px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?"#6366f114":"transparent",color:on?T.txH:T.tx,fontSize:12,textAlign:"left",borderLeft:on?"2px solid #6366f1":"2px solid transparent"}}>
+        <button title={cp?"テスト広場":undefined} onClick={()=>{setDid("global:sandbox");setView("dept");setCh("chat");}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:cp?"center":"flex-start",gap:cp?0:8,padding:cp?"5px 0":"5px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?"#6366f114":"transparent",color:on?T.txH:T.tx,fontSize:12,textAlign:"left",borderLeft:on?"2px solid #6366f1":"2px solid transparent"}}>
           <div style={{width:24,height:24,borderRadius:6,background:on?"#6366f1":"#6366f130",display:"flex",alignItems:"center",justifyContent:"center",color:on?"#fff":"#6366f1",fontSize:10,fontWeight:700,flexShrink:0}}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
           </div>
-          <span>テスト広場</span>
+          {!cp&&<span>テスト広場</span>}
         </button>
       );})()}
     </div>
     {schools.length>0&&<>
-      <div style={{width:"calc(100% - 20px)",height:1,background:T.bd,margin:"6px 10px"}}/>
-      <div style={{padding:"0 10px 2px",fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>学院</div>
-      <div style={{padding:"0 6px"}}>
+      <div style={{width:cp?"calc(100% - 8px)":"calc(100% - 20px)",height:1,background:T.bd,margin:cp?"6px 4px":"6px 10px"}}/>
+      {!cp&&<div style={{padding:"0 10px 2px",fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>学院</div>}
+      <div style={{padding:cp?"0 4px":"0 6px"}}>
         {schools.map(s=>{const on=did===s.prefix&&view==="dept";return(
-          <button key={s.prefix} onClick={()=>{setDid(s.prefix);setView("dept");setCh("timeline");}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"5px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?`${s.col}14`:"transparent",color:on?T.txH:T.tx,fontSize:12,textAlign:"left",borderLeft:on?`2px solid ${s.col}`:"2px solid transparent"}}>
+          <button key={s.prefix} title={cp?s.name:undefined} onClick={()=>{setDid(s.prefix);setView("dept");setCh("timeline");}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:cp?"center":"flex-start",gap:cp?0:8,padding:cp?"5px 0":"5px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?`${s.col}14`:"transparent",color:on?T.txH:T.tx,fontSize:12,textAlign:"left",borderLeft:on?`2px solid ${s.col}`:"2px solid transparent"}}>
             <div style={{width:24,height:24,borderRadius:6,background:on?s.col:`${s.col}30`,display:"flex",alignItems:"center",justifyContent:"center",color:on?"#fff":s.col,fontSize:8,fontWeight:700,flexShrink:0}}>{s.name.slice(0,2)}</div>
-            <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</span>
+            {!cp&&<span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</span>}
           </button>
         );})}
       </div>
     </>}
     {depts.length>0&&<>
-      <div style={{width:"calc(100% - 20px)",height:1,background:T.bd,margin:"6px 10px"}}/>
-      <div style={{padding:"0 10px 2px",fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>学系</div>
-      <div style={{padding:"0 6px"}}>
+      <div style={{width:cp?"calc(100% - 8px)":"calc(100% - 20px)",height:1,background:T.bd,margin:cp?"6px 4px":"6px 10px"}}/>
+      {!cp&&<div style={{padding:"0 10px 2px",fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>学系</div>}
+      <div style={{padding:cp?"0 4px":"0 6px"}}>
         {depts.map(d=>{const on=did===d.prefix&&view==="dept";return(
-          <button key={d.prefix} onClick={()=>{setDid(d.prefix);setView("dept");setCh("timeline");}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"5px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?`${d.col}14`:"transparent",color:on?T.txH:T.tx,fontSize:12,textAlign:"left",borderLeft:on?`2px solid ${d.col}`:"2px solid transparent"}}>
+          <button key={d.prefix} title={cp?d.name:undefined} onClick={()=>{setDid(d.prefix);setView("dept");setCh("timeline");}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:cp?"center":"flex-start",gap:cp?0:8,padding:cp?"5px 0":"5px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?`${d.col}14`:"transparent",color:on?T.txH:T.tx,fontSize:12,textAlign:"left",borderLeft:on?`2px solid ${d.col}`:"2px solid transparent"}}>
             <div style={{width:24,height:24,borderRadius:6,background:on?d.col:`${d.col}30`,display:"flex",alignItems:"center",justifyContent:"center",color:on?"#fff":d.col,fontSize:8,fontWeight:700,flexShrink:0}}>{d.prefix.slice(0,3)}</div>
-            <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
+            {!cp&&<span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>}
           </button>
         );})}
       </div>
     </>}
     {userUnit&&<>
-      <div style={{width:"calc(100% - 20px)",height:1,background:T.bd,margin:"6px 10px"}}/>
-      <div style={{padding:"0 10px 2px",fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>ユニット — {userUnit.yg}</div>
-      <div style={{padding:"0 6px"}}>
+      <div style={{width:cp?"calc(100% - 8px)":"calc(100% - 20px)",height:1,background:T.bd,margin:cp?"6px 4px":"6px 10px"}}/>
+      {!cp&&<div style={{padding:"0 10px 2px",fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>ユニット — {userUnit.yg}</div>}
+      <div style={{padding:cp?"0 4px":"0 6px"}}>
         {(()=>{const on=did===userUnit.prefix&&view==="dept";const col=userUnit.col;return(
-          <button onClick={()=>{setDid(userUnit.prefix);setView("dept");setCh("timeline");}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"5px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?`${col}14`:"transparent",color:on?T.txH:T.tx,fontSize:12,textAlign:"left",borderLeft:on?`2px solid ${col}`:"2px solid transparent"}}>
+          <button title={cp?`ユニット${userUnit.num}`:undefined} onClick={()=>{setDid(userUnit.prefix);setView("dept");setCh("timeline");}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:cp?"center":"flex-start",gap:cp?0:8,padding:cp?"5px 0":"5px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?`${col}14`:"transparent",color:on?T.txH:T.tx,fontSize:12,textAlign:"left",borderLeft:on?`2px solid ${col}`:"2px solid transparent"}}>
             <div style={{width:24,height:24,borderRadius:6,background:on?col:`${col}30`,display:"flex",alignItems:"center",justifyContent:"center",color:on?"#fff":col,fontSize:8,fontWeight:700,flexShrink:0}}>U{userUnit.num}</div>
-            <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>ユニット{userUnit.num}</span>
+            {!cp&&<span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>ユニット{userUnit.num}</span>}
           </button>
         );})()}
       </div>
     </>}
-    <div style={{width:"calc(100% - 20px)",height:1,background:T.bd,margin:"6px 10px"}}/>
-    <div style={{padding:"0 10px 2px",fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>COURSES{quarter?` (${quarter}Q)`:""}</div>
-    <div style={{padding:"0 6px",flex:1}}>
+    <div style={{width:cp?"calc(100% - 8px)":"calc(100% - 20px)",height:1,background:T.bd,margin:cp?"6px 4px":"6px 10px"}}/>
+    {!cp&&<div style={{padding:"0 10px 2px",fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>COURSES{quarter?` (${quarter}Q)`:""}</div>}
+    <div style={{padding:cp?"0 4px":"0 6px",flex:1}}>
       {courses.filter(c=>!quarter||c.quarter===quarter).map(c=>{const on=cid===c.id&&view==="course";return(
-        <button key={c.id} onClick={()=>{setCid(c.id);setView("course");}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"5px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?`${c.col}14`:"transparent",color:on?T.txH:T.tx,fontSize:12,textAlign:"left",borderLeft:on?`2px solid ${c.col}`:"2px solid transparent"}}>
+        <button key={c.id} title={cp?c.name:undefined} onClick={()=>{setCid(c.id);setView("course");}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:cp?"center":"flex-start",gap:cp?0:8,padding:cp?"5px 0":"5px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?`${c.col}14`:"transparent",color:on?T.txH:T.tx,fontSize:12,textAlign:"left",borderLeft:on?`2px solid ${c.col}`:"2px solid transparent"}}>
           <div style={{width:24,height:24,borderRadius:6,background:on?c.col:`${c.col}30`,display:"flex",alignItems:"center",justifyContent:"center",color:on?"#fff":c.col,fontSize:9,fontWeight:700,flexShrink:0}}>{c.code?.split(".")[1]?.slice(0,2)||c.code?.slice(0,2)||"?"}</div>
-          <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
+          {!cp&&<span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>}
         </button>
       );})}
     </div>
-    <div style={{padding:"6px 6px 10px"}}>
-      {user.isAdmin&&<SideItem icon={I.shield} label="管理者" on={view==="admin"} click={()=>setView("admin")}/>}
-      <SideItem icon={I.user1} label={user.name||"プロフィール"} on={view==="profile"} click={()=>setView("profile")}/>
+    <div style={{padding:cp?"6px 4px 10px":"6px 6px 10px"}}>
+      {user.isAdmin&&<SideItem icon={I.shield} label="管理者" on={view==="admin"} click={()=>setView("admin")} compact={cp}/>}
+      <SideItem icon={I.user1} label={user.name||"プロフィール"} on={view==="profile"} click={()=>setView("profile")} compact={cp}/>
     </div>
     {moreOpen&&<>
       <div onClick={()=>setMoreOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:998}}/>
