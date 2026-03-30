@@ -308,12 +308,12 @@ export const SPOTS = [
   { id: "rest_excelsior", label: "エクセルシオール カフェ 大岡山駅前店", short: "Ex", col: "#4a3728", cat: "restaurant", lat: 35.60732, lng: 139.68475, meta: { genre: "カフェ", hours: "平日 7:30〜21:00 / 土日祝 8:00〜21:00", budget: "~500円", desc: "東工大蔵前会館1Fのドトール系カフェ。全39席・全席禁煙、Wi-Fi・電源あり" } },
   { id: "rest_saizeriya", label: "サイゼリヤ 大岡山駅前店", short: "サ", col: "#3a9e50", cat: "restaurant", lat: 35.60726, lng: 139.68643, meta: { genre: "イタリアン", hours: "11:00〜22:00", budget: "~500円", desc: "諸星ビル2F。低価格イタリアン、ドリンクバーあり" } },
   { id: "rest_gusto", label: "ガスト 大岡山駅前店", short: "ガ", col: "#e85050", cat: "restaurant", lat: 35.60801, lng: 139.68544, meta: { genre: "ファミレス", hours: "9:00〜23:00", budget: "~800円", desc: "から好し取扱店。リバーレプラザ大岡山2F、駅徒歩1分" } },
-  { id: "rest_hirugao", label: "ひるがお 大岡山店", short: "ひ", col: "#e8a33a", cat: "restaurant", lat: 35.60832, lng: 139.68549, meta: { genre: "ラーメン（塩）", hours: "11:30〜15:30 / 17:30〜22:00", budget: "~1000円", desc: "せたが屋系列の塩らーめん専門店。火曜・第4水曜定休", closed: "火曜・第4水曜" } },
+  { id: "rest_hirugao", label: "ひるがお 大岡山店", short: "ひ", col: "#e8a33a", cat: "restaurant", lat: 35.60832, lng: 139.68549, meta: { genre: "ラーメン（塩）", hours: "11:00〜15:30 / 17:30〜22:00", budget: "~1000円", desc: "せたが屋系列の塩らーめん専門店。北海道産小麦「和華」使用の自家製麺、ホタテと貝柱ベースの塩スープが特徴。火曜・第4水曜定休", closed: "火曜・第4水曜" } },
   { id: "rest_matsuya", label: "松屋 大岡山店", short: "松", col: "#e8a33a", cat: "restaurant", lat: 35.60910, lng: 139.68560, meta: { genre: "牛丼", hours: "24時間営業", budget: "~500円", desc: "年中無休の牛丼チェーン。石井ビル1F" } },
-  { id: "rest_shisen", label: "中華菜房 四川屋台", short: "四", col: "#d43a2a", cat: "restaurant", lat: 35.60693, lng: 139.68532, meta: { genre: "中華・四川料理", hours: "11:00〜14:00 / 17:00〜21:30", budget: "~800円", desc: "東科大正門前。平成元年創業、担々麺580円・角煮丼490円が人気。スープは全て手作り" } },
+  { id: "rest_shisen", label: "中華菜房 四川屋台", short: "四", col: "#d43a2a", cat: "restaurant", lat: 35.60693, lng: 139.68532, meta: { genre: "中華・四川料理", hours: "11:00〜14:00（LO 13:30） / 17:00〜21:30（LO 21:00）", budget: "~800円", desc: "東科大正門前。平成元年創業、全品手作りの四川料理。担々麺・角煮丼が人気。辛さ調節可。2時間飲み放題付コース4000円あり" } },
   { id: "rest_narumen", label: "なるめん", short: "な", col: "#e8633a", cat: "restaurant", lat: 35.60666, lng: 139.68715, meta: {
-    genre: "ラーメン（豚骨魚介）", hours: "不定期（Xで当日告知）", budget: "~1000円",
-    desc: "旧「ナルトもメンマもないけれど。」。カウンター4席・ワンオペの超個人店。自家製麺と日替わりスープが特徴。営業情報は @NARUTOmoMENMAmo を要チェック",
+    genre: "ラーメン", hours: "不定期（Xで当日告知）", budget: "1000円~",
+    desc: "旧「ナルトもメンマもないけれど。」。カウンター4席・ワンオペの超個人店。営業情報は @NARUTOmoMENMAmo を要チェック",
     tips: [
       { title: "並び方", items: [
         "ブラインドの壊れたところから店内を覗かない",
@@ -379,9 +379,9 @@ export const SPOTS = [
       { date: "2026.01.23", text: "今後二度と卓上に唐辛子は置かない" },
     ],
   } },
-  { id: "rest_mcd", label: "マクドナルド 大岡山店", short: "マ", col: "#da3a2a", cat: "restaurant", lat: 35.60701, lng: 139.68536, meta: { genre: "ファストフード", hours: "6:00〜24:00", budget: "~600円", desc: "大岡山駅すぐのマクドナルド" } },
-  { id: "rest_tsukasa", label: "潮さい茶屋つかさ", short: "つ", col: "#2a7ab8", cat: "restaurant", lat: 35.60788, lng: 139.68502, meta: { genre: "海鮮料理", hours: "11:00〜14:00 / 17:00〜22:30", budget: "ランチ~1000円 / 夜~3000円", desc: "新鮮な魚介が自慢。アジフライ定食が人気。日曜・祝日定休", closed: "日曜・祝日" } },
-  { id: "rest_basanta", label: "ケバブ＆カレー Basanta", short: "Ba", col: "#c8641e", cat: "restaurant", lat: 35.60839, lng: 139.68537, meta: { genre: "ケバブ・カレー", hours: "10:00〜22:00", budget: "~700円", desc: "2025年6月OPEN。ドネルケバブとシェフ本格カレー。イートイン・テイクアウト対応" } },
+  { id: "rest_mcd", label: "マクドナルド 大岡山店", short: "マ", col: "#da3a2a", cat: "restaurant", lat: 35.60701, lng: 139.68536, meta: { genre: "ファストフード", hours: "6:00〜24:00", budget: "~600円", desc: "大岡山駅徒歩30秒。76席。朝マック6:00〜10:30。モバイルオーダー・デリバリー対応" } },
+  { id: "rest_tsukasa", label: "潮さい茶屋つかさ", short: "つ", col: "#2a7ab8", cat: "restaurant", lat: 35.60788, lng: 139.68502, meta: { genre: "海鮮料理", hours: "11:30〜14:00（LO 13:30） / 17:30〜22:30（LO 21:30）", budget: "ランチ~1000円 / 夜~3000円", desc: "元鮮魚店の大将が毎日豊洲から仕入れる新鮮な魚介。昼は海鮮丼・アジフライ定食が人気、夜は刺身と日本酒の居酒屋。1Fカウンター・テーブル席、2F座敷あり。日曜・祝日定休", closed: "日曜・祝日" } },
+  { id: "rest_basanta", label: "ケバブ＆カレー Basanta", short: "Ba", col: "#c8641e", cat: "restaurant", lat: 35.60839, lng: 139.68537, meta: { genre: "ケバブ・カレー", hours: "10:00〜22:00", budget: "~700円", desc: "2025年6月OPEN。ドネルケバブとシェフ本格カレー。ハラール対応。イートイン・テイクアウト・デリバリー対応", closed: "不定休" } },
 ];
 
 export const SPOT_CATS = [
@@ -446,13 +446,13 @@ export function roomToSpot(room) {
   if (/建築製図室/.test(room)) return spotMap['w5'] || null;
   if (/GSIC/.test(room)) return spotMap['s3'] || null;
   if (/情報工学系計算機室/.test(room)) return spotMap['w8'] || null;
-  if (/情報ネットワーク演習室/.test(room)) return spotMap['s4'] || null;
+  if (/情報ネ�����ワーク演習室/.test(room)) return spotMap['s4'] || null;
   if (/屋内運動場/.test(room)) return spotMap['gym'] || null;
   return null;
 }
 
 // ── 建物範囲ポリゴン ──
-// GPS判定用。ポリゴン内にいればその建物と判定。[[lat,lng], ...]
+// GPS判定用。ポリゴン内にいればその��物と判定。[[lat,lng], ...]
 export const AREAS = {
   "taki": [[35.606227,139.684453],[35.605988,139.684412],[35.605942,139.684832],[35.606221,139.684879],[35.606302,139.684808],[35.606454,139.684835]],
   "lib": [[35.606493,139.683912],[35.606539,139.684093],[35.606428,139.684085],[35.606421,139.684182],[35.606397,139.684195],[35.60641,139.684406],[35.606261,139.684388],[35.606119,139.684361],[35.60616,139.68404]],

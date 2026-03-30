@@ -241,6 +241,9 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   // 出発地がGPS（現在地）由来かどうか
   const [originFromGps,setOriginFromGps]=useState(false);
   const gpsCenteredRef=useRef(false);
+  const fittedGroupRef=useRef(null);
+  const fittedDetailRef=useRef(null);
+  const fittedRouteRef=useRef(null);
 
   // マップ表示用の常時GPS更新（案内中はstartWatchが担当するのでスキップ）
   useEffect(()=>{
@@ -602,11 +605,13 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         layersRef.current.push(m);
       }
     });
-    // Fit map to group bounds
-    if(isGroupPhase&&groupBounds.length>0){
+    // Fit map to group bounds — only on group change, not every GPS tick
+    if(isGroupPhase&&groupBounds.length>0&&fittedGroupRef.current!==spotGroup){
+      fittedGroupRef.current=spotGroup;
       if(groupBounds.length===1)map.flyTo(groupBounds[0],18,{duration:.4});
       else map.fitBounds(L.latLngBounds(groupBounds).pad(0.3));
     }
+    if(!isGroupPhase)fittedGroupRef.current=null;
 
     // Zoom-dependent label toggle for group pins
     if(isGroupPhase){
@@ -663,7 +668,10 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         const shadow=L.polyline(latlngs,{color:"#000",weight:7,opacity:0.3,lineCap:"round",lineJoin:"round"}).addTo(map);
         const line=L.polyline(latlngs,{color:"#4de8b0",weight:5,opacity:0.95,lineCap:"round",lineJoin:"round"}).addTo(map);
         layersRef.current.push(glow,shadow,line);
-        map.fitBounds(line.getBounds().pad(0.25));
+        if(fittedRouteRef.current!==route){
+          fittedRouteRef.current=route;
+          map.fitBounds(line.getBounds().pad(0.25));
+        }
       }
     }
 
@@ -690,13 +698,18 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       layersRef.current.push(m);
     }
 
-    // detailフェーズ: 目的地にズーム
-    if(!route&&destSpot&&!originSpot){
+    // detailフェーズ: 目的地にズーム — destination/origin変更時のみ
+    const detailKey=`${origin}|${destination}`;
+    if(!route&&destSpot&&!originSpot&&fittedDetailRef.current!==detailKey){
+      fittedDetailRef.current=detailKey;
       map.flyTo([destSpot.lat,destSpot.lng],18,{duration:.4});
     }
-    if(!route&&originSpot&&destSpot){
+    if(!route&&originSpot&&destSpot&&fittedDetailRef.current!==detailKey){
+      fittedDetailRef.current=detailKey;
       map.fitBounds(L.latLngBounds([[originSpot.lat,originSpot.lng],[destSpot.lat,destSpot.lng]]).pad(0.3));
     }
+    if(route||(!destSpot&&!originSpot))fittedDetailRef.current=null;
+    if(!route)fittedRouteRef.current=null;
   },[leafletReady,origin,destination,route,gpsPos,gpsOriginPos,guiding,navPhase,spotGroup]);
 
   // GPS位置マーカー — 永続refでスムーズ移動
