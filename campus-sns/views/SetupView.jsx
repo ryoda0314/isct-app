@@ -514,49 +514,49 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
 
       {/* ═══ Welcome ═══ */}
       {mode === null && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: mob ? "20px 24px" : "40px", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: mob ? "12px 24px" : "40px", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           <div style={{ maxWidth: 400, width: "100%", textAlign: "center", margin: "auto 0" }}>
             <div style={{
-              width: 72, height: 72, borderRadius: 20,
+              width: 56, height: 56, borderRadius: 16,
               background: `linear-gradient(135deg, ${T.accent}, ${T.accentSoft})`,
               display: "flex", alignItems: "center", justifyContent: "center",
-              margin: "0 auto 20px", boxShadow: `0 8px 24px ${T.accent}30`,
-            }}>{ICN.cap}</div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, color: T.txH, margin: "0 0 8px" }}>ScienceTokyo App</h1>
-            <p style={{ fontSize: 14, color: T.txD, margin: "0 0 28px", lineHeight: 1.6 }}>LMS・教務Webと連携して<br />大学生活をもっと便利に</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 32 }}>
+              margin: "0 auto 12px", boxShadow: `0 6px 20px ${T.accent}30`,
+            }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: T.txH, margin: "0 0 4px" }}>ScienceTokyo App</h1>
+            <p style={{ fontSize: 13, color: T.txD, margin: "0 0 16px", lineHeight: 1.5 }}>LMS・教務Webと連携して<br />大学生活をもっと便利に</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
               {FEATURES.map((f, i) => (
-                <div key={i} style={{ padding: "16px 12px", borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg2, textAlign: "center" }}>
-                  <div style={{ color: f.color, marginBottom: 8, display: "flex", justifyContent: "center" }}>{f.icon}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: T.txH }}>{f.title}</div>
-                  <div style={{ fontSize: 11, color: T.txD, marginTop: 2 }}>{f.desc}</div>
+                <div key={i} style={{ padding: "10px 8px", borderRadius: 10, border: `1px solid ${T.bd}`, background: T.bg2, textAlign: "center" }}>
+                  <div style={{ color: f.color, marginBottom: 4, display: "flex", justifyContent: "center" }}>{f.icon}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.txH }}>{f.title}</div>
+                  <div style={{ fontSize: 10, color: T.txD, marginTop: 1 }}>{f.desc}</div>
                 </div>
               ))}
             </div>
             {/* ── 同意チェックボックス ── */}
             <div style={{
-              display: "flex", alignItems: "flex-start", gap: 10, padding: "14px 16px",
-              borderRadius: 12, border: `1px solid ${privacyAgreed ? T.green + "40" : T.bd}`,
-              background: privacyAgreed ? `${T.green}06` : T.bg2, marginBottom: 16,
+              display: "flex", alignItems: "center", gap: 8, padding: "10px 12px",
+              borderRadius: 10, border: `1px solid ${privacyAgreed ? T.green + "40" : T.bd}`,
+              background: privacyAgreed ? `${T.green}06` : T.bg2, marginBottom: 10,
               cursor: "pointer", transition: "all .15s",
             }} onClick={() => { setPrivacyAgreed(p => { const next = !p; try { localStorage.setItem("privacyAgreed", String(next)); } catch {} return next; }); }}>
               <div style={{
-                width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 1,
+                width: 20, height: 20, borderRadius: 5, flexShrink: 0,
                 border: `2px solid ${privacyAgreed ? T.green : T.bd}`,
                 background: privacyAgreed ? T.green : "transparent",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 transition: "all .15s",
               }}>
-                {privacyAgreed && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                {privacyAgreed && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
               </div>
-              <div style={{ fontSize: 13, color: T.tx, lineHeight: 1.6 }}>
+              <div style={{ fontSize: 12, color: T.tx, lineHeight: 1.5 }}>
                 <button onClick={e => { e.stopPropagation(); setShowTerms(true); }} style={{
-                  background: "none", border: "none", color: T.accent, fontSize: 13,
+                  background: "none", border: "none", color: T.accent, fontSize: 12,
                   fontWeight: 600, cursor: "pointer", padding: 0, textDecoration: "underline",
                 }}>利用規約</button>
                 ・
                 <button onClick={e => { e.stopPropagation(); setShowPrivacyPolicy(true); }} style={{
-                  background: "none", border: "none", color: T.accent, fontSize: 13,
+                  background: "none", border: "none", color: T.accent, fontSize: 12,
                   fontWeight: 600, cursor: "pointer", padding: 0, textDecoration: "underline",
                 }}>プライバシーポリシー</button>
                 に同意します
@@ -565,31 +565,26 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
 
             {/* ── テスト運用中バナー ── */}
             <div style={{
-              display: "flex", alignItems: "flex-start", gap: 10, padding: "14px 16px",
-              borderRadius: 12, border: `1px solid ${T.orange}30`,
-              background: `${T.orange}06`, marginBottom: 16,
+              display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
+              borderRadius: 10, border: `1px solid ${T.orange}30`,
+              background: `${T.orange}06`, marginBottom: 12,
             }}>
-              <div style={{
-                width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 1,
-                background: `${T.orange}15`, display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.orange} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              </div>
-              <div style={{ fontSize: 12, color: T.txD, lineHeight: 1.6 }}>
-                このアプリは現在<span style={{ fontWeight: 700, color: T.orange }}>テスト運用中</span>です。不具合やデータの不整合が発生する可能性があります。問題が発生した場合はご容赦ください。
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.orange} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <div style={{ fontSize: 11, color: T.txD, lineHeight: 1.5 }}>
+                現在<span style={{ fontWeight: 700, color: T.orange }}>テスト運用中</span>です。不具合が発生する可能性があります。
               </div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <button onClick={() => { if (!privacyAgreed) return; setMode("signup"); setStep(0); setError(null); }} style={{
-                width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
+                width: "100%", padding: "12px 0", borderRadius: 12, border: "none",
                 background: privacyAgreed ? T.accent : `${T.accent}40`,
                 color: "#fff", fontSize: 15, fontWeight: 700,
                 cursor: privacyAgreed ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 transition: "background .15s",
               }}>{ICN.signup} 新規登録</button>
               <button onClick={() => { if (!privacyAgreed) return; setMode("login"); setError(null); }} style={{
-                width: "100%", padding: "14px 0", borderRadius: 12,
+                width: "100%", padding: "12px 0", borderRadius: 12,
                 border: `1px solid ${privacyAgreed ? T.bd : T.bd + "60"}`,
                 background: privacyAgreed ? T.bg2 : `${T.bg2}80`,
                 color: privacyAgreed ? T.txH : T.txD,
@@ -599,15 +594,15 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                 transition: "all .15s",
               }}>{ICN.login} ログイン</button>
               {onBackToBoard&&<button onClick={onBackToBoard} style={{
-                width: "100%", padding: "12px 0", borderRadius: 10,
+                width: "100%", padding: "10px 0", borderRadius: 10,
                 border: `1px solid ${T.bd}`, background: T.bg2, color: T.txD,
-                fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                fontSize: 12, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>{backLabel||"新入生掲示板に戻る"}</button>}
             </div>
-            {!privacyAgreed && <p style={{ fontSize: 11, color: T.txD, textAlign: "center", marginTop: 10 }}>利用するには利用規約・プライバシーポリシーへの同意が必要です</p>}
+            {!privacyAgreed && <p style={{ fontSize: 11, color: T.txD, textAlign: "center", marginTop: 8 }}>利用するには利用規約・プライバシーポリシーへの同意が必要です</p>}
             <button onClick={() => setShowPersonaPicker(true)} style={{
-              background: "none", border: "none", color: T.txD, fontSize: 13,
-              cursor: "pointer", marginTop: 16, textAlign: "center", padding: 8, width: "100%",
+              background: "none", border: "none", color: T.txD, fontSize: 12,
+              cursor: "pointer", marginTop: 8, textAlign: "center", padding: 4, width: "100%",
             }}>スキップ（デモモードで表示）</button>
           </div>
         </div>
