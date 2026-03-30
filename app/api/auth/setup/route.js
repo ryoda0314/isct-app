@@ -49,7 +49,19 @@ export async function POST(request) {
     if (hasIsct) {
       invalidateToken(loginId);
       try {
-        const { userid } = await getToken(loginId);
+        const { userid, fullname } = await getToken(loginId);
+
+        // Ensure profile exists in DB
+        try {
+          const sb = getSupabaseAdmin();
+          await sb.from('profiles').upsert(
+            { moodle_id: userid, name: fullname || `User ${userid}` },
+            { onConflict: 'moodle_id', ignoreDuplicates: false }
+          );
+        } catch (e) {
+          console.error('[AuthSetup] profile upsert:', e.message);
+        }
+
         saveStudentId(userid);
         const token = createSessionToken(loginId, userid);
         const response = NextResponse.json({ success: true, moodleUserId: userid });

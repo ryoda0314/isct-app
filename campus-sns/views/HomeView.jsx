@@ -4,7 +4,7 @@ import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { NOW, uDue, pDone } from "../utils.jsx";
 import { Tag } from "../shared.jsx";
-import { useLocationSharing, getSpot } from "../hooks/useLocationSharing.js";
+import { getSpot } from "../hooks/useLocationSharing.js";
 import { getAcademicInfo } from "../academicCalendar.js";
 import { PERIOD_TIMES } from "../examData.js";
 import { isNative } from "../capacitor.js";
@@ -71,8 +71,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
   const [portalError,setPortalError]=useState(null);
   const [portalPage,setPortalPage]=useState(null);
   const [isctLoading,setIsctLoading]=useState(false);
-  const {myLoc}=useLocationSharing({id:user.moodleId||user.id,name:user.name,col:user.col,av:user.av});
-  const mySpot=getSpot(myLoc);
+  const mySpot=null;
   const [exams,setExams]=useState([]);
 
   useEffect(()=>{
