@@ -34,15 +34,6 @@ async function resolveStudentId(loginId, profileStudentId) {
     const creds = await loadCredentials(loginId);
     if (creds?.portalUserId && parseStudentId(creds.portalUserId)) return creds.portalUserId;
   } catch {}
-  try {
-    const sb = getSupabaseAdmin();
-    const { data } = await sb.from('user_credentials').select('login_id').filter('login_id', 'neq', loginId);
-    if (data) {
-      for (const row of data) {
-        if (parseStudentId(row.login_id)) return row.login_id;
-      }
-    }
-  } catch {}
   return null;
 }
 

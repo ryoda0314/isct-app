@@ -6,16 +6,21 @@ import { COOKIE_NAME, destroyUserSessions, verifySession } from '../../../../lib
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { generateTOTP } from '../../../../lib/auth/totp.js';
 
+// Capacitor ネイティブアプリのみ許可する Origin
+const CAPACITOR_ORIGINS = new Set(['capacitor://localhost', 'https://localhost', 'http://localhost']);
+
 /**
  * GET /api/auth/credentials
  * Returns credentials for the native Capacitor app auto-login.
- * Restricted to native app requests only (x-app-platform: capacitor).
+ * Restricted to native Capacitor app only (Origin check + platform header).
  *   ?type=isct  → { userId, password, totpCode }
  *   (default)   → { portalUserId, portalPassword, matrix }
  */
 export async function GET(request) {
-  // Only allow requests from the native Capacitor app
-  if (request.headers.get('x-app-platform') !== 'capacitor') {
+  // Origin ヘッダーで Capacitor ネイティブアプリからのリクエストか検証
+  // x-app-platform ヘッダーはブラウザから偽装可能だが、Origin は偽装不可
+  const origin = request.headers.get('origin');
+  if (!origin || !CAPACITOR_ORIGINS.has(origin)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

@@ -21,45 +21,17 @@ function parseStudentId(id) {
 }
 
 /**
- * 学籍番号を解決する（複数ソースから探す）
+ * 学籍番号を解決する（自分のデータのみ参照）
  * 1. profiles.student_id（DB保存済み）
  * 2. loginId 自体が学籍番号形式
  * 3. クレデンシャルの portalUserId
- * 4. user_credentials から学籍番号形式の login_id を検索
  */
 async function resolveStudentId(loginId, profileStudentId) {
-  // 1. DB に保存済み
   if (profileStudentId && parseStudentId(profileStudentId)) return profileStudentId;
-  // 2. loginId 自体が学籍番号形式
   if (parseStudentId(loginId)) return loginId;
-  // 3. クレデンシャルから portalUserId を取得
   try {
     const creds = await loadCredentials(loginId);
     if (creds?.portalUserId && parseStudentId(creds.portalUserId)) return creds.portalUserId;
-  } catch {}
-  // 4. user_credentials テーブルから学籍番号形式の login_id を検索
-  //    (ISCTとPortalが別々に保存された場合のフォールバック)
-  try {
-    const sb = getSupabaseAdmin();
-    const { data } = await sb.from('user_credentials')
-      .select('login_id')
-      .filter('login_id', 'neq', loginId);
-    if (data) {
-      for (const row of data) {
-        if (parseStudentId(row.login_id)) {
-          // この login_id のクレデンシャルを復号して確認
-          try {
-            const creds = await loadCredentials(row.login_id);
-            // portalUserId があればそれが学籍番号
-            if (creds?.portalUserId && parseStudentId(creds.portalUserId)) return creds.portalUserId;
-            // userId 自体が学籍番号形式ならそれを使う
-            if (parseStudentId(creds?.userId)) return creds.userId;
-          } catch {}
-          // 復号できなくても login_id 自体が学籍番号形式ならそれを使う
-          return row.login_id;
-        }
-      }
-    }
   } catch {}
   return null;
 }
