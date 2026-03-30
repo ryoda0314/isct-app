@@ -14,12 +14,31 @@ export async function GET(request) {
   try {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
+    const { wstoken, userid } = auth;
 
     const { searchParams } = new URL(request.url);
     const postId = searchParams.get('post_id');
     if (!postId) return NextResponse.json({ error: 'post_id required' }, { status: 400 });
 
     const sb = getSupabaseAdmin();
+
+    // 投稿の course_id を取得して enrollment check
+    const { data: post, error: postErr } = await sb
+      .from('posts')
+      .select('course_id')
+      .eq('id', postId)
+      .single();
+    if (postErr || !post) return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+
+    let enrolled;
+    try {
+      enrolled = await isEnrolledInCourse(wstoken, userid, toMoodleId(post.course_id));
+    } catch (e) {
+      console.error('[Comments GET] enrollment check:', e.message);
+      return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    }
+    if (!enrolled) return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
+
     const { data, error } = await sb
       .from('comments')
       .select('*, profiles(name, avatar, color)')
@@ -33,7 +52,7 @@ export async function GET(request) {
     }
 
     // Filter out comments from blocked/muted users
-    const [blockedIds, mutedIds] = await Promise.all([getBlockedIds(auth.userid), getMutedIds(auth.userid)]);
+    const [blockedIds, mutedIds] = await Promise.all([getBlockedIds(userid), getMutedIds(userid)]);
     const isHidden = (uid) => blockedIds.has(uid) || mutedIds.has(uid);
     const filtered = (blockedIds.size === 0 && mutedIds.size === 0) ? data : data.filter(c => !isHidden(c.moodle_user_id));
     return NextResponse.json(filtered);

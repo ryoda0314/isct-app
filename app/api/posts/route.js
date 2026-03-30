@@ -272,7 +272,7 @@ export async function PATCH(request) {
   try {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
-    const { userid } = auth;
+    const { wstoken, userid } = auth;
 
     const body = await request.json();
     const { post_id, action } = body;
@@ -281,6 +281,15 @@ export async function PATCH(request) {
     }
 
     const sb = getSupabaseAdmin();
+
+    // like/vote/react は所属コースチェックが必要
+    if (['like', 'vote', 'react'].includes(action)) {
+      const { data: postCheck } = await sb.from('posts').select('course_id').eq('id', post_id).single();
+      if (!postCheck) return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      let enrolled;
+      try { enrolled = await isEnrolledInCourse(wstoken, userid, toMoodleId(postCheck.course_id)); } catch { enrolled = false; }
+      if (!enrolled) return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
+    }
 
     // --- LIKE ---
     if (action === 'like') {

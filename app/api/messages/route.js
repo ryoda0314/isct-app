@@ -128,7 +128,7 @@ export async function PATCH(request) {
   try {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
-    const { userid } = auth;
+    const { wstoken, userid } = auth;
 
     const { message_id, action, option } = await request.json();
     if (!message_id || action !== 'vote' || !option) {
@@ -139,11 +139,16 @@ export async function PATCH(request) {
 
     const { data: msg, error: fetchErr } = await sb
       .from('messages')
-      .select('poll_options, poll_votes, poll_settings')
+      .select('course_id, poll_options, poll_votes, poll_settings')
       .eq('id', message_id)
       .single();
 
     if (fetchErr || !msg) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+
+    // 所属コースチェック
+    let enrolled;
+    try { enrolled = await isEnrolledInCourse(wstoken, userid, toMoodleId(msg.course_id)); } catch { enrolled = false; }
+    if (!enrolled) return NextResponse.json({ error: 'Not enrolled in this course' }, { status: 403 });
     if (!msg.poll_options || !msg.poll_options.includes(option)) {
       return NextResponse.json({ error: 'Invalid option' }, { status: 400 });
     }

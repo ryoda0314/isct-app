@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react';
 
 const cache = {};
 
+export function resetCourseMembersCache() {
+  for (const k of Object.keys(cache)) delete cache[k];
+}
+
 export function useCourseMembers(moodleCourseId) {
   const [members, setMembers] = useState(cache[moodleCourseId] || []);
 

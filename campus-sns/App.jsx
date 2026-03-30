@@ -7,7 +7,8 @@ import { setDemoMode, isDemoMode } from "./demoMode.js";
 import { useNotifications } from "./hooks/useNotifications.js";
 import { useCurrentUser, setCurrentUserFromAPI, resetCurrentUserCache } from "./hooks/useCurrentUser.js";
 import { usePresence } from "./hooks/usePresence.js";
-import { useCourseMembers } from "./hooks/useCourseMembers.js";
+import { useCourseMembers, resetCourseMembersCache } from "./hooks/useCourseMembers.js";
+import { resetCourseMaterialsCache } from "./hooks/useCourseMaterials.js";
 import { useMobile } from "./utils.jsx";
 import { Av, Loader } from "./shared.jsx";
 import { DSide, DChan, MNav, MoreMenu } from "./layout.jsx";
@@ -335,7 +336,7 @@ export default function App(){
   const openGroupChat=(g)=>{setView("dm");};
   const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat,blockUser,unblockUser,isBlocked,blocks:blockList,muteUser,unmuteUser,isMuted,mutes:muteList,refetch:refetchFriends};
   const togTheme=()=>setThemePref(p=>p==="dark"?"light":"dark");
-  const onLogout=async()=>{setDemoMode(false);try{await fetch("/api/auth/logout",{method:"POST"});}catch{}if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
+  const onLogout=async()=>{setDemoMode(false);try{await fetch("/api/auth/logout",{method:"POST"});}catch{}if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
 
   // Telecom restriction overlay — shown when regulated features are disabled
   const TelecomBlockView=({title,onBack})=><div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,gap:16}}>

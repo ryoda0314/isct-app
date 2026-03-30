@@ -3,6 +3,10 @@ import { useState, useEffect } from 'react';
 const cache = {};
 const EMPTY = { sections: [], totalFiles: 0 };
 
+export function resetCourseMaterialsCache() {
+  for (const k of Object.keys(cache)) delete cache[k];
+}
+
 export function useCourseMaterials(moodleCourseId) {
   const [data, setData] = useState(cache[moodleCourseId] || EMPTY);
   const [loading, setLoading] = useState(!cache[moodleCourseId]);

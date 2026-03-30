@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { isDemoMode } from '../demoMode.js';
 import { DEMO_NOTIFICATIONS } from '../demoData.js';
+import { useCurrentUser } from './useCurrentUser.js';
 
 // Subscribe to Web Push and register with server
 async function subscribePush() {
@@ -35,6 +36,8 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 export function useNotifications(enabled = true) {
+  const user = useCurrentUser(false);
+  const userId = user?.moodleId || user?.id;
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const idsRef = useRef(new Set());
@@ -66,18 +69,20 @@ export function useNotifications(enabled = true) {
 
   useEffect(() => { if (enabled) fetchNotifs(); }, [fetchNotifs, enabled]);
 
-  // Realtime subscription
+  // Realtime subscription（自分宛の通知のみ受信）
   useEffect(() => {
-    if (isDemoMode() || !enabled) return;
+    if (isDemoMode() || !enabled || !userId) return;
     const sb = getSupabaseClient();
     const channel = sb
-      .channel('notifications')
+      .channel(`notifications:${userId}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'notifications',
+        filter: `moodle_user_id=eq.${userId}`,
       }, (payload) => {
         const n = payload.new;
+        if (n.moodle_user_id !== userId) return; // 二重チェック
         if (idsRef.current.has(n.id)) return;
         idsRef.current.add(n.id);
         setNotifications(prev => [{
@@ -97,14 +102,16 @@ export function useNotifications(enabled = true) {
         event: 'UPDATE',
         schema: 'public',
         table: 'notifications',
+        filter: `moodle_user_id=eq.${userId}`,
       }, (payload) => {
         const n = payload.new;
+        if (n.moodle_user_id !== userId) return;
         setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: n.read } : x));
       })
       .subscribe();
 
     return () => { sb.removeChannel(channel); };
-  }, [enabled]);
+  }, [enabled, userId]);
 
   const markRead = useCallback(async (id) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));

@@ -14,13 +14,19 @@ export async function GET(request) {
     const sb = getSupabaseAdmin();
 
     if (eventId) {
-      // Get RSVPs for a specific event
+      // Get RSVP counts + current user's status (他ユーザーのプロフィールは返さない)
       const { data, error } = await sb
         .from('event_rsvps')
-        .select('*, profiles(name, avatar, color)')
+        .select('moodle_user_id, status')
         .eq('event_id', eventId);
       if (error) throw error;
-      return NextResponse.json(data || []);
+      const counts = { going: 0, maybe: 0, not_going: 0 };
+      let myStatus = null;
+      for (const r of (data || [])) {
+        if (counts[r.status] !== undefined) counts[r.status]++;
+        if (r.moodle_user_id === auth.userid) myStatus = r.status;
+      }
+      return NextResponse.json({ counts, myStatus });
     }
 
     // Get all RSVPs for current user
