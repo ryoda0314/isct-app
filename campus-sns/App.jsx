@@ -8,6 +8,7 @@ import { useNotifications } from "./hooks/useNotifications.js";
 import { useCurrentUser, setCurrentUserFromAPI, resetCurrentUserCache } from "./hooks/useCurrentUser.js";
 import { usePresence } from "./hooks/usePresence.js";
 import { useCourseMembers, resetCourseMembersCache } from "./hooks/useCourseMembers.js";
+import { useDeptMembers } from "./hooks/useDeptMembers.js";
 import { resetCourseMaterialsCache } from "./hooks/useCourseMaterials.js";
 import { useMobile, useBreakpoint } from "./utils.jsx";
 import { isNative } from "./capacitor.js";
@@ -361,6 +362,7 @@ export default function App(){
   const presenceRoom=view==="course"&&cc?`course:${cc.id}`:view==="dept"&&cd?`dept:${cd.prefix}`:null;
   const {online}=usePresence(presenceRoom,{id:user.moodleId||user.id,name:user.name,col:user.col});
   const members=useCourseMembers(cc?.moodleId);
+  const deptMembers=useDeptMembers(cd?.prefix);
   const [navDest,setNavDest]=useState(null);
   const [navOrig,setNavOrig]=useState(null);
   const navCrs=id=>{setCid(id);setView("course");setCh("assignments");};
@@ -506,7 +508,7 @@ export default function App(){
 
         <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} dmUnread={dmUnread} courses={allCourses} depts={userDepts} schools={userSchools} user={user} quarter={quarter} pendingFriendCount={pendingFriendCount} userUnit={userUnit} compact={bp==="tablet"}/>
         {bp==="desktop"&&view==="course"&&cc&&<DChan course={cc} ch={ch} setCh={setCh} online={online} members={members}/>}
-        {bp==="desktop"&&view==="dept"&&cd&&<DChan dept={cd} ch={ch} setCh={setCh} online={online}/>}
+        {bp==="desktop"&&view==="dept"&&cd&&<DChan dept={cd} ch={ch} setCh={setCh} online={online} members={deptMembers}/>}
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
           <DTop title={dTitle()} color={view==="course"&&cc?cc.col:view==="dept"&&cd?cd.col:undefined}/>
           {view==="home"&&<HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit}/>}
