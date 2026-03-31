@@ -1119,10 +1119,9 @@ const SyllabusTab = () => {
         </select>
         <select value={filterDept} onChange={e => setFilterDept(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
           <option value="">全学科</option>
-          {uniqueDepts.map(d => {
-            const info = departments.find(x => x.key === d);
-            return <option key={d} value={d}>{d} ({info?.label || d})</option>;
-          })}
+          {departments.map(d => (
+            <option key={d.key} value={d.key}>{d.key} ({d.label})</option>
+          ))}
         </select>
         <select value={filterQuarter} onChange={e => setFilterQuarter(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
           <option value="">全クォーター</option>
