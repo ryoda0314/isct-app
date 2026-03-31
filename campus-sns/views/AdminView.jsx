@@ -1046,7 +1046,6 @@ const SyllabusTab = () => {
       console.log(`[SyllabusTab] loaded: ${d.courses?.length ?? 0} courses, ${Object.keys(d.stats || {}).length} stats, years=${d.years}`);
       if (d.error) console.error(`[SyllabusTab] API error:`, d.error);
       setData(d);
-      if (d?.dbLookupEnabled !== undefined) setDbLookup(d.dbLookupEnabled);
     }).catch(e => { console.error(`[SyllabusTab] fetch failed:`, e); }).finally(() => setLoading(false));
   }, [filterDept, filterYear, filterQuarter, filterDay, debouncedSearch]);
 
@@ -1232,10 +1231,16 @@ const SyllabusFetchTab = () => {
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch(`${API}/api/admin?action=syllabus`).then(r => r.json()).then(d => {
+    console.log(`[SyllabusFetchTab] fetching...`);
+    fetch(`${API}/api/admin?action=syllabus`).then(r => {
+      console.log(`[SyllabusFetchTab] response status: ${r.status}`);
+      return r.json();
+    }).then(d => {
+      console.log(`[SyllabusFetchTab] loaded: years=${d.years}, depts=${d.departments?.length}, stats=${Object.keys(d.stats || {}).length}`);
+      if (d.error) console.error(`[SyllabusFetchTab] API error:`, d.error);
       setData(d);
       if (d?.dbLookupEnabled !== undefined) setDbLookup(d.dbLookupEnabled);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(e => { console.error(`[SyllabusFetchTab] fetch failed:`, e); }).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => { load(); }, [load]);
