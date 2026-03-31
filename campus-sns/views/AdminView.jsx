@@ -1024,42 +1024,23 @@ const SyllabusTab = () => {
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch(`${API}/api/admin?action=syllabus`).then(r => r.json()).then(d => {
+    const params = new URLSearchParams({ action: 'syllabus' });
+    if (filterDept) params.set('dept', filterDept);
+    if (filterYear) params.set('year', filterYear);
+    if (filterQuarter) params.set('quarter', filterQuarter);
+    if (filterDay) params.set('day', filterDay);
+    if (search) params.set('search', search);
+    fetch(`${API}/api/admin?${params}`).then(r => r.json()).then(d => {
       setData(d);
       if (d?.dbLookupEnabled !== undefined) setDbLookup(d.dbLookupEnabled);
     }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  }, [filterDept, filterYear, filterQuarter, filterDay, search]);
 
   useEffect(() => { load(); }, [load]);
 
   const courses = data?.courses || [];
   const departments = data?.departments || [];
-
-  // Apply client-side filters
-  const filtered = courses.filter(c => {
-    if (filterYear && c.year !== filterYear) return false;
-    if (filterDept && c.dept !== filterDept) return false;
-    if (filterQuarter) {
-      if (!c.quarter) return false;
-      // Match individual quarter: "1Q" matches "1-2Q", "1・3Q", "1Q"
-      const q = parseInt(filterQuarter);
-      const m = c.quarter.match(/(\d)[・\-]?(\d)?Q/);
-      if (!m) return false;
-      const q1 = parseInt(m[1]);
-      const q2 = m[2] ? parseInt(m[2]) : q1;
-      // Range (1-2Q): check if q is between q1 and q2
-      // Non-contiguous (1・3Q): check if q is q1 or q2
-      const isRange = c.quarter.includes('-');
-      if (isRange) { if (q < q1 || q > q2) return false; }
-      else { if (q !== q1 && q !== q2) return false; }
-    }
-    if (filterDay && c.day !== filterDay) return false;
-    if (search) {
-      const s = search.toLowerCase();
-      if (!c.code?.toLowerCase().includes(s) && !c.name?.toLowerCase().includes(s) && !c.teacher?.toLowerCase().includes(s) && !c.room?.toLowerCase().includes(s)) return false;
-    }
-    return true;
-  });
+  const filtered = courses;
 
   // Quarter stats from filtered data
   const quarterCounts = {};
