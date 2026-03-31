@@ -279,3 +279,17 @@ alter table profiles add column if not exists unit       text;  -- e.g. '25B-7'
 -- student_id: 学籍番号（portalUserId）をプロフィールに保存
 -- コードが /api/auth/me で自動的に設定する
 alter table profiles add column if not exists student_id text;
+
+-- 27. course_enrollments: コース登録情報（アプリユーザーベースのメンバー管理）
+-- ユーザーがログインすると /api/data/all で自動保存される
+create table if not exists course_enrollments (
+  moodle_user_id   bigint not null references profiles(moodle_id),
+  course_moodle_id bigint not null,
+  updated_at       timestamptz default now(),
+  primary key (moodle_user_id, course_moodle_id)
+);
+create index if not exists idx_course_enrollments_course
+  on course_enrollments(course_moodle_id);
+alter table course_enrollments enable row level security;
+create policy "anon_select_course_enrollments"
+  on course_enrollments for select to anon using (true);

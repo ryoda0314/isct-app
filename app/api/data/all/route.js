@@ -59,6 +59,17 @@ export async function GET(request) {
     const courses = transformCourses(raw, scheduleMap, profileRow?.dept || null);
     console.log(`[All] user=${userid} ${raw?.length ?? 0} raw → ${courses.length} courses, ${Object.keys(scheduleMap).length} schedule entries`);
 
+    // Save course enrollments to Supabase (fire-and-forget)
+    if (raw && raw.length > 0) {
+      const enrollments = raw
+        .filter(c => c.visible !== 0)
+        .map(c => ({ moodle_user_id: userid, course_moodle_id: c.id, updated_at: new Date().toISOString() }));
+      sb.from('course_enrollments')
+        .upsert(enrollments, { onConflict: 'moodle_user_id,course_moodle_id' })
+        .then(({ error }) => { if (error) console.error('[All] enrollment upsert error:', error.message); })
+        .catch(() => {});
+    }
+
     // Timetable
     const byQ = groupByQuarter(courses);
     const qData = {};

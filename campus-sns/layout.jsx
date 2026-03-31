@@ -170,7 +170,7 @@ const MNav=({view,setView,ac,unreadN,dmUnread})=>{
   const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal","exams","freshman"];
   const isMore=moreViews.includes(view);
   return(
-  <nav style={{display:"flex",background:T.bg2,borderTop:`1px solid ${T.bd}`,flexShrink:0}}>
+  <nav style={{display:"flex",background:T.bg2,borderTop:`1px solid ${T.bd}`,flexShrink:0,paddingBottom:"env(safe-area-inset-bottom, 0px)"}}>
     {[{id:"home",i:I.home,l:"ホーム"},{id:"timetable",i:I.cal,l:"時間割"},{id:"tasks",i:I.tasks,l:"課題",b:ac},{id:"navigation",i:I.map,l:"マップ"},{id:"dm",i:I.mail,l:"DM",b:dmUnread},{id:"moreMenu",i:I.more,l:"その他",b:unreadN}].map(n=>{
       const on=n.id==="moreMenu"?isMore:view===n.id;
       return <button key={n.id} onClick={()=>setView(n.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,border:"none",background:"transparent",color:on?T.accent:T.txD,cursor:"pointer",padding:0,position:"relative",height:64}}><div style={{position:"relative"}}>{n.i}{n.b>0&&<span style={{position:"absolute",top:-4,right:-7,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{n.b}</span>}</div><span style={{fontSize:10,fontWeight:on?600:400}}>{n.l}</span></button>;
