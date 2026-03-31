@@ -144,6 +144,9 @@ export default function App(){
   const [fromGuest,setFromGuest]=useState(null);
   const [quarter,setQuarter]=useState(()=>{try{const v=localStorage.getItem("quarter");return v?Number(v):2;}catch{return 2;}});
   const [qDataLive,setQDataLive]=useState(null);
+  const [pastTTCache,setPastTTCache]=useState({});
+  const [pastTTLoading,setPastTTLoading]=useState(false);
+  const [pastTTError,setPastTTError]=useState(null);
   const qd=(qDataLive&&qDataLive[quarter])||QData[quarter]||{C:[],TT:[]};
   const [allCourses,setAllCourses]=useState([]);
   const [view,setViewRaw]=useState("home");
@@ -262,7 +265,20 @@ export default function App(){
       if(d.assignments) setAsgn(d.assignments.map(a=>({...a,due:new Date(a.due)})));
       if(d.user) setCurrentUserFromAPI(d.user);
       return true;
-    }catch{ return false; }
+    }catch(e){ console.error("[App] fetchData exception:",e); return false; }
+  };
+
+  const fetchPastTimetable=async(year)=>{
+    if(pastTTCache[year])return pastTTCache[year];
+    setPastTTLoading(true);setPastTTError(null);
+    try{
+      const r=await fetch(`${API}/api/data/timetable-past?year=${year}`);
+      if(!r.ok){const d=await r.json().catch(()=>({}));setPastTTError(d.error||`Error ${r.status}`);return null;}
+      const d=await r.json();
+      setPastTTCache(prev=>({...prev,[year]:d}));
+      return d;
+    }catch(e){console.error("[App] fetchPastTimetable error:",e);setPastTTError(e.message);return null;}
+    finally{setPastTTLoading(false);}
   };
 
   const fetchSiteSettings=async()=>{
@@ -318,7 +334,7 @@ export default function App(){
   useEffect(()=>{try{localStorage.setItem("quarter",String(quarter));}catch{}},[quarter]);
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
   useEffect(()=>{try{localStorage.setItem("notifSettings",JSON.stringify(notifSettings));}catch{}},[notifSettings]);
-  const onSetupComplete=async()=>{const ok=await fetchData();if(ok){setAppState("ready");refreshRef.current=setInterval(fetchData,15*60*1000);}else{console.error("[App] fetchData failed after setup, retrying in 3s...");setTimeout(async()=>{const retry=await fetchData();if(retry){setAppState("ready");refreshRef.current=setInterval(fetchData,15*60*1000);}else{console.error("[App] fetchData retry also failed");setAppState("setup");}},3000);}};
+  const onSetupComplete=async()=>{const attempt=async(n)=>{const ok=await fetchData();if(ok){setAppState("ready");refreshRef.current=setInterval(fetchData,15*60*1000);fetchSiteSettings();return;}if(n<3){console.warn(`[App] fetchData attempt ${n} failed, retrying in ${n*2}s...`);await new Promise(r=>setTimeout(r,n*2000));return attempt(n+1);}console.error("[App] fetchData failed after 3 attempts, returning to setup");setAppState("setup");};await attempt(1);};
   const onDemo=(personaId)=>{if(process.env.NODE_ENV==="production")return;const pd=buildDemoDataForPersona(personaId);setDemoMode(true);setAllCourses(pd.courses);setQDataLive(pd.qdata);setAsgn(pd.asgn.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setCurrentUserFromAPI(pd.user);const q2c=pd.courses.find(c=>c.quarter===2);setCid(q2c?q2c.id:pd.courses[0].id);setQuarter(2);circleInit();try{localStorage.setItem("myLocation","lib");}catch{}setAppState("ready");};
 
   const cc=allCourses.find(c=>c.id===cid);
@@ -512,7 +528,7 @@ export default function App(){
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
           <DTop title={dTitle()} color={view==="course"&&cc?cc.col:view==="dept"&&cd?cd.col:undefined}/>
           {view==="home"&&<HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit}/>}
-          {view==="timetable"&&(L?<LockedView title="時間割"/>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob={false} quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding}/>)}
+          {view==="timetable"&&(L?<LockedView title="時間割"/>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob={false} quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError}/>)}
           {view==="tasks"&&(L?<LockedView title="課題管理"/>:<AsgnView asgn={asgn} setAsgn={setAsgn} mob={false} myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden}/>)}
           {view==="course"&&(L?<LockedView title="コース"/>:cc&&courseContent())}
           {view==="dept"&&(L?<LockedView title="学系"/>:cd&&deptContent())}
@@ -548,7 +564,7 @@ export default function App(){
     <div ref={el=>{if(!el)return;const native=isNative();const u=()=>{el.style.height=native?window.innerHeight+"px":"100dvh";};u();window.addEventListener("resize",u);}} style={{display:"flex",flexDirection:"column",width:"100%",overflow:"hidden",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",position:"fixed",inset:0}}>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0,position:"relative"}}>
         {view==="home"&&<><MHdr title="ScienceTokyo App" right={<div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>setView("notif")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</button><button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button><button onClick={()=>setView("profile")} style={{background:"none",border:"none",cursor:"pointer",display:"flex",padding:0}}><Av u={user} sz={26}/></button></div>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit}/></>}
-        {view==="timetable"&&(L?<><MHdr title="時間割"/><LockedView title="時間割"/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding}/>)}
+        {view==="timetable"&&(L?<><MHdr title="時間割"/><LockedView title="時間割"/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError}/>)}
         {view==="tasks"&&(L?<><MHdr title="課題管理"/><LockedView title="課題管理"/></>:<><MHdr title="課題管理"/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden}/></>)}
         {view==="courseSelect"&&(L?<><MHdr title="コース・学院・学系"/><LockedView title="コース"/></>:<><MHdr title="コース・学院・学系"/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={allCourses} depts={userDepts} schools={userSchools} setDid={setDid} userUnit={userUnit}/></>)}
         {view==="course"&&(L?<><MHdr title="コース" back={goBack}/><LockedView title="コース"/></>:cc&&<><CourseHdr/>{courseContent()}</>)}

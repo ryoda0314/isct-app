@@ -843,19 +843,22 @@ export async function POST(request) {
       }
     }
 
-    // --- T2SCHOLA token acquisition via login/token.php ---
-    if (action === 't2schola_token') {
-      const { username, password, service } = body;
-      if (!username || !password) return NextResponse.json({ error: 'username and password required' }, { status: 400 });
-      await auditLog(sb, auth.userid, 't2schola_token', 'moodle', username);
+    // --- T2SCHOLA token: use provided password with current loginId ---
+    if (action === 't2schola_get_token') {
+      const { password } = body;
+      if (!password) return NextResponse.json({ error: 'password required' }, { status: 400 });
+      await auditLog(sb, auth.userid, 't2schola_get_token', 'moodle', auth.loginId);
       try {
         const resp = await fetch('https://t2schola.titech.ac.jp/login/token.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&service=${encodeURIComponent(service || 'moodle_mobile_app')}`,
+          body: `username=${encodeURIComponent(auth.loginId)}&password=${encodeURIComponent(password)}&service=moodle_mobile_app`,
         });
         const data = await resp.json();
-        return NextResponse.json({ ok: !data.error, data });
+        if (data.token) {
+          return NextResponse.json({ ok: true, token: data.token });
+        }
+        return NextResponse.json({ ok: false, error: data.error || 'Token acquisition failed', errorcode: data.errorcode });
       } catch (e) {
         return NextResponse.json({ error: `T2SCHOLA token error: ${e.message}` }, { status: 502 });
       }

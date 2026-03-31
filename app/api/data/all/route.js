@@ -81,8 +81,13 @@ export async function GET(request) {
     const courseIdMap = {};
     courses.forEach(c => { courseIdMap[c.moodleId] = c.id; });
     const moodleIds = courses.map(c => c.moodleId);
-    const moodleAsgn = await fetchAssignments(wstoken, moodleIds);
-    let assignments = transformAssignments(moodleAsgn, courseIdMap);
+    let assignments = [];
+    try {
+      const moodleAsgn = await fetchAssignments(wstoken, moodleIds);
+      assignments = transformAssignments(moodleAsgn, courseIdMap);
+    } catch (e) {
+      console.error('[All] Assignment fetch failed:', e.message);
+    }
 
     // Fetch submission status with concurrency limit to avoid overwhelming Moodle
     const CONCURRENCY = 3;

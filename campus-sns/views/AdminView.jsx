@@ -1185,7 +1185,7 @@ const SyllabusTab = () => {
             </thead>
             <tbody>
               {filtered.map((c, i) => (
-                <tr key={c.id || i} style={{ borderBottom: `1px solid ${T.bd}` }}>
+                <tr key={`${c.id}-${i}`} style={{ borderBottom: `1px solid ${T.bd}` }}>
                   <td style={{ padding: "6px 6px", color: T.accent, fontFamily: "monospace", fontWeight: 600, fontSize: 12, whiteSpace: "nowrap" }}>{c.code}</td>
                   <td style={{ padding: "6px 6px", color: T.txH, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name || "-"}</td>
                   <td style={{ padding: "6px 6px", color: T.txD, fontSize: 11, whiteSpace: "nowrap" }}>{c.section || "-"}</td>
@@ -1962,6 +1962,10 @@ const T2ScholaTab = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [history, setHistory] = useState([]);
+  const [password, setPassword] = useState("");
+  const [timetable, setTimetable] = useState(null);
+  const [ttLoading, setTtLoading] = useState(false);
+  const [ttQuarter, setTtQuarter] = useState(1);
 
   const presets = [
     { label: "サイト情報", fn: "core_webservice_get_site_info", params: "" },
@@ -2002,6 +2006,27 @@ const T2ScholaTab = () => {
     }
   };
 
+  const autoGetToken = async () => {
+    if (!password.trim()) return;
+    setLoading(true); setError("");
+    try {
+      const resp = await fetch(`${API}/api/admin`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "t2schola_get_token", password }),
+      });
+      const d = await resp.json();
+      if (d.ok && d.token) {
+        setToken(d.token);
+        setPassword("");
+        // Auto-connect with site info
+        await callApi("core_webservice_get_site_info", "");
+      } else {
+        setError(d.error || d.errorcode || "トークン取得失敗");
+      }
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+
   const connectToken = async () => {
     if (!token.trim()) return;
     await callApi("core_webservice_get_site_info", "");
@@ -2017,14 +2042,25 @@ const T2ScholaTab = () => {
         トークン取得: ブラウザでT2SCHOLAにログイン → DevToolsのNetwork → token= を探す
       </div>
 
-      {/* Token Input */}
+      {/* Token: manual or auto-acquire with password */}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <input
           value={token} onChange={e => setToken(e.target.value)}
           placeholder="T2SCHOLA wstoken (32文字hex)"
-          style={{ ...inputStyle, flex: 1, minWidth: 250 }}
+          style={{ ...inputStyle, flex: 1, minWidth: 200 }}
         />
         <Btn onClick={connectToken} color={T.accent} disabled={loading || !token.trim()}>接続テスト</Btn>
+      </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <input
+          type="password" value={password} onChange={e => setPassword(e.target.value)}
+          placeholder="Science Tokyo パスワード"
+          style={{ ...inputStyle, flex: 1, minWidth: 200 }}
+          onKeyDown={e => { if (e.key === "Enter") autoGetToken(); }}
+        />
+        <Btn onClick={autoGetToken} color="#4CAF50" disabled={loading || !password.trim()}>
+          {loading ? "取得中..." : "パスワードでトークン自動取得"}
+        </Btn>
       </div>
 
       {/* Connection Status */}
@@ -2036,6 +2072,104 @@ const T2ScholaTab = () => {
           <div style={{ fontSize: 11, color: T.txD, marginTop: 4 }}>
             {siteInfo.sitename} — {siteInfo.siteurl}
           </div>
+        </div>
+      )}
+
+      {/* Timetable Generation */}
+      {siteInfo && token && (
+        <div style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>2024年度 時間割</div>
+            <Btn onClick={async () => {
+              setTtLoading(true); setError("");
+              try {
+                const resp = await fetch(`${API}/api/data/timetable-past?t2token=${encodeURIComponent(token)}&year=2024`);
+                const d = await resp.json();
+                if (d.error) { setError(d.error); return; }
+                setTimetable(d);
+              } catch (e) { setError(e.message); }
+              finally { setTtLoading(false); }
+            }} color={T.accent} disabled={ttLoading}>
+              {ttLoading ? "生成中..." : timetable ? "再取得" : "時間割を生成"}
+            </Btn>
+          </div>
+
+          {timetable && (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: T.txD }}>
+                  {timetable.stats.total}科目中 {timetable.stats.withSchedule}科目の時間割あり (DB: {timetable.stats.dbRows}行)
+                </div>
+              </div>
+
+              {/* Quarter selector */}
+              <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+                {[1,2,3,4].map(q => (
+                  <button key={q} onClick={() => setTtQuarter(q)} style={{
+                    padding: "5px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    border: ttQuarter === q ? `1px solid ${T.accent}` : `1px solid ${T.bd}`,
+                    background: ttQuarter === q ? `${T.accent}15` : T.bg2,
+                    color: ttQuarter === q ? T.accent : T.txD,
+                  }}>{q}Q</button>
+                ))}
+              </div>
+
+              {/* Timetable grid */}
+              {(() => {
+                const qd = timetable.qData[ttQuarter];
+                if (!qd || !qd.TT) return <div style={{ fontSize: 12, color: T.txD }}>この学期のデータなし</div>;
+                const days = ["月", "火", "水", "木", "金"];
+                const times = ["1-2\n8:50", "3-4\n10:45", "5-6\n13:20", "7-8\n15:15", "9-10\n17:10"];
+                return (
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", fontSize: 11, borderCollapse: "collapse", tableLayout: "fixed" }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: 44, padding: 4, color: T.txD, borderBottom: `1px solid ${T.bd}` }}></th>
+                          {days.map(d => (
+                            <th key={d} style={{ padding: 4, color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, textAlign: "center" }}>{d}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {qd.TT.map((row, ri) => (
+                          <tr key={ri}>
+                            <td style={{ padding: 4, color: T.txD, fontSize: 9, whiteSpace: "pre-line", verticalAlign: "top", borderRight: `1px solid ${T.bd}` }}>{times[ri]}</td>
+                            {row.map((cell, ci) => (
+                              <td key={ci} style={{
+                                padding: 3, verticalAlign: "top", border: `1px solid ${T.bd}`,
+                                background: cell ? `${cell.col || T.accent}15` : "transparent",
+                                minHeight: 48,
+                              }}>
+                                {cell && (
+                                  <div>
+                                    <div style={{ fontSize: 10, fontWeight: 600, color: cell.col || T.accent, lineHeight: 1.3 }}>{cell.name}</div>
+                                    {cell.room && <div style={{ fontSize: 9, color: T.txD, marginTop: 2 }}>{cell.room}</div>}
+                                  </div>
+                                )}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+
+              {/* Course list for this quarter */}
+              <div style={{ marginTop: 10, fontSize: 11, color: T.txD }}>
+                {timetable.qData[ttQuarter]?.C?.map((c, i) => (
+                  <div key={i} style={{ padding: "3px 0", display: "flex", gap: 8 }}>
+                    <span style={{ color: c.col || T.accent, fontFamily: "monospace", minWidth: 80 }}>{c.code}</span>
+                    <span style={{ color: T.txH }}>{c.name}</span>
+                    <span style={{ color: T.txD }}>{c.per || "時間不明"}</span>
+                    <span style={{ color: T.txD }}>{c.room || ""}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
