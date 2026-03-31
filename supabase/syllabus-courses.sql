@@ -23,9 +23,9 @@ create table if not exists syllabus_courses (
   fetched_at      timestamptz default now() -- 取得日時
 );
 
--- 同じ科目コード+年度+URL+セクション+時限は重複させない
-create unique index if not exists idx_syllabus_code_year_url_section_per
-  on syllabus_courses(code, year, syllabus_url, section, per);
+-- 同じ科目コード+年度+URL+セクション+時限+曜日は重複させない
+create unique index if not exists idx_syllabus_code_year_url_section_per_day
+  on syllabus_courses(code, year, syllabus_url, section, per, day);
 
 -- セクション付き検索用
 create index if not exists idx_syllabus_code_year_section
