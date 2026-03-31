@@ -809,6 +809,58 @@ export async function POST(request) {
       return NextResponse.json({ ok: true, count });
     }
 
+    // --- T2SCHOLA Moodle API proxy ---
+    if (action === 't2schola_call') {
+      const { wstoken, wsfunction, params } = body;
+      if (!wstoken || !wsfunction) return NextResponse.json({ error: 'wstoken and wsfunction required' }, { status: 400 });
+      const T2_API = 'https://t2schola.titech.ac.jp/webservice/rest/server.php';
+      const url = new URL(T2_API);
+      url.searchParams.set('wstoken', wstoken);
+      url.searchParams.set('wsfunction', wsfunction);
+      url.searchParams.set('moodlewsrestformat', 'json');
+      if (params && typeof params === 'object') {
+        for (const [k, v] of Object.entries(params)) {
+          if (Array.isArray(v)) {
+            v.forEach((item, i) => {
+              if (typeof item === 'object' && item !== null) {
+                for (const [k2, v2] of Object.entries(item)) url.searchParams.set(`${k}[${i}][${k2}]`, v2);
+              } else {
+                url.searchParams.set(`${k}[${i}]`, item);
+              }
+            });
+          } else {
+            url.searchParams.set(k, v);
+          }
+        }
+      }
+      await auditLog(sb, auth.userid, 't2schola_call', 'moodle', wsfunction, { params });
+      try {
+        const resp = await fetch(url.toString());
+        const data = await resp.json();
+        return NextResponse.json({ ok: true, data });
+      } catch (e) {
+        return NextResponse.json({ error: `T2SCHOLA API error: ${e.message}` }, { status: 502 });
+      }
+    }
+
+    // --- T2SCHOLA token acquisition via login/token.php ---
+    if (action === 't2schola_token') {
+      const { username, password, service } = body;
+      if (!username || !password) return NextResponse.json({ error: 'username and password required' }, { status: 400 });
+      await auditLog(sb, auth.userid, 't2schola_token', 'moodle', username);
+      try {
+        const resp = await fetch('https://t2schola.titech.ac.jp/login/token.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&service=${encodeURIComponent(service || 'moodle_mobile_app')}`,
+        });
+        const data = await resp.json();
+        return NextResponse.json({ ok: !data.error, data });
+      } catch (e) {
+        return NextResponse.json({ error: `T2SCHOLA token error: ${e.message}` }, { status: 502 });
+      }
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (e) {
     console.error('[Admin POST]', e);

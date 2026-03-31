@@ -21,6 +21,7 @@ const tabs = [
   { id: "syllabus", label: "時間割データ", icon: I.cal },
   { id: "syllabus_fetch", label: "時間割取得", icon: I.cal },
   { id: "exams", label: "期末試験", icon: I.clip },
+  { id: "t2schola", label: "T2SCHOLA", icon: I.search },
   { id: "settings", label: "設定", icon: I.shield },
 ];
 
@@ -1951,6 +1952,201 @@ const SettingsTab = () => {
   );
 };
 
+// ---- T2SCHOLA Explorer Tab ----
+const T2ScholaTab = () => {
+  const [token, setToken] = useState("");
+  const [siteInfo, setSiteInfo] = useState(null);
+  const [wsfunction, setWsfunction] = useState("core_enrol_get_users_courses");
+  const [paramsText, setParamsText] = useState("");
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [history, setHistory] = useState([]);
+
+  const presets = [
+    { label: "サイト情報", fn: "core_webservice_get_site_info", params: "" },
+    { label: "履修科目一覧", fn: "core_enrol_get_users_courses", params: '{"userid":"__USERID__"}' },
+    { label: "コース内容", fn: "core_course_get_contents", params: '{"courseid":""}' },
+    { label: "コース検索", fn: "core_course_search_courses", params: '{"criterianame":"search","criteriavalue":""}' },
+    { label: "ユーザー情報", fn: "core_user_get_users_by_field", params: '{"field":"id","values":["__USERID__"]}' },
+    { label: "コース登録者", fn: "core_enrol_get_enrolled_users", params: '{"courseid":""}' },
+    { label: "利用可能関数一覧", fn: "core_webservice_get_site_info", params: "" },
+  ];
+
+  const callApi = async (fn, params) => {
+    setLoading(true);
+    setError("");
+    setResult(null);
+    try {
+      let parsedParams = {};
+      if (params && params.trim()) {
+        parsedParams = JSON.parse(params);
+      }
+      const resp = await fetch(`${API}/api/admin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "t2schola_call", wstoken: token, wsfunction: fn, params: parsedParams }),
+      });
+      const d = await resp.json();
+      if (d.error) { setError(d.error); return; }
+      setResult(d.data);
+      setHistory(h => [{ fn, params, time: new Date().toLocaleTimeString(), preview: JSON.stringify(d.data).slice(0, 100) }, ...h].slice(0, 20));
+      // Auto-extract userid from site_info
+      if (fn === "core_webservice_get_site_info" && d.data?.userid) {
+        setSiteInfo(d.data);
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const connectToken = async () => {
+    if (!token.trim()) return;
+    await callApi("core_webservice_get_site_info", "");
+  };
+
+  const inputStyle = { padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none", fontFamily: "monospace" };
+
+  return (
+    <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>T2SCHOLA API Explorer</div>
+      <div style={{ fontSize: 12, color: T.txD, lineHeight: 1.6 }}>
+        旧T2SCHOLA (t2schola.titech.ac.jp) のMoodle APIを探索。2024年度の履修データ取得に使用。<br />
+        トークン取得: ブラウザでT2SCHOLAにログイン → DevToolsのNetwork → token= を探す
+      </div>
+
+      {/* Token Input */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <input
+          value={token} onChange={e => setToken(e.target.value)}
+          placeholder="T2SCHOLA wstoken (32文字hex)"
+          style={{ ...inputStyle, flex: 1, minWidth: 250 }}
+        />
+        <Btn onClick={connectToken} color={T.accent} disabled={loading || !token.trim()}>接続テスト</Btn>
+      </div>
+
+      {/* Connection Status */}
+      {siteInfo && (
+        <div style={{ padding: 12, borderRadius: 10, background: `${T.accent}10`, border: `1px solid ${T.accent}30` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.accent }}>
+            接続済: {siteInfo.fullname} (userid: {siteInfo.userid})
+          </div>
+          <div style={{ fontSize: 11, color: T.txD, marginTop: 4 }}>
+            {siteInfo.sitename} — {siteInfo.siteurl}
+          </div>
+        </div>
+      )}
+
+      {/* Preset Buttons */}
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 8 }}>プリセット</div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {presets.map((p, i) => (
+            <Btn key={i} onClick={() => {
+              setWsfunction(p.fn);
+              let params = p.params;
+              if (siteInfo?.userid) params = params.replace(/__USERID__/g, String(siteInfo.userid));
+              setParamsText(params);
+            }} color={T.txD} small>{p.label}</Btn>
+          ))}
+        </div>
+      </div>
+
+      {/* API Call Form */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            value={wsfunction} onChange={e => setWsfunction(e.target.value)}
+            placeholder="wsfunction (例: core_enrol_get_users_courses)"
+            style={{ ...inputStyle, flex: 1, minWidth: 300 }}
+          />
+          <Btn onClick={() => callApi(wsfunction, paramsText)} color={T.accent} disabled={loading || !token.trim()}>
+            {loading ? "実行中..." : "実行"}
+          </Btn>
+        </div>
+        <textarea
+          value={paramsText} onChange={e => setParamsText(e.target.value)}
+          placeholder='パラメータ JSON (例: {"userid":"12345"})'
+          rows={3}
+          style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+        />
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div style={{ padding: 10, borderRadius: 8, background: "#ff444420", border: "1px solid #ff444440", color: "#ff6666", fontSize: 12 }}>
+          {error}
+        </div>
+      )}
+
+      {/* Result */}
+      {result !== null && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.txD }}>
+              レスポンス {Array.isArray(result) ? `(${result.length}件)` : ""}
+            </div>
+            <Btn onClick={() => { navigator.clipboard.writeText(JSON.stringify(result, null, 2)); }} color={T.txD} small>コピー</Btn>
+          </div>
+
+          {/* If it's an array of courses, show table view */}
+          {Array.isArray(result) && result.length > 0 && result[0].shortname && (
+            <div style={{ overflowX: "auto", borderRadius: 10, border: `1px solid ${T.bd}` }}>
+              <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: T.bg3 }}>
+                    {["id", "shortname", "fullname", "enrolledusercount"].map(col => (
+                      <th key={col} style={{ padding: "8px 10px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>{col}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.map((row, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${T.bd}` }}>
+                      <td style={{ padding: "6px 10px", color: T.txD }}>{row.id}</td>
+                      <td style={{ padding: "6px 10px", color: T.accent, fontFamily: "monospace", fontSize: 11 }}>{row.shortname}</td>
+                      <td style={{ padding: "6px 10px", color: T.txH }}>{row.fullname}</td>
+                      <td style={{ padding: "6px 10px", color: T.txD }}>{row.enrolledusercount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Raw JSON */}
+          <pre style={{
+            padding: 12, borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}`,
+            color: T.txH, fontSize: 11, fontFamily: "monospace", lineHeight: 1.5,
+            overflow: "auto", maxHeight: 400, whiteSpace: "pre-wrap", wordBreak: "break-all",
+          }}>
+            {JSON.stringify(result, null, 2)}
+          </pre>
+        </div>
+      )}
+
+      {/* History */}
+      {history.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 8 }}>呼び出し履歴</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {history.map((h, i) => (
+              <div key={i} onClick={() => { setWsfunction(h.fn); setParamsText(h.params); }}
+                style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, cursor: "pointer", fontSize: 11, display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ color: T.txD }}>{h.time}</span>
+                <span style={{ color: T.accent, fontFamily: "monospace" }}>{h.fn}</span>
+                <span style={{ color: T.txD, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.preview}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ---- Main AdminView ----
 export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
   const [tab, setTab] = useState("stats");
@@ -2000,6 +2196,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "syllabus" && <SyllabusTab />}
         {tab === "syllabus_fetch" && <SyllabusFetchTab />}
         {tab === "exams" && <ExamTab />}
+        {tab === "t2schola" && <T2ScholaTab />}
         {tab === "settings" && <SettingsTab />}
       </div>
     </div>
