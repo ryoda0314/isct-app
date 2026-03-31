@@ -1065,9 +1065,8 @@ const SyllabusTab = () => {
     return grid;
   };
 
-  const uniqueYears = [...new Set(courses.map(c => c.year).filter(Boolean))].sort();
+  const years = data?.years || [];
   const uniqueQuarters = [...new Set(courses.map(c => c.quarter).filter(Boolean))].sort();
-  const uniqueDepts = [...new Set(courses.map(c => c.dept).filter(Boolean))].sort();
 
   return (
     <div style={{ padding: 16 }}>
@@ -1096,7 +1095,7 @@ const SyllabusTab = () => {
         <SearchBar value={search} onChange={setSearch} onSearch={() => {}} placeholder="科目コード・名前・教室..." width={240} />
         <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
           <option value="">全年度</option>
-          {uniqueYears.map(y => <option key={y} value={y}>{y}年度</option>)}
+          {years.map(y => <option key={y} value={y}>{y}年度</option>)}
         </select>
         <select value={filterDept} onChange={e => setFilterDept(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
           <option value="">全学科</option>
