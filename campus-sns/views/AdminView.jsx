@@ -1276,10 +1276,16 @@ const SyllabusFetchTab = () => {
     setProgress({ total: 0, done: 0, phase: "listing", current: "" });
     try {
       const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "scrape_syllabus", dept, year }) });
-      const d = await r.json();
+      const text = await r.text();
+      let d;
+      try { d = JSON.parse(text); } catch {
+        console.error(`[scrape] ${dept} status=${r.status} body=`, text.slice(0, 500));
+        return { dept, year, ok: false, error: `HTTP ${r.status}: ${text.slice(0, 120)}` };
+      }
       if (r.ok) return { dept, year, ok: true, count: d.added || 0 };
       return { dept, year, ok: false, error: d.error || "不明なエラー" };
     } catch (e) {
+      console.error(`[scrape] ${dept} fetch error:`, e);
       return { dept, year, ok: false, error: e.message };
     } finally {
       setScraping("");
