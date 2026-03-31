@@ -1016,11 +1016,18 @@ const SyllabusTab = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterDept, setFilterDept] = useState("");
   const [filterQuarter, setFilterQuarter] = useState("");
   const [filterDay, setFilterDay] = useState("");
   const [filterYear, setFilterYear] = useState("");
   const [viewMode, setViewMode] = useState("table");
+
+  // Debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -1029,12 +1036,12 @@ const SyllabusTab = () => {
     if (filterYear) params.set('year', filterYear);
     if (filterQuarter) params.set('quarter', filterQuarter);
     if (filterDay) params.set('day', filterDay);
-    if (search) params.set('search', search);
+    if (debouncedSearch) params.set('search', debouncedSearch);
     fetch(`${API}/api/admin?${params}`).then(r => r.json()).then(d => {
       setData(d);
       if (d?.dbLookupEnabled !== undefined) setDbLookup(d.dbLookupEnabled);
     }).catch(() => {}).finally(() => setLoading(false));
-  }, [filterDept, filterYear, filterQuarter, filterDay, search]);
+  }, [filterDept, filterYear, filterQuarter, filterDay, debouncedSearch]);
 
   useEffect(() => { load(); }, [load]);
 
