@@ -1037,10 +1037,17 @@ const SyllabusTab = () => {
     if (filterQuarter) params.set('quarter', filterQuarter);
     if (filterDay) params.set('day', filterDay);
     if (debouncedSearch) params.set('search', debouncedSearch);
-    fetch(`${API}/api/admin?${params}`).then(r => r.json()).then(d => {
+    const url = `${API}/api/admin?${params}`;
+    console.log(`[SyllabusTab] fetch: ${params}`);
+    fetch(url).then(r => {
+      console.log(`[SyllabusTab] response status: ${r.status}`);
+      return r.json();
+    }).then(d => {
+      console.log(`[SyllabusTab] loaded: ${d.courses?.length ?? 0} courses, ${Object.keys(d.stats || {}).length} stats, years=${d.years}`);
+      if (d.error) console.error(`[SyllabusTab] API error:`, d.error);
       setData(d);
       if (d?.dbLookupEnabled !== undefined) setDbLookup(d.dbLookupEnabled);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(e => { console.error(`[SyllabusTab] fetch failed:`, e); }).finally(() => setLoading(false));
   }, [filterDept, filterYear, filterQuarter, filterDay, debouncedSearch]);
 
   useEffect(() => { load(); }, [load]);
