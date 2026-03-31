@@ -417,13 +417,16 @@ export async function GET(request) {
       const quarter = searchParams.get('quarter') || '';
       const day = searchParams.get('day') || '';
       const search = searchParams.get('search') || '';
+      console.log(`[Admin syllabus] query: dept=${dept} year=${year} quarter=${quarter} day=${day} search=${search}`);
       const [courses, stats, lookupSetting] = await Promise.all([
         getSyllabusFromDB({ dept, year, quarter, day, search }),
         getSyllabusStats(),
         sb.from('site_settings').select('value').eq('key', 'syllabus_db_lookup').maybeSingle(),
       ]);
+      const deptList = getDeptList();
+      console.log(`[Admin syllabus] result: ${courses.length} courses, ${Object.keys(stats).length} stat entries, years=${deptList.years}`);
       const dbLookupEnabled = lookupSetting?.data?.value?.enabled !== false;
-      return NextResponse.json({ courses, stats, dbLookupEnabled, ...getDeptList() });
+      return NextResponse.json({ courses, stats, dbLookupEnabled, ...deptList });
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
