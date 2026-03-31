@@ -38,6 +38,7 @@ import { AdminView } from "./views/AdminView.jsx";
 import { FreshmanBoardView } from "./views/FreshmanBoardView.jsx";
 import { AcademicCalendarView } from "./views/AcademicCalendarView.jsx";
 import { ExamView } from "./views/ExamView.jsx";
+import { RegView } from "./views/RegView.jsx";
 import { ACADEMIC_EVENTS } from "./academicCalendar.js";
 import { useFriends } from "./hooks/useFriends.js";
 import { useBlocks } from "./hooks/useBlocks.js";
@@ -147,6 +148,7 @@ export default function App(){
   const [pastTTCache,setPastTTCache]=useState({});
   const [pastTTLoading,setPastTTLoading]=useState(false);
   const [pastTTError,setPastTTError]=useState(null);
+  const [_selY,_setSelY]=useState(()=>{try{const v=localStorage.getItem("tty");if(v)return Number(v);const jd=new Date(Date.now()+9*3600000);return jd.getUTCMonth()>=3?jd.getUTCFullYear():jd.getUTCFullYear()-1;}catch{const jd=new Date(Date.now()+9*3600000);return jd.getUTCMonth()>=3?jd.getUTCFullYear():jd.getUTCFullYear()-1;}});
   const qd=(qDataLive&&qDataLive[quarter])||QData[quarter]||{C:[],TT:[]};
   const [allCourses,setAllCourses]=useState([]);
   const [view,setViewRaw]=useState("home");
@@ -513,7 +515,7 @@ export default function App(){
 
   // --- DESKTOP ---
   if(!mob){
-    const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",acadCal:"学年暦",exams:"期末試験",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",navigation:"キャンパスナビ",friends:"友達",circles:"サークル",admin:"管理者",freshman:"新入生掲示板"};
+    const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",acadCal:"学年暦",exams:"期末試験",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",navigation:"キャンパスナビ",friends:"友達",circles:"サークル",admin:"管理者",freshman:"新入生掲示板",reg:"履修登録補助"};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:"タイムライン",chat:"チャット",assignments:"課題",materials:"教材",reviews:"レビュー"}[ch]}</>;
       if(view==="dept"&&cd){const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?cd.name:cd.prefix}</span> {nameOnly?"":`${cd.name} `}— {{timeline:"タイムライン",chat:"チャット"}[ch]||""}</>;}
@@ -528,7 +530,7 @@ export default function App(){
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
           <DTop title={dTitle()} color={view==="course"&&cc?cc.col:view==="dept"&&cd?cd.col:undefined}/>
           {view==="home"&&<HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit}/>}
-          {view==="timetable"&&(L?<LockedView title="時間割"/>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob={false} quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError}/>)}
+          {view==="timetable"&&(L?<LockedView title="時間割"/>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob={false} quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
           {view==="tasks"&&(L?<LockedView title="課題管理"/>:<AsgnView asgn={asgn} setAsgn={setAsgn} mob={false} myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden}/>)}
           {view==="course"&&(L?<LockedView title="コース"/>:cc&&courseContent())}
           {view==="dept"&&(L?<LockedView title="学系"/>:cd&&deptContent())}
@@ -547,6 +549,7 @@ export default function App(){
           {view==="circles"&&(TR?<TelecomBlockView title="サークルは現在利用できません"/>:<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate}/>)}
           {view==="acadCal"&&<AcademicCalendarView mob={false}/>}
           {view==="exams"&&(L?<LockedView title="期末試験"/>:<ExamView courses={allCourses} mob={false} goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/>)}
+          {view==="reg"&&<RegView mob={false}/>}
           {view==="admin"&&<AdminView mob={false} courses={allCourses} depts={userDepts} schools={userSchools}/>}
           {view==="freshman"&&<FreshmanBoardView mob={false} loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/>}
         </div>
@@ -564,7 +567,7 @@ export default function App(){
     <div ref={el=>{if(!el)return;const native=isNative();const u=()=>{el.style.height=native?window.innerHeight+"px":"100dvh";};u();window.addEventListener("resize",u);}} style={{display:"flex",flexDirection:"column",width:"100%",overflow:"hidden",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",position:"fixed",inset:0}}>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0,position:"relative"}}>
         {view==="home"&&<><MHdr title="ScienceTokyo App" right={<div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>setView("notif")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</button><button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button><button onClick={()=>setView("profile")} style={{background:"none",border:"none",cursor:"pointer",display:"flex",padding:0}}><Av u={user} sz={26}/></button></div>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit}/></>}
-        {view==="timetable"&&(L?<><MHdr title="時間割"/><LockedView title="時間割"/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError}/>)}
+        {view==="timetable"&&(L?<><MHdr title="時間割"/><LockedView title="時間割"/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
         {view==="tasks"&&(L?<><MHdr title="課題管理"/><LockedView title="課題管理"/></>:<><MHdr title="課題管理"/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden}/></>)}
         {view==="courseSelect"&&(L?<><MHdr title="コース・学院・学系"/><LockedView title="コース"/></>:<><MHdr title="コース・学院・学系"/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={allCourses} depts={userDepts} schools={userSchools} setDid={setDid} userUnit={userUnit}/></>)}
         {view==="course"&&(L?<><MHdr title="コース" back={goBack}/><LockedView title="コース"/></>:cc&&<><CourseHdr/>{courseContent()}</>)}
@@ -585,6 +588,7 @@ export default function App(){
         {view==="circles"&&(TR?<><MHdr title="サークル" back={mBack}/><TelecomBlockView title="サークルは現在利用できません" onBack={goBack}/></>:<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} onBack={mBack}/>)}
         {view==="acadCal"&&<AcademicCalendarView mob/>}
         {view==="exams"&&(L?<><MHdr title="期末試験" back={mBack}/><LockedView title="期末試験"/></>:<><MHdr title="期末試験" back={mBack}/><ExamView courses={allCourses} mob goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/></>)}
+        {view==="reg"&&<><MHdr title="履修登録補助" back={mBack}/><RegView mob/></>}
         {view==="admin"&&<><MHdr title="管理者" back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
         {view==="freshman"&&<><MHdr title="新入生掲示板" back={mBack}/><FreshmanBoardView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/></>}
       </div>

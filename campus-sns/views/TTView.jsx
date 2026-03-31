@@ -1,25 +1,26 @@
 import React, { useState, useEffect } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
-export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefresh,courses=[],hiddenSet=new Set(),goToBuilding,pastTTCache={},fetchPastTimetable,pastTTLoading=false,pastTTError=null})=>{
+export const TTView=(_p)=>{
+  const {setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefresh,courses=[],hiddenSet=new Set(),goToBuilding,pastTTCache={},fetchPastTimetable,pastTTLoading=false,pastTTError=null}=_p;
+  const _yr=_p.tty,_setYr=_p.setTty;
   const days=["月","火","水","木","金"],daysFull=["Monday","Tuesday","Wednesday","Thursday","Friday"],dayJP=["月曜日","火曜日","水曜日","木曜日","金曜日"];
   const pds=["1","2","3","4","5"],pdLabel=["1限","2限","3限","4限","5限"],pdTimes=["8:50–10:30","10:45–12:25","13:30–15:10","15:25–17:05","17:15–18:55"];
-  const [qOpen,setQOpen]=useState(false);
   const _jd=new Date(Date.now()+9*3600000);
   const _cAY=_jd.getUTCMonth()>=3?_jd.getUTCFullYear():_jd.getUTCFullYear()-1;
-  const [ttYear,setTtYear]=useState(()=>{try{const v=localStorage.getItem("ttYear");return v?Number(v):_cAY;}catch{return _cAY;}});
-  const isPast=ttYear<=2024;
-  const pastData=isPast?pastTTCache[ttYear]:null;
+  const _yrOpts=[_cAY-2,_cAY-1,_cAY];
+  const [qOpen,setQOpen]=useState(false);
+  const [yrOpen,setYrOpen]=useState(false);
+  const [refreshing,setRefreshing]=useState(false);
+  const isPast=_yr<=2024;
+  const pastData=isPast?pastTTCache[_yr]:null;
   const pastQd=pastData?.qData?.[quarter]||null;
-  useEffect(()=>{if(isPast&&!pastData&&fetchPastTimetable&&!pastTTLoading)fetchPastTimetable(ttYear);},[ttYear,isPast]);
+  useEffect(()=>{if(isPast&&!pastData&&fetchPastTimetable&&!pastTTLoading)fetchPastTimetable(_yr);},[_yr,isPast]);
   const _allC=isPast?(pastQd?.C||[]):(qd.C||[]);
   const _allTT=isPast?(pastQd?.TT||[]):(qd.TT||[]);
-  const curC=isPast?_allC:_allC.filter(c=>!c.year||c.year===ttYear);
-  const curTT=isPast?_allTT:(_allTT||[]).map(row=>(row||[]).map(cell=>cell&&(!cell.year||cell.year===ttYear)?cell:null));
+  const curC=isPast?_allC:_allC.filter(c=>!c.year||c.year===_yr);
+  const curTT=isPast?_allTT:(_allTT||[]).map(row=>(row||[]).map(cell=>cell&&(!cell.year||cell.year===_yr)?cell:null));
   const cnt=cid=>asgn.filter(a=>a.cid===cid&&a.st!=="completed"&&!hiddenSet.has(a.id)).length;
-  const [yrOpen,setYrOpen]=useState(false);
-  const ttYears=[_cAY-2,_cAY-1,_cAY];
-  const [refreshing,setRefreshing]=useState(false);
   const handleRefresh=async()=>{if(!onRefresh||refreshing)return;setRefreshing(true);try{await onRefresh();}finally{setRefreshing(false);}};
   const RefreshBtn=()=>onRefresh?(<>
     <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -59,16 +60,16 @@ export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefr
       <button onClick={()=>setYrOpen(p=>!p)}
         style={{background:T.bg3,border:`1px solid ${T.bd}`,borderRadius:6,padding:"3px 10px",cursor:"pointer",
           display:"flex",alignItems:"center",gap:4,fontSize:mob?12:13,fontWeight:700,color:T.txD}}>
-        {ttYear}年度
+        {_yr}年度
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>
       </button>
       {yrOpen&&<><div onClick={()=>setYrOpen(false)} style={{position:"fixed",inset:0,zIndex:49}}/>
         <div style={{position:"absolute",top:"100%",left:0,marginTop:4,background:T.bg2,border:`1px solid ${T.bd}`,borderRadius:8,
           boxShadow:"0 4px 16px rgba(0,0,0,.4)",overflow:"hidden",zIndex:50,minWidth:90}}>
-          {ttYears.map(y=>(
-            <div key={y} onClick={()=>{setTtYear(y);setYrOpen(false);try{localStorage.setItem("ttYear",String(y));}catch{}}}
-              style={{padding:"8px 14px",cursor:"pointer",fontSize:13,fontWeight:y===ttYear?700:400,
-                color:y===ttYear?T.accent:T.txH,background:y===ttYear?`${T.accent}10`:"transparent"}}>
+          {_yrOpts.map(y=>(
+            <div key={y} onClick={()=>{_setYr(y);setYrOpen(false);try{localStorage.setItem("tty",String(y));}catch{}}}
+              style={{padding:"8px 14px",cursor:"pointer",fontSize:13,fontWeight:y===_yr?700:400,
+                color:y===_yr?T.accent:T.txH,background:y===_yr?`${T.accent}10`:"transparent"}}>
               {y}年度
             </div>
           ))}
@@ -108,12 +109,12 @@ export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefr
     if(!isPast)return null;
     if(pastTTLoading)return <div style={{padding:mob?10:14,borderRadius:10,background:`${T.accent}10`,border:`1px solid ${T.accent}30`,marginBottom:mob?8:14,display:"flex",alignItems:"center",gap:8}}>
       <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{animation:"spin 1s linear infinite",flexShrink:0}}><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
-      <span style={{fontSize:12,color:T.accent,fontWeight:600}}>{ttYear}年度の時間割を取得中...</span>
+      <span style={{fontSize:12,color:T.accent,fontWeight:600}}>{_yr}年度の時間割を取得中...</span>
     </div>;
     if(pastTTError&&!pastData)return <div style={{padding:mob?10:14,borderRadius:10,background:`${T.red}10`,border:`1px solid ${T.red}30`,marginBottom:mob?8:14}}>
-      <div style={{fontSize:12,color:T.red,fontWeight:600}}>{ttYear}年度の取得に失敗しました</div>
+      <div style={{fontSize:12,color:T.red,fontWeight:600}}>{_yr}年度の取得に失敗しました</div>
       <div style={{fontSize:11,color:T.txD,marginTop:4}}>{pastTTError}</div>
-      {fetchPastTimetable&&<button onClick={()=>fetchPastTimetable(ttYear)} style={{marginTop:8,padding:"5px 14px",borderRadius:8,border:`1px solid ${T.accent}`,background:"transparent",color:T.accent,fontSize:12,fontWeight:600,cursor:"pointer"}}>再取得</button>}
+      {fetchPastTimetable&&<button onClick={()=>fetchPastTimetable(_yr)} style={{marginTop:8,padding:"5px 14px",borderRadius:8,border:`1px solid ${T.accent}`,background:"transparent",color:T.accent,fontSize:12,fontWeight:600,cursor:"pointer"}}>再取得</button>}
     </div>;
     if(pastData?.stats)return <div style={{padding:mob?"6px 10px":"8px 14px",borderRadius:8,background:T.bg3,border:`1px solid ${T.bd}`,marginBottom:mob?8:14,fontSize:11,color:T.txD,display:"flex",alignItems:"center",gap:6}}>
       <span style={{background:`${T.accent}15`,color:T.accent,padding:"2px 8px",borderRadius:6,fontWeight:700,fontSize:10}}>T2SCHOLA</span>
