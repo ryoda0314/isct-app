@@ -7,6 +7,11 @@ export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefr
   const curC=qd.C,curTT=qd.TT;
   const cnt=cid=>asgn.filter(a=>a.cid===cid&&a.st!=="completed"&&!hiddenSet.has(a.id)).length;
   const [qOpen,setQOpen]=useState(false);
+  const _jd=new Date(Date.now()+9*3600000);
+  const _cAY=_jd.getUTCMonth()>=3?_jd.getUTCFullYear():_jd.getUTCFullYear()-1;
+  const [ttYear,setTtYear]=useState(()=>{try{const v=localStorage.getItem("ttYear");return v?Number(v):_cAY;}catch{return _cAY;}});
+  const [yrOpen,setYrOpen]=useState(false);
+  const ttYears=[_cAY-2,_cAY-1,_cAY];
   const [refreshing,setRefreshing]=useState(false);
   const handleRefresh=async()=>{if(!onRefresh||refreshing)return;setRefreshing(true);try{await onRefresh();}finally{setRefreshing(false);}};
   const RefreshBtn=()=>onRefresh?(<>
@@ -37,6 +42,27 @@ export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefr
               style={{padding:"8px 14px",cursor:"pointer",fontSize:13,fontWeight:q===quarter?700:400,
                 color:q===quarter?T.accent:T.txH,background:q===quarter?`${T.accent}10`:"transparent"}}>
               {q}Q
+            </div>
+          ))}
+        </div></>}
+    </div>
+  );
+  const YrDrop=()=>(
+    <div style={{position:"relative",display:"inline-block"}}>
+      <button onClick={()=>setYrOpen(p=>!p)}
+        style={{background:T.bg3,border:`1px solid ${T.bd}`,borderRadius:6,padding:"3px 10px",cursor:"pointer",
+          display:"flex",alignItems:"center",gap:4,fontSize:mob?12:13,fontWeight:700,color:T.txD}}>
+        {ttYear}年度
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      {yrOpen&&<><div onClick={()=>setYrOpen(false)} style={{position:"fixed",inset:0,zIndex:49}}/>
+        <div style={{position:"absolute",top:"100%",left:0,marginTop:4,background:T.bg2,border:`1px solid ${T.bd}`,borderRadius:8,
+          boxShadow:"0 4px 16px rgba(0,0,0,.4)",overflow:"hidden",zIndex:50,minWidth:90}}>
+          {ttYears.map(y=>(
+            <div key={y} onClick={()=>{setTtYear(y);setYrOpen(false);try{localStorage.setItem("ttYear",String(y));}catch{}}}
+              style={{padding:"8px 14px",cursor:"pointer",fontSize:13,fontWeight:y===ttYear?700:400,
+                color:y===ttYear?T.accent:T.txH,background:y===ttYear?`${T.accent}10`:"transparent"}}>
+              {y}年度
             </div>
           ))}
         </div></>}
@@ -76,7 +102,7 @@ export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefr
     return(<>
       <header style={{display:"flex",alignItems:"center",gap:8,padding:"env(safe-area-inset-top) 12px 0",minHeight:46,borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}>
         <div style={{display:"flex",alignItems:"center",gap:8,width:"100%",height:46}}>
-          <h1 style={{flex:1,margin:0,fontSize:16,fontWeight:700,color:T.txH,display:"flex",alignItems:"center",gap:6}}>時間割 <QDrop/></h1>
+          <h1 style={{flex:1,margin:0,fontSize:16,fontWeight:700,color:T.txH,display:"flex",alignItems:"center",gap:6}}>時間割 <QDrop/> <YrDrop/></h1>
           <RefreshBtn/>
         </div>
       </header>
@@ -145,8 +171,9 @@ export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefr
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <h2 style={{color:T.txH,margin:0,fontSize:22,fontWeight:800,letterSpacing:-.5}}>時間割</h2>
             <QDrop/>
+            <YrDrop/>
           </div>
-          <span style={{fontSize:12,color:T.txD}}>{(() => { const d = new Date(Date.now() + 9*3600000); return d.getUTCMonth() >= 3 ? d.getUTCFullYear() : d.getUTCFullYear() - 1; })()}年度 · {curC.length}科目 · {curC.length*2}単位</span>
+          <span style={{fontSize:12,color:T.txD}}>{curC.length}科目 · {curC.length*2}単位</span>
         </div>
         <RefreshBtn/>
       </div>
