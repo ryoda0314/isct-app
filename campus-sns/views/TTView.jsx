@@ -146,7 +146,7 @@ export const TTView=({setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefr
             <h2 style={{color:T.txH,margin:0,fontSize:22,fontWeight:800,letterSpacing:-.5}}>時間割</h2>
             <QDrop/>
           </div>
-          <span style={{fontSize:12,color:T.txD}}>2025年度 · {curC.length}科目 · {curC.length*2}単位</span>
+          <span style={{fontSize:12,color:T.txD}}>{(() => { const d = new Date(Date.now() + 9*3600000); return d.getUTCMonth() >= 3 ? d.getUTCFullYear() : d.getUTCFullYear() - 1; })()}年度 · {curC.length}科目 · {curC.length*2}単位</span>
         </div>
         <RefreshBtn/>
       </div>
