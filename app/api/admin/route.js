@@ -4,6 +4,8 @@ import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { sendPushToUser } from '../../../lib/push.js';
 import { getSyllabusFromDB, getSyllabusStats, fetchDeptSyllabus, getDeptList, getScrapeProgress } from '../../../lib/api/syllabus-bulk.js';
 
+export const maxDuration = 60;
+
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
 async function isAdmin(userid) {
