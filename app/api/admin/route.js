@@ -54,6 +54,7 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action') || 'stats';
+    console.log(`[Admin GET] action=${action}`);
     const sb = getSupabaseAdmin();
 
     if (action === 'stats') {
