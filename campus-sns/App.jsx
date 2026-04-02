@@ -375,7 +375,7 @@ export default function App(){
   const {unreadDM:dmUnread,markDMSeen}=useUnreadDM(user?.moodleId||user?.id);
   const {friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,friendIds:_fIds,isFriend:_isFriend,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,lookupById,refetch:refetchFriends}=useFriends(ready,user?.moodleId||user?.id);
   const {blocks:blockList,isBlocked,blockUser,unblockUser}=useBlocks(ready);
-  const {mutes:muteList,isMuted,muteUser,unmuteUser}=useMutes();
+  const {mutes:muteList,isMuted,muteUser,unmuteUser}=useMutes(ready);
   const {enqueue:enqueueOffline,pending:offlinePending}=useOfflineQueue();
   const presenceRoom=view==="course"&&cc?`course:${cc.id}`:view==="dept"&&cd?`dept:${cd.prefix}`:null;
   const {online}=usePresence(presenceRoom,{id:user.moodleId||user.id,name:user.name,col:user.col});

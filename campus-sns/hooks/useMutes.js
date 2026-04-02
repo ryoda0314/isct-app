@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { isDemoMode } from '../demoMode.js';
 
-export function useMutes() {
+export function useMutes(enabled = true) {
   const [mutes, setMutes] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -14,7 +14,7 @@ export function useMutes() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchMutes(); }, [fetchMutes]);
+  useEffect(() => { if (enabled) fetchMutes(); }, [fetchMutes, enabled]);
 
   const muteUser = useCallback(async (muted_id) => {
     try {
