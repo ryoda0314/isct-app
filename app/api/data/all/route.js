@@ -39,9 +39,13 @@ async function resolveStudentId(loginId, profileStudentId) {
 
 export async function GET(request) {
   try {
+    const T0 = Date.now();
+    const lap = (label) => console.log(`[All Timing] ${label}: ${Date.now() - T0}ms`);
+
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
     const { wstoken, userid, fullname } = auth;
+    lap('requireAuth');
 
     // Courses + schedule from syllabus
     const sb = getSupabaseAdmin();
@@ -49,15 +53,19 @@ export async function GET(request) {
       fetchUserCourses(wstoken, userid),
       sb.from('profiles').select('dept, year_group, unit, student_id').eq('moodle_id', userid).maybeSingle().then(r => r.data),
     ]);
+    lap(`fetchUserCourses (${raw?.length ?? 0} courses) + profile`);
+
     let scheduleMap = {};
     try {
       scheduleMap = await fetchScheduleForCourses(raw);
     } catch (e) {
       console.error('[All] Syllabus scrape failed:', e.message);
     }
+    lap(`fetchScheduleForCourses (${Object.keys(scheduleMap).length} entries)`);
 
     const courses = transformCourses(raw, scheduleMap, profileRow?.dept || null);
     console.log(`[All] user=${userid} ${raw?.length ?? 0} raw → ${courses.length} courses, ${Object.keys(scheduleMap).length} schedule entries`);
+    lap('transformCourses');
 
     // Save course enrollments to Supabase (fire-and-forget)
     if (raw && raw.length > 0) {
@@ -76,6 +84,7 @@ export async function GET(request) {
     for (const [q, qCourses] of Object.entries(byQ)) {
       qData[q] = { C: qCourses, TT: buildTimetable(qCourses) };
     }
+    lap('buildTimetable');
 
     // Assignments
     const courseIdMap = {};
@@ -88,6 +97,7 @@ export async function GET(request) {
     } catch (e) {
       console.error('[All] Assignment fetch failed:', e.message);
     }
+    lap(`fetchAssignments (${assignments.length} items)`);
 
     // Fetch submission status with concurrency limit to avoid overwhelming Moodle
     const CONCURRENCY = 3;
@@ -111,8 +121,10 @@ export async function GET(request) {
     if (statusFailed > 0) {
       console.warn(`[All] ${statusFailed}/${assignments.length} submission status fetches failed`);
     }
+    lap(`fetchSubmissionStatus (${assignments.length} items, ${statusFailed} failed, concurrency=${CONCURRENCY})`);
 
     const isAdmin = await checkAdmin(userid);
+    lap('checkAdmin');
 
     // 学籍番号 / year_group を解決
     let yearGroup = profileRow?.year_group || null;
@@ -131,6 +143,8 @@ export async function GET(request) {
         }
       }
     }
+    lap('resolveStudentId');
+    lap('=== TOTAL ===');
 
     return NextResponse.json({ qData, courses, assignments, user: { userid, fullname, isAdmin, dept: profileRow?.dept || null, yearGroup, unit: profileRow?.unit || null, studentId } });
   } catch (err) {
