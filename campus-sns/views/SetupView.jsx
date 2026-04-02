@@ -436,9 +436,10 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.detail || data.error);
       if (yearGroup) updateUserPref({ yearGroup, ...(school ? { school } : {}) });
-      onComplete();
+      await onComplete();
     } catch (err) {
       setError(err.message);
+    } finally {
       setConnecting(false);
     }
   };
@@ -455,9 +456,10 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "ログインに失敗しました");
-      onComplete();
+      await onComplete();
     } catch (err) {
       setError(err.message);
+    } finally {
       setConnecting(false);
     }
   };
