@@ -287,8 +287,9 @@ export default function App(){
       const{statuses}=await r.json();
       if(!statuses)return;
       const counts={completed:0,in_progress:0,not_started:0};
-      setAsgn(prev=>prev.map(a=>{const s=statuses[a.id];if(!s)return a.st==='loading'?{...a,st:'not_started'}:a;counts[s.st]=(counts[s.st]||0)+1;return{...a,st:s.st,sub:s.sub?new Date(s.sub):undefined};}));
-      console.log(`[Timing] fetchSubmissionStatuses done: ${(performance.now()-t0).toFixed(0)}ms — 提出済=${counts.completed} 進行中=${counts.in_progress} 未着手=${counts.not_started}`);
+      Object.values(statuses).forEach(s=>{if(s&&s.st)counts[s.st]=(counts[s.st]||0)+1;});
+      console.log(`[Timing] fetchSubmissionStatuses done: ${(performance.now()-t0).toFixed(0)}ms — 提出済=${counts.completed} 進行中=${counts.in_progress} 未着手=${counts.not_started} (total=${Object.keys(statuses).length})`);
+      setAsgn(prev=>prev.map(a=>{const s=statuses[a.id];if(!s)return a.st==='loading'?{...a,st:'not_started'}:a;return{...a,st:s.st,sub:s.sub?new Date(s.sub):undefined};}));
     }catch(e){console.error('[App] fetchSubmissionStatuses error:',e);setAsgn(prev=>prev.map(a=>a.st==='loading'?{...a,st:'not_started'}:a));}
   };
 
