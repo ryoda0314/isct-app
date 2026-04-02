@@ -285,8 +285,10 @@ export default function App(){
     try{
       const t0=performance.now();
       let currentAsgn=[];
-      if(assignList){currentAsgn=assignList.filter(a=>a.moodleId).map(a=>({id:a.id,moodleId:a.moodleId}));}
-      else{setAsgn(prev=>{currentAsgn=prev.filter(a=>a.moodleId).map(a=>({id:a.id,moodleId:a.moodleId}));return prev;});}
+      const cutoff=new Date(Date.now()-7*24*60*60*1000);
+      const filterActive=list=>list.filter(a=>a.moodleId&&(!a.due||a.due>=cutoff));
+      if(assignList){currentAsgn=filterActive(assignList).map(a=>({id:a.id,moodleId:a.moodleId}));}
+      else{setAsgn(prev=>{currentAsgn=filterActive(prev).map(a=>({id:a.id,moodleId:a.moodleId}));return prev;});}
       if(currentAsgn.length===0)return;
       console.log(`[Timing] fetchSubmissionStatuses: requesting ${currentAsgn.length} items`);
       const r=await fetch(`${API}/api/data/assignments/status`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments:currentAsgn})});
