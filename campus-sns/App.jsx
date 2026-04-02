@@ -258,14 +258,21 @@ export default function App(){
 
   const fetchData=async()=>{
     try{
+      const t0=performance.now();
       const r=await fetch(`${API}/api/data/all`);
+      const t1=performance.now();
+      console.log(`[Splash Timing] /api/data/all fetch: ${(t1-t0).toFixed(0)}ms (status=${r.status})`);
       if(r.status===401){setAppState("setup");return false;}
       if(!r.ok){console.error(`[App] /api/data/all failed: ${r.status} ${r.statusText}`);return false;}
       const d=await r.json();
+      const t2=performance.now();
+      console.log(`[Splash Timing] /api/data/all JSON parse: ${(t2-t1).toFixed(0)}ms (payload=${JSON.stringify(d).length} chars)`);
       if(d.qData) setQDataLive(d.qData);
       if(d.courses){setAllCourses(d.courses);if(d.courses[0]&&!cid)setCid(d.courses[0].id);}
       if(d.assignments) setAsgn(d.assignments.map(a=>({...a,due:new Date(a.due)})));
       if(d.user) setCurrentUserFromAPI(d.user);
+      const t3=performance.now();
+      console.log(`[Splash Timing] /api/data/all setState: ${(t3-t2).toFixed(0)}ms`);
       return true;
     }catch(e){ console.error("[App] fetchData exception:",e); return false; }
   };
@@ -296,26 +303,38 @@ export default function App(){
   };
 
   useEffect(()=>{
+    const tStart=performance.now();
+    console.log(`[Splash Timing] === startup begin ===`);
     (async()=>{
       try{
+        const t0=performance.now();
         const r=await fetch(`${API}/api/auth/status`);
         const d=await r.json();
+        const t1=performance.now();
+        console.log(`[Splash Timing] /api/auth/status: ${(t1-t0).toFixed(0)}ms (hasCredentials=${d.hasCredentials})`);
         if(d.hasCredentials){
+          const t2=performance.now();
           const ok=await fetchData();
+          const t3=performance.now();
+          console.log(`[Splash Timing] fetchData() total: ${(t3-t2).toFixed(0)}ms (ok=${ok})`);
           if(ok){
             setAppState("ready");
             if(guestMode) setGuestMode(null); // logged in, exit guest mode
             refreshRef.current=setInterval(fetchData,15*60*1000);
             fetchSiteSettings();
+            console.log(`[Splash Timing] appState → ready (total: ${(performance.now()-tStart).toFixed(0)}ms)`);
           }else{
             if(guestMode){setAppState("ready");setViewRaw(guestMode==="navi"?"navigation":"freshman");}
             else setAppState("setup");
+            console.log(`[Splash Timing] appState → setup/guest (total: ${(performance.now()-tStart).toFixed(0)}ms)`);
           }
         }else{
           if(guestMode){setAppState("ready");setViewRaw(guestMode==="navi"?"navigation":"freshman");}
           else setAppState("setup");
+          console.log(`[Splash Timing] no credentials → setup/guest (total: ${(performance.now()-tStart).toFixed(0)}ms)`);
         }
-      }catch{
+      }catch(e){
+        console.log(`[Splash Timing] startup error: ${e.message} (total: ${(performance.now()-tStart).toFixed(0)}ms)`);
         if(guestMode){setAppState("ready");setViewRaw(guestMode==="navi"?"navigation":"freshman");}
         else setAppState("setup");
       }
@@ -324,11 +343,15 @@ export default function App(){
   },[]);
 
   useEffect(()=>{
-    if(appState!=="loading"&&splashPhase==="show") setSplashPhase("fade");
+    if(appState!=="loading"&&splashPhase==="show"){
+      console.log(`[Splash Timing] splashPhase: show → fade (appState=${appState})`);
+      setSplashPhase("fade");
+    }
   },[appState,splashPhase]);
   useEffect(()=>{
     if(splashPhase==="fade"){
-      const t=setTimeout(()=>setSplashPhase("done"),600);
+      console.log(`[Splash Timing] fade started, waiting 600ms…`);
+      const t=setTimeout(()=>{console.log(`[Splash Timing] splashPhase: fade → done (splash fully dismissed)`);setSplashPhase("done");},600);
       return()=>clearTimeout(t);
     }
   },[splashPhase]);
