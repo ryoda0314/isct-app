@@ -7,6 +7,8 @@ const CONCURRENCY = 10;
 
 export async function POST(request) {
   try {
+    const T0 = Date.now();
+
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
     const { wstoken } = auth;
@@ -15,6 +17,7 @@ export async function POST(request) {
     if (!Array.isArray(assignments) || assignments.length === 0) {
       return NextResponse.json({ statuses: {} });
     }
+    console.log(`[AssignStatus Timing] start: ${assignments.length} items, concurrency=${CONCURRENCY}`);
 
     // Fetch submission status with concurrency limit
     const statuses = {};
@@ -41,6 +44,7 @@ export async function POST(request) {
       console.warn(`[AssignStatus] ${failed}/${assignments.length} fetches failed`);
     }
 
+    console.log(`[AssignStatus Timing] done: ${Date.now() - T0}ms (${assignments.length} items, ${failed} failed)`);
     return NextResponse.json({ statuses });
   } catch (err) {
     console.error('[AssignStatus] POST error:', err.message, err.stack);

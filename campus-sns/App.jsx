@@ -258,7 +258,9 @@ export default function App(){
 
   const fetchData=async()=>{
     try{
+      const t0=performance.now();
       const r=await fetch(`${API}/api/data/all`);
+      console.log(`[Timing] /api/data/all fetch: ${(performance.now()-t0).toFixed(0)}ms`);
       if(r.status===401){setAppState("setup");return false;}
       if(!r.ok){console.error(`[App] /api/data/all failed: ${r.status} ${r.statusText}`);return false;}
       const d=await r.json();
@@ -266,20 +268,25 @@ export default function App(){
       if(d.courses){setAllCourses(d.courses);if(d.courses[0]&&!cid)setCid(d.courses[0].id);}
       if(d.assignments) setAsgn(d.assignments.map(a=>({...a,due:new Date(a.due),st:'loading'})));
       if(d.user) setCurrentUserFromAPI(d.user);
+      console.log(`[Timing] /api/data/all total (fetch+parse+setState): ${(performance.now()-t0).toFixed(0)}ms`);
       return true;
     }catch(e){ console.error("[App] fetchData exception:",e); return false; }
   };
 
   const fetchSubmissionStatuses=async()=>{
     try{
+      const t0=performance.now();
       const currentAsgn=[];
       setAsgn(prev=>{prev.forEach(a=>{if(a.moodleId)currentAsgn.push({id:a.id,moodleId:a.moodleId});});return prev;});
       if(currentAsgn.length===0)return;
+      console.log(`[Timing] fetchSubmissionStatuses: requesting ${currentAsgn.length} items`);
       const r=await fetch(`${API}/api/data/assignments/status`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments:currentAsgn})});
       if(!r.ok){console.error('[App] fetchSubmissionStatuses failed:',r.status);return;}
       const{statuses}=await r.json();
       if(!statuses)return;
-      setAsgn(prev=>prev.map(a=>{const s=statuses[a.id];if(!s)return a.st==='loading'?{...a,st:'not_started'}:a;return{...a,st:s.st,sub:s.sub?new Date(s.sub):undefined};}));
+      const counts={completed:0,in_progress:0,not_started:0};
+      setAsgn(prev=>prev.map(a=>{const s=statuses[a.id];if(!s)return a.st==='loading'?{...a,st:'not_started'}:a;counts[s.st]=(counts[s.st]||0)+1;return{...a,st:s.st,sub:s.sub?new Date(s.sub):undefined};}));
+      console.log(`[Timing] fetchSubmissionStatuses done: ${(performance.now()-t0).toFixed(0)}ms — 提出済=${counts.completed} 進行中=${counts.in_progress} 未着手=${counts.not_started}`);
     }catch(e){console.error('[App] fetchSubmissionStatuses error:',e);setAsgn(prev=>prev.map(a=>a.st==='loading'?{...a,st:'not_started'}:a));}
   };
 
@@ -309,18 +316,23 @@ export default function App(){
   };
 
   useEffect(()=>{
+    const tStart=performance.now();
+    console.log(`[Timing] === startup begin ===`);
     const wasLoggedIn=!!localStorage.getItem("userPref");
     const MAX_RETRY=wasLoggedIn?3:1;
     const RETRY_DELAY=800;
     (async()=>{
       for(let attempt=1;attempt<=MAX_RETRY;attempt++){
         try{
+          const t0=performance.now();
           const r=await fetch(`${API}/api/auth/status`);
           const d=await r.json();
+          console.log(`[Timing] /api/auth/status: ${(performance.now()-t0).toFixed(0)}ms`);
           if(d.hasCredentials){
             const ok=await fetchData();
             if(ok){
               setAppState("ready");
+              console.log(`[Timing] appState → ready (splash dismissed): ${(performance.now()-tStart).toFixed(0)}ms`);
               if(guestMode) setGuestMode(null);
               refreshRef.current=setInterval(async()=>{const ok=await fetchData();if(ok)fetchSubmissionStatuses();},15*60*1000);
               fetchSiteSettings();
