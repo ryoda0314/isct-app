@@ -84,16 +84,20 @@ export async function GET(request) {
       qData[q] = { C: qCourses, TT: buildTimetable(qCourses) };
     }
 
-    // Assignments
+    // Assignments (retry once on failure)
     const courseIdMap = {};
     courses.forEach(c => { courseIdMap[c.moodleId] = c.id; });
     const moodleIds = courses.map(c => c.moodleId);
     let assignments = [];
-    try {
-      const moodleAsgn = await fetchAssignments(wstoken, moodleIds);
-      assignments = transformAssignments(moodleAsgn, courseIdMap);
-    } catch (e) {
-      console.error('[All] Assignment fetch failed:', e.message);
+    for (let _attempt = 0; _attempt < 2; _attempt++) {
+      try {
+        const moodleAsgn = await fetchAssignments(wstoken, moodleIds);
+        assignments = transformAssignments(moodleAsgn, courseIdMap);
+        break;
+      } catch (e) {
+        console.error(`[All] Assignment fetch failed (attempt ${_attempt + 1}):`, e.message);
+        if (_attempt === 0) await new Promise(r => setTimeout(r, 800));
+      }
     }
     lap(`fetchAssignments (${assignments.length} items)`);
 

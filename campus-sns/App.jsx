@@ -364,6 +364,41 @@ export default function App(){
     return()=>{if(refreshRef.current)clearInterval(refreshRef.current)};
   },[]);
 
+  // Re-fetch data when app resumes from background
+  useEffect(()=>{
+    if(appState!=="ready") return;
+    const cleanup={fn:null};
+    let cancelled=false;
+    let bgTime=null;
+    const onPause=()=>{bgTime=Date.now();};
+    const onResume=async()=>{
+      if(!bgTime) return;
+      const sec=(Date.now()-bgTime)/1000;
+      bgTime=null;
+      if(sec<5) return;
+      console.log(`[App] resume after ${sec.toFixed(0)}s — re-fetching data`);
+      const r=await fetchData();
+      if(r) fetchSubmissionStatuses(r);
+    };
+    (async()=>{
+      try{
+        const{App}=await import("@capacitor/app");
+        if(cancelled) return;
+        const p=await App.addListener("pause",onPause);
+        const r=await App.addListener("resume",onResume);
+        cleanup.fn=()=>{p.remove();r.remove();};
+        if(cancelled){cleanup.fn();cleanup.fn=null;}
+      }catch{
+        if(cancelled) return;
+        const h=()=>{if(document.hidden) onPause(); else onResume();};
+        document.addEventListener("visibilitychange",h);
+        cleanup.fn=()=>document.removeEventListener("visibilitychange",h);
+        if(cancelled){cleanup.fn();cleanup.fn=null;}
+      }
+    })();
+    return()=>{cancelled=true;cleanup.fn?.();};
+  },[appState]);
+
   useEffect(()=>{
     if(appState!=="loading"&&splashPhase==="show") setSplashPhase("fade");
   },[appState,splashPhase]);
