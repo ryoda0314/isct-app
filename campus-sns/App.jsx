@@ -266,18 +266,20 @@ export default function App(){
       const d=await r.json();
       if(d.qData) setQDataLive(d.qData);
       if(d.courses){setAllCourses(d.courses);if(d.courses[0]&&!cid)setCid(d.courses[0].id);}
-      if(d.assignments) setAsgn(d.assignments.map(a=>({...a,due:new Date(a.due),st:'loading'})));
+      const asnList=d.assignments?d.assignments.map(a=>({...a,due:new Date(a.due),st:'loading'})):[];
+      if(d.assignments) setAsgn(asnList);
       if(d.user) setCurrentUserFromAPI(d.user);
       console.log(`[Timing] /api/data/all total (fetch+parse+setState): ${(performance.now()-t0).toFixed(0)}ms`);
-      return true;
+      return asnList;
     }catch(e){ console.error("[App] fetchData exception:",e); return false; }
   };
 
-  const fetchSubmissionStatuses=async()=>{
+  const fetchSubmissionStatuses=async(assignList)=>{
     try{
       const t0=performance.now();
-      const currentAsgn=[];
-      setAsgn(prev=>{prev.forEach(a=>{if(a.moodleId)currentAsgn.push({id:a.id,moodleId:a.moodleId});});return prev;});
+      let currentAsgn=[];
+      if(assignList){currentAsgn=assignList.filter(a=>a.moodleId).map(a=>({id:a.id,moodleId:a.moodleId}));}
+      else{setAsgn(prev=>{currentAsgn=prev.filter(a=>a.moodleId).map(a=>({id:a.id,moodleId:a.moodleId}));return prev;});}
       if(currentAsgn.length===0)return;
       console.log(`[Timing] fetchSubmissionStatuses: requesting ${currentAsgn.length} items`);
       const r=await fetch(`${API}/api/data/assignments/status`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments:currentAsgn})});
@@ -329,14 +331,14 @@ export default function App(){
           const d=await r.json();
           console.log(`[Timing] /api/auth/status: ${(performance.now()-t0).toFixed(0)}ms`);
           if(d.hasCredentials){
-            const ok=await fetchData();
-            if(ok){
+            const asnList=await fetchData();
+            if(asnList){
               setAppState("ready");
               console.log(`[Timing] appState → ready (splash dismissed): ${(performance.now()-tStart).toFixed(0)}ms`);
               if(guestMode) setGuestMode(null);
-              refreshRef.current=setInterval(async()=>{const ok=await fetchData();if(ok)fetchSubmissionStatuses();},15*60*1000);
+              refreshRef.current=setInterval(async()=>{const r=await fetchData();if(r)fetchSubmissionStatuses(r);},15*60*1000);
               fetchSiteSettings();
-              fetchSubmissionStatuses();
+              fetchSubmissionStatuses(asnList);
             }else{
               if(guestMode){setAppState("ready");setViewRaw(guestMode==="navi"?"navigation":"freshman");}
               else setAppState("setup");
@@ -377,7 +379,7 @@ export default function App(){
   useEffect(()=>{try{localStorage.setItem("quarter",String(quarter));}catch{}},[quarter]);
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
   useEffect(()=>{try{localStorage.setItem("notifSettings",JSON.stringify(notifSettings));}catch{}},[notifSettings]);
-  const onSetupComplete=async()=>{const attempt=async(n)=>{const ok=await fetchData();if(ok){setAppState("ready");refreshRef.current=setInterval(async()=>{const ok=await fetchData();if(ok)fetchSubmissionStatuses();},15*60*1000);fetchSiteSettings();fetchSubmissionStatuses();return;}if(n<3){console.warn(`[App] fetchData attempt ${n} failed, retrying in ${n*2}s...`);await new Promise(r=>setTimeout(r,n*2000));return attempt(n+1);}console.error("[App] fetchData failed after 3 attempts, returning to setup");setAppState("setup");};await attempt(1);};
+  const onSetupComplete=async()=>{const attempt=async(n)=>{const r=await fetchData();if(r){setAppState("ready");refreshRef.current=setInterval(async()=>{const r2=await fetchData();if(r2)fetchSubmissionStatuses(r2);},15*60*1000);fetchSiteSettings();fetchSubmissionStatuses(r);return;}if(n<3){console.warn(`[App] fetchData attempt ${n} failed, retrying in ${n*2}s...`);await new Promise(r=>setTimeout(r,n*2000));return attempt(n+1);}console.error("[App] fetchData failed after 3 attempts, returning to setup");setAppState("setup");};await attempt(1);};
   const onDemo=(personaId)=>{if(process.env.NODE_ENV==="production")return;const pd=buildDemoDataForPersona(personaId);setDemoMode(true);setAllCourses(pd.courses);setQDataLive(pd.qdata);setAsgn(pd.asgn.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setCurrentUserFromAPI(pd.user);const q2c=pd.courses.find(c=>c.quarter===2);setCid(q2c?q2c.id:pd.courses[0].id);setQuarter(2);circleInit();try{localStorage.setItem("myLocation","lib");}catch{}setAppState("ready");};
 
   const cc=allCourses.find(c=>c.id===cid);
