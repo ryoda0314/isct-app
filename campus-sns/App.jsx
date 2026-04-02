@@ -564,7 +564,7 @@ export default function App(){
   // --- MOBILE ---
   const mBack=goBack;
   return(
-    <div ref={el=>{if(!el||!isNative())return;const u=()=>{el.style.height=window.innerHeight+"px";};u();window.addEventListener("resize",u);}} className="m-root" style={{display:"flex",flexDirection:"column",width:"100%",overflow:"hidden",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
+    <div ref={el=>{if(!el)return;const u=()=>{el.style.height=window.innerHeight+"px";};u();window.addEventListener("resize",u);}} style={{display:"flex",flexDirection:"column",width:"100%",overflow:"hidden",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",position:"fixed",top:0,left:0,right:0}}>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0,position:"relative"}}>
         {view==="home"&&<><MHdr title="ScienceTokyo App" right={<div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>setView("notif")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</button><button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button><button onClick={()=>setView("profile")} style={{background:"none",border:"none",cursor:"pointer",display:"flex",padding:0}}><Av u={user} sz={26}/></button></div>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit}/></>}
         {view==="timetable"&&(L?<><MHdr title="時間割"/><LockedView title="時間割"/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
@@ -593,10 +593,11 @@ export default function App(){
         {view==="freshman"&&<><MHdr title="新入生掲示板" back={mBack}/><FreshmanBoardView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/></>}
       </div>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread}/>
+      <div className="sa-bottom" style={{background:T.bg2,flexShrink:0}}/>
       {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
       <DemoBanner/>
       <Toasts/>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent;overflow:hidden;height:100%;height:-webkit-fill-available;width:100%}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}.m-root{position:absolute;top:0;left:0;right:0;bottom:0}.mnav{padding-bottom:env(safe-area-inset-bottom,0px)}@media(display-mode:standalone){.mnav{padding-bottom:0}}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent;overflow:hidden;height:100%;width:100%}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}.sa-bottom{height:env(safe-area-inset-bottom,0px)}`}</style>
     </div>
   );
 }
