@@ -322,46 +322,43 @@ export default function App(){
     const tStart=performance.now();
     console.log(`[Timing] === startup begin ===`);
     const wasLoggedIn=!!localStorage.getItem("userPref");
-    const MAX_RETRY=wasLoggedIn?3:1;
-    const RETRY_DELAY=800;
+    const goSetupOrGuest=()=>{
+      if(guestMode){setAppState("ready");setViewRaw(guestMode==="navi"?"navigation":"freshman");}
+      else setAppState("setup");
+    };
+    const goReady=(asnList)=>{
+      setAppState("ready");
+      console.log(`[Timing] appState → ready: ${(performance.now()-tStart).toFixed(0)}ms`);
+      if(guestMode) setGuestMode(null);
+      refreshRef.current=setInterval(async()=>{const r2=await fetchData();if(r2)fetchSubmissionStatuses(r2);},15*60*1000);
+      fetchSiteSettings();
+      fetchSubmissionStatuses(asnList);
+    };
     (async()=>{
-      for(let attempt=1;attempt<=MAX_RETRY;attempt++){
+      // Previously logged in → skip /api/auth/status, go straight to fetchData
+      // iOS PWA often fails to send cookies on the initial status check after cold start
+      if(wasLoggedIn){
+        console.log(`[Timing] wasLoggedIn=true, skipping status check, calling fetchData directly`);
         try{
-          const t0=performance.now();
-          const r=await fetch(`${API}/api/auth/status`);
-          const d=await r.json();
-          console.log(`[Timing] /api/auth/status: ${(performance.now()-t0).toFixed(0)}ms`);
-          if(d.hasCredentials){
-            const asnList=await fetchData();
-            if(asnList){
-              setAppState("ready");
-              console.log(`[Timing] appState → ready (splash dismissed): ${(performance.now()-tStart).toFixed(0)}ms`);
-              if(guestMode) setGuestMode(null);
-              refreshRef.current=setInterval(async()=>{const r=await fetchData();if(r)fetchSubmissionStatuses(r);},15*60*1000);
-              fetchSiteSettings();
-              fetchSubmissionStatuses(asnList);
-            }else{
-              if(guestMode){setAppState("ready");setViewRaw(guestMode==="navi"?"navigation":"freshman");}
-              else setAppState("setup");
-            }
-            return;
-          }
-          if(wasLoggedIn&&attempt<MAX_RETRY){
-            await new Promise(r=>setTimeout(r,RETRY_DELAY));
-            continue;
-          }
-          if(guestMode){setAppState("ready");setViewRaw(guestMode==="navi"?"navigation":"freshman");}
-          else setAppState("setup");
-          return;
-        }catch(e){
-          console.error(`[App] startup error (attempt ${attempt}/${MAX_RETRY}):`,e.message);
-          if(attempt<MAX_RETRY){
-            await new Promise(r=>setTimeout(r,RETRY_DELAY));
-            continue;
-          }
-          if(guestMode){setAppState("ready");setViewRaw(guestMode==="navi"?"navigation":"freshman");}
-          else setAppState("setup");
+          const asnList=await fetchData();
+          if(asnList){goReady(asnList);return;}
+        }catch(e){console.error("[App] direct fetchData failed:",e.message);}
+        // fetchData failed (401 or network) — fall through to status check as fallback
+        console.log(`[Timing] direct fetchData failed, falling back to /api/auth/status`);
+      }
+      try{
+        const t0=performance.now();
+        const r=await fetch(`${API}/api/auth/status`);
+        const d=await r.json();
+        console.log(`[Timing] /api/auth/status: ${(performance.now()-t0).toFixed(0)}ms (hasCredentials=${d.hasCredentials})`);
+        if(d.hasCredentials){
+          const asnList=await fetchData();
+          if(asnList){goReady(asnList);return;}
         }
+        goSetupOrGuest();
+      }catch(e){
+        console.error("[App] startup error:",e.message);
+        goSetupOrGuest();
       }
     })();
     return()=>{if(refreshRef.current)clearInterval(refreshRef.current)};
