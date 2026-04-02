@@ -89,17 +89,20 @@ export async function GET(request) {
     courses.forEach(c => { courseIdMap[c.moodleId] = c.id; });
     const moodleIds = courses.map(c => c.moodleId);
     let assignments = [];
+    let assignmentError = false;
     for (let _attempt = 0; _attempt < 2; _attempt++) {
       try {
         const moodleAsgn = await fetchAssignments(wstoken, moodleIds);
         assignments = transformAssignments(moodleAsgn, courseIdMap);
+        assignmentError = false;
         break;
       } catch (e) {
+        assignmentError = true;
         console.error(`[All] Assignment fetch failed (attempt ${_attempt + 1}):`, e.message);
         if (_attempt === 0) await new Promise(r => setTimeout(r, 800));
       }
     }
-    lap(`fetchAssignments (${assignments.length} items)`);
+    lap(`fetchAssignments (${assignments.length} items${assignmentError ? ' — ERROR' : ''})`);
 
     const isAdmin = await checkAdmin(userid);
     lap('checkAdmin');
@@ -123,7 +126,9 @@ export async function GET(request) {
     }
 
     lap('=== TOTAL ===');
-    return NextResponse.json({ qData, courses, assignments, user: { userid, fullname, isAdmin, dept: profileRow?.dept || null, yearGroup, unit: profileRow?.unit || null, studentId } });
+    const resp = { qData, courses, assignments, user: { userid, fullname, isAdmin, dept: profileRow?.dept || null, yearGroup, unit: profileRow?.unit || null, studentId } };
+    if (assignmentError) resp.assignmentError = true;
+    return NextResponse.json(resp);
   } catch (err) {
     console.error('[All] Unhandled error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });

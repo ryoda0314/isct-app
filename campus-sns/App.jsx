@@ -256,6 +256,7 @@ export default function App(){
   const [telecomRestricted,setTelecomRestricted]=useState(false);
   const [telecomMsg,setTelecomMsg]=useState("");
 
+  const lastAsnErrorRef=useRef(false);
   const fetchData=async()=>{
     try{
       const t0=performance.now();
@@ -269,7 +270,8 @@ export default function App(){
       const asnList=d.assignments?d.assignments.map(a=>({...a,due:new Date(a.due),st:'loading'})):[];
       if(d.assignments) setAsgn(asnList);
       if(d.user) setCurrentUserFromAPI(d.user);
-      console.log(`[Timing] /api/data/all total (fetch+parse+setState): ${(performance.now()-t0).toFixed(0)}ms`);
+      lastAsnErrorRef.current=!!d.assignmentError;
+      console.log(`[Timing] /api/data/all total (fetch+parse+setState): ${(performance.now()-t0).toFixed(0)}ms${d.assignmentError?' [assignmentError]':''}`);
       return asnList;
     }catch(e){ console.error("[App] fetchData exception:",e); return false; }
   };
@@ -333,6 +335,13 @@ export default function App(){
       refreshRef.current=setInterval(async()=>{const r2=await fetchData();if(r2)fetchSubmissionStatuses(r2);},15*60*1000);
       fetchSiteSettings();
       fetchSubmissionStatuses(asnList);
+      if(lastAsnErrorRef.current){
+        console.warn('[App] assignments failed on startup — retrying in 3s');
+        setTimeout(async()=>{
+          const r=await fetchData();
+          if(r&&!lastAsnErrorRef.current) fetchSubmissionStatuses(r);
+        },3000);
+      }
     };
     (async()=>{
       // Previously logged in → skip /api/auth/status, go straight to fetchData
