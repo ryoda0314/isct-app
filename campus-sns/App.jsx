@@ -257,6 +257,7 @@ export default function App(){
   const [telecomMsg,setTelecomMsg]=useState("");
 
   const lastAsnErrorRef=useRef(false);
+  const startupBusyRef=useRef(true);
   const fetchData=async()=>{
     try{
       const t0=performance.now();
@@ -268,7 +269,11 @@ export default function App(){
       if(d.qData) setQDataLive(d.qData);
       if(d.courses){setAllCourses(d.courses);if(d.courses[0]&&!cid)setCid(d.courses[0].id);}
       const asnList=d.assignments?d.assignments.map(a=>({...a,due:new Date(a.due),st:'loading'})):[];
-      if(d.assignments) setAsgn(asnList);
+      if(d.assignments) setAsgn(prev=>{
+        if(!prev||prev.length===0) return asnList;
+        const m={};prev.forEach(p=>{if(p.st&&p.st!=='loading') m[p.id]=p;});
+        return asnList.map(a=>{const p=m[a.id];return p?{...a,st:p.st,sub:p.sub}:a;});
+      });
       if(d.user) setCurrentUserFromAPI(d.user);
       lastAsnErrorRef.current=!!d.assignmentError;
       console.log(`[Timing] /api/data/all total (fetch+parse+setState): ${(performance.now()-t0).toFixed(0)}ms${d.assignmentError?' [assignmentError]':''}`);
@@ -340,7 +345,10 @@ export default function App(){
         setTimeout(async()=>{
           const r=await fetchData();
           if(r&&!lastAsnErrorRef.current) fetchSubmissionStatuses(r);
+          startupBusyRef.current=false;
         },3000);
+      }else{
+        startupBusyRef.current=false;
       }
     };
     (async()=>{
@@ -385,6 +393,7 @@ export default function App(){
       const sec=(Date.now()-bgTime)/1000;
       bgTime=null;
       if(sec<5) return;
+      if(startupBusyRef.current){console.log('[App] resume skipped — startup still in progress');return;}
       console.log(`[App] resume after ${sec.toFixed(0)}s — re-fetching data`);
       const r=await fetchData();
       if(r) fetchSubmissionStatuses(r);

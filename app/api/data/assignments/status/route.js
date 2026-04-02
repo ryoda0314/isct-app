@@ -27,14 +27,18 @@ export async function POST(request) {
       const batch = assignments.slice(i, i + CONCURRENCY);
       await Promise.all(
         batch.map(async ({ id, moodleId }) => {
-          try {
-            const status = await fetchSubmissionStatus(wstoken, moodleId);
-            const updated = updateAssignmentStatus({ id, moodleId, st: 'not_started' }, status);
-            statuses[id] = { st: updated.st, sub: updated.sub || null };
-          } catch (e) {
-            failed++;
-            console.error(`[AssignStatus] Failed for ${id} (moodle:${moodleId}):`, e.message);
-            statuses[id] = { st: 'not_started', sub: null };
+          for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+              const status = await fetchSubmissionStatus(wstoken, moodleId);
+              const updated = updateAssignmentStatus({ id, moodleId, st: 'not_started' }, status);
+              statuses[id] = { st: updated.st, sub: updated.sub || null };
+              return;
+            } catch (e) {
+              if (attempt === 0) continue;
+              failed++;
+              console.error(`[AssignStatus] Failed for ${id} (moodle:${moodleId}):`, e.message);
+              // Don't return fallback — let client keep existing status
+            }
           }
         })
       );
