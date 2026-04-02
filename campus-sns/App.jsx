@@ -258,23 +258,29 @@ export default function App(){
 
   const fetchData=async()=>{
     try{
-      const t0=performance.now();
       const r=await fetch(`${API}/api/data/all`);
-      const t1=performance.now();
-      console.log(`[Splash Timing] /api/data/all fetch: ${(t1-t0).toFixed(0)}ms (status=${r.status})`);
       if(r.status===401){setAppState("setup");return false;}
       if(!r.ok){console.error(`[App] /api/data/all failed: ${r.status} ${r.statusText}`);return false;}
       const d=await r.json();
-      const t2=performance.now();
-      console.log(`[Splash Timing] /api/data/all JSON parse: ${(t2-t1).toFixed(0)}ms (payload=${JSON.stringify(d).length} chars)`);
       if(d.qData) setQDataLive(d.qData);
       if(d.courses){setAllCourses(d.courses);if(d.courses[0]&&!cid)setCid(d.courses[0].id);}
-      if(d.assignments) setAsgn(d.assignments.map(a=>({...a,due:new Date(a.due)})));
+      if(d.assignments) setAsgn(d.assignments.map(a=>({...a,due:new Date(a.due),st:'loading'})));
       if(d.user) setCurrentUserFromAPI(d.user);
-      const t3=performance.now();
-      console.log(`[Splash Timing] /api/data/all setState: ${(t3-t2).toFixed(0)}ms`);
       return true;
     }catch(e){ console.error("[App] fetchData exception:",e); return false; }
+  };
+
+  const fetchSubmissionStatuses=async()=>{
+    try{
+      const currentAsgn=[];
+      setAsgn(prev=>{prev.forEach(a=>{if(a.moodleId)currentAsgn.push({id:a.id,moodleId:a.moodleId});});return prev;});
+      if(currentAsgn.length===0)return;
+      const r=await fetch(`${API}/api/data/assignments/status`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments:currentAsgn})});
+      if(!r.ok){console.error('[App] fetchSubmissionStatuses failed:',r.status);return;}
+      const{statuses}=await r.json();
+      if(!statuses)return;
+      setAsgn(prev=>prev.map(a=>{const s=statuses[a.id];if(!s)return a.st==='loading'?{...a,st:'not_started'}:a;return{...a,st:s.st,sub:s.sub?new Date(s.sub):undefined};}));
+    }catch(e){console.error('[App] fetchSubmissionStatuses error:',e);setAsgn(prev=>prev.map(a=>a.st==='loading'?{...a,st:'not_started'}:a));}
   };
 
   const fetchPastTimetable=async(year)=>{
@@ -303,55 +309,55 @@ export default function App(){
   };
 
   useEffect(()=>{
-    const tStart=performance.now();
-    console.log(`[Splash Timing] === startup begin ===`);
+    const wasLoggedIn=!!localStorage.getItem("userPref");
+    const MAX_RETRY=wasLoggedIn?3:1;
+    const RETRY_DELAY=800;
     (async()=>{
-      try{
-        const t0=performance.now();
-        const r=await fetch(`${API}/api/auth/status`);
-        const d=await r.json();
-        const t1=performance.now();
-        console.log(`[Splash Timing] /api/auth/status: ${(t1-t0).toFixed(0)}ms (hasCredentials=${d.hasCredentials})`);
-        if(d.hasCredentials){
-          const t2=performance.now();
-          const ok=await fetchData();
-          const t3=performance.now();
-          console.log(`[Splash Timing] fetchData() total: ${(t3-t2).toFixed(0)}ms (ok=${ok})`);
-          if(ok){
-            setAppState("ready");
-            if(guestMode) setGuestMode(null); // logged in, exit guest mode
-            refreshRef.current=setInterval(fetchData,15*60*1000);
-            fetchSiteSettings();
-            console.log(`[Splash Timing] appState → ready (total: ${(performance.now()-tStart).toFixed(0)}ms)`);
-          }else{
-            if(guestMode){setAppState("ready");setViewRaw(guestMode==="navi"?"navigation":"freshman");}
-            else setAppState("setup");
-            console.log(`[Splash Timing] appState → setup/guest (total: ${(performance.now()-tStart).toFixed(0)}ms)`);
+      for(let attempt=1;attempt<=MAX_RETRY;attempt++){
+        try{
+          const r=await fetch(`${API}/api/auth/status`);
+          const d=await r.json();
+          if(d.hasCredentials){
+            const ok=await fetchData();
+            if(ok){
+              setAppState("ready");
+              if(guestMode) setGuestMode(null);
+              refreshRef.current=setInterval(async()=>{const ok=await fetchData();if(ok)fetchSubmissionStatuses();},15*60*1000);
+              fetchSiteSettings();
+              fetchSubmissionStatuses();
+            }else{
+              if(guestMode){setAppState("ready");setViewRaw(guestMode==="navi"?"navigation":"freshman");}
+              else setAppState("setup");
+            }
+            return;
           }
-        }else{
+          if(wasLoggedIn&&attempt<MAX_RETRY){
+            await new Promise(r=>setTimeout(r,RETRY_DELAY));
+            continue;
+          }
           if(guestMode){setAppState("ready");setViewRaw(guestMode==="navi"?"navigation":"freshman");}
           else setAppState("setup");
-          console.log(`[Splash Timing] no credentials → setup/guest (total: ${(performance.now()-tStart).toFixed(0)}ms)`);
+          return;
+        }catch(e){
+          console.error(`[App] startup error (attempt ${attempt}/${MAX_RETRY}):`,e.message);
+          if(attempt<MAX_RETRY){
+            await new Promise(r=>setTimeout(r,RETRY_DELAY));
+            continue;
+          }
+          if(guestMode){setAppState("ready");setViewRaw(guestMode==="navi"?"navigation":"freshman");}
+          else setAppState("setup");
         }
-      }catch(e){
-        console.log(`[Splash Timing] startup error: ${e.message} (total: ${(performance.now()-tStart).toFixed(0)}ms)`);
-        if(guestMode){setAppState("ready");setViewRaw(guestMode==="navi"?"navigation":"freshman");}
-        else setAppState("setup");
       }
     })();
     return()=>{if(refreshRef.current)clearInterval(refreshRef.current)};
   },[]);
 
   useEffect(()=>{
-    if(appState!=="loading"&&splashPhase==="show"){
-      console.log(`[Splash Timing] splashPhase: show → fade (appState=${appState})`);
-      setSplashPhase("fade");
-    }
+    if(appState!=="loading"&&splashPhase==="show") setSplashPhase("fade");
   },[appState,splashPhase]);
   useEffect(()=>{
     if(splashPhase==="fade"){
-      console.log(`[Splash Timing] fade started, waiting 600ms…`);
-      const t=setTimeout(()=>{console.log(`[Splash Timing] splashPhase: fade → done (splash fully dismissed)`);setSplashPhase("done");},600);
+      const t=setTimeout(()=>setSplashPhase("done"),600);
       return()=>clearTimeout(t);
     }
   },[splashPhase]);
@@ -359,7 +365,7 @@ export default function App(){
   useEffect(()=>{try{localStorage.setItem("quarter",String(quarter));}catch{}},[quarter]);
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
   useEffect(()=>{try{localStorage.setItem("notifSettings",JSON.stringify(notifSettings));}catch{}},[notifSettings]);
-  const onSetupComplete=async()=>{const attempt=async(n)=>{const ok=await fetchData();if(ok){setAppState("ready");refreshRef.current=setInterval(fetchData,15*60*1000);fetchSiteSettings();return;}if(n<3){console.warn(`[App] fetchData attempt ${n} failed, retrying in ${n*2}s...`);await new Promise(r=>setTimeout(r,n*2000));return attempt(n+1);}console.error("[App] fetchData failed after 3 attempts, returning to setup");setAppState("setup");};await attempt(1);};
+  const onSetupComplete=async()=>{const attempt=async(n)=>{const ok=await fetchData();if(ok){setAppState("ready");refreshRef.current=setInterval(async()=>{const ok=await fetchData();if(ok)fetchSubmissionStatuses();},15*60*1000);fetchSiteSettings();fetchSubmissionStatuses();return;}if(n<3){console.warn(`[App] fetchData attempt ${n} failed, retrying in ${n*2}s...`);await new Promise(r=>setTimeout(r,n*2000));return attempt(n+1);}console.error("[App] fetchData failed after 3 attempts, returning to setup");setAppState("setup");};await attempt(1);};
   const onDemo=(personaId)=>{if(process.env.NODE_ENV==="production")return;const pd=buildDemoDataForPersona(personaId);setDemoMode(true);setAllCourses(pd.courses);setQDataLive(pd.qdata);setAsgn(pd.asgn.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setCurrentUserFromAPI(pd.user);const q2c=pd.courses.find(c=>c.quarter===2);setCid(q2c?q2c.id:pd.courses[0].id);setQuarter(2);circleInit();try{localStorage.setItem("myLocation","lib");}catch{}setAppState("ready");};
 
   const cc=allCourses.find(c=>c.id===cid);

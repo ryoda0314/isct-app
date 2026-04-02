@@ -4,10 +4,10 @@ import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { loadCredentials } from '../../../../lib/credentials.js';
 import { fetchUserCourses } from '../../../../lib/api/courses.js';
 import { fetchScheduleForCourses } from '../../../../lib/api/syllabus-scraper.js';
-import { fetchAssignments, fetchSubmissionStatus } from '../../../../lib/api/assignments.js';
+import { fetchAssignments } from '../../../../lib/api/assignments.js';
 import { transformCourses, groupByQuarter } from '../../../../lib/transform/course-transform.js';
 import { buildTimetable } from '../../../../lib/transform/timetable-builder.js';
-import { transformAssignments, updateAssignmentStatus } from '../../../../lib/transform/assignment-transform.js';
+import { transformAssignments } from '../../../../lib/transform/assignment-transform.js';
 
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -39,13 +39,9 @@ async function resolveStudentId(loginId, profileStudentId) {
 
 export async function GET(request) {
   try {
-    const T0 = Date.now();
-    const lap = (label) => console.log(`[All Timing] ${label}: ${Date.now() - T0}ms`);
-
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
     const { wstoken, userid, fullname } = auth;
-    lap('requireAuth');
 
     // Courses + schedule from syllabus
     const sb = getSupabaseAdmin();
@@ -53,7 +49,6 @@ export async function GET(request) {
       fetchUserCourses(wstoken, userid),
       sb.from('profiles').select('dept, year_group, unit, student_id').eq('moodle_id', userid).maybeSingle().then(r => r.data),
     ]);
-    lap(`fetchUserCourses (${raw?.length ?? 0} courses) + profile`);
 
     let scheduleMap = {};
     try {
@@ -61,11 +56,8 @@ export async function GET(request) {
     } catch (e) {
       console.error('[All] Syllabus scrape failed:', e.message);
     }
-    lap(`fetchScheduleForCourses (${Object.keys(scheduleMap).length} entries)`);
 
     const courses = transformCourses(raw, scheduleMap, profileRow?.dept || null);
-    console.log(`[All] user=${userid} ${raw?.length ?? 0} raw → ${courses.length} courses, ${Object.keys(scheduleMap).length} schedule entries`);
-    lap('transformCourses');
 
     // Save course enrollments to Supabase (fire-and-forget)
     if (raw && raw.length > 0) {
@@ -84,7 +76,6 @@ export async function GET(request) {
     for (const [q, qCourses] of Object.entries(byQ)) {
       qData[q] = { C: qCourses, TT: buildTimetable(qCourses) };
     }
-    lap('buildTimetable');
 
     // Assignments
     const courseIdMap = {};
@@ -97,34 +88,8 @@ export async function GET(request) {
     } catch (e) {
       console.error('[All] Assignment fetch failed:', e.message);
     }
-    lap(`fetchAssignments (${assignments.length} items)`);
-
-    // Fetch submission status with concurrency limit to avoid overwhelming Moodle
-    const CONCURRENCY = 3;
-    let statusFailed = 0;
-    for (let i = 0; i < assignments.length; i += CONCURRENCY) {
-      const batch = assignments.slice(i, i + CONCURRENCY);
-      const results = await Promise.all(
-        batch.map(async asgn => {
-          try {
-            const status = await fetchSubmissionStatus(wstoken, asgn.moodleId);
-            return updateAssignmentStatus(asgn, status);
-          } catch (e) {
-            statusFailed++;
-            console.error(`[All] Failed to fetch submission status for ${asgn.id} (moodle:${asgn.moodleId}):`, e.message);
-            return asgn;
-          }
-        })
-      );
-      assignments.splice(i, CONCURRENCY, ...results);
-    }
-    if (statusFailed > 0) {
-      console.warn(`[All] ${statusFailed}/${assignments.length} submission status fetches failed`);
-    }
-    lap(`fetchSubmissionStatus (${assignments.length} items, ${statusFailed} failed, concurrency=${CONCURRENCY})`);
 
     const isAdmin = await checkAdmin(userid);
-    lap('checkAdmin');
 
     // 学籍番号 / year_group を解決
     let yearGroup = profileRow?.year_group || null;
@@ -143,8 +108,6 @@ export async function GET(request) {
         }
       }
     }
-    lap('resolveStudentId');
-    lap('=== TOTAL ===');
 
     return NextResponse.json({ qData, courses, assignments, user: { userid, fullname, isAdmin, dept: profileRow?.dept || null, yearGroup, unit: profileRow?.unit || null, studentId } });
   } catch (err) {

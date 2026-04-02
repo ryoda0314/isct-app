@@ -11,7 +11,7 @@ const uDue=d=>{const df=d-NOW,dy=Math.floor(df/864e5),hr=Math.floor((df%864e5)/3
 const pDone=ss=>ss.length?Math.round(ss.filter(s=>s.d).length/ss.length*100):0;
 const tMap=()=>({question:{l:"質問",c:T.accent},material:{l:"教材",c:T.green},info:{l:"お知らせ",c:T.orange},discussion:{l:"議論",c:"#a855c7"},poll:{l:"投票",c:"#2d9d8f"},anon:{l:"匿名",c:T.txD}});
 const aMap=()=>({report:{l:"レポート",c:T.accent,i:I.pen},coding:{l:"コード",c:T.green,i:I.code},problem_set:{l:"演習",c:T.orange,i:I.pen},project:{l:"PJ",c:"#a855c7",i:I.tgt},quiz:{l:"テスト",c:T.yellow,i:I.pen}});
-const sMap=()=>({not_started:{l:"未着手",c:T.txD},in_progress:{l:"進行中",c:T.accent},completed:{l:"提出済",c:T.green}});
+const sMap=()=>({not_started:{l:"未着手",c:T.txD},in_progress:{l:"進行中",c:T.accent},completed:{l:"提出済",c:T.green},loading:{l:"読込中…",c:T.txD}});
 const pCol=()=>({high:T.red,medium:T.orange,low:T.txD});
 // mention parser: @name → highlighted span
 const parseMention=(text)=>{
