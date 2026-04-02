@@ -596,7 +596,7 @@ export default function App(){
       {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
       <DemoBanner/>
       <Toasts/>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent;overflow:hidden;height:100%;width:100%}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent;overflow:hidden;height:100%;width:100%}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}.mnav{padding-bottom:env(safe-area-inset-bottom,0px)}`}</style>
     </div>
   );
 }
