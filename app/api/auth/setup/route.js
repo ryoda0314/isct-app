@@ -6,7 +6,7 @@ import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 export async function POST(request) {
   try {
-    const { userId, password, totpSecret, portalUserId, portalPassword, matrix } = await request.json();
+    const { userId, password, totpSecret, portalUserId, portalPassword, matrix, isctValidated } = await request.json();
 
     // Need at least ISCT or Portal credentials
     const hasIsct = userId && password && totpSecret;
@@ -47,6 +47,18 @@ export async function POST(request) {
     };
 
     if (hasIsct) {
+      // If already validated in Step 0, use existing session instead of re-doing SSO
+      const cookie = request.cookies.get(COOKIE_NAME)?.value;
+      const existingSession = isctValidated ? verifySession(cookie) : null;
+
+      if (existingSession?.loginId === loginId) {
+        // Already authenticated — just save portal credentials and student_id
+        saveStudentId(existingSession.moodleUserId);
+        const response = NextResponse.json({ success: true, moodleUserId: existingSession.moodleUserId });
+        return response;
+      }
+
+      // Full SSO login (not pre-validated)
       invalidateToken(loginId);
       try {
         const { userid, fullname } = await getToken(loginId);

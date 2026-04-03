@@ -371,6 +371,8 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
   const [showPersonaPicker, setShowPersonaPicker] = useState(false);
   const [step, setStep] = useState(0);
   const [connecting, setConnecting] = useState(false);
+  const [connectingMsg, setConnectingMsg] = useState("");
+  const [isctValidated, setIsctValidated] = useState(false);
   const [privacyAgreed, setPrivacyAgreed] = useState(() => {
     try { return localStorage.getItem("privacyAgreed") === "true"; } catch { return false; }
   });
@@ -415,7 +417,56 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
     if (mode === "signup" && step === 0) { setMode(null); return; }
     if (mode === "signup") { setStep(s => s - 1); }
   };
-  const nextStep = () => { setError(null); setStep(s => s + 1); };
+  const nextStep = async () => {
+    setError(null);
+
+    // Step 0: validate ISCT credentials via SSO
+    if (step === 0 && hasIsct) {
+      setConnecting(true);
+      setConnectingMsg("ISCT SSO認証を確認中...\n初回は30秒ほどかかります");
+      try {
+        const resp = await fetch(`${API}/api/auth/validate/isct`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: isctId, password: isctPw, totpSecret }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || "ISCT認証に失敗しました");
+        setIsctValidated(true);
+      } catch (err) {
+        setError(err.message);
+        setConnecting(false);
+        setConnectingMsg("");
+        return;
+      }
+      setConnecting(false);
+      setConnectingMsg("");
+    }
+
+    // Step 1: validate Portal credentials
+    if (step === 1 && hasPortal) {
+      setConnecting(true);
+      setConnectingMsg("ポータル認証を確認中...\n30秒ほどかかります");
+      try {
+        const resp = await fetch(`${API}/api/auth/validate/portal`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ portalUserId: portalId, portalPassword: portalPw, matrix }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || "ポータル認証に失敗しました");
+      } catch (err) {
+        setError(err.message);
+        setConnecting(false);
+        setConnectingMsg("");
+        return;
+      }
+      setConnecting(false);
+      setConnectingMsg("");
+    }
+
+    setStep(s => s + 1);
+  };
 
   const handleSubmit = async () => {
     if (!hasIsct && !hasPortal) {
@@ -423,10 +474,17 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
       return;
     }
     setConnecting(true);
+    setConnectingMsg(isctValidated ? "設定を保存中..." : "");
     setError(null);
     try {
       const body = {};
-      if (hasIsct) { body.userId = isctId; body.password = isctPw; body.totpSecret = totpSecret; }
+      // ISCT: if already validated in Step 0, mark as pre-validated to skip SSO
+      if (hasIsct) {
+        body.userId = isctId;
+        body.password = isctPw;
+        body.totpSecret = totpSecret;
+        if (isctValidated) body.isctValidated = true;
+      }
       if (hasPortal) { body.portalUserId = portalId; body.portalPassword = portalPw; body.matrix = matrix; }
       const resp = await fetch(`${API}/api/auth/setup`, {
         method: "POST",
@@ -441,6 +499,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
       setError(err.message);
     } finally {
       setConnecting(false);
+      setConnectingMsg("");
     }
   };
 
@@ -496,9 +555,8 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
             <div style={{ width: 48, height: 48, border: `3px solid ${T.bd}`, borderTop: `3px solid ${T.accent}`, borderRadius: "50%", animation: "spin 1s linear infinite" }} />
             <p style={{ color: T.txH, fontSize: 15, fontWeight: 600, margin: 0 }}>接続中...</p>
-            <p style={{ color: T.txD, fontSize: 13, margin: 0, textAlign: "center", lineHeight: 1.6 }}>
-              {loginTab === "email" ? "メールアドレスで認証中..." : hasIsct ? "ISCT SSO認証を実行しています" : "認証情報を保存しています"}
-              {loginTab !== "email" && <><br />初回は30秒ほどかかります</>}
+            <p style={{ color: T.txD, fontSize: 13, margin: 0, textAlign: "center", lineHeight: 1.6, whiteSpace: "pre-line" }}>
+              {connectingMsg || (loginTab === "email" ? "メールアドレスで認証中..." : hasIsct ? "ISCT SSO認証を実行しています\n初回は30秒ほどかかります" : "認証情報を保存しています")}
             </p>
             {error && <div style={{ padding: "10px 14px", borderRadius: 10, background: `${T.red}18`, color: T.red, fontSize: 13, width: "100%", maxWidth: 300, textAlign: "center" }}>{error}</div>}
           </div>
