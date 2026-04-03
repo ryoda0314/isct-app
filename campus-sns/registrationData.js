@@ -79,3 +79,26 @@ export const OPT_1Q = OPTIONAL;
 
 // カテゴリ一覧
 export const OPT_CATS = [...new Set(OPTIONAL.map(c => c.cat))];
+
+// ── ユニット番号 → セクション対応表 ──────────────
+// 16グループ（各5ユニット: 1-5, 6-10, ..., 76-80）
+const MECH_SEC = ['A','B','C','D','I','J','K','L','E','F','G','H','M','N','O','P'];
+const PHYEX_SEC= ['a','b','c','d','i','j','k','l','e','f','g','h','m','n','o','p'];
+const LAB_DAYS = ['月','月','火','火','木','木','金','金','月','月','火','火','木','木','金','金'];
+
+export const UNIT_MAP = { mech1: MECH_SEC, phyex1: PHYEX_SEC };
+
+/** courseId + unitNum → セクション名 (A-P / a-p) or null */
+export function unitToSection(courseId, unitNum) {
+  const n = parseInt(unitNum);
+  if (!n || n < 1 || n > 80) return null;
+  const sec = UNIT_MAP[courseId];
+  return sec ? sec[Math.floor((n - 1) / 5)] : null;
+}
+
+/** unitNum → 実験/演習の曜日 or null */
+export function unitToLabDay(unitNum) {
+  const n = parseInt(unitNum);
+  if (!n || n < 1 || n > 80) return null;
+  return LAB_DAYS[Math.floor((n - 1) / 5)];
+}

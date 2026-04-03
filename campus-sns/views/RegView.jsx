@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
-import { REQ_1Q, OPT_1Q, OPT_CATS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey } from "../registrationData.js";
+import { REQ_1Q, OPT_1Q, OPT_CATS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
 
 const LS="reg1q";
 const load=()=>{try{return JSON.parse(localStorage.getItem(LS))||{};}catch{return{};}};
@@ -116,24 +116,55 @@ export const RegView=({mob})=>{
     return {...p,reqSec:{...(p.reqSec||{}),[cid]:secName},req:{...p.req,[cid]:slots}};
   });
 
-  // ── Apply unit number to all common required courses ──
+  // ── Apply unit number to all courses ──
   const applyUnit=(unitNum)=>{
     if(!sectionData||!unitNum) return;
-    const n=String(parseInt(unitNum));
-    const pad=n.padStart(2,'0');
+    const num=parseInt(unitNum);
+    if(!num||num<1||num>80) return;
+    const n=String(num), pad=n.padStart(2,'0');
     up(p=>{
-      const nReq={...p.req},nSec={...(p.reqSec||{})};
-      let matched=0;
+      const nReq={...p.req},nSec={...(p.reqSec||{})},nSci={...p.sci},nOpt={...p.opt};
+      // Helper: find & apply section
+      const apply=(cid,cname,secName)=>{
+        const sections=sectionData[cname]||[];
+        const sec=sections.find(s=>s.section===secName);
+        if(!sec) return false;
+        const slots=sec.slots.map(toGridSlot).filter(Boolean);
+        if(!slots.length) return false;
+        nSec[cid]=sec.section;
+        return slots;
+      };
+      // 1) Common required — match unit number as section name
       for(const c of REQ_1Q.common){
         const sections=sectionData[c.name]||[];
         const sec=sections.find(s=>s.section===n||s.section===pad||s.section===unitNum);
-        if(sec){
-          nReq[c.id]=sec.slots.map(toGridSlot).filter(Boolean);
-          nSec[c.id]=sec.section;
-          matched++;
+        if(sec){ nReq[c.id]=sec.slots.map(toGridSlot).filter(Boolean); nSec[c.id]=sec.section; }
+      }
+      // 2) Science — use UNIT_MAP (mech1 → A-P)
+      for(const c of REQ_1Q.science){
+        const letter=unitToSection(c.id,num);
+        if(letter){
+          const slots=apply(c.id,c.name,letter);
+          if(slots){ nSci[c.id]=true; nReq[c.id]=slots; }
         }
       }
-      return {...p,req:nReq,reqSec:nSec,unit:unitNum};
+      // 3) Optional — UNIT_MAP (phyex1 → a-p) or lab day matching
+      const labIds=['phylab','chemlab'];
+      for(const c of OPT_1Q){
+        const letter=unitToSection(c.id,num);
+        if(letter){
+          const slots=apply(c.id,c.name,letter);
+          if(slots) nOpt[c.id]=slots;
+        } else if(labIds.includes(c.id)){
+          const day=unitToLabDay(num);
+          if(day){
+            const sections=sectionData[c.name]||[];
+            const sec=sections.find(s=>s.slots.some(sl=>sl.day===day));
+            if(sec){ nOpt[c.id]=sec.slots.map(toGridSlot).filter(Boolean); nSec[c.id]=sec.section; }
+          }
+        }
+      }
+      return {...p,req:nReq,reqSec:nSec,sci:nSci,opt:nOpt,unit:unitNum};
     });
   };
 
@@ -448,9 +479,9 @@ export const RegView=({mob})=>{
                 opacity:!unit||secLoading?.5:1,whiteSpace:"nowrap"}}>
               一括設定
             </button>
-            {unit&&reqSec&&REQ_1Q.common.some(c=>reqSec[c.id])&&(
+            {unit&&reqSec&&Object.keys(reqSec).length>0&&(
               <span style={{fontSize:10,color:T.green}}>
-                {REQ_1Q.common.filter(c=>reqSec[c.id]).length}/{REQ_1Q.common.length}科目設定済
+                {Object.keys(reqSec).length}科目設定済
               </span>
             )}
           </div>
