@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
-import { REQ_1Q, REQ_2Q, OPT_1Q, OPT_2Q, OPT_CATS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
+import { REQ_1Q, REQ_2Q, CAT_COLORS, UNIT_OPT, LAB_OPT, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
 
 // Per-quarter localStorage
 const lsKey=q=>`reg_${q}`;
@@ -10,14 +10,28 @@ const saveQ=(q,d)=>{try{localStorage.setItem(lsKey(q),JSON.stringify(d));}catch{
 // Migration: old "reg1q" → "reg_1Q"
 (function migrate(){try{const old=localStorage.getItem("reg1q");if(old&&!localStorage.getItem("reg_1Q")){localStorage.setItem("reg_1Q",old);localStorage.removeItem("reg1q");}}catch{}})();
 
-const initQ=q=>{const s=loadQ(q);return{req:s.req||{},reqSec:s.reqSec||{},sci:s.sci||{},opt:s.opt||{},unit:s.unit||""};};
+const initQ=q=>{const s=loadQ(q);return{req:s.req||{},reqSec:s.reqSec||{},sci:s.sci||{},opt:s.opt||{},optInfo:s.optInfo||{},unit:s.unit||""};};
 
 // ── Main View ──────────────────────────────────────
 export const RegView=({mob})=>{
   const [quarter,setQuarter]=useState("1Q");
   const [data,setData]=useState(()=>initQ("1Q"));
   const curReq=quarter==="1Q"?REQ_1Q:REQ_2Q;
-  const curOpt=quarter==="1Q"?OPT_1Q:OPT_2Q;
+
+  // DB state
+  const [sectionData,setSectionData]=useState(null);
+  const [secLoading,setSecLoading]=useState(true);
+  const [dbCats,setDbCats]=useState([]);
+  const [dbLoading,setDbLoading]=useState(true);
+
+  // UI state
+  const [reqOpen,setReqOpen]=useState(true);
+  const [optOpen,setOptOpen]=useState(true);
+  const [openCats,setOpenCats]=useState({});
+  const [search,setSearch]=useState("");
+  const [detailCourse,setDetailCourse]=useState(null);
+  const [syllabusData,setSyllabusData]=useState(null);
+  const [syllabusLoading,setSyllabusLoading]=useState(false);
 
   // Save & switch quarter
   const switchQ=(q)=>{
@@ -25,29 +39,29 @@ export const RegView=({mob})=>{
     setData(initQ(q));
     setQuarter(q);
     setSectionData(null);setSecLoading(true);
+    setDbCats([]);setDbLoading(true);
   };
 
   const up=useCallback((fn)=>setData(prev=>{const next=fn(prev);saveQ(quarter,next);return next;}),[quarter]);
 
-  const {req,reqSec,sci,opt,unit}=data;
-  const [reqOpen,setReqOpen]=useState(true);
-  const [optOpen,setOptOpen]=useState(true);
-  const [search,setSearch]=useState("");
-  const [catFilter,setCatFilter]=useState(null);
-  const [slotPick,setSlotPick]=useState(null);
-  const [detailCourse,setDetailCourse]=useState(null);
-  const [syllabusData,setSyllabusData]=useState(null);
-  const [syllabusLoading,setSyllabusLoading]=useState(false);
-  const [sectionData,setSectionData]=useState(null);
-  const [secLoading,setSecLoading]=useState(true);
+  const {req,reqSec,sci,opt,optInfo,unit}=data;
 
-  // ── Fetch section data from DB (per quarter) ──
+  // ── Fetch required sections from DB ──
   useEffect(()=>{
     setSecLoading(true);
-    const names=[...curReq.common,...curReq.science,...curOpt].map(c=>c.name);
+    const names=[...curReq.common,...curReq.science].map(c=>c.name);
     fetch(`/api/data/reg-sections?year=2026&quarter=${quarter}&names=${encodeURIComponent(names.join(','))}`)
       .then(r=>r.json()).then(d=>{setSectionData(d.courses||{});setSecLoading(false);})
       .catch(()=>setSecLoading(false));
+  },[quarter]);
+
+  // ── Fetch optional courses from DB (categorized) ──
+  useEffect(()=>{
+    setDbLoading(true);
+    const excludeNames=[...curReq.common,...curReq.science].map(c=>c.name).join(',');
+    fetch(`/api/data/reg-courses?year=2026&quarter=${quarter}&exclude=${encodeURIComponent(excludeNames)}`)
+      .then(r=>r.json()).then(d=>{setDbCats(d.categories||[]);setDbLoading(false);})
+      .catch(()=>{setDbCats([]);setDbLoading(false);});
   },[quarter]);
 
   // ── Convert DB slot to grid [day, period] ──
@@ -70,12 +84,13 @@ export const RegView=({mob})=>{
       const sl=req[c.id]||[];
       if(sl.length) list.push({...c,sel:sl,type:"sci"});
     }
-    for(const c of curOpt){
-      const sl=opt[c.id]||[];
-      if(sl.length) list.push({...c,sel:sl,type:"opt"});
+    for(const [code,slots] of Object.entries(opt)){
+      if(!slots||!slots.length) continue;
+      const info=optInfo[code]||{};
+      list.push({id:code,name:info.name||code,cr:info.cr||0,col:CAT_COLORS[info.cat]||'#6b7280',sel:slots,type:"opt"});
     }
     return list;
-  },[req,sci,opt,quarter]);
+  },[req,sci,opt,optInfo,quarter]);
 
   // ── Grid ──
   const grid=useMemo(()=>{
@@ -126,26 +141,47 @@ export const RegView=({mob})=>{
     return {...p,reqSec:{...(p.reqSec||{}),[cid]:secName},req:{...p.req,[cid]:slots}};
   });
 
+  // ── Select section for optional course (DB-driven, keyed by code) ──
+  const selectOptSec=(code,courseName,cat,cr,secObj)=>up(p=>{
+    const slots=secObj.slots.map(toGridSlot).filter(Boolean);
+    if((p.reqSec||{})[code]===secObj.section){
+      // Deselect
+      const ns={...(p.reqSec||{})};delete ns[code];
+      const no={...p.opt};delete no[code];
+      const ni={...p.optInfo};delete ni[code];
+      return {...p,reqSec:ns,opt:no,optInfo:ni};
+    }
+    return {
+      ...p,
+      reqSec:{...(p.reqSec||{}),[code]:secObj.section},
+      opt:{...p.opt,[code]:slots},
+      optInfo:{...(p.optInfo||{}),[code]:{name:courseName,cat,cr}},
+    };
+  });
+
+  const rmOpt=(code)=>up(p=>{
+    const no={...p.opt};delete no[code];
+    const ns={...(p.reqSec||{})};delete ns[code];
+    const ni={...(p.optInfo||{})};delete ni[code];
+    return{...p,opt:no,reqSec:ns,optInfo:ni};
+  });
+
   // ── Apply unit number to all courses ──
   const applyUnit=(unitNum)=>{
     if(!sectionData||!unitNum) return;
     const num=parseInt(unitNum);
     if(!num||num<1||num>80) return;
-    const n=String(num), pad=n.padStart(2,'0');
     up(p=>{
-      const nReq={...p.req},nSec={...(p.reqSec||{})},nSci={...p.sci},nOpt={...p.opt};
-      const apply=(cid,cname,secName)=>{
+      const nReq={...p.req},nSec={...(p.reqSec||{})},nSci={...p.sci},nOpt={...p.opt},nOptInfo={...(p.optInfo||{})};
+      const applySlots=(cname,secName)=>{
         const sections=sectionData[cname]||[];
         const sec=sections.find(s=>s.section===secName);
-        if(!sec) return false;
-        const slots=sec.slots.map(toGridSlot).filter(Boolean);
-        if(!slots.length) return false;
-        nSec[cid]=sec.section;
-        return slots;
+        if(!sec) return null;
+        return sec.slots.map(toGridSlot).filter(Boolean);
       };
       const secMatchNum=(secName,mn)=>{
-        const s=String(mn),p=s.padStart(2,'0');
-        if(secName===s||secName===p) return true;
+        const s=String(mn),pad=s.padStart(2,'0');
+        if(secName===s||secName===pad) return true;
         const m=secName.match(/\((\d+)[~～\-](\d+)\)/);
         return m&&mn>=parseInt(m[1])&&mn<=parseInt(m[2]);
       };
@@ -160,27 +196,46 @@ export const RegView=({mob})=>{
       for(const c of curReq.science){
         const letter=unitToSection(c.id,num);
         if(letter){
-          const slots=apply(c.id,c.name,letter);
-          if(slots){ nSci[c.id]=true; nReq[c.id]=slots; }
+          const slots=applySlots(c.name,letter);
+          if(slots&&slots.length){ nSci[c.id]=true; nReq[c.id]=slots; nSec[c.id]=letter; }
         }
       }
-      // 3) Optional — UNIT_MAP or lab day
-      const labIds=['phylab','chemlab'];
-      for(const c of curOpt){
-        const letter=unitToSection(c.id,num);
-        if(letter){
-          const slots=apply(c.id,c.name,letter);
-          if(slots) nOpt[c.id]=slots;
-        } else if(labIds.includes(c.id)){
-          const day=unitToLabDay(num);
-          if(day){
-            const sections=sectionData[c.name]||[];
-            const sec=sections.find(s=>s.slots.some(sl=>sl.day===day));
-            if(sec){ nOpt[c.id]=sec.slots.map(toGridSlot).filter(Boolean); nSec[c.id]=sec.section; }
+      // 3) Optional — UNIT_OPT / LAB_OPT auto-apply
+      for(const cat of dbCats){
+        for(const course of cat.courses){
+          // Check UNIT_OPT (e.g. 物理学演習第一 → phyex1 section mapping)
+          const mapId=UNIT_OPT[course.code];
+          if(mapId){
+            const letter=unitToSection(mapId,num);
+            if(letter){
+              // Find matching section in DB course
+              const sec=course.sections.find(s=>s.section===letter);
+              if(sec){
+                const slots=sec.slots.map(toGridSlot).filter(Boolean);
+                if(slots.length){
+                  nOpt[course.code]=slots; nSec[course.code]=sec.section;
+                  nOptInfo[course.code]={name:course.name,cat:cat.name,cr:1};
+                }
+              }
+            }
+          }
+          // Check LAB_OPT (e.g. 化学実験第一 → match by day)
+          if(LAB_OPT.includes(course.code)){
+            const day=unitToLabDay(num);
+            if(day){
+              const sec=course.sections.find(s=>s.slots.some(sl=>sl.day===day));
+              if(sec){
+                const slots=sec.slots.map(toGridSlot).filter(Boolean);
+                if(slots.length){
+                  nOpt[course.code]=slots; nSec[course.code]=sec.section;
+                  nOptInfo[course.code]={name:course.name,cat:cat.name,cr:1};
+                }
+              }
+            }
           }
         }
       }
-      return {...p,req:nReq,reqSec:nSec,sci:nSci,opt:nOpt,unit:unitNum};
+      return {...p,req:nReq,reqSec:nSec,sci:nSci,opt:nOpt,optInfo:nOptInfo,unit:unitNum};
     });
   };
 
@@ -191,40 +246,7 @@ export const RegView=({mob})=>{
     return {...p,sci:{...p.sci,[cid]:!off},req:off?{...p.req,[cid]:[]}:p.req,reqSec:ns};
   });
 
-  // ── Select section for optional ──
-  const selectOptSec=(cid,courseName,secName)=>up(p=>{
-    const sections=sectionData?.[courseName]||[];
-    const sec=sections.find(s=>s.section===secName);
-    if(!sec) return p;
-    const slots=sec.slots.map(toGridSlot).filter(Boolean);
-    if((p.reqSec||{})[cid]===secName){
-      const ns={...(p.reqSec||{})};delete ns[cid];
-      const no={...p.opt};delete no[cid];
-      return {...p,reqSec:ns,opt:no};
-    }
-    return {...p,reqSec:{...(p.reqSec||{}),[cid]:secName},opt:{...p.opt,[cid]:slots}};
-  });
-
-  const addOpt=(cid,slot)=>{
-    up(p=>({...p,opt:{...p.opt,[cid]:[...(p.opt[cid]||[]),slot]}}));
-    setSlotPick(null);
-  };
-
-  const rmOpt=(cid)=>up(p=>{
-    const no={...p.opt};delete no[cid];
-    const ns={...(p.reqSec||{})};delete ns[cid];
-    return{...p,opt:no,reqSec:ns};
-  });
-
-  const rmOptSlot=(cid,slot)=>up(p=>{
-    const cur=(p.opt[cid]||[]).filter(s=>slotKey(s)!==slotKey(slot));
-    const next={...p.opt};
-    if(cur.length) next[cid]=cur; else delete next[cid];
-    const ns={...(p.reqSec||{})};if(!cur.length) delete ns[cid];
-    return{...p,opt:next,reqSec:ns};
-  });
-
-  const resetAll=()=>{if(confirm("このクオーターの選択をリセットしますか？")){up(()=>({req:{},reqSec:{},sci:{},opt:{},unit:data.unit}));}};
+  const resetAll=()=>{if(confirm("このクオーターの選択をリセットしますか？")){up(()=>({req:{},reqSec:{},sci:{},opt:{},optInfo:{},unit:data.unit}));}};
 
   const fetchSyllabus=async(name)=>{
     setDetailCourse(name);setSyllabusLoading(true);setSyllabusData(null);
@@ -236,12 +258,17 @@ export const RegView=({mob})=>{
     setSyllabusLoading(false);
   };
 
-  const filtered=useMemo(()=>{
-    let list=curOpt;
-    if(catFilter) list=list.filter(c=>c.cat===catFilter);
-    if(search){const q=search.toLowerCase();list=list.filter(c=>c.name.toLowerCase().includes(q)||(c.school||"").includes(q));}
-    return list;
-  },[search,catFilter,curOpt]);
+  // ── Filter DB categories by search ──
+  const filteredCats=useMemo(()=>{
+    if(!search) return dbCats;
+    const q=search.toLowerCase();
+    return dbCats.map(cat=>{
+      const courses=cat.courses.filter(c=>c.name.toLowerCase().includes(q)||c.code.toLowerCase().includes(q));
+      return courses.length?{...cat,courses}:null;
+    }).filter(Boolean);
+  },[dbCats,search]);
+
+  const toggleCat=(catName)=>setOpenCats(p=>({...p,[catName]:!p[catName]}));
 
   // ── Styles ──
   const pd=mob?12:20;
@@ -253,7 +280,7 @@ export const RegView=({mob})=>{
     if(!c) return <div style={{width:cellW,height:cellH,background:T.bg3,borderRadius:6,border:`1px solid ${T.bd}`}}/>;
     const isConflict=!!c.conflict;
     return(
-      <div onClick={()=>{ if(c.type==="opt"){if((reqSec||{})[c.id]) rmOpt(c.id); else rmOptSlot(c.id,[d,p]);} else fetchSyllabus(c.name); }}
+      <div onClick={()=>{ if(c.type==="opt") rmOpt(c.id); else fetchSyllabus(c.name); }}
         title={isConflict?`衝突: ${c.name} / ${c.conflict}`:c.name}
         style={{width:cellW,height:cellH,background:isConflict?`${T.red}20`:`${c.col}18`,borderRadius:6,
           border:`1.5px solid ${isConflict?T.red:c.col}`,cursor:"pointer",padding:3,overflow:"hidden",
@@ -265,20 +292,6 @@ export const RegView=({mob})=>{
         </div>
         {c.type==="opt"&&<div style={{fontSize:7,color:T.txD,marginTop:1}}>tap to remove</div>}
       </div>
-    );
-  };
-
-  const Chip=({slot,selected,conflict,onClick,small})=>{
-    const label=slotLabel(slot);
-    const isBusy=conflict&&!selected;
-    return(
-      <button onClick={onClick} style={{padding:small?"2px 8px":"4px 12px",borderRadius:6,fontSize:small?10:12,fontWeight:selected?700:400,
-        border:`1.5px solid ${selected?T.accent:isBusy?T.red+"60":T.bd}`,
-        background:selected?`${T.accent}18`:isBusy?`${T.red}08`:T.bg3,
-        color:selected?T.accent:isBusy?T.txD:T.txH,cursor:"pointer",whiteSpace:"nowrap",
-        opacity:isBusy?.5:1,transition:"all .12s"}}>
-        {label}
-      </button>
     );
   };
 
@@ -346,7 +359,16 @@ export const RegView=({mob})=>{
               const k=slotKey(s);
               const sel=selSlots.some(x=>slotKey(x)===k);
               const busy=!sel&&occupied.has(k);
-              return <Chip key={k} slot={s} selected={sel} conflict={busy} onClick={()=>togReq(c.id,s)}/>;
+              return(
+                <button key={k} onClick={()=>togReq(c.id,s)}
+                  style={{padding:"4px 12px",borderRadius:6,fontSize:12,fontWeight:sel?700:400,
+                    border:`1.5px solid ${sel?T.accent:busy?T.red+"60":T.bd}`,
+                    background:sel?`${T.accent}18`:busy?`${T.red}08`:T.bg3,
+                    color:sel?T.accent:busy?T.txD:T.txH,cursor:"pointer",whiteSpace:"nowrap",
+                    opacity:busy?.5:1,transition:"all .12s"}}>
+                  {slotLabel(s)}
+                </button>
+              );
             })}
           </div>
         ))}
@@ -354,64 +376,47 @@ export const RegView=({mob})=>{
     );
   };
 
-  const OptRow=({c})=>{
-    const added=(opt[c.id]||[]).length>0;
-    const selSec=(reqSec||{})[c.id];
-    const courseSections=sectionData?.[c.name]||[];
-    const hasSections=!secLoading&&courseSections.length>0;
-    const otherOcc=hasSections?occExcept(c.id):null;
+  // ── DB Optional Course Row ──
+  const DbOptRow=({course,catName})=>{
+    const code=course.code;
+    const isAdded=!!(opt[code]&&opt[code].length>0);
+    const selSec=(reqSec||{})[code];
+    const otherOcc=occExcept(code);
+    const catCol=CAT_COLORS[catName]||'#6b7280';
     return(
       <div style={{padding:"8px 0",borderBottom:`1px solid ${T.bd}08`}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div style={{width:6,height:6,borderRadius:3,background:c.col,flexShrink:0}}/>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",gap:6}}>
-              <span style={{fontSize:12,fontWeight:500,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
-              {c.school&&<span style={{fontSize:9,color:T.txD,background:T.bg3,padding:"1px 5px",borderRadius:4,whiteSpace:"nowrap"}}>{c.school}</span>}
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:4,marginTop:2}}>
-              <span style={{fontSize:10,color:T.txD}}>{c.cr}単位</span>
-              {!hasSections&&<><span style={{fontSize:10,color:T.txD}}>·</span>
-              <span style={{fontSize:10,color:T.txD}}>{c.slots.map(slotLabel).join(" / ")}</span></>}
-            </div>
-            {c.note&&<div style={{fontSize:9,color:T.orange,marginTop:1}}>{c.note}</div>}
-          </div>
-          {!hasSections&&(added?(
-            <button onClick={()=>rmOpt(c.id)} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${T.red}40`,
-              background:`${T.red}10`,color:T.red,fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>
-              削除
-            </button>
-          ):(
-            <button onClick={()=>{
-              if(c.slots.length===1){addOpt(c.id,c.slots[0]);}
-              else setSlotPick({id:c.id,course:c});
-            }} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${T.accent}40`,
-              background:`${T.accent}10`,color:T.accent,fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>
-              追加
-            </button>
-          ))}
-          <button onClick={()=>fetchSyllabus(c.name)} style={{background:"none",border:"none",cursor:"pointer",color:T.txD,display:"flex",padding:2}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+          <div style={{width:6,height:6,borderRadius:3,background:catCol,flexShrink:0}}/>
+          <span style={{fontSize:12,fontWeight:isAdded?600:500,color:isAdded?T.txH:T.tx,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+            {course.name}
+          </span>
+          {isAdded&&<button onClick={()=>rmOpt(code)}
+            style={{padding:"3px 8px",borderRadius:6,border:`1px solid ${T.red}40`,
+              background:`${T.red}10`,color:T.red,fontSize:10,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>
+            削除
+          </button>}
+          <button onClick={()=>fetchSyllabus(course.name)} style={{background:"none",border:"none",cursor:"pointer",color:T.txD,display:"flex",padding:2,flexShrink:0}}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </button>
         </div>
-        {hasSections&&<div style={{display:"flex",flexWrap:"wrap",gap:6,paddingLeft:14,marginTop:6}}>
-          {courseSections.map(sec=>{
+        <div style={{display:"flex",flexWrap:"wrap",gap:5,paddingLeft:14}}>
+          {course.sections.map(sec=>{
             const isSel=selSec===sec.section;
-            const conflict=!isSel&&otherOcc&&sec.slots.some(s=>{const g=toGridSlot(s);return g&&otherOcc.has(slotKey(g));});
+            const conflict=!isSel&&sec.slots.some(s=>{const g=toGridSlot(s);return g&&otherOcc.has(slotKey(g));});
             const slotsLabel=sec.slots.map(s=>`${s.day}${s.period_start}-${s.period_end}限`).join(' · ');
             return(
-              <button key={sec.section||'_default'} onClick={()=>selectOptSec(c.id,c.name,sec.section)}
-                style={{padding:"5px 12px",borderRadius:8,fontSize:12,fontWeight:isSel?700:400,
+              <button key={sec.section||'_default'} onClick={()=>selectOptSec(code,course.name,catName,1,sec)}
+                style={{padding:"4px 10px",borderRadius:8,fontSize:11,fontWeight:isSel?700:400,
                   border:`1.5px solid ${isSel?T.accent:conflict?T.orange+'60':T.bd}`,
                   background:isSel?`${T.accent}18`:conflict?`${T.orange}08`:T.bg3,
                   color:isSel?T.accent:conflict?T.orange:T.txH,cursor:"pointer",textAlign:"left",
                   opacity:conflict&&!isSel?.6:1,transition:"all .12s"}}>
-                <div style={{fontWeight:600}}>{sec.section||"—"}</div>
-                <div style={{fontSize:9,color:isSel?T.accent:T.txD,marginTop:1,whiteSpace:"nowrap"}}>{slotsLabel}</div>
+                <div style={{fontWeight:600,fontSize:11}}>{sec.section||"—"}</div>
+                <div style={{fontSize:8,color:isSel?T.accent:T.txD,marginTop:1,whiteSpace:"nowrap"}}>{slotsLabel}</div>
               </button>
             );
           })}
-        </div>}
+        </div>
       </div>
     );
   };
@@ -506,73 +511,56 @@ export const RegView=({mob})=>{
         </div>}
       </div>
 
-      {/* Optional courses */}
+      {/* Optional courses — DB-driven categories */}
       <div style={{background:T.bg2,borderRadius:14,border:`1px solid ${T.bd}`,padding:`4px ${mob?12:16}px`,marginBottom:16}}>
         <SecHdr title="選択科目を追加" open={optOpen} toggle={()=>setOptOpen(p=>!p)}
           badge={`${Object.keys(opt).filter(k=>(opt[k]||[]).length>0).length}科目追加済`}/>
         {optOpen&&<div>
-          <div style={{display:"flex",gap:8,padding:"8px 0",alignItems:"center",flexWrap:"wrap"}}>
-            <div style={{position:"relative",flex:1,minWidth:150}}>
-              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="科目名で検索..."
+          {/* Search */}
+          <div style={{padding:"8px 0"}}>
+            <div style={{position:"relative"}}>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="科目名・科目コードで検索..."
                 style={{width:"100%",padding:"7px 10px 7px 30px",borderRadius:8,border:`1px solid ${T.bd}`,
-                  background:T.bg3,color:T.txH,fontSize:12,outline:"none"}}/>
+                  background:T.bg3,color:T.txH,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
               <span style={{position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",color:T.txD,display:"flex"}}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               </span>
             </div>
-            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-              <button onClick={()=>setCatFilter(null)}
-                style={{padding:"3px 8px",borderRadius:6,border:`1px solid ${!catFilter?T.accent:T.bd}`,
-                  background:!catFilter?`${T.accent}14`:T.bg3,color:!catFilter?T.accent:T.txD,fontSize:10,cursor:"pointer"}}>
-                すべて
-              </button>
-              {OPT_CATS.map(cat=>(
-                <button key={cat} onClick={()=>setCatFilter(catFilter===cat?null:cat)}
-                  style={{padding:"3px 8px",borderRadius:6,border:`1px solid ${catFilter===cat?T.accent:T.bd}`,
-                    background:catFilter===cat?`${T.accent}14`:T.bg3,color:catFilter===cat?T.accent:T.txD,fontSize:10,cursor:"pointer"}}>
-                  {cat}
-                </button>
-              ))}
-            </div>
           </div>
-          <div>
-            {filtered.map(c=><OptRow key={c.id} c={c}/>)}
-            {filtered.length===0&&<div style={{padding:16,textAlign:"center",fontSize:12,color:T.txD}}>該当する科目がありません</div>}
-          </div>
+
+          {dbLoading?(
+            <div style={{padding:20,textAlign:"center",fontSize:12,color:T.txD}}>選択科目を読込中...</div>
+          ):filteredCats.length===0?(
+            <div style={{padding:16,textAlign:"center",fontSize:12,color:T.txD}}>該当する科目がありません</div>
+          ):(
+            filteredCats.map(cat=>{
+              const isOpen=openCats[cat.name]!==false; // default open
+              const catCol=CAT_COLORS[cat.name]||'#6b7280';
+              const addedCount=cat.courses.filter(c=>opt[c.code]&&opt[c.code].length>0).length;
+              return(
+                <div key={cat.name} style={{marginBottom:4}}>
+                  <button onClick={()=>toggleCat(cat.name)}
+                    style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 0",
+                      border:"none",background:"transparent",cursor:"pointer",borderBottom:`1px solid ${T.bd}20`}}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2.5"
+                      style={{transform:isOpen?"rotate(90deg)":"none",transition:"transform .15s",flexShrink:0}}>
+                      <path d="M9 18l6-6-6-6"/>
+                    </svg>
+                    <div style={{width:8,height:8,borderRadius:4,background:catCol,flexShrink:0}}/>
+                    <span style={{fontSize:13,fontWeight:700,color:T.txH,flex:1,textAlign:"left"}}>{cat.name}</span>
+                    <span style={{fontSize:10,color:T.txD,marginRight:4}}>
+                      {cat.courses.length}科目{addedCount>0&&<span style={{color:T.accent,fontWeight:600,marginLeft:4}}>{addedCount}選択中</span>}
+                    </span>
+                  </button>
+                  {isOpen&&<div style={{paddingLeft:4}}>
+                    {cat.courses.map(c=><DbOptRow key={c.code} course={c} catName={cat.name}/>)}
+                  </div>}
+                </div>
+              );
+            })
+          )}
         </div>}
       </div>
-
-      {/* Slot picker modal */}
-      {slotPick&&<>
-        <div onClick={()=>setSlotPick(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:998}}/>
-        <div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",
-          width:mob?280:320,background:T.bg2,border:`1px solid ${T.bdL}`,borderRadius:16,padding:20,zIndex:999,
-          boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <span style={{fontWeight:700,color:T.txH,fontSize:14}}>{slotPick.course.name}</span>
-            <button onClick={()=>setSlotPick(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer"}}>{I.x}</button>
-          </div>
-          <div style={{fontSize:12,color:T.txD,marginBottom:12}}>配置する時間帯を選択</div>
-          <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {slotPick.course.slots.map(s=>{
-              const k=slotKey(s);
-              const busy=occupied.has(k);
-              const already=(opt[slotPick.id]||[]).some(x=>slotKey(x)===k);
-              return(
-                <button key={k} disabled={already} onClick={()=>addOpt(slotPick.id,s)}
-                  style={{padding:"10px 14px",borderRadius:8,border:`1px solid ${busy?T.orange:T.bd}`,
-                    background:already?`${T.accent}14`:busy?`${T.orange}08`:T.bg3,
-                    color:already?T.accent:busy?T.orange:T.txH,fontSize:13,fontWeight:500,cursor:already?"default":"pointer",
-                    textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span>{slotLabel(s)}<span style={{fontSize:10,color:T.txD,marginLeft:6}}>{PER_TIMES[s[1]]}</span></span>
-                  {already&&<span style={{fontSize:10,color:T.accent}}>追加済</span>}
-                  {busy&&!already&&<span style={{fontSize:10,color:T.orange}}>衝突あり</span>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </>}
 
       {/* Syllabus detail modal */}
       {detailCourse&&<>
