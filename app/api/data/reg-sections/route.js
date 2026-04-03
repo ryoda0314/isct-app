@@ -26,7 +26,12 @@ export async function GET(req) {
     .eq('year', year)
     .or(orFilter);
 
-  if (quarter) query = query.ilike('quarter', `%${quarter}%`);
+  // Match exact quarter + ranges that span it (e.g. "1Q" → "1Q","1-2Q","1-4Q")
+  if (quarter) {
+    const q = quarter.charAt(0);
+    const range = q <= '2' ? 'quarter.eq.1-2Q' : 'quarter.eq.3-4Q';
+    query = query.or(`quarter.eq.${quarter},${range},quarter.eq.1-4Q`);
+  }
 
   const { data, error } = await query.limit(2000);
 
