@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
-import { REQ_1Q, REQ_2Q, CAT_COLORS, UNIT_OPT, LAB_OPT, SCHOOLS, SHARED_DEPTS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
+import { REQ_1Q, REQ_2Q, CAT_COLORS, UNIT_OPT, LAB_OPT, SCHOOLS, SHARED_DEPTS, DEPT_LABELS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
 
 // Per-quarter localStorage (includes year level: "reg_1_1Q", "reg_2_1Q", etc.)
 const lsKey=(yr,q)=>`reg_${yr}_${q}`;
@@ -275,11 +275,21 @@ export const RegView=({mob})=>{
   const toggleCat=(catName)=>setOpenCats(p=>({...p,[catName]:!p[catName]}));
 
   // School select handler
+  const curSchool=SCHOOLS.find(s=>s.key===selSchool);
   const handleSchool=(schoolKey)=>{
     if(selSchool===schoolKey){setSelSchool(null);setSelDepts([]);return;}
     const school=SCHOOLS.find(s=>s.key===schoolKey);
     setSelSchool(schoolKey);
+    // Default: all depts in this school + shared
     setSelDepts(school?[...school.depts,...SHARED_DEPTS]:[]);
+  };
+  const toggleDept=(deptCode)=>{
+    setSelDepts(prev=>{
+      const isShared=SHARED_DEPTS.includes(deptCode);
+      if(isShared) return prev; // shared always included
+      if(prev.includes(deptCode)) return prev.filter(d=>d!==deptCode);
+      return [...prev,deptCode];
+    });
   };
 
   // ── Styles ──
@@ -497,6 +507,26 @@ export const RegView=({mob})=>{
               すべて
             </button>
           </div>
+          {curSchool&&(
+            <div style={{marginTop:10,paddingTop:8,borderTop:`1px solid ${T.bd}30`}}>
+              <div style={{fontSize:11,fontWeight:600,color:T.txD,marginBottom:6}}>学系で絞り込み</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                {curSchool.depts.map(dept=>{
+                  const isSel=selDepts.includes(dept);
+                  const col=CAT_COLORS[DEPT_LABELS[dept]]||'#6b7280';
+                  return(
+                    <button key={dept} onClick={()=>toggleDept(dept)}
+                      style={{padding:"4px 10px",borderRadius:7,fontSize:mob?10:11,fontWeight:isSel?700:400,cursor:"pointer",
+                        border:`1.5px solid ${isSel?col:T.bd}`,
+                        background:isSel?`${col}18`:T.bg3,
+                        color:isSel?col:T.txD,transition:"all .12s"}}>
+                      {DEPT_LABELS[dept]||dept}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
