@@ -93,15 +93,15 @@ const OPTIONAL_COMMON = [
 const OPT_ENG_1Q = [
   { id:"eng_speak1", name:"英語スピーキング演習第一", cr:1, col:"#3b82f6", slots:[], cat:"語学" },
   { id:"eng_pres1", name:"英語プレゼンテーション演習第一", cr:1, col:"#2563eb", slots:[], cat:"語学" },
-  { id:"toefl_ls1", name:"TOEFL対策セミナー(LS)第一", cr:1, col:"#1d4ed8", slots:[], cat:"語学" },
-  { id:"toefl_rw1", name:"TOEFL対策セミナー(RW)第一", cr:1, col:"#1e40af", slots:[], cat:"語学" },
+  { id:"toefl_ls1", name:"TOEFL対策セミナー（リスニング＆スピーキング）第一", cr:1, col:"#1d4ed8", slots:[], cat:"語学" },
+  { id:"toefl_rw1", name:"TOEFL対策セミナー（リーディング＆ライティング）第一", cr:1, col:"#1e40af", slots:[], cat:"語学" },
   { id:"toeic1", name:"TOEIC対策セミナー第一", cr:1, col:"#1e3a8a", slots:[], cat:"語学" },
 ];
 const OPT_ENG_2Q = [
   { id:"eng_speak2", name:"英語スピーキング演習第二", cr:1, col:"#3b82f6", slots:[], cat:"語学" },
   { id:"eng_pres2", name:"英語プレゼンテーション演習第二", cr:1, col:"#2563eb", slots:[], cat:"語学" },
-  { id:"toefl_ls2", name:"TOEFL対策セミナー(LS)第二", cr:1, col:"#1d4ed8", slots:[], cat:"語学" },
-  { id:"toefl_rw2", name:"TOEFL対策セミナー(RW)第二", cr:1, col:"#1e40af", slots:[], cat:"語学" },
+  { id:"toefl_ls2", name:"TOEFL対策セミナー（リスニング＆スピーキング）第二", cr:1, col:"#1d4ed8", slots:[], cat:"語学" },
+  { id:"toefl_rw2", name:"TOEFL対策セミナー（リーディング＆ライティング）第二", cr:1, col:"#1e40af", slots:[], cat:"語学" },
   { id:"toeic2", name:"TOEIC対策セミナー第二", cr:1, col:"#1e3a8a", slots:[], cat:"語学" },
 ];
 
