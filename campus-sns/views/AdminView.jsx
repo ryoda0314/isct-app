@@ -1289,12 +1289,45 @@ const CurriculumInput = ({ years }) => {
         <Btn onClick={submit} color={T.green} disabled={submitting || parsed.length === 0 || !dept}>
           {submitting ? "更新中..." : `${parsed.length}科目の区分を更新`}
         </Btn>
-        {result && (
-          <span style={{ fontSize: 11, color: result.ok ? T.green : T.red }}>
-            {result.ok ? `${result.parsed}科目パース、${result.updated}行更新` : (result.error || "エラー")}
-          </span>
-        )}
       </div>
+
+      {/* Result logs */}
+      {result && (
+        <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: T.bg2, border: `1px solid ${result.ok ? T.green : T.red}40` }}>
+          {result.ok ? (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 600, color: T.txH, marginBottom: 6 }}>
+                更新完了
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                <Badge text={`パース ${result.parsed}`} color={T.accent} />
+                <Badge text={`DB一致 ${result.matched}`} color={T.green} />
+                {result.notFound > 0 && <Badge text={`未登録 ${result.notFound}`} color="#f59e0b" />}
+                {result.errors > 0 && <Badge text={`エラー ${result.errors}`} color="#ef4444" />}
+                <Badge text={`更新行数 ${result.updated}`} color={T.green} />
+              </div>
+              {result.logs && (
+                <div style={{ maxHeight: 200, overflowY: "auto", fontSize: 11 }}>
+                  {result.logs.map((l, i) => (
+                    <div key={i} style={{ padding: "2px 0", display: "flex", gap: 6, alignItems: "center", color: l.status === 'ok' ? T.tx : l.status === 'not_found' ? '#f59e0b' : '#ef4444' }}>
+                      <span style={{ width: 14, flexShrink: 0, textAlign: "center" }}>
+                        {l.status === 'ok' ? '\u2713' : l.status === 'not_found' ? '\u2012' : '\u2717'}
+                      </span>
+                      <span style={{ fontFamily: "monospace", width: 80, flexShrink: 0 }}>{l.code}</span>
+                      <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, fontWeight: 600, background: `${reqColor(l.requirement)}20`, color: reqColor(l.requirement), flexShrink: 0 }}>{l.requirement}</span>
+                      <span style={{ color: T.txD }}>
+                        {l.status === 'ok' ? `${l.rows}行更新` : l.detail}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ fontSize: 12, color: T.red }}>{result.error || "エラー"}</div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

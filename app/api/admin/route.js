@@ -888,20 +888,42 @@ export async function POST(request) {
         return NextResponse.json({ error: 'パースできる科目が見つかりませんでした', parsed: 0 }, { status: 400 });
       }
 
-      // Update syllabus_courses rows matching code + year
+      // Update syllabus_courses rows matching code + year, collect per-course logs
       let updated = 0;
+      const logs = [];
       for (const { code, requirement } of parsed) {
-        const { count, error: upErr } = await sb.from('syllabus_courses')
+        // Check if any rows exist for this code+year
+        const { data: existing, error: selErr } = await sb.from('syllabus_courses')
+          .select('id')
+          .eq('code', code)
+          .eq('year', targetYear)
+          .limit(1);
+        if (selErr) {
+          logs.push({ code, requirement, status: 'error', detail: selErr.message });
+          continue;
+        }
+        if (!existing || existing.length === 0) {
+          logs.push({ code, requirement, status: 'not_found', detail: 'シラバスDBに未登録' });
+          continue;
+        }
+        const { error: upErr } = await sb.from('syllabus_courses')
           .update({ requirement })
           .eq('code', code)
           .eq('year', targetYear);
-        if (upErr) console.error(`[Curriculum] update ${code}:`, upErr.message);
-        else updated += (count || 0);
+        if (upErr) {
+          logs.push({ code, requirement, status: 'error', detail: upErr.message });
+        } else {
+          updated += existing.length;
+          logs.push({ code, requirement, status: 'ok', rows: existing.length });
+        }
       }
 
-      await auditLog(sb, auth.userid, 'update_curriculum', 'syllabus', dept, { parsed: parsed.length, updated, year: targetYear });
-      console.log(`[Curriculum] ${dept} ${targetYear}: parsed ${parsed.length} courses, updated ${updated} rows`);
-      return NextResponse.json({ ok: true, parsed: parsed.length, updated, courses: parsed });
+      const matched = logs.filter(l => l.status === 'ok').length;
+      const notFound = logs.filter(l => l.status === 'not_found').length;
+      const errors = logs.filter(l => l.status === 'error').length;
+      await auditLog(sb, auth.userid, 'update_curriculum', 'syllabus', dept, { parsed: parsed.length, matched, notFound, errors, updated, year: targetYear });
+      console.log(`[Curriculum] ${dept} ${targetYear}: parsed=${parsed.length} matched=${matched} notFound=${notFound} errors=${errors} rows=${updated}`);
+      return NextResponse.json({ ok: true, parsed: parsed.length, matched, notFound, errors, updated, logs });
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
