@@ -1,28 +1,38 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
-import { REQ_1Q, REQ_2Q, CAT_COLORS, UNIT_OPT, LAB_OPT, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
+import { REQ_1Q, REQ_2Q, CAT_COLORS, UNIT_OPT, LAB_OPT, SCHOOLS, SHARED_DEPTS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
 
-// Per-quarter localStorage
-const lsKey=q=>`reg_${q}`;
-const loadQ=q=>{try{return JSON.parse(localStorage.getItem(lsKey(q)))||{};}catch{return{};}};
-const saveQ=(q,d)=>{try{localStorage.setItem(lsKey(q),JSON.stringify(d));}catch{}};
-// Migration: old "reg1q" → "reg_1Q"
-(function migrate(){try{const old=localStorage.getItem("reg1q");if(old&&!localStorage.getItem("reg_1Q")){localStorage.setItem("reg_1Q",old);localStorage.removeItem("reg1q");}}catch{}})();
+// Per-quarter localStorage (includes year level: "reg_1_1Q", "reg_2_1Q", etc.)
+const lsKey=(yr,q)=>`reg_${yr}_${q}`;
+const loadQ=(yr,q)=>{try{return JSON.parse(localStorage.getItem(lsKey(yr,q)))||{};}catch{return{};}};
+const saveQ=(yr,q,d)=>{try{localStorage.setItem(lsKey(yr,q),JSON.stringify(d));}catch{}};
+// Migration: old keys → new
+(function migrate(){try{
+  for(const oq of["1Q","2Q"]){const old=localStorage.getItem(`reg_${oq}`);if(old&&!localStorage.getItem(`reg_1_${oq}`)){localStorage.setItem(`reg_1_${oq}`,old);localStorage.removeItem(`reg_${oq}`);}}
+  const old1q=localStorage.getItem("reg1q");if(old1q&&!localStorage.getItem("reg_1_1Q")){localStorage.setItem("reg_1_1Q",old1q);localStorage.removeItem("reg1q");}
+}catch{}})();
 
-const initQ=q=>{const s=loadQ(q);return{req:s.req||{},reqSec:s.reqSec||{},sci:s.sci||{},opt:s.opt||{},optInfo:s.optInfo||{},unit:s.unit||""};};
+const initQ=(yr,q)=>{const s=loadQ(yr,q);return{req:s.req||{},reqSec:s.reqSec||{},sci:s.sci||{},opt:s.opt||{},optInfo:s.optInfo||{},unit:s.unit||""};};
+
+const YEAR_LABELS=["1年 (100番台)","2年 (200番台)","3年 (300番台)","4年 (400番台)"];
 
 // ── Main View ──────────────────────────────────────
 export const RegView=({mob})=>{
+  const [yearLevel,setYearLevel]=useState(1);
   const [quarter,setQuarter]=useState("1Q");
-  const [data,setData]=useState(()=>initQ("1Q"));
-  const curReq=quarter==="1Q"?REQ_1Q:REQ_2Q;
+  const [data,setData]=useState(()=>initQ(1,"1Q"));
+  const curReq=yearLevel===1?(quarter==="1Q"?REQ_1Q:REQ_2Q):null;
 
   // DB state
   const [sectionData,setSectionData]=useState(null);
   const [secLoading,setSecLoading]=useState(true);
   const [dbCats,setDbCats]=useState([]);
   const [dbLoading,setDbLoading]=useState(true);
+
+  // Department filter (for 2+ year)
+  const [selSchool,setSelSchool]=useState(null); // school key
+  const [selDepts,setSelDepts]=useState([]); // selected dept prefixes
 
   // UI state
   const [reqOpen,setReqOpen]=useState(true);
@@ -33,36 +43,50 @@ export const RegView=({mob})=>{
   const [syllabusData,setSyllabusData]=useState(null);
   const [syllabusLoading,setSyllabusLoading]=useState(false);
 
-  // Save & switch quarter
-  const switchQ=(q)=>{
-    saveQ(quarter,data);
-    setData(initQ(q));
-    setQuarter(q);
+  // Derived
+  const level=String(yearLevel);
+  const deptParam=selDepts.length>0?selDepts.join(','):'';
+
+  // Save & switch
+  const switchState=(yr,q)=>{
+    saveQ(yearLevel,quarter,data);
+    setData(initQ(yr,q));
+    setYearLevel(yr);setQuarter(q);
     setSectionData(null);setSecLoading(true);
     setDbCats([]);setDbLoading(true);
+    setOpenCats({});setSearch("");
   };
+  const switchYear=(yr)=>{if(yr!==yearLevel)switchState(yr,quarter);};
+  const switchQ=(q)=>{if(q!==quarter)switchState(yearLevel,q);};
 
-  const up=useCallback((fn)=>setData(prev=>{const next=fn(prev);saveQ(quarter,next);return next;}),[quarter]);
+  const up=useCallback((fn)=>setData(prev=>{const next=fn(prev);saveQ(yearLevel,quarter,next);return next;}),[yearLevel,quarter]);
 
   const {req,reqSec,sci,opt,optInfo,unit}=data;
 
-  // ── Fetch required sections from DB ──
+  // ── Fetch required sections from DB (1年 only) ──
   useEffect(()=>{
+    if(yearLevel!==1){setSecLoading(false);setSectionData(null);return;}
     setSecLoading(true);
     const names=[...curReq.common,...curReq.science].map(c=>c.name);
     fetch(`/api/data/reg-sections?year=2026&quarter=${quarter}&names=${encodeURIComponent(names.join(','))}`)
       .then(r=>r.json()).then(d=>{setSectionData(d.courses||{});setSecLoading(false);})
       .catch(()=>setSecLoading(false));
-  },[quarter]);
+  },[quarter,yearLevel]);
 
-  // ── Fetch optional courses from DB (categorized) ──
+  // ── Fetch courses from DB (categorized) ──
   useEffect(()=>{
     setDbLoading(true);
-    const excludeNames=[...curReq.common,...curReq.science].map(c=>c.name).join(',');
-    fetch(`/api/data/reg-courses?year=2026&quarter=${quarter}&exclude=${encodeURIComponent(excludeNames)}`)
+    let excludeNames='';
+    if(yearLevel===1&&curReq){
+      excludeNames=[...curReq.common,...curReq.science].map(c=>c.name).join(',');
+    }
+    const params=new URLSearchParams({year:'2026',quarter,level});
+    if(excludeNames) params.set('exclude',excludeNames);
+    if(yearLevel>=2&&deptParam) params.set('dept',deptParam);
+    fetch(`/api/data/reg-courses?${params}`)
       .then(r=>r.json()).then(d=>{setDbCats(d.categories||[]);setDbLoading(false);})
       .catch(()=>{setDbCats([]);setDbLoading(false);});
-  },[quarter]);
+  },[quarter,yearLevel,level,deptParam]);
 
   // ── Convert DB slot to grid [day, period] ──
   const toGridSlot=(s)=>{
@@ -75,14 +99,16 @@ export const RegView=({mob})=>{
   // ── Active courses ──
   const active=useMemo(()=>{
     const list=[];
-    for(const c of curReq.common){
-      const sl=req[c.id]||[];
-      if(sl.length) list.push({...c,sel:sl,type:"req"});
-    }
-    for(const c of curReq.science){
-      if(!sci[c.id]) continue;
-      const sl=req[c.id]||[];
-      if(sl.length) list.push({...c,sel:sl,type:"sci"});
+    if(yearLevel===1&&curReq){
+      for(const c of curReq.common){
+        const sl=req[c.id]||[];
+        if(sl.length) list.push({...c,sel:sl,type:"req"});
+      }
+      for(const c of curReq.science){
+        if(!sci[c.id]) continue;
+        const sl=req[c.id]||[];
+        if(sl.length) list.push({...c,sel:sl,type:"sci"});
+      }
     }
     for(const [code,slots] of Object.entries(opt)){
       if(!slots||!slots.length) continue;
@@ -90,7 +116,7 @@ export const RegView=({mob})=>{
       list.push({id:code,name:info.name||code,cr:info.cr||0,col:CAT_COLORS[info.cat]||'#6b7280',sel:slots,type:"opt"});
     }
     return list;
-  },[req,sci,opt,optInfo,quarter]);
+  },[req,sci,opt,optInfo,quarter,yearLevel]);
 
   // ── Grid ──
   const grid=useMemo(()=>{
@@ -103,11 +129,9 @@ export const RegView=({mob})=>{
     return g;
   },[active]);
 
-  // ── Stats ──
   const credits=active.reduce((s,c)=>s+c.cr,0);
   const slotCount=active.reduce((s,c)=>s+(c.sel?.length||0),0);
 
-  // ── Occupied set ──
   const occupied=useMemo(()=>{
     const set=new Set();
     for(const c of active) for(const s of c.sel) set.add(slotKey(s));
@@ -120,7 +144,6 @@ export const RegView=({mob})=>{
     return set;
   };
 
-  // ── Toggle required slot (fallback) ──
   const togReq=(cid,slot)=>up(p=>{
     const cur=p.req[cid]||[];
     const k=slotKey(slot);
@@ -128,7 +151,6 @@ export const RegView=({mob})=>{
     return {...p,req:{...p.req,[cid]:has?cur.filter(s=>slotKey(s)!==k):[...cur,slot]}};
   });
 
-  // ── Select section for required course ──
   const selectReqSec=(cid,courseName,secName)=>up(p=>{
     const sections=sectionData?.[courseName]||[];
     const sec=sections.find(s=>s.section===secName);
@@ -141,11 +163,9 @@ export const RegView=({mob})=>{
     return {...p,reqSec:{...(p.reqSec||{}),[cid]:secName},req:{...p.req,[cid]:slots}};
   });
 
-  // ── Select section for optional course (DB-driven, keyed by code) ──
   const selectOptSec=(code,courseName,cat,cr,secObj)=>up(p=>{
     const slots=secObj.slots.map(toGridSlot).filter(Boolean);
     if((p.reqSec||{})[code]===secObj.section){
-      // Deselect
       const ns={...(p.reqSec||{})};delete ns[code];
       const no={...p.opt};delete no[code];
       const ni={...p.optInfo};delete ni[code];
@@ -166,70 +186,56 @@ export const RegView=({mob})=>{
     return{...p,opt:no,reqSec:ns,optInfo:ni};
   });
 
-  // ── Apply unit number to all courses ──
+  // ── Apply unit number (1年 only) ──
   const applyUnit=(unitNum)=>{
-    if(!sectionData||!unitNum) return;
+    if(!sectionData||!unitNum||yearLevel!==1) return;
     const num=parseInt(unitNum);
     if(!num||num<1||num>80) return;
     up(p=>{
       const nReq={...p.req},nSec={...(p.reqSec||{})},nSci={...p.sci},nOpt={...p.opt},nOptInfo={...(p.optInfo||{})};
-      const applySlots=(cname,secName)=>{
-        const sections=sectionData[cname]||[];
-        const sec=sections.find(s=>s.section===secName);
-        if(!sec) return null;
-        return sec.slots.map(toGridSlot).filter(Boolean);
-      };
       const secMatchNum=(secName,mn)=>{
         const s=String(mn),pad=s.padStart(2,'0');
         if(secName===s||secName===pad) return true;
         const m=secName.match(/\((\d+)[~～\-](\d+)\)/);
         return m&&mn>=parseInt(m[1])&&mn<=parseInt(m[2]);
       };
-      // 1) Common required
       for(const c of curReq.common){
         const sections=sectionData[c.name]||[];
         const mn=(c.id==='risshi'||c.id==='eng1'||c.id==='eng2')?Math.ceil(num/2):num;
         const sec=sections.find(s=>secMatchNum(s.section,mn));
         if(sec){ nReq[c.id]=sec.slots.map(toGridSlot).filter(Boolean); nSec[c.id]=sec.section; }
       }
-      // 2) Science — UNIT_MAP
       for(const c of curReq.science){
         const letter=unitToSection(c.id,num);
         if(letter){
-          const slots=applySlots(c.name,letter);
-          if(slots&&slots.length){ nSci[c.id]=true; nReq[c.id]=slots; nSec[c.id]=letter; }
+          const sections=sectionData[c.name]||[];
+          const sec=sections.find(s=>s.section===letter);
+          if(sec){
+            const slots=sec.slots.map(toGridSlot).filter(Boolean);
+            if(slots.length){ nSci[c.id]=true; nReq[c.id]=slots; nSec[c.id]=letter; }
+          }
         }
       }
-      // 3) Optional — UNIT_OPT / LAB_OPT auto-apply
       for(const cat of dbCats){
         for(const course of cat.courses){
-          // Check UNIT_OPT (e.g. 物理学演習第一 → phyex1 section mapping)
           const mapId=UNIT_OPT[course.code];
           if(mapId){
             const letter=unitToSection(mapId,num);
             if(letter){
-              // Find matching section in DB course
               const sec=course.sections.find(s=>s.section===letter);
               if(sec){
                 const slots=sec.slots.map(toGridSlot).filter(Boolean);
-                if(slots.length){
-                  nOpt[course.code]=slots; nSec[course.code]=sec.section;
-                  nOptInfo[course.code]={name:course.name,cat:cat.name,cr:1};
-                }
+                if(slots.length){ nOpt[course.code]=slots; nSec[course.code]=sec.section; nOptInfo[course.code]={name:course.name,cat:cat.name,cr:1}; }
               }
             }
           }
-          // Check LAB_OPT (e.g. 化学実験第一 → match by day)
           if(LAB_OPT.includes(course.code)){
             const day=unitToLabDay(num);
             if(day){
               const sec=course.sections.find(s=>s.slots.some(sl=>sl.day===day));
               if(sec){
                 const slots=sec.slots.map(toGridSlot).filter(Boolean);
-                if(slots.length){
-                  nOpt[course.code]=slots; nSec[course.code]=sec.section;
-                  nOptInfo[course.code]={name:course.name,cat:cat.name,cr:1};
-                }
+                if(slots.length){ nOpt[course.code]=slots; nSec[course.code]=sec.section; nOptInfo[course.code]={name:course.name,cat:cat.name,cr:1}; }
               }
             }
           }
@@ -239,7 +245,6 @@ export const RegView=({mob})=>{
     });
   };
 
-  // ── Toggle science ──
   const togSci=(cid)=>up(p=>{
     const off=p.sci[cid];
     const ns={...(p.reqSec||{})};if(off)delete ns[cid];
@@ -258,7 +263,6 @@ export const RegView=({mob})=>{
     setSyllabusLoading(false);
   };
 
-  // ── Filter DB categories by search ──
   const filteredCats=useMemo(()=>{
     if(!search) return dbCats;
     const q=search.toLowerCase();
@@ -269,6 +273,14 @@ export const RegView=({mob})=>{
   },[dbCats,search]);
 
   const toggleCat=(catName)=>setOpenCats(p=>({...p,[catName]:!p[catName]}));
+
+  // School select handler
+  const handleSchool=(schoolKey)=>{
+    if(selSchool===schoolKey){setSelSchool(null);setSelDepts([]);return;}
+    const school=SCHOOLS.find(s=>s.key===schoolKey);
+    setSelSchool(schoolKey);
+    setSelDepts(school?[...school.depts,...SHARED_DEPTS]:[]);
+  };
 
   // ── Styles ──
   const pd=mob?12:20;
@@ -376,7 +388,6 @@ export const RegView=({mob})=>{
     );
   };
 
-  // ── DB Optional Course Row ──
   const DbOptRow=({course,catName})=>{
     const code=course.code;
     const isAdded=!!(opt[code]&&opt[code].length>0);
@@ -390,6 +401,7 @@ export const RegView=({mob})=>{
           <span style={{fontSize:12,fontWeight:isAdded?600:500,color:isAdded?T.txH:T.tx,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
             {course.name}
           </span>
+          <span style={{fontSize:9,color:T.txD,background:T.bg3,padding:"1px 5px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{course.code}</span>
           {isAdded&&<button onClick={()=>rmOpt(code)}
             style={{padding:"3px 8px",borderRadius:6,border:`1px solid ${T.red}40`,
               background:`${T.red}10`,color:T.red,fontSize:10,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>
@@ -424,20 +436,33 @@ export const RegView=({mob})=>{
   // ── Render ──
   return(
     <div style={{flex:1,overflowY:"auto",background:T.bg,padding:`${pd}px`,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
-      {/* Header + Quarter tabs */}
+      {/* Header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <div>
           <div style={{fontSize:mob?18:22,fontWeight:800,color:T.txH,letterSpacing:-.3}}>履修登録</div>
-          <div style={{fontSize:12,color:T.txD,marginTop:2}}>100番台科目 · 2026年度</div>
+          <div style={{fontSize:12,color:T.txD,marginTop:2}}>2026年度</div>
         </div>
         <button onClick={resetAll} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${T.bd}`,
           background:T.bg3,color:T.txD,fontSize:11,cursor:"pointer"}}>リセット</button>
       </div>
 
-      {/* Quarter tab */}
+      {/* Year level tabs */}
+      <div style={{display:"flex",gap:3,marginBottom:8}}>
+        {[1,2,3,4].map(yr=>(
+          <button key={yr} onClick={()=>switchYear(yr)}
+            style={{flex:1,padding:mob?"8px 0":"9px 0",borderRadius:10,fontSize:mob?11:13,fontWeight:700,cursor:"pointer",
+              border:`2px solid ${yr===yearLevel?T.accent:T.bd}`,
+              background:yr===yearLevel?`${T.accent}14`:T.bg2,
+              color:yr===yearLevel?T.accent:T.txD,transition:"all .15s"}}>
+            {mob?`${yr}年`:`${yr}年生`}
+          </button>
+        ))}
+      </div>
+
+      {/* Quarter tabs */}
       <div style={{display:"flex",gap:4,marginBottom:16}}>
         {["1Q","2Q"].map(q=>(
-          <button key={q} onClick={()=>q!==quarter&&switchQ(q)}
+          <button key={q} onClick={()=>switchQ(q)}
             style={{flex:1,padding:"10px 0",borderRadius:10,fontSize:14,fontWeight:700,cursor:"pointer",
               border:`2px solid ${q===quarter?T.accent:T.bd}`,
               background:q===quarter?`${T.accent}14`:T.bg2,
@@ -446,6 +471,34 @@ export const RegView=({mob})=>{
           </button>
         ))}
       </div>
+
+      {/* School/dept filter (2+ year) */}
+      {yearLevel>=2&&(
+        <div style={{background:T.bg2,borderRadius:14,border:`1px solid ${T.bd}`,padding:mob?10:14,marginBottom:16}}>
+          <div style={{fontSize:12,fontWeight:700,color:T.txH,marginBottom:8}}>学院で絞り込み</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {SCHOOLS.map(s=>{
+              const isSel=selSchool===s.key;
+              return(
+                <button key={s.key} onClick={()=>handleSchool(s.key)}
+                  style={{padding:"6px 14px",borderRadius:8,fontSize:mob?11:12,fontWeight:isSel?700:500,cursor:"pointer",
+                    border:`1.5px solid ${isSel?T.accent:T.bd}`,
+                    background:isSel?`${T.accent}18`:T.bg3,
+                    color:isSel?T.accent:T.txH,transition:"all .12s"}}>
+                  {s.label}
+                </button>
+              );
+            })}
+            <button onClick={()=>{setSelSchool(null);setSelDepts([]);}}
+              style={{padding:"6px 14px",borderRadius:8,fontSize:mob?11:12,fontWeight:!selSchool?700:500,cursor:"pointer",
+                border:`1.5px solid ${!selSchool?T.accent:T.bd}`,
+                background:!selSchool?`${T.accent}18`:T.bg3,
+                color:!selSchool?T.accent:T.txH,transition:"all .12s"}}>
+              すべて
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div style={{display:"flex",gap:mob?8:12,marginBottom:16}}>
@@ -481,42 +534,40 @@ export const RegView=({mob})=>{
         </div>
       </div>
 
-      {/* Required courses */}
-      <div style={{background:T.bg2,borderRadius:14,border:`1px solid ${T.bd}`,padding:`4px ${mob?12:16}px`,marginBottom:16}}>
-        <SecHdr title="必修科目のクラス設定" open={reqOpen} toggle={()=>setReqOpen(p=>!p)}
-          badge={`${curReq.common.filter(c=>(req[c.id]||[]).length>0).length + curReq.science.filter(c=>sci[c.id]&&(req[c.id]||[]).length>0).length}科目設定済`}/>
-        {reqOpen&&<div>
-          {/* Unit bulk-set */}
-          <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",borderBottom:`1px solid ${T.bd}08`}}>
-            <span style={{fontSize:12,fontWeight:600,color:T.txH,whiteSpace:"nowrap"}}>ユニット番号</span>
-            <input type="number" min="1" max="80" value={unit||""} onChange={e=>up(p=>({...p,unit:e.target.value}))}
-              placeholder="例: 5" style={{width:60,padding:"5px 8px",borderRadius:6,border:`1px solid ${T.bd}`,
-                background:T.bg3,color:T.txH,fontSize:12,outline:"none",textAlign:"center"}}/>
-            <button onClick={()=>applyUnit(unit)} disabled={!unit||secLoading||!sectionData}
-              style={{padding:"5px 14px",borderRadius:6,border:`1px solid ${T.accent}40`,
-                background:`${T.accent}10`,color:T.accent,fontSize:11,fontWeight:600,cursor:!unit||secLoading?"default":"pointer",
-                opacity:!unit||secLoading?.5:1,whiteSpace:"nowrap"}}>
-              一括設定
-            </button>
-            {unit&&reqSec&&Object.keys(reqSec).length>0&&(
-              <span style={{fontSize:10,color:T.green}}>
-                {Object.keys(reqSec).length}科目設定済
-              </span>
-            )}
-          </div>
-          <div style={{fontSize:10,fontWeight:700,color:T.txD,padding:"8px 0 4px",letterSpacing:.5}}>共通必修</div>
-          {curReq.common.map(c=><ReqRow key={c.id} c={c}/>)}
-          <div style={{fontSize:10,fontWeight:700,color:T.txD,padding:"12px 0 4px",letterSpacing:.5}}>理工系基礎（該当科目をチェック）</div>
-          {curReq.science.map(c=><ReqRow key={c.id} c={c} isScience/>)}
-        </div>}
-      </div>
+      {/* Required courses (1年 only) */}
+      {yearLevel===1&&curReq&&(
+        <div style={{background:T.bg2,borderRadius:14,border:`1px solid ${T.bd}`,padding:`4px ${mob?12:16}px`,marginBottom:16}}>
+          <SecHdr title="必修科目のクラス設定" open={reqOpen} toggle={()=>setReqOpen(p=>!p)}
+            badge={`${curReq.common.filter(c=>(req[c.id]||[]).length>0).length + curReq.science.filter(c=>sci[c.id]&&(req[c.id]||[]).length>0).length}科目設定済`}/>
+          {reqOpen&&<div>
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",borderBottom:`1px solid ${T.bd}08`}}>
+              <span style={{fontSize:12,fontWeight:600,color:T.txH,whiteSpace:"nowrap"}}>ユニット番号</span>
+              <input type="number" min="1" max="80" value={unit||""} onChange={e=>up(p=>({...p,unit:e.target.value}))}
+                placeholder="例: 5" style={{width:60,padding:"5px 8px",borderRadius:6,border:`1px solid ${T.bd}`,
+                  background:T.bg3,color:T.txH,fontSize:12,outline:"none",textAlign:"center"}}/>
+              <button onClick={()=>applyUnit(unit)} disabled={!unit||secLoading||!sectionData}
+                style={{padding:"5px 14px",borderRadius:6,border:`1px solid ${T.accent}40`,
+                  background:`${T.accent}10`,color:T.accent,fontSize:11,fontWeight:600,cursor:!unit||secLoading?"default":"pointer",
+                  opacity:!unit||secLoading?.5:1,whiteSpace:"nowrap"}}>
+                一括設定
+              </button>
+              {unit&&reqSec&&Object.keys(reqSec).length>0&&(
+                <span style={{fontSize:10,color:T.green}}>{Object.keys(reqSec).length}科目設定済</span>
+              )}
+            </div>
+            <div style={{fontSize:10,fontWeight:700,color:T.txD,padding:"8px 0 4px",letterSpacing:.5}}>共通必修</div>
+            {curReq.common.map(c=><ReqRow key={c.id} c={c}/>)}
+            <div style={{fontSize:10,fontWeight:700,color:T.txD,padding:"12px 0 4px",letterSpacing:.5}}>理工系基礎（該当科目をチェック）</div>
+            {curReq.science.map(c=><ReqRow key={c.id} c={c} isScience/>)}
+          </div>}
+        </div>
+      )}
 
-      {/* Optional courses — DB-driven categories */}
+      {/* Courses — DB-driven categories */}
       <div style={{background:T.bg2,borderRadius:14,border:`1px solid ${T.bd}`,padding:`4px ${mob?12:16}px`,marginBottom:16}}>
-        <SecHdr title="選択科目を追加" open={optOpen} toggle={()=>setOptOpen(p=>!p)}
+        <SecHdr title={yearLevel===1?"選択科目を追加":"科目を追加"} open={optOpen} toggle={()=>setOptOpen(p=>!p)}
           badge={`${Object.keys(opt).filter(k=>(opt[k]||[]).length>0).length}科目追加済`}/>
         {optOpen&&<div>
-          {/* Search */}
           <div style={{padding:"8px 0"}}>
             <div style={{position:"relative"}}>
               <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="科目名・科目コードで検索..."
@@ -529,12 +580,14 @@ export const RegView=({mob})=>{
           </div>
 
           {dbLoading?(
-            <div style={{padding:20,textAlign:"center",fontSize:12,color:T.txD}}>選択科目を読込中...</div>
+            <div style={{padding:20,textAlign:"center",fontSize:12,color:T.txD}}>科目を読込中...</div>
           ):filteredCats.length===0?(
-            <div style={{padding:16,textAlign:"center",fontSize:12,color:T.txD}}>該当する科目がありません</div>
+            <div style={{padding:16,textAlign:"center",fontSize:12,color:T.txD}}>
+              {yearLevel>=2&&!selSchool?"学院を選択するか、科目名で検索してください":"該当する科目がありません"}
+            </div>
           ):(
             filteredCats.map(cat=>{
-              const isOpen=openCats[cat.name]!==false; // default open
+              const isOpen=openCats[cat.name]!==false;
               const catCol=CAT_COLORS[cat.name]||'#6b7280';
               const addedCount=cat.courses.filter(c=>opt[c.code]&&opt[c.code].length>0).length;
               return(
@@ -595,7 +648,7 @@ export const RegView=({mob})=>{
 
       {/* Footer */}
       <div style={{fontSize:10,color:T.txD,textAlign:"center",padding:"8px 0 24px",lineHeight:1.6}}>
-        自分のセクション（クラス）を選択すると時間割が自動設定されます<br/>
+        セクションを選択すると時間割が自動設定されます<br/>
         時間割データは自動保存されます
       </div>
     </div>
