@@ -402,6 +402,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
   const [setupDeptSchool, setSetupDeptSchool] = useState(null);
   const [setupDept, setSetupDept] = useState(null);
   const [setupUnitNum, setSetupUnitNum] = useState("");
+  const [setupTransfer, setSetupTransfer] = useState(false);
 
   // Step 4: メール認証
   const [setupEmail, setSetupEmail] = useState("");
@@ -561,7 +562,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
   };
 
   const showBack = mode === "login" || (mode === "signup" && step < 3);
-  const progress = mode === "signup" ? { current: step, total: step >= 3 ? 5 : 3 } : null;
+  const progress = mode === "signup" ? { current: step, total: 5 } : null;
 
   /* ─────────── Connecting overlay ─────────── */
   if (connecting) {
@@ -783,7 +784,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
       {mode === "signup" && step === 0 && (
         <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           <div style={bodyStyle}>
-            <StepLabel n={1} />
+            <StepLabel n={1} total={5} />
             <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>ISCT LMS</h2>
             <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>時間割・課題・教材の自動取得に必要です</p>
             <ErrorBanner error={error} />
@@ -804,7 +805,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
       {mode === "signup" && step === 1 && (
         <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           <div style={bodyStyle}>
-            <StepLabel n={2} />
+            <StepLabel n={2} total={5} />
             <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>Titech Portal</h2>
             <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>成績情報の取得に必要です</p>
             <ErrorBanner error={error} />
@@ -835,7 +836,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
       {mode === "signup" && step === 2 && (
         <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           <div style={bodyStyle}>
-            <StepLabel n={3} />
+            <StepLabel n={3} total={5} />
             <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>プロフィール</h2>
             <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>学年情報を設定してください</p>
             <ErrorBanner error={error} />
@@ -940,87 +941,162 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
       )}
 
       {/* ═══ 新規登録 Step 3 : 学系・ユニット ═══ */}
-      {mode === "signup" && step === 3 && (
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
-          <div style={bodyStyle}>
-            <StepLabel n={4} total={5} />
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>学系・ユニット</h2>
-            <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>所属を設定すると、同じグループの仲間を見つけやすくなります</p>
+      {mode === "signup" && step === 3 && (() => {
+        const grade = (() => {
+          if (!yearGroup) return null;
+          const ey = 2000 + parseInt(yearGroup.slice(0, 2));
+          const now = new Date();
+          const ay = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+          return Math.max(1, ay - ey + 1);
+        })();
+        const isFirstYear = grade === 1 && yearGroup?.slice(-1) === "B";
+        const showSchoolPicker = !school || setupTransfer;
+        const sd = setupDeptSchool ? SCHOOLS[setupDeptSchool] : null;
+        const depts = setupDeptSchool ? Object.entries(DEPTS).filter(([, d]) => d.school === setupDeptSchool) : [];
 
-            {/* 学院 → 学系 選択 */}
-            <div style={cardStyle}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: T.txD }}>所属学院・学系</label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {Object.entries(SCHOOLS).map(([sk, sv]) => {
-                  const on = setupDeptSchool === sk;
-                  const ds = on ? Object.entries(DEPTS).filter(([, d]) => d.school === sk) : [];
-                  return (
-                    <div key={sk} style={{ display: "flex", flexWrap: "wrap", gap: 5, flexBasis: on ? "100%" : "auto" }}>
-                      <button onClick={() => { if (on) { setSetupDeptSchool(null); setSetupDept(null); } else setSetupDeptSchool(sk); }}
-                        style={{
-                          padding: "7px 14px", borderRadius: 8,
-                          border: `1px solid ${on ? sv.col : T.bd}`,
-                          background: on ? sv.col : "transparent",
-                          color: on ? "#fff" : T.txH,
-                          fontSize: 12, fontWeight: on ? 700 : 500, cursor: "pointer",
-                          transition: "all .2s",
-                        }}>{sv.name}{on ? " ▾" : ""}</button>
-                      {ds.map(([prefix, d]) => {
-                        const sel = setupDept === prefix;
+        return (
+          <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+            <div style={bodyStyle}>
+              <StepLabel n={4} total={5} />
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>
+                {isFirstYear ? "志望系・ユニット" : "所属系・ユニット"}
+              </h2>
+              <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>
+                {isFirstYear ? "志望する系とユニットを設定してください" : "所属する系を選んでください"}
+              </p>
+
+              {/* 系選択 */}
+              <div style={cardStyle}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: T.txD }}>
+                    {isFirstYear ? "志望系" : "所属系"}
+                  </label>
+                  {sd && !showSchoolPicker && (
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6,
+                      background: `${sd.col}14`, color: sd.col,
+                    }}>{sd.name}</span>
+                  )}
+                </div>
+
+                {/* 転院モード: 学院選択 */}
+                {showSchoolPicker && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 500, color: T.txD, marginBottom: 6 }}>学院</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {Object.entries(SCHOOLS).map(([sk, sv]) => {
+                        const on = setupDeptSchool === sk;
                         return (
-                          <button key={prefix} onClick={() => setSetupDept(prefix)}
+                          <button key={sk} onClick={() => { setSetupDeptSchool(sk); setSetupDept(null); }}
                             style={{
-                              padding: "7px 14px", borderRadius: 8,
-                              border: `1px solid ${sel ? d.col : T.bd}`,
-                              background: sel ? `${d.col}20` : "transparent",
-                              color: sel ? d.col : T.txH,
-                              fontSize: 12, fontWeight: sel ? 700 : 500, cursor: "pointer",
-                              animation: "fadeIn .2s ease",
-                            }}>{d.name}</button>
+                              padding: "7px 12px", borderRadius: 8,
+                              border: `1px solid ${on ? sv.col : T.bd}`,
+                              background: on ? `${sv.col}14` : "transparent",
+                              color: on ? sv.col : T.txH,
+                              fontSize: 12, fontWeight: on ? 700 : 500, cursor: "pointer",
+                              transition: "all .15s",
+                            }}>{sv.name}</button>
                         );
                       })}
                     </div>
-                  );
-                })}
+                    {setupTransfer && (
+                      <button onClick={() => { setSetupTransfer(false); setSetupDeptSchool(school); setSetupDept(null); }}
+                        style={{ background: "none", border: "none", color: T.txD, fontSize: 11, cursor: "pointer", padding: "6px 0 0" }}>
+                        キャンセル
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* 学系ボタン */}
+                {depts.length > 0 && (
+                  <div>
+                    {showSchoolPicker && <div style={{ fontSize: 11, fontWeight: 500, color: T.txD, marginBottom: 6 }}>学系</div>}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {depts.map(([prefix, d]) => {
+                        const sel = setupDept === prefix;
+                        return (
+                          <button key={prefix} onClick={() => setSetupDept(sel ? null : prefix)}
+                            style={{
+                              padding: "8px 16px", borderRadius: 8,
+                              border: `1px solid ${sel ? d.col : T.bd}`,
+                              background: sel ? `${d.col}14` : "transparent",
+                              color: sel ? d.col : T.txH,
+                              fontSize: 13, fontWeight: sel ? 700 : 500, cursor: "pointer",
+                              transition: "all .15s",
+                            }}>{d.name}</button>
+                        );
+                      })}
+                      {!isFirstYear && (
+                        <button onClick={() => setSetupDept(setupDept === "none" ? null : "none")}
+                          style={{
+                            padding: "8px 16px", borderRadius: 8,
+                            border: `1px solid ${setupDept === "none" ? T.txD : T.bd}`,
+                            background: setupDept === "none" ? `${T.txD}14` : "transparent",
+                            color: T.txD,
+                            fontSize: 13, fontWeight: setupDept === "none" ? 700 : 500, cursor: "pointer",
+                            transition: "all .15s",
+                          }}>未所属</button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 転院ボタン (2年生以上, 通常モード時) */}
+                {!isFirstYear && !setupTransfer && school && (
+                  <button onClick={() => { setSetupTransfer(true); setSetupDept(null); }}
+                    style={{
+                      background: "none", border: "none", color: T.accent,
+                      fontSize: 12, fontWeight: 500, cursor: "pointer",
+                      padding: "2px 0", textAlign: "left", display: "flex", alignItems: "center", gap: 4,
+                    }}>
+                    転院した方はこちら
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+                )}
               </div>
 
               {/* ユニット */}
-              <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginTop: 6 }}>ユニット（1年生のみ）</label>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{
-                  padding: "9px 14px", borderRadius: 8,
-                  background: `${UNIT_COL}10`, border: `1px solid ${UNIT_COL}30`,
-                  color: UNIT_COL, fontSize: 14, fontWeight: 700, flexShrink: 0,
-                }}>{yearGroup || "?"}</div>
-                <span style={{ fontSize: 16, color: T.txD, fontWeight: 300 }}>/</span>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
-                  <span style={{ fontSize: 13, color: T.txD, fontWeight: 500, flexShrink: 0 }}>U</span>
-                  <input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="番号"
-                    value={setupUnitNum} onChange={e => setSetupUnitNum(e.target.value.replace(/[^0-9]/g, ""))}
-                    style={{
-                      width: 56, padding: "9px 0", borderRadius: 8,
-                      border: `1px solid ${T.bd}`, background: T.bg3,
-                      color: T.txH, fontSize: 16, fontWeight: 700,
-                      textAlign: "center", outline: "none",
-                    }} />
+              <div style={{ ...cardStyle, marginTop: 12 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: T.txD }}>
+                  ユニット{isFirstYear ? "" : "（任意）"}
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{
+                    padding: "9px 14px", borderRadius: 8,
+                    background: `${UNIT_COL}10`, border: `1px solid ${UNIT_COL}30`,
+                    color: UNIT_COL, fontSize: 14, fontWeight: 700, flexShrink: 0,
+                  }}>{yearGroup || "?"}</div>
+                  <span style={{ fontSize: 16, color: T.txD, fontWeight: 300 }}>/</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
+                    <span style={{ fontSize: 13, color: T.txD, fontWeight: 500, flexShrink: 0 }}>U</span>
+                    <input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="番号"
+                      value={setupUnitNum} onChange={e => setSetupUnitNum(e.target.value.replace(/[^0-9]/g, ""))}
+                      style={{
+                        width: 56, padding: "9px 0", borderRadius: 8,
+                        border: `1px solid ${T.bd}`, background: T.bg3,
+                        color: T.txH, fontSize: 16, fontWeight: 700,
+                        textAlign: "center", outline: "none",
+                      }} />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 8 }}>
-              <button onClick={() => {
-                if (setupDept) updateUserPref({ myDept: setupDept });
-                if (yearGroup && setupUnitNum) updateUserPref({ myUnit: `${yearGroup}-${setupUnitNum}` });
-                setStep(4);
-              }} style={primaryBtnStyle(true)}>次へ</button>
-              <button onClick={() => setStep(4)}
-                style={{ background: "none", border: "none", color: T.txD, fontSize: 13, cursor: "pointer", padding: "8px 0" }}>
-                スキップ
-              </button>
+              <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 8 }}>
+                <button onClick={() => {
+                  if (setupDept && setupDept !== "none") updateUserPref({ myDept: setupDept });
+                  if (yearGroup && setupUnitNum) updateUserPref({ myUnit: `${yearGroup}-${setupUnitNum}` });
+                  setStep(4);
+                }} style={primaryBtnStyle(true)}>次へ</button>
+                <button onClick={() => setStep(4)}
+                  style={{ background: "none", border: "none", color: T.txD, fontSize: 13, cursor: "pointer", padding: "8px 0" }}>
+                  スキップ
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ═══ 新規登録 Step 4 : メール認証 ═══ */}
       {mode === "signup" && step === 4 && (
