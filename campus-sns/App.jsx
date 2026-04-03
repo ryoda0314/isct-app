@@ -290,14 +290,32 @@ export default function App(){
       else{setAsgn(prev=>{currentAsgn=pick(prev).map(a=>({id:a.id,moodleId:a.moodleId}));return prev;});}
       if(currentAsgn.length===0)return;
       console.log(`[Timing] fetchSubmissionStatuses: requesting ${currentAsgn.length} items`);
-      const r=await fetch(`${API}/api/data/assignments/status`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments:currentAsgn})});
-      if(!r.ok){console.error('[App] fetchSubmissionStatuses failed:',r.status);return;}
-      const{statuses}=await r.json();
-      if(!statuses)return;
+      const body=JSON.stringify({assignments:currentAsgn});
+      let statuses=null;
+      for(let attempt=1;attempt<=3;attempt++){
+        try{
+          const r=await fetch(`${API}/api/data/assignments/status`,{method:'POST',headers:{'Content-Type':'application/json'},body});
+          if(!r.ok){console.error(`[App] fetchSubmissionStatuses attempt ${attempt} failed:`,r.status);continue;}
+          const d=await r.json();
+          if(d.statuses&&Object.keys(d.statuses).length>0){statuses=d.statuses;break;}
+          console.warn(`[App] fetchSubmissionStatuses attempt ${attempt}: 0 results, retrying in 3s...`);
+        }catch(e){console.error(`[App] fetchSubmissionStatuses attempt ${attempt} error:`,e.message);}
+        if(attempt<3) await new Promise(r=>setTimeout(r,3000));
+      }
+      // Merge with cache
+      let merged={};
+      try{merged=JSON.parse(localStorage.getItem('asnStatusCache')||'{}');}catch{}
+      if(statuses){
+        merged={...merged,...statuses};
+        try{localStorage.setItem('asnStatusCache',JSON.stringify(merged));}catch{}
+      }else if(Object.keys(merged).length>0){
+        console.log(`[App] all attempts failed — using cached ${Object.keys(merged).length} statuses`);
+      }
       const counts={completed:0,in_progress:0,not_started:0};
-      Object.values(statuses).forEach(s=>{if(s&&s.st)counts[s.st]=(counts[s.st]||0)+1;});
-      console.log(`[Timing] fetchSubmissionStatuses done: ${(performance.now()-t0).toFixed(0)}ms — 提出済=${counts.completed} 進行中=${counts.in_progress} 未着手=${counts.not_started} (total=${Object.keys(statuses).length})`);
-      setAsgn(prev=>prev.map(a=>{const s=statuses[a.id];if(!s)return a.st==='loading'?{...a,st:'not_started'}:a;return{...a,st:s.st,sub:s.sub?new Date(s.sub):undefined};}));
+      Object.values(merged).forEach(s=>{if(s&&s.st)counts[s.st]=(counts[s.st]||0)+1;});
+      const src=statuses?'':'[cached]';
+      console.log(`[Timing] fetchSubmissionStatuses done: ${(performance.now()-t0).toFixed(0)}ms — 提出済=${counts.completed} 進行中=${counts.in_progress} 未着手=${counts.not_started} (total=${Object.keys(merged).length}${src?' '+src:''})`);
+      setAsgn(prev=>prev.map(a=>{const s=merged[a.id];if(!s)return a.st==='loading'?{...a,st:'not_started'}:a;return{...a,st:s.st,sub:s.sub?new Date(s.sub):undefined};}));
     }catch(e){console.error('[App] fetchSubmissionStatuses error:',e);setAsgn(prev=>prev.map(a=>a.st==='loading'?{...a,st:'not_started'}:a));}
   };
 
