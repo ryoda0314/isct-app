@@ -18,7 +18,8 @@ export async function GET(req) {
 
   // Strip trailing digits for broader matching (scraper strips them as section IDs)
   const searchTerms = [...new Set(names.map(n => n.replace(/\d+$/, '')))];
-  const orFilter = searchTerms.map(n => `name.ilike.%${n}%`).join(',');
+  // Escape parens — PostgREST treats () as grouping in .or() filters
+  const orFilter = searchTerms.map(n => `name.ilike.%${n.replace(/[()（）]/g, '_')}%`).join(',');
 
   let query = sb.from('syllabus_courses')
     .select('name,section,day,per,period_start,period_end,room,quarter,code')
