@@ -615,7 +615,7 @@ export default function App(){
 
   if(guestMode){
     return(
-      <div style={{display:"flex",flexDirection:"column",height:"100vh",background:T.bg,color:T.tx,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
+      <div style={{display:"flex",flexDirection:"column",height:"100dvh",maxHeight:"100vh",background:T.bg,color:T.tx,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
         {/* Guest header */}
         <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:10,padding:"0 16px",height:48,borderBottom:`1px solid ${T.bd}`,background:T.bg2}}>
           <div style={{fontWeight:700,fontSize:15,color:T.txH,flex:1}}>{guestMode==="navi"?"キャンパスナビ":guestMode==="reg"?"履修登録補助":"新入生掲示板"}</div>

@@ -343,13 +343,14 @@ export const RegView=({mob})=>{
   const hdrH=mob?24:28;
 
   const Cell=({c,d,p})=>{
-    if(!c) return <div style={{width:cellW,height:cellH,background:T.bg3,borderRadius:6,border:`1px solid ${T.bd}`}}/>;
+    if(!c) return <div style={{width:cellW,height:cellH,background:T.bg3,borderRadius:6,border:`1px solid ${T.bd}`,boxSizing:"border-box"}}/>;
     const isConflict=!!c.conflict;
     return(
       <div onClick={()=>{ if(c.type==="opt") rmOpt(c.id); else fetchSyllabus(c.name); }}
         title={isConflict?`衝突: ${c.name} / ${c.conflict}`:c.name}
         style={{width:cellW,height:cellH,background:isConflict?`${T.red}20`:`${c.col}18`,borderRadius:6,
           border:`1.5px solid ${isConflict?T.red:c.col}`,cursor:"pointer",padding:3,overflow:"hidden",
+          boxSizing:"border-box",
           display:"flex",flexDirection:"column",justifyContent:"center",position:"relative"}}>
         {isConflict&&<div style={{position:"absolute",top:2,right:3,fontSize:8,color:T.red,fontWeight:700}}>!</div>}
         <div style={{fontSize:mob?8:9,fontWeight:700,color:c.col,lineHeight:1.2,
@@ -492,7 +493,7 @@ export const RegView=({mob})=>{
 
   // ── Render ──
   return(
-    <div style={{flex:1,overflowY:"auto",background:T.bg,padding:`${pd}px`,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
+    <div style={{flex:1,overflowY:"auto",minHeight:0,background:T.bg,padding:`${pd}px`,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <div>
