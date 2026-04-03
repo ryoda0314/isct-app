@@ -134,10 +134,19 @@ export const RegView=({mob})=>{
         nSec[cid]=sec.section;
         return slots;
       };
-      // 1) Common required — match unit number as section name
+      // Helper: check if a number matches section name (exact or range like "A(1-7)")
+      const secMatchNum=(secName,mn)=>{
+        const s=String(mn),p=s.padStart(2,'0');
+        if(secName===s||secName===p) return true;
+        const m=secName.match(/\((\d+)[~～\-](\d+)\)/);
+        return m&&mn>=parseInt(m[1])&&mn<=parseInt(m[2]);
+      };
+      // 1) Common required — exact match or range match
       for(const c of REQ_1Q.common){
         const sections=sectionData[c.name]||[];
-        const sec=sections.find(s=>s.section===n||s.section===pad||s.section===unitNum);
+        // 立志プロジェクト: class = ceil(unit/2)
+        const mn=c.id==='risshi'?Math.ceil(num/2):num;
+        const sec=sections.find(s=>secMatchNum(s.section,mn));
         if(sec){ nReq[c.id]=sec.slots.map(toGridSlot).filter(Boolean); nSec[c.id]=sec.section; }
       }
       // 2) Science — use UNIT_MAP (mech1 → A-P)
