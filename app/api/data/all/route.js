@@ -120,7 +120,7 @@ export async function GET(request) {
         if (!profileRow?.student_id && studentId) updates.student_id = studentId;
         if (!profileRow?.year_group && yearGroup) updates.year_group = yearGroup;
         if (Object.keys(updates).length > 0) {
-          sb.from('profiles').update(updates).eq('moodle_id', userid).then(() => {}).catch(() => {});
+          sb.from('profiles').update(updates).eq('moodle_id', userid);
         }
       }
     }

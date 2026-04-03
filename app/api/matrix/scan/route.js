@@ -24,7 +24,7 @@ async function checkUserScanLimit(userid) {
 
 async function logScan(userid) {
   const sb = getSupabaseAdmin();
-  await sb.from('matrix_scan_log').insert({ user_id: userid }).catch(() => {});
+  await sb.from('matrix_scan_log').insert({ user_id: userid });
 }
 
 // ファイルサイズ上限: 5MB
