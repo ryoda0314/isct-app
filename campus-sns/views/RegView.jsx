@@ -3,45 +3,43 @@ import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { REQ_1Q, REQ_2Q, CAT_COLORS, UNIT_OPT, LAB_OPT, SCHOOLS, SHARED_DEPTS, DEPT_LABELS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
 
-// Per-quarter localStorage (single timetable per quarter, all year levels share it)
-const lsKey=(q)=>`reg_${q}`;
-const loadQ=(q)=>{try{return JSON.parse(localStorage.getItem(lsKey(q)))||{};}catch{return{};}};
-const saveQ=(q,d)=>{try{localStorage.setItem(lsKey(q),JSON.stringify(d));}catch{}};
-// Migration: old keys → new
+// Per year-level + quarter localStorage
+const lsKey=(yr,q)=>`reg_${yr}_${q}`;
+const loadQ=(yr,q)=>{try{return JSON.parse(localStorage.getItem(lsKey(yr,q)))||{};}catch{return{};}};
+const saveQ=(yr,q,d)=>{try{localStorage.setItem(lsKey(yr,q),JSON.stringify(d));}catch{}};
+// Migration: old unified keys → year-separated
 (function migrate(){try{
-  // reg1q → reg_1Q
-  const old1q=localStorage.getItem("reg1q");if(old1q&&!localStorage.getItem("reg_1Q")){localStorage.setItem("reg_1Q",old1q);localStorage.removeItem("reg1q");}
-  // reg_1_1Q (year-separated) → reg_1Q (merged)
+  // reg1q → reg_1_1Q (legacy)
+  const old1q=localStorage.getItem("reg1q");if(old1q&&!localStorage.getItem("reg_1_1Q")){localStorage.setItem("reg_1_1Q",old1q);localStorage.removeItem("reg1q");}
+  // reg_1Q (unified) → reg_1_1Q (split back)
   for(const oq of["1Q","2Q"]){
-    const newKey=`reg_${oq}`;
-    if(localStorage.getItem(newKey)) continue; // already migrated
-    const yr1=localStorage.getItem(`reg_1_${oq}`);
-    if(yr1){
-      const base=JSON.parse(yr1);
-      // Merge opt/optInfo from other years
-      for(const yr of[2,3,4]){
-        const yrData=localStorage.getItem(`reg_${yr}_${oq}`);
-        if(!yrData) continue;
-        const d=JSON.parse(yrData);
-        if(d.opt) Object.assign(base.opt||{},d.opt);
-        if(d.optInfo) Object.assign(base.optInfo||{},d.optInfo);
-        if(d.reqSec) Object.assign(base.reqSec||{},d.reqSec);
-        localStorage.removeItem(`reg_${yr}_${oq}`);
-      }
-      localStorage.setItem(newKey,JSON.stringify(base));
-      localStorage.removeItem(`reg_1_${oq}`);
+    const unified=localStorage.getItem(`reg_${oq}`);
+    if(!unified) continue;
+    const d=JSON.parse(unified);
+    // Put req/reqSec/sci/unit into year 1
+    if(!localStorage.getItem(`reg_1_${oq}`)){
+      localStorage.setItem(`reg_1_${oq}`,JSON.stringify({req:d.req||{},reqSec:d.reqSec||{},sci:d.sci||{},opt:{},optInfo:{},unit:d.unit||""}));
     }
+    // opt/optInfo stay in year 1 as fallback (user can re-add in correct year)
+    if(d.opt&&Object.keys(d.opt).length>0){
+      const yr1=JSON.parse(localStorage.getItem(`reg_1_${oq}`)||'{}');
+      yr1.opt={...(yr1.opt||{}),...d.opt};
+      yr1.optInfo={...(yr1.optInfo||{}),...d.optInfo};
+      yr1.reqSec={...(yr1.reqSec||{}),...(d.reqSec||{})};
+      localStorage.setItem(`reg_1_${oq}`,JSON.stringify(yr1));
+    }
+    localStorage.removeItem(`reg_${oq}`);
   }
 }catch{}})();
 
-const initQ=(q)=>{const s=loadQ(q);return{req:s.req||{},reqSec:s.reqSec||{},sci:s.sci||{},opt:s.opt||{},optInfo:s.optInfo||{},unit:s.unit||""};};
+const initQ=(yr,q)=>{const s=loadQ(yr,q);return{req:s.req||{},reqSec:s.reqSec||{},sci:s.sci||{},opt:s.opt||{},optInfo:s.optInfo||{},unit:s.unit||""};};
 
 // ── Main View ──────────────────────────────────────
 export const RegView=({mob})=>{
-  const [browseLevel,setBrowseLevel]=useState(1); // which level courses to browse (display filter only)
+  const [browseLevel,setBrowseLevel]=useState(1);
   const [quarter,setQuarter]=useState("1Q");
-  const [data,setData]=useState(()=>initQ("1Q"));
-  const curReq=quarter==="1Q"?REQ_1Q:REQ_2Q; // 1年必修 always available
+  const [data,setData]=useState(()=>initQ(1,"1Q"));
+  const curReq=quarter==="1Q"?REQ_1Q:REQ_2Q;
 
   // DB state
   const [sectionData,setSectionData]=useState(null);
@@ -73,26 +71,28 @@ export const RegView=({mob})=>{
     return depts.join(',');
   },[selSchool,selDept,curSchool]);
 
-  // Save & switch quarter (single timetable per quarter)
+  // Save & switch quarter
   const switchQ=(q)=>{
     if(q===quarter) return;
-    saveQ(quarter,data);
-    setData(initQ(q));
+    saveQ(browseLevel,quarter,data);
+    setData(initQ(browseLevel,q));
     setQuarter(q);
     setSectionData(null);setSecLoading(true);
     setDbCats([]);setDbLoading(true);
     setOpenCats({});setSearch("");
   };
-  // Switch browse level (just changes which courses are displayed, same timetable)
+  // Switch year level (separate timetable per year)
   const switchBrowse=(yr)=>{
     if(yr===browseLevel) return;
+    saveQ(browseLevel,quarter,data);
+    setData(initQ(yr,quarter));
     setBrowseLevel(yr);
     setDbCats([]);setDbLoading(true);
     setOpenCats({});setSearch("");
     if(yr>=2){/* keep school/dept filter */} else {setSelSchool(null);setSelDept(null);}
   };
 
-  const up=useCallback((fn)=>setData(prev=>{const next=fn(prev);saveQ(quarter,next);return next;}),[quarter]);
+  const up=useCallback((fn)=>setData(prev=>{const next=fn(prev);saveQ(browseLevel,quarter,next);return next;}),[browseLevel,quarter]);
 
   const {req,reqSec,sci,opt,optInfo,unit}=data;
 
@@ -147,7 +147,7 @@ export const RegView=({mob})=>{
   // ── Active courses ──
   const active=useMemo(()=>{
     const list=[];
-    if(curReq){
+    if(browseLevel===1&&curReq){
       for(const c of curReq.common){
         const sl=req[c.id]||[];
         if(sl.length) list.push({...c,sel:sl,type:"req"});
@@ -248,8 +248,9 @@ export const RegView=({mob})=>{
         return m&&mn>=parseInt(m[1])&&mn<=parseInt(m[2]);
       };
       for(const c of curReq.common){
+        if(c.id==='risshi') continue; // 立志は手動選択
         const sections=sectionData[c.name]||[];
-        const mn=(c.id==='risshi'||c.id==='eng1'||c.id==='eng2')?Math.ceil(num/2):num;
+        const mn=(c.id==='eng1'||c.id==='eng2')?Math.ceil(num/2):num;
         const sec=sections.find(s=>secMatchNum(s.section,mn));
         if(sec){ nReq[c.id]=sec.slots.flatMap(toGridSlots); nSec[c.id]=sec.section; }
       }
