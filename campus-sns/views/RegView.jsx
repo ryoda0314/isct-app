@@ -94,12 +94,15 @@ export const RegView=({mob})=>{
       .catch(()=>{setDbCats([]);setDbLoading(false);});
   },[quarter,yearLevel,level,deptParam]);
 
-  // ── Convert DB slot to grid [day, period] ──
-  const toGridSlot=(s)=>{
+  // ── Convert DB slot to grid positions (handles multi-block spans like 5-8限) ──
+  const toGridSlots=(s)=>{
     const di={月:0,火:1,水:2,木:3,金:4}[s.day];
-    const pi=Math.floor((s.period_start-1)/2);
-    if(di==null||isNaN(pi)) return null;
-    return [di,pi];
+    if(di==null) return [];
+    const startPi=Math.floor((s.period_start-1)/2);
+    const endPi=Math.floor(((s.period_end||s.period_start)-1)/2);
+    const out=[];
+    for(let pi=startPi;pi<=endPi;pi++) if(pi>=0&&pi<5) out.push([di,pi]);
+    return out;
   };
 
   // ── Active courses ──
@@ -161,7 +164,7 @@ export const RegView=({mob})=>{
     const sections=sectionData?.[courseName]||[];
     const sec=sections.find(s=>s.section===secName);
     if(!sec) return p;
-    const slots=sec.slots.map(toGridSlot).filter(Boolean);
+    const slots=sec.slots.flatMap(toGridSlots);
     if((p.reqSec||{})[cid]===secName){
       const ns={...(p.reqSec||{})};delete ns[cid];
       return {...p,reqSec:ns,req:{...p.req,[cid]:[]}};
@@ -170,7 +173,7 @@ export const RegView=({mob})=>{
   });
 
   const selectOptSec=(code,courseName,cat,cr,secObj)=>up(p=>{
-    const slots=secObj.slots.map(toGridSlot).filter(Boolean);
+    const slots=secObj.slots.flatMap(toGridSlots);
     if((p.reqSec||{})[code]===secObj.section){
       const ns={...(p.reqSec||{})};delete ns[code];
       const no={...p.opt};delete no[code];
@@ -209,7 +212,7 @@ export const RegView=({mob})=>{
         const sections=sectionData[c.name]||[];
         const mn=(c.id==='risshi'||c.id==='eng1'||c.id==='eng2')?Math.ceil(num/2):num;
         const sec=sections.find(s=>secMatchNum(s.section,mn));
-        if(sec){ nReq[c.id]=sec.slots.map(toGridSlot).filter(Boolean); nSec[c.id]=sec.section; }
+        if(sec){ nReq[c.id]=sec.slots.flatMap(toGridSlots); nSec[c.id]=sec.section; }
       }
       for(const c of curReq.science){
         const letter=unitToSection(c.id,num);
@@ -217,7 +220,7 @@ export const RegView=({mob})=>{
           const sections=sectionData[c.name]||[];
           const sec=sections.find(s=>s.section===letter);
           if(sec){
-            const slots=sec.slots.map(toGridSlot).filter(Boolean);
+            const slots=sec.slots.flatMap(toGridSlots);
             if(slots.length){ nSci[c.id]=true; nReq[c.id]=slots; nSec[c.id]=letter; }
           }
         }
@@ -230,7 +233,7 @@ export const RegView=({mob})=>{
             if(letter){
               const sec=course.sections.find(s=>s.section===letter);
               if(sec){
-                const slots=sec.slots.map(toGridSlot).filter(Boolean);
+                const slots=sec.slots.flatMap(toGridSlots);
                 if(slots.length){ nOpt[course.code]=slots; nSec[course.code]=sec.section; nOptInfo[course.code]={name:course.name,cat:cat.name,cr:1}; }
               }
             }
@@ -240,7 +243,7 @@ export const RegView=({mob})=>{
             if(day){
               const sec=course.sections.find(s=>s.slots.some(sl=>sl.day===day));
               if(sec){
-                const slots=sec.slots.map(toGridSlot).filter(Boolean);
+                const slots=sec.slots.flatMap(toGridSlots);
                 if(slots.length){ nOpt[course.code]=slots; nSec[course.code]=sec.section; nOptInfo[course.code]={name:course.name,cat:cat.name,cr:1}; }
               }
             }
@@ -355,7 +358,7 @@ export const RegView=({mob})=>{
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
               {courseSections.map(sec=>{
                 const isSel=selSec===sec.section;
-                const conflict=!isSel&&otherOcc&&sec.slots.some(s=>{const g=toGridSlot(s);return g&&otherOcc.has(slotKey(g));});
+                const conflict=!isSel&&otherOcc&&sec.slots.some(s=>toGridSlots(s).some(g=>otherOcc.has(slotKey(g))));
                 const slotsLabel=sec.slots.map(s=>`${s.day}${s.period_start}-${s.period_end}限`).join(' · ');
                 return(
                   <button key={sec.section||'_default'} onClick={()=>selectReqSec(c.id,c.name,sec.section)}
@@ -422,7 +425,7 @@ export const RegView=({mob})=>{
         <div style={{display:"flex",flexWrap:"wrap",gap:5,paddingLeft:14}}>
           {course.sections.map(sec=>{
             const isSel=selSec===sec.section;
-            const conflict=!isSel&&sec.slots.some(s=>{const g=toGridSlot(s);return g&&otherOcc.has(slotKey(g));});
+            const conflict=!isSel&&sec.slots.some(s=>toGridSlots(s).some(g=>otherOcc.has(slotKey(g))));
             const slotsLabel=sec.slots.map(s=>`${s.day}${s.period_start}-${s.period_end}限`).join(' · ');
             return(
               <button key={sec.section||'_default'} onClick={()=>selectOptSec(code,course.name,catName,1,sec)}
