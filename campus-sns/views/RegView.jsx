@@ -180,6 +180,23 @@ export const RegView=({mob})=>{
   const credits=active.reduce((s,c)=>s+c.cr,0);
   const slotCount=active.reduce((s,c)=>s+(c.sel?.length||0),0);
 
+  // Total credits across both quarters for current year level
+  const totalCredits=useMemo(()=>{
+    let total=0;
+    for(const q of["1Q","2Q"]){
+      const d=q===quarter?data:loadQ(browseLevel,q);
+      const cReq=q==="1Q"?REQ_1Q:REQ_2Q;
+      if(browseLevel===1&&cReq){
+        for(const c of cReq.common) if((d.req?.[c.id]||[]).length) total+=c.cr;
+        for(const c of cReq.science) if(d.sci?.[c.id]&&(d.req?.[c.id]||[]).length) total+=c.cr;
+      }
+      if(d.opt) for(const[code,slots] of Object.entries(d.opt)){
+        if(slots?.length) total+=(d.optInfo?.[code]?.cr||0);
+      }
+    }
+    return total;
+  },[data,quarter,browseLevel]);
+
   const occupied=useMemo(()=>{
     const set=new Set();
     for(const c of active) for(const s of c.sel) set.add(slotKey(s));
@@ -459,6 +476,7 @@ export const RegView=({mob})=>{
           {course.requirement&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0,fontWeight:600,
             background:course.requirement==='必修'?'#ef444420':course.requirement==='選択必修'?'#f59e0b20':'#22c55e20',
             color:course.requirement==='必修'?'#ef4444':course.requirement==='選択必修'?'#f59e0b':'#22c55e'}}>{course.requirement}</span>}
+          {course.credits&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0,fontWeight:600,background:`${T.accent}15`,color:T.accent}}>{course.credits}単位</span>}
           <span style={{fontSize:9,color:T.txD,background:T.bg3,padding:"1px 5px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{course.code}</span>
           {isAdded&&<button onClick={()=>rmOpt(code)}
             style={{padding:"3px 8px",borderRadius:6,border:`1px solid ${T.red}40`,
@@ -475,7 +493,7 @@ export const RegView=({mob})=>{
             const conflict=!isSel&&sec.slots.some(s=>toGridSlots(s).some(g=>otherOcc.has(slotKey(g))));
             const slotsLabel=sec.slots.map(s=>`${s.day}${s.period_start}-${s.period_end}限`).join(' · ');
             return(
-              <button key={sec.section||'_default'} onClick={()=>selectOptSec(code,course.name,catName,1,sec)}
+              <button key={sec.section||'_default'} onClick={()=>selectOptSec(code,course.name,catName,course.credits||1,sec)}
                 style={{padding:"4px 10px",borderRadius:8,fontSize:11,fontWeight:isSel?700:400,
                   border:`1.5px solid ${isSel?T.accent:conflict?T.orange+'60':T.bd}`,
                   background:isSel?`${T.accent}18`:conflict?`${T.orange}08`:T.bg3,
@@ -587,16 +605,17 @@ export const RegView=({mob})=>{
       )}
 
       {/* Stats */}
-      <div style={{display:"flex",gap:mob?8:12,marginBottom:16}}>
+      <div style={{display:"flex",gap:mob?6:12,marginBottom:16}}>
         {[
           {label:"科目数",value:active.length,unit:"科目",col:T.accent},
-          {label:"単位数",value:credits,unit:"単位",col:T.green},
+          {label:`単位(${quarter})`,value:credits,unit:"単位",col:T.green},
+          {label:"年間合計",value:totalCredits,unit:"単位",col:T.green},
           {label:"コマ数",value:slotCount,unit:"コマ",col:T.orange},
         ].map(s=>(
-          <div key={s.label} style={{flex:1,padding:mob?"10px 8px":"12px 16px",borderRadius:12,
+          <div key={s.label} style={{flex:1,padding:mob?"10px 6px":"12px 16px",borderRadius:12,
             background:`${s.col}08`,border:`1px solid ${s.col}20`}}>
-            <div style={{fontSize:10,color:T.txD,marginBottom:2}}>{s.label}</div>
-            <div style={{fontSize:mob?20:24,fontWeight:800,color:s.col}}>{s.value}<span style={{fontSize:11,fontWeight:400,color:T.txD,marginLeft:3}}>{s.unit}</span></div>
+            <div style={{fontSize:mob?9:10,color:T.txD,marginBottom:2}}>{s.label}</div>
+            <div style={{fontSize:mob?18:24,fontWeight:800,color:s.col}}>{s.value}<span style={{fontSize:mob?9:11,fontWeight:400,color:T.txD,marginLeft:2}}>{s.unit}</span></div>
           </div>
         ))}
       </div>

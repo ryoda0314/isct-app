@@ -65,7 +65,7 @@ export async function GET(req) {
   const range = q <= '2' ? '1-2Q' : '3-4Q';
 
   const { data, error } = await sb.from('syllabus_courses')
-    .select('name,code,section,day,per,period_start,period_end,room,quarter,requirement')
+    .select('name,code,section,day,per,period_start,period_end,room,quarter,requirement,credits')
     .eq('year', year)
     .or(`quarter.eq.${quarter},quarter.eq.${range},quarter.eq.1-4Q`)
     .limit(5000);
@@ -108,7 +108,7 @@ export async function GET(req) {
     const cat = courseLevel === '1' ? getCat100(row.code, row.name) : getCatHigher(row.code);
 
     if (!courses[row.code]) {
-      courses[row.code] = { name: row.name, code: row.code, cat, requirement: row.requirement || null, sections: {} };
+      courses[row.code] = { name: row.name, code: row.code, cat, requirement: row.requirement || null, credits: row.credits || null, sections: {} };
     }
     const sec = row.section || '';
     if (!courses[row.code].sections[sec]) {
@@ -128,7 +128,7 @@ export async function GET(req) {
       .sort((a, b) => (a.section || '').localeCompare(b.section || '', undefined, { numeric: true }));
     if (!secs.length) continue;
     if (!groups[c.cat]) groups[c.cat] = [];
-    groups[c.cat].push({ name: c.name, code: c.code, requirement: c.requirement, sections: secs });
+    groups[c.cat].push({ name: c.name, code: c.code, requirement: c.requirement, credits: c.credits, sections: secs });
   }
 
   // Sort categories

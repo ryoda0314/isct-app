@@ -21,6 +21,7 @@ create table if not exists syllabus_courses (
   syllabus_url    text,                     -- シラバスページURL
   school          text,                     -- 学院名 (e.g. 工学院)
   requirement     text,                     -- 必修区分 (必修, 選択必修, 選択)
+  credits         smallint,                 -- 単位数 (講義+演習+実験の合計)
   fetched_at      timestamptz default now() -- 取得日時
 );
 
@@ -56,3 +57,4 @@ alter table syllabus_courses enable row level security;
 -- alter table syllabus_courses add column if not exists building text;
 -- create index if not exists idx_syllabus_building on syllabus_courses(building);
 -- alter table syllabus_courses add column if not exists requirement text;
+-- alter table syllabus_courses add column if not exists credits smallint;

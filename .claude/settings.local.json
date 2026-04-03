@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xargs -I {} sh -c 'echo \"\"=== {} ===\"\" && head -50 {}')"
+      "Bash(xargs -I {} sh -c 'echo \"\"=== {} ===\"\" && head -50 {}')",
+      "Bash(curl -s \"https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601820\")"
     ]
   }
 }
