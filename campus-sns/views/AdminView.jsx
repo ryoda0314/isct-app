@@ -1221,7 +1221,6 @@ const SyllabusTab = () => {
 
 const CurriculumInput = ({ years }) => {
   const [text, setText] = useState("");
-  const [dept, setDept] = useState("");
   const [year, setYear] = useState(years?.[years.length - 1] || "2026");
   const [result, setResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -1231,17 +1230,18 @@ const CurriculumInput = ({ years }) => {
     const items = [];
     let m;
     while ((m = re.exec(text)) !== null) {
-      items.push({ code: m[1], req: m[2] === '◎' ? '必修' : m[2] === '○' ? '選択必修' : '選択', name: m[3].trim() });
+      items.push({ code: m[1], dept: m[1].split('.')[0], req: m[2] === '◎' ? '必修' : m[2] === '○' ? '選択必修' : '選択', name: m[3].trim() });
     }
     return items;
   };
   const parsed = text.trim() ? preview() : [];
+  const detectedDepts = [...new Set(parsed.map(p => p.dept))];
 
   const submit = async () => {
-    if (!dept || parsed.length === 0) return;
+    if (parsed.length === 0) return;
     setSubmitting(true);
     try {
-      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_curriculum", text, dept, year }) });
+      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_curriculum", text, dept: detectedDepts.join(','), year }) });
       const d = await r.json();
       setResult(d);
       if (d.ok) setText("");
@@ -1257,10 +1257,10 @@ const CurriculumInput = ({ years }) => {
       <div style={{ fontSize: 11, color: T.txD, marginBottom: 12 }}>学修案内から科目一覧をコピペしてください（◎=必修, ○=選択必修, 無印=選択）</div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <input value={dept} onChange={e => setDept(e.target.value.toUpperCase())} placeholder="学科キー (例: MTH, CSC)" style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13, width: 160 }} />
         <select value={year} onChange={e => setYear(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
           {(years || ["2026"]).map(y => <option key={y} value={y}>{y}年度</option>)}
         </select>
+        {detectedDepts.length > 0 && <span style={{ fontSize: 11, color: T.txD }}>検出: {detectedDepts.map(d => <Badge key={d} text={d} color={T.accent} />)}</span>}
       </div>
 
       <textarea value={text} onChange={e => setText(e.target.value)} placeholder={"MTH.A201.R ◎ 代数学概論第一 1-1-0 1 (a)\nMTH.A203.A ○ 代数学概論第三 1-1-0 1 (a)\nMTH.T201.L 解析力学（講義） 2-0-0 1 5 (b)"} rows={8}
@@ -1286,7 +1286,7 @@ const CurriculumInput = ({ years }) => {
       )}
 
       <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
-        <Btn onClick={submit} color={T.green} disabled={submitting || parsed.length === 0 || !dept}>
+        <Btn onClick={submit} color={T.green} disabled={submitting || parsed.length === 0}>
           {submitting ? "更新中..." : `${parsed.length}科目の区分を更新`}
         </Btn>
       </div>
