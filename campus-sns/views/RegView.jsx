@@ -1,39 +1,53 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
-import { REQ_1Q, OPT_1Q, OPT_CATS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
+import { REQ_1Q, REQ_2Q, OPT_1Q, OPT_CATS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
 
-const LS="reg1q";
-const load=()=>{try{return JSON.parse(localStorage.getItem(LS))||{};}catch{return{};}};
-const save=(d)=>{try{localStorage.setItem(LS,JSON.stringify(d));}catch{}};
+// Per-quarter localStorage
+const lsKey=q=>`reg_${q}`;
+const loadQ=q=>{try{return JSON.parse(localStorage.getItem(lsKey(q)))||{};}catch{return{};}};
+const saveQ=(q,d)=>{try{localStorage.setItem(lsKey(q),JSON.stringify(d));}catch{}};
+// Migration: old "reg1q" → "reg_1Q"
+(function migrate(){try{const old=localStorage.getItem("reg1q");if(old&&!localStorage.getItem("reg_1Q")){localStorage.setItem("reg_1Q",old);localStorage.removeItem("reg1q");}}catch{}})();
+
+const initQ=q=>{const s=loadQ(q);return{req:s.req||{},reqSec:s.reqSec||{},sci:s.sci||{},opt:s.opt||{},unit:s.unit||""};};
 
 // ── Main View ──────────────────────────────────────
 export const RegView=({mob})=>{
-  const [data,setData]=useState(()=>{
-    const s=load();
-    return {req:s.req||{},reqSec:s.reqSec||{},sci:s.sci||{},opt:s.opt||{},unit:s.unit||""};
-  });
-  const up=useCallback((fn)=>setData(prev=>{const next=fn(prev);save(next);return next;}),[]);
+  const [quarter,setQuarter]=useState("1Q");
+  const [data,setData]=useState(()=>initQ("1Q"));
+  const curReq=quarter==="1Q"?REQ_1Q:REQ_2Q;
+
+  // Save & switch quarter
+  const switchQ=(q)=>{
+    saveQ(quarter,data);
+    setData(initQ(q));
+    setQuarter(q);
+    setSectionData(null);setSecLoading(true);
+  };
+
+  const up=useCallback((fn)=>setData(prev=>{const next=fn(prev);saveQ(quarter,next);return next;}),[quarter]);
 
   const {req,reqSec,sci,opt,unit}=data;
   const [reqOpen,setReqOpen]=useState(true);
   const [optOpen,setOptOpen]=useState(true);
   const [search,setSearch]=useState("");
   const [catFilter,setCatFilter]=useState(null);
-  const [slotPick,setSlotPick]=useState(null); // {courseId,course} for slot picker modal
+  const [slotPick,setSlotPick]=useState(null);
   const [detailCourse,setDetailCourse]=useState(null);
   const [syllabusData,setSyllabusData]=useState(null);
   const [syllabusLoading,setSyllabusLoading]=useState(false);
   const [sectionData,setSectionData]=useState(null);
   const [secLoading,setSecLoading]=useState(true);
 
-  // ── Fetch section data from DB (all courses) ──
+  // ── Fetch section data from DB (per quarter) ──
   useEffect(()=>{
-    const names=[...REQ_1Q.common,...REQ_1Q.science,...OPT_1Q].map(c=>c.name);
-    fetch(`/api/data/reg-sections?year=2026&names=${encodeURIComponent(names.join(','))}`)
+    setSecLoading(true);
+    const names=[...curReq.common,...curReq.science,...OPT_1Q].map(c=>c.name);
+    fetch(`/api/data/reg-sections?year=2026&quarter=${quarter}&names=${encodeURIComponent(names.join(','))}`)
       .then(r=>r.json()).then(d=>{setSectionData(d.courses||{});setSecLoading(false);})
       .catch(()=>setSecLoading(false));
-  },[]);
+  },[quarter]);
 
   // ── Convert DB slot to grid [day, period] ──
   const toGridSlot=(s)=>{
@@ -46,11 +60,11 @@ export const RegView=({mob})=>{
   // ── Active courses ──
   const active=useMemo(()=>{
     const list=[];
-    for(const c of REQ_1Q.common){
+    for(const c of curReq.common){
       const sl=req[c.id]||[];
       if(sl.length) list.push({...c,sel:sl,type:"req"});
     }
-    for(const c of REQ_1Q.science){
+    for(const c of curReq.science){
       if(!sci[c.id]) continue;
       const sl=req[c.id]||[];
       if(sl.length) list.push({...c,sel:sl,type:"sci"});
@@ -60,7 +74,7 @@ export const RegView=({mob})=>{
       if(sl.length) list.push({...c,sel:sl,type:"opt"});
     }
     return list;
-  },[req,sci,opt]);
+  },[req,sci,opt,quarter]);
 
   // ── Grid ──
   const grid=useMemo(()=>{
@@ -74,9 +88,6 @@ export const RegView=({mob})=>{
   },[active]);
 
   // ── Stats ──
-  const courseCount=active.length;
-  const creditSum=active.reduce((s,c)=>s+c.cr*(c.sel?.length||1)/(c.slots?.length||1)*((c.slots?.length||1)/(c.sel?.length||1)),0);
-  // Simpler: just sum credits per unique course
   const credits=active.reduce((s,c)=>s+c.cr,0);
   const slotCount=active.reduce((s,c)=>s+(c.sel?.length||0),0);
 
@@ -87,14 +98,13 @@ export const RegView=({mob})=>{
     return set;
   },[active]);
 
-  // ── Occupied set excluding a specific course (for section conflict check) ──
   const occExcept=(excludeId)=>{
     const set=new Set();
     for(const c of active){if(c.id===excludeId)continue;for(const s of c.sel) set.add(slotKey(s));}
     return set;
   };
 
-  // ── Toggle required slot (fallback when no section data) ──
+  // ── Toggle required slot (fallback) ──
   const togReq=(cid,slot)=>up(p=>{
     const cur=p.req[cid]||[];
     const k=slotKey(slot);
@@ -108,7 +118,6 @@ export const RegView=({mob})=>{
     const sec=sections.find(s=>s.section===secName);
     if(!sec) return p;
     const slots=sec.slots.map(toGridSlot).filter(Boolean);
-    // Toggle: deselect if same section
     if((p.reqSec||{})[cid]===secName){
       const ns={...(p.reqSec||{})};delete ns[cid];
       return {...p,reqSec:ns,req:{...p.req,[cid]:[]}};
@@ -124,7 +133,6 @@ export const RegView=({mob})=>{
     const n=String(num), pad=n.padStart(2,'0');
     up(p=>{
       const nReq={...p.req},nSec={...(p.reqSec||{})},nSci={...p.sci},nOpt={...p.opt};
-      // Helper: find & apply section
       const apply=(cid,cname,secName)=>{
         const sections=sectionData[cname]||[];
         const sec=sections.find(s=>s.section===secName);
@@ -134,30 +142,28 @@ export const RegView=({mob})=>{
         nSec[cid]=sec.section;
         return slots;
       };
-      // Helper: check if a number matches section name (exact or range like "A(1-7)")
       const secMatchNum=(secName,mn)=>{
         const s=String(mn),p=s.padStart(2,'0');
         if(secName===s||secName===p) return true;
         const m=secName.match(/\((\d+)[~～\-](\d+)\)/);
         return m&&mn>=parseInt(m[1])&&mn<=parseInt(m[2]);
       };
-      // 1) Common required — exact match or range match
-      for(const c of REQ_1Q.common){
+      // 1) Common required
+      for(const c of curReq.common){
         const sections=sectionData[c.name]||[];
-        // 立志プロジェクト: class = ceil(unit/2)
         const mn=c.id==='risshi'?Math.ceil(num/2):num;
         const sec=sections.find(s=>secMatchNum(s.section,mn));
         if(sec){ nReq[c.id]=sec.slots.map(toGridSlot).filter(Boolean); nSec[c.id]=sec.section; }
       }
-      // 2) Science — use UNIT_MAP (mech1 → A-P)
-      for(const c of REQ_1Q.science){
+      // 2) Science — UNIT_MAP
+      for(const c of curReq.science){
         const letter=unitToSection(c.id,num);
         if(letter){
           const slots=apply(c.id,c.name,letter);
           if(slots){ nSci[c.id]=true; nReq[c.id]=slots; }
         }
       }
-      // 3) Optional — UNIT_MAP (phyex1 → a-p) or lab day matching
+      // 3) Optional — UNIT_MAP or lab day
       const labIds=['phylab','chemlab'];
       for(const c of OPT_1Q){
         const letter=unitToSection(c.id,num);
@@ -177,14 +183,14 @@ export const RegView=({mob})=>{
     });
   };
 
-  // ── Toggle science enabled ──
+  // ── Toggle science ──
   const togSci=(cid)=>up(p=>{
     const off=p.sci[cid];
     const ns={...(p.reqSec||{})};if(off)delete ns[cid];
     return {...p,sci:{...p.sci,[cid]:!off},req:off?{...p.req,[cid]:[]}:p.req,reqSec:ns};
   });
 
-  // ── Select section for optional course ──
+  // ── Select section for optional ──
   const selectOptSec=(cid,courseName,secName)=>up(p=>{
     const sections=sectionData?.[courseName]||[];
     const sec=sections.find(s=>s.section===secName);
@@ -198,20 +204,17 @@ export const RegView=({mob})=>{
     return {...p,reqSec:{...(p.reqSec||{}),[cid]:secName},opt:{...p.opt,[cid]:slots}};
   });
 
-  // ── Add optional slot (fallback) ──
   const addOpt=(cid,slot)=>{
     up(p=>({...p,opt:{...p.opt,[cid]:[...(p.opt[cid]||[]),slot]}}));
     setSlotPick(null);
   };
 
-  // ── Remove optional ──
   const rmOpt=(cid)=>up(p=>{
     const no={...p.opt};delete no[cid];
     const ns={...(p.reqSec||{})};delete ns[cid];
     return{...p,opt:no,reqSec:ns};
   });
 
-  // ── Remove optional slot ──
   const rmOptSlot=(cid,slot)=>up(p=>{
     const cur=(p.opt[cid]||[]).filter(s=>slotKey(s)!==slotKey(slot));
     const next={...p.opt};
@@ -220,21 +223,18 @@ export const RegView=({mob})=>{
     return{...p,opt:next,reqSec:ns};
   });
 
-  // ── Reset all ──
-  const resetAll=()=>{if(confirm("すべての選択をリセットしますか？")){up(()=>({req:{},reqSec:{},sci:{},opt:{},unit:""}));}};
+  const resetAll=()=>{if(confirm("このクオーターの選択をリセットしますか？")){up(()=>({req:{},reqSec:{},sci:{},opt:{},unit:data.unit}));}};
 
-  // ── Syllabus fetch ──
   const fetchSyllabus=async(name)=>{
     setDetailCourse(name);setSyllabusLoading(true);setSyllabusData(null);
     try{
-      const r=await fetch(`/api/data/syllabus-search?q=${encodeURIComponent(name)}&year=2026&quarter=1Q`);
+      const r=await fetch(`/api/data/syllabus-search?q=${encodeURIComponent(name)}&year=2026&quarter=${quarter}`);
       if(r.ok){const d=await r.json();setSyllabusData(d.courses||[]);}
       else setSyllabusData([]);
     }catch{setSyllabusData([]);}
     setSyllabusLoading(false);
   };
 
-  // ── Filtered optional ──
   const filtered=useMemo(()=>{
     let list=OPT_1Q;
     if(catFilter) list=list.filter(c=>c.cat===catFilter);
@@ -243,12 +243,11 @@ export const RegView=({mob})=>{
   },[search,catFilter]);
 
   // ── Styles ──
-  const pad=mob?12:20;
+  const pd=mob?12:20;
   const cellW=mob?56:72;
   const cellH=mob?48:56;
   const hdrH=mob?24:28;
 
-  // ── Grid cell ──
   const Cell=({c,d,p})=>{
     if(!c) return <div style={{width:cellW,height:cellH,background:T.bg3,borderRadius:6,border:`1px solid ${T.bd}`}}/>;
     const isConflict=!!c.conflict;
@@ -268,7 +267,6 @@ export const RegView=({mob})=>{
     );
   };
 
-  // ── Slot chip ──
   const Chip=({slot,selected,conflict,onClick,small})=>{
     const label=slotLabel(slot);
     const isBusy=conflict&&!selected;
@@ -283,8 +281,7 @@ export const RegView=({mob})=>{
     );
   };
 
-  // ── Section header ──
-  const SecHdr=({title,open,toggle,count,badge})=>(
+  const SecHdr=({title,open,toggle,badge})=>(
     <button onClick={toggle} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 0",
       border:"none",background:"transparent",cursor:"pointer",borderBottom:`1px solid ${T.bd}`}}>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2.5"
@@ -296,7 +293,6 @@ export const RegView=({mob})=>{
     </button>
   );
 
-  // ── Course row (required) ──
   const ReqRow=({c,isScience})=>{
     const enabled=isScience?!!sci[c.id]:true;
     const selSlots=req[c.id]||[];
@@ -357,7 +353,6 @@ export const RegView=({mob})=>{
     );
   };
 
-  // ── Optional course row ──
   const OptRow=({c})=>{
     const added=(opt[c.id]||[]).length>0;
     const selSec=(reqSec||{})[c.id];
@@ -380,7 +375,6 @@ export const RegView=({mob})=>{
             </div>
             {c.note&&<div style={{fontSize:9,color:T.orange,marginTop:1}}>{c.note}</div>}
           </div>
-          {/* Fallback buttons when no section data */}
           {!hasSections&&(added?(
             <button onClick={()=>rmOpt(c.id)} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${T.red}40`,
               background:`${T.red}10`,color:T.red,fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>
@@ -399,7 +393,6 @@ export const RegView=({mob})=>{
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </button>
         </div>
-        {/* Section chips */}
         {hasSections&&<div style={{display:"flex",flexWrap:"wrap",gap:6,paddingLeft:14,marginTop:6}}>
           {courseSections.map(sec=>{
             const isSel=selSec===sec.section;
@@ -424,21 +417,34 @@ export const RegView=({mob})=>{
 
   // ── Render ──
   return(
-    <div style={{flex:1,overflowY:"auto",background:T.bg,padding:`${pad}px`,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
-      {/* Header */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+    <div style={{flex:1,overflowY:"auto",background:T.bg,padding:`${pd}px`,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
+      {/* Header + Quarter tabs */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <div>
-          <div style={{fontSize:mob?18:22,fontWeight:800,color:T.txH,letterSpacing:-.3}}>1Q 履修登録</div>
+          <div style={{fontSize:mob?18:22,fontWeight:800,color:T.txH,letterSpacing:-.3}}>履修登録</div>
           <div style={{fontSize:12,color:T.txD,marginTop:2}}>100番台科目 · 2026年度</div>
         </div>
         <button onClick={resetAll} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${T.bd}`,
           background:T.bg3,color:T.txD,fontSize:11,cursor:"pointer"}}>リセット</button>
       </div>
 
+      {/* Quarter tab */}
+      <div style={{display:"flex",gap:4,marginBottom:16}}>
+        {["1Q","2Q"].map(q=>(
+          <button key={q} onClick={()=>q!==quarter&&switchQ(q)}
+            style={{flex:1,padding:"10px 0",borderRadius:10,fontSize:14,fontWeight:700,cursor:"pointer",
+              border:`2px solid ${q===quarter?T.accent:T.bd}`,
+              background:q===quarter?`${T.accent}14`:T.bg2,
+              color:q===quarter?T.accent:T.txD,transition:"all .15s"}}>
+            {q}
+          </button>
+        ))}
+      </div>
+
       {/* Stats */}
       <div style={{display:"flex",gap:mob?8:12,marginBottom:16}}>
         {[
-          {label:"科目数",value:courseCount,unit:"科目",col:T.accent},
+          {label:"科目数",value:active.length,unit:"科目",col:T.accent},
           {label:"単位数",value:credits,unit:"単位",col:T.green},
           {label:"コマ数",value:slotCount,unit:"コマ",col:T.orange},
         ].map(s=>(
@@ -453,17 +459,15 @@ export const RegView=({mob})=>{
       {/* Timetable Grid */}
       <div style={{background:T.bg2,borderRadius:14,border:`1px solid ${T.bd}`,padding:mob?8:12,marginBottom:16,overflowX:"auto"}}>
         <div style={{display:"inline-grid",gridTemplateColumns:`${mob?36:48}px repeat(5,${cellW}px)`,gap:mob?3:4,minWidth:"fit-content"}}>
-          {/* Header row */}
           <div style={{height:hdrH}}/>
           {DAYS.map(d=>(
             <div key={d} style={{height:hdrH,display:"flex",alignItems:"center",justifyContent:"center",
               fontSize:mob?11:13,fontWeight:700,color:T.txH}}>{d}</div>
           ))}
-          {/* Grid rows */}
-          {PERIODS.map((pd,pi)=><React.Fragment key={pi}>
+          {PERIODS.map((p2,pi)=><React.Fragment key={pi}>
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
               fontSize:mob?8:9,color:T.txD,lineHeight:1.2,paddingRight:2}}>
-              <div style={{fontWeight:600}}>{pd}</div>
+              <div style={{fontWeight:600}}>{p2}</div>
               <div style={{fontSize:mob?7:8,opacity:.6}}>{PER_TIMES[pi]?.split("–")[0]}</div>
             </div>
             {DAYS.map((_,di)=><Cell key={di} c={grid[pi][di]} d={di} p={pi}/>)}
@@ -474,7 +478,7 @@ export const RegView=({mob})=>{
       {/* Required courses */}
       <div style={{background:T.bg2,borderRadius:14,border:`1px solid ${T.bd}`,padding:`4px ${mob?12:16}px`,marginBottom:16}}>
         <SecHdr title="必修科目のクラス設定" open={reqOpen} toggle={()=>setReqOpen(p=>!p)}
-          badge={`${REQ_1Q.common.filter(c=>(req[c.id]||[]).length>0).length + REQ_1Q.science.filter(c=>sci[c.id]&&(req[c.id]||[]).length>0).length}科目設定済`}/>
+          badge={`${curReq.common.filter(c=>(req[c.id]||[]).length>0).length + curReq.science.filter(c=>sci[c.id]&&(req[c.id]||[]).length>0).length}科目設定済`}/>
         {reqOpen&&<div>
           {/* Unit bulk-set */}
           <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",borderBottom:`1px solid ${T.bd}08`}}>
@@ -495,9 +499,9 @@ export const RegView=({mob})=>{
             )}
           </div>
           <div style={{fontSize:10,fontWeight:700,color:T.txD,padding:"8px 0 4px",letterSpacing:.5}}>共通必修</div>
-          {REQ_1Q.common.map(c=><ReqRow key={c.id} c={c}/>)}
+          {curReq.common.map(c=><ReqRow key={c.id} c={c}/>)}
           <div style={{fontSize:10,fontWeight:700,color:T.txD,padding:"12px 0 4px",letterSpacing:.5}}>理工系基礎（該当科目をチェック）</div>
-          {REQ_1Q.science.map(c=><ReqRow key={c.id} c={c} isScience/>)}
+          {curReq.science.map(c=><ReqRow key={c.id} c={c} isScience/>)}
         </div>}
       </div>
 
@@ -506,7 +510,6 @@ export const RegView=({mob})=>{
         <SecHdr title="選択科目を追加" open={optOpen} toggle={()=>setOptOpen(p=>!p)}
           badge={`${Object.keys(opt).filter(k=>(opt[k]||[]).length>0).length}科目追加済`}/>
         {optOpen&&<div>
-          {/* Search + filter */}
           <div style={{display:"flex",gap:8,padding:"8px 0",alignItems:"center",flexWrap:"wrap"}}>
             <div style={{position:"relative",flex:1,minWidth:150}}>
               <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="科目名で検索..."
@@ -531,7 +534,6 @@ export const RegView=({mob})=>{
               ))}
             </div>
           </div>
-          {/* Course list */}
           <div>
             {filtered.map(c=><OptRow key={c.id} c={c}/>)}
             {filtered.length===0&&<div style={{padding:16,textAlign:"center",fontSize:12,color:T.txD}}>該当する科目がありません</div>}
@@ -602,7 +604,7 @@ export const RegView=({mob})=>{
         </div>
       </>}
 
-      {/* Footer note */}
+      {/* Footer */}
       <div style={{fontSize:10,color:T.txD,textAlign:"center",padding:"8px 0 24px",lineHeight:1.6}}>
         自分のセクション（クラス）を選択すると時間割が自動設定されます<br/>
         時間割データは自動保存されます

@@ -1,8 +1,12 @@
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
+/** Normalize fullwidth digits (０-９) to halfwidth (0-9) */
+const norm = s => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
+
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const year = searchParams.get('year') || '2026';
+  const quarter = searchParams.get('quarter') || '';
   const namesRaw = searchParams.get('names') || '';
   const names = namesRaw.split(',').map(s => s.trim()).filter(Boolean);
 
@@ -16,11 +20,14 @@ export async function GET(req) {
   const searchTerms = [...new Set(names.map(n => n.replace(/\d+$/, '')))];
   const orFilter = searchTerms.map(n => `name.ilike.%${n}%`).join(',');
 
-  const { data, error } = await sb.from('syllabus_courses')
+  let query = sb.from('syllabus_courses')
     .select('name,section,day,per,period_start,period_end,room,quarter,code')
     .eq('year', year)
-    .or(orFilter)
-    .limit(500);
+    .or(orFilter);
+
+  if (quarter) query = query.ilike('quarter', `%${quarter}%`);
+
+  const { data, error } = await query.limit(500);
 
   if (error) {
     console.error('[reg-sections]', error.message);
@@ -32,8 +39,12 @@ export async function GET(req) {
   for (const row of (data || [])) {
     if (!row.day) continue;
 
-    // Match: DB name contains search name, OR search name contains DB name
-    const matchedName = names.find(n => row.name && (row.name.includes(n) || n.includes(row.name)));
+    // Match with fullwidth/halfwidth normalization
+    const rn = norm(row.name || '');
+    const matchedName = names.find(n => {
+      const nn = norm(n);
+      return rn.includes(nn) || nn.includes(rn);
+    });
     if (!matchedName) continue;
 
     if (!courses[matchedName]) courses[matchedName] = {};
