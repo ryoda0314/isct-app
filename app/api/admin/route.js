@@ -864,6 +864,46 @@ export async function POST(request) {
       }
     }
 
+    // --- Curriculum requirement update: parse pasted text and update syllabus_courses ---
+    if (action === 'update_curriculum') {
+      const { text, dept, year } = body;
+      if (!text || !dept) return NextResponse.json({ error: 'text and dept required' }, { status: 400 });
+      const targetYear = year || '2026';
+
+      // Parse curriculum text: detect ◎ (必修), ○ (選択必修), or none (選択)
+      const courseRe = /([A-Z]{2,4}\.[A-Z]\d{3})(?:\.[A-Z])?\s+(◎|○)?\s*(.+?)\s+(\d+-\d+-\d+)/g;
+      const parsed = [];
+      let m;
+      while ((m = courseRe.exec(text)) !== null) {
+        const code = m[1]; // e.g. MTH.A201 (without suffix)
+        const symbol = m[2];
+        let requirement;
+        if (symbol === '◎') requirement = '必修';
+        else if (symbol === '○') requirement = '選択必修';
+        else requirement = '選択';
+        parsed.push({ code, requirement });
+      }
+
+      if (parsed.length === 0) {
+        return NextResponse.json({ error: 'パースできる科目が見つかりませんでした', parsed: 0 }, { status: 400 });
+      }
+
+      // Update syllabus_courses rows matching code + year
+      let updated = 0;
+      for (const { code, requirement } of parsed) {
+        const { count, error: upErr } = await sb.from('syllabus_courses')
+          .update({ requirement })
+          .eq('code', code)
+          .eq('year', targetYear);
+        if (upErr) console.error(`[Curriculum] update ${code}:`, upErr.message);
+        else updated += (count || 0);
+      }
+
+      await auditLog(sb, auth.userid, 'update_curriculum', 'syllabus', dept, { parsed: parsed.length, updated, year: targetYear });
+      console.log(`[Curriculum] ${dept} ${targetYear}: parsed ${parsed.length} courses, updated ${updated} rows`);
+      return NextResponse.json({ ok: true, parsed: parsed.length, updated, courses: parsed });
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (e) {
     console.error('[Admin POST]', e);

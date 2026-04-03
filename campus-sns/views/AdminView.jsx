@@ -1178,7 +1178,7 @@ const SyllabusTab = () => {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: `2px solid ${T.bd}` }}>
-                {["科目コード", "科目名", "セクション", "教員", "学科", "年度", "曜日", "時限", "教室", "建物", "Q"].map(h => (
+                {["科目コード", "科目名", "区分", "セクション", "教員", "学科", "年度", "曜日", "時限", "教室", "建物", "Q"].map(h => (
                   <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: T.txD, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -1188,6 +1188,7 @@ const SyllabusTab = () => {
                 <tr key={`${c.id}-${i}`} style={{ borderBottom: `1px solid ${T.bd}` }}>
                   <td style={{ padding: "6px 6px", color: T.accent, fontFamily: "monospace", fontWeight: 600, fontSize: 12, whiteSpace: "nowrap" }}>{c.code}</td>
                   <td style={{ padding: "6px 6px", color: T.txH, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name || "-"}</td>
+                  <td style={{ padding: "6px 6px", whiteSpace: "nowrap" }}>{c.requirement ? <Badge text={c.requirement} color={c.requirement === '必修' ? '#ef4444' : c.requirement === '選択必修' ? '#f59e0b' : T.green} /> : "-"}</td>
                   <td style={{ padding: "6px 6px", color: T.txD, fontSize: 11, whiteSpace: "nowrap" }}>{c.section || "-"}</td>
                   <td style={{ padding: "6px 6px", color: T.tx, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}>{c.teacher || "-"}</td>
                   <td style={{ padding: "6px 6px" }}><Badge text={c.dept} color={T.accent} /></td>
@@ -1214,6 +1215,86 @@ const SyllabusTab = () => {
           データがありません。「時間割取得」タブからスクレイピングしてください。
         </div>
       )}
+    </div>
+  );
+};
+
+const CurriculumInput = ({ years }) => {
+  const [text, setText] = useState("");
+  const [dept, setDept] = useState("");
+  const [year, setYear] = useState(years?.[years.length - 1] || "2026");
+  const [result, setResult] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const preview = () => {
+    const re = /([A-Z]{2,4}\.[A-Z]\d{3})(?:\.[A-Z])?\s+(◎|○)?\s*(.+?)\s+(\d+-\d+-\d+)/g;
+    const items = [];
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      items.push({ code: m[1], req: m[2] === '◎' ? '必修' : m[2] === '○' ? '選択必修' : '選択', name: m[3].trim() });
+    }
+    return items;
+  };
+  const parsed = text.trim() ? preview() : [];
+
+  const submit = async () => {
+    if (!dept || parsed.length === 0) return;
+    setSubmitting(true);
+    try {
+      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_curriculum", text, dept, year }) });
+      const d = await r.json();
+      setResult(d);
+      if (d.ok) setText("");
+    } catch (e) { setResult({ error: e.message }); }
+    finally { setSubmitting(false); }
+  };
+
+  const reqColor = (r) => r === '必修' ? '#ef4444' : r === '選択必修' ? '#f59e0b' : '#22c55e';
+
+  return (
+    <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 4 }}>必修/選択必修の登録</div>
+      <div style={{ fontSize: 11, color: T.txD, marginBottom: 12 }}>学修案内から科目一覧をコピペしてください（◎=必修, ○=選択必修, 無印=選択）</div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <input value={dept} onChange={e => setDept(e.target.value.toUpperCase())} placeholder="学科キー (例: MTH, CSC)" style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13, width: 160 }} />
+        <select value={year} onChange={e => setYear(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
+          {(years || ["2026"]).map(y => <option key={y} value={y}>{y}年度</option>)}
+        </select>
+      </div>
+
+      <textarea value={text} onChange={e => setText(e.target.value)} placeholder={"MTH.A201.R ◎ 代数学概論第一 1-1-0 1 (a)\nMTH.A203.A ○ 代数学概論第三 1-1-0 1 (a)\nMTH.T201.L 解析力学（講義） 2-0-0 1 5 (b)"} rows={8}
+        style={{ width: "100%", padding: 10, borderRadius: 10, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 12, fontFamily: "monospace", resize: "vertical", boxSizing: "border-box" }} />
+
+      {parsed.length > 0 && (
+        <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: T.bg2, border: `1px solid ${T.bd}`, maxHeight: 200, overflowY: "auto" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: T.txD, marginBottom: 6 }}>プレビュー: {parsed.length} 科目</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            {['必修', '選択必修', '選択'].map(r => {
+              const cnt = parsed.filter(p => p.req === r).length;
+              return cnt > 0 ? <Badge key={r} text={`${r} ${cnt}`} color={reqColor(r)} /> : null;
+            })}
+          </div>
+          {parsed.map((p, i) => (
+            <div key={i} style={{ fontSize: 11, color: T.tx, padding: "2px 0", display: "flex", gap: 6, alignItems: "center" }}>
+              <span style={{ fontFamily: "monospace", color: T.accent, width: 80, flexShrink: 0 }}>{p.code}</span>
+              <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, fontWeight: 600, background: `${reqColor(p.req)}20`, color: reqColor(p.req), flexShrink: 0 }}>{p.req}</span>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
+        <Btn onClick={submit} color={T.green} disabled={submitting || parsed.length === 0 || !dept}>
+          {submitting ? "更新中..." : `${parsed.length}科目の区分を更新`}
+        </Btn>
+        {result && (
+          <span style={{ fontSize: 11, color: result.ok ? T.green : T.red }}>
+            {result.ok ? `${result.parsed}科目パース、${result.updated}行更新` : (result.error || "エラー")}
+          </span>
+        )}
+      </div>
     </div>
   );
 };
@@ -1487,7 +1568,7 @@ const SyllabusFetchTab = () => {
           )}
 
           {/* DB lookup toggle */}
-          <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
+          <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>設定</div>
             <div style={{ padding: "10px 14px", borderRadius: 10, background: T.bg2, border: `1px solid ${T.bd}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
@@ -1503,6 +1584,9 @@ const SyllabusFetchTab = () => {
               </button>
             </div>
           </div>
+
+          {/* Curriculum requirement update */}
+          <CurriculumInput years={years} />
         </>
       )}
     </div>

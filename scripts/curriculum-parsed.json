@@ -1,0 +1,753 @@
+[
+  {
+    "code": "MTH.A201.R",
+    "name": "代数学概論第一",
+    "requirement": "必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.B201.R",
+    "name": "位相空間論第一",
+    "requirement": "必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.C201.R",
+    "name": "解析学概論第一",
+    "requirement": "必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.T201.L",
+    "name": "解析力学（講義）",
+    "requirement": "選択",
+    "credits": {
+      "total": 2,
+      "lecture": 2,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "2-0-0"
+    },
+    "skills": [
+      1,
+      5
+    ],
+    "content": "b",
+    "category": "専門科目（200番台）",
+    "notes": "物理学系開講科目（PHY.Q206）"
+  },
+  {
+    "code": "MTH.A202.R",
+    "name": "代数学概論第二",
+    "requirement": "必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.B202.R",
+    "name": "位相空間論第二",
+    "requirement": "必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.C202.R",
+    "name": "解析学概論第二",
+    "requirement": "必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.T202.L",
+    "name": "量子力学入門（講義）",
+    "requirement": "選択",
+    "credits": {
+      "total": 2,
+      "lecture": 2,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "2-0-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "b",
+    "category": "専門科目（200番台）",
+    "notes": "物理学系開講科目（PHY.Q207）"
+  },
+  {
+    "code": "MTH.A203.A",
+    "name": "代数学概論第三",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.B203.A",
+    "name": "位相空間論第三",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.C203.A",
+    "name": "解析学概論第三",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.A204.A",
+    "name": "代数学概論第四",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.B204.A",
+    "name": "位相空間論第四",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.C204.A",
+    "name": "解析学概論第四",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.A211.A",
+    "name": "線形空間論第一",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 1,
+      "lecture": 1,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "1-0-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.B211.A",
+    "name": "幾何学概論第一",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 1,
+      "lecture": 1,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "1-0-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.C211.A",
+    "name": "応用解析序論第一",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 1,
+      "lecture": 1,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "1-0-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.T211.L",
+    "name": "解析力学（演習）",
+    "requirement": "選択",
+    "credits": {
+      "total": 1,
+      "lecture": 0,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "0-1-0"
+    },
+    "skills": [
+      1,
+      5
+    ],
+    "content": "b",
+    "category": "専門科目（200番台）",
+    "notes": "物理学系開講科目（PHY.Q216）"
+  },
+  {
+    "code": "MTH.A212.A",
+    "name": "線形空間論第二",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 1,
+      "lecture": 1,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "1-0-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.B212.A",
+    "name": "幾何学概論第二",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 1,
+      "lecture": 1,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "1-0-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.C212.A",
+    "name": "応用解析序論第二",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 1,
+      "lecture": 1,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "1-0-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "a",
+    "category": "専門科目（200番台）"
+  },
+  {
+    "code": "MTH.T212.L",
+    "name": "量子力学入門（演習）",
+    "requirement": "選択",
+    "credits": {
+      "total": 1,
+      "lecture": 0,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "0-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "b",
+    "category": "専門科目（200番台）",
+    "notes": "物理学系開講科目（PHY.Q217）"
+  },
+  {
+    "code": "MTH.A301.A",
+    "name": "代数学第一",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "b",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.B301.A",
+    "name": "幾何学第一",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "b",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.C301.A",
+    "name": "複素解析第一",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "b",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.A302.A",
+    "name": "代数学第二",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "b",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.B302.A",
+    "name": "幾何学第二",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "b",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.C302.A",
+    "name": "複素解析第二",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "b",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.C305.A",
+    "name": "実解析第一",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "b",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.C306.A",
+    "name": "実解析第二",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 1,
+      "exercise": 1,
+      "experiment": 0,
+      "raw": "1-1-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "b",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.A331.A",
+    "name": "代数学続論",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 2,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "2-0-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "c",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.B331.A",
+    "name": "幾何学続論",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 2,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "2-0-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "c",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.C331.A",
+    "name": "複素解析続論",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 2,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "2-0-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "c",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.B341.A",
+    "name": "位相幾何学",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 2,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "2-0-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "c",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.C341.A",
+    "name": "微分方程式概論第一",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 1,
+      "lecture": 1,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "1-0-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "b",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.C342.A",
+    "name": "微分方程式概論第二",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 1,
+      "lecture": 1,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "1-0-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "b",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.C351.A",
+    "name": "函数解析",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 2,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "2-0-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "c",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.C361.A",
+    "name": "確率論",
+    "requirement": "選択必修",
+    "credits": {
+      "total": 2,
+      "lecture": 2,
+      "exercise": 0,
+      "experiment": 0,
+      "raw": "2-0-0"
+    },
+    "skills": [
+      1
+    ],
+    "content": "c",
+    "category": "専門科目（300番台）"
+  },
+  {
+    "code": "MTH.Z381.R",
+    "name": "研究プロジェクト（数学系）",
+    "requirement": "必修",
+    "credits": {
+      "total": 2,
+      "lecture": 0,
+      "exercise": 0,
+      "experiment": 2,
+      "raw": "0-0-2"
+    },
+    "skills": [
+      1,
+      3,
+      4
+    ],
+    "content": "d",
+    "category": "研究関連科目（300番台）"
+  },
+  {
+    "code": "MTH.Z385.L",
+    "name": "数学先端研究基礎",
+    "requirement": "選択",
+    "credits": {
+      "total": 6,
+      "lecture": 0,
+      "exercise": 0,
+      "experiment": 6,
+      "raw": "0-0-6"
+    },
+    "skills": [
+      1,
+      3,
+      4
+    ],
+    "content": "d",
+    "category": "研究関連科目（300番台）",
+    "notes": "開講せず"
+  },
+  {
+    "code": "MTH.Z388.R",
+    "name": "学士特定課題研究（数学系）",
+    "requirement": "必修",
+    "credits": {
+      "total": 6,
+      "lecture": 0,
+      "exercise": 0,
+      "experiment": 6,
+      "raw": "0-0-6"
+    },
+    "skills": [
+      1,
+      3,
+      4
+    ],
+    "content": "d",
+    "category": "研究関連科目（300番台）",
+    "notes": "標準卒業または早期卒業の場合に履修する"
+  },
+  {
+    "code": "MTH.Z380.R",
+    "name": "学士特定課題研究S（数学系）",
+    "requirement": "必修",
+    "credits": {
+      "total": 8,
+      "lecture": 0,
+      "exercise": 0,
+      "experiment": 8,
+      "raw": "0-0-8"
+    },
+    "skills": [
+      1,
+      3,
+      4
+    ],
+    "content": "d",
+    "category": "研究関連科目（300番台）",
+    "notes": "早期卒業の場合に履修する"
+  },
+  {
+    "code": "MTH.Z399.R",
+    "name": "学士特定課題プロジェクト（数学系）",
+    "requirement": "必修",
+    "credits": {
+      "total": 6,
+      "lecture": 0,
+      "exercise": 0,
+      "experiment": 6,
+      "raw": "0-0-6"
+    },
+    "skills": [
+      1,
+      3,
+      4
+    ],
+    "content": "d",
+    "category": "研究関連科目（300番台）",
+    "notes": "標準卒業または早期卒業の場合に履修する"
+  }
+]

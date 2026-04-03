@@ -56,6 +56,7 @@ export async function GET(req) {
   const level = searchParams.get('level') || '1';       // 1,2,3,4,5,6
   const deptFilter = searchParams.get('dept') || '';     // e.g. "MEC,CSC"
   const excludeRaw = searchParams.get('exclude') || '';
+  const searchQ = (searchParams.get('search') || '').trim().toLowerCase(); // cross-level name search
   const excludeNames = new Set(excludeRaw.split(',').map(s => s.trim()).filter(Boolean));
   const deptSet = deptFilter ? new Set(deptFilter.split(',').map(s => s.trim()).filter(Boolean)) : null;
 
@@ -64,7 +65,7 @@ export async function GET(req) {
   const range = q <= '2' ? '1-2Q' : '3-4Q';
 
   const { data, error } = await sb.from('syllabus_courses')
-    .select('name,code,section,day,per,period_start,period_end,room,quarter')
+    .select('name,code,section,day,per,period_start,period_end,room,quarter,requirement')
     .eq('year', year)
     .or(`quarter.eq.${quarter},quarter.eq.${range},quarter.eq.1-4Q`)
     .limit(5000);
@@ -78,30 +79,36 @@ export async function GET(req) {
   for (const row of (data || [])) {
     if (!row.code || !row.day || !row.name) continue;
 
-    // Filter by course level (digit after letters in code suffix)
     const m = row.code.match(/\.([A-Za-z]+)(\d)/);
-    if (!m || m[2] !== level) continue;
 
-    // Department prefix filter
-    if (deptSet) {
-      const pm = row.code.match(/^([A-Z]+)\./);
-      if (!pm || !deptSet.has(pm[1])) continue;
+    if (searchQ) {
+      // Cross-level search: skip level/dept filter, match by name or code
+      const nameL = row.name.toLowerCase();
+      const codeL = row.code.toLowerCase();
+      if (!nameL.includes(searchQ) && !codeL.includes(searchQ)) continue;
+    } else {
+      // Normal browse: filter by level + dept
+      if (!m || m[2] !== level) continue;
+      if (deptSet) {
+        const pm = row.code.match(/^([A-Z]+)\./);
+        if (!pm || !deptSet.has(pm[1])) continue;
+      }
+      // Normalize for exclude check
+      const normName = row.name.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30))
+                               .replace(/[Ａ-Ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF21 + 0x41));
+      if (excludeNames.has(row.name) || excludeNames.has(normName)) continue;
+      let skip = false;
+      for (const ex of excludeNames) {
+        if (normName.includes(ex) || ex.includes(normName)) { skip = true; break; }
+      }
+      if (skip) continue;
     }
 
-    // Normalize for exclude check
-    const normName = row.name.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30))
-                             .replace(/[Ａ-Ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF21 + 0x41));
-    if (excludeNames.has(row.name) || excludeNames.has(normName)) continue;
-    let skip = false;
-    for (const ex of excludeNames) {
-      if (normName.includes(ex) || ex.includes(normName)) { skip = true; break; }
-    }
-    if (skip) continue;
-
-    const cat = level === '1' ? getCat100(row.code, row.name) : getCatHigher(row.code);
+    const courseLevel = m ? m[2] : '1';
+    const cat = courseLevel === '1' ? getCat100(row.code, row.name) : getCatHigher(row.code);
 
     if (!courses[row.code]) {
-      courses[row.code] = { name: row.name, code: row.code, cat, sections: {} };
+      courses[row.code] = { name: row.name, code: row.code, cat, requirement: row.requirement || null, sections: {} };
     }
     const sec = row.section || '';
     if (!courses[row.code].sections[sec]) {
@@ -121,13 +128,13 @@ export async function GET(req) {
       .sort((a, b) => (a.section || '').localeCompare(b.section || '', undefined, { numeric: true }));
     if (!secs.length) continue;
     if (!groups[c.cat]) groups[c.cat] = [];
-    groups[c.cat].push({ name: c.name, code: c.code, sections: secs });
+    groups[c.cat].push({ name: c.name, code: c.code, requirement: c.requirement, sections: secs });
   }
 
   // Sort categories
   const catOrder100 = ['実験・演習','教養','文系教養','語学','体育・健康','図学','学院別','教職','日本語','その他'];
   let categories;
-  if (level === '1') {
+  if (!searchQ && level === '1') {
     categories = catOrder100
       .filter(cat => groups[cat]?.length)
       .map(cat => ({ name: cat, courses: groups[cat].sort((a, b) => a.name.localeCompare(b.name, 'ja')) }));

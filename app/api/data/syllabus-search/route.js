@@ -12,7 +12,7 @@ export async function GET(req) {
 
   const sb = getSupabaseAdmin();
   let query = sb.from('syllabus_courses')
-    .select('code,name,teacher,day,per,period_start,period_end,room,quarter,syllabus_url,school')
+    .select('code,name,teacher,day,per,period_start,period_end,room,quarter,syllabus_url,school,requirement')
     .eq('year', year);
 
   if (quarter) query = query.ilike('quarter', `%${quarter}%`);

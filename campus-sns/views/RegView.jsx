@@ -58,6 +58,8 @@ export const RegView=({mob})=>{
   const [optOpen,setOptOpen]=useState(true);
   const [openCats,setOpenCats]=useState({});
   const [search,setSearch]=useState("");
+  const [searchCats,setSearchCats]=useState(null); // cross-level search results
+  const [searchLoading,setSearchLoading]=useState(false);
   const [detailCourse,setDetailCourse]=useState(null);
   const [syllabusData,setSyllabusData]=useState(null);
   const [syllabusLoading,setSyllabusLoading]=useState(false);
@@ -118,6 +120,18 @@ export const RegView=({mob})=>{
       .then(r=>r.json()).then(d=>{setDbCats(d.categories||[]);setDbLoading(false);})
       .catch(()=>{setDbCats([]);setDbLoading(false);});
   },[quarter,browseLevel,level,deptParam]);
+
+  // ── Cross-level search (debounced) ──
+  useEffect(()=>{
+    if(search.length<2){setSearchCats(null);setSearchLoading(false);return;}
+    setSearchLoading(true);
+    const timer=setTimeout(()=>{
+      fetch(`/api/data/reg-courses?year=2026&quarter=${quarter}&search=${encodeURIComponent(search)}`)
+        .then(r=>r.json()).then(d=>{setSearchCats(d.categories||[]);setSearchLoading(false);})
+        .catch(()=>{setSearchCats([]);setSearchLoading(false);});
+    },300);
+    return ()=>clearTimeout(timer);
+  },[search,quarter]);
 
   // ── Convert DB slot to grid positions (handles multi-block spans like 5-8限) ──
   const toGridSlots=(s)=>{
@@ -298,13 +312,16 @@ export const RegView=({mob})=>{
   };
 
   const filteredCats=useMemo(()=>{
+    // When searching 2+ chars, use cross-level API results
+    if(search.length>=2&&searchCats) return searchCats;
     if(!search) return dbCats;
+    // 1 char: client-side filter within current level
     const q=search.toLowerCase();
     return dbCats.map(cat=>{
       const courses=cat.courses.filter(c=>c.name.toLowerCase().includes(q)||c.code.toLowerCase().includes(q));
       return courses.length?{...cat,courses}:null;
     }).filter(Boolean);
-  },[dbCats,search]);
+  },[dbCats,search,searchCats]);
 
   const toggleCat=(catName)=>setOpenCats(p=>({...p,[catName]:!p[catName]}));
 
@@ -437,6 +454,9 @@ export const RegView=({mob})=>{
           <span style={{fontSize:12,fontWeight:isAdded?600:500,color:isAdded?T.txH:T.tx,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
             {course.name}
           </span>
+          {course.requirement&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0,fontWeight:600,
+            background:course.requirement==='必修'?'#ef444420':course.requirement==='選択必修'?'#f59e0b20':'#22c55e20',
+            color:course.requirement==='必修'?'#ef4444':course.requirement==='選択必修'?'#f59e0b':'#22c55e'}}>{course.requirement}</span>}
           <span style={{fontSize:9,color:T.txD,background:T.bg3,padding:"1px 5px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{course.code}</span>
           {isAdded&&<button onClick={()=>rmOpt(code)}
             style={{padding:"3px 8px",borderRadius:6,border:`1px solid ${T.red}40`,
@@ -634,7 +654,7 @@ export const RegView=({mob})=>{
         {optOpen&&<div>
           <div style={{padding:"8px 0"}}>
             <div style={{position:"relative"}}>
-              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="科目名・科目コードで検索..."
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="科目名・コードで全学年検索..."
                 style={{width:"100%",padding:"7px 10px 7px 30px",borderRadius:8,border:`1px solid ${T.bd}`,
                   background:T.bg3,color:T.txH,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
               <span style={{position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",color:T.txD,display:"flex"}}>
@@ -643,11 +663,12 @@ export const RegView=({mob})=>{
             </div>
           </div>
 
-          {dbLoading?(
+          {(dbLoading||(search.length>=2&&searchLoading))?(
             <div style={{padding:20,textAlign:"center",fontSize:12,color:T.txD}}>科目を読込中...</div>
           ):filteredCats.length===0?(
             <div style={{padding:16,textAlign:"center",fontSize:12,color:T.txD}}>
-              {browseLevel>=2&&!selSchool?"学院を選択するか、科目名で検索してください":"該当する科目がありません"}
+              {search.length>=2?"該当する科目がありません（全学年対象）"
+                :browseLevel>=2&&!selSchool?"学院を選択するか、科目名で検索してください":"該当する科目がありません"}
             </div>
           ):(
             filteredCats.map(cat=>{
@@ -694,7 +715,12 @@ export const RegView=({mob})=>{
           {syllabusData&&syllabusData.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
             {syllabusData.map((c,i)=>(
               <div key={i} style={{padding:10,borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3}}>
-                <div style={{fontSize:13,fontWeight:600,color:T.txH}}>{c.name||detailCourse}</div>
+                <div style={{fontSize:13,fontWeight:600,color:T.txH,display:"flex",alignItems:"center",gap:6}}>
+                  {c.name||detailCourse}
+                  {c.requirement&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:4,fontWeight:600,
+                    background:c.requirement==='必修'?'#ef444420':c.requirement==='選択必修'?'#f59e0b20':'#22c55e20',
+                    color:c.requirement==='必修'?'#ef4444':c.requirement==='選択必修'?'#f59e0b':'#22c55e'}}>{c.requirement}</span>}
+                </div>
                 <div style={{fontSize:11,color:T.txD,marginTop:2}}>{c.code} · {c.teacher||"—"}</div>
                 {c.per&&<div style={{fontSize:11,color:T.tx,marginTop:2}}>{c.day}{c.per} · {c.room||"—"}</div>}
                 {c.quarter&&<div style={{fontSize:10,color:T.txD,marginTop:2}}>{c.quarter}</div>}

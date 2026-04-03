@@ -20,6 +20,7 @@ create table if not exists syllabus_courses (
   quarter         text,                     -- クォーター (e.g. 1Q, 1-2Q)
   syllabus_url    text,                     -- シラバスページURL
   school          text,                     -- 学院名 (e.g. 工学院)
+  requirement     text,                     -- 必修区分 (必修, 選択必修, 選択)
   fetched_at      timestamptz default now() -- 取得日時
 );
 
@@ -54,3 +55,4 @@ alter table syllabus_courses enable row level security;
 -- create index if not exists idx_syllabus_code_year_section on syllabus_courses(code, year, section);
 -- alter table syllabus_courses add column if not exists building text;
 -- create index if not exists idx_syllabus_building on syllabus_courses(building);
+-- alter table syllabus_courses add column if not exists requirement text;
