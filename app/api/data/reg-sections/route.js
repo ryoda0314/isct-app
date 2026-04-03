@@ -12,8 +12,9 @@ export async function GET(req) {
 
   const sb = getSupabaseAdmin();
 
-  // Build OR filter for course name matching
-  const orFilter = names.map(n => `name.ilike.%${n}%`).join(',');
+  // Strip trailing digits for broader matching (scraper strips them as section IDs)
+  const searchTerms = [...new Set(names.map(n => n.replace(/\d+$/, '')))];
+  const orFilter = searchTerms.map(n => `name.ilike.%${n}%`).join(',');
 
   const { data, error } = await sb.from('syllabus_courses')
     .select('name,section,day,per,period_start,period_end,room,quarter,code')
@@ -31,7 +32,8 @@ export async function GET(req) {
   for (const row of (data || [])) {
     if (!row.day) continue;
 
-    const matchedName = names.find(n => row.name && row.name.includes(n));
+    // Match: DB name contains search name, OR search name contains DB name
+    const matchedName = names.find(n => row.name && (row.name.includes(n) || n.includes(row.name)));
     if (!matchedName) continue;
 
     if (!courses[matchedName]) courses[matchedName] = {};
