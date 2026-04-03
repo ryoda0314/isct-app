@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
-import { REQ_1Q, REQ_2Q, OPT_1Q, OPT_CATS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
+import { REQ_1Q, REQ_2Q, OPT_1Q, OPT_2Q, OPT_CATS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
 
 // Per-quarter localStorage
 const lsKey=q=>`reg_${q}`;
@@ -17,6 +17,7 @@ export const RegView=({mob})=>{
   const [quarter,setQuarter]=useState("1Q");
   const [data,setData]=useState(()=>initQ("1Q"));
   const curReq=quarter==="1Q"?REQ_1Q:REQ_2Q;
+  const curOpt=quarter==="1Q"?OPT_1Q:OPT_2Q;
 
   // Save & switch quarter
   const switchQ=(q)=>{
@@ -43,7 +44,7 @@ export const RegView=({mob})=>{
   // ── Fetch section data from DB (per quarter) ──
   useEffect(()=>{
     setSecLoading(true);
-    const names=[...curReq.common,...curReq.science,...OPT_1Q].map(c=>c.name);
+    const names=[...curReq.common,...curReq.science,...curOpt].map(c=>c.name);
     fetch(`/api/data/reg-sections?year=2026&quarter=${quarter}&names=${encodeURIComponent(names.join(','))}`)
       .then(r=>r.json()).then(d=>{setSectionData(d.courses||{});setSecLoading(false);})
       .catch(()=>setSecLoading(false));
@@ -69,7 +70,7 @@ export const RegView=({mob})=>{
       const sl=req[c.id]||[];
       if(sl.length) list.push({...c,sel:sl,type:"sci"});
     }
-    for(const c of OPT_1Q){
+    for(const c of curOpt){
       const sl=opt[c.id]||[];
       if(sl.length) list.push({...c,sel:sl,type:"opt"});
     }
@@ -165,7 +166,7 @@ export const RegView=({mob})=>{
       }
       // 3) Optional — UNIT_MAP or lab day
       const labIds=['phylab','chemlab'];
-      for(const c of OPT_1Q){
+      for(const c of curOpt){
         const letter=unitToSection(c.id,num);
         if(letter){
           const slots=apply(c.id,c.name,letter);
@@ -236,11 +237,11 @@ export const RegView=({mob})=>{
   };
 
   const filtered=useMemo(()=>{
-    let list=OPT_1Q;
+    let list=curOpt;
     if(catFilter) list=list.filter(c=>c.cat===catFilter);
     if(search){const q=search.toLowerCase();list=list.filter(c=>c.name.toLowerCase().includes(q)||(c.school||"").includes(q));}
     return list;
-  },[search,catFilter]);
+  },[search,catFilter,curOpt]);
 
   // ── Styles ──
   const pd=mob?12:20;

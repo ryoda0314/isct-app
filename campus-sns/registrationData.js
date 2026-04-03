@@ -50,8 +50,8 @@ const SCIENCE_2Q = [
     slots:[[1,0],[1,1],[4,1]] },
 ];
 
-// ── 選択科目（1Q/2Q共通リスト）─────────────────
-const OPTIONAL = [
+// ── 選択科目（共通）──────────────────────────
+const OPTIONAL_COMMON = [
   { id:"frontier", name:"科学・技術の最前線", cr:1, col:"#6366f1",
     slots:[[2,1],[3,2]], cat:"教養" },
   { id:"health", name:"健康科学概論", cr:1, col:"#f59e0b",
@@ -60,9 +60,9 @@ const OPTIONAL = [
     slots:[[1,2],[4,2]], cat:"教養", note:"学院により曜日が異なる" },
   { id:"phyex1", name:"物理学演習第一", cr:1, col:"#06b6d4",
     slots:[[0,3],[1,3],[3,3],[4,3]], cat:"実験演習" },
-  { id:"phylab", name:"物理学実験第一，第二", cr:1, col:"#0891b2",
+  { id:"phylab", name:"物理学実験第一", cr:1, col:"#0891b2",
     slots:[[0,3],[1,3],[3,3],[4,3]], cat:"実験演習",
-    note:"9-10限まで連続の場合あり" },
+    note:"9-10限まで連続" },
   { id:"chemlab", name:"化学実験第一", cr:1, col:"#14b8a6",
     slots:[[0,3],[1,3],[3,3],[4,3]], cat:"実験演習" },
   { id:"space", name:"宇宙地球科学A", cr:1, col:"#7c3aed",
@@ -74,8 +74,6 @@ const OPTIONAL = [
   { id:"wellness", name:"ウェルネス実習", cr:0.5, col:"#ec4899",
     slots:[[0,2],[1,1],[2,0],[2,1],[3,2]], cat:"体育",
     note:"2クラス履修で1単位" },
-  { id:"eng_opt", name:"英語選択科目", cr:1, col:"#3b82f6",
-    slots:[[2,0],[2,1],[0,3]], cat:"語学" },
   // 学院別リテラシ
   { id:"lit_sci", name:"理学院リテラシ", cr:1, col:"#6375f0",
     slots:[[4,2]], cat:"学院", school:"理学院" },
@@ -91,12 +89,29 @@ const OPTIONAL = [
     slots:[[4,2]], cat:"学院", school:"環境・社会理工学院" },
 ];
 
+// ── 選択英語科目（クオーター別）────────────────────
+const OPT_ENG_1Q = [
+  { id:"eng_speak1", name:"英語スピーキング演習第一", cr:1, col:"#3b82f6", slots:[], cat:"語学" },
+  { id:"eng_pres1", name:"英語プレゼンテーション演習第一", cr:1, col:"#2563eb", slots:[], cat:"語学" },
+  { id:"toefl_ls1", name:"TOEFL対策セミナー(LS)第一", cr:1, col:"#1d4ed8", slots:[], cat:"語学" },
+  { id:"toefl_rw1", name:"TOEFL対策セミナー(RW)第一", cr:1, col:"#1e40af", slots:[], cat:"語学" },
+  { id:"toeic1", name:"TOEIC対策セミナー第一", cr:1, col:"#1e3a8a", slots:[], cat:"語学" },
+];
+const OPT_ENG_2Q = [
+  { id:"eng_speak2", name:"英語スピーキング演習第二", cr:1, col:"#3b82f6", slots:[], cat:"語学" },
+  { id:"eng_pres2", name:"英語プレゼンテーション演習第二", cr:1, col:"#2563eb", slots:[], cat:"語学" },
+  { id:"toefl_ls2", name:"TOEFL対策セミナー(LS)第二", cr:1, col:"#1d4ed8", slots:[], cat:"語学" },
+  { id:"toefl_rw2", name:"TOEFL対策セミナー(RW)第二", cr:1, col:"#1e40af", slots:[], cat:"語学" },
+  { id:"toeic2", name:"TOEIC対策セミナー第二", cr:1, col:"#1e3a8a", slots:[], cat:"語学" },
+];
+
 export const REQ_1Q = { common: COMMON_1Q, science: SCIENCE_1Q };
 export const REQ_2Q = { common: COMMON_2Q, science: SCIENCE_2Q };
-export const OPT_1Q = OPTIONAL;
+export const OPT_1Q = [...OPTIONAL_COMMON, ...OPT_ENG_1Q];
+export const OPT_2Q = [...OPTIONAL_COMMON, ...OPT_ENG_2Q];
 
 // カテゴリ一覧
-export const OPT_CATS = [...new Set(OPTIONAL.map(c => c.cat))];
+export const OPT_CATS = [...new Set([...OPTIONAL_COMMON, ...OPT_ENG_1Q].map(c => c.cat))];
 
 // ── ユニット番号 → セクション対応表 ──────────────
 // 16グループ（各5ユニット: 1-5, 6-10, ..., 76-80）

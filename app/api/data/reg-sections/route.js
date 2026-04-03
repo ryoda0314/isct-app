@@ -27,7 +27,7 @@ export async function GET(req) {
 
   if (quarter) query = query.ilike('quarter', `%${quarter}%`);
 
-  const { data, error } = await query.limit(500);
+  const { data, error } = await query.limit(2000);
 
   if (error) {
     console.error('[reg-sections]', error.message);
