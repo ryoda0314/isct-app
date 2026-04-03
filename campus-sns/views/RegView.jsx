@@ -32,7 +32,7 @@ export const RegView=({mob})=>{
 
   // Department filter (for 2+ year)
   const [selSchool,setSelSchool]=useState(null); // school key
-  const [selDepts,setSelDepts]=useState([]); // selected dept prefixes
+  const [selDept,setSelDept]=useState(null);     // single dept prefix or null=all in school
 
   // UI state
   const [reqOpen,setReqOpen]=useState(true);
@@ -45,7 +45,12 @@ export const RegView=({mob})=>{
 
   // Derived
   const level=String(yearLevel);
-  const deptParam=selDepts.length>0?selDepts.join(','):'';
+  const curSchool=SCHOOLS.find(s=>s.key===selSchool);
+  const deptParam=useMemo(()=>{
+    if(!selSchool||!curSchool) return '';
+    const depts=selDept?[selDept,...SHARED_DEPTS]:[...curSchool.depts,...SHARED_DEPTS];
+    return depts.join(',');
+  },[selSchool,selDept,curSchool]);
 
   // Save & switch
   const switchState=(yr,q)=>{
@@ -55,6 +60,7 @@ export const RegView=({mob})=>{
     setSectionData(null);setSecLoading(true);
     setDbCats([]);setDbLoading(true);
     setOpenCats({});setSearch("");
+    if(yr!==yearLevel){setSelSchool(null);setSelDept(null);}
   };
   const switchYear=(yr)=>{if(yr!==yearLevel)switchState(yr,quarter);};
   const switchQ=(q)=>{if(q!==quarter)switchState(yearLevel,q);};
@@ -274,22 +280,14 @@ export const RegView=({mob})=>{
 
   const toggleCat=(catName)=>setOpenCats(p=>({...p,[catName]:!p[catName]}));
 
-  // School select handler
-  const curSchool=SCHOOLS.find(s=>s.key===selSchool);
+  // School / dept select handlers
   const handleSchool=(schoolKey)=>{
-    if(selSchool===schoolKey){setSelSchool(null);setSelDepts([]);return;}
-    const school=SCHOOLS.find(s=>s.key===schoolKey);
+    if(selSchool===schoolKey){setSelSchool(null);setSelDept(null);return;}
     setSelSchool(schoolKey);
-    // Default: all depts in this school + shared
-    setSelDepts(school?[...school.depts,...SHARED_DEPTS]:[]);
+    setSelDept(null);
   };
-  const toggleDept=(deptCode)=>{
-    setSelDepts(prev=>{
-      const isShared=SHARED_DEPTS.includes(deptCode);
-      if(isShared) return prev; // shared always included
-      if(prev.includes(deptCode)) return prev.filter(d=>d!==deptCode);
-      return [...prev,deptCode];
-    });
+  const handleDept=(deptCode)=>{
+    setSelDept(prev=>prev===deptCode?null:deptCode);
   };
 
   // ── Styles ──
@@ -485,7 +483,7 @@ export const RegView=({mob})=>{
       {/* School/dept filter (2+ year) */}
       {yearLevel>=2&&(
         <div style={{background:T.bg2,borderRadius:14,border:`1px solid ${T.bd}`,padding:mob?10:14,marginBottom:16}}>
-          <div style={{fontSize:12,fontWeight:700,color:T.txH,marginBottom:8}}>学院で絞り込み</div>
+          <div style={{fontSize:12,fontWeight:700,color:T.txH,marginBottom:8}}>学院・学系で絞り込み</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
             {SCHOOLS.map(s=>{
               const isSel=selSchool===s.key;
@@ -499,7 +497,7 @@ export const RegView=({mob})=>{
                 </button>
               );
             })}
-            <button onClick={()=>{setSelSchool(null);setSelDepts([]);}}
+            <button onClick={()=>{setSelSchool(null);setSelDept(null);}}
               style={{padding:"6px 14px",borderRadius:8,fontSize:mob?11:12,fontWeight:!selSchool?700:500,cursor:"pointer",
                 border:`1.5px solid ${!selSchool?T.accent:T.bd}`,
                 background:!selSchool?`${T.accent}18`:T.bg3,
@@ -509,13 +507,20 @@ export const RegView=({mob})=>{
           </div>
           {curSchool&&(
             <div style={{marginTop:10,paddingTop:8,borderTop:`1px solid ${T.bd}30`}}>
-              <div style={{fontSize:11,fontWeight:600,color:T.txD,marginBottom:6}}>学系で絞り込み</div>
+              <div style={{fontSize:11,fontWeight:600,color:T.txD,marginBottom:6}}>学系</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                <button onClick={()=>setSelDept(null)}
+                  style={{padding:"4px 10px",borderRadius:7,fontSize:mob?10:11,fontWeight:!selDept?700:400,cursor:"pointer",
+                    border:`1.5px solid ${!selDept?T.accent:T.bd}`,
+                    background:!selDept?`${T.accent}18`:T.bg3,
+                    color:!selDept?T.accent:T.txD,transition:"all .12s"}}>
+                  全系
+                </button>
                 {curSchool.depts.map(dept=>{
-                  const isSel=selDepts.includes(dept);
+                  const isSel=selDept===dept;
                   const col=CAT_COLORS[DEPT_LABELS[dept]]||'#6b7280';
                   return(
-                    <button key={dept} onClick={()=>toggleDept(dept)}
+                    <button key={dept} onClick={()=>handleDept(dept)}
                       style={{padding:"4px 10px",borderRadius:7,fontSize:mob?10:11,fontWeight:isSel?700:400,cursor:"pointer",
                         border:`1.5px solid ${isSel?col:T.bd}`,
                         background:isSel?`${col}18`:T.bg3,
@@ -525,6 +530,7 @@ export const RegView=({mob})=>{
                   );
                 })}
               </div>
+              <div style={{fontSize:9,color:T.txD,marginTop:6,opacity:.7}}>※ 語学・教養などの共通科目は常に表示されます</div>
             </div>
           )}
         </div>
