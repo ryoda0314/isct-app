@@ -1178,7 +1178,7 @@ const SyllabusTab = () => {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: `2px solid ${T.bd}` }}>
-                {["科目コード", "科目名", "区分", "セクション", "教員", "学科", "年度", "曜日", "時限", "教室", "建物", "Q"].map(h => (
+                {["科目コード", "科目名", "区分", "単位", "セクション", "教員", "学科", "年度", "曜日", "時限", "教室", "建物", "Q"].map(h => (
                   <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: T.txD, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -1189,6 +1189,7 @@ const SyllabusTab = () => {
                   <td style={{ padding: "6px 6px", color: T.accent, fontFamily: "monospace", fontWeight: 600, fontSize: 12, whiteSpace: "nowrap" }}>{c.code}</td>
                   <td style={{ padding: "6px 6px", color: T.txH, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name || "-"}</td>
                   <td style={{ padding: "6px 6px", whiteSpace: "nowrap" }}>{c.requirement ? <Badge text={c.requirement} color={c.requirement === '必修' ? '#ef4444' : c.requirement === '選択必修' ? '#f59e0b' : T.green} /> : "-"}</td>
+                  <td style={{ padding: "6px 6px", color: T.txH, textAlign: "center", fontWeight: 600 }}>{c.credits || "-"}</td>
                   <td style={{ padding: "6px 6px", color: T.txD, fontSize: 11, whiteSpace: "nowrap" }}>{c.section || "-"}</td>
                   <td style={{ padding: "6px 6px", color: T.tx, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}>{c.teacher || "-"}</td>
                   <td style={{ padding: "6px 6px" }}><Badge text={c.dept} color={T.accent} /></td>
