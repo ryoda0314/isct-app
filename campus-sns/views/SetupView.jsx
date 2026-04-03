@@ -3,6 +3,7 @@ import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { updateUserPref } from "../hooks/useCurrentUser.js";
 import { MatrixInput, COLS, ROWS } from "../components/MatrixInput.jsx";
+import { SCHOOLS, DEPTS, UNIT_COL } from "../data.js";
 import { QRScanner } from "../components/QRScanner.jsx";
 import { PrivacyPolicyView } from "./PrivacyPolicyView.jsx";
 import { TermsOfServiceView } from "./TermsOfServiceView.jsx";
@@ -397,12 +398,26 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
   const [showQR, setShowQR] = useState(false);
   const [error, setError] = useState(null);
 
+  // Step 3: 学系・ユニット
+  const [setupDeptSchool, setSetupDeptSchool] = useState(null);
+  const [setupDept, setSetupDept] = useState(null);
+  const [setupUnitNum, setSetupUnitNum] = useState("");
+
+  // Step 4: メール認証
+  const [setupEmail, setSetupEmail] = useState("");
+  const [setupEmailPw, setSetupEmailPw] = useState("");
+  const [emailCode, setEmailCode] = useState("");
+  const [emailPending, setEmailPending] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [emailSaving, setEmailSaving] = useState(false);
+
   // 学籍番号から学年・課程・学院を自動抽出
   useEffect(() => {
     const parsed = parseStudentId(portalId);
     if (parsed) {
       setYearGroup(parsed.yearGroup);
       setSchool(parsed.schoolKey);
+      if (parsed.schoolKey) setSetupDeptSchool(parsed.schoolKey);
     }
   }, [portalId]);
 
@@ -415,6 +430,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
     setError(null);
     if (mode === "login") { setMode(null); setLoginTab("isct"); return; }
     if (mode === "signup" && step === 0) { setMode(null); return; }
+    if (mode === "signup" && step >= 3) return; // 完了後の画面からは戻れない
     if (mode === "signup") { setStep(s => s - 1); }
   };
   const nextStep = async () => {
@@ -494,7 +510,8 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.detail || data.error);
       if (yearGroup) updateUserPref({ yearGroup, ...(school ? { school } : {}) });
-      await onComplete();
+      // Show post-registration guidance instead of going directly to main app
+      setStep(3);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -543,8 +560,8 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
     background: T.bg3, color: T.txD, fontSize: 15, fontWeight: 700, cursor: "pointer",
   };
 
-  const showBack = mode === "login" || mode === "signup";
-  const progress = mode === "signup" ? { current: step, total: 3 } : null;
+  const showBack = mode === "login" || (mode === "signup" && step < 3);
+  const progress = mode === "signup" ? { current: step, total: step >= 3 ? 5 : 3 } : null;
 
   /* ─────────── Connecting overlay ─────────── */
   if (connecting) {
@@ -917,6 +934,198 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 12 }}>
               <span style={{ color: T.txD, display: "flex" }}>{ICN.lock}</span>
               <p style={{ fontSize: 11, color: T.txD, lineHeight: 1.6 }}>認証情報はAES-256-GCMで暗号化して保存されます</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ 新規登録 Step 3 : 学系・ユニット ═══ */}
+      {mode === "signup" && step === 3 && (
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+          <div style={bodyStyle}>
+            <StepLabel n={4} total={5} />
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>学系・ユニット</h2>
+            <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>所属を設定すると、同じグループの仲間を見つけやすくなります</p>
+
+            {/* 学院 → 学系 選択 */}
+            <div style={cardStyle}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: T.txD }}>所属学院・学系</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {Object.entries(SCHOOLS).map(([sk, sv]) => {
+                  const on = setupDeptSchool === sk;
+                  const ds = on ? Object.entries(DEPTS).filter(([, d]) => d.school === sk) : [];
+                  return (
+                    <div key={sk} style={{ display: "flex", flexWrap: "wrap", gap: 5, flexBasis: on ? "100%" : "auto" }}>
+                      <button onClick={() => { if (on) { setSetupDeptSchool(null); setSetupDept(null); } else setSetupDeptSchool(sk); }}
+                        style={{
+                          padding: "7px 14px", borderRadius: 8,
+                          border: `1px solid ${on ? sv.col : T.bd}`,
+                          background: on ? sv.col : "transparent",
+                          color: on ? "#fff" : T.txH,
+                          fontSize: 12, fontWeight: on ? 700 : 500, cursor: "pointer",
+                          transition: "all .2s",
+                        }}>{sv.name}{on ? " ▾" : ""}</button>
+                      {ds.map(([prefix, d]) => {
+                        const sel = setupDept === prefix;
+                        return (
+                          <button key={prefix} onClick={() => setSetupDept(prefix)}
+                            style={{
+                              padding: "7px 14px", borderRadius: 8,
+                              border: `1px solid ${sel ? d.col : T.bd}`,
+                              background: sel ? `${d.col}20` : "transparent",
+                              color: sel ? d.col : T.txH,
+                              fontSize: 12, fontWeight: sel ? 700 : 500, cursor: "pointer",
+                              animation: "fadeIn .2s ease",
+                            }}>{d.name}</button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* ユニット */}
+              <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginTop: 6 }}>ユニット（1年生のみ）</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{
+                  padding: "9px 14px", borderRadius: 8,
+                  background: `${UNIT_COL}10`, border: `1px solid ${UNIT_COL}30`,
+                  color: UNIT_COL, fontSize: 14, fontWeight: 700, flexShrink: 0,
+                }}>{yearGroup || "?"}</div>
+                <span style={{ fontSize: 16, color: T.txD, fontWeight: 300 }}>/</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
+                  <span style={{ fontSize: 13, color: T.txD, fontWeight: 500, flexShrink: 0 }}>U</span>
+                  <input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="番号"
+                    value={setupUnitNum} onChange={e => setSetupUnitNum(e.target.value.replace(/[^0-9]/g, ""))}
+                    style={{
+                      width: 56, padding: "9px 0", borderRadius: 8,
+                      border: `1px solid ${T.bd}`, background: T.bg3,
+                      color: T.txH, fontSize: 16, fontWeight: 700,
+                      textAlign: "center", outline: "none",
+                    }} />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 8 }}>
+              <button onClick={() => {
+                if (setupDept) updateUserPref({ myDept: setupDept });
+                if (yearGroup && setupUnitNum) updateUserPref({ myUnit: `${yearGroup}-${setupUnitNum}` });
+                setStep(4);
+              }} style={primaryBtnStyle(true)}>次へ</button>
+              <button onClick={() => setStep(4)}
+                style={{ background: "none", border: "none", color: T.txD, fontSize: 13, cursor: "pointer", padding: "8px 0" }}>
+                スキップ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ 新規登録 Step 4 : メール認証 ═══ */}
+      {mode === "signup" && step === 4 && (
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+          <div style={bodyStyle}>
+            <StepLabel n={5} total={5} />
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>メールアドレス連携</h2>
+            <div style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.6 }}>
+              <p style={{ margin: "0 0 10px" }}>メールアドレスを連携すると、次回以降のログインがもっと便利になります：</p>
+              <ul style={{ margin: 0, paddingLeft: 20 }}>
+                <li>TOTPシークレットの入力が不要になります</li>
+                <li>メール＋パスワードだけでログインできます</li>
+                <li>どの端末からでもすぐにログイン可能</li>
+              </ul>
+            </div>
+            <ErrorBanner error={error} />
+
+            {emailVerified ? (
+              <div style={{
+                padding: 14, borderRadius: 12, border: `1px solid ${T.green}30`, background: `${T.green}06`,
+                display: "flex", alignItems: "center", gap: 10,
+              }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: T.green }}>メール連携完了</div>
+                  <div style={{ fontSize: 12, color: T.txD, marginTop: 2 }}>{setupEmail}</div>
+                </div>
+              </div>
+            ) : !emailPending ? (
+              <div style={cardStyle}>
+                <InputField label="メールアドレス" value={setupEmail}
+                  onChange={e => setSetupEmail(e.target.value)}
+                  placeholder="example@m.isct.ac.jp" type="email" />
+                <InputField label="ログイン用パスワード" value={setupEmailPw}
+                  onChange={e => setSetupEmailPw(e.target.value)}
+                  placeholder="8文字以上" type="password" showToggle
+                  note="ISCTのパスワードとは別に、このアプリ用のパスワードを設定します" />
+                <button onClick={async () => {
+                  if (!setupEmail || !setupEmailPw) { setError("メールアドレスとパスワードを入力してください"); return; }
+                  if (setupEmailPw.length < 8) { setError("パスワードは8文字以上にしてください"); return; }
+                  setEmailSaving(true); setError(null);
+                  try {
+                    const r = await fetch(`${API}/api/auth/email/link`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ email: setupEmail, password: setupEmailPw }),
+                    });
+                    const d = await r.json();
+                    if (!r.ok) throw new Error(d.error || "送信に失敗しました");
+                    setEmailPending(true);
+                  } catch (e) { setError(e.message); }
+                  setEmailSaving(false);
+                }} disabled={emailSaving || !setupEmail || !setupEmailPw}
+                  style={{
+                    ...primaryBtnStyle(setupEmail && setupEmailPw && !emailSaving),
+                    padding: "12px 0", fontSize: 14,
+                  }}>
+                  {emailSaving ? "送信中..." : "確認コードを送信"}
+                </button>
+              </div>
+            ) : (
+              <div style={cardStyle}>
+                <p style={{ fontSize: 13, color: T.txD, lineHeight: 1.6 }}>
+                  <strong style={{ color: T.txH }}>{setupEmail}</strong> に6桁の確認コードを送信しました
+                </p>
+                <InputField label="確認コード" value={emailCode}
+                  onChange={e => setEmailCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+                  placeholder="123456" mono />
+                <button onClick={async () => {
+                  if (emailCode.length !== 6) { setError("6桁のコードを入力してください"); return; }
+                  setEmailSaving(true); setError(null);
+                  try {
+                    const r = await fetch(`${API}/api/auth/email/verify`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ email: setupEmail, code: emailCode }),
+                    });
+                    const d = await r.json();
+                    if (!r.ok) throw new Error(d.error || "認証に失敗しました");
+                    setEmailVerified(true);
+                  } catch (e) { setError(e.message); }
+                  setEmailSaving(false);
+                }} disabled={emailSaving || emailCode.length !== 6}
+                  style={{
+                    ...primaryBtnStyle(emailCode.length === 6 && !emailSaving),
+                    padding: "12px 0", fontSize: 14,
+                  }}>
+                  {emailSaving ? "確認中..." : "認証する"}
+                </button>
+                <button onClick={() => { setEmailPending(false); setEmailCode(""); setError(null); }}
+                  style={{ background: "none", border: "none", color: T.txD, fontSize: 12, cursor: "pointer", padding: "4px 0" }}>
+                  メールアドレスを変更する
+                </button>
+              </div>
+            )}
+
+            <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 8 }}>
+              <button onClick={onComplete} style={primaryBtnStyle(true)}>
+                {emailVerified ? "アプリを始める" : "アプリを始める"}
+              </button>
+              {!emailVerified && (
+                <p style={{ fontSize: 11, color: T.txD, textAlign: "center", lineHeight: 1.6 }}>
+                  あとからプロフィール画面で設定することもできます
+                </p>
+              )}
             </div>
           </div>
         </div>
