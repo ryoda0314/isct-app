@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { REQ_1Q, OPT_1Q, OPT_CATS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey } from "../registrationData.js";
@@ -11,11 +11,11 @@ const save=(d)=>{try{localStorage.setItem(LS,JSON.stringify(d));}catch{}};
 export const RegView=({mob})=>{
   const [data,setData]=useState(()=>{
     const s=load();
-    return {req:s.req||{},sci:s.sci||{},opt:s.opt||{}};
+    return {req:s.req||{},reqSec:s.reqSec||{},sci:s.sci||{},opt:s.opt||{}};
   });
   const up=useCallback((fn)=>setData(prev=>{const next=fn(prev);save(next);return next;}),[]);
 
-  const {req,sci,opt}=data;
+  const {req,reqSec,sci,opt}=data;
   const [reqOpen,setReqOpen]=useState(true);
   const [optOpen,setOptOpen]=useState(true);
   const [search,setSearch]=useState("");
@@ -24,6 +24,24 @@ export const RegView=({mob})=>{
   const [detailCourse,setDetailCourse]=useState(null);
   const [syllabusData,setSyllabusData]=useState(null);
   const [syllabusLoading,setSyllabusLoading]=useState(false);
+  const [sectionData,setSectionData]=useState(null);
+  const [secLoading,setSecLoading]=useState(true);
+
+  // ── Fetch section data from DB ──
+  useEffect(()=>{
+    const names=[...REQ_1Q.common,...REQ_1Q.science].map(c=>c.name);
+    fetch(`/api/data/reg-sections?year=2026&names=${encodeURIComponent(names.join(','))}`)
+      .then(r=>r.json()).then(d=>{setSectionData(d.courses||{});setSecLoading(false);})
+      .catch(()=>setSecLoading(false));
+  },[]);
+
+  // ── Convert DB slot to grid [day, period] ──
+  const toGridSlot=(s)=>{
+    const di={月:0,火:1,水:2,木:3,金:4}[s.day];
+    const pi=Math.floor((s.period_start-1)/2);
+    if(di==null||isNaN(pi)) return null;
+    return [di,pi];
+  };
 
   // ── Active courses ──
   const active=useMemo(()=>{
@@ -69,7 +87,14 @@ export const RegView=({mob})=>{
     return set;
   },[active]);
 
-  // ── Toggle required slot ──
+  // ── Occupied set excluding a specific course (for section conflict check) ──
+  const occExcept=(excludeId)=>{
+    const set=new Set();
+    for(const c of active){if(c.id===excludeId)continue;for(const s of c.sel) set.add(slotKey(s));}
+    return set;
+  };
+
+  // ── Toggle required slot (fallback when no section data) ──
   const togReq=(cid,slot)=>up(p=>{
     const cur=p.req[cid]||[];
     const k=slotKey(slot);
@@ -77,12 +102,26 @@ export const RegView=({mob})=>{
     return {...p,req:{...p.req,[cid]:has?cur.filter(s=>slotKey(s)!==k):[...cur,slot]}};
   });
 
+  // ── Select section for required course ──
+  const selectReqSec=(cid,courseName,secName)=>up(p=>{
+    const sections=sectionData?.[courseName]||[];
+    const sec=sections.find(s=>s.section===secName);
+    if(!sec) return p;
+    const slots=sec.slots.map(toGridSlot).filter(Boolean);
+    // Toggle: deselect if same section
+    if((p.reqSec||{})[cid]===secName){
+      const ns={...(p.reqSec||{})};delete ns[cid];
+      return {...p,reqSec:ns,req:{...p.req,[cid]:[]}};
+    }
+    return {...p,reqSec:{...(p.reqSec||{}),[cid]:secName},req:{...p.req,[cid]:slots}};
+  });
+
   // ── Toggle science enabled ──
-  const togSci=(cid)=>up(p=>({
-    ...p,
-    sci:{...p.sci,[cid]:!p.sci[cid]},
-    req:p.sci[cid]?{...p.req,[cid]:[]}:p.req,
-  }));
+  const togSci=(cid)=>up(p=>{
+    const off=p.sci[cid];
+    const ns={...(p.reqSec||{})};if(off)delete ns[cid];
+    return {...p,sci:{...p.sci,[cid]:!off},req:off?{...p.req,[cid]:[]}:p.req,reqSec:ns};
+  });
 
   // ── Add optional slot ──
   const addOpt=(cid,slot)=>{
@@ -102,7 +141,7 @@ export const RegView=({mob})=>{
   });
 
   // ── Reset all ──
-  const resetAll=()=>{if(confirm("すべての選択をリセットしますか？")){up(()=>({req:{},sci:{},opt:{}}));}};
+  const resetAll=()=>{if(confirm("すべての選択をリセットしますか？")){up(()=>({req:{},reqSec:{},sci:{},opt:{}}));}};
 
   // ── Syllabus fetch ──
   const fetchSyllabus=async(name)=>{
@@ -181,6 +220,10 @@ export const RegView=({mob})=>{
   const ReqRow=({c,isScience})=>{
     const enabled=isScience?!!sci[c.id]:true;
     const selSlots=req[c.id]||[];
+    const selSec=(reqSec||{})[c.id];
+    const courseSections=sectionData?.[c.name]||[];
+    const hasSections=!secLoading&&courseSections.length>0;
+    const otherOcc=hasSections?occExcept(c.id):null;
     return(
       <div style={{padding:"10px 0",borderBottom:`1px solid ${T.bd}08`}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
@@ -197,14 +240,39 @@ export const RegView=({mob})=>{
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </button>
         </div>
-        {enabled&&<div style={{display:"flex",flexWrap:"wrap",gap:6,paddingLeft:isScience?28:14}}>
-          {c.slots.map(s=>{
-            const k=slotKey(s);
-            const sel=selSlots.some(x=>slotKey(x)===k);
-            const busy=!sel&&occupied.has(k);
-            return <Chip key={k} slot={s} selected={sel} conflict={busy} onClick={()=>togReq(c.id,s)}/>;
-          })}
-        </div>}
+        {enabled&&(hasSections?(
+          <div style={{paddingLeft:isScience?28:14}}>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {courseSections.map(sec=>{
+                const isSel=selSec===sec.section;
+                const conflict=!isSel&&otherOcc&&sec.slots.some(s=>{const g=toGridSlot(s);return g&&otherOcc.has(slotKey(g));});
+                const slotsLabel=sec.slots.map(s=>`${s.day}${s.period_start}-${s.period_end}限`).join(' · ');
+                return(
+                  <button key={sec.section||'_default'} onClick={()=>selectReqSec(c.id,c.name,sec.section)}
+                    style={{padding:"5px 12px",borderRadius:8,fontSize:12,fontWeight:isSel?700:400,
+                      border:`1.5px solid ${isSel?T.accent:conflict?T.orange+'60':T.bd}`,
+                      background:isSel?`${T.accent}18`:conflict?`${T.orange}08`:T.bg3,
+                      color:isSel?T.accent:conflict?T.orange:T.txH,cursor:"pointer",textAlign:"left",
+                      opacity:conflict&&!isSel?.6:1,transition:"all .12s"}}>
+                    <div style={{fontWeight:600}}>{sec.section||"—"}</div>
+                    <div style={{fontSize:9,color:isSel?T.accent:T.txD,marginTop:1,whiteSpace:"nowrap"}}>{slotsLabel}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ):secLoading?(
+          <div style={{paddingLeft:isScience?28:14,fontSize:11,color:T.txD}}>セクション読込中...</div>
+        ):(
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,paddingLeft:isScience?28:14}}>
+            {c.slots.map(s=>{
+              const k=slotKey(s);
+              const sel=selSlots.some(x=>slotKey(x)===k);
+              const busy=!sel&&occupied.has(k);
+              return <Chip key={k} slot={s} selected={sel} conflict={busy} onClick={()=>togReq(c.id,s)}/>;
+            })}
+          </div>
+        ))}
       </div>
     );
   };
@@ -413,7 +481,7 @@ export const RegView=({mob})=>{
 
       {/* Footer note */}
       <div style={{fontSize:10,color:T.txD,textAlign:"center",padding:"8px 0 24px",lineHeight:1.6}}>
-        配布されるプリントを参照してクラスを設定してください<br/>
+        自分のセクション（クラス）を選択すると時間割が自動設定されます<br/>
         時間割データは自動保存されます
       </div>
     </div>
