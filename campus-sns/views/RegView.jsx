@@ -152,7 +152,7 @@ export const RegView=({mob})=>{
       // 1) Common required
       for(const c of curReq.common){
         const sections=sectionData[c.name]||[];
-        const mn=c.id==='risshi'?Math.ceil(num/2):num;
+        const mn=(c.id==='risshi'||c.id==='eng1'||c.id==='eng2')?Math.ceil(num/2):num;
         const sec=sections.find(s=>secMatchNum(s.section,mn));
         if(sec){ nReq[c.id]=sec.slots.map(toGridSlot).filter(Boolean); nSec[c.id]=sec.section; }
       }
