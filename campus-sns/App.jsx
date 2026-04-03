@@ -141,7 +141,7 @@ export default function App(){
   updateStatusBarTheme(T.bg2);
   useEffect(()=>{document.documentElement.style.background=T.bg;document.body.style.background=T.bg;},[themeMode,accentPref]);
   const [mockMode,setMockMode]=useState(false);
-  const [guestMode,setGuestMode]=useState(()=>{if(typeof window==="undefined")return null;const h=window.location.hash;if(h==="#freshman")return "freshman";if(h==="#navi")return "navi";return null;});
+  const [guestMode,setGuestMode]=useState(()=>{if(typeof window==="undefined")return null;const h=window.location.hash;if(h==="#freshman")return "freshman";if(h==="#navi")return "navi";if(h==="#reg")return "reg";return null;});
   const [fromGuest,setFromGuest]=useState(null);
   const [quarter,setQuarter]=useState(()=>{try{const v=localStorage.getItem("quarter");return v?Number(v):2;}catch{return 2;}});
   const [qDataLive,setQDataLive]=useState(null);
@@ -609,20 +609,21 @@ export default function App(){
   );
   // --- GUEST BOARD (direct link #freshman) ---
   const guestLogin=()=>{setFromGuest(guestMode);setGuestMode(null);window.location.hash="";setMockMode(false);setAppState("setup");};
-  const backToGuest=()=>{const mode=fromGuest||"freshman";setFromGuest(null);setGuestMode(mode);window.location.hash=mode==="navi"?"navi":"freshman";setAppState("ready");setViewRaw(mode==="navi"?"navigation":"freshman");};
+  const backToGuest=()=>{const mode=fromGuest||"freshman";setFromGuest(null);setGuestMode(mode);window.location.hash=mode==="navi"?"navi":mode==="reg"?"reg":"freshman";setAppState("ready");setViewRaw(mode==="navi"?"navigation":mode==="reg"?"reg":"freshman");};
 
-  if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={onDemo} personas={DEMO_PERSONAS} mob={mob} dark={dark} onBackToBoard={fromGuest?backToGuest:null} backLabel={fromGuest==="navi"?"キャンパスナビに戻る":undefined}/>;
+  if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={onDemo} personas={DEMO_PERSONAS} mob={mob} dark={dark} onBackToBoard={fromGuest?backToGuest:null} backLabel={fromGuest==="navi"?"キャンパスナビに戻る":fromGuest==="reg"?"履修登録に戻る":undefined}/>;
 
   if(guestMode){
     return(
       <div style={{display:"flex",flexDirection:"column",height:"100vh",background:T.bg,color:T.tx,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
         {/* Guest header */}
         <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:10,padding:"0 16px",height:48,borderBottom:`1px solid ${T.bd}`,background:T.bg2}}>
-          <div style={{fontWeight:700,fontSize:15,color:T.txH,flex:1}}>{guestMode==="navi"?"キャンパスナビ":"新入生掲示板"}</div>
+          <div style={{fontWeight:700,fontSize:15,color:T.txH,flex:1}}>{guestMode==="navi"?"キャンパスナビ":guestMode==="reg"?"履修登録補助":"新入生掲示板"}</div>
           <button onClick={guestLogin} style={{padding:"6px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>ログイン / 新規登録</button>
         </div>
         {guestMode==="freshman"&&<FreshmanBoardView mob={mob} loggedIn={false} onLogin={guestLogin}/>}
         {guestMode==="navi"&&<NavigationView mob={mob} initialDest={null} initialOrig={null} onDestUsed={()=>{}}/>}
+        {guestMode==="reg"&&<RegView mob={mob}/>}
       </div>
     );
   }
