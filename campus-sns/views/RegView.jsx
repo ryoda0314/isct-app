@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { REQ_1Q, REQ_2Q, CAT_COLORS, UNIT_OPT, LAB_OPT, SCHOOLS, SHARED_DEPTS, DEPT_LABELS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
@@ -176,6 +176,26 @@ export const RegView=({mob})=>{
     }
     return g;
   },[active]);
+
+  // ── Merge vertically adjacent same-course cells ──
+  const cellEntries=useMemo(()=>{
+    const entries=[];
+    const visited=new Set();
+    for(let pi=0;pi<5;pi++) for(let di=0;di<5;di++){
+      if(visited.has(`${pi}-${di}`)) continue;
+      const c=grid[pi][di];
+      let span=1;
+      if(c&&!c.conflict){
+        for(let pj=pi+1;pj<5;pj++){
+          const next=grid[pj][di];
+          if(next&&next.id===c.id&&!next.conflict){span++;visited.add(`${pj}-${di}`);}
+          else break;
+        }
+      }
+      entries.push({di,pi,c,span});
+    }
+    return entries;
+  },[grid]);
 
   const credits=active.reduce((s,c)=>s+c.cr,0);
   const slotCount=active.reduce((s,c)=>s+(c.sel?.length||0),0);
@@ -359,19 +379,22 @@ export const RegView=({mob})=>{
   const cellH=mob?48:56;
   const hdrH=mob?24:28;
 
-  const Cell=({c,d,p})=>{
-    if(!c) return <div style={{width:cellW,height:cellH,background:T.bg3,borderRadius:6,border:`1px solid ${T.bd}`,boxSizing:"border-box"}}/>;
+  const gap=mob?3:4;
+  const Cell=({c,span=1,gc,gr})=>{
+    const h=span>1?cellH*span+gap*(span-1):cellH;
+    const pos={gridColumn:gc,gridRow:gr};
+    if(!c) return <div style={{...pos,width:cellW,height:h,background:T.bg3,borderRadius:6,border:`1px solid ${T.bd}`,boxSizing:"border-box"}}/>;
     const isConflict=!!c.conflict;
     return(
       <div onClick={()=>{ if(c.type==="opt") rmOpt(c.id); else fetchSyllabus(c.name); }}
         title={isConflict?`衝突: ${c.name} / ${c.conflict}`:c.name}
-        style={{width:cellW,height:cellH,background:isConflict?`${T.red}20`:`${c.col}18`,borderRadius:6,
+        style={{...pos,width:cellW,height:h,background:isConflict?`${T.red}20`:`${c.col}18`,borderRadius:6,
           border:`1.5px solid ${isConflict?T.red:c.col}`,cursor:"pointer",padding:3,overflow:"hidden",
           boxSizing:"border-box",
           display:"flex",flexDirection:"column",justifyContent:"center",position:"relative"}}>
         {isConflict&&<div style={{position:"absolute",top:2,right:3,fontSize:8,color:T.red,fontWeight:700}}>!</div>}
         <div style={{fontSize:mob?8:9,fontWeight:700,color:c.col,lineHeight:1.2,
-          overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>
+          overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:span>1?span*2:2,WebkitBoxOrient:"vertical"}}>
           {c.name}
         </div>
         {c.type==="opt"&&<div style={{fontSize:7,color:T.txD,marginTop:1}}>tap to remove</div>}
@@ -622,20 +645,26 @@ export const RegView=({mob})=>{
 
       {/* Timetable Grid */}
       <div style={{background:T.bg2,borderRadius:14,border:`1px solid ${T.bd}`,padding:mob?8:12,marginBottom:16,overflowX:"auto"}}>
-        <div style={{display:"inline-grid",gridTemplateColumns:`${mob?36:48}px repeat(5,${cellW}px)`,gap:mob?3:4,minWidth:"fit-content"}}>
-          <div style={{height:hdrH}}/>
-          {DAYS.map(d=>(
-            <div key={d} style={{height:hdrH,display:"flex",alignItems:"center",justifyContent:"center",
+        <div style={{display:"inline-grid",gridTemplateColumns:`${mob?36:48}px repeat(5,${cellW}px)`,gap,minWidth:"fit-content"}}>
+          {/* Header */}
+          <div style={{gridColumn:1,gridRow:1,height:hdrH}}/>
+          {DAYS.map((d,i)=>(
+            <div key={d} style={{gridColumn:i+2,gridRow:1,height:hdrH,display:"flex",alignItems:"center",justifyContent:"center",
               fontSize:mob?11:13,fontWeight:700,color:T.txH}}>{d}</div>
           ))}
-          {PERIODS.map((p2,pi)=><React.Fragment key={pi}>
-            <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+          {/* Period labels */}
+          {PERIODS.map((p2,pi)=>(
+            <div key={pi} style={{gridColumn:1,gridRow:pi+2,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
               fontSize:mob?8:9,color:T.txD,lineHeight:1.2,paddingRight:2}}>
               <div style={{fontWeight:600}}>{p2}</div>
               <div style={{fontSize:mob?7:8,opacity:.6}}>{PER_TIMES[pi]?.split("–")[0]}</div>
             </div>
-            {DAYS.map((_,di)=><Cell key={di} c={grid[pi][di]} d={di} p={pi}/>)}
-          </React.Fragment>)}
+          ))}
+          {/* Cells (merged) */}
+          {cellEntries.map(({di,pi,c,span})=>(
+            <Cell key={`${pi}-${di}`} c={c} span={span}
+              gc={di+2} gr={span>1?`${pi+2}/span ${span}`:pi+2}/>
+          ))}
         </div>
       </div>
 
