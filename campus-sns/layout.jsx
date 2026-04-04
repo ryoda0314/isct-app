@@ -85,12 +85,15 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
     <div style={{width:cp?"calc(100% - 8px)":"calc(100% - 20px)",height:1,background:T.bd,margin:cp?"6px 4px":"6px 10px"}}/>
     {!cp&&<div style={{padding:"0 10px 2px",fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>COURSES{quarter?` (${quarter}Q)`:""}</div>}
     <div style={{padding:cp?"0 4px":"0 6px",flex:1}}>
-      {courses.filter(c=>!quarter||c.quarter===quarter).map(c=>{const on=cid===c.id&&view==="course";return(
-        <button key={c.id} title={cp?c.name:undefined} onClick={()=>{setCid(c.id);setView("course");}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:cp?"center":"flex-start",gap:cp?0:8,padding:cp?"5px 0":"5px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?`${c.col}14`:"transparent",color:on?T.txH:T.tx,fontSize:12,textAlign:"left",borderLeft:on?`2px solid ${c.col}`:"2px solid transparent"}}>
-          <div style={{width:24,height:24,borderRadius:6,background:on?c.col:`${c.col}30`,display:"flex",alignItems:"center",justifyContent:"center",color:on?"#fff":c.col,fontSize:9,fontWeight:700,flexShrink:0}}>{c.code?.split(".")[1]?.slice(0,2)||c.code?.slice(0,2)||"?"}</div>
-          {!cp&&<span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>}
-        </button>
-      );})}
+      {(()=>{const filtered=courses.filter(c=>!quarter||c.quarter===quarter);const byYear={};filtered.forEach(c=>{const y=c.year||0;(byYear[y]=byYear[y]||[]).push(c);});const years=Object.keys(byYear).sort((a,b)=>b-a);return years.map(y=><React.Fragment key={y}>
+        {!cp&&years.length>1&&<div style={{padding:"4px 10px 2px",fontSize:9,fontWeight:600,color:T.txD,letterSpacing:.3}}>{y>0?`${y}年度`:""}</div>}
+        {byYear[y].map(c=>{const on=cid===c.id&&view==="course";return(
+          <button key={c.id} title={cp?c.name:undefined} onClick={()=>{setCid(c.id);setView("course");}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:cp?"center":"flex-start",gap:cp?0:8,padding:cp?"5px 0":"5px 10px",borderRadius:8,border:"none",cursor:"pointer",background:on?`${c.col}14`:"transparent",color:on?T.txH:T.tx,fontSize:12,textAlign:"left",borderLeft:on?`2px solid ${c.col}`:"2px solid transparent"}}>
+            <div style={{width:24,height:24,borderRadius:6,background:on?c.col:`${c.col}30`,display:"flex",alignItems:"center",justifyContent:"center",color:on?"#fff":c.col,fontSize:9,fontWeight:700,flexShrink:0}}>{c.code?.split(".")[1]?.slice(0,2)||c.code?.slice(0,2)||"?"}</div>
+            {!cp&&<span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>}
+          </button>
+        );})}
+      </React.Fragment>);})()}
     </div>
     <div style={{padding:cp?"6px 4px 10px":"6px 6px 10px"}}>
       {user.isAdmin&&<SideItem icon={I.shield} label="管理者" on={view==="admin"} click={()=>setView("admin")} compact={cp}/>}
