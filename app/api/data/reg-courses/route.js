@@ -53,7 +53,9 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const year = searchParams.get('year') || '2026';
   const quarter = searchParams.get('quarter') || '1Q';
-  const level = searchParams.get('level') || '1';       // 1,2,3,4,5,6
+  const levelParam = searchParams.get('level') || '1';   // "1", "3,2", "4,3,2"
+  const levels = new Set(levelParam.split(',').map(s => s.trim()).filter(Boolean));
+  const multiLevel = levels.size > 1;
   const deptFilter = searchParams.get('dept') || '';     // e.g. "MEC,CSC"
   const excludeRaw = searchParams.get('exclude') || '';
   const searchQ = (searchParams.get('search') || '').trim().toLowerCase(); // cross-level name search
@@ -71,7 +73,11 @@ export async function GET(req) {
 
   // Filter at DB level: level via LIKE pattern (code format: XXX.Ynnn, _ matches letter, level matches digit)
   if (!searchQ) {
-    query = query.like('code', `%._${level}%`);
+    if (levels.size === 1) {
+      query = query.like('code', `%._${[...levels][0]}%`);
+    } else {
+      query = query.or([...levels].map(l => `code.like.%._${l}%`).join(','));
+    }
   }
   if (!searchQ && deptSet) {
     query = query.in('dept', [...deptSet]);
@@ -97,7 +103,7 @@ export async function GET(req) {
       if (!nameL.includes(searchQ) && !codeL.includes(searchQ)) continue;
     } else {
       // Normal browse: filter by level + dept
-      if (!m || m[2] !== level) continue;
+      if (!m || !levels.has(m[2])) continue;
       if (deptSet) {
         const pm = row.code.match(/^([A-Z]+)\./);
         if (!pm || !deptSet.has(pm[1])) continue;
@@ -114,7 +120,8 @@ export async function GET(req) {
     }
 
     const courseLevel = m ? m[2] : '1';
-    const cat = courseLevel === '1' ? getCat100(row.code, row.name) : getCatHigher(row.code);
+    const deptCat = courseLevel === '1' ? getCat100(row.code, row.name) : getCatHigher(row.code);
+    const cat = multiLevel ? `${courseLevel}00番台 ${deptCat}` : deptCat;
 
     if (!courses[row.code]) {
       courses[row.code] = { name: row.name, code: row.code, cat, requirement: row.requirement || null, credits: row.credits || null, sections: {} };
@@ -152,7 +159,7 @@ export async function GET(req) {
   // Sort categories
   const catOrder100 = ['実験・演習','教養','文系教養','語学','体育・健康','図学','学院別','教職','日本語','その他'];
   let categories;
-  if (!searchQ && level === '1') {
+  if (!searchQ && !multiLevel && levels.has('1')) {
     categories = catOrder100
       .filter(cat => groups[cat]?.length)
       .map(cat => ({ name: cat, courses: sortCourses(groups[cat]) }));
@@ -162,9 +169,14 @@ export async function GET(req) {
       }
     }
   } else {
-    // For 200+, sort alphabetically by category name
+    // Sort: higher level first (300番台 before 200番台), then alphabetically within level
     categories = Object.entries(groups)
-      .sort((a, b) => a[0].localeCompare(b[0], 'ja'))
+      .sort((a, b) => {
+        const la = a[0].match(/^(\d)00番台/)?.[1] || '0';
+        const lb = b[0].match(/^(\d)00番台/)?.[1] || '0';
+        if (la !== lb) return Number(lb) - Number(la);
+        return a[0].localeCompare(b[0], 'ja');
+      })
       .map(([name, list]) => ({ name, courses: sortCourses(list) }));
   }
 

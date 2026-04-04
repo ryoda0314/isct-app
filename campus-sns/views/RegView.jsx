@@ -62,8 +62,10 @@ export const RegView=({mob})=>{
   const [syllabusData,setSyllabusData]=useState(null);
   const [syllabusLoading,setSyllabusLoading]=useState(false);
 
-  // Derived
-  const level=String(browseLevel);
+  // Derived — 3年→"3,2", 4年→"4,3,2", otherwise single level
+  const level=browseLevel>=3
+    ?Array.from({length:browseLevel-1},(_,i)=>String(browseLevel-i)).join(',')
+    :String(browseLevel);
   const curSchool=SCHOOLS.find(s=>s.key===selSchool);
   const deptParam=useMemo(()=>{
     if(!selSchool||!curSchool) return '';
@@ -144,6 +146,9 @@ export const RegView=({mob})=>{
     return out;
   };
 
+  // Color helper: strips "N00番台 " prefix for CAT_COLORS lookup
+  const catCol=(name)=>CAT_COLORS[name]||CAT_COLORS[name.replace(/^\d00番台\s*/,'')]||'#6b7280';
+
   // ── Active courses ──
   const active=useMemo(()=>{
     const list=[];
@@ -161,7 +166,7 @@ export const RegView=({mob})=>{
     for(const [code,slots] of Object.entries(opt)){
       if(!slots||!slots.length) continue;
       const info=optInfo[code]||{};
-      list.push({id:code,name:info.name||code,cr:info.cr||0,col:CAT_COLORS[info.cat]||'#6b7280',sel:slots,type:"opt"});
+      list.push({id:code,name:info.name||code,cr:info.cr||0,col:catCol(info.cat||''),sel:slots,type:"opt"});
     }
     return list;
   },[req,sci,opt,optInfo,quarter]);
@@ -488,11 +493,11 @@ export const RegView=({mob})=>{
     const isAdded=!!(opt[code]&&opt[code].length>0);
     const selSec=(reqSec||{})[code];
     const otherOcc=occExcept(code);
-    const catCol=CAT_COLORS[catName]||'#6b7280';
+    const cc=catCol(catName);
     return(
       <div style={{padding:"8px 0",borderBottom:`1px solid ${T.bd}08`}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-          <div style={{width:6,height:6,borderRadius:3,background:catCol,flexShrink:0}}/>
+          <div style={{width:6,height:6,borderRadius:3,background:cc,flexShrink:0}}/>
           <span style={{fontSize:12,fontWeight:isAdded?600:500,color:isAdded?T.txH:T.tx,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
             {course.name}
           </span>
@@ -723,7 +728,7 @@ export const RegView=({mob})=>{
           ):(
             filteredCats.map(cat=>{
               const isOpen=openCats[cat.name]!==false;
-              const catCol=CAT_COLORS[cat.name]||'#6b7280';
+              const cc=catCol(cat.name);
               const addedCount=cat.courses.filter(c=>opt[c.code]&&opt[c.code].length>0).length;
               return(
                 <div key={cat.name} style={{marginBottom:4}}>
@@ -734,7 +739,7 @@ export const RegView=({mob})=>{
                       style={{transform:isOpen?"rotate(90deg)":"none",transition:"transform .15s",flexShrink:0}}>
                       <path d="M9 18l6-6-6-6"/>
                     </svg>
-                    <div style={{width:8,height:8,borderRadius:4,background:catCol,flexShrink:0}}/>
+                    <div style={{width:8,height:8,borderRadius:4,background:cc,flexShrink:0}}/>
                     <span style={{fontSize:13,fontWeight:700,color:T.txH,flex:1,textAlign:"left"}}>{cat.name}</span>
                     <span style={{fontSize:10,color:T.txD,marginRight:4}}>
                       {cat.courses.length}科目{addedCount>0&&<span style={{color:T.accent,fontWeight:600,marginLeft:4}}>{addedCount}選択中</span>}
