@@ -21,7 +21,7 @@ create table if not exists syllabus_courses (
   syllabus_url    text,                     -- シラバスページURL
   school          text,                     -- 学院名 (e.g. 工学院)
   requirement     text,                     -- 必修区分 (必修, 選択必修, 選択)
-  credits         smallint,                 -- 単位数 (講義+演習+実験の合計)
+  credits         real,                     -- 単位数 (講義+演習+実験の合計、小数あり)
   fetched_at      timestamptz default now() -- 取得日時
 );
 

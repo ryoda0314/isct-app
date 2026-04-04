@@ -39,9 +39,9 @@ function parseCredits(credits) {
   const s = String(credits).trim();
   // "1-1-0" format → sum
   if (s.includes('-')) {
-    return s.split('-').reduce((sum, v) => sum + (parseInt(v) || 0), 0);
+    return s.split('-').reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
   }
-  return parseInt(s) || 0;
+  return parseFloat(s) || 0;
 }
 
 /** Convert numeric grade to GP (東工大式: (点数-55)/10) */

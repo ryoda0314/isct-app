@@ -26,7 +26,7 @@ for (const line of lines) {
   }
 
   // 科目行のパース
-  const courseRe = /([A-Z]{2,4}\.[A-Z]\d{3}(?:\.[A-Z])?)\s+(◎|○)?\s*(.+?)\s+(\d+-\d+-\d+)/g;
+  const courseRe = /([A-Z]{2,4}\.[A-Z]\d{3}(?:\.[A-Z])?)\s+(◎|○)?\s*(.+?)\s+([\d.]+(?:-[\d.]+){2})/g;
   let m;
   while ((m = courseRe.exec(line)) !== null) {
     const [, code, symbol, name, credits] = m;
