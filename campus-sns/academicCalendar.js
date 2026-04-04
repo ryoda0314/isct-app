@@ -507,6 +507,50 @@ function dateKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 
+/**
+ * 学年暦データから現在のクオーターを判定する。
+ * 1. 当日に授業エントリがあればそのquarter
+ * 2. 当日が特別期間(prep/exam)ならラベルからquarter
+ * 3. 前後30日を走査して最寄りの授業エントリから判定
+ * 4. フォールバック: 月ベース
+ */
+export function getCurrentQuarter(date) {
+  const key = dateKey(date);
+  // 1. 当日の授業エントリ
+  const raw = D[key];
+  if (raw) {
+    const cls = raw.find(r => r[0] === "C" || r[0] === "X" || r[0] === "T");
+    if (cls) return cls[1];
+  }
+  // 2. 特別期間のラベル ("1Q 授業準備期間" etc.)
+  const period = P.find(p => key >= p.s && key <= p.e);
+  if (period) {
+    const qm = period.l.match(/^(\d)Q/);
+    if (qm) return parseInt(qm[1]);
+    // 休み期間: 次の期間のquarterを使う
+    if (period.t === "break") {
+      const next = P.find(p => p.s > period.e && /^\d/.test(p.l));
+      if (next) { const nm = next.l.match(/^(\d)Q/); if (nm) return parseInt(nm[1]); }
+    }
+  }
+  // 3. 前後30日を走査
+  const d = new Date(date);
+  for (let i = 1; i <= 30; i++) {
+    for (const off of [i, -i]) {
+      const dd = new Date(d); dd.setDate(dd.getDate() + off);
+      const k = dateKey(dd);
+      const r = D[k];
+      if (r) { const c = r.find(x => x[0] === "C"); if (c) return c[1]; }
+    }
+  }
+  // 4. フォールバック
+  const m = date.getMonth();
+  if (m >= 3 && m <= 4) return 1;
+  if (m >= 5 && m <= 7) return 2;
+  if (m >= 8 && m <= 10) return 3;
+  return 4;
+}
+
 export function getAcademicInfo(date) {
   const key = dateKey(date);
   const raw = D[key] || [];

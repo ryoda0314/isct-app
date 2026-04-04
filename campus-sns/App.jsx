@@ -39,7 +39,7 @@ import { FreshmanBoardView } from "./views/FreshmanBoardView.jsx";
 import { AcademicCalendarView } from "./views/AcademicCalendarView.jsx";
 import { ExamView } from "./views/ExamView.jsx";
 import { RegView } from "./views/RegView.jsx";
-import { ACADEMIC_EVENTS } from "./academicCalendar.js";
+import { ACADEMIC_EVENTS, getCurrentQuarter } from "./academicCalendar.js";
 import { useFriends } from "./hooks/useFriends.js";
 import { useBlocks } from "./hooks/useBlocks.js";
 import { useMutes } from "./hooks/useMutes.js";
@@ -143,7 +143,7 @@ export default function App(){
   const [mockMode,setMockMode]=useState(false);
   const [guestMode,setGuestMode]=useState(()=>{if(typeof window==="undefined")return null;const h=window.location.hash;if(h==="#freshman")return "freshman";if(h==="#navi")return "navi";if(h==="#reg")return "reg";return null;});
   const [fromGuest,setFromGuest]=useState(null);
-  const [quarter,setQuarter]=useState(()=>{try{const v=localStorage.getItem("quarter");if(v)return Number(v);const jd=new Date(Date.now()+9*3600000);const m=jd.getUTCMonth();if(m>=3&&m<=4)return 1;if(m>=5&&m<=7)return 2;if(m>=8&&m<=10)return 3;return 4;}catch{return 1;}});
+  const [quarter,setQuarter]=useState(()=>{try{const v=localStorage.getItem("quarter");if(v)return Number(v);const jd=new Date(Date.now()+9*3600000);return getCurrentQuarter(jd);}catch{return 1;}});
   const [qDataLive,setQDataLive]=useState(null);
   const [pastTTCache,setPastTTCache]=useState({});
   const [pastTTLoading,setPastTTLoading]=useState(false);
