@@ -143,7 +143,7 @@ export default function App(){
   const [mockMode,setMockMode]=useState(false);
   const [guestMode,setGuestMode]=useState(()=>{if(typeof window==="undefined")return null;const h=window.location.hash;if(h==="#freshman")return "freshman";if(h==="#navi")return "navi";if(h==="#reg")return "reg";return null;});
   const [fromGuest,setFromGuest]=useState(null);
-  const [quarter,setQuarter]=useState(()=>{try{const v=localStorage.getItem("quarter");return v?Number(v):2;}catch{return 2;}});
+  const [quarter,setQuarter]=useState(()=>{try{const v=localStorage.getItem("quarter");if(v)return Number(v);const jd=new Date(Date.now()+9*3600000);const m=jd.getUTCMonth();if(m>=3&&m<=4)return 1;if(m>=5&&m<=7)return 2;if(m>=8&&m<=10)return 3;return 4;}catch{return 1;}});
   const [qDataLive,setQDataLive]=useState(null);
   const [pastTTCache,setPastTTCache]=useState({});
   const [pastTTLoading,setPastTTLoading]=useState(false);
@@ -639,7 +639,7 @@ export default function App(){
     return(
       <div style={{display:"flex",height:"100dvh",width:"100%",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
 
-        <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} dmUnread={dmUnread} courses={allCourses} depts={userDepts} schools={userSchools} user={user} quarter={quarter} pendingFriendCount={pendingFriendCount} userUnit={userUnit} compact={bp==="tablet"}/>
+        <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} dmUnread={dmUnread} courses={allCourses} depts={userDepts} schools={userSchools} user={user} quarter={quarter} academicYear={_selY} pendingFriendCount={pendingFriendCount} userUnit={userUnit} compact={bp==="tablet"}/>
         {bp==="desktop"&&view==="course"&&cc&&<DChan course={cc} ch={ch} setCh={setCh} online={online} members={members}/>}
         {bp==="desktop"&&view==="dept"&&cd&&<DChan dept={cd} ch={ch} setCh={setCh} online={online} members={deptMembers}/>}
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>

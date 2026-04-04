@@ -12,7 +12,7 @@ const SideItem=({icon,label,on,click,badge,compact})=>(
   </button>
 );
 
-const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,courses=[],depts=[],schools=[],user={},quarter,pendingFriendCount=0,userUnit=null,compact=false})=>{
+const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,courses=[],depts=[],schools=[],user={},quarter,academicYear,pendingFriendCount=0,userUnit=null,compact=false})=>{
   const [moreOpen,setMoreOpen]=useState(false);
   const extras=["grades","pomo","events","reviews","bmarks","location","acadCal","exams","freshman","reg"];
   const isExtra=extras.includes(view);
@@ -83,7 +83,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
       </div>
     </>}
     <div style={{width:cp?"calc(100% - 8px)":"calc(100% - 20px)",height:1,background:T.bd,margin:cp?"6px 4px":"6px 10px"}}/>
-    {!cp&&<div style={{padding:"0 10px 2px",fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>COURSES{quarter?` (${quarter}Q)`:""}</div>}
+    {!cp&&<div style={{padding:"0 10px 2px",fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>COURSES{academicYear?` (${academicYear}年度${quarter?` ${quarter}Q`:""})`:(quarter?` (${quarter}Q)`:"")}</div>}
     <div style={{padding:cp?"0 4px":"0 6px",flex:1}}>
       {(()=>{const filtered=courses.filter(c=>!quarter||c.quarter===quarter);const byYear={};filtered.forEach(c=>{const y=c.year||0;(byYear[y]=byYear[y]||[]).push(c);});const years=Object.keys(byYear).sort((a,b)=>b-a);return years.map(y=><React.Fragment key={y}>
         {!cp&&years.length>1&&<div style={{padding:"4px 10px 2px",fontSize:9,fontWeight:600,color:T.txD,letterSpacing:.3}}>{y>0?`${y}年度`:""}</div>}
