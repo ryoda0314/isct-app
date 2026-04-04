@@ -131,23 +131,32 @@ export async function GET(req) {
     groups[c.cat].push({ name: c.name, code: c.code, requirement: c.requirement, credits: c.credits, sections: secs });
   }
 
+  // Sort courses within each category: 必修→選択必修→選択→その他, then by name
+  const reqOrder = { '必修': 0, '選択必修': 1, '選択': 2 };
+  const sortCourses = (list) => list.sort((a, b) => {
+    const ra = reqOrder[a.requirement] ?? 3;
+    const rb = reqOrder[b.requirement] ?? 3;
+    if (ra !== rb) return ra - rb;
+    return a.name.localeCompare(b.name, 'ja');
+  });
+
   // Sort categories
   const catOrder100 = ['実験・演習','教養','文系教養','語学','体育・健康','図学','学院別','教職','日本語','その他'];
   let categories;
   if (!searchQ && level === '1') {
     categories = catOrder100
       .filter(cat => groups[cat]?.length)
-      .map(cat => ({ name: cat, courses: groups[cat].sort((a, b) => a.name.localeCompare(b.name, 'ja')) }));
+      .map(cat => ({ name: cat, courses: sortCourses(groups[cat]) }));
     for (const [cat, list] of Object.entries(groups)) {
       if (!catOrder100.includes(cat)) {
-        categories.push({ name: cat, courses: list.sort((a, b) => a.name.localeCompare(b.name, 'ja')) });
+        categories.push({ name: cat, courses: sortCourses(list) });
       }
     }
   } else {
     // For 200+, sort alphabetically by category name
     categories = Object.entries(groups)
       .sort((a, b) => a[0].localeCompare(b[0], 'ja'))
-      .map(([name, list]) => ({ name, courses: list.sort((a, b) => a.name.localeCompare(b.name, 'ja')) }));
+      .map(([name, list]) => ({ name, courses: sortCourses(list) }));
   }
 
   return Response.json({ categories });
