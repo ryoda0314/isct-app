@@ -169,12 +169,18 @@ export async function GET(req) {
       }
     }
   } else {
-    // Sort: higher level first (300番台 before 200番台), then alphabetically within level
+    // Department-specific cats (ends with 系 or 学位課程) first, shared/common last
+    const isDept = (name) => /系$|学位課程$/.test(name.replace(/^\d00番台\s*/, ''));
     categories = Object.entries(groups)
       .sort((a, b) => {
+        // Higher level first (300番台 before 200番台)
         const la = a[0].match(/^(\d)00番台/)?.[1] || '0';
         const lb = b[0].match(/^(\d)00番台/)?.[1] || '0';
         if (la !== lb) return Number(lb) - Number(la);
+        // Department-specific first, shared last
+        const da = isDept(a[0]) ? 0 : 1;
+        const db = isDept(b[0]) ? 0 : 1;
+        if (da !== db) return da - db;
         return a[0].localeCompare(b[0], 'ja');
       })
       .map(([name, list]) => ({ name, courses: sortCourses(list) }));
