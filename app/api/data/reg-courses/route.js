@@ -69,10 +69,12 @@ export async function GET(req) {
     .eq('year', year)
     .or(`quarter.eq.${quarter},quarter.eq.${range},quarter.eq.1-4Q`);
 
-  // Filter by level at DB level using dept prefix if available
+  // Filter at DB level: level via LIKE pattern (code format: XXX.Ynnn, _ matches letter, level matches digit)
+  if (!searchQ) {
+    query = query.like('code', `%._${level}%`);
+  }
   if (!searchQ && deptSet) {
-    const deptList = [...deptSet];
-    query = query.in('dept', deptList);
+    query = query.in('dept', [...deptSet]);
   }
 
   const { data, error } = await query.limit(10000);
