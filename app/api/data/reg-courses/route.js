@@ -64,11 +64,21 @@ export async function GET(req) {
   const q = quarter.charAt(0);
   const range = q <= '2' ? '1-2Q' : '3-4Q';
 
-  const { data, error } = await sb.from('syllabus_courses')
+  let query = sb.from('syllabus_courses')
     .select('name,code,section,day,per,period_start,period_end,room,quarter,requirement,credits')
     .eq('year', year)
-    .or(`quarter.eq.${quarter},quarter.eq.${range},quarter.eq.1-4Q`)
-    .limit(5000);
+    .or(`quarter.eq.${quarter},quarter.eq.${range},quarter.eq.1-4Q`);
+
+  // Filter by level at DB level (code format: XXX.Ynnn, level = first digit of nnn)
+  if (!searchQ) {
+    query = query.filter('code', '~', `\\.[A-Za-z]${level}`);
+  }
+  if (deptSet) {
+    const deptPatterns = [...deptSet].map(d => `${d}\\.`).join('|');
+    query = query.filter('code', '~', `^(${deptPatterns})`);
+  }
+
+  const { data, error } = await query.limit(10000);
 
   if (error) {
     console.error('[reg-courses]', error.message);
