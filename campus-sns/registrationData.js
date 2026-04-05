@@ -114,12 +114,14 @@ export const LAB_OPT = ['LAS.C110']; // 化学実験第一（曜日マッチ）
 // ── ユニット番号 → セクション対応表 ──────────────
 // 16グループ（各5ユニット: 1-5, 6-10, ..., 76-80）
 const MECH_SEC = ['A','B','C','D','I','J','K','L','E','F','G','H','M','N','O','P'];
+// 化学: 単純なA-P順（1-40→A-H=1Q無機/2Q有機, 41-80→I-P=1Q有機/2Q無機）
+const CHEM_SEC = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P'];
 const PHYEX_SEC= ['a','b','c','d','i','j','k','l','e','f','g','h','m','n','o','p'];
 // 物理学実験: phyex a,b→Mon1Q / c,d→Tue1Q / i,j→Fri1Q / k,l→Thu1Q / e,f→Mon2Q / g,h→Tue2Q / m,n→Fri2Q / o,p→Thu2Q
 const PHYLAB_SEC=['Mon1Q','Mon1Q','Tue1Q','Tue1Q','Fri1Q','Fri1Q','Thu1Q','Thu1Q','Mon2Q','Mon2Q','Tue2Q','Tue2Q','Fri2Q','Fri2Q','Thu2Q','Thu2Q'];
 const LAB_DAYS = ['月','月','火','火','木','木','金','金','月','月','火','火','木','木','金','金'];
 
-export const UNIT_MAP = { mech1: MECH_SEC, mech2: MECH_SEC, inorg: MECH_SEC, org: MECH_SEC, inorg2: MECH_SEC, org2: MECH_SEC, phyex1: PHYEX_SEC, phylab: PHYLAB_SEC };
+export const UNIT_MAP = { mech1: MECH_SEC, mech2: MECH_SEC, inorg: CHEM_SEC, org: CHEM_SEC, inorg2: CHEM_SEC, org2: CHEM_SEC, phyex1: PHYEX_SEC, phylab: PHYLAB_SEC };
 
 /** courseId + unitNum → セクション名 (A-P / a-p) or null */
 export function unitToSection(courseId, unitNum) {
