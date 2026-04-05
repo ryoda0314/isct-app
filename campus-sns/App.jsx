@@ -608,7 +608,18 @@ export default function App(){
     </div>
   );
   // --- GUEST BOARD (direct link #freshman) ---
-  const guestLogin=()=>{setFromGuest(guestMode);setGuestMode(null);window.location.hash="";setMockMode(false);setAppState("setup");};
+  // Guest session tracking
+  const guestSessionRef=useRef(null);
+  useEffect(()=>{
+    if(!guestMode)return;
+    let sid=sessionStorage.getItem("guest_sid");
+    if(!sid){sid=crypto.randomUUID();sessionStorage.setItem("guest_sid",sid);}
+    guestSessionRef.current=sid;
+    fetch("/api/guest-track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:sid,mode:guestMode})}).catch(()=>{});
+  },[guestMode]);
+  const guestLogin=()=>{
+    if(guestSessionRef.current){fetch("/api/guest-track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:guestSessionRef.current,mode:guestMode||"freshman",action:"convert"})}).catch(()=>{});}
+    setFromGuest(guestMode);setGuestMode(null);window.location.hash="";setMockMode(false);setAppState("setup");};
   const backToGuest=()=>{const mode=fromGuest||"freshman";setFromGuest(null);setGuestMode(mode);window.location.hash=mode==="navi"?"navi":mode==="reg"?"reg":"freshman";setAppState("ready");setViewRaw(mode==="navi"?"navigation":mode==="reg"?"reg":"freshman");};
 
   if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={onDemo} personas={DEMO_PERSONAS} mob={mob} dark={dark} onBackToBoard={fromGuest?backToGuest:null} backLabel={fromGuest==="navi"?"キャンパスナビに戻る":fromGuest==="reg"?"履修登録に戻る":undefined}/>;

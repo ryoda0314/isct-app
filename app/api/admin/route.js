@@ -430,6 +430,78 @@ export async function GET(request) {
       return NextResponse.json({ courses, stats, dbLookupEnabled, ...deptList });
     }
 
+    // --- Guest analytics: overview stats ---
+    if (action === 'guest_stats') {
+      const now = new Date();
+      const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+      const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      const [total, today, week, month, freshman, navi, reg, converted,
+             todayFreshman, todayNavi, todayReg] = await Promise.all([
+        sb.from('guest_sessions').select('*', { count: 'exact', head: true }),
+        sb.from('guest_sessions').select('*', { count: 'exact', head: true }).gte('created_at', dayAgo),
+        sb.from('guest_sessions').select('*', { count: 'exact', head: true }).gte('created_at', weekAgo),
+        sb.from('guest_sessions').select('*', { count: 'exact', head: true }).gte('created_at', monthAgo),
+        sb.from('guest_sessions').select('*', { count: 'exact', head: true }).eq('mode', 'freshman'),
+        sb.from('guest_sessions').select('*', { count: 'exact', head: true }).eq('mode', 'navi'),
+        sb.from('guest_sessions').select('*', { count: 'exact', head: true }).eq('mode', 'reg'),
+        sb.from('guest_sessions').select('*', { count: 'exact', head: true }).eq('converted', true),
+        sb.from('guest_sessions').select('*', { count: 'exact', head: true }).eq('mode', 'freshman').gte('created_at', dayAgo),
+        sb.from('guest_sessions').select('*', { count: 'exact', head: true }).eq('mode', 'navi').gte('created_at', dayAgo),
+        sb.from('guest_sessions').select('*', { count: 'exact', head: true }).eq('mode', 'reg').gte('created_at', dayAgo),
+      ]);
+
+      return NextResponse.json({
+        total: total.count || 0,
+        today: today.count || 0,
+        week: week.count || 0,
+        month: month.count || 0,
+        byMode: {
+          freshman: freshman.count || 0,
+          navi: navi.count || 0,
+          reg: reg.count || 0,
+        },
+        todayByMode: {
+          freshman: todayFreshman.count || 0,
+          navi: todayNavi.count || 0,
+          reg: todayReg.count || 0,
+        },
+        converted: converted.count || 0,
+        conversionRate: total.count ? ((converted.count || 0) / total.count * 100).toFixed(1) : '0.0',
+      });
+    }
+
+    // --- Guest analytics: daily trends (30 days) ---
+    if (action === 'guest_trends') {
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data } = await sb.from('guest_sessions').select('mode, created_at').gte('created_at', since);
+      const byDay = {};
+      const byModeDay = { freshman: {}, navi: {}, reg: {} };
+      (data || []).forEach(r => {
+        const day = r.created_at?.slice(0, 10);
+        if (!day) return;
+        byDay[day] = (byDay[day] || 0) + 1;
+        if (byModeDay[r.mode]) byModeDay[r.mode][day] = (byModeDay[r.mode][day] || 0) + 1;
+      });
+      return NextResponse.json({ trends: byDay, byMode: byModeDay });
+    }
+
+    // --- Guest analytics: session list (paginated) ---
+    if (action === 'guest_sessions') {
+      const page = parseInt(searchParams.get('page')) || 0;
+      const mode = searchParams.get('mode') || '';
+      const limit = 50;
+      let query = sb.from('guest_sessions')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(page * limit, (page + 1) * limit - 1);
+      if (mode) query = query.eq('mode', mode);
+      const { data, error, count } = await query;
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
+      return NextResponse.json({ sessions: data || [], total: count || 0, page });
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (e) {
     console.error('[Admin GET]', e);

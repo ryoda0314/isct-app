@@ -22,6 +22,7 @@ const tabs = [
   { id: "syllabus_fetch", label: "時間割取得", icon: I.cal },
   { id: "exams", label: "期末試験", icon: I.clip },
   { id: "t2schola", label: "T2SCHOLA", icon: I.search },
+  { id: "guests", label: "ゲスト分析", icon: I.eye },
   { id: "settings", label: "設定", icon: I.shield },
 ];
 
@@ -1855,6 +1856,145 @@ const ExamTab = () => {
   );
 };
 
+// ---- Guest Analytics Tab ----
+const MODE_LABELS = { freshman: "新入生掲示板", navi: "キャンパスナビ", reg: "履修登録" };
+const MODE_COLORS = { freshman: "#4fc3f7", navi: "#81c784", reg: "#ffb74d" };
+
+const GuestAnalyticsTab = () => {
+  const [stats, setStats] = useState(null);
+  const [trends, setTrends] = useState(null);
+  const [trendsByMode, setTrendsByMode] = useState(null);
+  const [sessions, setSessions] = useState([]);
+  const [sessTotal, setSessTotal] = useState(0);
+  const [sessPage, setSessPage] = useState(0);
+  const [modeFilter, setModeFilter] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API}/api/admin?action=guest_stats`).then(r => r.json()).then(setStats).catch(() => {});
+    fetch(`${API}/api/admin?action=guest_trends`).then(r => r.json()).then(d => {
+      setTrends(d.trends);
+      setTrendsByMode(d.byMode);
+    }).catch(() => {});
+  }, []);
+
+  const loadSessions = useCallback((p, mode) => {
+    setLoading(true);
+    let qs = `action=guest_sessions&page=${p}`;
+    if (mode) qs += `&mode=${mode}`;
+    fetch(`${API}/api/admin?${qs}`)
+      .then(r => r.json())
+      .then(d => { setSessions(d.sessions || []); setSessTotal(d.total || 0); setSessPage(d.page || 0); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadSessions(0, modeFilter); }, [loadSessions, modeFilter]);
+
+  // Conversion rate donut
+  const DonutChart = ({ rate }) => {
+    const pct = parseFloat(rate) || 0;
+    const r = 36, c = 2 * Math.PI * r;
+    const filled = c * pct / 100;
+    return (
+      <svg width="90" height="90" viewBox="0 0 90 90">
+        <circle cx="45" cy="45" r={r} fill="none" stroke={T.bd} strokeWidth="8" />
+        <circle cx="45" cy="45" r={r} fill="none" stroke={T.green} strokeWidth="8"
+          strokeDasharray={`${filled} ${c - filled}`} strokeDashoffset={c / 4} strokeLinecap="round" />
+        <text x="45" y="45" textAnchor="middle" dominantBaseline="central"
+          fill={T.txH} fontSize="14" fontWeight="700">{pct}%</text>
+      </svg>
+    );
+  };
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>ゲストアクセス概要</div>
+
+      {/* Summary cards */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <Card label="総セッション数" value={stats?.total} color={T.accent} />
+        <Card label="今日" value={stats?.today} color={T.green} />
+        <Card label="直近7日" value={stats?.week} color={T.orange} />
+        <Card label="直近30日" value={stats?.month} color="#c6a236" />
+      </div>
+
+      {/* Mode breakdown */}
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "20px 0 12px" }}>モード別アクセス</div>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        {Object.entries(MODE_LABELS).map(([mode, label]) => (
+          <div key={mode} style={{ flex: 1, minWidth: 140, padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
+            <div style={{ fontSize: 12, color: T.txD, marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: MODE_COLORS[mode] }}>{stats?.byMode?.[mode] ?? "..."}</div>
+            <div style={{ fontSize: 11, color: T.txD, marginTop: 4 }}>今日: {stats?.todayByMode?.[mode] ?? "-"}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Conversion */}
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "20px 0 12px" }}>コンバージョン（ログインへ遷移）</div>
+      <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, display: "flex", alignItems: "center", gap: 16 }}>
+          <DonutChart rate={stats?.conversionRate} />
+          <div>
+            <div style={{ fontSize: 13, color: T.txD }}>ログイン遷移数</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: T.green }}>{stats?.converted ?? "..."}</div>
+            <div style={{ fontSize: 11, color: T.txD }}>全 {stats?.total ?? "..."} セッション中</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Trends chart */}
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>トレンド（30日）</div>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200, padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>全体アクセス推移</div>
+          {trends ? <MiniChart data={trends} color={T.accent} /> : <div style={{ fontSize: 12, color: T.txD }}>読み込み中...</div>}
+        </div>
+        {Object.entries(MODE_LABELS).map(([mode, label]) => (
+          <div key={mode} style={{ flex: 1, minWidth: 200, padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: MODE_COLORS[mode], marginBottom: 10 }}>{label}</div>
+            {trendsByMode?.[mode] ? <MiniChart data={trendsByMode[mode]} color={MODE_COLORS[mode]} /> : <div style={{ fontSize: 12, color: T.txD }}>読み込み中...</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Session list */}
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>セッション一覧</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 13, color: T.txD }}>{sessTotal} 件</div>
+        <div style={{ flex: 1 }} />
+        <select value={modeFilter} onChange={e => setModeFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none" }}>
+          <option value="">すべてのモード</option>
+          <option value="freshman">新入生掲示板</option>
+          <option value="navi">キャンパスナビ</option>
+          <option value="reg">履修登録</option>
+        </select>
+      </div>
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {sessions.map(s => {
+          const uaParsed = s.user_agent || "";
+          const isMobile = /mobile|android|iphone/i.test(uaParsed);
+          return (
+            <div key={s.id} style={{ padding: 12, borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}`, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <Badge text={MODE_LABELS[s.mode] || s.mode} color={MODE_COLORS[s.mode] || T.accent} />
+              {s.converted && <Badge text="CV" color={T.green} />}
+              <Badge text={isMobile ? "Mobile" : "Desktop"} color={T.txD} />
+              <span style={{ fontSize: 12, color: T.txD, fontFamily: "monospace" }}>PV: {s.page_views || 1}</span>
+              <span style={{ fontSize: 11, color: T.txD, marginLeft: "auto" }}>
+                {s.created_at ? new Date(s.created_at).toLocaleString("ja-JP") : ""}
+              </span>
+              {s.referrer && <span style={{ fontSize: 10, color: T.txD, width: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={s.referrer}>Ref: {s.referrer}</span>}
+            </div>
+          );
+        })}
+      </div>
+      <Pager page={sessPage} total={sessTotal} limit={50} onPage={p => loadSessions(p, modeFilter)} />
+    </div>
+  );
+};
+
 const SettingsTab = () => {
   const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -2449,6 +2589,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "syllabus_fetch" && <SyllabusFetchTab />}
         {tab === "exams" && <ExamTab />}
         {tab === "t2schola" && <T2ScholaTab />}
+        {tab === "guests" && <GuestAnalyticsTab />}
         {tab === "settings" && <SettingsTab />}
       </div>
     </div>

@@ -31,21 +31,27 @@ const COMMON_2Q = [
 ];
 
 // ── 1Q 理工系基礎 ──────────────────────────
+// ユニット1-20,41-60→無機(sec A-H, 火1-2/金3-4), ユニット21-40,61-80→有機(sec I-P, 火3-4/金1-2)
 const SCIENCE_1Q = [
   { id:"mech1", name:"力学基礎1", cr:1, col:"#e5534b",
     slots:[[1,0],[1,1],[4,0],[4,1]] },
   { id:"inorg", name:"無機化学基礎", cr:1, col:"#3dae72",
     slots:[[1,0],[4,1]] },
+  { id:"org", name:"有機化学基礎", cr:1, col:"#2d9d8f",
+    slots:[[1,1],[4,0]] },
   { id:"life1", name:"生命科学基礎第一1", cr:1, col:"#d4843e",
     slots:[[1,0],[1,1],[4,1]] },
 ];
 
 // ── 2Q 理工系基礎 ──────────────────────────
+// ユニット1-20,41-60→有機(sec A-H, 火1-2/金3-4), ユニット21-40,61-80→無機(sec I-P, 火3-4/金1-2)
 const SCIENCE_2Q = [
   { id:"mech2", name:"力学基礎2", cr:1, col:"#e5534b",
     slots:[[1,0],[1,1],[4,0],[4,1]] },
-  { id:"org", name:"有機化学基礎", cr:1, col:"#2d9d8f",
+  { id:"inorg2", name:"無機化学基礎", cr:1, col:"#3dae72",
     slots:[[1,1],[4,0]] },
+  { id:"org2", name:"有機化学基礎", cr:1, col:"#2d9d8f",
+    slots:[[1,0],[4,1]] },
   { id:"life2", name:"生命科学基礎第一2", cr:1, col:"#d4843e",
     slots:[[1,0],[1,1],[4,1]] },
 ];
@@ -113,7 +119,7 @@ const PHYEX_SEC= ['a','b','c','d','i','j','k','l','e','f','g','h','m','n','o','p
 const PHYLAB_SEC=['Mon1Q','Mon1Q','Tue1Q','Tue1Q','Fri1Q','Fri1Q','Thu1Q','Thu1Q','Mon2Q','Mon2Q','Tue2Q','Tue2Q','Fri2Q','Fri2Q','Thu2Q','Thu2Q'];
 const LAB_DAYS = ['月','月','火','火','木','木','金','金','月','月','火','火','木','木','金','金'];
 
-export const UNIT_MAP = { mech1: MECH_SEC, mech2: MECH_SEC, phyex1: PHYEX_SEC, phylab: PHYLAB_SEC };
+export const UNIT_MAP = { mech1: MECH_SEC, mech2: MECH_SEC, inorg: MECH_SEC, org: MECH_SEC, inorg2: MECH_SEC, org2: MECH_SEC, phyex1: PHYEX_SEC, phylab: PHYLAB_SEC };
 
 /** courseId + unitNum → セクション名 (A-P / a-p) or null */
 export function unitToSection(courseId, unitNum) {

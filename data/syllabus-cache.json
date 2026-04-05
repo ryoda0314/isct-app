@@ -1,5 +1,5 @@
 {
-  "timestamp": 1775125980156,
+  "timestamp": 1775360042181,
   "courses": {
     "MEC.C201": {
       "per": "木1-4",
@@ -332,6 +332,410 @@
       "room": "南4号館3階第2演習室",
       "quarter": "4Q",
       "building": "S4"
-    }
+    },
+    "LAE.E311:申告専用": [
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "S3-206",
+        "quarter": "1Q",
+        "building": "S3",
+        "dept": "LAE"
+      },
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "M-112",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-135",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-112",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水5-6",
+        "day": "水",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "M-135",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水5-6",
+        "day": "水",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "J2-302",
+        "quarter": "3Q",
+        "building": "J2",
+        "dept": "LAE"
+      },
+      {
+        "per": "木3-4",
+        "day": "木",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "W5-107",
+        "quarter": "3Q",
+        "building": "W5",
+        "dept": "LAE"
+      },
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-B45",
+        "quarter": "4Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "W9-325",
+        "quarter": "4Q",
+        "building": "W9",
+        "dept": "LAE"
+      },
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "M-143A",
+        "quarter": "4Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-112",
+        "quarter": "4Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-155",
+        "quarter": "1Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-B45",
+        "quarter": "4Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水5-6",
+        "day": "水",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "M-135",
+        "quarter": "4Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "木3-4",
+        "day": "木",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "W8E-306",
+        "quarter": "4Q",
+        "building": "W8E",
+        "dept": "LAE"
+      },
+      {
+        "per": "水5-6",
+        "day": "水",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "J2-302",
+        "quarter": "1Q",
+        "building": "J2",
+        "dept": "LAE"
+      },
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-B45",
+        "quarter": "2Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "W5-105",
+        "quarter": "2Q",
+        "building": "W5",
+        "dept": "LAE"
+      },
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "I3-203",
+        "quarter": "3Q",
+        "building": "I3",
+        "dept": "LAE"
+      },
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-B107",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAE"
+      }
+    ],
+    "LAE.E311": [
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "S3-206",
+        "quarter": "1Q",
+        "building": "S3",
+        "dept": "LAE"
+      },
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "M-112",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-135",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-112",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水5-6",
+        "day": "水",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "M-135",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水5-6",
+        "day": "水",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "J2-302",
+        "quarter": "3Q",
+        "building": "J2",
+        "dept": "LAE"
+      },
+      {
+        "per": "木3-4",
+        "day": "木",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "W5-107",
+        "quarter": "3Q",
+        "building": "W5",
+        "dept": "LAE"
+      },
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-B45",
+        "quarter": "4Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "W9-325",
+        "quarter": "4Q",
+        "building": "W9",
+        "dept": "LAE"
+      },
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "M-143A",
+        "quarter": "4Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-112",
+        "quarter": "4Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-155",
+        "quarter": "1Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-B45",
+        "quarter": "4Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水5-6",
+        "day": "水",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "M-135",
+        "quarter": "4Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "木3-4",
+        "day": "木",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "W8E-306",
+        "quarter": "4Q",
+        "building": "W8E",
+        "dept": "LAE"
+      },
+      {
+        "per": "水5-6",
+        "day": "水",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "J2-302",
+        "quarter": "1Q",
+        "building": "J2",
+        "dept": "LAE"
+      },
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-B45",
+        "quarter": "2Q",
+        "building": "M",
+        "dept": "LAE"
+      },
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "W5-105",
+        "quarter": "2Q",
+        "building": "W5",
+        "dept": "LAE"
+      },
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "I3-203",
+        "quarter": "3Q",
+        "building": "I3",
+        "dept": "LAE"
+      },
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-B107",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAE"
+      }
+    ]
   }
 }
