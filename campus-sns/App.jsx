@@ -455,24 +455,20 @@ export default function App(){
 
   const cc=allCourses.find(c=>c.id===cid);
   const userDepts=useMemo(()=>{
-    // プロフィール設定済み → その学系のみ表示
+    // 学系を登録済みのユーザーのみ表示
     if(user.myDept&&DEPTS[user.myDept]){
       return [{id:`dept:${user.myDept}`,prefix:user.myDept,...DEPTS[user.myDept]}];
     }
-    // 未設定 → コースから自動検出
-    const ps=[...new Set(allCourses.map(c=>c.code.split('.')[0]))];
-    return ps.filter(p=>DEPTS[p]).map(p=>({id:`dept:${p}`,prefix:p,...DEPTS[p]}));
-  },[allCourses,user.myDept]);
+    return [];
+  },[user.myDept]);
   const userSchools=useMemo(()=>{
-    // プロフィール設定済み → その学院のみ表示
+    // 学系を登録済みのユーザーのみ、所属学院を表示
     if(user.myDept&&DEPTS[user.myDept]){
       const sk=DEPTS[user.myDept].school;
       if(SCHOOLS[sk]) return [{id:`school:${sk}`,prefix:`school:${sk}`,name:SCHOOLS[sk].name,col:SCHOOLS[sk].col}];
     }
-    // 未設定 → コースから自動検出
-    const sks=[...new Set(userDepts.map(d=>d.school))];
-    return sks.filter(k=>SCHOOLS[k]).map(k=>({id:`school:${k}`,prefix:`school:${k}`,name:SCHOOLS[k].name,col:SCHOOLS[k].col}));
-  },[userDepts,user.myDept]);
+    return [];
+  },[user.myDept]);
   const userUnit=useMemo(()=>{
     if(!user.myUnit) return null;
     const parts=user.myUnit.split("-");
