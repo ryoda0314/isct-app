@@ -104,7 +104,21 @@ export async function GET(request) {
       if (search) query = query.ilike('name', `%${search}%`);
       const { data, error, count } = await query;
       if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
-      return NextResponse.json({ users: data || [], total: count || 0, page });
+
+      // Determine ISCT auth status via user_tokens table
+      const moodleIds = (data || []).map(u => u.moodle_id);
+      let isctSet = new Set();
+      if (moodleIds.length > 0) {
+        const { data: tokens } = await sb.from('user_tokens').select('moodle_user_id').in('moodle_user_id', moodleIds);
+        isctSet = new Set((tokens || []).map(t => t.moodle_user_id));
+      }
+
+      const users = (data || []).map(u => ({
+        ...u,
+        isct_verified: isctSet.has(u.moodle_id),
+        portal_verified: !!u.student_id,
+      }));
+      return NextResponse.json({ users, total: count || 0, page });
     }
 
     if (action === 'posts') {
