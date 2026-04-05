@@ -392,6 +392,7 @@ const UsersTab = () => {
               <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>ユーザー</th>
               <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>ID</th>
               <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>学科</th>
+              <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>学年</th>
               <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>状態</th>
               <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>登録日</th>
               <th style={{ padding: "10px 12px", textAlign: "right", color: T.txD, fontWeight: 600 }}>操作</th>
@@ -408,6 +409,7 @@ const UsersTab = () => {
                 </td>
                 <td style={{ padding: "8px 12px", color: T.txD, fontFamily: "monospace", fontSize: 12 }}>{u.moodle_id || u.moodle_user_id || u.id}</td>
                 <td style={{ padding: "8px 12px", color: T.txD }}>{u.dept || "-"}</td>
+                <td style={{ padding: "8px 12px", color: T.txD }}>{u.year_group || "-"}</td>
                 <td style={{ padding: "8px 12px" }}>
                   {u.banned ? <Badge text="BAN" color={T.red} /> : <Badge text="正常" color={T.green} />}
                 </td>
