@@ -37,6 +37,8 @@ export async function POST(request) {
           console.error('[ValidateISCT] profile upsert:', e.message);
         }
 
+        console.log(`[ValidateISCT] success for ${userId} (moodle_id=${userid})`);
+
         // Create session so setup can skip SSO later
         const token = createSessionToken(userId, userid);
         const response = NextResponse.json({ valid: true, moodleUserId: userid });

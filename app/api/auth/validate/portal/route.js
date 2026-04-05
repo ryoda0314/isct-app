@@ -22,6 +22,7 @@ export async function POST(request) {
           password: portalPassword,
           matrix,
         });
+        console.log(`[ValidatePortal] success for ${portalUserId}`);
         return NextResponse.json({ valid: true });
       } catch (loginErr) {
         lastErr = loginErr;
