@@ -153,6 +153,7 @@ export default function App(){
   const [allCourses,setAllCourses]=useState([]);
   const [view,setViewRaw]=useState("home");
   const viewHistRef=useRef([]);
+  const guestSessionRef=useRef(null);
   const setView=useCallback((v)=>{setViewRaw(prev=>{if(prev&&prev!==v)viewHistRef.current.push(prev);return v;});},[]);
   const goBack=useCallback(()=>{const h=viewHistRef.current;const prev=h.pop()||"home";setViewRaw(prev);},[]);
 
@@ -591,6 +592,17 @@ export default function App(){
     return null;
   };
 
+  // Guest session tracking
+  useEffect(()=>{
+    if(!guestMode)return;
+    try{
+      let sid=sessionStorage.getItem("guest_sid");
+      if(!sid){sid=crypto.randomUUID();sessionStorage.setItem("guest_sid",sid);}
+      guestSessionRef.current=sid;
+      fetch("/api/guest-track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:sid,mode:guestMode})}).catch(()=>{});
+    }catch(e){console.warn("[GuestTrack]",e);}
+  },[guestMode]);
+
   // --- LOADING / SETUP ---
   if(splashPhase!=="done") return (
     <div style={{position:"fixed",inset:0,zIndex:99999,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:T.bg,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden",opacity:splashPhase==="fade"?0:1,transition:"opacity .5s ease-out"}}>
@@ -608,15 +620,6 @@ export default function App(){
     </div>
   );
   // --- GUEST BOARD (direct link #freshman) ---
-  // Guest session tracking
-  const guestSessionRef=useRef(null);
-  useEffect(()=>{
-    if(!guestMode)return;
-    let sid=sessionStorage.getItem("guest_sid");
-    if(!sid){sid=crypto.randomUUID();sessionStorage.setItem("guest_sid",sid);}
-    guestSessionRef.current=sid;
-    fetch("/api/guest-track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:sid,mode:guestMode})}).catch(()=>{});
-  },[guestMode]);
   const guestLogin=()=>{
     if(guestSessionRef.current){fetch("/api/guest-track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:guestSessionRef.current,mode:guestMode||"freshman",action:"convert"})}).catch(()=>{});}
     setFromGuest(guestMode);setGuestMode(null);window.location.hash="";setMockMode(false);setAppState("setup");};
