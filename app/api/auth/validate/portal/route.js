@@ -33,9 +33,17 @@ export async function POST(request) {
       }
     }
 
-    // All attempts exhausted
+    // All attempts exhausted — return step-specific error
+    const failedStep = lastErr?.failedStep || 'unknown';
+    const stepMessages = {
+      connect:  'ポータルサイトに接続できませんでした。時間をおいて再度お試しください。',
+      password: 'アカウントまたはパスワードが正しくありません。入力内容を確認してください。',
+      matrix:   'マトリクス認証に失敗しました。マトリクスカードの内容を確認してください。',
+      network:  'ページの読み込みがタイムアウトしました。通信環境を確認して再度お試しください。',
+      unknown:  '認証に失敗しました。入力内容を確認してから再度お試しください。',
+    };
     return NextResponse.json(
-      { valid: false, error: '認証に複数回失敗しました。アカウント・パスワード・マトリクスカードが正しいか確認してから再度お試しください' },
+      { valid: false, error: stepMessages[failedStep], failedStep },
       { status: 401 }
     );
   } catch (err) {

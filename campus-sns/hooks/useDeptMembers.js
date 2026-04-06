@@ -42,11 +42,12 @@ export function useDeptMembers(prefix) {
         }
 
         const { data, error } = await query;
+        console.log(`[useDeptMembers] prefix=${prefix} data=${data?.length??'null'} error=${error?.message||'none'}`);
         if (cancelled || error || !data) return;
         const mapped = data.map(p => ({ id: p.moodle_id, name: p.name, col: p.color }));
         cache[prefix] = mapped;
         setMembers(mapped);
-      } catch {}
+      } catch (e) { console.error('[useDeptMembers] error:', e); }
     })();
     return () => { cancelled = true; };
   }, [prefix]);
