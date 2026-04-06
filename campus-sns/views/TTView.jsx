@@ -12,6 +12,7 @@ export const TTView=(_p)=>{
   const [qOpen,setQOpen]=useState(false);
   const [yrOpen,setYrOpen]=useState(false);
   const [refreshing,setRefreshing]=useState(false);
+  const [merged,setMerged]=useState(()=>{try{return localStorage.getItem("tt_merged")!=="0";}catch{return true;}});
   const isPast=_yr<=2024;
   const pastData=isPast?pastTTCache[_yr]:null;
   const pastQd=pastData?.qData?.[quarter]||null;
@@ -19,10 +20,30 @@ export const TTView=(_p)=>{
   const _allC=isPast?(pastQd?.C||[]):(qd.C||[]);
   const _allTT=isPast?(pastQd?.TT||[]):(qd.TT||[]);
   const curC=isPast?_allC:_allC.filter(c=>!c.year||c.year===_yr);
-  const curTT=isPast?_allTT:(_allTT||[]).map(row=>(row||[]).map(cell=>cell&&(!cell.year||cell.year===_yr)?cell:null));
+  const curTT=React.useMemo(()=>{
+    if(isPast)return _allTT;
+    // Rebuild grid from year-filtered courses to avoid cross-year overwrites
+    const DM={'月':0,'火':1,'水':2,'木':3,'金':4};
+    const g=Array.from({length:5},()=>Array(5).fill(null));
+    const place=(co,per)=>{const m=per.match(/([月火水木金])(\d+)[-–ー](\d+)/);if(!m)return;const di=DM[m[1]],rs=Math.floor((parseInt(m[2])-1)/2),re=Math.floor((parseInt(m[3])-1)/2);for(let r=rs;r<=re;r++)if(di>=0&&di<5&&r>=0&&r<5)g[r][di]=co;};
+    for(const co of curC){if(!co.per||co.per==='未設定')continue;place(co,co.per);if(co.extraSlots)for(const s of co.extraSlots)if(s.per)place(co,s.per);}
+    return g;
+  },[isPast,_allTT,curC]);
   const cnt=cid=>asgn.filter(a=>a.cid===cid&&a.st!=="completed"&&!hiddenSet.has(a.id)).length;
   const handleRefresh=async()=>{if(!onRefresh||refreshing)return;setRefreshing(true);try{await onRefresh();}finally{setRefreshing(false);}};
-  const cellEntries=React.useMemo(()=>{const entries=[],visited=new Set();for(let pi=0;pi<5;pi++)for(let di=0;di<5;di++){if(visited.has(`${pi}-${di}`))continue;const co=curTT[pi]?.[di];let span=1;if(co){for(let pj=pi+1;pj<5;pj++){const nx=curTT[pj]?.[di];if(nx&&nx.id===co.id){span++;visited.add(`${pj}-${di}`);}else break;}}entries.push({di,pi,co,span});}return entries;},[curTT]);
+  const toggleMerged=()=>setMerged(p=>{const nv=!p;try{localStorage.setItem("tt_merged",nv?"1":"0");}catch{}return nv;});
+  const cellEntries=React.useMemo(()=>{const entries=[],visited=new Set();for(let pi=0;pi<5;pi++)for(let di=0;di<5;di++){if(visited.has(`${pi}-${di}`))continue;const co=curTT[pi]?.[di];let span=1;if(co&&merged){for(let pj=pi+1;pj<5;pj++){const nx=curTT[pj]?.[di];if(nx&&nx.id===co.id){span++;visited.add(`${pj}-${di}`);}else break;}}entries.push({di,pi,co,span});}return entries;},[curTT,merged]);
+  const MergeBtn=()=>(
+    <button onClick={toggleMerged}
+      style={{background:merged?`${T.accent}15`:T.bg3,border:`1px solid ${merged?`${T.accent}40`:T.bd}`,borderRadius:6,padding:"3px 8px",cursor:"pointer",
+        display:"flex",alignItems:"center",gap:3,fontSize:mob?11:12,fontWeight:600,color:merged?T.accent:T.txD,transition:"all .2s"}}>
+      <svg width={mob?10:12} height={mob?10:12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        {merged?<><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/></>
+          :<><rect x="3" y="3" width="18" height="8" rx="2"/><rect x="3" y="13" width="18" height="8" rx="2"/></>}
+      </svg>
+      {merged?"結合":"分割"}
+    </button>
+  );
   const RefreshBtn=()=>onRefresh?(<>
     <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     <button onClick={handleRefresh} disabled={refreshing}
@@ -129,7 +150,7 @@ export const TTView=(_p)=>{
       <header style={{display:"flex",alignItems:"center",gap:8,padding:"env(safe-area-inset-top) 12px 0",minHeight:46,borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}>
         <div style={{display:"flex",alignItems:"center",gap:8,width:"100%",height:46}}>
           <h1 style={{flex:1,margin:0,fontSize:16,fontWeight:700,color:T.txH,display:"flex",alignItems:"center",gap:6}}>時間割 <QDrop/> <YrDrop/></h1>
-          <RefreshBtn/>
+          <MergeBtn/><RefreshBtn/>
         </div>
       </header>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:8}}>
@@ -203,7 +224,7 @@ export const TTView=(_p)=>{
           </div>
           <span style={{fontSize:12,color:T.txD}}>{curC.length}科目 · {curC.length*2}単位</span>
         </div>
-        <RefreshBtn/>
+        <div style={{display:"flex",alignItems:"center",gap:6}}><MergeBtn/><RefreshBtn/></div>
       </div>
       <PastBanner/>
       {isPast&&pastTTLoading&&!pastData?null:<><div style={{display:"grid",gridTemplateColumns:`52px repeat(5,1fr)`,gridTemplateRows:"44px repeat(5,1fr)",gap:gap}}>

@@ -1,5 +1,5 @@
 {
-  "timestamp": 1775360042181,
+  "timestamp": 1775506893386,
   "courses": {
     "MEC.C201": {
       "per": "木1-4",
@@ -735,6 +735,148 @@
         "quarter": "3Q",
         "building": "M",
         "dept": "LAE"
+      }
+    ],
+    "MEC.Z381": [
+      {
+        "per": "月5-8",
+        "day": "月",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "各研究室",
+        "quarter": "1Q",
+        "building": null,
+        "dept": "MEC"
+      }
+    ],
+    "MEC.I334": [
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "S2-203",
+        "quarter": "1Q",
+        "building": "S2",
+        "dept": "MEC"
+      }
+    ],
+    "MEC.I312": [
+      {
+        "per": "火5-6",
+        "day": "火",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "SL-101",
+        "quarter": "1Q",
+        "building": "SL",
+        "dept": "MEC"
+      },
+      {
+        "per": "金5-6",
+        "day": "金",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "SL-101",
+        "quarter": "1Q",
+        "building": "SL",
+        "dept": "MEC"
+      }
+    ],
+    "MEC.D311": [
+      {
+        "per": "火1-4",
+        "day": "火",
+        "periodStart": 1,
+        "periodEnd": 4,
+        "room": "W2-401",
+        "quarter": "1Q",
+        "building": "W2",
+        "dept": "MEC"
+      }
+    ],
+    "LAL.K301:a": [
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "W3-201",
+        "quarter": "1Q",
+        "building": "W3",
+        "dept": "LAL"
+      }
+    ],
+    "LAL.K301": [
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "W3-201",
+        "quarter": "1Q",
+        "building": "W3",
+        "dept": "LAL"
+      }
+    ],
+    "MEC.K332": [
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "I1-256",
+        "quarter": "2Q",
+        "building": "I1",
+        "dept": "MEC"
+      }
+    ],
+    "MEC.I333": [
+      {
+        "per": "木5-8",
+        "day": "木",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "I1-256",
+        "quarter": "2Q",
+        "building": "I1",
+        "dept": "MEC"
+      }
+    ],
+    "MEC.B334": [
+      {
+        "per": "金1-4",
+        "day": "金",
+        "periodStart": 1,
+        "periodEnd": 4,
+        "room": "I1-256",
+        "quarter": "2Q",
+        "building": "I1",
+        "dept": "MEC"
+      }
+    ],
+    "LAL.K302:a": [
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "W3-201",
+        "quarter": "2Q",
+        "building": "W3",
+        "dept": "LAL"
+      }
+    ],
+    "LAL.K302": [
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "W3-201",
+        "quarter": "2Q",
+        "building": "W3",
+        "dept": "LAL"
       }
     ]
   }
