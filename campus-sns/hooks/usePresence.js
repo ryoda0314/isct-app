@@ -23,6 +23,7 @@ export function usePresence(roomId, userInfo) {
 
     const syncPresence = () => {
       const state = channel.presenceState();
+      console.log(`[usePresence] sync room=${roomId}`, JSON.stringify(state));
       const users = [];
       const seen = new Set();
       for (const [_key, entries] of Object.entries(state)) {
@@ -33,13 +34,16 @@ export function usePresence(roomId, userInfo) {
           }
         }
       }
+      console.log(`[usePresence] online users (${users.length}):`, users);
       setOnline(users);
     };
 
     channel
       .on('presence', { event: 'sync' }, syncPresence)
       .subscribe(async (status) => {
+        console.log(`[usePresence] subscribe status=${status} room=${roomId}`);
         if (status === 'SUBSCRIBED') {
+          console.log(`[usePresence] tracking self:`, userInfo);
           await channel.track({
             id: userInfo.id,
             name: userInfo.name || '',
@@ -50,7 +54,11 @@ export function usePresence(roomId, userInfo) {
 
     channelRef.current = channel;
 
+    // 30秒ごとにpresenceStateを再取得（バックグラウンド復帰時の取りこぼし対策）
+    const intervalId = setInterval(syncPresence, 30_000);
+
     return () => {
+      clearInterval(intervalId);
       channel.untrack();
       supabase.removeChannel(channel);
       channelRef.current = null;

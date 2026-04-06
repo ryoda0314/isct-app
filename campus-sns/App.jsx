@@ -488,8 +488,7 @@ export default function App(){
   const {blocks:blockList,isBlocked,blockUser,unblockUser}=useBlocks(ready);
   const {mutes:muteList,isMuted,muteUser,unmuteUser}=useMutes(ready);
   const {enqueue:enqueueOffline,pending:offlinePending}=useOfflineQueue();
-  const presenceRoom=view==="course"&&cc?`course:${cc.id}`:view==="dept"&&cd?`dept:${cd.prefix}`:null;
-  const {online}=usePresence(presenceRoom,{id:user.moodleId||user.id,name:user.name,col:user.col});
+  const {online}=usePresence("app",{id:user.moodleId||user.id,name:user.name,col:user.col});
   const members=useCourseMembers(cc?.moodleId);
   const deptMembers=useDeptMembers(cd?.prefix);
   const [navDest,setNavDest]=useState(null);

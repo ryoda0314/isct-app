@@ -11,7 +11,7 @@ const usePurify=()=>{
   const [ready,setReady]=useState(typeof window!=="undefined"&&!!window.DOMPurify);
   useEffect(()=>{
     if(window.DOMPurify){setReady(true);return;}
-    _loadJS("https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.4/purify.min.js","sha384-nyLyTJPfGMBu0rveSqP7s5bfJcJmcMRKW8vsEkBq1PASC2iEcdz0VNdczG9MhyTZ",()=>setReady(true));
+    _loadJS("https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.4/purify.min.js","sha384-eEu5CTj3qGvu9PdJuS+YlkNi7d2XxQROAFYOr59zgObtlcux1ae1Il3u7jvdCSWu",()=>setReady(true));
   },[]);
   return ready;
 };
