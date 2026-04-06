@@ -27,7 +27,7 @@ function OverdueCollapse({open,items,renderItems,hasUpcoming}){
   </div>;
 }
 
-export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,courses=[],quarter,setQuarter,hiddenAsgn,saveHidden})=>{
+export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,courses=[],quarter,setQuarter,hiddenAsgn,saveHidden,academicYear})=>{
 
   const [tab,setTab]=useState("active");
   const [sel,setSel]=useState(null);
@@ -42,7 +42,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
   const [calMonth,setCalMonth]=useState(()=>({y:NOW.getFullYear(),m:NOW.getMonth()}));
   const [selDay,setSelDay]=useState(null);
   const showTabs=!course;
-  const qCids=showTabs&&quarter?new Set(courses.filter(c=>c.quarter===quarter).map(c=>c.id)):null;
+  const qCids=showTabs&&quarter?new Set(courses.filter(c=>c.quarter===quarter&&(!academicYear||!c.year||c.year===academicYear)).map(c=>c.id)):null;
   const items=course?asgn.filter(a=>a.cid===course.id):qCids?asgn.filter(a=>qCids.has(a.cid)):asgn;
   const allActive=items.filter(a=>a.st!=="completed").sort((a,b)=>a.due-b.due);
   const active=hiddenAsgn?allActive.filter(a=>!hiddenAsgn.has(a.id)):allActive;
