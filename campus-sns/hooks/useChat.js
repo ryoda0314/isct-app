@@ -113,20 +113,29 @@ export function useChat(courseId) {
       if (r.ok) {
         const m = await r.json();
         idsRef.current.add(m.id);
-        setMessages(prev => prev.map(msg =>
-          msg.id === tempId ? {
-            id: m.id,
-            uid: m.moodle_user_id,
-            text: m.text,
-            ts: new Date(m.created_at),
-            name: m.profiles?.name,
-            avatar: m.profiles?.avatar,
-            color: m.profiles?.color,
-            pollOptions: m.poll_options || null,
-            pollVotes: m.poll_votes || {},
-            pollSettings: m.poll_settings || {},
-          } : msg
-        ));
+        idsRef.current.delete(tempId);
+        const mapped = {
+          id: m.id,
+          uid: m.moodle_user_id,
+          text: m.text,
+          ts: new Date(m.created_at),
+          name: m.profiles?.name,
+          avatar: m.profiles?.avatar,
+          color: m.profiles?.color,
+          pollOptions: m.poll_options || null,
+          pollVotes: m.poll_votes || {},
+          pollSettings: m.poll_settings || {},
+        };
+        setMessages(prev => {
+          // If realtime already added this message, remove temp and update realtime version
+          const hasReal = prev.some(msg => msg.id === m.id && msg.id !== tempId);
+          if (hasReal) {
+            return prev
+              .filter(msg => msg.id !== tempId)
+              .map(msg => msg.id === m.id ? mapped : msg);
+          }
+          return prev.map(msg => msg.id === tempId ? mapped : msg);
+        });
       } else {
         console.error('[useChat POST]', r.status);
       }

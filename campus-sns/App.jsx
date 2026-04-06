@@ -154,7 +154,7 @@ export default function App(){
   const [view,setViewRaw]=useState("home");
   const viewHistRef=useRef([]);
   const guestSessionRef=useRef(null);
-  const setView=useCallback((v)=>{setViewRaw(prev=>{if(prev&&prev!==v)viewHistRef.current.push(prev);return v;});},[]);
+  const setView=useCallback((v)=>{setShowMembers(false);setViewRaw(prev=>{if(prev&&prev!==v)viewHistRef.current.push(prev);return v;});},[]);
   const goBack=useCallback(()=>{const h=viewHistRef.current;const prev=h.pop()||"home";setViewRaw(prev);},[]);
 
   // Android hardware back button (native)
@@ -194,6 +194,7 @@ export default function App(){
   const [cid,setCid]=useState(null);
   const [did,setDid]=useState(null);
   const [ch,setCh]=useState("timeline");
+  const [showMembers,setShowMembers]=useState(false);
   const [asgn,setAsgn]=useState(ASGN0);
   const [hiddenAsgn,setHiddenAsgn]=useState(()=>{try{return JSON.parse(localStorage.getItem("hiddenAsgn"))||[];}catch{return[];}});
   const saveHidden=ids=>{setHiddenAsgn(ids);try{localStorage.setItem("hiddenAsgn",JSON.stringify(ids));}catch{}};
@@ -546,6 +547,42 @@ export default function App(){
   // Desktop top bar
   const DTop=({title,color})=><div style={{display:"flex",alignItems:"center",gap:10,padding:"0 16px",height:44,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}><h3 style={{margin:0,color:color||T.txH,fontSize:15,fontWeight:700,flex:1}}>{title}</h3><div style={{display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:6,background:T.bg3,border:`1px solid ${T.bd}`,width:180}}><span style={{color:T.txD,display:"flex"}}>{I.search}</span><input placeholder="検索..." style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:12,outline:"none"}}/></div><div style={{position:"relative",cursor:"pointer",color:T.txD,display:"flex"}} onClick={()=>setView("notif")}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</div><Av u={user} sz={28} st/></div>;
 
+  // Mobile member panel
+  const MemberPanel=({mList,onlineList,col,onClose})=>{
+    const onIds=new Set(onlineList.map(u=>String(u.id)));
+    const onl=mList.filter(m=>onIds.has(String(m.id)));
+    const off=mList.filter(m=>!onIds.has(String(m.id)));
+    const Row=({u,isOn})=>(
+      <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
+        <div style={{position:"relative"}}>
+          <div style={{width:28,height:28,borderRadius:"50%",background:isOn?(u.col||"#888"):`${T.txD}40`,display:"flex",alignItems:"center",justifyContent:"center",color:isOn?"#fff":T.txD,fontSize:11,fontWeight:700}}>{(u.name||"?")[0]}</div>
+          <div style={{position:"absolute",bottom:-1,right:-1,width:8,height:8,borderRadius:"50%",background:isOn?T.green:T.txD,border:`2px solid ${T.bg2}`}}/>
+        </div>
+        <span style={{fontSize:13,color:isOn?T.txH:T.txD}}>{u.name||`User ${u.id}`}</span>
+      </div>
+    );
+    return <>
+      <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:998}}/>
+      <div style={{position:"fixed",bottom:0,left:0,right:0,maxHeight:"70vh",background:T.bg2,borderRadius:"16px 16px 0 0",zIndex:999,display:"flex",flexDirection:"column",paddingBottom:"env(safe-area-inset-bottom)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px 8px"}}>
+          <span style={{fontWeight:700,fontSize:15,color:T.txH}}>メンバー ({mList.length})</span>
+          <button onClick={onClose} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.x}</button>
+        </div>
+        <div style={{flex:1,overflowY:"auto"}}>
+          {onl.length>0&&<>
+            <div style={{padding:"8px 16px 4px",fontSize:11,fontWeight:700,color:T.green,letterSpacing:.3}}>オンライン — {onl.length}</div>
+            {onl.map(u=><Row key={u.id} u={u} isOn/>)}
+          </>}
+          {off.length>0&&<>
+            <div style={{padding:"8px 16px 4px",fontSize:11,fontWeight:700,color:T.txD,letterSpacing:.3}}>オフライン — {off.length}</div>
+            {off.map(u=><Row key={u.id} u={u} isOn={false}/>)}
+          </>}
+          {mList.length===0&&<div style={{padding:"24px 16px",textAlign:"center",color:T.txD,fontSize:13}}>メンバーがいません</div>}
+        </div>
+      </div>
+    </>;
+  };
+
   // Course header (gradient banner + equal-width icon+label tabs)
   const cTabs=[{id:"timeline",l:"フィード",i:I.feed},{id:"chat",l:"チャット",i:I.chat},{id:"assignments",l:"課題",i:I.tasks},{id:"materials",l:"教材",i:I.clip},{id:"reviews",l:"レビュー",i:I.star}];
   const CourseHdr=()=>{
@@ -560,6 +597,7 @@ export default function App(){
               <div style={{fontSize:16,fontWeight:700,color:T.txH}}>{cc.code}</div>
               <div style={{fontSize:12,color:T.txD,marginTop:1}}>{cc.name}</div>
             </div>
+            <button onClick={()=>setShowMembers(true)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.users}{members.length>0&&<span style={{position:"absolute",top:-4,right:-6,minWidth:14,height:14,borderRadius:7,background:cc.col,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{members.length}</span>}</button>
             <button style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.more}</button>
           </div>
         </div>
@@ -695,7 +733,7 @@ export default function App(){
         {view==="tasks"&&(L?<><MHdr title="課題管理"/><LockedView title="課題管理"/></>:<><MHdr title="課題管理"/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/></>)}
         {view==="courseSelect"&&(L?<><MHdr title="コース・学院・学系"/><LockedView title="コース"/></>:<><MHdr title="コース・学院・学系"/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={allCourses} depts={userDepts} schools={userSchools} setDid={setDid} userUnit={userUnit}/></>)}
         {view==="course"&&(L?<><MHdr title="コース" back={goBack}/><LockedView title="コース"/></>:cc&&<><CourseHdr/>{courseContent()}</>)}
-        {view==="dept"&&(L?<><MHdr title="学系" back={goBack}/><LockedView title="学系"/></>:cd&&<><MHdr title={<>{(()=>{const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?cd.name:cd.prefix}</span>{!nameOnly&&<span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{cd.name}</span>}</>;})()}</>} back={goBack}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:"タイムライン",i:I.feed},{id:"chat",l:"チャット",i:I.chat}].map(t=><button key={t.id} onClick={()=>setCh(t.id)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===t.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===t.id?T.txH:T.txD,fontSize:13,fontWeight:ch===t.id?600:400,cursor:"pointer"}}>{t.i}<span>{t.l}</span></button>)}</div>{deptContent()}</>)}
+        {view==="dept"&&(L?<><MHdr title="学系" back={goBack}/><LockedView title="学系"/></>:cd&&<><MHdr title={<>{(()=>{const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?cd.name:cd.prefix}</span>{!nameOnly&&<span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{cd.name}</span>}</>;})()}</>} back={goBack} right={<button onClick={()=>setShowMembers(true)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.users}{deptMembers.length>0&&<span style={{position:"absolute",top:-4,right:-6,minWidth:14,height:14,borderRadius:7,background:cd.col||T.accent,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{deptMembers.length}</span>}</button>}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:"タイムライン",i:I.feed},{id:"chat",l:"チャット",i:I.chat}].map(t=><button key={t.id} onClick={()=>setCh(t.id)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===t.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===t.id?T.txH:T.txD,fontSize:13,fontWeight:ch===t.id?600:400,cursor:"pointer"}}>{t.i}<span>{t.l}</span></button>)}</div>{deptContent()}</>)}
         {view==="moreMenu"&&<><MHdr title="その他"/><MoreMenu setView={setView} unreadN={unreadN} pendingFriendCount={pendingFriendCount} dmUnread={dmUnread} isAdmin={!!user.isAdmin}/></>}
         {view==="friends"&&(L?<><MHdr title="友達" back={mBack}/><LockedView title="友達"/></>:<><MHdr title="友達" back={mBack}/><FriendsView mob setView={setView} {...friendProps}/></>)}
         {view==="dm"&&(L?<><MHdr title="DM"/><LockedView title="DM"/></>:TR?<><MHdr title="DM"/><TelecomBlockView title="DMは現在利用できません" onBack={goBack}/></>:<><MHdr title="DM"/><DMView mob setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/></>)}
@@ -718,6 +756,7 @@ export default function App(){
       </div>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread}/>
       <div className="sa-bottom" style={{background:T.bg2,flexShrink:0}}/>
+      {showMembers&&(view==="course"&&cc?<MemberPanel mList={members} onlineList={online} col={cc.col} onClose={()=>setShowMembers(false)}/>:view==="dept"&&cd?<MemberPanel mList={deptMembers} onlineList={online} col={cd.col||T.accent} onClose={()=>setShowMembers(false)}/>:null)}
       {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
       <DemoBanner/>
       <Toasts/>

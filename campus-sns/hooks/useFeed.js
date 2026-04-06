@@ -223,9 +223,18 @@ export function useFeed(courseId) {
       if (r.ok) {
         const p = await r.json();
         idsRef.current.add(p.id);
-        setPosts(prev => prev.map(post =>
-          post.id === tempId ? mapPost(p) : post
-        ));
+        idsRef.current.delete(tempId);
+        const mapped = mapPost(p);
+        setPosts(prev => {
+          // If realtime already added this post, remove temp and update realtime version
+          const hasReal = prev.some(post => post.id === p.id && post.id !== tempId);
+          if (hasReal) {
+            return prev
+              .filter(post => post.id !== tempId)
+              .map(post => post.id === p.id ? mapped : post);
+          }
+          return prev.map(post => post.id === tempId ? mapped : post);
+        });
       } else {
         console.error('[useFeed POST]', r.status);
         setPosts(prev => prev.filter(p => p.id !== tempId));
