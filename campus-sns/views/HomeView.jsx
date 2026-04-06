@@ -138,10 +138,9 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
   const getTT=(q,yr)=>{
     const qAll=qDataAll[q]?.TT;
     if(qAll){
-      const filtered=qAll.map(row=>(row||[]).map(cell=>cell&&(!cell.year||cell.year===yr)?cell:null));
-      if(filtered.some(row=>row.some(cell=>cell)))return filtered;
+      return qAll.map(row=>(row||[]).map(cell=>cell&&(!cell.year||cell.year===yr)?cell:null));
     }
-    return curTT;
+    return[];
   };
   const nowMin=now.getHours()*60+now.getMinutes();
   const todayClasses=(()=>{
