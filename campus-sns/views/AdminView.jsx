@@ -1,8 +1,12 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo, createContext, useContext } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { Av } from "../shared.jsx";
 import { MapEditorView } from "./MapEditorView.jsx";
+import { usePresence } from "../hooks/usePresence.js";
+import { useCurrentUser } from "../hooks/useCurrentUser.js";
+
+const OnlineContext = createContext(new Set());
 
 const API = "";
 
@@ -328,6 +332,7 @@ const UsersTab = () => {
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [detailUser, setDetailUser] = useState(null);
+  const onlineIds = useContext(OnlineContext);
 
   const load = useCallback((p, q, f) => {
     setLoading(true);
@@ -380,6 +385,8 @@ const UsersTab = () => {
         <div style={{ flex: 1 }} />
         <select value={filter} onChange={e => { setFilter(e.target.value); load(0, search, e.target.value); }} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none" }}>
           <option value="">すべて</option>
+          <option value="online">オンラインのみ</option>
+          <option value="offline">オフラインのみ</option>
           <option value="banned">BAN中のみ</option>
         </select>
         <SearchBar value={search} onChange={setSearch} onSearch={() => load(0, search, filter)} placeholder="名前で検索..." />
@@ -389,6 +396,7 @@ const UsersTab = () => {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ background: T.bg3, borderBottom: `1px solid ${T.bd}` }}>
+              <th style={{ padding: "10px 12px", textAlign: "center", color: T.txD, fontWeight: 600, width: 40 }}>状態</th>
               <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>ユーザー</th>
               <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>ID</th>
               <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>学科</th>
@@ -400,8 +408,17 @@ const UsersTab = () => {
             </tr>
           </thead>
           <tbody>
-            {users.map(u => (
+            {users.filter(u => {
+              if (filter === "online") return onlineIds.has(String(u.moodle_id));
+              if (filter === "offline") return !onlineIds.has(String(u.moodle_id));
+              return true;
+            }).map(u => {
+              const isOn = onlineIds.has(String(u.moodle_id));
+              return (
               <tr key={u.moodle_id || u.id} style={{ borderBottom: `1px solid ${T.bd}` }}>
+                <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                  <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: isOn ? T.green : T.txD, opacity: isOn ? 1 : 0.35 }} title={isOn ? "オンライン" : "オフライン"} />
+                </td>
                 <td style={{ padding: "8px 12px", color: T.txH }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <Av u={{ name: u.name, col: u.color, avatar: u.avatar }} sz={28} />
@@ -430,7 +447,7 @@ const UsersTab = () => {
                   </div>
                 </td>
               </tr>
-            ))}
+            ); })}
           </tbody>
         </table>
       </div>
@@ -2549,6 +2566,9 @@ const T2ScholaTab = () => {
 export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
   const [tab, setTab] = useState("stats");
   const [forbidden, setForbidden] = useState(false);
+  const user = useCurrentUser();
+  const { online } = usePresence("app", { id: user.moodleId || user.id, name: user.name, col: user.col });
+  const onlineIds = useMemo(() => new Set(online.map(u => String(u.id))), [online]);
 
   useEffect(() => {
     fetch(`${API}/api/admin?action=stats`).then(r => { if (r.status === 403) setForbidden(true); }).catch(() => {});
@@ -2565,6 +2585,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
   }
 
   return (
+    <OnlineContext.Provider value={onlineIds}>
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div style={{ display: "flex", borderBottom: `1px solid ${T.bd}`, background: T.bg2, flexShrink: 0, overflowX: "auto" }}>
         {tabs.map(t => (
@@ -2599,5 +2620,6 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "settings" && <SettingsTab />}
       </div>
     </div>
+    </OnlineContext.Provider>
   );
 };
