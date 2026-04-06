@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
+import { invalidateMuteCache } from '../../../lib/mutes.js';
 
 // GET: list muted users
 export async function GET(request) {
@@ -35,6 +36,7 @@ export async function POST(request) {
       .from('user_mutes')
       .upsert({ muter_id: auth.userid, muted_id }, { onConflict: 'muter_id,muted_id' });
     if (error) throw error;
+    invalidateMuteCache(auth.userid);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[Mutes] POST error:', err.message, err.stack);
@@ -55,6 +57,7 @@ export async function DELETE(request) {
     await sb.from('user_mutes').delete()
       .eq('muter_id', auth.userid)
       .eq('muted_id', muted_id);
+    invalidateMuteCache(auth.userid);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[Mutes] DELETE error:', err.message, err.stack);

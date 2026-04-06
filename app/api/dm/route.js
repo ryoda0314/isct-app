@@ -21,7 +21,8 @@ export async function GET(request) {
         dm_messages(id, sender_id, text, created_at)
       `)
       .or(`user1_id.eq.${userid},user2_id.eq.${userid}`)
-      .order('created_at', { referencedTable: 'dm_messages', ascending: false });
+      .order('created_at', { referencedTable: 'dm_messages', ascending: false })
+      .limit(50, { referencedTable: 'dm_messages' });
 
     if (error) throw error;
 
@@ -139,25 +140,15 @@ export async function POST(request) {
 
     const sb = getSupabaseAdmin();
 
-    // Check block status before allowing DM (both directions)
-    if (to_user_id) {
-      const [blockedIds, blockedByIds] = await Promise.all([
-        getBlockedIds(userid),
-        getBlockedIds(to_user_id),
-      ]);
-      if (blockedIds.has(to_user_id) || blockedByIds.has(userid)) {
-        return NextResponse.json({ error: 'このユーザーにメッセージを送信できません' }, { status: 403 });
-      }
-    }
-
     await sb.from('profiles').upsert(
       { moodle_id: userid, name: `User ${userid}` },
       { onConflict: 'moodle_id', ignoreDuplicates: true }
     );
 
     let convId = conversation_id;
+    let targetUserId = to_user_id;
 
-    // If conversation_id is provided, verify user is a participant + block check
+    // If conversation_id is provided, verify user is a participant and resolve target
     if (convId) {
       const { data: conv } = await sb
         .from('dm_conversations')
@@ -167,11 +158,16 @@ export async function POST(request) {
       if (!conv || (conv.user1_id !== userid && conv.user2_id !== userid)) {
         return NextResponse.json({ error: 'Not a participant' }, { status: 403 });
       }
-      // H6: Block check even when using existing conversation_id
-      const otherId = conv.user1_id === userid ? conv.user2_id : conv.user1_id;
-      const blockedIds = await getBlockedIds(userid);
-      const blockedByIds = await getBlockedIds(otherId);
-      if (blockedIds.has(otherId) || blockedByIds.has(userid)) {
+      targetUserId = conv.user1_id === userid ? conv.user2_id : conv.user1_id;
+    }
+
+    // Block check: single pass for both directions (cached, so only 2 queries max)
+    if (targetUserId) {
+      const [blockedIds, blockedByIds] = await Promise.all([
+        getBlockedIds(userid),
+        getBlockedIds(targetUserId),
+      ]);
+      if (blockedIds.has(targetUserId) || blockedByIds.has(userid)) {
         return NextResponse.json({ error: 'このユーザーにメッセージを送信できません' }, { status: 403 });
       }
     }

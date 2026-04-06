@@ -38,16 +38,17 @@ export async function GET(request) {
       if (pData) pData.forEach(p => { profiles[p.moodle_id] = p; });
     }
 
+    // Fetch last message per group in parallel instead of sequential N+1
     const lastMsgs = {};
-    for (const gid of groupIds) {
+    await Promise.all(groupIds.map(async (gid) => {
       const { data: msgs } = await sb
         .from('group_messages')
         .select('text, sender_id, created_at')
         .eq('group_id', gid)
         .order('created_at', { ascending: false })
         .limit(1);
-      if (msgs && msgs[0]) lastMsgs[gid] = msgs[0];
-    }
+      if (msgs?.[0]) lastMsgs[gid] = msgs[0];
+    }));
 
     const result = (groups || []).map(g => {
       const members = (allMembers || [])

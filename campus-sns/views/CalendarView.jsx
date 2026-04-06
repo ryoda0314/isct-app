@@ -29,7 +29,7 @@ const rangesOverlap=(s1h,s1m,e1h,e1m,s2h,s2m,e2h,e2m)=>{
 
 const getMonday=d=>{const dt=new Date(d);const day=dt.getDay();const diff=day===0?-6:1-day;dt.setDate(dt.getDate()+diff);dt.setHours(0,0,0,0);return dt;};
 
-export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},mob})=>{
+export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},mob,pastTTCache={},fetchPastTimetable})=>{
   const [viewMode,setViewMode]=useState("month");
   const [calMonth,setCalMonth]=useState(()=>({y:NOW.getFullYear(),m:NOW.getMonth()}));
   const [weekStart,setWeekStart]=useState(()=>getMonday(NOW));
@@ -104,11 +104,36 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
   };
   const deleteEvent=id=>{setMyEvents(p=>p.filter(e=>e.id!==id));setEditing(null);setAdding(false);resetForm();};
 
-  // Timetable classes for a given date (academic calendar aware)
+  // Academic year from date: April–March = same nendo
+  const dateToAY=d=>d.getMonth()>=3?d.getFullYear():d.getFullYear()-1;
+  // Viewed month's academic year (for auto-fetch)
+  const viewedAY=useMemo(()=>calMonth.m>=3?calMonth.y:calMonth.y-1,[calMonth.y,calMonth.m]);
+  // Auto-fetch past timetable when browsing a different academic year
+  useEffect(()=>{
+    if(!fetchPastTimetable)return;
+    // Check if qDataAll has any courses for this year
+    const hasInCurrent=Object.values(qDataAll).some(qd=>qd?.C?.some(c=>c.year===viewedAY));
+    if(!hasInCurrent&&!pastTTCache[viewedAY]){fetchPastTimetable(viewedAY);}
+  },[viewedAY,qDataAll,pastTTCache,fetchPastTimetable]);
+
+  // Timetable classes for a given date (academic calendar + year aware)
   const curTT=qd?.TT||[];
-  const getTT=q=>{const d=qDataAll[q];return d?.TT||curTT;};
+  const getTT=(q,yr)=>{
+    // 1. Try qDataAll filtered by year
+    const qAll=qDataAll[q]?.TT;
+    if(qAll){
+      const filtered=qAll.map(row=>(row||[]).map(cell=>cell&&(!cell.year||cell.year===yr)?cell:null));
+      if(filtered.some(row=>row.some(cell=>cell)))return filtered;
+    }
+    // 2. Fallback: pastTTCache for that year
+    const past=pastTTCache[yr];
+    if(past?.qData?.[q]?.TT)return past.qData[q].TT;
+    // 3. If same year as current quarter, use curTT as last resort
+    return[];
+  };
   const DOW_MAP={"月":0,"火":1,"水":2,"木":3,"金":4};
   const getClasses=date=>{
+    const yr=dateToAY(date);
     const info=getAcademicInfo(date);
     const hasAcad=info.items.length>0||info.period;
     if(hasAcad){
@@ -118,7 +143,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
       for(const item of classItems){
         const di=DOW_MAP[item.dow];
         if(di===undefined) continue;
-        const tt=getTT(item.q);
+        const tt=getTT(item.q,yr);
         PD.forEach((pd,pi)=>{const co=tt[pi]?.[di];if(co) results.push({type:"class",course:co,pd,pi,n:item.n,sub:item.sub,dow:item.dow});});
       }
       return results;
@@ -126,7 +151,9 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
     const dow=date.getDay();
     if(dow<1||dow>5)return [];
     const di=dow-1;
-    return PD.map((pd,pi)=>{const co=curTT[pi]?.[di];if(!co)return null;return{type:"class",course:co,pd,pi,n:null,sub:false};}).filter(Boolean);
+    // No academic calendar entry — use current quarter TT filtered by date's year
+    const filteredCurTT=curTT.map(row=>(row||[]).map(cell=>cell&&(!cell.year||cell.year===yr)?cell:null));
+    return PD.map((pd,pi)=>{const co=filteredCurTT[pi]?.[di];if(!co)return null;return{type:"class",course:co,pd,pi,n:null,sub:false};}).filter(Boolean);
   };
 
   // Build calendar data

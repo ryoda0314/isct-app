@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
+import { invalidateBlockCache } from '../../../lib/blocks.js';
 
 // GET: list blocked users
 export async function GET(request) {
@@ -81,6 +82,9 @@ export async function POST(request) {
         `and(requester_id.eq.${userid},addressee_id.eq.${numBlock}),and(requester_id.eq.${numBlock},addressee_id.eq.${userid})`
       );
 
+    invalidateBlockCache(userid);
+    invalidateBlockCache(numBlock);
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[Blocks POST]', err);
@@ -110,6 +114,8 @@ export async function DELETE(request) {
       .eq('blocked_id', numUnblock);
 
     if (error) throw error;
+    invalidateBlockCache(userid);
+    invalidateBlockCache(numUnblock);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[Blocks DELETE]', err);

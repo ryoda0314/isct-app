@@ -131,10 +131,18 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
     return()=>clearTimeout(tid);
   },[locQ]);
 
-  // 今日の授業（学年暦対応: 祝日・休暇・振替授業を考慮）
+  // 今日の授業（学年暦対応: 祝日・休暇・振替授業・年度を考慮）
   const DOW_MAP={"月":0,"火":1,"水":2,"木":3,"金":4};
   const curTT=qd?.TT||[];
-  const getTT=q=>{const d=qDataAll[q];return d?.TT||curTT;};
+  const todayAY=now.getMonth()>=3?now.getFullYear():now.getFullYear()-1;
+  const getTT=(q,yr)=>{
+    const qAll=qDataAll[q]?.TT;
+    if(qAll){
+      const filtered=qAll.map(row=>(row||[]).map(cell=>cell&&(!cell.year||cell.year===yr)?cell:null));
+      if(filtered.some(row=>row.some(cell=>cell)))return filtered;
+    }
+    return curTT;
+  };
   const nowMin=now.getHours()*60+now.getMinutes();
   const todayClasses=(()=>{
     const acal=getAcademicInfo(now);
@@ -146,14 +154,15 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
       for(const item of classItems){
         const di=DOW_MAP[item.dow];
         if(di===undefined) continue;
-        const tt=getTT(item.q);
+        const tt=getTT(item.q,todayAY);
         PD.forEach((pd,pi)=>{const co=tt[pi]?.[di];if(!co)return;const sM=pd.s[0]*60+pd.s[1],eM=pd.e[0]*60+pd.e[1];const st=nowMin>=eM?"done":nowMin>=sM?"now":"next";results.push({co,pd,pi,st,sM,eM,type:"class",sub:item.sub,dow:item.dow});});
       }
       return results;
     }
     const dow=now.getDay(),di=dow>=1&&dow<=5?dow-1:-1;
     if(di<0) return [];
-    return PD.map((pd,pi)=>{const co=curTT[pi]?.[di];if(!co)return null;const sM=pd.s[0]*60+pd.s[1],eM=pd.e[0]*60+pd.e[1];const st=nowMin>=eM?"done":nowMin>=sM?"now":"next";return{co,pd,pi,st,sM,eM,type:"class"};}).filter(Boolean);
+    const filteredCurTT=curTT.map(row=>(row||[]).map(cell=>cell&&(!cell.year||cell.year===todayAY)?cell:null));
+    return PD.map((pd,pi)=>{const co=filteredCurTT[pi]?.[di];if(!co)return null;const sM=pd.s[0]*60+pd.s[1],eM=pd.e[0]*60+pd.e[1];const st=nowMin>=eM?"done":nowMin>=sM?"now":"next";return{co,pd,pi,st,sM,eM,type:"class"};}).filter(Boolean);
   })();
 
   const vis=asgn.filter(a=>!hiddenSet.has(a.id));
