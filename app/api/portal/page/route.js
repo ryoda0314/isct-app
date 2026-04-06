@@ -68,8 +68,13 @@ async function loginAndExtract({ portalUserId, portalPassword, matrix }) {
     page.setDefaultTimeout(15000);
     await page.setUserAgent(UA);
 
-    await page.goto(PORTAL_LOGIN_URL, { waitUntil: 'networkidle2' });
-    await page.waitForSelector('input[name="usr_name"]', { visible: true });
+    try {
+      await page.goto(PORTAL_LOGIN_URL, { waitUntil: 'networkidle2' });
+      await page.waitForSelector('input[name="usr_name"]', { visible: true });
+    } catch (e) {
+      e.failedStep = 'connect';
+      throw e;
+    }
     await page.type('input[name="usr_name"]', portalUserId, { delay: 20 });
     await page.type('input[name="usr_password"]', portalPassword, { delay: 20 });
     await Promise.all([
@@ -77,7 +82,14 @@ async function loginAndExtract({ portalUserId, portalPassword, matrix }) {
       page.click('input[name="OK"]'),
     ]);
 
-    await page.waitForSelector('input[name="message3"]', { visible: true });
+    try {
+      await page.waitForSelector('input[name="message3"]', { visible: true });
+    } catch (e) {
+      const url = page.url();
+      const stillOnLogin = url.includes('Login') || url.includes('userpass_key');
+      e.failedStep = stillOnLogin ? 'password' : 'network';
+      throw e;
+    }
     const matrixLabels = await page.evaluate(() => {
       const labels = [];
       for (const cell of document.querySelectorAll('td, th')) {
@@ -86,7 +98,11 @@ async function loginAndExtract({ portalUserId, portalPassword, matrix }) {
       }
       return labels;
     });
-    if (matrixLabels.length < 3) throw new Error('Matrix labels not found');
+    if (matrixLabels.length < 3) {
+      const err = new Error('Matrix labels not found');
+      err.failedStep = 'matrix';
+      throw err;
+    }
 
     const inputNames = ['message3', 'message4', 'message5'];
     for (let i = 0; i < 3; i++) {
@@ -279,7 +295,14 @@ export async function GET(request) {
     }
   } catch (err) {
     console.error('[Portal Page] Error:', err.message, err.stack);
-    console.error('[Portal Page] Error:', err.message);
-    return NextResponse.json({ error: 'Portal error' }, { status: 500 });
+    const failedStep = err.failedStep || 'unknown';
+    const stepMessages = {
+      connect:  'ポータルサイトに接続できませんでした。時間をおいて再度お試しください。',
+      password: 'アカウントまたはパスワードが正しくありません。設定画面から再登録してください。',
+      matrix:   'マトリクス認証に失敗しました。設定画面からマトリクスカードを再登録してください。',
+      network:  'ページの読み込みがタイムアウトしました。通信環境を確認して再度お試しください。',
+      unknown:  'ポータルへの接続中にエラーが発生しました。',
+    };
+    return htmlError(stepMessages[failedStep] || stepMessages.unknown);
   }
 }

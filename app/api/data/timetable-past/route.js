@@ -77,7 +77,12 @@ async function acquireT2Token(loginId) {
     console.log('[T2Token] Landed on:', page.url());
 
     // Step 2: Portal login — usr_name + usr_password
-    await page.waitForSelector('input[name="usr_name"]', { visible: true });
+    try {
+      await page.waitForSelector('input[name="usr_name"]', { visible: true });
+    } catch (e) {
+      e.failedStep = 'connect';
+      throw e;
+    }
     await page.type('input[name="usr_name"]', creds.portalUserId, { delay: 20 });
     await page.type('input[name="usr_password"]', creds.portalPassword, { delay: 20 });
     await Promise.all([
@@ -87,7 +92,14 @@ async function acquireT2Token(loginId) {
     console.log('[T2Token] After login submit:', page.url());
 
     // Step 3: Matrix authentication
-    await page.waitForSelector('input[name="message3"]', { visible: true });
+    try {
+      await page.waitForSelector('input[name="message3"]', { visible: true });
+    } catch (e) {
+      const url = page.url();
+      const stillOnLogin = url.includes('Login') || url.includes('userpass_key');
+      e.failedStep = stillOnLogin ? 'password' : 'network';
+      throw e;
+    }
     const matrixLabels = await page.evaluate(() => {
       const labels = [];
       for (const cell of document.querySelectorAll('td, th')) {
@@ -99,7 +111,9 @@ async function acquireT2Token(loginId) {
     console.log('[T2Token] Matrix positions:', matrixLabels);
 
     if (matrixLabels.length < 3) {
-      throw new Error(`Expected 3 matrix labels, found ${matrixLabels.length}`);
+      const err = new Error(`Expected 3 matrix labels, found ${matrixLabels.length}`);
+      err.failedStep = 'matrix';
+      throw err;
     }
 
     const inputNames = ['message3', 'message4', 'message5'];

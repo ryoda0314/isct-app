@@ -22,6 +22,7 @@ export const TTView=(_p)=>{
   const curTT=isPast?_allTT:(_allTT||[]).map(row=>(row||[]).map(cell=>cell&&(!cell.year||cell.year===_yr)?cell:null));
   const cnt=cid=>asgn.filter(a=>a.cid===cid&&a.st!=="completed"&&!hiddenSet.has(a.id)).length;
   const handleRefresh=async()=>{if(!onRefresh||refreshing)return;setRefreshing(true);try{await onRefresh();}finally{setRefreshing(false);}};
+  const cellEntries=React.useMemo(()=>{const entries=[],visited=new Set();for(let pi=0;pi<5;pi++)for(let di=0;di<5;di++){if(visited.has(`${pi}-${di}`))continue;const co=curTT[pi]?.[di];let span=1;if(co){for(let pj=pi+1;pj<5;pj++){const nx=curTT[pj]?.[di];if(nx&&nx.id===co.id){span++;visited.add(`${pj}-${di}`);}else break;}}entries.push({di,pi,co,span});}return entries;},[curTT]);
   const RefreshBtn=()=>onRefresh?(<>
     <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     <button onClick={handleRefresh} disabled={refreshing}
@@ -80,16 +81,16 @@ export const TTView=(_p)=>{
   const todayIdx=today>=1&&today<=5?today-1:-1;
   const [hover,setHover]=useState(null);
   const gap=mob?3:5;
-  const Cell=({co,n,pi,di})=>{
+  const Cell=({co,n,pi,di,gs})=>{
     const hk=`${pi}-${di}`;const isHov=hover===hk;const isToday=di===todayIdx;
-    if(!co)return <div style={{borderRadius:mob?8:10,background:isToday?`${T.accent}06`:`${T.bg2}80`,minHeight:80,border:`1px solid ${isToday?`${T.accent}15`:T.bd}`}}/>;
+    if(!co)return <div style={{borderRadius:mob?8:10,background:isToday?`${T.accent}06`:`${T.bg2}80`,minHeight:80,border:`1px solid ${isToday?`${T.accent}15`:T.bd}`,...gs}}/>;
     return(
       <div onClick={()=>{setCid(co.id);setCh("timeline");setView("course");}}
         onMouseEnter={()=>setHover(hk)} onMouseLeave={()=>setHover(null)}
         style={{borderRadius:mob?8:10,minHeight:80,cursor:"pointer",position:"relative",overflow:"hidden",
           background:`linear-gradient(135deg, ${co.col}${isHov?"30":"18"}, ${co.col}${isHov?"15":"08"})`,
           border:`1.5px solid ${co.col}${isHov?"60":"30"}`,
-          transition:"all .2s ease",transform:isHov?"scale(1.02)":"scale(1)"}}>
+          transition:"all .2s ease",transform:isHov?"scale(1.02)":"scale(1)",...gs}}>
         <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:co.col,borderRadius:"10px 10px 0 0"}}/>
         <div style={{padding:mob?"6px 6px 5px":"10px 10px 8px",display:"flex",flexDirection:"column",height:"100%",justifyContent:"center"}}>
           <div style={{fontWeight:800,color:co.col,fontSize:mob?9:13,letterSpacing:.5,lineHeight:1}}>{mob?co.code.split(".")[1]:co.code}</div>
@@ -133,7 +134,7 @@ export const TTView=(_p)=>{
       </header>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:8}}>
         <PastBanner/>
-        {isPast&&pastTTLoading&&!pastData?null:<><div style={{display:"grid",gridTemplateColumns:"32px repeat(5,1fr)",gap:2}}>
+        {isPast&&pastTTLoading&&!pastData?null:<><div style={{display:"grid",gridTemplateColumns:"32px repeat(5,1fr)",gridTemplateRows:"auto repeat(5,1fr)",gap:2}}>
           <div/>
           {days.map((d,i)=>{const isT=i===todayIdx;return(
             <div key={d} style={{display:"flex",alignItems:"center",justifyContent:"center",borderRadius:6,
@@ -141,36 +142,36 @@ export const TTView=(_p)=>{
               <span style={{fontWeight:800,fontSize:12,color:isT?"#fff":T.txH}}>{d}</span>
             </div>);
           })}
-          {pds.map((p,pi)=><React.Fragment key={`r${pi}`}>
-            <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:1}}>
+          {pds.map((p,pi)=>
+            <div key={`lbl${pi}`} style={{gridColumn:1,gridRow:pi+2,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:1}}>
               <span style={{fontWeight:700,fontSize:10,color:T.txH}}>{pdLabel[pi]}</span>
               <span style={{fontSize:7,color:T.txD,marginTop:1,lineHeight:1.2,whiteSpace:"nowrap",textAlign:"center"}}>{pdTimes[pi].split("–")[0]}</span>
               <span style={{fontSize:6,color:T.txD,lineHeight:1}}>~</span>
               <span style={{fontSize:7,color:T.txD,lineHeight:1.2,whiteSpace:"nowrap",textAlign:"center"}}>{pdTimes[pi].split("–")[1]}</span>
             </div>
-            {days.map((_,di)=>{const co=curTT[pi]?.[di];const n=co?cnt(co.id):0;const isT=di===todayIdx;
-              if(!co)return <div key={`${pi}-${di}`} style={{borderRadius:6,background:isT?`${T.accent}06`:`${T.bg2}50`,minHeight:68}}/>;
-              return(
-                <div key={`${pi}-${di}`} onClick={()=>{setCid(co.id);setCh("timeline");setView("course");}}
-                  style={{borderRadius:6,minHeight:68,cursor:"pointer",position:"relative",overflow:"hidden",
-                    background:`linear-gradient(135deg, ${co.col}18, ${co.col}08)`,
-                    border:`1.5px solid ${co.col}30`}}>
-                  <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:co.col,borderRadius:"8px 8px 0 0"}}/>
-                  <div style={{padding:"6px 5px 5px",display:"flex",flexDirection:"column",height:"100%",justifyContent:"center"}}>
-                    <div style={{fontWeight:800,color:co.col,fontSize:9,letterSpacing:.3,lineHeight:1}}>{co.code.split(".")[1]}</div>
-                    <div style={{fontSize:9,color:T.txH,marginTop:2,lineHeight:1.25,fontWeight:600,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{co.name}</div>
-                    <div style={{fontSize:8,color:T.txD,marginTop:2}}>
-                      <div style={{display:"flex",alignItems:"center",gap:2}}>
-                        <svg width="7" height="7" viewBox="0 0 24 24" fill={T.txD} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
-                        {co.room?.replace(/\s*\(.*?\)/g,"")}{co.bldg&&!co.building?` (${co.bldg})`:""}
-                      </div>
-                      {co.bldg&&co.building&&<div onClick={e=>{e.stopPropagation();goToBuilding(co.building);}} style={{display:"inline-flex",alignItems:"center",gap:3,marginTop:3,padding:"3px 5px",borderRadius:5,background:"#14b8a630",color:"#14b8a6",fontWeight:700,cursor:"pointer",fontSize:10,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}}><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>{co.bldg}</div>}
+          )}
+          {cellEntries.map(({di,pi,co,span})=>{const n=co?cnt(co.id):0;const isT=di===todayIdx;
+            if(!co)return <div key={`${pi}-${di}`} style={{gridColumn:di+2,gridRow:`${pi+2}/span ${span}`,borderRadius:6,background:isT?`${T.accent}06`:`${T.bg2}50`,minHeight:68}}/>;
+            return(
+              <div key={`${pi}-${di}`} onClick={()=>{setCid(co.id);setCh("timeline");setView("course");}}
+                style={{gridColumn:di+2,gridRow:`${pi+2}/span ${span}`,borderRadius:6,minHeight:68,cursor:"pointer",position:"relative",overflow:"hidden",
+                  background:`linear-gradient(135deg, ${co.col}18, ${co.col}08)`,
+                  border:`1.5px solid ${co.col}30`}}>
+                <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:co.col,borderRadius:"8px 8px 0 0"}}/>
+                <div style={{padding:"6px 5px 5px",display:"flex",flexDirection:"column",height:"100%",justifyContent:"center"}}>
+                  <div style={{fontWeight:800,color:co.col,fontSize:9,letterSpacing:.3,lineHeight:1}}>{co.code.split(".")[1]}</div>
+                  <div style={{fontSize:9,color:T.txH,marginTop:2,lineHeight:1.25,fontWeight:600,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{co.name}</div>
+                  <div style={{fontSize:8,color:T.txD,marginTop:2}}>
+                    <div style={{display:"flex",alignItems:"center",gap:2}}>
+                      <svg width="7" height="7" viewBox="0 0 24 24" fill={T.txD} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+                      {co.room?.replace(/\s*\(.*?\)/g,"")}{co.bldg&&!co.building?` (${co.bldg})`:""}
                     </div>
+                    {co.bldg&&co.building&&<div onClick={e=>{e.stopPropagation();goToBuilding(co.building);}} style={{display:"inline-flex",alignItems:"center",gap:3,marginTop:3,padding:"3px 5px",borderRadius:5,background:"#14b8a630",color:"#14b8a6",fontWeight:700,cursor:"pointer",fontSize:10,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}}><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>{co.bldg}</div>}
                   </div>
-                  {n>0&&<div style={{position:"absolute",top:2,right:2,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px",boxShadow:`0 2px 6px ${T.red}60`}}>{n}</div>}
-                </div>);
-            })}
-          </React.Fragment>)}
+                </div>
+                {n>0&&<div style={{position:"absolute",top:2,right:2,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px",boxShadow:`0 2px 6px ${T.red}60`}}>{n}</div>}
+              </div>);
+          })}
         </div>
         <div style={{marginTop:14}}>
           <div style={{fontSize:13,fontWeight:700,color:T.txH,marginBottom:6}}>履修科目</div>
@@ -214,15 +215,15 @@ export const TTView=(_p)=>{
             <span style={{fontSize:9,color:isT?"rgba(255,255,255,.7)":T.txD,marginTop:1}}>{daysFull[i].slice(0,3)}</span>
           </div>);
         })}
-        {pds.map((p,pi)=><React.Fragment key={`r${pi}`}>
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:4}}>
+        {pds.map((p,pi)=>
+          <div key={`lbl${pi}`} style={{gridColumn:1,gridRow:pi+2,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:4}}>
             <span style={{fontWeight:700,fontSize:13,color:T.txH}}>{pdLabel[pi]}</span>
             <span style={{fontSize:10,color:T.txD,marginTop:2,lineHeight:1,whiteSpace:"nowrap"}}>{pdTimes[pi].replace("–","~")}</span>
           </div>
-          {days.map((_,di)=>{const co=curTT[pi]?.[di];const n=co?cnt(co.id):0;
-            return <Cell key={`${pi}-${di}`} co={co} n={n} pi={pi} di={di}/>;
-          })}
-        </React.Fragment>)}
+        )}
+        {cellEntries.map(({di,pi,co,span})=>{const n=co?cnt(co.id):0;
+          return <Cell key={`c${pi}-${di}`} co={co} n={n} pi={pi} di={di} gs={{gridColumn:di+2,gridRow:`${pi+2}/span ${span}`}}/>;
+        })}
       </div>
       <div style={{marginTop:28}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
