@@ -121,6 +121,7 @@ export default function App(){
   const mob=useMobile();
   const bp=useBreakpoint(); // "mobile" | "tablet" | "desktop"
   const [appState,setAppState]=useState("loading");
+  const [reconnecting,setReconnecting]=useState(false);
   const ready=appState==="ready";
   const user=useCurrentUser(ready);
   const [themePref,setThemePref]=useState(()=>{try{const v=localStorage.getItem("themePref");if(v)return v;return "tsubame";}catch{return "tsubame";}});
@@ -151,7 +152,7 @@ export default function App(){
   const [_selY,_setSelY]=useState(()=>{try{const v=localStorage.getItem("tty");if(v)return Number(v);const jd=new Date(Date.now()+9*3600000);return jd.getUTCMonth()>=3?jd.getUTCFullYear():jd.getUTCFullYear()-1;}catch{const jd=new Date(Date.now()+9*3600000);return jd.getUTCMonth()>=3?jd.getUTCFullYear():jd.getUTCFullYear()-1;}});
   const qd=(qDataLive&&qDataLive[quarter])||QData[quarter]||{C:[],TT:[]};
   const [allCourses,setAllCourses]=useState([]);
-  const [view,setViewRaw]=useState("home");
+  const [view,setViewRaw]=useState(()=>{try{return localStorage.getItem("lastView")||"home";}catch{return "home";}});
   const viewHistRef=useRef([]);
   const guestSessionRef=useRef(null);
   const setView=useCallback((v)=>{setShowMembers(false);setViewRaw(prev=>{if(prev&&prev!==v)viewHistRef.current.push(prev);return v;});},[]);
@@ -646,8 +647,11 @@ export default function App(){
         <div style={{marginTop:24,fontSize:24,fontWeight:700,color:T.txH,letterSpacing:"-0.02em",animation:"spFadeUp .6s .12s cubic-bezier(.16,1,.3,1) both"}}>Science<span style={{color:T.accent}}>Tokyo</span> App</div>
         <div style={{marginTop:8,fontSize:13,color:T.txD,letterSpacing:"0.02em",animation:"spFadeUp .6s .22s cubic-bezier(.16,1,.3,1) both"}}>東京科学大学キャンパスSNS</div>
       </div>
-      <div style={{position:"absolute",bottom:`calc(72px + env(safe-area-inset-bottom))`,display:"flex",gap:8,animation:"spFadeUp .5s .32s cubic-bezier(.16,1,.3,1) both"}}>
-        {[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:T.accent,animation:`spDot 1.4s ${i*.15}s ease-in-out infinite`}}/>)}
+      <div style={{position:"absolute",bottom:`calc(72px + env(safe-area-inset-bottom))`,display:"flex",flexDirection:"column",alignItems:"center",gap:10,animation:"spFadeUp .5s .32s cubic-bezier(.16,1,.3,1) both"}}>
+        {reconnecting&&<div style={{fontSize:12,color:T.txD,marginBottom:2}}>再接続中...</div>}
+        <div style={{display:"flex",gap:8}}>
+          {[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:T.accent,animation:`spDot 1.4s ${i*.15}s ease-in-out infinite`}}/>)}
+        </div>
       </div>
       <style>{`@keyframes spLogoIn{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}@keyframes spFadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes spDot{0%,80%,100%{transform:scale(.5);opacity:.3}40%{transform:scale(1.2);opacity:1}}html,body{background:${T.bg};margin:0}`}</style>
     </div>
