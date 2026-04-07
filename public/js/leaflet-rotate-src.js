@@ -452,7 +452,7 @@
                 // The default Marker._onZoom skips update() when _zoomAnimated
                 // is true, but during pinch-to-zoom only 'zoom'/'move' events
                 // fire (not 'zoomanim'), so markers would never reposition.
-                // Override both zoom and move to keep markers aligned with tiles.
+                // Override zoom to force repositioning during pinch.
                 events.zoom = this.update;
             }
             return events;
@@ -571,23 +571,8 @@
          */
         getEvents: function() {
             return L.extend(rendererProto.getEvents.apply(this, arguments), {
-                rotate: this._onRotate,
+                rotate: this._update,
             });
-        },
-
-        /**
-         * On rotate: only refresh internal state (_topLeft, _center, _zoom)
-         * without full SVG redraw. During pinch gestures, setBearing and _move
-         * are batched in the same animation frame — _move fires 'zoom' which
-         * triggers _updateTransform to handle positioning. A full _update
-         * (SVG path re-project) happens on moveend.
-         */
-        _onRotate: function() {
-            if (!this._map || !this._map._rotate) return;
-            this._bounds = this._map._getPaddedPixelBounds(this.options.padding);
-            this._topLeft = this._map.layerPointToLatLng(this._bounds.min);
-            this._center = this._map.getCenter();
-            this._zoom = this._map.getZoom();
         },
 
         /**
