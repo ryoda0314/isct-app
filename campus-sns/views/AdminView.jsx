@@ -922,6 +922,7 @@ const ACTION_LABELS = {
   update_site_setting: "設定変更",
   add_ng_word: "NGワード追加", delete_ng_word: "NGワード削除",
   enable_maintenance: "メンテON", disable_maintenance: "メンテOFF",
+  enable_registration_limit: "登録制限ON", disable_registration_limit: "登録制限OFF",
   toggle_feature: "機能フラグ", bulk_update_profiles: "一括更新",
 };
 
@@ -2033,6 +2034,9 @@ const SettingsTab = () => {
   const [telecomRestricted, setTelecomRestricted] = useState(false);
   const [telecomMsg, setTelecomMsg] = useState("");
   const [featureFlags, setFeatureFlags] = useState({});
+  const [regLimitEnabled, setRegLimitEnabled] = useState(false);
+  const [regLimitMax, setRegLimitMax] = useState("");
+  const [regLimitMsg, setRegLimitMsg] = useState("");
   const [bulkField, setBulkField] = useState("dept");
   const [bulkOld, setBulkOld] = useState("");
   const [bulkNew, setBulkNew] = useState("");
@@ -2055,6 +2059,10 @@ const SettingsTab = () => {
       setTelecomRestricted(!!tr.enabled);
       setTelecomMsg(tr.message || "");
       setFeatureFlags(d.settings?.feature_flags || {});
+      const rl = d.settings?.registration_limit || {};
+      setRegLimitEnabled(!!rl.enabled);
+      setRegLimitMax(rl.maxUsers || "");
+      setRegLimitMsg(rl.message || "");
       setSettingsLoaded(true);
     }).catch(() => setSettingsLoaded(true));
   }, [loadAdmins]);
@@ -2090,6 +2098,17 @@ const SettingsTab = () => {
     const next = !telecomRestricted;
     const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "toggle_telecom_restriction", enabled: next, message: telecomMsg }) });
     if (r.ok) setTelecomRestricted(next);
+  };
+
+  const handleToggleRegLimit = async () => {
+    const next = !regLimitEnabled;
+    const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "toggle_registration_limit", enabled: next, maxUsers: parseInt(regLimitMax) || 0, message: regLimitMsg }) });
+    if (r.ok) setRegLimitEnabled(next);
+  };
+
+  const handleSaveRegLimit = async () => {
+    const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "toggle_registration_limit", enabled: regLimitEnabled, maxUsers: parseInt(regLimitMax) || 0, message: regLimitMsg }) });
+    if (r.ok) alert("保存しました");
   };
 
   const handleToggleFeature = async (feature) => {
@@ -2136,6 +2155,30 @@ const SettingsTab = () => {
           </div>
         ))}
       </div>
+
+      {/* Registration limit (新規登録人数制限) */}
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>新規登録人数制限</div>
+      <div style={{ fontSize: 12, color: T.txD, marginBottom: 12, lineHeight: 1.6 }}>
+        新規登録を受け入れる人数を制限します。上限に達すると、既存ユーザーのログインは可能ですが新規登録はブロックされます。
+      </div>
+      {settingsLoaded && (
+        <div style={{ padding: 14, borderRadius: 12, background: regLimitEnabled ? `${T.orange}12` : T.bg3, border: `1px solid ${regLimitEnabled ? T.orange + "40" : T.bd}`, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>状態:</span>
+            <Badge text={regLimitEnabled ? "制限中" : "無制限"} color={regLimitEnabled ? T.orange : T.green} />
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+            <span style={{ fontSize: 13, color: T.txH, whiteSpace: "nowrap" }}>上限人数:</span>
+            <input type="number" min="0" value={regLimitMax} onChange={e => setRegLimitMax(e.target.value)} placeholder="例: 100" style={{ width: 120, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", fontFamily: "monospace" }} />
+            <span style={{ fontSize: 12, color: T.txD }}>人（0 = 新規登録を完全停止）</span>
+          </div>
+          <input value={regLimitMsg} onChange={e => setRegLimitMsg(e.target.value)} placeholder="ユーザーへの表示メッセージ（例: 現在新規登録を一時停止しています）" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 10 }} />
+          <div style={{ display: "flex", gap: 8 }}>
+            <Btn onClick={handleToggleRegLimit} color={regLimitEnabled ? T.green : T.orange}>{regLimitEnabled ? "制限を解除" : "新規登録を制限"}</Btn>
+            {regLimitEnabled && <Btn onClick={handleSaveRegLimit} color={T.accent}>設定を保存</Btn>}
+          </div>
+        </div>
+      )}
 
       {/* Telecom restriction (電気通信事業の届出前制限) */}
       <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>電気通信事業 届出前制限</div>

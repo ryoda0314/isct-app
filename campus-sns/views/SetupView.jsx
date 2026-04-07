@@ -404,6 +404,16 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
   const [setupUnitNum, setSetupUnitNum] = useState("");
   const [setupTransfer, setSetupTransfer] = useState(false);
 
+  // Registration limit
+  const [regLimited, setRegLimited] = useState(false);
+  const [regLimitMsg, setRegLimitMsg] = useState("");
+  useEffect(() => {
+    fetch(`${API}/api/settings`).then(r => r.json()).then(d => {
+      const rl = d.registration_limit;
+      if (rl?.closed) { setRegLimited(true); setRegLimitMsg(rl.message || ""); }
+    }).catch(() => {});
+  }, []);
+
   // Step 4: メール認証
   const [setupEmail, setSetupEmail] = useState("");
   const [setupEmailPw, setSetupEmailPw] = useState("");
@@ -653,14 +663,26 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
               </div>
             </div>
 
+            {regLimited && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "10px 14px",
+                borderRadius: 10, border: `1px solid ${T.red}30`,
+                background: `${T.red}08`, marginBottom: 12,
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.red} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div style={{ fontSize: 12, color: T.txD, lineHeight: 1.5 }}>
+                  {regLimitMsg || "現在、新規登録の受付人数が上限に達しています。既存ユーザーのログインは可能です。"}
+                </div>
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button onClick={() => { if (!privacyAgreed) return; setMode("signup"); setStep(0); setError(null); }} style={{
+              <button onClick={() => { if (!privacyAgreed || regLimited) return; setMode("signup"); setStep(0); setError(null); }} style={{
                 width: "100%", padding: "12px 0", borderRadius: 12, border: "none",
-                background: privacyAgreed ? T.accent : `${T.accent}40`,
+                background: privacyAgreed && !regLimited ? T.accent : `${T.accent}40`,
                 color: "#fff", fontSize: 15, fontWeight: 700,
-                cursor: privacyAgreed ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                transition: "background .15s",
-              }}>{ICN.signup} 新規登録</button>
+                cursor: privacyAgreed && !regLimited ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                transition: "background .15s", opacity: regLimited ? 0.5 : 1,
+              }}>{ICN.signup} 新規登録{regLimited ? "（受付停止中）" : ""}</button>
               <button onClick={() => { if (!privacyAgreed) return; setMode("login"); setError(null); }} style={{
                 width: "100%", padding: "12px 0", borderRadius: 12,
                 border: `1px solid ${privacyAgreed ? T.bd : T.bd + "60"}`,
@@ -774,7 +796,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
 
             <div style={{ textAlign: "center", marginTop: 20 }}>
               <span style={{ fontSize: 13, color: T.txD }}>アカウントをお持ちでない方は</span>
-              <button onClick={() => { setMode("signup"); setStep(0); setError(null); }} style={{ background: "none", border: "none", color: T.accent, fontSize: 13, fontWeight: 600, cursor: "pointer", padding: "0 4px" }}>新規登録</button>
+              <button onClick={() => { if (regLimited) return; setMode("signup"); setStep(0); setError(null); }} style={{ background: "none", border: "none", color: regLimited ? T.txD : T.accent, fontSize: 13, fontWeight: 600, cursor: regLimited ? "default" : "pointer", padding: "0 4px", opacity: regLimited ? 0.5 : 1 }}>{regLimited ? "新規登録（受付停止中）" : "新規登録"}</button>
             </div>
           </div>
         </div>

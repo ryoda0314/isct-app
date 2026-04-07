@@ -9,10 +9,21 @@ export async function GET() {
     const settings = {};
     (data || []).forEach(s => { settings[s.key] = s.value; });
 
+    const regLimit = settings.registration_limit || { enabled: false, maxUsers: 0, message: '' };
+    let regClosed = false;
+    if (regLimit.enabled) {
+      if (regLimit.maxUsers <= 0) {
+        regClosed = true; // 0 = 完全停止
+      } else {
+        const { count } = await sb.from('profiles').select('moodle_id', { count: 'exact', head: true });
+        regClosed = count >= regLimit.maxUsers;
+      }
+    }
     return NextResponse.json({
       telecom_restriction: settings.telecom_restriction || { enabled: false, message: '' },
       maintenance_mode: settings.maintenance_mode || { enabled: false, message: '' },
       feature_flags: settings.feature_flags || {},
+      registration_limit: { closed: regClosed, message: regLimit.message },
     });
   } catch (e) {
     console.error('[Settings GET]', e);

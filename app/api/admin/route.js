@@ -791,6 +791,20 @@ export async function POST(request) {
       return NextResponse.json({ ok: true });
     }
 
+    // --- Registration limit toggle (新規登録人数制限) ---
+    if (action === 'toggle_registration_limit') {
+      const { enabled, maxUsers, message } = body;
+      const max = Math.max(0, parseInt(maxUsers) || 0);
+      const { error } = await sb.from('site_settings').upsert({
+        key: 'registration_limit',
+        value: { enabled: !!enabled, maxUsers: max, message: message || '', updatedAt: new Date().toISOString() },
+        updated_by: auth.userid, updated_at: new Date().toISOString(),
+      }, { onConflict: 'key' });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
+      await auditLog(sb, auth.userid, enabled ? 'enable_registration_limit' : 'disable_registration_limit', 'setting', 'registration_limit', { maxUsers: max });
+      return NextResponse.json({ ok: true });
+    }
+
     // --- Clear syllabus schedule cache ---
     if (action === 'clear_schedule_cache') {
       const { clearScheduleCache } = await import('../../../lib/api/syllabus-scraper.js');
