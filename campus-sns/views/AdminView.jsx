@@ -1035,7 +1035,7 @@ const FEATURE_FLAGS = [
 // ---- Syllabus / Timetable Tab ----
 const DAY_LABELS = ["月", "火", "水", "木", "金"];
 const PERIOD_LABELS = ["1-2", "3-4", "5-6", "7-8", "9-10"];
-const PERIOD_TIMES = ["8:50–10:30", "10:45–12:25", "13:20–15:00", "15:15–16:55", "17:10–18:50"];
+const PERIOD_TIMES = ["8:50–10:30", "10:45–12:25", "13:30–15:10", "15:25–17:05", "17:15–18:55"];
 
 const SyllabusTab = () => {
   const [data, setData] = useState(null);

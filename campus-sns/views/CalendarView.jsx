@@ -9,7 +9,7 @@ const DAYS=["月","火","水","木","金","土","日"];
 const COLORS=["#6375f0","#e5534b","#3dae72","#a855c7","#d4843e","#c6a236","#2d9d8f","#c75d8e"];
 const dKey=d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 const isSameDay=(a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
-const PD=[{s:[8,50],e:[10,30],l:"1限"},{s:[10,45],e:[12,25],l:"2限"},{s:[13,20],e:[15,0],l:"3限"},{s:[15,15],e:[16,55],l:"4限"},{s:[17,10],e:[18,50],l:"5限"}];
+const PD=[{s:[8,50],e:[10,30],l:"1限"},{s:[10,45],e:[12,25],l:"2限"},{s:[13,30],e:[15,10],l:"3限"},{s:[15,25],e:[17,5],l:"4限"},{s:[17,15],e:[18,55],l:"5限"}];
 const PRESETS=[
   {label:"バイト",color:"#d4843e",time:"17:00",endTime:"22:00"},
   {label:"ゼミ",color:"#a855c7",time:"13:00",endTime:"15:00"},

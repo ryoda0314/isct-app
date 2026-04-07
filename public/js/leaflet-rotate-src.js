@@ -570,18 +570,15 @@
          * @listens L.Map~rotate
          */
         getEvents: function() {
-            var events = L.extend(rendererProto.getEvents.apply(this, arguments), {
-                rotate: this._update,
+            // Use _onZoom (→ _updateTransform: CSS scale+translate only)
+            // for rotate events — NOT _update. The problem with _update is
+            // that it changes the SVG viewBox origin without re-projecting
+            // path coordinates, causing a viewBox/path desync that drifts.
+            // _onZoom only recomputes the CSS transform, keeping the viewBox
+            // and path coordinates consistent from the last full _reset.
+            return L.extend(rendererProto.getEvents.apply(this, arguments), {
+                rotate: this._onZoom,
             });
-            // When rotation is enabled, force full SVG re-projection (not
-            // just a CSS scale+translate) on every zoom event. The rotate
-            // plugin's layered coordinate transforms cause the lightweight
-            // _updateTransform shortcut to drift. _reset re-projects all
-            // path coordinates so overlays stay pinned to the map.
-            if (this._map && this._map._rotate) {
-                events.zoom = this._reset;
-            }
-            return events;
         },
 
         /**
