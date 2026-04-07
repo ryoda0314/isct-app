@@ -258,30 +258,58 @@ export default function App(){
   const [splashPhase,setSplashPhase]=useState("show");
   const [telecomRestricted,setTelecomRestricted]=useState(false);
   const [telecomMsg,setTelecomMsg]=useState("");
+  const [lmsDown,setLmsDown]=useState(false);
 
   const lastAsnErrorRef=useRef(false);
   const startupBusyRef=useRef(true);
+
+  /** Apply fetched (or cached) data to state. Returns asnList or false. */
+  const applyData=(d)=>{
+    if(d.qData) setQDataLive(d.qData);
+    if(d.courses){setAllCourses(d.courses);if(d.courses[0]&&!cid)setCid(d.courses[0].id);}
+    const asnList=d.assignments?d.assignments.map(a=>({...a,due:new Date(a.due),st:'loading'})):[];
+    if(d.assignments) setAsgn(prev=>{
+      if(!prev||prev.length===0) return asnList;
+      const m={};prev.forEach(p=>{if(p.st&&p.st!=='loading') m[p.id]=p;});
+      return asnList.map(a=>{const p=m[a.id];return p?{...a,st:p.st,sub:p.sub}:a;});
+    });
+    if(d.user) setCurrentUserFromAPI(d.user);
+    lastAsnErrorRef.current=!!d.assignmentError;
+    return asnList;
+  };
+
+  /** Try to restore from localStorage cache. Returns asnList or false. */
+  const loadCachedData=()=>{
+    try{
+      const raw=localStorage.getItem('dataAllCache');
+      if(!raw) return false;
+      const d=JSON.parse(raw);
+      console.log('[App] loading cached data from localStorage');
+      const asnList=applyData(d);
+      setLmsDown(true);
+      return asnList;
+    }catch(e){console.error('[App] cache load error:',e);return false;}
+  };
+
   const fetchData=async()=>{
     try{
       const t0=performance.now();
       const r=await fetch(`${API}/api/data/all`);
       console.log(`[Timing] /api/data/all fetch: ${(performance.now()-t0).toFixed(0)}ms`);
       if(r.status===401){console.warn('[App] fetchData: 401 — not authenticated');setAppState("setup");return false;}
-      if(!r.ok){console.error(`[App] /api/data/all failed: ${r.status} ${r.statusText}`);return false;}
+      if(r.status===503){
+        console.warn('[App] fetchData: 503 — LMS down, trying cache');
+        return loadCachedData();
+      }
+      if(!r.ok){console.error(`[App] /api/data/all failed: ${r.status} ${r.statusText}`);return loadCachedData();}
       const d=await r.json();
-      if(d.qData) setQDataLive(d.qData);
-      if(d.courses){setAllCourses(d.courses);if(d.courses[0]&&!cid)setCid(d.courses[0].id);}
-      const asnList=d.assignments?d.assignments.map(a=>({...a,due:new Date(a.due),st:'loading'})):[];
-      if(d.assignments) setAsgn(prev=>{
-        if(!prev||prev.length===0) return asnList;
-        const m={};prev.forEach(p=>{if(p.st&&p.st!=='loading') m[p.id]=p;});
-        return asnList.map(a=>{const p=m[a.id];return p?{...a,st:p.st,sub:p.sub}:a;});
-      });
-      if(d.user) setCurrentUserFromAPI(d.user);
-      lastAsnErrorRef.current=!!d.assignmentError;
+      // Cache successful response
+      try{localStorage.setItem('dataAllCache',JSON.stringify(d));}catch{}
+      setLmsDown(false);
+      const asnList=applyData(d);
       console.log(`[Timing] /api/data/all total (fetch+parse+setState): ${(performance.now()-t0).toFixed(0)}ms${d.assignmentError?' [assignmentError]':''}`);
       return asnList;
-    }catch(e){ console.error("[App] fetchData exception:",e); return false; }
+    }catch(e){ console.error("[App] fetchData exception:",e); return loadCachedData(); }
   };
 
   const fetchSubmissionStatuses=async(assignList)=>{
@@ -609,6 +637,11 @@ export default function App(){
     </div>;
   };
 
+  const lmsDownBanner=lmsDown?<div style={{padding:"8px 16px",background:"#fef3cd",color:"#856404",fontSize:13,fontWeight:500,textAlign:"center",borderBottom:"1px solid #ffc107",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+    <span style={{fontSize:16}}>!</span>
+    <span>T2SCHOLAに接続できないため、前回のデータを表示しています</span>
+    <button onClick={async()=>{const r=await fetchData();if(r)setLmsDown(false);}} style={{marginLeft:8,padding:"3px 10px",borderRadius:6,border:"1px solid #856404",background:"transparent",color:"#856404",fontSize:12,cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}}>再試行</button>
+  </div>:null;
   const TR=telecomRestricted;
   const courseContent=()=>{
     if(!cc) return null;
@@ -695,6 +728,7 @@ export default function App(){
         {bp==="desktop"&&view==="dept"&&cd&&<DChan dept={cd} ch={ch} setCh={setCh} online={online} members={deptMembers}/>}
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
           <DTop title={dTitle()} color={view==="course"&&cc?cc.col:view==="dept"&&cd?cd.col:undefined}/>
+          {lmsDownBanner}
           {view==="home"&&<HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit}/>}
           {view==="timetable"&&(L?<LockedView title="時間割"/>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob={false} quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
           {view==="tasks"&&(L?<LockedView title="課題管理"/>:<AsgnView asgn={asgn} setAsgn={setAsgn} mob={false} myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/>)}
@@ -732,6 +766,7 @@ export default function App(){
   return(
     <div ref={el=>{if(!el)return;const pwa=window.matchMedia("(display-mode:standalone)").matches||window.navigator.standalone;const u=()=>{el.style.height=pwa?screen.height+"px":"100dvh";};u();window.addEventListener("resize",u);}} style={{display:"flex",flexDirection:"column",width:"100vw",overflow:"hidden",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0,position:"relative"}}>
+        {lmsDownBanner}
         {view==="home"&&<><MHdr title="ScienceTokyo App" right={<div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>setView("notif")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</button><button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button><button onClick={()=>setView("profile")} style={{background:"none",border:"none",cursor:"pointer",display:"flex",padding:0}}><Av u={user} sz={26}/></button></div>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit}/></>}
         {view==="timetable"&&(L?<><MHdr title="時間割"/><LockedView title="時間割"/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
         {view==="tasks"&&(L?<><MHdr title="課題管理"/><LockedView title="課題管理"/></>:<><MHdr title="課題管理"/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/></>)}

@@ -121,6 +121,9 @@ export async function GET(request) {
     return NextResponse.json(resp);
   } catch (err) {
     console.error('[All] Unhandled error:', err.message, err.stack);
+    if (err.code === 'MOODLE_HTML_RESPONSE' || err.code === 'MOODLE_INVALID_JSON') {
+      return NextResponse.json({ error: 'LMS is currently unavailable', lmsDown: true }, { status: 503 });
+    }
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
