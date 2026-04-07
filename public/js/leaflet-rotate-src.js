@@ -449,10 +449,10 @@
         getEvents: function() {
             var events = L.extend(markerProto.getEvents.apply(this, arguments), { rotate: this.update });
             if (this._map && this._map._rotate) {
-                // Override zoom handler: the default Marker._onZoom skips
-                // update() when _zoomAnimated is true, but during pinch-to-zoom
-                // only the 'zoom' event fires (not 'zoomanim'), so markers
-                // would never reposition and drift from the map tiles.
+                // The default Marker._onZoom skips update() when _zoomAnimated
+                // is true, but during pinch-to-zoom only 'zoom'/'move' events
+                // fire (not 'zoomanim'), so markers would never reposition.
+                // Override both zoom and move to keep markers aligned with tiles.
                 events.zoom = this.update;
             }
             return events;
@@ -570,7 +570,24 @@
          * @listens L.Map~rotate
          */
         getEvents: function() {
-            return L.extend(rendererProto.getEvents.apply(this, arguments), { rotate: this._update });
+            return L.extend(rendererProto.getEvents.apply(this, arguments), {
+                rotate: this._onRotate,
+            });
+        },
+
+        /**
+         * On rotate: only refresh internal state (_topLeft, _center, _zoom)
+         * without full SVG redraw. During pinch gestures, setBearing and _move
+         * are batched in the same animation frame — _move fires 'zoom' which
+         * triggers _updateTransform to handle positioning. A full _update
+         * (SVG path re-project) happens on moveend.
+         */
+        _onRotate: function() {
+            if (!this._map || !this._map._rotate) return;
+            this._bounds = this._map._getPaddedPixelBounds(this.options.padding);
+            this._topLeft = this._map.layerPointToLatLng(this._bounds.min);
+            this._center = this._map.getCenter();
+            this._zoom = this._map.getZoom();
         },
 
         /**
@@ -1531,20 +1548,14 @@
                 scale = p1.distanceTo(p2) / this._startDist,
                 delta;
 
+            // Compute pending bearing (applied later in the same animation frame as _move)
+            this._pendingBearing = null;
             if (this._rotating) {
                 var theta = Math.atan(vector.x / vector.y);
                 var bearingDelta = (theta - this._startTheta) * L.DomUtil.RAD_TO_DEG;
                 if (vector.y < 0) { bearingDelta += 180; }
                 if (bearingDelta) {
-                    /**
-                     * @TODO the pivot should be the last touch point,
-                     * but zoomAnimation manages to overwrite the rotate
-                     * pane position. Maybe related to #3529.
-                     * 
-                     * @see https://github.com/Leaflet/Leaflet/pull/3529
-                     * @see https://github.com/fnicollet/Leaflet/commit/a77af51a6b10f308d1b9a16552091d1d0aee8834
-                     */
-                    map.setBearing(this._startBearing - bearingDelta);
+                    this._pendingBearing = this._startBearing - bearingDelta;
                 }
             }
 
@@ -1559,13 +1570,14 @@
 
                 if (map.options.touchZoom === 'center') {
                     this._center = this._startLatLng;
-                    if (scale === 1) { return; }
+                    if (scale === 1 && this._pendingBearing === null) { return; }
                 } else {
                     // Get delta from pinch to center, so centerLatLng is delta applied to initial pinchLatLng
                     delta = p1._add(p2)._divideBy(2)._subtract(this._centerPoint);
-                    if (scale === 1 && delta.x === 0 && delta.y === 0) { return; }
+                    if (scale === 1 && delta.x === 0 && delta.y === 0 && this._pendingBearing === null) { return; }
 
-                    var alpha = -map.getBearing() * L.DomUtil.DEG_TO_RAD;
+                    var currentBearing = this._pendingBearing !== null ? this._pendingBearing : map.getBearing();
+                    var alpha = -currentBearing * L.DomUtil.DEG_TO_RAD;
 
                     this._center = map.unproject(map.project(this._pinchStartLatLng).subtract(delta.rotate(alpha)));
                 }
@@ -1579,8 +1591,17 @@
 
             L.Util.cancelAnimFrame(this._animRequest);
 
-            var moveFn = map._move.bind(map, this._center, this._zoom, { pinch: true, round: false }, undefined);
-            this._animRequest = L.Util.requestAnimFrame(moveFn, this, true);
+            // Batch setBearing and _move in the same animation frame so that
+            // all layers (tiles, SVG renderer, markers) update atomically.
+            // Previously setBearing was called synchronously while _move was
+            // deferred, causing a 1-frame desync between rotated overlays and tiles.
+            var self = this;
+            this._animRequest = L.Util.requestAnimFrame(function() {
+                if (self._pendingBearing !== null) {
+                    map.setBearing(self._pendingBearing);
+                }
+                map._move(self._center, self._zoom, { pinch: true, round: false });
+            }, this, true);
 
             L.DomEvent.preventDefault(e);
         },
