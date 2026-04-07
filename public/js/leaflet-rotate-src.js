@@ -570,9 +570,18 @@
          * @listens L.Map~rotate
          */
         getEvents: function() {
-            return L.extend(rendererProto.getEvents.apply(this, arguments), {
+            var events = L.extend(rendererProto.getEvents.apply(this, arguments), {
                 rotate: this._update,
             });
+            // When rotation is enabled, force full SVG re-projection (not
+            // just a CSS scale+translate) on every zoom event. The rotate
+            // plugin's layered coordinate transforms cause the lightweight
+            // _updateTransform shortcut to drift. _reset re-projects all
+            // path coordinates so overlays stay pinned to the map.
+            if (this._map && this._map._rotate) {
+                events.zoom = this._reset;
+            }
+            return events;
         },
 
         /**
