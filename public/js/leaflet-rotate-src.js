@@ -447,7 +447,15 @@
          * @listens L.Map~rotate
          */
         getEvents: function() {
-            return L.extend(markerProto.getEvents.apply(this, arguments), { rotate: this.update });
+            var events = L.extend(markerProto.getEvents.apply(this, arguments), { rotate: this.update });
+            if (this._map && this._map._rotate) {
+                // Override zoom handler: the default Marker._onZoom skips
+                // update() when _zoomAnimated is true, but during pinch-to-zoom
+                // only the 'zoom' event fires (not 'zoomanim'), so markers
+                // would never reposition and drift from the map tiles.
+                events.zoom = this.update;
+            }
+            return events;
         },
 
         _initInteraction: function() {
@@ -601,20 +609,14 @@
             if (!this._map._rotate) {
                 return rendererProto._updateTransform.apply(this, arguments);
             }
-            // Compute pixel origin WITHOUT .round() to prevent sub-pixel
-            // rounding errors from being amplified by the zoom scale factor,
-            // which caused visible polyline/SVG drift during zoom animation.
+            /**
+             * @FIXME see path._renderer._reset();
+             */
             var scale = this._map.getZoomScale(zoom, this._zoom),
-                viewHalf = this._map.getSize()._divideBy(2),
-                newPixelOrigin = this._map.project(center, zoom)
-                    .rotate(this._map._bearing)
-                    ._subtract(viewHalf)
-                    ._add(this._map._getMapPanePos())
-                    ._add(this._map._getRotatePanePos())
-                    .rotate(-this._map._bearing),
-                offset = this._map.project(this._topLeft, zoom)._subtract(newPixelOrigin);
+                offset = this._map._latLngToNewLayerPoint(this._topLeft, zoom, center);
 
             L.DomUtil.setTransform(this._container, offset, scale);
+
         },
 
         // getEvents() {
