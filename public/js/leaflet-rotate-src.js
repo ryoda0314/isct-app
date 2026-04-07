@@ -601,14 +601,20 @@
             if (!this._map._rotate) {
                 return rendererProto._updateTransform.apply(this, arguments);
             }
-            /**
-             * @FIXME see path._renderer._reset();
-             */
+            // Compute pixel origin WITHOUT .round() to prevent sub-pixel
+            // rounding errors from being amplified by the zoom scale factor,
+            // which caused visible polyline/SVG drift during zoom animation.
             var scale = this._map.getZoomScale(zoom, this._zoom),
-                offset = this._map._latLngToNewLayerPoint(this._topLeft, zoom, center);
+                viewHalf = this._map.getSize()._divideBy(2),
+                newPixelOrigin = this._map.project(center, zoom)
+                    .rotate(this._map._bearing)
+                    ._subtract(viewHalf)
+                    ._add(this._map._getMapPanePos())
+                    ._add(this._map._getRotatePanePos())
+                    .rotate(-this._map._bearing),
+                offset = this._map.project(this._topLeft, zoom)._subtract(newPixelOrigin);
 
             L.DomUtil.setTransform(this._container, offset, scale);
-            
         },
 
         // getEvents() {
