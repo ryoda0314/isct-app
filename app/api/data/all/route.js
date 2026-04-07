@@ -39,13 +39,9 @@ async function resolveStudentId(loginId, profileStudentId) {
 
 export async function GET(request) {
   try {
-    const T0 = Date.now();
-    const lap = (label) => console.log(`[All Timing] ${label}: ${Date.now() - T0}ms`);
-
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
     const { wstoken, userid, fullname } = auth;
-    lap('requireAuth');
 
     // Courses + schedule from syllabus
     const sb = getSupabaseAdmin();
@@ -53,7 +49,6 @@ export async function GET(request) {
       fetchUserCourses(wstoken, userid),
       sb.from('profiles').select('dept, year_group, unit, student_id').eq('moodle_id', userid).maybeSingle().then(r => r.data),
     ]);
-    lap(`fetchUserCourses (${raw?.length ?? 0} courses) + profile`);
 
     let scheduleMap = {};
     try {
@@ -61,10 +56,8 @@ export async function GET(request) {
     } catch (e) {
       console.error('[All] Syllabus scrape failed:', e.message);
     }
-    lap(`fetchScheduleForCourses (${Object.keys(scheduleMap).length} entries)`);
 
     const courses = transformCourses(raw, scheduleMap, profileRow?.dept || null);
-    lap('transformCourses');
 
     // Save course enrollments to Supabase (fire-and-forget)
     if (raw && raw.length > 0) {
@@ -102,10 +95,8 @@ export async function GET(request) {
         if (_attempt === 0) await new Promise(r => setTimeout(r, 800));
       }
     }
-    lap(`fetchAssignments (${assignments.length} items${assignmentError ? ' — ERROR' : ''})`);
 
     const isAdmin = await checkAdmin(userid);
-    lap('checkAdmin');
 
     // 学籍番号 / year_group を解決
     let yearGroup = profileRow?.year_group || null;
@@ -125,7 +116,6 @@ export async function GET(request) {
       }
     }
 
-    lap('=== TOTAL ===');
     const resp = { qData, courses, assignments, user: { userid, fullname, isAdmin, dept: profileRow?.dept || null, yearGroup, unit: profileRow?.unit || null, studentId } };
     if (assignmentError) resp.assignmentError = true;
     return NextResponse.json(resp);
