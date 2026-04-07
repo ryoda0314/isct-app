@@ -64,6 +64,9 @@ export function setCurrentUserFromAPI(d) {
   if (d.unit && pref.myUnit !== d.unit) { pref = { ...pref, myUnit: d.unit }; changed = true; }
   const effectiveYG = d.yearGroup || cached.yearGroup;
   if (effectiveYG && pref.yearGroup !== effectiveYG) { pref = { ...pref, yearGroup: effectiveYG }; changed = true; }
+  // DB にアバター/カラーがあり、ローカルにまだ無い場合は DB の値を反映
+  if (d.avatar && !pref.av) { pref = { ...pref, av: d.avatar }; changed = true; }
+  if (d.color && !pref.col) { pref = { ...pref, col: d.color }; changed = true; }
   if (changed) { try { localStorage.setItem("userPref", JSON.stringify(pref)); } catch {} }
 
   notify();
@@ -95,6 +98,20 @@ export function updateUserPref(patch) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ yearGroup: patch.yearGroup }),
+    }).catch(() => {});
+  }
+  if ('av' in patch) {
+    fetch('/api/auth/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ avatar: patch.av || null }),
+    }).catch(() => {});
+  }
+  if ('col' in patch) {
+    fetch('/api/auth/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ color: patch.col || null }),
     }).catch(() => {});
   }
 }

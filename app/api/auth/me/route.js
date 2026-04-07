@@ -44,7 +44,7 @@ export async function GET(request) {
     const sb = getSupabaseAdmin();
     const [isAdmin, profile] = await Promise.all([
       checkAdmin(auth.userid),
-      sb.from('profiles').select('banned, ban_reason, dept, year_group, unit, student_id').eq('moodle_id', auth.userid).maybeSingle().then(r => r.data),
+      sb.from('profiles').select('banned, ban_reason, dept, year_group, unit, student_id, avatar, color').eq('moodle_id', auth.userid).maybeSingle().then(r => r.data),
     ]);
 
     if (profile?.banned) {
@@ -78,7 +78,7 @@ export async function GET(request) {
       }
     }
 
-    return NextResponse.json({ userid: auth.userid, fullname: auth.fullname, isAdmin, dept: profile?.dept || null, yearGroup, unit: profile?.unit || null, studentId });
+    return NextResponse.json({ userid: auth.userid, fullname: auth.fullname, isAdmin, dept: profile?.dept || null, yearGroup, unit: profile?.unit || null, studentId, avatar: profile?.avatar || null, color: profile?.color || null });
   } catch (err) {
     console.error('[AuthMe] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
@@ -118,6 +118,28 @@ export async function PATCH(request) {
         return NextResponse.json({ error: 'Invalid yearGroup' }, { status: 400 });
       }
       updates.year_group = yg;
+    }
+
+    // avatar: data URI, preset SVG, single character, or null
+    if ('avatar' in body) {
+      const av = body.avatar;
+      if (av !== null && typeof av !== 'string') {
+        return NextResponse.json({ error: 'Invalid avatar' }, { status: 400 });
+      }
+      // data URI は最大 100KB に制限
+      if (av && av.length > 100000) {
+        return NextResponse.json({ error: 'Avatar too large' }, { status: 400 });
+      }
+      updates.avatar = av || null;
+    }
+
+    // color: hex color code or null
+    if ('color' in body) {
+      const col = body.color;
+      if (col !== null && (typeof col !== 'string' || col.length > 20)) {
+        return NextResponse.json({ error: 'Invalid color' }, { status: 400 });
+      }
+      updates.color = col || null;
     }
 
     if (Object.keys(updates).length === 0) {
