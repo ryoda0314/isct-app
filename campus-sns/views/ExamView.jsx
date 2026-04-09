@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { PERIOD_TIMES } from "../examData.js";
+import { isDemoMode } from "../demoMode.js";
+import { DEMO_EXAMS } from "../demoData.js";
 
 const API = "";
 
@@ -48,6 +50,12 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
   const [loading, setLoading] = useState(true);
 
   const fetchExams = useCallback((year, quarter) => {
+    if (isDemoMode()) {
+      const filtered = (DEMO_EXAMS.exams || []).filter(e => (!year || e.year === year) && (!quarter || e.quarter === Number(quarter)));
+      setAllExams(filtered);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const params = new URLSearchParams();
     if (year) params.set("year", year);
@@ -64,6 +72,14 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
 
   // 初回: クォーター一覧取得 → 最新を自動選択
   useEffect(() => {
+    if (isDemoMode()) {
+      const qs = DEMO_EXAMS.quarters || [];
+      setQuarters(qs);
+      setAllExams(DEMO_EXAMS.exams || []);
+      if (qs.length > 0) { setSelYear(qs[0].year); setSelQ(qs[0].quarter); }
+      setLoading(false);
+      return;
+    }
     fetch(`${API}/api/exams`)
       .then(r => r.json())
       .then(d => {

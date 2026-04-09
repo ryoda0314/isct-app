@@ -1498,12 +1498,29 @@ function buildDemoDataForPersona(personaId) {
   return { courses: allCourses, qdata, asgn, user };
 }
 
+// ── 期末試験（デモ用） ──
+const DEMO_EXAMS = {
+  quarters: [
+    { year: "2026", quarter: 2, label: "2026年度 2Q" },
+    { year: "2025", quarter: 4, label: "2025年度 4Q" },
+  ],
+  exams: [
+    // 2Q 期末試験 — デモコースに対応
+    { date: "2026-06-18", day: "水", period: "1-2", code: "LAS.A101", code_raw: "LAS.A101", name: "英語第二 S", instructor: "Smith J.", room: "W9-31", year: "2026", quarter: 2 },
+    { date: "2026-06-19", day: "木", period: "3-4", code: "MCS.T213", code_raw: "MCS.T213", name: "確率と統計", instructor: "木村 真理", room: "W5-21", year: "2026", quarter: 2 },
+    { date: "2026-06-20", day: "金", period: "1-2", code: "CSC.T263", code_raw: "CSC.T263", name: "コンピュータアーキテクチャ", instructor: "加藤 浩一", room: "W6-31", year: "2026", quarter: 2 },
+    { date: "2026-06-23", day: "月", period: "3-4", code: "CSC.T243", code_raw: "CSC.T243", name: "データ構造とアルゴリズム", instructor: "鈴木 太郎", room: "W6-31", year: "2026", quarter: 2 },
+    { date: "2026-06-24", day: "火", period: "1-2", code: "MCS.T223", code_raw: "MCS.T223", name: "線形代数学第二", instructor: "松田 健", room: "W5-21", year: "2026", quarter: 2 },
+    { date: "2026-06-24", day: "火", period: "5-6", code: "CSC.T253", code_raw: "CSC.T253", name: "論理と形式言語", instructor: "伊藤 正", room: "S2-203", year: "2026", quarter: 2 },
+  ],
+};
+
 export {
   DEMO_COURSES, DEMO_QDATA, DEMO_ASGN, DEMO_GRADES, DEMO_ATT,
   DEMO_USER, DEMO_EVENTS, DEMO_REVIEWS, DEMO_MY_EVENTS, DEMO_TASKS,
   DEMO_FRIENDS, DEMO_FRIEND_PENDING, DEMO_FRIEND_SENT,
   DEMO_DM_CONVERSATIONS, DEMO_GROUPS, DEMO_NOTIFICATIONS,
   DEMO_POSTS, DEMO_CIRCLES, DEMO_CIRCLE_MESSAGES, DEMO_DISCOVER_CIRCLES,
-  DEMO_CHAT_MESSAGES,
+  DEMO_CHAT_MESSAGES, DEMO_EXAMS,
   DEMO_PERSONAS, buildDemoDataForPersona
 };

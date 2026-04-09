@@ -10,6 +10,7 @@ import { PERIOD_TIMES } from "../examData.js";
 import { isNative } from "../capacitor.js";
 import { openPortal, openIsctPortal } from "../plugins/portalWebView.js";
 import { isDemoMode } from "../demoMode.js";
+import { DEMO_EXAMS } from "../demoData.js";
 import { AnnouncementBanner } from "../AnnouncementBanner.jsx";
 
 // SVG weather icons — clean, consistent style
@@ -78,7 +79,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
     const tid=setInterval(()=>setNow(new Date()),60000);
     return()=>clearInterval(tid);
   },[]);
-  useEffect(()=>{fetch("/api/exams").then(r=>r.json()).then(d=>setExams(d.exams||[])).catch(()=>{});},[]);
+  useEffect(()=>{if(isDemoMode()){setExams(DEMO_EXAMS.exams||[]);return;}fetch("/api/exams").then(r=>r.json()).then(d=>setExams(d.exams||[])).catch(()=>{});},[]);
   const myExams=useMemo(()=>{
     if(!courses?.length||!exams.length)return [];
     const rawSet=new Set(),baseSet=new Set();
