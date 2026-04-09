@@ -21,10 +21,19 @@ const CAPACITOR_ORIGINS = new Set([
  *   (default)   → { portalUserId, portalPassword, matrix }
  */
 export async function GET(request) {
+  // Debug: log all relevant headers
+  const origin = request.headers.get('origin');
+  const referer = request.headers.get('referer');
+  const ua = request.headers.get('user-agent');
+  const host = request.headers.get('host');
+  const platform = request.headers.get('x-app-platform');
+  console.log('[credentials] origin=%s referer=%s host=%s platform=%s ua=%s', origin, referer, host, platform, ua?.slice(0, 80));
+  console.log('[credentials] CAPACITOR_ORIGINS has origin:', CAPACITOR_ORIGINS.has(origin));
+
   // Origin ヘッダーで Capacitor ネイティブアプリからのリクエストか検証
   // x-app-platform ヘッダーはブラウザから偽装可能だが、Origin は偽装不可
-  const origin = request.headers.get('origin');
   if (!origin || !CAPACITOR_ORIGINS.has(origin)) {
+    console.log('[credentials] REJECTED: origin=%s not in allowed set', origin);
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

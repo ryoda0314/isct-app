@@ -331,7 +331,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               try{
                 if(isNative()){
                   const r=await fetch("/api/auth/credentials",{headers:{"x-app-platform":"capacitor"}});
-                  if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||"ポータル認証情報の取得に失敗しました");}
+                  if(!r.ok){const b=await r.json().catch(()=>({}));alert(`[Portal DEBUG] status=${r.status} error=${b.error||'unknown'} url=${r.url}`);throw new Error(b.error||"ポータル認証情報の取得に失敗しました");}
                   const{portalUserId,portalPassword,matrix}=await r.json();
                   await openPortal({userId:portalUserId,password:portalPassword,matrix});
                 }else{
@@ -353,7 +353,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               try{
                 if(isNative()){
                   const r=await fetch("/api/auth/credentials?type=isct",{headers:{"x-app-platform":"capacitor"}});
-                  if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||"ISCT認証情報の取得に失敗しました");}
+                  if(!r.ok){const b=await r.json().catch(()=>({}));alert(`[ISCT DEBUG] status=${r.status} error=${b.error||'unknown'} url=${r.url}`);throw new Error(b.error||"ISCT認証情報の取得に失敗しました");}
                   const{userId,password,totpCode}=await r.json();
                   await openIsctPortal({userId,password,totpCode});
                 }else{
