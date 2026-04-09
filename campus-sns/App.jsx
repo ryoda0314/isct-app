@@ -45,6 +45,7 @@ import { useBlocks } from "./hooks/useBlocks.js";
 import { useMutes } from "./hooks/useMutes.js";
 import { useOfflineQueue } from "./hooks/useOfflineQueue.js";
 import { useGroups } from "./hooks/useGroups.js";
+import { fetchUserCourses as moodleFetchCourses, fetchAssignments as moodleFetchAssignments, fetchSubmissionStatus as moodleFetchSubmissionStatus } from "./moodleClient.js";
 import { useCircles } from "./hooks/useCircles.js";
 import { Toasts } from "./hooks/useToast.js";
 import { useBookmarks } from "./hooks/useBookmarks.js";
@@ -291,25 +292,94 @@ export default function App(){
     }catch(e){console.error('[App] cache load error:',e);return false;}
   };
 
+  /** Client-side Moodle API flow: fetch token, call Moodle directly, then send to server for transforms */
+  const fetchDataClientSide=async()=>{
+    const t0=performance.now();
+    // Step 1: Get token from server
+    const tokenR=await fetch(`${API}/api/auth/token`);
+    if(tokenR.status===401){setAppState("setup");return false;}
+    if(!tokenR.ok) throw new Error(`token fetch failed: ${tokenR.status}`);
+    const{wstoken,userid}=await tokenR.json();
+    console.log(`[Timing] client-side: token fetch ${(performance.now()-t0).toFixed(0)}ms`);
+
+    // Step 2: Call Moodle API directly from client
+    const rawCourses=await moodleFetchCourses(wstoken,userid);
+    console.log(`[Timing] client-side: courses fetch ${(performance.now()-t0).toFixed(0)}ms (${rawCourses.length} courses)`);
+
+    const moodleIds=rawCourses.filter(c=>c.visible!==0).map(c=>c.id);
+    let rawAssignments=null;
+    try{rawAssignments=await moodleFetchAssignments(wstoken,moodleIds);}catch(e){console.error('[App] client-side assignment fetch failed:',e.message);}
+    console.log(`[Timing] client-side: assignments fetch ${(performance.now()-t0).toFixed(0)}ms`);
+
+    // Step 3: Send raw data to server for transforms (syllabus, timetable, profile)
+    const metaR=await fetch(`${API}/api/data/all-meta`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({rawCourses,rawAssignments}),
+    });
+    if(!metaR.ok) throw new Error(`all-meta failed: ${metaR.status}`);
+    const d=await metaR.json();
+    try{localStorage.setItem('dataAllCache',JSON.stringify(d));}catch{}
+    setLmsDown(false);
+    const asnList=applyData(d);
+    console.log(`[Timing] client-side total: ${(performance.now()-t0).toFixed(0)}ms`);
+    return asnList;
+  };
+
+  /** Original server-side flow (fallback) */
+  const fetchDataServerSide=async()=>{
+    const t0=performance.now();
+    const r=await fetch(`${API}/api/data/all`);
+    console.log(`[Timing] /api/data/all fetch: ${(performance.now()-t0).toFixed(0)}ms`);
+    if(r.status===401){console.warn('[App] fetchData: 401 — not authenticated');setAppState("setup");return false;}
+    if(r.status===503){
+      console.warn('[App] fetchData: 503 — LMS down, trying cache');
+      return loadCachedData();
+    }
+    if(!r.ok){console.error(`[App] /api/data/all failed: ${r.status} ${r.statusText}`);return loadCachedData();}
+    const d=await r.json();
+    try{localStorage.setItem('dataAllCache',JSON.stringify(d));}catch{}
+    setLmsDown(false);
+    const asnList=applyData(d);
+    console.log(`[Timing] /api/data/all total: ${(performance.now()-t0).toFixed(0)}ms${d.assignmentError?' [assignmentError]':''}`);
+    return asnList;
+  };
+
   const fetchData=async()=>{
     try{
-      const t0=performance.now();
-      const r=await fetch(`${API}/api/data/all`);
-      console.log(`[Timing] /api/data/all fetch: ${(performance.now()-t0).toFixed(0)}ms`);
-      if(r.status===401){console.warn('[App] fetchData: 401 — not authenticated');setAppState("setup");return false;}
-      if(r.status===503){
-        console.warn('[App] fetchData: 503 — LMS down, trying cache');
+      // Try client-side Moodle API first (bypasses server-side 403 block)
+      return await fetchDataClientSide();
+    }catch(e){
+      console.warn('[App] client-side fetch failed, falling back to server-side:',e.message);
+      try{
+        return await fetchDataServerSide();
+      }catch(e2){
+        console.error('[App] fetchData exception:',e2);
         return loadCachedData();
       }
-      if(!r.ok){console.error(`[App] /api/data/all failed: ${r.status} ${r.statusText}`);return loadCachedData();}
-      const d=await r.json();
-      // Cache successful response
-      try{localStorage.setItem('dataAllCache',JSON.stringify(d));}catch{}
-      setLmsDown(false);
-      const asnList=applyData(d);
-      console.log(`[Timing] /api/data/all total (fetch+parse+setState): ${(performance.now()-t0).toFixed(0)}ms${d.assignmentError?' [assignmentError]':''}`);
-      return asnList;
-    }catch(e){ console.error("[App] fetchData exception:",e); return loadCachedData(); }
+    }
+  };
+
+  /** Client-side submission status fetch — calls Moodle directly */
+  const fetchSubmissionStatusesClientSide=async(currentAsgn,wstoken)=>{
+    const CONCURRENCY=5;
+    const statuses={};
+    for(let i=0;i<currentAsgn.length;i+=CONCURRENCY){
+      const batch=currentAsgn.slice(i,i+CONCURRENCY);
+      await Promise.all(batch.map(async({id,moodleId})=>{
+        try{
+          const status=await moodleFetchSubmissionStatus(wstoken,moodleId);
+          if(!status?.lastattempt?.submission) return;
+          const sub=status.lastattempt.submission;
+          let st='not_started';
+          if(sub.status==='submitted') st='completed';
+          else if(sub.status==='draft') st='in_progress';
+          else if(sub.status==='new'&&sub.timemodified>0) st='in_progress';
+          statuses[id]={st,sub:st==='completed'?new Date(sub.timemodified*1000).toISOString():null};
+        }catch(e){console.error(`[App] client submission status failed for ${id}:`,e.message);}
+      }));
+    }
+    return statuses;
   };
 
   const fetchSubmissionStatuses=async(assignList)=>{
@@ -321,18 +391,35 @@ export default function App(){
       else{setAsgn(prev=>{currentAsgn=pick(prev).map(a=>({id:a.id,moodleId:a.moodleId}));return prev;});}
       if(currentAsgn.length===0)return;
       console.log(`[Timing] fetchSubmissionStatuses: requesting ${currentAsgn.length} items`);
-      const body=JSON.stringify({assignments:currentAsgn});
+
       let statuses=null;
-      for(let attempt=1;attempt<=3;attempt++){
-        try{
-          const r=await fetch(`${API}/api/data/assignments/status`,{method:'POST',headers:{'Content-Type':'application/json'},body});
-          if(!r.ok){console.error(`[App] fetchSubmissionStatuses attempt ${attempt} failed:`,r.status);continue;}
-          const d=await r.json();
-          if(d.statuses&&Object.keys(d.statuses).length>0){statuses=d.statuses;break;}
-          console.warn(`[App] fetchSubmissionStatuses attempt ${attempt}: 0 results, retrying in 3s...`);
-        }catch(e){console.error(`[App] fetchSubmissionStatuses attempt ${attempt} error:`,e.message);}
-        if(attempt<3) await new Promise(r=>setTimeout(r,3000));
+
+      // Try client-side first
+      try{
+        const tokenR=await fetch(`${API}/api/auth/token`);
+        if(tokenR.ok){
+          const{wstoken}=await tokenR.json();
+          statuses=await fetchSubmissionStatusesClientSide(currentAsgn,wstoken);
+          if(Object.keys(statuses).length>0) console.log(`[Timing] client-side submission statuses: ${(performance.now()-t0).toFixed(0)}ms`);
+          else statuses=null;
+        }
+      }catch(e){console.warn('[App] client-side submission status failed, falling back:',e.message);}
+
+      // Fallback to server-side
+      if(!statuses){
+        const body=JSON.stringify({assignments:currentAsgn});
+        for(let attempt=1;attempt<=3;attempt++){
+          try{
+            const r=await fetch(`${API}/api/data/assignments/status`,{method:'POST',headers:{'Content-Type':'application/json'},body});
+            if(!r.ok){console.error(`[App] fetchSubmissionStatuses attempt ${attempt} failed:`,r.status);continue;}
+            const d=await r.json();
+            if(d.statuses&&Object.keys(d.statuses).length>0){statuses=d.statuses;break;}
+            console.warn(`[App] fetchSubmissionStatuses attempt ${attempt}: 0 results, retrying in 3s...`);
+          }catch(e){console.error(`[App] fetchSubmissionStatuses attempt ${attempt} error:`,e.message);}
+          if(attempt<3) await new Promise(r=>setTimeout(r,3000));
+        }
       }
+
       // Merge with cache
       let merged={};
       try{merged=JSON.parse(localStorage.getItem('asnStatusCache')||'{}');}catch{}
