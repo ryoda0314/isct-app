@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
-import { COOKIE_NAME } from '../../../../lib/auth/session.js';
+import { COOKIE_NAME, sessionCookieOptions } from '../../../../lib/auth/session.js';
 import { invalidateToken } from '../../../../lib/auth/token-manager.js';
 import { verifySession } from '../../../../lib/auth/session.js';
+
+/** Cookie deletion options — must match login attributes for browser to actually delete */
+function deleteCookieOptions() {
+  const opts = sessionCookieOptions();
+  opts.maxAge = 0;
+  return opts;
+}
 
 export async function POST(request) {
   try {
@@ -11,11 +18,11 @@ export async function POST(request) {
       invalidateToken(session.loginId);
     }
     const response = NextResponse.json({ success: true });
-    response.cookies.set(COOKIE_NAME, '', { path: '/', maxAge: 0 });
+    response.cookies.set(COOKIE_NAME, '', deleteCookieOptions());
     return response;
   } catch {
     const response = NextResponse.json({ success: true });
-    response.cookies.set(COOKIE_NAME, '', { path: '/', maxAge: 0 });
+    response.cookies.set(COOKIE_NAME, '', deleteCookieOptions());
     return response;
   }
 }

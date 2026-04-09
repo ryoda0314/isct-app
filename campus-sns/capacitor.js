@@ -11,6 +11,29 @@ export function isNative() {
   return typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
 }
 
+/**
+ * Clear all cookies in the native WebView.
+ * Call this on logout to ensure session cookies are fully removed.
+ * On web this is a no-op (the Set-Cookie header handles deletion).
+ */
+export async function clearNativeCookies() {
+  if (!isNative()) return;
+  try {
+    const { CapacitorCookies } = await import('@capacitor/core');
+    await CapacitorCookies.clearAllCookies();
+    console.log('[Capacitor] Cookies cleared');
+  } catch (e) {
+    // Fallback: try clearing via document.cookie
+    try {
+      document.cookie.split(';').forEach(c => {
+        const name = c.split('=')[0].trim();
+        if (name) document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+      });
+      console.log('[Capacitor] Cookies cleared (fallback)');
+    } catch {}
+  }
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '';
 
 /**
