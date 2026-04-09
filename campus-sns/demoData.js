@@ -935,6 +935,20 @@ const DEMO_PERSONAS = [
     q: { 1: CAP_Q1, 2: CAP_Q2, 3: CAP_Q3, 4: CAP_Q4 },
     asgn: null,
   },
+  {
+    id: "ss",
+    name: "藤原 陽翔",
+    dept: "情報工学系",
+    school: "情報理工学院",
+    schoolCol: "#a855c7",
+    year: "B2",
+    yearGroup: "25B",
+    studentId: "25B30042",
+    icon: "📱",
+    q: { 1: CSC_Q1, 2: DEMO_COURSES, 3: CSC_Q3, 4: CSC_Q4 },
+    asgn: DEMO_ASGN,
+    _screenshot: true,
+  },
 ];
 
 // ══════════════════════════════════════════════
@@ -1417,28 +1431,32 @@ const _CSC_GRADES = JSON.parse(JSON.stringify(DEMO_GRADES));
 function activatePersonaData(personaId, q2Courses) {
   // Posts
   for (const k of Object.keys(DEMO_POSTS)) delete DEMO_POSTS[k];
-  if (personaId === "csc") Object.assign(DEMO_POSTS, _CSC_POSTS);
+  if (personaId === "csc" || personaId === "ss") Object.assign(DEMO_POSTS, _CSC_POSTS);
   else if (personaId === "mec") Object.assign(DEMO_POSTS, mecPosts(q2Courses));
   else if (personaId === "phy") Object.assign(DEMO_POSTS, phyPosts(q2Courses));
   else if (personaId === "cap") Object.assign(DEMO_POSTS, capPosts(q2Courses));
 
   // Chat
   for (const k of Object.keys(DEMO_CHAT_MESSAGES)) delete DEMO_CHAT_MESSAGES[k];
-  if (personaId === "csc") Object.assign(DEMO_CHAT_MESSAGES, _CSC_CHAT);
+  if (personaId === "csc" || personaId === "ss") Object.assign(DEMO_CHAT_MESSAGES, _CSC_CHAT);
   else if (personaId === "mec") Object.assign(DEMO_CHAT_MESSAGES, mecChat(q2Courses));
   else if (personaId === "phy") Object.assign(DEMO_CHAT_MESSAGES, phyChat(q2Courses));
   else if (personaId === "cap") Object.assign(DEMO_CHAT_MESSAGES, capChat(q2Courses));
 
   // Notifications
   DEMO_NOTIFICATIONS.length = 0;
-  if (personaId === "csc") DEMO_NOTIFICATIONS.push(..._CSC_NOTIF);
+  if (personaId === "csc" || personaId === "ss") DEMO_NOTIFICATIONS.push(..._CSC_NOTIF);
   else DEMO_NOTIFICATIONS.push(...generateNotifications(q2Courses));
 
   // Grades
-  if (personaId === "csc") {
-    DEMO_GRADES.summary = _CSC_GRADES.summary;
+  if (personaId === "csc" || personaId === "ss") {
+    DEMO_GRADES.summary = { ..._CSC_GRADES.summary };
     DEMO_GRADES.categories = _CSC_GRADES.categories;
     DEMO_GRADES.courses = _CSC_GRADES.courses;
+    if (personaId === "ss") {
+      DEMO_GRADES.summary.name = "藤原 陽翔";
+      DEMO_GRADES.summary.studentId = "25B30042";
+    }
   } else if (PERSONA_GRADES[personaId]) {
     const g = PERSONA_GRADES[personaId];
     DEMO_GRADES.summary = g.summary;

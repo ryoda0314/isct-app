@@ -43,7 +43,6 @@ const QA_ALL=[
   {id:"friends",icon:I.users,label:"友達"},
   {id:"grades",icon:I.grad,label:"成績"},
   {id:"reviews",icon:I.star,label:"レビュー"},
-  {id:"location",icon:I.pin,label:"居場所"},
   {id:"pomo",icon:I.play,label:"ポモドーロ"},
   {id:"bmarks",icon:I.bmark,label:"ブックマーク"},
   {id:"dm",icon:I.mail,label:"DM"},
