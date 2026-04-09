@@ -7,7 +7,11 @@ import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { generateTOTP } from '../../../../lib/auth/totp.js';
 
 // Capacitor ネイティブアプリのみ許可する Origin
-const CAPACITOR_ORIGINS = new Set(['capacitor://localhost', 'https://localhost', 'http://localhost']);
+// server.url が設定されている場合、Origin はそのドメインになる
+const CAPACITOR_ORIGINS = new Set([
+  'capacitor://localhost', 'https://localhost', 'http://localhost',
+  'https://sciencetokyo.app',
+]);
 
 /**
  * GET /api/auth/credentials
