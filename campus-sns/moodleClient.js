@@ -2,9 +2,50 @@
  * Client-side Moodle API caller.
  * Calls Moodle webservice REST API directly from the user's browser/device,
  * bypassing the server-side proxy (which gets 403 from LMS).
+ *
+ * Security:
+ * - wstoken is held in a module-scoped closure, never in localStorage/sessionStorage
+ * - Token auto-expires after 10 minutes (client must re-fetch from server)
+ * - CSP connect-src restricts which domains can be contacted
+ * - Rate limited on server side (5 req/min for /api/auth/token)
  */
 
 const LMS_API = 'https://lms.s.isct.ac.jp/2025/webservice/rest/server.php';
+
+// In-memory token cache (never persisted to storage)
+let _cachedToken = null;
+let _cachedUserid = null;
+let _tokenExpiry = 0;
+const TOKEN_CLIENT_TTL = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Get token from server, with short-lived in-memory cache.
+ * Never stores token in localStorage/sessionStorage.
+ */
+export async function getClientToken() {
+  if (_cachedToken && Date.now() < _tokenExpiry) {
+    return { wstoken: _cachedToken, userid: _cachedUserid };
+  }
+  const r = await fetch('/api/auth/token');
+  if (r.status === 401) {
+    const err = new Error('Not authenticated');
+    err.code = 'AUTH_REQUIRED';
+    throw err;
+  }
+  if (!r.ok) throw new Error(`Token fetch failed: ${r.status}`);
+  const { wstoken, userid } = await r.json();
+  _cachedToken = wstoken;
+  _cachedUserid = userid;
+  _tokenExpiry = Date.now() + TOKEN_CLIENT_TTL;
+  return { wstoken, userid };
+}
+
+/** Clear cached token (call on logout) */
+export function clearClientToken() {
+  _cachedToken = null;
+  _cachedUserid = null;
+  _tokenExpiry = 0;
+}
 
 /**
  * Call a Moodle webservice function directly from the client.

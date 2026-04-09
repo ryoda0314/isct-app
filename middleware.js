@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 const hits = new Map();
 const TIERS = {
   auth:   { window: 60_000, max: 10 },   // 認証系: 10 req/min
+  token:  { window: 60_000, max: 5 },    // トークン取得: 5 req/min（クライアントサイドMoodle API用）
   write:  { window: 60_000, max: 40 },   // 書き込み系: 40 req/min
   global: { window: 60_000, max: 120 },  // 全API: 120 req/min
 };
@@ -30,6 +31,7 @@ function checkRateLimit(ip, tier) {
 }
 
 function getTier(pathname, method) {
+  if (pathname === '/api/auth/token') return 'token'; // トークン取得は厳しく制限
   if (pathname.startsWith('/api/auth/')) return 'auth';
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return 'write';
   return null;

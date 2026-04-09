@@ -45,7 +45,7 @@ import { useBlocks } from "./hooks/useBlocks.js";
 import { useMutes } from "./hooks/useMutes.js";
 import { useOfflineQueue } from "./hooks/useOfflineQueue.js";
 import { useGroups } from "./hooks/useGroups.js";
-import { fetchUserCourses as moodleFetchCourses, fetchAssignments as moodleFetchAssignments, fetchSubmissionStatus as moodleFetchSubmissionStatus } from "./moodleClient.js";
+import { getClientToken, clearClientToken, fetchUserCourses as moodleFetchCourses, fetchAssignments as moodleFetchAssignments, fetchSubmissionStatus as moodleFetchSubmissionStatus } from "./moodleClient.js";
 import { useCircles } from "./hooks/useCircles.js";
 import { Toasts } from "./hooks/useToast.js";
 import { useBookmarks } from "./hooks/useBookmarks.js";
@@ -295,11 +295,14 @@ export default function App(){
   /** Client-side Moodle API flow: fetch token, call Moodle directly, then send to server for transforms */
   const fetchDataClientSide=async()=>{
     const t0=performance.now();
-    // Step 1: Get token from server
-    const tokenR=await fetch(`${API}/api/auth/token`);
-    if(tokenR.status===401){setAppState("setup");return false;}
-    if(!tokenR.ok) throw new Error(`token fetch failed: ${tokenR.status}`);
-    const{wstoken,userid}=await tokenR.json();
+    // Step 1: Get token (in-memory cached, auto-expires after 10min)
+    let wstoken,userid;
+    try{
+      ({wstoken,userid}=await getClientToken());
+    }catch(e){
+      if(e.code==='AUTH_REQUIRED'){setAppState("setup");return false;}
+      throw e;
+    }
     console.log(`[Timing] client-side: token fetch ${(performance.now()-t0).toFixed(0)}ms`);
 
     // Step 2: Call Moodle API directly from client
@@ -394,15 +397,12 @@ export default function App(){
 
       let statuses=null;
 
-      // Try client-side first
+      // Try client-side first (token from in-memory cache)
       try{
-        const tokenR=await fetch(`${API}/api/auth/token`);
-        if(tokenR.ok){
-          const{wstoken}=await tokenR.json();
-          statuses=await fetchSubmissionStatusesClientSide(currentAsgn,wstoken);
-          if(Object.keys(statuses).length>0) console.log(`[Timing] client-side submission statuses: ${(performance.now()-t0).toFixed(0)}ms`);
-          else statuses=null;
-        }
+        const{wstoken}=await getClientToken();
+        statuses=await fetchSubmissionStatusesClientSide(currentAsgn,wstoken);
+        if(Object.keys(statuses).length>0) console.log(`[Timing] client-side submission statuses: ${(performance.now()-t0).toFixed(0)}ms`);
+        else statuses=null;
       }catch(e){console.warn('[App] client-side submission status failed, falling back:',e.message);}
 
       // Fallback to server-side
@@ -619,7 +619,7 @@ export default function App(){
   const openGroupChat=(g)=>{setView("dm");};
   const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat,blockUser,unblockUser,isBlocked,blocks:blockList,muteUser,unmuteUser,isMuted,mutes:muteList,refetch:refetchFriends};
   const togTheme=()=>setThemePref(p=>p==="dark"?"light":"dark");
-  const onLogout=async()=>{setDemoMode(false);try{await fetch("/api/auth/logout",{method:"POST"});}catch{}if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
+  const onLogout=async()=>{setDemoMode(false);clearClientToken();try{await fetch("/api/auth/logout",{method:"POST"});}catch{}if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
 
   // Telecom restriction overlay — shown when regulated features are disabled
   const TelecomBlockView=({title,onBack})=><div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,gap:16}}>
