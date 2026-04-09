@@ -3,7 +3,7 @@ import { T, updateT, ACCENT_PRESETS, isDarkMode } from "./theme.js";
 import { I } from "./icons.jsx";
 import { QData, ASGN0, MYTK0, EVENTS0, REVIEWS0, MYEVENTS0, SCHOOLS, DEPTS, UNIT_COL, evCat } from "./data.js";
 import { DEMO_EVENTS, DEMO_REVIEWS, DEMO_MY_EVENTS, DEMO_TASKS, DEMO_PERSONAS, buildDemoDataForPersona } from "./demoData.js";
-import { setDemoMode, isDemoMode } from "./demoMode.js";
+import { setDemoMode, isDemoMode, setScreenshotMode, isScreenshotMode } from "./demoMode.js";
 import { useNotifications } from "./hooks/useNotifications.js";
 import { useCurrentUser, setCurrentUserFromAPI, resetCurrentUserCache } from "./hooks/useCurrentUser.js";
 import { usePresence } from "./hooks/usePresence.js";
@@ -481,7 +481,7 @@ export default function App(){
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
   useEffect(()=>{try{localStorage.setItem("notifSettings",JSON.stringify(notifSettings));}catch{}},[notifSettings]);
   const onSetupComplete=async()=>{const MAX=4;const attempt=async(n)=>{console.log(`[App] onSetupComplete: fetchData attempt ${n}/${MAX}`);const r=await fetchData();if(r){console.log(`[App] onSetupComplete: fetchData OK — ${r.length} assignments`);setAppState("ready");refreshRef.current=setInterval(async()=>{const r2=await fetchData();if(r2)fetchSubmissionStatuses(r2);},15*60*1000);fetchSiteSettings();fetchSubmissionStatuses(r);return;}if(n<MAX){const delay=n*2;console.warn(`[App] onSetupComplete: fetchData attempt ${n} failed, retrying in ${delay}s...`);await new Promise(r=>setTimeout(r,delay*1000));return attempt(n+1);}console.error(`[App] onSetupComplete: fetchData failed after ${MAX} attempts, returning to setup`);setAppState("setup");};await attempt(1);};
-  const onDemo=(personaId)=>{const pd=buildDemoDataForPersona(personaId);setDemoMode(true);setAllCourses(pd.courses);setQDataLive(pd.qdata);setAsgn(pd.asgn.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setCurrentUserFromAPI(pd.user);const q2c=pd.courses.find(c=>c.quarter===2);setCid(q2c?q2c.id:pd.courses[0].id);setQuarter(2);circleInit();try{localStorage.setItem("myLocation","lib");}catch{}setAppState("ready");};
+  const onDemo=(personaId)=>{const pd=buildDemoDataForPersona(personaId);setDemoMode(true);setScreenshotMode(personaId==="ss");setAllCourses(pd.courses);setQDataLive(pd.qdata);setAsgn(pd.asgn.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setCurrentUserFromAPI(pd.user);const q2c=pd.courses.find(c=>c.quarter===2);setCid(q2c?q2c.id:pd.courses[0].id);setQuarter(2);circleInit();try{localStorage.setItem("myLocation","lib");}catch{}setAppState("ready");};
 
   const cc=allCourses.find(c=>c.id===cid);
   const userDepts=useMemo(()=>{
@@ -561,7 +561,7 @@ export default function App(){
   // Demo mode banner — persistent login/signup prompt
   const demoReady=isDemoMode()&&appState==="ready";
   const exitDemo=()=>{setDemoMode(false);if(refreshRef.current)clearInterval(refreshRef.current);setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
-  const DemoBanner=()=>!demoReady?null:(
+  const DemoBanner=()=>(!demoReady||isScreenshotMode())?null:(
     <div style={{position:"fixed",bottom:mob?68:0,left:0,right:0,zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"10px 16px",background:`linear-gradient(135deg,${T.accent}18,${T.accentSoft||T.accent}22)`,borderTop:`1px solid ${T.accent}30`,backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)"}}>
       <span style={{fontSize:13,color:T.txH,fontWeight:500}}>デモモードで表示中</span>
       <button onClick={exitDemo} style={{padding:"7px 20px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>ログイン / 新規登録</button>

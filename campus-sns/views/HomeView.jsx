@@ -9,6 +9,7 @@ import { getAcademicInfo } from "../academicCalendar.js";
 import { PERIOD_TIMES } from "../examData.js";
 import { isNative } from "../capacitor.js";
 import { openPortal, openIsctPortal } from "../plugins/portalWebView.js";
+import { isDemoMode } from "../demoMode.js";
 import { AnnouncementBanner } from "../AnnouncementBanner.jsx";
 
 // SVG weather icons — clean, consistent style
@@ -57,7 +58,7 @@ export { QA_ALL, QA_DEFAULT };
 
 export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvents=[],quarter,hiddenSet=new Set(),qd,qDataAll={},goToBuilding,setDid,userDepts=[],userSchools=[],userUnit})=>{
   const [qaIds]=useState(getQA);
-  const qaItems=qaIds.map(id=>QA_ALL.find(q=>q.id===id)).filter(Boolean).filter(q=>isNative()||!(q.id==="portal"||q.id==="isctportal"));
+  const qaItems=qaIds.map(id=>QA_ALL.find(q=>q.id===id)).filter(Boolean).filter(q=>(isNative()||!(q.id==="portal"||q.id==="isctportal"))&&(!isDemoMode()||!(q.id==="portal"||q.id==="isctportal")));
   const [now,setNow]=useState(()=>new Date());
   const [wx,setWx]=useState(()=>{try{const v=localStorage.getItem("wxCache");if(v){const d=JSON.parse(v);if(Date.now()-d._ts<30*60*1000)return d;}return null;}catch{return null;}});
   const [loc,setLoc]=useState(()=>{try{const v=localStorage.getItem("wxLoc");return v?JSON.parse(v):DEF_LOC;}catch{return DEF_LOC;}});
