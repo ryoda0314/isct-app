@@ -731,11 +731,15 @@ const DEMO_CHAT_MESSAGES = {
 // ── 情報工学系 (CSC) ──
 const CSC_Q1 = [
   { id: "mc_q1_101", moodleId: 1101, code: "CSC.T213", name: "プログラミング基礎", per: "月1-2", room: "W6-31", col: "#a855c7", mem: 120, quarter: 1, building: "w6", bldg: "西6号館" },
+  { id: "mc_q1_107", moodleId: 1107, code: "CSC.T215", name: "情報リテラシ", per: "月3-4", room: "W6-32", col: "#d4843e", mem: 110, quarter: 1, building: "w6", bldg: "西6号館" },
   { id: "mc_q1_102", moodleId: 1102, code: "MCS.T201", name: "微分積分学第一", per: "火1-2", room: "W5-21", col: "#6375f0", mem: 200, quarter: 1, building: "w5", bldg: "西5号館" },
+  { id: "mc_q1_108", moodleId: 1108, code: "CSC.T217", name: "コンピュータサイエンス入門", per: "火3-4", room: "W6-31", col: "#c678dd", mem: 95, quarter: 1, building: "w6", bldg: "西6号館" },
   { id: "mc_q1_103", moodleId: 1103, code: "MCS.T211", name: "線形代数学第一", per: "水1-2", room: "W5-21", col: "#4a7cf7", mem: 200, quarter: 1, building: "w5", bldg: "西5号館" },
   { id: "mc_q1_104", moodleId: 1104, code: "LAS.A101", name: "英語第一 S", per: "木1-2", room: "W9-31", col: "#3dae72", mem: 30, quarter: 1, building: "w9", bldg: "西9号館" },
+  { id: "mc_q1_109", moodleId: 1109, code: "LAS.C101", name: "化学基礎", per: "木3-4", room: "W5-32", col: "#e5534b", mem: 160, quarter: 1, building: "w5", bldg: "西5号館" },
+  { id: "mc_q1_110", moodleId: 1110, code: "LAH.C101", name: "科学技術と社会", per: "木5-6", room: "WL1-201", col: "#2d9d8f", mem: 180, quarter: 1, building: "wl1", bldg: "西講義棟1" },
   { id: "mc_q1_105", moodleId: 1105, code: "LAS.M101", name: "物理学基礎", per: "金1-2", room: "W5-32", col: "#2d9d8f", mem: 180, quarter: 1, building: "w5", bldg: "西5号館" },
-  { id: "mc_q1_106", moodleId: 1106, code: "LAH.S101", name: "東工大立志プロジェクト", per: "金5-6", room: "WL1-301", col: "#c75d8e", mem: 200, quarter: 1, building: "wl1", bldg: "西講義棟1" },
+  { id: "mc_q1_106", moodleId: 1106, code: "LAH.S101", name: "東工大立志プロジェクト", per: "金3-4", room: "WL1-301", col: "#c75d8e", mem: 200, quarter: 1, building: "wl1", bldg: "西講義棟1" },
 ];
 // CSC Q2 = DEMO_COURSES (既存)
 const CSC_Q3 = [
