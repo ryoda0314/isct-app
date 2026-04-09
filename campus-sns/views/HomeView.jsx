@@ -200,7 +200,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
           </div>
           {/* 天気 */}
           {wx?(()=>{const tint=wxInfo(wx.code)[2];const [,curIcon,]=wxInfo(wx.code);const [wxLabel]=wxInfo(wx.code);return(
-          <div style={{position:"relative",flex:1,minWidth:0}}>
+          <div style={{position:"relative",flex:1,minWidth:0,maxWidth:mob?undefined:420}}>
             <div onClick={()=>{setLocOpen(p=>!p);setLocQ("");setLocRes([]);}} style={{borderRadius:14,overflow:"hidden",cursor:"pointer",background:`linear-gradient(145deg,${tint}18,${tint}08,${T.bg2})`,border:`1px solid ${tint}25`,boxShadow:`0 2px 12px ${tint}12`}}>
               {/* 現在の天気 — メイン */}
               <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px"}}>

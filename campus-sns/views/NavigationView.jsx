@@ -759,7 +759,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const destSpotInfo=NAV_SPOTS.find(s=>s.id===destination);
 
   /* ── Floating search card ── */
-  const cardBase={position:"absolute",top:mob?10:14,left:mob?10:14,right:mob?10:"auto",width:mob?"auto":360,zIndex:1000,background:T.bg2,borderRadius:16,boxShadow:"0 4px 24px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.2)",border:`1px solid ${T.bdL}`,overflow:"visible"};
+  const cardW=mob?"auto":440;
+  const cardBase={position:"absolute",top:mob?10:14,left:mob?10:14,right:mob?10:"auto",width:cardW,zIndex:1000,background:T.bg2,borderRadius:16,boxShadow:"0 4px 24px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.2)",border:`1px solid ${T.bdL}`,overflow:"visible"};
 
   const groupInfo=spotGroup?SPOT_GROUPS.find(g=>g.prefix===spotGroup):null;
   const groupSpots=spotGroup?NAV_SPOTS.filter(s=>s.id.startsWith(spotGroup+"_")):[];
@@ -775,7 +776,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
 
   const stopProp=e=>{e.stopPropagation();};
   const searchCard=navPhase==="search"&&searchMin?
-    <div onClick={()=>setSearchMin(false)} style={{position:"absolute",top:mob?10:14,left:mob?10:14,right:mob?10:"auto",width:mob?"auto":360,zIndex:1000,display:"flex",alignItems:"center",gap:10,padding:"12px 16px",background:T.bg2,borderRadius:16,border:`1px solid ${T.bdL}`,boxShadow:"0 4px 24px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.2)",cursor:"pointer",transition:"box-shadow .15s"}}>
+    <div onClick={()=>setSearchMin(false)} style={{position:"absolute",top:mob?10:14,left:mob?10:14,right:mob?10:"auto",width:cardW,zIndex:1000,display:"flex",alignItems:"center",gap:10,padding:"12px 16px",background:T.bg2,borderRadius:16,border:`1px solid ${T.bdL}`,boxShadow:"0 4px 24px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.2)",cursor:"pointer",transition:"box-shadow .15s"}}>
       <span style={{display:"flex",color:T.txD}}>{I.search}</span>
       <span style={{fontSize:14,color:T.txD,flex:1}}>スポットを検索...</span>
     </div>
@@ -998,7 +999,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     bottom:mob?12:20,
     left:mob?12:14,
     right:mob?12:"auto",
-    width:mob?"auto":360,
+    width:cardW,
     zIndex:1000,
     background:T.bg2,
     borderRadius:16,
@@ -1072,7 +1073,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     bottom:mob?12:20,
     left:mob?12:14,
     right:mob?12:"auto",
-    width:mob?"auto":360,
+    width:cardW,
     zIndex:1000,
     background:T.bg2,
     borderRadius:14,
@@ -1107,7 +1108,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     {routePill}
     {noRouteCard}
     {/* 案内中: 終了ボタン（searchCardが非表示のため） */}
-    {guiding&&<div style={{position:"absolute",top:mob?10:14,left:mob?10:14,right:mob?10:"auto",width:mob?"auto":320,zIndex:1000}}>
+    {guiding&&<div style={{position:"absolute",top:mob?10:14,left:mob?10:14,right:mob?10:"auto",width:cardW,zIndex:1000}}>
       <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:T.bg2,borderRadius:14,boxShadow:"0 4px 20px rgba(0,0,0,.4)",border:`1px solid #4de8b060`}}>
         <div style={{width:8,height:8,borderRadius:"50%",background:following?"#4de8b0":"#888",animation:following?"locPulse 1.5s infinite":"none",flexShrink:0}}/>
         <span style={{fontSize:13,fontWeight:700,color:following?"#4de8b0":"#888",flex:1}}>{following?"案内中":"自由操作中"}</span>
