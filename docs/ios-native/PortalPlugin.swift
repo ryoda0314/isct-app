@@ -135,7 +135,9 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         // 画面幅からサイドバー幅を算出（JS から渡す必要なし）
         sidebarWidth = PortalPlugin.calcSidebarWidth(viewWidth: rootView.bounds.width)
         let hasSidebar = sidebarWidth > 0
-        let bottomNavHeight: CGFloat = hasSidebar ? 0 : 78
+        // MNav(50px) + sa-bottom(safe area) + border(1px)
+        let safeBottom = viewController.view.safeAreaInsets.bottom
+        let bottomNavHeight: CGFloat = hasSidebar ? 0 : (51 + safeBottom)
 
         // Container
         let container = UIView()
@@ -398,8 +400,9 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         let newWidth = PortalPlugin.calcSidebarWidth(viewWidth: viewWidth)
         sidebarWidth = newWidth
         let hasSidebar = newWidth > 0
+        let safeBottom = bridge?.viewController?.view.safeAreaInsets.bottom ?? 0
         leadingConstraint?.constant = newWidth
-        bottomConstraint?.constant = hasSidebar ? 0 : -78
+        bottomConstraint?.constant = hasSidebar ? 0 : -(51 + safeBottom)
         overlayView?.superview?.layoutIfNeeded()
     }
 
