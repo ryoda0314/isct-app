@@ -64,7 +64,8 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
         const r=await fetch("/api/auth/credentials?type=isct",{headers:{"x-app-platform":"capacitor"}});
         if(!r.ok)throw new Error("認証情報の取得に失敗");
         const{userId,password,totpCode}=await r.json();
-        await openLmsPage(url,{userId,password,totpCode});
+        const sw=mob?0:document.querySelector('[style*="flex-shrink: 0"]')?.offsetWidth||0;
+        await openLmsPage(url,{userId,password,totpCode,sidebarWidth:sw});
       }else{
         window.open(url,'_blank');
       }

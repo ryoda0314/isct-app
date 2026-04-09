@@ -333,7 +333,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                   const r=await fetch("/api/auth/credentials",{headers:{"x-app-platform":"capacitor"}});
                   if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||"ポータル認証情報の取得に失敗しました");}
                   const{portalUserId,portalPassword,matrix}=await r.json();
-                  await openPortal({userId:portalUserId,password:portalPassword,matrix});
+                  const sw=mob?0:document.querySelector('[style*="flex-shrink: 0"]')?.offsetWidth||0;
+                  await openPortal({userId:portalUserId,password:portalPassword,matrix,sidebarWidth:sw});
                 }else{
                   const r=await fetch("/api/portal/page",{cache:"no-store"});
                   if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||(r.status===400?"ポータル認証情報が未設定です":"ポータルへの接続に失敗しました"));}
@@ -355,7 +356,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                   const r=await fetch("/api/auth/credentials?type=isct",{headers:{"x-app-platform":"capacitor"}});
                   if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||"ISCT認証情報の取得に失敗しました");}
                   const{userId,password,totpCode}=await r.json();
-                  await openIsctPortal({userId,password,totpCode});
+                  const sw2=mob?0:document.querySelector('[style*="flex-shrink: 0"]')?.offsetWidth||0;
+                  await openIsctPortal({userId,password,totpCode,sidebarWidth:sw2});
                 }else{
                   window.open("https://portal.isct.ac.jp","_blank");
                 }

@@ -26,9 +26,10 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
 
     // Shared state
     private var overlayView: UIView?
-    private var webView: WKWebView?
+    private var portalWebView: WKWebView?
     private var loadingOverlay: UIView?
     private var isIsctMode = false
+    private var sidebarWidth: CGFloat = 0
 
     // TiTech Portal state
     private var loginDone = false
@@ -52,6 +53,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         userId = call.getString("userId")
         password = call.getString("password")
         matrixJson = call.getString("matrixJson")
+        sidebarWidth = CGFloat(call.getInt("sidebarWidth") ?? 0)
 
         guard userId != nil, password != nil else {
             call.reject("Missing userId or password")
@@ -70,6 +72,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         isctUserId = call.getString("userId")
         isctPassword = call.getString("password")
         isctTotpCode = call.getString("totpCode")
+        sidebarWidth = CGFloat(call.getInt("sidebarWidth") ?? 0)
 
         guard isctUserId != nil, isctPassword != nil, isctTotpCode != nil else {
             call.reject("Missing userId, password, or totpCode")
@@ -90,6 +93,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         isctPassword = call.getString("password")
         isctTotpCode = call.getString("totpCode")
         lmsTargetUrl = call.getString("url")
+        sidebarWidth = CGFloat(call.getInt("sidebarWidth") ?? 0)
 
         guard isctUserId != nil, isctPassword != nil, isctTotpCode != nil, lmsTargetUrl != nil else {
             call.reject("Missing userId, password, totpCode, or url")
@@ -125,7 +129,9 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         isctTotpDone = false
         isctSamlDone = false
 
-        let bottomNavHeight: CGFloat = 78
+        // sidebarWidth > 0 なら iPad サイドバーレイアウト（ボトムバーなし）
+        let hasSidebar = sidebarWidth > 0
+        let bottomNavHeight: CGFloat = hasSidebar ? 0 : 78
 
         // Container
         let container = UIView()
@@ -135,7 +141,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         container.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             container.topAnchor.constraint(equalTo: rootView.topAnchor),
-            container.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
+            container.leadingAnchor.constraint(equalTo: rootView.leadingAnchor, constant: sidebarWidth),
             container.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
             container.bottomAnchor.constraint(equalTo: rootView.bottomAnchor, constant: -bottomNavHeight),
         ])
@@ -233,9 +239,12 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         // WebView
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()  // Share cookies across WebViews
+        config.preferences.javaScriptCanOpenWindowsAutomatically = true
         let wv = WKWebView(frame: .zero, configuration: config)
         wv.navigationDelegate = self
+        wv.uiDelegate = self
         wv.allowsBackForwardNavigationGestures = true
+        wv.allowsLinkPreview = false
         wv.customUserAgent =
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
             + "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
@@ -247,7 +256,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             wv.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             wv.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
-        webView = wv
+        portalWebView = wv
 
         // Loading overlay
         let loading = createLoadingView(text: loadingText)
@@ -261,20 +270,22 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         ])
         loadingOverlay = loading
 
-        // Bottom nav touch interceptor
-        let navInterceptor = UIView()
-        navInterceptor.tag = 9998
-        navInterceptor.backgroundColor = .clear
-        rootView.addSubview(navInterceptor)
-        navInterceptor.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            navInterceptor.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
-            navInterceptor.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
-            navInterceptor.bottomAnchor.constraint(equalTo: rootView.bottomAnchor),
-            navInterceptor.heightAnchor.constraint(equalToConstant: bottomNavHeight),
-        ])
-        let tap = UITapGestureRecognizer(target: self, action: #selector(bottomNavTapped(_:)))
-        navInterceptor.addGestureRecognizer(tap)
+        // Bottom nav touch interceptor (iPhone only — iPad uses sidebar)
+        if !hasSidebar {
+            let navInterceptor = UIView()
+            navInterceptor.tag = 9998
+            navInterceptor.backgroundColor = .clear
+            rootView.addSubview(navInterceptor)
+            navInterceptor.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                navInterceptor.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
+                navInterceptor.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
+                navInterceptor.bottomAnchor.constraint(equalTo: rootView.bottomAnchor),
+                navInterceptor.heightAnchor.constraint(equalToConstant: bottomNavHeight),
+            ])
+            let tap = UITapGestureRecognizer(target: self, action: #selector(bottomNavTapped(_:)))
+            navInterceptor.addGestureRecognizer(tap)
+        }
 
         // Load URL
         if let url = URL(string: startUrl) {
@@ -314,14 +325,14 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc private func closeTapped() { removeOverlay() }
 
     @objc private func backTapped() {
-        if webView?.canGoBack == true { webView?.goBack() }
+        if portalWebView?.canGoBack == true { portalWebView?.goBack() }
     }
 
     @objc private func forwardTapped() {
-        if webView?.canGoForward == true { webView?.goForward() }
+        if portalWebView?.canGoForward == true { portalWebView?.goForward() }
     }
 
-    @objc private func reloadTapped() { webView?.reload() }
+    @objc private func reloadTapped() { portalWebView?.reload() }
 
     @objc private func bottomNavTapped(_ gesture: UITapGestureRecognizer) {
         let location = gesture.location(in: bridge?.viewController?.view)
@@ -348,9 +359,9 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             vc.view.viewWithTag(9998)?.removeFromSuperview()
         }
 
-        webView?.stopLoading()
-        webView?.navigationDelegate = nil
-        webView = nil
+        portalWebView?.stopLoading()
+        portalWebView?.navigationDelegate = nil
+        portalWebView = nil
         loadingOverlay = nil
         overlayView?.removeFromSuperview()
         overlayView = nil
@@ -393,7 +404,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             return '';
         })()
         """
-        webView?.evaluateJavaScript(js) { [weak self] result, _ in
+        portalWebView?.evaluateJavaScript(js) { [weak self] result, _ in
             if let r = result as? String, r.contains("login") {
                 self?.loginDone = true
             }
@@ -427,7 +438,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             return 'matrix';
         })()
         """
-        webView?.evaluateJavaScript(js) { [weak self] result, _ in
+        portalWebView?.evaluateJavaScript(js) { [weak self] result, _ in
             if let r = result as? String, r.contains("matrix") {
                 self?.matrixDone = true
             }
@@ -448,7 +459,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             isctSamlDone = true
             if let target = lmsTargetUrl, let targetUrl = URL(string: target) {
                 NSLog("PortalPlugin: Navigating to LMS: \(target)")
-                webView?.load(URLRequest(url: targetUrl))
+                portalWebView?.load(URLRequest(url: targetUrl))
                 lmsTargetUrl = nil
                 return
             }
@@ -465,7 +476,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         } else {
             if let target = lmsTargetUrl, let targetUrl = URL(string: target) {
                 NSLog("PortalPlugin: SSO complete, navigating to LMS: \(target)")
-                webView?.load(URLRequest(url: targetUrl))
+                portalWebView?.load(URLRequest(url: targetUrl))
                 lmsTargetUrl = nil
             } else {
                 hideLoading()
@@ -486,7 +497,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             return '';
         })()
         """
-        webView?.evaluateJavaScript(js) { [weak self] result, _ in
+        portalWebView?.evaluateJavaScript(js) { [weak self] result, _ in
             if let r = result as? String, r.contains("login") {
                 self?.isctLoginDone = true
             }
@@ -504,7 +515,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             return '';
         })()
         """
-        webView?.evaluateJavaScript(js) { [weak self] result, _ in
+        portalWebView?.evaluateJavaScript(js) { [weak self] result, _ in
             if let r = result as? String, r.contains("totp") {
                 self?.isctTotpDone = true
             }
@@ -520,7 +531,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             return 'done';
         })()
         """
-        webView?.evaluateJavaScript(js) { [weak self] result, _ in
+        portalWebView?.evaluateJavaScript(js) { [weak self] result, _ in
             self?.isctSamlDone = true
             if let r = result as? String, r.contains("done") {
                 self?.hideLoading()
@@ -564,6 +575,42 @@ extension PortalPlugin: WKNavigationDelegate {
     public func webView(_ webView: WKWebView,
                         decidePolicyFor navigationAction: WKNavigationAction,
                         decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        let url = navigationAction.request.url?.absoluteString ?? ""
+        NSLog("PortalPlugin: navigate -> \(url)")
         decisionHandler(.allow)
+    }
+
+    public func webView(_ webView: WKWebView,
+                        didReceive challenge: URLAuthenticationChallenge,
+                        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let trust = challenge.protectionSpace.serverTrust else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+        let host = challenge.protectionSpace.host
+        let allowedDomains = ["titech.ac.jp", "isct.ac.jp", "ex-tic.com", "gsic.titech.ac.jp"]
+        if allowedDomains.contains(where: { host.hasSuffix($0) }) {
+            NSLog("PortalPlugin: SSL trust override for \(host)")
+            completionHandler(.useCredential, URLCredential(trust: trust))
+        } else {
+            completionHandler(.performDefaultHandling, nil)
+        }
+    }
+}
+
+// MARK: - WKUIDelegate
+
+extension PortalPlugin: WKUIDelegate {
+    public func webView(_ webView: WKWebView,
+                        createWebViewWith configuration: WKWebViewConfiguration,
+                        for navigationAction: WKNavigationAction,
+                        windowFeatures: WKWindowFeatures) -> WKWebView? {
+        // target="_blank" links: load in the same WebView
+        if let url = navigationAction.request.url {
+            NSLog("PortalPlugin: target=_blank -> \(url.absoluteString)")
+            webView.load(URLRequest(url: url))
+        }
+        return nil
     }
 }
