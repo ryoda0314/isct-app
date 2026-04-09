@@ -123,6 +123,17 @@ const YUKI = {
   on:"#3a9060", idle:"#a89030", off:"#a0aab4",
 };
 
+// ── おふざけテーマ ────────────────────────────────
+
+const MIZUKUMORI = {
+  bg:"#d8dee6", bg2:"#e2e8ef", bg3:"#cdd4de", bg4:"#c4ccd8",
+  hover:"#bac2d0", accent:"#6a88a8", accentSoft:"#8aa4be",
+  green:"#6a9a80", red:"#b86868", orange:"#b08860", yellow:"#a09460",
+  tx:"#708090", txH:"#4a5868", txD:"#98a4b0",
+  bd:"#c0c8d4", bdL:"#b0baca",
+  on:"#6a9a80", idle:"#a09460", off:"#a0a8b4",
+};
+
 // ── ソフトテーマ（春トーンのカラーバリエーション）───
 
 const LAVENDER = {
@@ -207,6 +218,9 @@ export const THEME_MODES = {
     { id:"koyo",     name:"紅葉", col:"#d4782a", emoji:"🍁" },
     { id:"yuki",     name:"雪",   col:"#4a80b4", emoji:"❄️" },
   ],
+  fun: [
+    { id:"mizukumori", name:"水曇り", col:"#6a88a8", emoji:"💧" },
+  ],
 };
 
 const BASES = {
@@ -214,6 +228,7 @@ const BASES = {
   titech:TITECH, tmdu:TMDU, scitokyo:SCITOKYO, tsubame:TSUBAME,
   sakura:SAKURA, shinryoku:SHINRYOKU, koyo:KOYO, yuki:YUKI,
   lavender:LAVENDER, mint:MINT, sky:SKY, peach:PEACH, lemon:LEMON, coral:CORAL,
+  mizukumori:MIZUKUMORI,
 };
 
 // ── テーマカラープリセット ─────────────────────────
@@ -243,7 +258,7 @@ export let T = TSUBAME;
 let _accentId = "default";
 
 // ブランド・季節テーマはアクセントカラー固定（テーマ自体がカラーを持つ）
-const FIXED_ACCENT_MODES = new Set(["titech","tmdu","scitokyo","tsubame","sakura","shinryoku","koyo","yuki","lavender","mint","sky","peach","lemon","coral"]);
+const FIXED_ACCENT_MODES = new Set(["titech","tmdu","scitokyo","tsubame","sakura","shinryoku","koyo","yuki","lavender","mint","sky","peach","lemon","coral","mizukumori"]);
 
 export const updateT = (mode, accentId) => {
   if (accentId !== undefined) _accentId = accentId;
@@ -263,7 +278,7 @@ export const updateT = (mode, accentId) => {
 };
 
 // light系テーマの判定
-const LIGHT_MODES = new Set(["light","sepia","tsubame","sakura","shinryoku","yuki","lavender","mint","sky","peach","lemon","coral"]);
+const LIGHT_MODES = new Set(["light","sepia","tsubame","sakura","shinryoku","yuki","lavender","mint","sky","peach","lemon","coral","mizukumori"]);
 export const isDarkMode = (mode) => !LIGHT_MODES.has(mode);
 
-export { DARK, LIGHT, OLED, DIM, SEPIA, TITECH, TMDU, SCITOKYO, TSUBAME, SAKURA, SHINRYOKU, KOYO, YUKI, LAVENDER, MINT, SKY, PEACH, LEMON, CORAL, ThemeCtx, useTheme };
+export { DARK, LIGHT, OLED, DIM, SEPIA, TITECH, TMDU, SCITOKYO, TSUBAME, SAKURA, SHINRYOKU, KOYO, YUKI, LAVENDER, MINT, SKY, PEACH, LEMON, CORAL, MIZUKUMORI, ThemeCtx, useTheme };
