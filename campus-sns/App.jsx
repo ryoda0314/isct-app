@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { T, updateT, ACCENT_PRESETS, isDarkMode } from "./theme.js";
+import { T, updateT, ACCENT_PRESETS, isDarkMode, THEME_MODES } from "./theme.js";
+import FogOverlay from "./components/FogOverlay.jsx";
 import { I } from "./icons.jsx";
 import { QData, ASGN0, MYTK0, EVENTS0, REVIEWS0, MYEVENTS0, SCHOOLS, DEPTS, UNIT_COL, evCat } from "./data.js";
 import { DEMO_EVENTS, DEMO_REVIEWS, DEMO_MY_EVENTS, DEMO_TASKS, DEMO_PERSONAS, buildDemoDataForPersona } from "./demoData.js";
@@ -849,6 +850,7 @@ export default function App(){
         {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
         <DemoBanner/>
         <Toasts/>
+        {themeMode==="mizukumori"&&<FogOverlay/>}
         <style>{`*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${T.bd};border-radius:3px}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit}@keyframes mnSpin{to{transform:rotate(360deg)}}`}</style>
       </div>
     );
@@ -892,6 +894,7 @@ export default function App(){
       {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
       <DemoBanner/>
       <Toasts/>
+      {themeMode==="mizukumori"&&<FogOverlay/>}
       <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}.sa-bottom{height:env(safe-area-inset-bottom,0px)}@keyframes mnSpin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
