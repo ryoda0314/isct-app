@@ -12,11 +12,11 @@ const SideItem=({icon,label,on,click,badge,compact})=>(
   </button>
 );
 
-const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,courses=[],depts=[],schools=[],user={},quarter,academicYear,pendingFriendCount=0,userUnit=null,compact=false})=>{
+const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,courses=[],depts=[],schools=[],user={},quarter,academicYear,pendingFriendCount=0,userUnit=null,compact=false,narrow=false})=>{
   const [moreOpen,setMoreOpen]=useState(false);
-  const extras=["grades","pomo","events","reviews","bmarks","location","acadCal","exams","freshman","reg"];
+  const extras=["grades","pomo","events","reviews","bmarks","acadCal","exams","freshman","reg"];
   const isExtra=extras.includes(view);
-  const W=compact?56:180;
+  const W=compact?56:narrow?150:180;
   const cp=compact;
   return(
   <div style={{width:W,background:T.bg2,display:"flex",flexDirection:"column",borderRight:`1px solid ${T.bd}`,flexShrink:0,overflowY:"auto",transition:"width .15s ease"}}>
@@ -104,7 +104,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
           <button onClick={()=>setMoreOpen(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.x}</button>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          {[{id:"grades",i:I.grad,l:"成績",c:T.accentSoft},{id:"exams",i:I.clip,l:"期末試験",c:T.red},{id:"reg",i:I.pen,l:"履修登録",c:T.accent},{id:"acadCal",i:I.cal,l:"学年暦",c:"#6366f1"},{id:"pomo",i:I.play,l:"ポモドーロ",c:T.green},{id:"events",i:I.event,l:"イベント",c:T.orange},{id:"reviews",i:I.star,l:"授業レビュー",c:"#c6a236"},{id:"bmarks",i:I.bmark,l:"ブックマーク",c:T.txD},{id:"location",i:I.pin,l:"友達の居場所",c:T.green}].map(n=>
+          {[{id:"grades",i:I.grad,l:"成績",c:T.accentSoft},{id:"exams",i:I.clip,l:"期末試験",c:T.red},{id:"reg",i:I.pen,l:"履修登録",c:T.accent},{id:"acadCal",i:I.cal,l:"学年暦",c:"#6366f1"},{id:"pomo",i:I.play,l:"ポモドーロ",c:T.green},{id:"events",i:I.event,l:"イベント",c:T.orange},{id:"reviews",i:I.star,l:"授業レビュー",c:"#c6a236"},{id:"bmarks",i:I.bmark,l:"ブックマーク",c:T.txD}].map(n=>
             <button key={n.id} onClick={()=>{setView(n.id);setMoreOpen(false);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,padding:"16px 8px",borderRadius:12,border:view===n.id?`2px solid ${n.c}`:`1px solid ${T.bd}`,background:view===n.id?`${n.c}10`:T.bg3,cursor:"pointer",transition:"all .12s"}}>
               <span style={{color:n.c,display:"flex"}}>{n.i}</span>
               <span style={{fontSize:12,fontWeight:view===n.id?600:400,color:view===n.id?T.txH:T.tx}}>{n.l}</span>
@@ -126,7 +126,7 @@ const UserRow=({u,isOnline})=>(
   </div>
 );
 
-const DChan=({course,dept,ch,setCh,online=[],members=[]})=>{
+const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
   const isDept=!!dept;
   const chs=isDept
     ?[{id:"timeline",n:"タイムライン",i:I.feed},{id:"chat",n:"チャット",i:I.chat}]
@@ -134,26 +134,27 @@ const DChan=({course,dept,ch,setCh,online=[],members=[]})=>{
   const col=isDept?dept.col:course?.col;
   const onlineIds=new Set(online.map(u=>String(u.id)));
   const offline=members.filter(m=>!onlineIds.has(String(m.id)));
+  const W=compact?160:210;
   return(
-    <div style={{width:210,background:T.bg2,display:"flex",flexDirection:"column",borderRight:`1px solid ${T.bd}`,flexShrink:0}}>
-      <div style={{padding:"13px 12px 10px",borderBottom:`1px solid ${T.bd}`}}>
+    <div style={{width:W,background:T.bg2,display:"flex",flexDirection:"column",borderRight:`1px solid ${T.bd}`,flexShrink:0,transition:"width .15s ease"}}>
+      <div style={{padding:compact?"10px 10px 8px":"13px 12px 10px",borderBottom:`1px solid ${T.bd}`}}>
         {isDept?<>
-          <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:"50%",background:dept.col}}/><span style={{fontWeight:700,color:T.txH,fontSize:14}}>{dept.prefix}</span></div>
-          <div style={{fontSize:11,color:T.txD,marginTop:2}}>{dept.name}</div>
+          <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:"50%",background:dept.col}}/><span style={{fontWeight:700,color:T.txH,fontSize:compact?12:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dept.prefix}</span></div>
+          <div style={{fontSize:compact?10:11,color:T.txD,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dept.name}</div>
         </>:<>
-          <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:"50%",background:course.col}}/><span style={{fontWeight:700,color:T.txH,fontSize:14}}>{course.code}</span></div>
-          <div style={{fontSize:11,color:T.txD,marginTop:2}}>{course.name}</div>
-          <div style={{fontSize:10,color:T.txD,marginTop:1}}>{course.per} · {course.room}</div>
+          <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:"50%",background:course.col}}/><span style={{fontWeight:700,color:T.txH,fontSize:compact?12:14}}>{course.code}</span></div>
+          <div style={{fontSize:compact?10:11,color:T.txD,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{course.name}</div>
+          {!compact&&<div style={{fontSize:10,color:T.txD,marginTop:1}}>{course.per} · {course.room}</div>}
         </>}
       </div>
       <div style={{padding:"5px 0",flex:1,overflowY:"auto"}}>
-        <div style={{padding:"5px 12px 3px",fontSize:10,fontWeight:700,color:T.txD,textTransform:"uppercase",letterSpacing:.7}}>Channels</div>
-        {chs.map(c=><button key={c.id} onClick={()=>setCh(c.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:6,padding:"5px 12px",border:"none",cursor:"pointer",fontSize:12,background:ch===c.id?`${T.accent}14`:"transparent",color:ch===c.id?T.txH:T.txD,textAlign:"left",borderLeft:ch===c.id?`2px solid ${T.accent}`:"2px solid transparent"}}><span style={{color:ch===c.id?T.accent:T.txD,display:"flex"}}>{c.i}</span><span style={{flex:1}}>{c.n}</span></button>)}
-        {online.length>0&&<>
+        <div style={{padding:compact?"5px 8px 3px":"5px 12px 3px",fontSize:10,fontWeight:700,color:T.txD,textTransform:"uppercase",letterSpacing:.7}}>Channels</div>
+        {chs.map(c=><button key={c.id} onClick={()=>setCh(c.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:6,padding:compact?"5px 8px":"5px 12px",border:"none",cursor:"pointer",fontSize:compact?11:12,background:ch===c.id?`${T.accent}14`:"transparent",color:ch===c.id?T.txH:T.txD,textAlign:"left",borderLeft:ch===c.id?`2px solid ${T.accent}`:"2px solid transparent"}}><span style={{color:ch===c.id?T.accent:T.txD,display:"flex"}}>{c.i}</span><span style={{flex:1}}>{c.n}</span></button>)}
+        {!compact&&online.length>0&&<>
           <div style={{padding:"10px 12px 3px",fontSize:10,fontWeight:700,color:T.txD,textTransform:"uppercase",letterSpacing:.7}}>Online — {online.length}</div>
           {online.map(u=><UserRow key={u.id} u={u} isOnline/>)}
         </>}
-        {offline.length>0&&<>
+        {!compact&&offline.length>0&&<>
           <div style={{padding:"10px 12px 3px",fontSize:10,fontWeight:700,color:T.txD,textTransform:"uppercase",letterSpacing:.7}}>Offline — {offline.length}</div>
           {offline.map(u=><UserRow key={u.id} u={u} isOnline={false}/>)}
         </>}
@@ -199,7 +200,6 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
       {id:"pomo",i:I.play,l:"ポモドーロタイマー"},
     ]},
     {title:"キャンパス",items:[
-      {id:"location",i:I.pin,l:"友達の居場所"},
       {id:"freshman",i:I.grad,l:"新入生掲示板"},
     ]},
     {title:"その他",items:otherItems},
