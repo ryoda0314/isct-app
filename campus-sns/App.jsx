@@ -491,13 +491,18 @@ export default function App(){
     (async()=>{
       // Previously logged in → skip /api/auth/status, go straight to fetchData
       // iOS PWA often fails to send cookies on the initial status check after cold start
+      // 審査アカウント判定を最優先で行う（wasLoggedIn でも status チェック）
+      try{
+        const sr=await fetch(`${API}/api/auth/status`);
+        const sd=await sr.json();
+        if(sd.loginId==="apple-review"){console.log("[App] review account detected, loading demo");onDemo("ss");return;}
+      }catch{}
       if(wasLoggedIn){
         console.log(`[Timing] wasLoggedIn=true, skipping status check, calling fetchData directly`);
         try{
           const asnList=await fetchData();
           if(asnList){goReady(asnList);return;}
         }catch(e){console.error("[App] direct fetchData failed:",e.message);}
-        // fetchData failed (401 or network) — fall through to status check as fallback
         console.log(`[Timing] direct fetchData failed, falling back to /api/auth/status`);
       }
       try{
@@ -505,7 +510,7 @@ export default function App(){
         const r=await fetch(`${API}/api/auth/status`);
         const d=await r.json();
         console.log(`[Timing] /api/auth/status: ${(performance.now()-t0).toFixed(0)}ms (hasCredentials=${d.hasCredentials})`);
-        if(d.loginId==="apple-review"){console.log("[App] review account detected, loading demo");onDemo();return;}
+        if(d.loginId==="apple-review"){console.log("[App] review account detected, loading demo");onDemo("ss");return;}
         if(d.hasCredentials){
           const asnList=await fetchData();
           if(asnList){goReady(asnList);return;}
