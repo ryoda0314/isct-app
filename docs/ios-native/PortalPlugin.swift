@@ -3,6 +3,10 @@ import UIKit
 import WebKit
 import Capacitor
 
+extension Notification.Name {
+    static let portalOverlayNeedsUpdate = Notification.Name("portalOverlayNeedsUpdate")
+}
+
 @objc(PortalPlugin)
 public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "PortalPlugin"
@@ -151,10 +155,10 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         bottomConstraint = bottom
         overlayView = container
 
-        // 画面回転時にサイドバー幅を再取得して制約を更新
+        // 画面回転完了後に制約を更新（ViewController から通知）
         NotificationCenter.default.addObserver(
-            self, selector: #selector(handleRotation),
-            name: UIDevice.orientationDidChangeNotification, object: nil)
+            self, selector: #selector(handleSizeChange(_:)),
+            name: .portalOverlayNeedsUpdate, object: nil)
 
         // Toolbar
         let toolbar = UIView()
@@ -363,7 +367,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
     // MARK: - Overlay Management
 
     private func removeOverlay() {
-        NotificationCenter.default.removeObserver(self, name: UIDevice.orientationDidChangeNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: .portalOverlayNeedsUpdate, object: nil)
 
         // Remove nav interceptor
         if let vc = bridge?.viewController {
@@ -388,16 +392,15 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         return 180
     }
 
-    @objc private func handleRotation() {
-        guard let rootView = overlayView?.superview else { return }
-        let newWidth = PortalPlugin.calcSidebarWidth(viewWidth: rootView.bounds.width)
+    @objc private func handleSizeChange(_ notification: Notification) {
+        guard overlayView != nil else { return }
+        let viewWidth = (notification.userInfo?["width"] as? CGFloat) ?? overlayView!.superview!.bounds.width
+        let newWidth = PortalPlugin.calcSidebarWidth(viewWidth: viewWidth)
         sidebarWidth = newWidth
         let hasSidebar = newWidth > 0
         leadingConstraint?.constant = newWidth
         bottomConstraint?.constant = hasSidebar ? 0 : -78
-        UIView.animate(withDuration: 0.25) {
-            rootView.layoutIfNeeded()
-        }
+        overlayView?.superview?.layoutIfNeeded()
     }
 
     private func hideLoading() {

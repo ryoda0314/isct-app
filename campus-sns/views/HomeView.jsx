@@ -52,7 +52,7 @@ const QA_ALL=[
   {id:"navigation",icon:I.map,label:"マップ"},
   {id:"search",icon:I.search,label:"検索"},
 ];
-const QA_DEFAULT=["circles","calendar","events","portal"];
+const QA_DEFAULT=["portal","isctportal","calendar","events"];
 const getQA=()=>{try{const v=localStorage.getItem("quickAccess");return v?JSON.parse(v):QA_DEFAULT;}catch{return QA_DEFAULT;}};
 
 export { QA_ALL, QA_DEFAULT };
