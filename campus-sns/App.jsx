@@ -505,6 +505,7 @@ export default function App(){
         const r=await fetch(`${API}/api/auth/status`);
         const d=await r.json();
         console.log(`[Timing] /api/auth/status: ${(performance.now()-t0).toFixed(0)}ms (hasCredentials=${d.hasCredentials})`);
+        if(d.loginId==="apple-review"){console.log("[App] review account detected, loading demo");onDemo();return;}
         if(d.hasCredentials){
           const asnList=await fetchData();
           if(asnList){goReady(asnList);return;}
@@ -567,7 +568,7 @@ export default function App(){
   useEffect(()=>{try{localStorage.setItem("quarter",String(quarter));}catch{}},[quarter]);
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
   useEffect(()=>{try{localStorage.setItem("notifSettings",JSON.stringify(notifSettings));}catch{}},[notifSettings]);
-  const onSetupComplete=async()=>{const MAX=4;const attempt=async(n)=>{console.log(`[App] onSetupComplete: fetchData attempt ${n}/${MAX}`);const r=await fetchData();if(r){console.log(`[App] onSetupComplete: fetchData OK — ${r.length} assignments`);setAppState("ready");refreshRef.current=setInterval(async()=>{const r2=await fetchData();if(r2)fetchSubmissionStatuses(r2);},15*60*1000);fetchSiteSettings();fetchSubmissionStatuses(r);return;}if(n<MAX){const delay=n*2;console.warn(`[App] onSetupComplete: fetchData attempt ${n} failed, retrying in ${delay}s...`);await new Promise(r=>setTimeout(r,delay*1000));return attempt(n+1);}console.error(`[App] onSetupComplete: fetchData failed after ${MAX} attempts, returning to setup`);setAppState("setup");};await attempt(1);};
+  const onSetupComplete=async()=>{try{const sr=await fetch(`${API}/api/auth/status`);const sd=await sr.json();if(sd.loginId==="apple-review"){console.log("[App] review account detected, loading demo");onDemo();return;}}catch{}const MAX=4;const attempt=async(n)=>{console.log(`[App] onSetupComplete: fetchData attempt ${n}/${MAX}`);const r=await fetchData();if(r){console.log(`[App] onSetupComplete: fetchData OK — ${r.length} assignments`);setAppState("ready");refreshRef.current=setInterval(async()=>{const r2=await fetchData();if(r2)fetchSubmissionStatuses(r2);},15*60*1000);fetchSiteSettings();fetchSubmissionStatuses(r);return;}if(n<MAX){const delay=n*2;console.warn(`[App] onSetupComplete: fetchData attempt ${n} failed, retrying in ${delay}s...`);await new Promise(r=>setTimeout(r,delay*1000));return attempt(n+1);}console.error(`[App] onSetupComplete: fetchData failed after ${MAX} attempts, returning to setup`);setAppState("setup");};await attempt(1);};
   const onDemo=(personaId)=>{const pd=buildDemoDataForPersona(personaId);setDemoMode(true);setScreenshotMode(personaId==="ss");setAllCourses(pd.courses);setQDataLive(pd.qdata);setAsgn(pd.asgn.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setCurrentUserFromAPI(pd.user);const q2c=pd.courses.find(c=>c.quarter===2);setCid(q2c?q2c.id:pd.courses[0].id);setQuarter(2);circleInit();try{localStorage.setItem("myLocation","lib");}catch{}setAppState("ready");};
 
   const cc=allCourses.find(c=>c.id===cid);
