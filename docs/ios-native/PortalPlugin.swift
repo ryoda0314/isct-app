@@ -30,6 +30,8 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
     private var loadingOverlay: UIView?
     private var isIsctMode = false
     private var sidebarWidth: CGFloat = 0
+    private var leadingConstraint: NSLayoutConstraint?
+    private var bottomConstraint: NSLayoutConstraint?
 
     // TiTech Portal state
     private var loginDone = false
@@ -53,7 +55,6 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         userId = call.getString("userId")
         password = call.getString("password")
         matrixJson = call.getString("matrixJson")
-        sidebarWidth = CGFloat(call.getInt("sidebarWidth") ?? 0)
 
         guard userId != nil, password != nil else {
             call.reject("Missing userId or password")
@@ -72,7 +73,6 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         isctUserId = call.getString("userId")
         isctPassword = call.getString("password")
         isctTotpCode = call.getString("totpCode")
-        sidebarWidth = CGFloat(call.getInt("sidebarWidth") ?? 0)
 
         guard isctUserId != nil, isctPassword != nil, isctTotpCode != nil else {
             call.reject("Missing userId, password, or totpCode")
@@ -93,7 +93,6 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         isctPassword = call.getString("password")
         isctTotpCode = call.getString("totpCode")
         lmsTargetUrl = call.getString("url")
-        sidebarWidth = CGFloat(call.getInt("sidebarWidth") ?? 0)
 
         guard isctUserId != nil, isctPassword != nil, isctTotpCode != nil, lmsTargetUrl != nil else {
             call.reject("Missing userId, password, totpCode, or url")
@@ -129,7 +128,8 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         isctTotpDone = false
         isctSamlDone = false
 
-        // sidebarWidth > 0 なら iPad サイドバーレイアウト（ボトムバーなし）
+        // 画面幅からサイドバー幅を算出（JS から渡す必要なし）
+        sidebarWidth = PortalPlugin.calcSidebarWidth(viewWidth: rootView.bounds.width)
         let hasSidebar = sidebarWidth > 0
         let bottomNavHeight: CGFloat = hasSidebar ? 0 : 78
 
@@ -139,13 +139,22 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         container.tag = 9999
         rootView.addSubview(container)
         container.translatesAutoresizingMaskIntoConstraints = false
+        let leading = container.leadingAnchor.constraint(equalTo: rootView.leadingAnchor, constant: sidebarWidth)
+        let bottom = container.bottomAnchor.constraint(equalTo: rootView.bottomAnchor, constant: -bottomNavHeight)
         NSLayoutConstraint.activate([
             container.topAnchor.constraint(equalTo: rootView.topAnchor),
-            container.leadingAnchor.constraint(equalTo: rootView.leadingAnchor, constant: sidebarWidth),
+            leading,
             container.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
-            container.bottomAnchor.constraint(equalTo: rootView.bottomAnchor, constant: -bottomNavHeight),
+            bottom,
         ])
+        leadingConstraint = leading
+        bottomConstraint = bottom
         overlayView = container
+
+        // 画面回転時にサイドバー幅を再取得して制約を更新
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(handleRotation),
+            name: UIDevice.orientationDidChangeNotification, object: nil)
 
         // Toolbar
         let toolbar = UIView()
@@ -354,6 +363,8 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
     // MARK: - Overlay Management
 
     private func removeOverlay() {
+        NotificationCenter.default.removeObserver(self, name: UIDevice.orientationDidChangeNotification, object: nil)
+
         // Remove nav interceptor
         if let vc = bridge?.viewController {
             vc.view.viewWithTag(9998)?.removeFromSuperview()
@@ -363,8 +374,30 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         portalWebView?.navigationDelegate = nil
         portalWebView = nil
         loadingOverlay = nil
+        leadingConstraint = nil
+        bottomConstraint = nil
         overlayView?.removeFromSuperview()
         overlayView = nil
+    }
+
+    /// 画面幅から CSS ブレークポイントに合わせたサイドバー幅を算出
+    /// mobile(<768): 0, tablet(768-1079): 150, desktop(>=1080): 180
+    private static func calcSidebarWidth(viewWidth: CGFloat) -> CGFloat {
+        if viewWidth < 768 { return 0 }
+        if viewWidth < 1080 { return 150 }
+        return 180
+    }
+
+    @objc private func handleRotation() {
+        guard let rootView = overlayView?.superview else { return }
+        let newWidth = PortalPlugin.calcSidebarWidth(viewWidth: rootView.bounds.width)
+        sidebarWidth = newWidth
+        let hasSidebar = newWidth > 0
+        leadingConstraint?.constant = newWidth
+        bottomConstraint?.constant = hasSidebar ? 0 : -78
+        UIView.animate(withDuration: 0.25) {
+            rootView.layoutIfNeeded()
+        }
     }
 
     private func hideLoading() {

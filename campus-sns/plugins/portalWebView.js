@@ -34,7 +34,7 @@ async function ensurePortalPlugin() {
  * @param {string} credentials.password - Portal password
  * @param {Object} credentials.matrix - { A: { 1: 'G', ... }, B: { ... }, ... }
  */
-export async function openPortal({ userId, password, matrix, sidebarWidth = 0 }) {
+export async function openPortal({ userId, password, matrix }) {
   if (!isNative()) {
     // Web: use existing server-side proxy
     window.location.href = '/api/portal/page';
@@ -47,7 +47,6 @@ export async function openPortal({ userId, password, matrix, sidebarWidth = 0 })
       userId,
       password,
       matrixJson: JSON.stringify(matrix),
-      sidebarWidth,
     });
   } else {
     // Fallback: open in system browser (no auto-login)
@@ -64,7 +63,7 @@ export async function openPortal({ userId, password, matrix, sidebarWidth = 0 })
  * @param {string} credentials.password - ISCT password
  * @param {string} credentials.totpCode - TOTP code (generated server-side)
  */
-export async function openIsctPortal({ userId, password, totpCode, sidebarWidth = 0 }) {
+export async function openIsctPortal({ userId, password, totpCode }) {
   if (!isNative()) {
     window.open('https://isct.ex-tic.com/auth/session', '_blank');
     return;
@@ -72,7 +71,7 @@ export async function openIsctPortal({ userId, password, totpCode, sidebarWidth 
 
   await ensurePortalPlugin();
   if (Portal) {
-    await Portal.openIsctPortal({ userId, password, totpCode, sidebarWidth });
+    await Portal.openIsctPortal({ userId, password, totpCode });
   } else {
     const { Browser } = await import('@capacitor/browser');
     await Browser.open({ url: 'https://isct.ex-tic.com/auth/session' });
@@ -87,7 +86,7 @@ export async function openIsctPortal({ userId, password, totpCode, sidebarWidth 
  * @param {string} url - LMS page URL
  * @param {Object} credentials - { userId, password, totpCode }
  */
-export async function openLmsPage(url, { userId, password, totpCode, sidebarWidth = 0 }) {
+export async function openLmsPage(url, { userId, password, totpCode }) {
   if (!isNative()) {
     window.open(url, '_blank');
     return;
@@ -95,7 +94,7 @@ export async function openLmsPage(url, { userId, password, totpCode, sidebarWidt
 
   await ensurePortalPlugin();
   if (Portal) {
-    await Portal.openLmsPage({ url, userId, password, totpCode, sidebarWidth });
+    await Portal.openLmsPage({ url, userId, password, totpCode });
   } else {
     const { Browser } = await import('@capacitor/browser');
     await Browser.open({ url });
