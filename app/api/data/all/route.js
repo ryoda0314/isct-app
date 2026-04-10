@@ -45,10 +45,20 @@ export async function GET(request) {
 
     // Courses + schedule from syllabus
     const sb = getSupabaseAdmin();
-    const [raw, profileRow] = await Promise.all([
+    const [raw, profileRow, captureConfig] = await Promise.all([
       fetchUserCourses(wstoken, userid),
       sb.from('profiles').select('dept, year_group, unit, student_id').eq('moodle_id', userid).maybeSingle().then(r => r.data),
+      sb.from('site_settings').select('value').eq('key', 'moodle_capture_targets').maybeSingle().then(r => r.data?.value),
     ]);
+
+    // Moodleデータキャプチャ: 指定IDのユーザーのみ、生データをDBに保存
+    const captureTargets = captureConfig?.user_ids || [];
+    if (captureTargets.includes(Number(userid)) && raw && raw.length > 0) {
+      sb.from('moodle_capture')
+        .insert({ moodle_user_id: userid, user_name: fullname, raw_courses: raw, course_count: raw.length })
+        .then(({ error }) => { if (error) console.error('[All] moodle capture error:', error.message); })
+        .catch(() => {});
+    }
 
     let scheduleMap = {};
     try {

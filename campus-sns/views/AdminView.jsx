@@ -27,6 +27,7 @@ const tabs = [
   { id: "exams", label: "期末試験", icon: I.clip },
   { id: "t2schola", label: "T2SCHOLA", icon: I.search },
   { id: "guests", label: "ゲスト分析", icon: I.eye },
+  { id: "moodle_capture", label: "Moodle取得", icon: I.search },
   { id: "settings", label: "設定", icon: I.shield },
 ];
 
@@ -2276,6 +2277,161 @@ const SettingsTab = () => {
   );
 };
 
+// ---- Moodle Capture Tab (医歯学系データ確認) ----
+const MoodleCaptureTab = () => {
+  const [targets, setTargets] = useState([]);
+  const [newId, setNewId] = useState("");
+  const [captures, setCaptures] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(null);
+
+  const loadTargets = async () => {
+    try {
+      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "get_capture_targets" }) });
+      const d = await r.json();
+      setTargets(d.user_ids || []);
+    } catch {}
+  };
+
+  const loadCaptures = async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "get_captured_moodle" }) });
+      const d = await r.json();
+      setCaptures(d.captures || []);
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { loadTargets(); loadCaptures(); }, []);
+
+  const saveTargets = async (ids) => {
+    await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "set_capture_targets", user_ids: ids }) });
+    setTargets(ids);
+  };
+
+  const addTarget = () => {
+    const id = parseInt(newId);
+    if (!id || targets.includes(id)) return;
+    saveTargets([...targets, id]);
+    setNewId("");
+  };
+
+  const removeTarget = (id) => saveTargets(targets.filter(t => t !== id));
+
+  const deleteCapture = async (id, all) => {
+    if (all && !confirm("全キャプチャデータを削除しますか？")) return;
+    await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_captured_moodle", ...(all ? { all: true } : { id }) }) });
+    loadCaptures();
+  };
+
+  const inputStyle = { padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none" };
+
+  return (
+    <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>Moodleデータ取得</div>
+      <div style={{ fontSize: 12, color: T.txD, lineHeight: 1.6 }}>
+        指定したMoodleユーザーIDの履修科目データを、次回ログイン時に自動でキャプチャします。<br />
+        医歯学系のMoodleコース形式を確認するための一時的な機能です。
+      </div>
+
+      {/* Target user IDs */}
+      <div style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>キャプチャ対象ユーザーID</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+          <input value={newId} onChange={e => setNewId(e.target.value)} placeholder="Moodle User ID" style={{ ...inputStyle, width: 160 }} onKeyDown={e => { if (e.key === "Enter") addTarget(); }} />
+          <Btn onClick={addTarget} color={T.accent} disabled={!newId.trim()}>追加</Btn>
+        </div>
+        {targets.length === 0 ? (
+          <div style={{ fontSize: 12, color: T.txD }}>対象なし（IDを追加するとそのユーザーのログイン時にデータを取得します）</div>
+        ) : (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {targets.map(id => (
+              <div key={id} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 8, background: `${T.accent}15`, fontSize: 12, color: T.accent }}>
+                <span style={{ fontFamily: "monospace" }}>{id}</span>
+                <button onClick={() => removeTarget(id)} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", fontSize: 14, lineHeight: 1 }}>x</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Captured data */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>取得済みデータ ({captures.length}件)</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <Btn onClick={loadCaptures} color={T.accent} small>{loading ? "読込中..." : "更新"}</Btn>
+          {captures.length > 0 && <Btn onClick={() => deleteCapture(null, true)} color="#e5534b" small>全削除</Btn>}
+        </div>
+      </div>
+
+      {captures.length === 0 ? (
+        <div style={{ fontSize: 12, color: T.txD, padding: 20, textAlign: "center" }}>
+          まだデータがありません。対象ユーザーがアプリにログインすると、ここにデータが表示されます。
+        </div>
+      ) : captures.map(cap => (
+        <div key={cap.id} style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div>
+              <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{cap.user_name || "不明"}</span>
+              <span style={{ fontSize: 11, color: T.txD, marginLeft: 8 }}>ID: {cap.moodle_user_id}</span>
+              <span style={{ fontSize: 11, color: T.txD, marginLeft: 8 }}>{cap.course_count}科目</span>
+              <span style={{ fontSize: 11, color: T.txD, marginLeft: 8 }}>{new Date(cap.captured_at).toLocaleString("ja-JP")}</span>
+            </div>
+            <div style={{ display: "flex", gap: 4 }}>
+              <Btn onClick={() => setExpanded(expanded === cap.id ? null : cap.id)} color={T.accent} small>{expanded === cap.id ? "閉じる" : "詳細"}</Btn>
+              <Btn onClick={() => deleteCapture(cap.id)} color="#e5534b" small>削除</Btn>
+            </div>
+          </div>
+
+          {/* Summary: shortname list */}
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {(cap.raw_courses || []).slice(0, 10).map((c, i) => (
+              <span key={i} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: T.bg2, color: T.txD, fontFamily: "monospace" }}>
+                {c.shortname || c.idnumber || `id:${c.id}`}
+              </span>
+            ))}
+            {(cap.raw_courses || []).length > 10 && <span style={{ fontSize: 11, color: T.txD }}>...+{cap.raw_courses.length - 10}</span>}
+          </div>
+
+          {/* Expanded: full data table */}
+          {expanded === cap.id && (
+            <div style={{ marginTop: 12, overflowX: "auto" }}>
+              <table style={{ width: "100%", fontSize: 11, borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    {["id", "shortname", "idnumber", "fullname"].map(h => (
+                      <th key={h} style={{ padding: "6px 8px", textAlign: "left", borderBottom: `1px solid ${T.bd}`, color: T.txD, fontWeight: 600 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(cap.raw_courses || []).map((c, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${T.bd}20` }}>
+                      <td style={{ padding: "5px 8px", fontFamily: "monospace", color: T.txD }}>{c.id}</td>
+                      <td style={{ padding: "5px 8px", fontFamily: "monospace", color: T.accent }}>{c.shortname}</td>
+                      <td style={{ padding: "5px 8px", fontFamily: "monospace", color: T.txD }}>{c.idnumber || "-"}</td>
+                      <td style={{ padding: "5px 8px", color: T.txH }}>{c.fullname}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Raw JSON toggle */}
+              <details style={{ marginTop: 8 }}>
+                <summary style={{ fontSize: 11, color: T.txD, cursor: "pointer" }}>Raw JSON</summary>
+                <pre style={{ fontSize: 10, color: T.txD, background: T.bg2, padding: 10, borderRadius: 8, overflow: "auto", maxHeight: 300, marginTop: 6 }}>
+                  {JSON.stringify(cap.raw_courses, null, 2)}
+                </pre>
+              </details>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // ---- T2SCHOLA Explorer Tab ----
 const T2ScholaTab = () => {
   const [token, setToken] = useState("");
@@ -2660,6 +2816,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "exams" && <ExamTab />}
         {tab === "t2schola" && <T2ScholaTab />}
         {tab === "guests" && <GuestAnalyticsTab />}
+        {tab === "moodle_capture" && <MoodleCaptureTab />}
         {tab === "settings" && <SettingsTab />}
       </div>
     </div>

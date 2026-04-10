@@ -851,6 +851,48 @@ export async function POST(request) {
       return NextResponse.json({ progress: getMedScrapeProgress(key) });
     }
 
+    // --- Moodle data capture (医歯学系データ形式確認) ---
+    if (action === 'set_capture_targets') {
+      const { user_ids } = body; // array of moodle_user_id
+      if (!Array.isArray(user_ids)) return NextResponse.json({ error: 'user_ids array required' }, { status: 400 });
+      const { error } = await sb.from('site_settings').upsert({
+        key: 'moodle_capture_targets',
+        value: { user_ids: user_ids.map(Number) },
+        updated_by: auth.userid,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'key' });
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      await auditLog(sb, auth.userid, 'set_capture_targets', 'settings', JSON.stringify(user_ids));
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === 'get_capture_targets') {
+      const { data } = await sb.from('site_settings').select('value').eq('key', 'moodle_capture_targets').maybeSingle();
+      return NextResponse.json({ user_ids: data?.value?.user_ids || [] });
+    }
+
+    if (action === 'get_captured_moodle') {
+      const { data, error } = await sb.from('moodle_capture')
+        .select('*')
+        .order('captured_at', { ascending: false })
+        .limit(50);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ captures: data || [] });
+    }
+
+    if (action === 'delete_captured_moodle') {
+      const { id, all } = body;
+      if (all) {
+        const { error } = await sb.from('moodle_capture').delete().neq('id', 0);
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      } else if (id) {
+        const { error } = await sb.from('moodle_capture').delete().eq('id', id);
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      await auditLog(sb, auth.userid, 'delete_captured_moodle', 'moodle_capture', all ? 'all' : String(id));
+      return NextResponse.json({ ok: true });
+    }
+
     // --- Exam schedules CRUD ---
     if (action === 'add_exam') {
       const { code, code_raw, name, date, day, period, room, instructor, year, quarter } = body;
