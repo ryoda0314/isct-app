@@ -2280,6 +2280,7 @@ const SettingsTab = () => {
 // ---- Moodle Capture Tab (医歯学系データ確認) ----
 const MoodleCaptureTab = () => {
   const [targets, setTargets] = useState([]);
+  const [targetsLoaded, setTargetsLoaded] = useState(false);
   const [newId, setNewId] = useState("");
   const [captures, setCaptures] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -2291,6 +2292,7 @@ const MoodleCaptureTab = () => {
       const d = await r.json();
       setTargets(d.user_ids || []);
     } catch {}
+    setTargetsLoaded(true);
   };
 
   const loadCaptures = async () => {
@@ -2311,13 +2313,14 @@ const MoodleCaptureTab = () => {
   };
 
   const addTarget = () => {
+    if (!targetsLoaded) return;
     const id = parseInt(newId);
     if (!id || targets.includes(id)) return;
     saveTargets([...targets, id]);
     setNewId("");
   };
 
-  const removeTarget = (id) => saveTargets(targets.filter(t => t !== id));
+  const removeTarget = (id) => { if (targetsLoaded) saveTargets(targets.filter(t => t !== id)); };
 
   const deleteCapture = async (id, all) => {
     if (all && !confirm("全キャプチャデータを削除しますか？")) return;
