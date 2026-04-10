@@ -11,8 +11,8 @@ import { useRef, useEffect, useCallback } from "react";
  */
 
 const BRUSH = 25;
-const REFOG_DELAY = 3000;
-const REFOG_SPEED = 0.8;
+const REFOG_DELAY = 5000;
+const REFOG_SPEED = 0.3;
 const FOG_ALPHA = 255;
 
 // 水滴テクスチャ
