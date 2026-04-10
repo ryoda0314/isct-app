@@ -3,6 +3,7 @@ import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { sendPushToUser } from '../../../lib/push.js';
 import { getSyllabusFromDB, getSyllabusStats, fetchDeptSyllabus, getDeptList, getScrapeProgress } from '../../../lib/api/syllabus-bulk.js';
+import { fetchMedFacultySyllabus, getMedFacultyList, getMedScrapeProgress } from '../../../lib/api/syllabus-med.js';
 
 export const maxDuration = 300;
 
@@ -825,6 +826,29 @@ export async function POST(request) {
         console.error(`[Admin] scrape_syllabus ${dept}_${year} failed:`, e);
         return NextResponse.json({ error: 'Scrape failed' }, { status: 500 });
       }
+    }
+
+    // --- Medical/Dental syllabus scrape (per faculty + year) ---
+    if (action === 'scrape_med_syllabus') {
+      const { faculty, year } = body;
+      if (!faculty || !year) return NextResponse.json({ error: 'faculty and year required' }, { status: 400 });
+      await auditLog(sb, auth.userid, 'scrape_med_syllabus', 'syllabus', `${faculty}_${year}`);
+      try {
+        const result = await fetchMedFacultySyllabus(faculty, year);
+        return NextResponse.json({ ok: true, ...result });
+      } catch (e) {
+        console.error(`[Admin] scrape_med_syllabus ${faculty}_${year} failed:`, e);
+        return NextResponse.json({ error: 'Med scrape failed' }, { status: 500 });
+      }
+    }
+
+    if (action === 'med_faculty_list') {
+      return NextResponse.json(getMedFacultyList());
+    }
+
+    if (action === 'med_scrape_progress') {
+      const { key } = body;
+      return NextResponse.json({ progress: getMedScrapeProgress(key) });
     }
 
     // --- Exam schedules CRUD ---
