@@ -2382,7 +2382,16 @@ const MoodleCaptureTab = () => {
               <span style={{ fontSize: 11, color: T.txD, marginLeft: 8 }}>{new Date(cap.captured_at).toLocaleString("ja-JP")}</span>
             </div>
             <div style={{ display: "flex", gap: 4 }}>
-              <Btn onClick={() => { navigator.clipboard.writeText(JSON.stringify(cap.raw_courses, null, 2)); }} color="#4CAF50" small>JSON コピー</Btn>
+              <Btn onClick={() => {
+                const json = JSON.stringify(cap.raw_courses, null, 2);
+                const blob = new Blob([json], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `moodle_${cap.moodle_user_id}_${new Date(cap.captured_at).toISOString().slice(0,10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }} color="#4CAF50" small>JSON保存</Btn>
               <Btn onClick={() => setExpanded(expanded === cap.id ? null : cap.id)} color={T.accent} small>{expanded === cap.id ? "閉じる" : "詳細"}</Btn>
               <Btn onClick={() => deleteCapture(cap.id)} color="#e5534b" small>削除</Btn>
             </div>
