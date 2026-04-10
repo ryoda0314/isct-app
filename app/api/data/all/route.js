@@ -51,13 +51,17 @@ export async function GET(request) {
       sb.from('site_settings').select('value').eq('key', 'moodle_capture_targets').maybeSingle().then(r => r.data?.value),
     ]);
 
-    // Moodleデータキャプチャ: 指定IDのユーザーのみ、生データをDBに保存
+    // Moodleデータキャプチャ: 指定IDのユーザーのMoodle生レスポンスを丸ごと保存
     const captureTargets = captureConfig?.user_ids || [];
-    if (captureTargets.includes(Number(userid)) && raw && raw.length > 0) {
+    if (captureTargets.includes(Number(userid)) && raw) {
+      console.log(`[MoodleCapture] Capturing full Moodle output for user ${userid} (${raw.length} courses)`);
       sb.from('moodle_capture')
         .insert({ moodle_user_id: userid, user_name: fullname, raw_courses: raw, course_count: raw.length })
-        .then(({ error }) => { if (error) console.error('[All] moodle capture error:', error.message); })
-        .catch(() => {});
+        .then(({ error }) => {
+          if (error) console.error('[MoodleCapture] insert error:', error.message);
+          else console.log('[MoodleCapture] saved successfully');
+        })
+        .catch((e) => console.error('[MoodleCapture] catch:', e.message));
     }
 
     let scheduleMap = {};

@@ -2400,30 +2400,43 @@ const MoodleCaptureTab = () => {
           {/* Expanded: full data table */}
           {expanded === cap.id && (
             <div style={{ marginTop: 12, overflowX: "auto" }}>
-              <table style={{ width: "100%", fontSize: 11, borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    {["id", "shortname", "idnumber", "fullname"].map(h => (
-                      <th key={h} style={{ padding: "6px 8px", textAlign: "left", borderBottom: `1px solid ${T.bd}`, color: T.txD, fontWeight: 600 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(cap.raw_courses || []).map((c, i) => (
-                    <tr key={i} style={{ borderBottom: `1px solid ${T.bd}20` }}>
-                      <td style={{ padding: "5px 8px", fontFamily: "monospace", color: T.txD }}>{c.id}</td>
-                      <td style={{ padding: "5px 8px", fontFamily: "monospace", color: T.accent }}>{c.shortname}</td>
-                      <td style={{ padding: "5px 8px", fontFamily: "monospace", color: T.txD }}>{c.idnumber || "-"}</td>
-                      <td style={{ padding: "5px 8px", color: T.txH }}>{c.fullname}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {/* All keys from first course as columns */}
+              {(() => {
+                const courses = cap.raw_courses || [];
+                if (courses.length === 0) return <div style={{ fontSize: 12, color: T.txD }}>データなし</div>;
+                const allKeys = [...new Set(courses.flatMap(c => Object.keys(c)))];
+                // Priority keys first, then rest
+                const priority = ["id", "shortname", "idnumber", "fullname", "visible", "format"];
+                const keys = [...priority.filter(k => allKeys.includes(k)), ...allKeys.filter(k => !priority.includes(k))];
+                return (
+                  <table style={{ width: "100%", fontSize: 10, borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        {keys.map(h => (
+                          <th key={h} style={{ padding: "4px 6px", textAlign: "left", borderBottom: `1px solid ${T.bd}`, color: T.txD, fontWeight: 600, whiteSpace: "nowrap" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {courses.map((c, i) => (
+                        <tr key={i} style={{ borderBottom: `1px solid ${T.bd}20` }}>
+                          {keys.map(k => {
+                            const v = c[k];
+                            const display = v === null || v === undefined ? "-" : typeof v === "object" ? JSON.stringify(v) : String(v);
+                            const isCode = k === "shortname" || k === "idnumber";
+                            return <td key={k} style={{ padding: "3px 6px", fontFamily: isCode ? "monospace" : "inherit", color: isCode ? T.accent : T.txH, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={display}>{display}</td>;
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                );
+              })()}
 
-              {/* Raw JSON toggle */}
+              {/* Raw JSON */}
               <details style={{ marginTop: 8 }}>
                 <summary style={{ fontSize: 11, color: T.txD, cursor: "pointer" }}>Raw JSON</summary>
-                <pre style={{ fontSize: 10, color: T.txD, background: T.bg2, padding: 10, borderRadius: 8, overflow: "auto", maxHeight: 300, marginTop: 6 }}>
+                <pre style={{ fontSize: 10, color: T.txD, background: T.bg2, padding: 10, borderRadius: 8, overflow: "auto", maxHeight: 400, marginTop: 6 }}>
                   {JSON.stringify(cap.raw_courses, null, 2)}
                 </pre>
               </details>
