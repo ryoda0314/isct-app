@@ -10,7 +10,7 @@ import { useRef, useEffect, useCallback } from "react";
  *  - 上: Canvas で alpha mask（ぬぐった所だけ穴を開ける）+ 水滴テクスチャ
  */
 
-const BRUSH = 50;
+const BRUSH = 25;
 const REFOG_DELAY = 3000;
 const REFOG_SPEED = 0.8;
 const FOG_ALPHA = 255;
