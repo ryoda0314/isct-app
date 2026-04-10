@@ -6,6 +6,7 @@ import { fetchScheduleForCourses } from '../../../../lib/api/syllabus-scraper.js
 import { transformCourses, groupByQuarter } from '../../../../lib/transform/course-transform.js';
 import { buildTimetable } from '../../../../lib/transform/timetable-builder.js';
 import { transformAssignments } from '../../../../lib/transform/assignment-transform.js';
+import { seedEnrollmentCache } from '../../../../lib/auth/course-enrollment.js';
 
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -65,6 +66,9 @@ export async function POST(request) {
     ]);
 
     const courses = transformCourses(rawCourses, scheduleMap, profileRow?.dept || null);
+
+    // Seed enrollment cache so server-side enrollment checks don't need to call Moodle API
+    seedEnrollmentCache(userid, rawCourses.filter(c => c.visible !== 0), profileRow?.dept || null, profileRow?.unit || null);
 
     // Save course enrollments to Supabase (fire-and-forget)
     if (rawCourses.length > 0) {

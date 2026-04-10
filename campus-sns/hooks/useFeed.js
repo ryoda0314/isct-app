@@ -236,13 +236,15 @@ export function useFeed(courseId) {
           return prev.map(post => post.id === tempId ? mapped : post);
         });
       } else {
-        console.error('[useFeed POST]', r.status);
+        let errBody;
+        try { errBody = await r.json(); } catch { errBody = null; }
+        console.error('[useFeed POST]', r.status, errBody);
         setPosts(prev => prev.filter(p => p.id !== tempId));
         idsRef.current.delete(tempId);
         showToast('投稿に失敗しました');
       }
     } catch (e) {
-      console.error('[useFeed POST error]', e);
+      console.error('[useFeed POST error]', e.message, e.stack);
       // Network error → queue if possible
       if (!(extra.files?.length > 0) && extra.onOfflineQueue) {
         setPosts(prev => prev.map(p => p.id === tempId ? { ...p, queued: true } : p));
