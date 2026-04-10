@@ -66,12 +66,9 @@ function drawDroplets(ctx, w, h) {
   }
 }
 
-// 垂れる水滴
-const DRIP_R = 6;             // 水滴の半径 (CSS px)
-const DRIP_SPEED_MIN = 1.5;   // 初速 (px/frame)
-const DRIP_SPEED_MAX = 3.5;   // 最大速度
-const DRIP_ACCEL = 0.08;      // 加速度（重力）
-const DRIP_WOBBLE = 0.3;      // 横揺れ幅
+// 垂れる水滴 — 窓を伝うようにゆっくり、止まったり動いたり
+const DRIP_R = 5;
+const DRIP_WOBBLE = 0.15;
 export default function FogOverlay() {
   const maskRef = useRef(null);
   const texRef = useRef(null);
@@ -175,15 +172,46 @@ export default function FogOverlay() {
       }
       mctx.putImageData(imgData, 0, 0);
 
-      // 垂れる水滴を更新（ビジュアルのみ、霧は消さない）
+      // 垂れる水滴を更新
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const drips = dripsRef.current;
+      const trailR = Math.round(2 * dpr);
       for (let i = drips.length - 1; i >= 0; i--) {
         const d = drips[i];
-        d.speed = Math.min(d.speed + DRIP_ACCEL, DRIP_SPEED_MAX);
-        d.y += d.speed;
-        d.x += Math.sin(d.y * 0.04 + d.phase) * DRIP_WOBBLE;
-        if (d.y > window.innerHeight + 20) drips.splice(i, 1);
+        // 止まり→じわっと動く→ツーッと流れる→また止まる
+        if (d.paused > 0) {
+          d.paused--;
+        } else {
+          const dy = d.vel;
+          d.y += dy;
+          d.x += Math.sin(d.y * 0.06 + d.phase) * DRIP_WOBBLE;
+          d.dist += dy;
+          // 加速（表面張力が切れてツーッと流れる感じ）
+          d.vel = Math.min(d.vel + 0.005, 0.8);
+          // ランダムに止まる（表面の凹凸に引っかかる）
+          if (Math.random() < 0.008) {
+            d.paused = 15 + Math.floor(Math.random() * 40);
+            d.vel = 0.1 + Math.random() * 0.15;
+          }
+        }
+        // 軌跡で霧を消す
+        const px = Math.round(d.x * dpr);
+        const py = Math.round(d.y * dpr);
+        const tr2 = trailR * trailR;
+        const tx0 = Math.max(0, px - trailR);
+        const tx1 = Math.min(w - 1, px + trailR);
+        const ty0 = Math.max(0, py - trailR);
+        const ty1 = Math.min(h - 1, py + trailR);
+        for (let yy = ty0; yy <= ty1; yy++) {
+          for (let xx = tx0; xx <= tx1; xx++) {
+            if ((xx - px) * (xx - px) + (yy - py) * (yy - py) < tr2) {
+              fog[yy * w + xx] = 0;
+            }
+          }
+        }
+        // 一定距離で消える（画面全部消さない）
+        if (d.dist > d.maxDist) drips.splice(i, 1);
+        else if (d.y > window.innerHeight + 20) drips.splice(i, 1);
       }
 
       // texture canvas — 静的水滴 + 垂れる水滴を描画
@@ -195,19 +223,28 @@ export default function FogOverlay() {
         tctx.globalCompositeOperation = "source-over";
       }
 
-      // 垂れる水滴を描画
+      // 垂れる水滴を描画 — maskキャンバスに直接描いて霧の上に乗せる
       for (const d of drips) {
         const px = d.x * dpr;
         const py = d.y * dpr;
         const r = DRIP_R * dpr;
-        const grad = tctx.createRadialGradient(px, py - r * 0.2, 0, px, py, r);
-        grad.addColorStop(0, "rgba(255,255,255,0.5)");
-        grad.addColorStop(0.5, "rgba(230,238,248,0.3)");
-        grad.addColorStop(1, "rgba(210,220,235,0.0)");
-        tctx.beginPath();
-        tctx.ellipse(px, py, r * 0.8, r * 1.3, 0, 0, Math.PI * 2);
-        tctx.fillStyle = grad;
-        tctx.fill();
+        // 水滴本体（透明感のある光沢）
+        mctx.save();
+        const grad = mctx.createRadialGradient(px - r * 0.25, py - r * 0.3, r * 0.1, px, py, r * 1.3);
+        grad.addColorStop(0, "rgba(255,255,255,0.85)");
+        grad.addColorStop(0.3, "rgba(200,215,235,0.5)");
+        grad.addColorStop(0.7, "rgba(170,190,215,0.25)");
+        grad.addColorStop(1, "rgba(150,170,200,0.0)");
+        mctx.beginPath();
+        mctx.ellipse(px, py, r * 0.7, r * 1.4, 0, 0, Math.PI * 2);
+        mctx.fillStyle = grad;
+        mctx.fill();
+        // ハイライト（光の反射）
+        mctx.beginPath();
+        mctx.ellipse(px - r * 0.15, py - r * 0.5, r * 0.2, r * 0.15, -0.3, 0, Math.PI * 2);
+        mctx.fillStyle = "rgba(255,255,255,0.7)";
+        mctx.fill();
+        mctx.restore();
       }
 
       rafRef.current = requestAnimationFrame(render);
@@ -244,10 +281,13 @@ export default function FogOverlay() {
       const count = 1 + Math.floor(Math.random() * 3);
       for (let i = 0; i < count; i++) {
         dripsRef.current.push({
-          x: x + (Math.random() - 0.5) * 20,
-          y: y + Math.random() * 6,
-          speed: DRIP_SPEED_MIN + Math.random() * 1,
+          x: x + (Math.random() - 0.5) * 16,
+          y: y + Math.random() * 4,
+          vel: 0.1 + Math.random() * 0.2,
           phase: Math.random() * Math.PI * 2,
+          paused: 10 + Math.floor(Math.random() * 20), // 最初少し溜まる
+          dist: 0,
+          maxDist: 100 + Math.random() * 150,
         });
       }
     };
