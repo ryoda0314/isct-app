@@ -6,7 +6,10 @@ import { transformCourseMaterials } from '../../../../lib/transform/material-tra
 export async function GET(request) {
   try {
     const auth = await requireAuth(request);
-    if (auth.error) return auth.error;
+    if (auth.error) {
+      console.error('[materials] auth failed');
+      return auth.error;
+    }
 
     const { searchParams } = new URL(request.url);
     const courseid = searchParams.get('courseid');
@@ -15,12 +18,21 @@ export async function GET(request) {
     }
 
     const { wstoken } = auth;
+    console.log('[materials] fetching courseContents for courseid=', courseid);
     const raw = await fetchCourseContents(wstoken, Number(courseid));
+    console.log('[materials] raw response type=%s length=%s', typeof raw, Array.isArray(raw) ? raw.length : 'N/A', Array.isArray(raw) ? '' : JSON.stringify(raw).slice(0, 200));
     const { sections, totalFiles } = transformCourseMaterials(raw, wstoken);
+    console.log('[materials] transformed: sections=%d totalFiles=%d', sections.length, totalFiles);
 
     return NextResponse.json({ sections, totalFiles });
   } catch (err) {
-    console.error('[materials]', err.message);
+    console.error('[materials] ERROR:', err.message, err.code || '');
+    if (err.code === 'MOODLE_HTML_RESPONSE') {
+      return NextResponse.json(
+        { error: 'LMS_UNAVAILABLE', sections: [], totalFiles: 0 },
+        { status: 200 },
+      );
+    }
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

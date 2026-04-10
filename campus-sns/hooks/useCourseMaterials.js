@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { getClientToken, fetchCourseContents } from '../moodleClient.js';
+import { transformCourseMaterials } from '../../lib/transform/material-transform.js';
 
 const cache = {};
-const EMPTY = { sections: [], totalFiles: 0 };
+const EMPTY = { sections: [], totalFiles: 0, error: null };
 
 export function resetCourseMaterialsCache() {
   for (const k of Object.keys(cache)) delete cache[k];
@@ -13,7 +15,6 @@ export function useCourseMaterials(moodleCourseId) {
 
   useEffect(() => {
     if (!moodleCourseId) {
-      console.warn('[useCourseMaterials] moodleCourseId is falsy, skip fetch', moodleCourseId);
       setLoading(false);
       return;
     }
@@ -21,23 +22,23 @@ export function useCourseMaterials(moodleCourseId) {
 
     let cancelled = false;
     setLoading(true);
-    console.log('[useCourseMaterials] fetching materials for', moodleCourseId);
     (async () => {
       try {
-        const r = await fetch(`/api/data/materials?courseid=${moodleCourseId}`);
-        if (!r.ok) {
-          console.error('[useCourseMaterials] API error', r.status, r.statusText, 'courseId=', moodleCourseId);
-          return;
-        }
-        const d = await r.json();
-        console.log('[useCourseMaterials] got response', { courseId: moodleCourseId, sections: d.sections?.length, totalFiles: d.totalFiles });
-        if (!cancelled && d.sections) {
-          const result = { sections: d.sections, totalFiles: d.totalFiles };
+        const { wstoken } = await getClientToken();
+        const raw = await fetchCourseContents(wstoken, moodleCourseId);
+        const { sections, totalFiles } = transformCourseMaterials(raw, wstoken);
+        if (!cancelled) {
+          const result = { sections, totalFiles, error: null };
           cache[moodleCourseId] = result;
           setData(result);
         }
       } catch (err) {
-        console.error('[useCourseMaterials] fetch error', err, 'courseId=', moodleCourseId);
+        console.error('[useCourseMaterials]', err.message, 'courseId=', moodleCourseId);
+        if (!cancelled) {
+          const error = err.code === 'MOODLE_HTML_RESPONSE' ? 'LMS_UNAVAILABLE'
+            : err.code === 'AUTH_REQUIRED' ? 'AUTH_REQUIRED' : 'NETWORK';
+          setData({ sections: [], totalFiles: 0, error });
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

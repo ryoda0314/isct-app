@@ -290,7 +290,7 @@ const SharedFileRow=({m,onClick,myId,onDelete})=>{
 /* ──────────────────────────────────────────────
    Tab: 講義資料 (Moodle materials)
    ────────────────────────────────────────────── */
-const LectureMaterials=({sections,totalFiles,loading,mob,onSelect})=>{
+const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect})=>{
   const [collapsed,setCollapsed]=useState({});
   const [search,setSearch]=useState("");
   const togSec=id=>setCollapsed(p=>({...p,[id]:!p[id]}));
@@ -300,6 +300,8 @@ const LectureMaterials=({sections,totalFiles,loading,mob,onSelect})=>{
     :sections;
 
   if(loading) return <Loader msg="教材を読み込み中"/>;
+  if(error==='LMS_UNAVAILABLE') return <div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>LMS に接続できません（学外ネットワークからはアクセスできない場合があります）</div>;
+  if(error) return <div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>教材の取得に失敗しました</div>;
 
   return(
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:12}}>
@@ -427,7 +429,7 @@ const SharedMaterials=({courseId,mob,onSelect})=>{
    Main MatView — 2-tab layout
    ────────────────────────────────────────────── */
 export const MatView=({course,mob})=>{
-  const {sections,totalFiles,loading}=useCourseMaterials(course?.moodleId);
+  const {sections,totalFiles,loading,error}=useCourseMaterials(course?.moodleId);
   const [tab,setTab]=useState(0); // 0=講義資料, 1=みんなの共有
   const [sel,setSel]=useState(null);
 
@@ -486,7 +488,7 @@ export const MatView=({course,mob})=>{
       </div>
 
       {/* Tab content */}
-      {tab===0&&<LectureMaterials sections={sections} totalFiles={totalFiles} loading={loading} mob={mob} onSelect={setSel}/>}
+      {tab===0&&<LectureMaterials sections={sections} totalFiles={totalFiles} loading={loading} error={error} mob={mob} onSelect={setSel}/>}
       {tab===1&&<SharedMaterials courseId={course?.moodleId} mob={mob} onSelect={m=>{
         const ft=detectType(m.mimetype);
         if(m.url&&PREVIEWABLE.has(ft)){
