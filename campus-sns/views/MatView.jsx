@@ -194,7 +194,7 @@ const FsIcon=({active})=>active
 const Preview=({m,mob,onClose})=>{
   const ft=m.fileType||detectType(m.mimetype);
   const c=tCol[ft]||T.txD;
-  const previewUrl=m.proxyUrl||m.url||m.fileurl;
+  const previewUrl=m.fileurl||m.url||m.proxyUrl;
   const dlUrl=m.fileurl||m.url;
   const wrapRef=useRef(null);
   const [fs,setFs]=useState(false);
