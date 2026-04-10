@@ -2382,6 +2382,7 @@ const MoodleCaptureTab = () => {
               <span style={{ fontSize: 11, color: T.txD, marginLeft: 8 }}>{new Date(cap.captured_at).toLocaleString("ja-JP")}</span>
             </div>
             <div style={{ display: "flex", gap: 4 }}>
+              <Btn onClick={() => { navigator.clipboard.writeText(JSON.stringify(cap.raw_courses, null, 2)); }} color="#4CAF50" small>JSON コピー</Btn>
               <Btn onClick={() => setExpanded(expanded === cap.id ? null : cap.id)} color={T.accent} small>{expanded === cap.id ? "閉じる" : "詳細"}</Btn>
               <Btn onClick={() => deleteCapture(cap.id)} color="#e5534b" small>削除</Btn>
             </div>

@@ -56,6 +56,22 @@ export async function POST(request) {
 
     const sb = getSupabaseAdmin();
 
+    // Moodleデータキャプチャ: 指定IDのユーザーのMoodle生データを丸ごと保存
+    try {
+      const captureConfig = await sb.from('site_settings').select('value').eq('key', 'moodle_capture_targets').maybeSingle().then(r => r.data?.value);
+      const captureTargets = captureConfig?.user_ids || [];
+      if (captureTargets.includes(Number(userid))) {
+        console.log(`[MoodleCapture] Capturing full Moodle output for user ${userid} (${rawCourses.length} courses)`);
+        sb.from('moodle_capture')
+          .insert({ moodle_user_id: userid, user_name: fullname, raw_courses: rawCourses, course_count: rawCourses.length })
+          .then(({ error }) => {
+            if (error) console.error('[MoodleCapture] insert error:', error.message);
+            else console.log('[MoodleCapture] saved successfully');
+          })
+          .catch((e) => console.error('[MoodleCapture] catch:', e.message));
+      }
+    } catch {}
+
     // Fetch profile and syllabus schedule in parallel
     const [profileRow, scheduleMap] = await Promise.all([
       sb.from('profiles').select('dept, year_group, unit, student_id').eq('moodle_id', userid).maybeSingle().then(r => r.data),
