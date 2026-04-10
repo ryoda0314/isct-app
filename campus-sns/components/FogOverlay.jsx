@@ -72,7 +72,6 @@ const DRIP_SPEED_MIN = 1.5;   // 初速 (px/frame)
 const DRIP_SPEED_MAX = 3.5;   // 最大速度
 const DRIP_ACCEL = 0.08;      // 加速度（重力）
 const DRIP_WOBBLE = 0.3;      // 横揺れ幅
-
 export default function FogOverlay() {
   const maskRef = useRef(null);
   const texRef = useRef(null);
@@ -176,7 +175,7 @@ export default function FogOverlay() {
       }
       mctx.putImageData(imgData, 0, 0);
 
-      // 垂れる水滴を更新
+      // 垂れる水滴を更新（ビジュアルのみ、霧は消さない）
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const drips = dripsRef.current;
       for (let i = drips.length - 1; i >= 0; i--) {
@@ -184,7 +183,6 @@ export default function FogOverlay() {
         d.speed = Math.min(d.speed + DRIP_ACCEL, DRIP_SPEED_MAX);
         d.y += d.speed;
         d.x += Math.sin(d.y * 0.04 + d.phase) * DRIP_WOBBLE;
-        // 画面外に出たら削除
         if (d.y > window.innerHeight + 20) drips.splice(i, 1);
       }
 

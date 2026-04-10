@@ -851,7 +851,7 @@ export default function App(){
         <DemoBanner/>
         <Toasts/>
         {themeMode==="mizukumori"&&<FogOverlay/>}
-        <style>{`*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${T.bd};border-radius:3px}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit}@keyframes mnSpin{to{transform:rotate(360deg)}}`}</style>
+        <style>{`*{box-sizing:border-box;margin:0;padding:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}input,textarea{-webkit-user-select:text;user-select:text}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${T.bd};border-radius:3px}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit}@keyframes mnSpin{to{transform:rotate(360deg)}}`}</style>
       </div>
     );
   }
@@ -895,7 +895,7 @@ export default function App(){
       <DemoBanner/>
       <Toasts/>
       {themeMode==="mizukumori"&&<FogOverlay/>}
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}.sa-bottom{height:env(safe-area-inset-bottom,0px)}@keyframes mnSpin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}input,textarea{-webkit-user-select:text;user-select:text}html,body{background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}.sa-bottom{height:env(safe-area-inset-bottom,0px)}@keyframes mnSpin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
