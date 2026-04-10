@@ -66,9 +66,8 @@ function drawDroplets(ctx, w, h) {
   }
 }
 
-// 垂れる水滴 — 窓を伝うようにゆっくり、止まったり動いたり
-const DRIP_R = 5;
-const DRIP_WOBBLE = 0.15;
+// 垂れる水滴 — 窓を伝うようにつーっと流れる（軌跡のみ）
+const DRIP_WOBBLE = 0.08;
 export default function FogOverlay() {
   const maskRef = useRef(null);
   const texRef = useRef(null);
@@ -175,7 +174,7 @@ export default function FogOverlay() {
       // 垂れる水滴を更新
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const drips = dripsRef.current;
-      const trailR = Math.round(2 * dpr);
+      const trailR = Math.round(5 * dpr);
       for (let i = drips.length - 1; i >= 0; i--) {
         const d = drips[i];
         // 止まり→じわっと動く→ツーッと流れる→また止まる
@@ -186,12 +185,12 @@ export default function FogOverlay() {
           d.y += dy;
           d.x += Math.sin(d.y * 0.06 + d.phase) * DRIP_WOBBLE;
           d.dist += dy;
-          // 加速（表面張力が切れてツーッと流れる感じ）
-          d.vel = Math.min(d.vel + 0.005, 0.8);
-          // ランダムに止まる（表面の凹凸に引っかかる）
-          if (Math.random() < 0.008) {
-            d.paused = 15 + Math.floor(Math.random() * 40);
-            d.vel = 0.1 + Math.random() * 0.15;
+          // 加速 — つーっと流れる
+          d.vel = Math.min(d.vel + 0.01, 1.8);
+          // たまに止まる（頻度低め）
+          if (Math.random() < 0.003) {
+            d.paused = 10 + Math.floor(Math.random() * 25);
+            d.vel = 0.15 + Math.random() * 0.2;
           }
         }
         // 軌跡で霧を消す
@@ -223,29 +222,6 @@ export default function FogOverlay() {
         tctx.globalCompositeOperation = "source-over";
       }
 
-      // 垂れる水滴を描画 — maskキャンバスに直接描いて霧の上に乗せる
-      for (const d of drips) {
-        const px = d.x * dpr;
-        const py = d.y * dpr;
-        const r = DRIP_R * dpr;
-        // 水滴本体（透明感のある光沢）
-        mctx.save();
-        const grad = mctx.createRadialGradient(px - r * 0.25, py - r * 0.3, r * 0.1, px, py, r * 1.3);
-        grad.addColorStop(0, "rgba(255,255,255,0.85)");
-        grad.addColorStop(0.3, "rgba(200,215,235,0.5)");
-        grad.addColorStop(0.7, "rgba(170,190,215,0.25)");
-        grad.addColorStop(1, "rgba(150,170,200,0.0)");
-        mctx.beginPath();
-        mctx.ellipse(px, py, r * 0.7, r * 1.4, 0, 0, Math.PI * 2);
-        mctx.fillStyle = grad;
-        mctx.fill();
-        // ハイライト（光の反射）
-        mctx.beginPath();
-        mctx.ellipse(px - r * 0.15, py - r * 0.5, r * 0.2, r * 0.15, -0.3, 0, Math.PI * 2);
-        mctx.fillStyle = "rgba(255,255,255,0.7)";
-        mctx.fill();
-        mctx.restore();
-      }
 
       rafRef.current = requestAnimationFrame(render);
     };
@@ -287,7 +263,7 @@ export default function FogOverlay() {
           phase: Math.random() * Math.PI * 2,
           paused: 10 + Math.floor(Math.random() * 20), // 最初少し溜まる
           dist: 0,
-          maxDist: 100 + Math.random() * 150,
+          maxDist: 150 + Math.random() * 250,
         });
       }
     };
