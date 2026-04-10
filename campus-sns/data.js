@@ -20,14 +20,18 @@ const MYEVENTS0=[];
 // Event category config (not data)
 const evCat={contest:{l:"コンテスト",c:"#6375f0"},open_lab:{l:"研究室公開",c:"#a855c7"},career:{l:"就活",c:"#d4843e"},community:{l:"コミュニティ",c:"#3dae72"},exam:{l:"試験",c:"#e5534b"},academic:{l:"大学行事",c:"#6366f1"},festival:{l:"大学祭",c:"#f59e0b"}};
 
-// 理工学系の学院・系マスタ（東京科学大学 旧東工大）
+// 学院・学部マスタ（東京科学大学）
 const SCHOOLS={
+  // 理工学系（旧東工大）
   science:     {name:"理学院",         col:"#6375f0"},
   engineering: {name:"工学院",         col:"#e5534b"},
   matsci:      {name:"物質理工学院",   col:"#3dae72"},
   computing:   {name:"情報理工学院",   col:"#a855c7"},
   lifesci:     {name:"生命理工学院",   col:"#2d9d8f"},
   envsoc:      {name:"環境・社会理工学院",col:"#d4843e"},
+  // 医歯学系（旧東京医科歯科大）
+  medicine:    {name:"医学部",         col:"#e04e6a"},
+  dentistry:   {name:"歯学部",         col:"#4ea8e0"},
 };
 
 const DEPTS={
@@ -57,6 +61,14 @@ const DEPTS={
   SHS:{name:"社会・人間科学系",school:"envsoc",    col:"#c75d8e"},
   TIM:{name:"イノベーション科学系",school:"envsoc",col:"#56b6c2"},
   MOT:{name:"技術経営専門職学位課程",school:"envsoc",col:"#61afef"},
+  // 医学部
+  MED_M:{name:"医学科",             school:"medicine",   col:"#e04e6a"},
+  MED_N:{name:"保健衛生学科 看護学専攻",school:"medicine",col:"#e86b83"},
+  MED_T:{name:"保健衛生学科 検査技術学専攻",school:"medicine",col:"#d4577a"},
+  // 歯学部
+  DEN_D:{name:"歯学科",             school:"dentistry",  col:"#4ea8e0"},
+  DEN_H:{name:"口腔保健学科 口腔保健衛生学専攻",school:"dentistry",col:"#6bb8e8"},
+  DEN_E:{name:"口腔保健学科 口腔保健工学専攻",school:"dentistry",col:"#3d96cf"},
 };
 
 // ユニット（1年生の学院横断少人数グループ）

@@ -4,14 +4,29 @@ import { ME, SCHOOLS } from '../data.js';
 const SCHOOL_NUM_MAP = {
   "0": "science", "1": "engineering", "2": "matsci",
   "3": "computing", "4": "lifesci", "5": "envsoc",
+  "6": "medicine", "7": "dentistry",
+};
+// 旧医歯学系(〜23年度): 8桁数字, 先頭2桁=学科コード
+const MED_LEGACY_MAP = {
+  "11": "medicine", "21": "medicine", "22": "medicine",
+  "31": "dentistry", "32": "dentistry", "39": "dentistry",
 };
 
 function parseStudentId(id) {
   if (!id || id.length < 4) return null;
+  // 新形式: ○○[BMDR]○○○○○
   const m = id.match(/^(\d{2})([BMDR])(\d)/i);
-  if (!m) return null;
-  const schoolKey = SCHOOL_NUM_MAP[m[3]] || null;
-  return { yearGroup: m[1] + m[2].toUpperCase(), schoolKey, schoolName: schoolKey ? SCHOOLS[schoolKey]?.name : null };
+  if (m) {
+    const schoolKey = SCHOOL_NUM_MAP[m[3]] || null;
+    return { yearGroup: m[1] + m[2].toUpperCase(), schoolKey, schoolName: schoolKey ? SCHOOLS[schoolKey]?.name : null };
+  }
+  // 旧医歯学系: 8桁数字
+  const mL = id.match(/^(\d{2})(\d{2})\d{4}$/);
+  if (mL && MED_LEGACY_MAP[mL[1]]) {
+    const schoolKey = MED_LEGACY_MAP[mL[1]];
+    return { yearGroup: mL[2] + "B", schoolKey, schoolName: SCHOOLS[schoolKey]?.name };
+  }
+  return null;
 }
 
 let cached = null;

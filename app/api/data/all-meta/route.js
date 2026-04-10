@@ -22,8 +22,12 @@ async function checkAdmin(userid) {
 function parseStudentId(id) {
   if (!id) return null;
   const m = id.match(/^(\d{2})([BMDR])(\d)/i);
-  if (!m) return null;
-  return { yearGroup: m[1] + m[2].toUpperCase(), schoolNum: m[3] };
+  if (m) return { yearGroup: m[1] + m[2].toUpperCase(), schoolNum: m[3] };
+  const mL = id.match(/^(\d{2})(\d{2})\d{4}$/);
+  if (mL && /^(11|21|22|31|32|39)$/.test(mL[1])) {
+    return { yearGroup: mL[2] + "B", schoolNum: null };
+  }
+  return null;
 }
 
 async function resolveStudentId(loginId, profileStudentId) {

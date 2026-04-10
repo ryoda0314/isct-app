@@ -6,7 +6,7 @@ import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 export async function POST(request) {
   try {
-    const { userId, password, totpSecret, portalUserId, portalPassword, matrix, isctValidated } = await request.json();
+    const { userId, password, totpSecret, portalUserId, portalPassword, matrix, isctValidated, studentId } = await request.json();
 
     // Need at least ISCT or Portal credentials
     const hasIsct = userId && password && totpSecret;
@@ -34,14 +34,21 @@ export async function POST(request) {
       ...credData,
     });
 
-    // portalUserId (学籍番号) を profiles に保存
+    // portalUserId or studentId (学籍番号) を profiles に保存
     const saveStudentId = async (moodleId) => {
-      if (!portalUserId) return;
+      const sid = portalUserId || studentId;
+      if (!sid) return;
       try {
         const sb = getSupabaseAdmin();
-        const m = portalUserId.match(/^(\d{2})([BMDR])(\d)/i);
-        const updates = { student_id: portalUserId };
+        const updates = { student_id: sid };
+        // 新形式: ○○B○○○○○
+        const m = sid.match(/^(\d{2})([BMDR])(\d)/i);
         if (m) updates.year_group = m[1] + m[2].toUpperCase();
+        // 旧医歯学系: 8桁数字
+        if (!m) {
+          const mL = sid.match(/^(\d{2})(\d{2})\d{4}$/);
+          if (mL && /^(11|21|22|31|32|39)$/.test(mL[1])) updates.year_group = mL[2] + "B";
+        }
         await sb.from('profiles').update(updates).eq('moodle_id', moodleId).is('student_id', null);
       } catch {}
     };

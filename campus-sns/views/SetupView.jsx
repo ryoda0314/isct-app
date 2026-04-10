@@ -11,7 +11,8 @@ import { TermsOfServiceView } from "./TermsOfServiceView.jsx";
 const API = "";
 
 /* ─── 学籍番号パーサー ─── */
-// 例: "24B00001" → { year:"24", degree:"B", schoolNum:"0", yearGroup:"24B", schoolKey:"science" }
+// 新形式: "24B00001" → { year:"24", degree:"B", schoolNum:"0", yearGroup:"24B", schoolKey:"science" }
+// 旧医歯学系(〜23年度): "11220001" → 8桁数字, 先頭2桁が学科コード, 3-4桁目が入学年度
 const DEGREE_MAP = { B: "学部", M: "修士", D: "博士", R: "研究生" };
 const SCHOOL_NUM_MAP = {
   "0": "science",       // 理学院
@@ -20,20 +21,45 @@ const SCHOOL_NUM_MAP = {
   "3": "computing",     // 情報理工学院
   "4": "lifesci",       // 生命理工学院
   "5": "envsoc",        // 環境・社会理工学院
+  "6": "medicine",      // 医学部
+  "7": "dentistry",     // 歯学部
 };
 const SCHOOL_LABEL = {
   science: "理学院", engineering: "工学院", matsci: "物質理工学院",
   computing: "情報理工学院", lifesci: "生命理工学院", envsoc: "環境・社会理工学院",
+  medicine: "医学部", dentistry: "歯学部",
+};
+// 旧医歯学系の学科コード → { schoolKey, deptKey }
+const MED_LEGACY_MAP = {
+  "11": { schoolKey: "medicine",  deptKey: "MED_M" }, // 医学科
+  "21": { schoolKey: "medicine",  deptKey: "MED_N" }, // 保健衛生学科 看護学専攻
+  "22": { schoolKey: "medicine",  deptKey: "MED_T" }, // 保健衛生学科 検査技術学専攻
+  "31": { schoolKey: "dentistry", deptKey: "DEN_D" }, // 歯学科
+  "32": { schoolKey: "dentistry", deptKey: "DEN_H" }, // 口腔保健学科 口腔保健衛生学専攻
+  "39": { schoolKey: "dentistry", deptKey: "DEN_E" }, // 口腔保健学科 口腔保健工学専攻
 };
 function parseStudentId(id) {
   if (!id || id.length < 4) return null;
+  // 新形式: ○○[BMDR]○○○○○ (例: 24B00001, 25M60001)
   const m = id.match(/^(\d{2})([BMDR])(\d)/i);
-  if (!m) return null;
-  const year = m[1];
-  const degree = m[2].toUpperCase();
-  const schoolNum = m[3];
-  const schoolKey = SCHOOL_NUM_MAP[schoolNum] || null;
-  return { year, degree, schoolNum, yearGroup: year + degree, schoolKey, schoolLabel: schoolKey ? SCHOOL_LABEL[schoolKey] : null };
+  if (m) {
+    const year = m[1];
+    const degree = m[2].toUpperCase();
+    const schoolNum = m[3];
+    const schoolKey = SCHOOL_NUM_MAP[schoolNum] || null;
+    return { year, degree, schoolNum, yearGroup: year + degree, schoolKey, schoolLabel: schoolKey ? SCHOOL_LABEL[schoolKey] : null, deptKey: null, isMedDental: schoolNum >= "6" };
+  }
+  // 旧医歯学系形式: 8桁数字 (例: 11220001 → 医学科, 22年入学)
+  const mLegacy = id.match(/^(\d{2})(\d{2})(\d{4})$/);
+  if (mLegacy) {
+    const deptCode = mLegacy[1];
+    const legacy = MED_LEGACY_MAP[deptCode];
+    if (legacy) {
+      const year = mLegacy[2];
+      return { year, degree: "B", schoolNum: null, yearGroup: year + "B", schoolKey: legacy.schoolKey, schoolLabel: SCHOOL_LABEL[legacy.schoolKey], deptKey: legacy.deptKey, isMedDental: true };
+    }
+  }
+  return null;
 }
 
 const PAGE_BASE = {
@@ -422,20 +448,44 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
   const [emailVerified, setEmailVerified] = useState(false);
   const [emailSaving, setEmailSaving] = useState(false);
 
-  // 学籍番号から学年・課程・学院を自動抽出
+  // 医歯学系用: 学籍番号 + 学部学科選択
+  const [medStudentId, setMedStudentId] = useState("");
+  const [isMedRoute, setIsMedRoute] = useState(false);
+  const [medFaculty, setMedFaculty] = useState(null);  // "medicine" | "dentistry"
+  const [medDept, setMedDept] = useState(null);         // DEPTS key (e.g. "MED_M")
+
+  // 学籍番号から学年・課程・学院/学部を自動抽出
   useEffect(() => {
-    const parsed = parseStudentId(portalId);
-    if (parsed) {
-      setYearGroup(parsed.yearGroup);
-      setSchool(parsed.schoolKey);
-      if (parsed.schoolKey) setSetupDeptSchool(parsed.schoolKey);
+    if (isMedRoute) {
+      // 医歯学系: 学部・学科は手動選択、年度のみ学籍番号から推定
+      const parsed = parseStudentId(medStudentId);
+      if (parsed) setYearGroup(parsed.yearGroup);
+    } else {
+      const parsed = parseStudentId(portalId);
+      if (parsed) {
+        setYearGroup(parsed.yearGroup);
+        setSchool(parsed.schoolKey);
+        if (parsed.schoolKey) setSetupDeptSchool(parsed.schoolKey);
+      }
     }
-  }, [portalId]);
+  }, [portalId, medStudentId, isMedRoute]);
+
+  // 医歯学系: 手動選択した学部をschool/deptに反映
+  useEffect(() => {
+    if (isMedRoute && medFaculty) {
+      setSchool(medFaculty);
+      setSetupDeptSchool(medFaculty);
+    }
+  }, [medFaculty, isMedRoute]);
+  useEffect(() => {
+    if (isMedRoute && medDept) setSetupDept(medDept);
+  }, [medDept, isMedRoute]);
 
   const hasIsct = isctId && isctPw && totpSecret;
   const hasMatrix = COLS.every(c => ROWS.every(r => matrix[c]?.[r]));
   const hasPortal = portalId && portalPw && hasMatrix;
-  const hasAny = hasIsct || hasPortal;
+  const hasMedId = isMedRoute && medStudentId && medFaculty && medDept;
+  const hasAny = hasIsct || hasPortal || hasMedId;
 
   const goBack = () => {
     setError(null);
@@ -496,7 +546,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
   };
 
   const handleSubmit = async () => {
-    if (!hasIsct && !hasPortal) {
+    if (!hasIsct && !hasPortal && !hasMedId) {
       setError("いずれかの認証情報を入力してください");
       return;
     }
@@ -513,6 +563,8 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
         if (isctValidated) body.isctValidated = true;
       }
       if (hasPortal) { body.portalUserId = portalId; body.portalPassword = portalPw; body.matrix = matrix; }
+      // 医歯学系: 学籍番号のみ
+      if (hasMedId) body.studentId = medStudentId;
       const resp = await fetch(`${API}/api/auth/setup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -823,33 +875,120 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
         </div>
       )}
 
-      {/* ═══ 新規登録 Step 1 : Titech Portal ═══ */}
+      {/* ═══ 新規登録 Step 1 : Titech Portal / 医歯学系 学籍番号 ═══ */}
       {mode === "signup" && step === 1 && (
         <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           <div style={bodyStyle}>
             <StepLabel n={2} total={5} />
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>Titech Portal</h2>
-            <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>成績情報の取得に必要です</p>
-            <ErrorBanner error={error} />
-            <div style={cardStyle}>
-              <InputField label="ポータル アカウント" value={portalId} onChange={e => setPortalId(e.target.value)} placeholder="学籍番号（例: 24B00001）" mono />
-              {(() => {
-                const p = parseStudentId(portalId);
-                return p ? (
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {[`20${p.year}年入学`, DEGREE_MAP[p.degree], p.schoolLabel].filter(Boolean).map(t => (
-                      <span key={t} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: `${T.green}14`, color: T.green }}>{t}</span>
-                    ))}
+
+            {/* ── ルート切り替えタブ ── */}
+            <div style={{ display: "flex", gap: 0, marginBottom: 18, borderRadius: 10, background: T.bg3, padding: 3 }}>
+              {[["portal","理工学系（Portal）"],["med","医歯学系"]].map(([k,l])=>(
+                <button key={k} onClick={()=>{setIsMedRoute(k==="med");setError(null);}}
+                  style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none",
+                    background: (isMedRoute ? "med" : "portal")===k ? T.bg2 : "transparent",
+                    color: (isMedRoute ? "med" : "portal")===k ? T.txH : T.txD,
+                    fontSize: 13, fontWeight: 600, cursor: "pointer",
+                    boxShadow: (isMedRoute ? "med" : "portal")===k ? "0 1px 3px rgba(0,0,0,.08)" : "none",
+                    transition: "all .15s",
+                  }}>{l}</button>
+              ))}
+            </div>
+
+            {/* ── 理工学系: Titech Portal ── */}
+            {!isMedRoute && <>
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>Titech Portal</h2>
+              <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>成績情報の取得に必要です</p>
+              <ErrorBanner error={error} />
+              <div style={cardStyle}>
+                <InputField label="ポータル アカウント" value={portalId} onChange={e => setPortalId(e.target.value)} placeholder="学籍番号（例: 24B00001）" mono />
+                {(() => {
+                  const p = parseStudentId(portalId);
+                  return p ? (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {[`20${p.year}年入学`, DEGREE_MAP[p.degree], p.schoolLabel].filter(Boolean).map(t => (
+                        <span key={t} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: `${T.green}14`, color: T.green }}>{t}</span>
+                      ))}
+                    </div>
+                  ) : null;
+                })()}
+                <InputField label="ポータル パスワード" value={portalPw} onChange={e => setPortalPw(e.target.value)} placeholder="ポータルのパスワード" type="password" showToggle />
+                <MatrixInput matrix={matrix} setMatrix={setMatrix} />
+              </div>
+              {hasPortal && <DoneBanner />}
+              <div style={{ marginTop: 24 }}>
+                <button onClick={nextStep} disabled={!hasPortal} style={primaryBtnStyle(hasPortal)}>次へ</button>
+              </div>
+            </>}
+
+            {/* ── 医歯学系: 学籍番号 + 学部学科選択 ── */}
+            {isMedRoute && <>
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>医歯学系</h2>
+              <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>学籍番号と所属を入力してください</p>
+              <ErrorBanner error={error} />
+              <div style={cardStyle}>
+                <InputField label="学籍番号" value={medStudentId} onChange={e => setMedStudentId(e.target.value)} placeholder="例: 11220001 / 24B60001" mono />
+
+                {/* 学部選択 */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" }}>学部</label>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {[["medicine","医学部"],["dentistry","歯学部"]].map(([k,l])=>{
+                      const s = SCHOOLS[k];
+                      const on = medFaculty === k;
+                      return (
+                        <button key={k} onClick={() => { setMedFaculty(on ? null : k); setMedDept(null); }}
+                          style={{
+                            flex: 1, padding: "10px 0", borderRadius: 8,
+                            border: `1px solid ${on ? s.col : T.bd}`,
+                            background: on ? `${s.col}14` : "transparent",
+                            color: on ? s.col : T.txH,
+                            fontSize: 14, fontWeight: on ? 700 : 500, cursor: "pointer",
+                            transition: "all .15s",
+                          }}>{l}</button>
+                      );
+                    })}
                   </div>
-                ) : null;
-              })()}
-              <InputField label="ポータル パスワード" value={portalPw} onChange={e => setPortalPw(e.target.value)} placeholder="ポータルのパスワード" type="password" showToggle />
-              <MatrixInput matrix={matrix} setMatrix={setMatrix} />
-            </div>
-            {hasPortal && <DoneBanner />}
-            <div style={{ marginTop: 24 }}>
-              <button onClick={nextStep} disabled={!hasPortal} style={primaryBtnStyle(hasPortal)}>次へ</button>
-            </div>
+                </div>
+
+                {/* 学科・専攻選択 */}
+                {medFaculty && (
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" }}>学科・専攻</label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {Object.entries(DEPTS).filter(([,d]) => d.school === medFaculty).map(([key, d]) => {
+                        const on = medDept === key;
+                        return (
+                          <button key={key} onClick={() => setMedDept(on ? null : key)}
+                            style={{
+                              padding: "10px 14px", borderRadius: 8, textAlign: "left",
+                              border: `1px solid ${on ? d.col : T.bd}`,
+                              background: on ? `${d.col}14` : "transparent",
+                              color: on ? d.col : T.txH,
+                              fontSize: 13, fontWeight: on ? 700 : 500, cursor: "pointer",
+                              transition: "all .15s",
+                            }}>{d.name}</button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8, marginTop: 12,
+                padding: "10px 14px", borderRadius: 10,
+                background: `${T.accent}06`, border: `1px solid ${T.accent}20`,
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <p style={{ fontSize: 11, color: T.txD, lineHeight: 1.6, margin: 0 }}>
+                  医歯学系にはTitech Portalが存在しないため、学籍番号のみで登録できます。成績照会機能は現在利用できません。
+                </p>
+              </div>
+              {hasMedId && <DoneBanner />}
+              <div style={{ marginTop: 24 }}>
+                <button onClick={nextStep} disabled={!hasMedId} style={primaryBtnStyle(hasMedId)}>次へ</button>
+              </div>
+            </>}
           </div>
         </div>
       )}
@@ -864,7 +1003,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
             <ErrorBanner error={error} />
             {/* Year group — auto-detected or manual */}
             {(() => {
-              const parsed = parseStudentId(portalId);
+              const parsed = parseStudentId(isMedRoute ? medStudentId : portalId);
               return parsed ? (
                 <div style={{ padding: 14, borderRadius: 12, border: `1px solid ${T.green}30`, background: `${T.green}06` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
@@ -875,7 +1014,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                     {[
                       { label: "入学年度", value: `20${parsed.year}` },
                       { label: "課程", value: DEGREE_MAP[parsed.degree] || parsed.degree },
-                      ...(parsed.schoolLabel ? [{ label: "学院", value: parsed.schoolLabel }] : []),
+                      ...(parsed.schoolLabel ? [{ label: parsed.isMedDental ? "学部" : "学院", value: parsed.schoolLabel }] : []),
                     ].map(item => (
                       <div key={item.label} style={{ flex: 1, padding: "10px 8px", borderRadius: 8, background: T.bg2, textAlign: "center" }}>
                         <div style={{ fontSize: 10, color: T.txD, marginBottom: 4, fontWeight: 500 }}>{item.label}</div>
@@ -943,10 +1082,18 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                   <span style={{ fontSize: 13, color: T.txH }}>ISCT LMS</span>
                   <Badge ok={hasIsct} label={hasIsct ? "設定済み" : "未設定"} />
                 </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 13, color: T.txH }}>Titech Portal</span>
-                  <Badge ok={hasPortal} label={hasPortal ? "設定済み" : "未設定"} />
-                </div>
+                {!isMedRoute && (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 13, color: T.txH }}>Titech Portal</span>
+                    <Badge ok={hasPortal} label={hasPortal ? "設定済み" : "未設定"} />
+                  </div>
+                )}
+                {isMedRoute && (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 13, color: T.txH }}>学籍番号</span>
+                    <Badge ok={hasMedId} label={hasMedId ? "設定済み" : "未設定"} />
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ marginTop: 24 }}>
@@ -971,7 +1118,8 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
           const ay = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
           return Math.max(1, ay - ey + 1);
         })();
-        const isFirstYear = grade === 1 && yearGroup?.slice(-1) === "B";
+        const isFirstYear = grade === 1 && yearGroup?.slice(-1) === "B" && !isMedRoute;
+        const isMedSchool = school === "medicine" || school === "dentistry" || isMedRoute;
         const showSchoolPicker = !school || setupTransfer;
         const sd = setupDeptSchool ? SCHOOLS[setupDeptSchool] : null;
         const depts = setupDeptSchool ? Object.entries(DEPTS).filter(([, d]) => d.school === setupDeptSchool) : [];
@@ -981,17 +1129,17 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
             <div style={bodyStyle}>
               <StepLabel n={4} total={5} />
               <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>
-                {isFirstYear ? "志望系・ユニット" : "所属系・ユニット"}
+                {isMedSchool ? "所属学科" : isFirstYear ? "志望系・ユニット" : "所属系・ユニット"}
               </h2>
               <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>
-                {isFirstYear ? "志望する系とユニットを設定してください" : "所属する系を選んでください"}
+                {isMedSchool ? "所属する学科を選んでください" : isFirstYear ? "志望する系とユニットを設定してください" : "所属する系を選んでください"}
               </p>
 
               {/* 系選択 */}
               <div style={cardStyle}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <label style={{ fontSize: 12, fontWeight: 600, color: T.txD }}>
-                    {isFirstYear ? "志望系" : "所属系"}
+                    {isMedSchool ? "学科・専攻" : isFirstYear ? "志望系" : "所属系"}
                   </label>
                   {sd && !showSchoolPicker && (
                     <span style={{
@@ -1004,7 +1152,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                 {/* 転院モード: 学院選択 */}
                 {showSchoolPicker && (
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 500, color: T.txD, marginBottom: 6 }}>学院</div>
+                    <div style={{ fontSize: 11, fontWeight: 500, color: T.txD, marginBottom: 6 }}>{isMedSchool ? "学部" : "学院"}</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {Object.entries(SCHOOLS).map(([sk, sv]) => {
                         const on = setupDeptSchool === sk;
@@ -1033,7 +1181,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                 {/* 学系ボタン */}
                 {depts.length > 0 && (
                   <div>
-                    {showSchoolPicker && <div style={{ fontSize: 11, fontWeight: 500, color: T.txD, marginBottom: 6 }}>学系</div>}
+                    {showSchoolPicker && <div style={{ fontSize: 11, fontWeight: 500, color: T.txD, marginBottom: 6 }}>{isMedSchool ? "学科・専攻" : "学系"}</div>}
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {depts.map(([prefix, d]) => {
                         const sel = setupDept === prefix;
