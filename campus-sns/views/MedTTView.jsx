@@ -548,7 +548,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh }) => {
               <div style={{ fontSize: mob ? 13 : 16, fontWeight: 700, color: T.txH }}>履修科目一覧</div>
               <span style={{ fontSize: 11, color: T.txD, background: T.bg3, padding: "2px 10px", borderRadius: 10 }}>{medCourses.length}科目</span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: mob ? 4 : 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: mob ? 4 : 8, overflow: "hidden" }}>
               {medCourses.map((c, i) => {
                 const col = colorMap[c.code] || COLORS[0];
                 const meta = courseMeta[c.code];
@@ -557,6 +557,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh }) => {
                     display: "flex", alignItems: "center", gap: mob ? 8 : 12,
                     padding: mob ? "8px 10px" : "12px 14px", borderRadius: 12,
                     background: T.bg2, border: `1.5px solid ${T.bd}`, cursor: "pointer",
+                    minWidth: 0, overflow: "hidden",
                   }}>
                     <div style={{
                       width: mob ? 36 : 44, height: mob ? 36 : 44, borderRadius: 12, flexShrink: 0,
