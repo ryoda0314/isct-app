@@ -57,7 +57,7 @@ const getQA=()=>{try{const v=localStorage.getItem("quickAccess");return v?JSON.p
 
 export { QA_ALL, QA_DEFAULT };
 
-export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvents=[],quarter,hiddenSet=new Set(),qd,qDataAll={},goToBuilding,setDid,userDepts=[],userSchools=[],userUnit})=>{
+export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvents=[],quarter,hiddenSet=new Set(),qd,qDataAll={},goToBuilding,setDid,userDepts=[],userSchools=[],userUnit,medSessions=[]})=>{
   const [qaIds]=useState(getQA);
   const qaItems=qaIds.map(id=>QA_ALL.find(q=>q.id===id)).filter(Boolean).filter(q=>(isNative()||!(q.id==="portal"||q.id==="isctportal"))&&(!isDemoMode()||!(q.id==="portal"||q.id==="isctportal")));
   const [now,setNow]=useState(()=>new Date());
@@ -169,6 +169,26 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
   const active=vis.filter(a=>a.st!=="completed");
   const upcoming=[...active].filter(a=>a.due>=NOW).sort((a,b)=>a.due-b.due).slice(0,mob?4:8);
 
+  // 医歯学セッションから今日の授業を抽出
+  const todayMedClasses=useMemo(()=>{
+    if(!medSessions||medSessions.length===0) return [];
+    const todayFmt=`${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,"0")}/${String(now.getDate()).padStart(2,"0")}`;
+    const seen=new Set();
+    return medSessions.filter(s=>{
+      if(s.date!==todayFmt) return false;
+      const key=`${s.code}|${s.timeStart}|${s.timeEnd}`;
+      if(seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).map(s=>{
+      const [sh,sm]=s.timeStart.split(":").map(Number);
+      const [eh,em]=s.timeEnd.split(":").map(Number);
+      const sM=sh*60+sm,eM=eh*60+em;
+      const st=nowMin>=eM?"done":nowMin>=sM?"now":"next";
+      return {type:"med-class",s,sM,eM,st,co:{name:s.name,col:"#e04e6a",room:s.room,code:s.code},pd:{l:s.timeStart,s:[sh,sm],e:[eh,em]}};
+    });
+  },[medSessions,now,nowMin]);
+
   // 今日のタイムライン: 授業+予定+締切+試験を時刻順に統合
   const todayKey=`${NOW.getFullYear()}-${NOW.getMonth()}-${NOW.getDate()}`;
   const todayDateStr=`${NOW.getFullYear()}-${String(NOW.getMonth()+1).padStart(2,"0")}-${String(NOW.getDate()).padStart(2,"0")}`;
@@ -179,6 +199,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
   // 全アイテムを統合して時刻ソート
   const timeline=[];
   todayClasses.forEach(c=>timeline.push({...c,sortMin:c.sM}));
+  todayMedClasses.forEach(c=>timeline.push({...c,sortMin:c.sM}));
   todayEvents.forEach(ev=>{const d=ev.date instanceof Date?ev.date:new Date(ev.date);const m=d.getHours()*60+d.getMinutes();timeline.push({type:"event",ev,sM:m,sortMin:m,st:nowMin>m+60?"done":nowMin>=m?"now":"next"});});
   todayAsgn.forEach(a=>{const d=a.due;const m=d.getHours()*60+d.getMinutes();const co=courses.find(x=>x.id===a.cid);timeline.push({type:"deadline",a,co,sM:m,sortMin:m,st:a.due<NOW?"done":"next"});});
   todayExams.forEach(ex=>{const pt=PERIOD_TIMES[ex.period];if(!pt)return;const [sh,sm]=pt.start.split(":").map(Number);const [eh,em]=pt.end.split(":").map(Number);const sM=sh*60+sm,eM=eh*60+em;const co=courses.find(c=>c.codeRaw===ex.code_raw||(c.code&&c.code===ex.code));timeline.push({type:"exam",ex,co,sM,eM,sortMin:sM,st:nowMin>=eM?"done":nowMin>=sM?"now":"next"});});
@@ -470,6 +491,24 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                     </div>
                   </div>
                   {act&&<span style={{fontSize:8,fontWeight:700,color:co.col,background:`${co.col}20`,padding:"1px 5px",borderRadius:3,alignSelf:"center",flexShrink:0}}>NOW</span>}
+                </div>;
+              }
+              if(item.type==="med-class"){
+                const {co,s}=item;const mcol=co.col||"#e04e6a";
+                return <div key={`m${idx}`} onClick={()=>setView("med-tt")} style={{display:"flex",gap:8,padding:"6px 10px",borderRadius:8,background:act?`${mcol}12`:T.bg2,border:`1px solid ${act?mcol:T.bd}`,cursor:"pointer",opacity:done?.4:1}}>
+                  <div style={{width:38,flexShrink:0,textAlign:"center"}}>
+                    <div style={{fontSize:10,fontWeight:700,color:done?T.txD:mcol}}>{s.timeStart}</div>
+                  </div>
+                  <div style={{width:3,borderRadius:2,background:done?T.txD:mcol,flexShrink:0}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:600,color:done?T.txD:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</div>
+                    <div style={{display:"flex",gap:6,fontSize:10,color:T.txD,marginTop:1,alignItems:"center"}}>
+                      <span>{s.timeStart}–{s.timeEnd}</span>
+                      {s.room&&<span>{s.room}</span>}
+                      {s.instructor&&<span>{s.instructor}</span>}
+                    </div>
+                  </div>
+                  {act&&<span style={{fontSize:8,fontWeight:700,color:mcol,background:`${mcol}20`,padding:"1px 5px",borderRadius:3,alignSelf:"center",flexShrink:0}}>NOW</span>}
                 </div>;
               }
               if(item.type==="event"){

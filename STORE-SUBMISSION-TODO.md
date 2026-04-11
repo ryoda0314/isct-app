@@ -2,7 +2,7 @@
 
 **作成日:** 2026-03-24
 **アプリ:** ScienceTokyo (ac.isct.campus)
-**対象:** iOS App Store / Google Play Store
+**対象:** iOS App Store / Google Play Store / Microsoft Store（検討中）
 
 ---
 
@@ -119,6 +119,38 @@
 - [ ] サポート URL
 - [ ] Apple Developer Program 登録（年間 12,800 円）
 - [ ] Google Play デベロッパー登録（$25 一回払い）
+
+---
+
+## 6. Microsoft Store（Electron デスクトップアプリ）— 検討中
+
+### 概要
+- Electron で `https://sciencetokyo.app` をラップした Windows デスクトップアプリ
+- `electron/` ディレクトリにセットアップ済み（2026-04-12）
+
+### ビルドコマンド
+```bash
+npm run electron:dev      # 開発・動作確認
+npm run electron:build    # .exe インストーラー生成
+npm run electron:store    # Microsoft Store 用 .appx 生成
+```
+
+### Microsoft Store 申請手順
+1. **Microsoft パートナーセンター**で開発者登録（個人 ¥2,450 一回払い）
+2. アプリ名「ScienceTokyo」を予約
+3. 発行される `publisher` の CN 値を `electron/package.json` の `"publisher"` に設定
+4. `npm run electron:store` で `.appx` をビルド
+5. パートナーセンターにアップロード → 審査（数日）→ 公開
+
+### 必要素材（Microsoft Store 固有）
+- [ ] ストアロゴ（300x300, 150x150, 71x71, 50x50）
+- [ ] スクリーンショット（1366x768 以上）
+- [ ] アプリ説明文
+- [ ] プライバシーポリシー URL（iOS/Android と共通で可）
+
+### メモ
+- iOS / Android と比べて審査が緩く、費用も最安
+- Apple / Google の審査結果を見てから進めても遅くない
 
 ---
 

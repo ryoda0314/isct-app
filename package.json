@@ -9,7 +9,10 @@
     "trace-sso": "node lib/auth/trace-sso.js",
     "cap:sync": "npx cap sync",
     "cap:ios": "npx cap sync ios && npx cap open ios",
-    "cap:android": "npx cap sync android && npx cap open android"
+    "cap:android": "npx cap sync android && npx cap open android",
+    "electron:dev": "cd electron && npx electron .",
+    "electron:build": "cd electron && npx electron-builder --win --x64",
+    "electron:store": "cd electron && npx electron-builder --win appx"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

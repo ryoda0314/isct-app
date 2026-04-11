@@ -1,0 +1,45 @@
+{
+  "name": "sciencetokyo-desktop",
+  "version": "1.0.0",
+  "description": "ScienceTokyo Desktop App",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win --x64",
+    "build:store": "electron-builder --win appx",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "ac.isct.campus.desktop",
+    "productName": "ScienceTokyo",
+    "icon": "../public/icons/icon-512x512.png",
+    "win": {
+      "target": "nsis",
+      "icon": "../public/icons/icon-512x512.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "../public/icons/icon-512x512.png"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "../public/icons/icon-512x512.png"
+    },
+    "appx": {
+      "applicationId": "ScienceTokyo",
+      "identityName": "ISCTCampusSNS",
+      "publisher": "CN=XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+      "publisherDisplayName": "ScienceTokyo",
+      "languages": ["ja-JP", "en-US"]
+    },
+    "nsis": {
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false
+    }
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}
