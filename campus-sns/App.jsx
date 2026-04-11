@@ -609,8 +609,7 @@ export default function App(){
   },[user.myUnit]);
   const SANDBOX={id:"sandbox",name:"テスト広場",col:"#6366f1",prefix:"global:sandbox"};
   const [deptModalDone,setDeptModalDone]=useState(false);
-  // TODO: 本番では user.isAdmin を外して !user.myDept だけにする
-  const showDeptModal=!deptModalDone&&(user.isAdmin||!user.myDept);
+  const showDeptModal=!deptModalDone&&!user.myDept;
   const cd=did===SANDBOX.prefix?SANDBOX:userDepts.find(d=>d.prefix===did)||userSchools.find(s=>s.prefix===did)||(userUnit&&did===userUnit.prefix?userUnit:null);
   const qCourseIds=useMemo(()=>new Set(allCourses.filter(c=>c.quarter===quarter&&(!_selY||!c.year||c.year===_selY)).map(c=>c.id)),[allCourses,quarter,_selY]);
   const hiddenSet=useMemo(()=>new Set(hiddenAsgn),[hiddenAsgn]);

@@ -959,6 +959,7 @@ const DEMO_PERSONAS = [
     id: "csc",
     name: "テスト太郎",
     dept: "情報工学系",
+    deptKey: "CSC",
     school: "情報理工学院",
     schoolCol: "#a855c7",
     year: "B2",
@@ -972,6 +973,7 @@ const DEMO_PERSONAS = [
     id: "mec",
     name: "鉄野 修平",
     dept: "機械系",
+    deptKey: "MEC",
     school: "工学院",
     schoolCol: "#e5534b",
     year: "B2",
@@ -985,6 +987,7 @@ const DEMO_PERSONAS = [
     id: "phy",
     name: "波動 理沙",
     dept: "物理学系",
+    deptKey: "PHY",
     school: "理学院",
     schoolCol: "#4a7cf7",
     year: "B2",
@@ -998,6 +1001,7 @@ const DEMO_PERSONAS = [
     id: "cap",
     name: "分子 あゆみ",
     dept: "応用化学系",
+    deptKey: "CAP",
     school: "物質理工学院",
     schoolCol: "#3dae72",
     year: "B2",
@@ -1011,6 +1015,7 @@ const DEMO_PERSONAS = [
     id: "ss",
     name: "藤原 陽翔",
     dept: "情報工学系",
+    deptKey: "CSC",
     school: "情報理工学院",
     schoolCol: "#a855c7",
     year: "B2",
@@ -1025,6 +1030,7 @@ const DEMO_PERSONAS = [
     id: "med",
     name: "白石 遥",
     dept: "医学科",
+    deptKey: "MED_M",
     school: "医学部",
     schoolCol: "#e04e6a",
     year: "B2",
@@ -1038,6 +1044,7 @@ const DEMO_PERSONAS = [
     id: "den",
     name: "清水 凛",
     dept: "歯学科",
+    deptKey: "DEN_D",
     school: "歯学部",
     schoolCol: "#4ea8e0",
     year: "B2",
@@ -1869,7 +1876,7 @@ function buildDemoDataForPersona(personaId) {
     4: { C: q4, TT: buildDemoTT(q4) },
   };
   const asgn = p.asgn || buildPersonaAsgn(q1, q2);
-  const user = { userid: 99999, fullname: p.name, yearGroup: p.yearGroup, studentId: p.studentId };
+  const user = { userid: 99999, fullname: p.name, yearGroup: p.yearGroup, studentId: p.studentId, dept: p.deptKey || null };
 
   // ペルソナ固有のデータでグローバル DEMO_* を書き換え
   activatePersonaData(p.id, q2);
