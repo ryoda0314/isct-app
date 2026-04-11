@@ -42,7 +42,7 @@ export async function POST(request) {
         const sb = getSupabaseAdmin();
         const updates = { student_id: sid };
         // 新形式: ○○B○○○○○
-        const m = sid.match(/^(\d{2})([BMDR])(\d)/i);
+        const m = sid.match(/^(\d{2})([BMDR])(\d)(\d)?/i);
         if (m) updates.year_group = m[1] + m[2].toUpperCase();
         // 旧医歯学系: 8桁数字
         if (!m) {

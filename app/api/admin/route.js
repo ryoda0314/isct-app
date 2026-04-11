@@ -851,6 +851,34 @@ export async function POST(request) {
       return NextResponse.json({ progress: getMedScrapeProgress(key) });
     }
 
+    if (action === 'get_med_sessions') {
+      const { faculty, year, search } = body;
+      let query = sb.from('med_sessions').select('*').order('lct_cd').order('date').order('time_start');
+      if (faculty) query = query.eq('faculty', faculty);
+      if (year) query = query.eq('year', year);
+      if (search) query = query.or(`name.ilike.%${search}%,lct_cd.ilike.%${search}%`);
+      // Paginate
+      const PAGE = 2000;
+      let all = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await query.range(from, from + PAGE - 1);
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        if (!data || data.length === 0) break;
+        all = all.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      // Build stats
+      const facCounts = {};
+      const courseSet = new Set();
+      for (const r of all) {
+        facCounts[r.faculty] = (facCounts[r.faculty] || 0) + 1;
+        courseSet.add(r.lct_cd);
+      }
+      return NextResponse.json({ sessions: all, totalSessions: all.length, totalCourses: courseSet.size, facCounts });
+    }
+
     // --- Moodle data capture (医歯学系データ形式確認) ---
     if (action === 'set_capture_targets') {
       const { user_ids } = body; // array of moodle_user_id

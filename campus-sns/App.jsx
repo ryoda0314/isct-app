@@ -40,6 +40,7 @@ import { FreshmanBoardView } from "./views/FreshmanBoardView.jsx";
 import { AcademicCalendarView } from "./views/AcademicCalendarView.jsx";
 import { ExamView } from "./views/ExamView.jsx";
 import { RegView } from "./views/RegView.jsx";
+import { MedTTView } from "./views/MedTTView.jsx";
 import { ACADEMIC_EVENTS, getCurrentQuarter } from "./academicCalendar.js";
 import { useFriends } from "./hooks/useFriends.js";
 import { useBlocks } from "./hooks/useBlocks.js";
@@ -154,6 +155,7 @@ export default function App(){
   const [_selY,_setSelY]=useState(()=>{try{const v=localStorage.getItem("tty");if(v)return Number(v);const jd=new Date(Date.now()+9*3600000);return jd.getUTCMonth()>=3?jd.getUTCFullYear():jd.getUTCFullYear()-1;}catch{const jd=new Date(Date.now()+9*3600000);return jd.getUTCMonth()>=3?jd.getUTCFullYear():jd.getUTCFullYear()-1;}});
   const qd=(qDataLive&&qDataLive[quarter])||QData[quarter]||{C:[],TT:[]};
   const [allCourses,setAllCourses]=useState([]);
+  const [medRawCourses,setMedRawCourses]=useState([]);
   const [view,setViewRaw]=useState(()=>{try{return localStorage.getItem("lastView")||"home";}catch{return "home";}});
   const viewHistRef=useRef([]);
   const guestSessionRef=useRef(null);
@@ -309,6 +311,10 @@ export default function App(){
     // Step 2: Call Moodle API directly from client
     const rawCourses=await moodleFetchCourses(wstoken,userid);
     console.log(`[Timing] client-side: courses fetch ${(performance.now()-t0).toFixed(0)}ms (${rawCourses.length} courses)`);
+
+    // Extract medical/dental course info (fullname contains【lctCd】)
+    const medRaw=rawCourses.filter(c=>c.visible!==0&&/【\d{6}】/.test(c.fullname));
+    if(medRaw.length>0) setMedRawCourses(medRaw);
 
     const moodleIds=rawCourses.filter(c=>c.visible!==0).map(c=>c.id);
     let rawAssignments=null;
@@ -817,7 +823,7 @@ export default function App(){
     return(
       <div style={{display:"flex",height:"100dvh",width:"100%",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
 
-        <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} dmUnread={dmUnread} courses={allCourses} depts={userDepts} schools={userSchools} user={user} quarter={quarter} academicYear={_selY} pendingFriendCount={pendingFriendCount} userUnit={userUnit} compact={false} narrow={bp==="tablet"}/>
+        <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} dmUnread={dmUnread} courses={allCourses} depts={userDepts} schools={userSchools} user={user} quarter={quarter} academicYear={_selY} pendingFriendCount={pendingFriendCount} userUnit={userUnit} compact={false} narrow={bp==="tablet"} hasMed={medRawCourses.length>0||user?.isAdmin}/>
         {bp!=="mobile"&&view==="course"&&cc&&<DChan course={cc} ch={ch} setCh={setCh} online={online} members={members} compact={bp==="tablet"}/>}
         {bp!=="mobile"&&view==="dept"&&cd&&<DChan dept={cd} ch={ch} setCh={setCh} online={online} members={deptMembers} compact={bp==="tablet"}/>}
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
@@ -825,6 +831,7 @@ export default function App(){
           {lmsDownBanner}
           {view==="home"&&<HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit}/>}
           {view==="timetable"&&(L?<LockedView title="時間割"/>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob={false} quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
+          {view==="med-tt"&&(L?<LockedView title="医歯学時間割"/>:<MedTTView courses={medRawCourses} mob={false} setCid={setCid} setView={setView} setCh={setCh}/>)}
           {view==="tasks"&&(L?<LockedView title="課題管理"/>:<AsgnView asgn={asgn} setAsgn={setAsgn} mob={false} myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/>)}
           {view==="course"&&(L?<LockedView title="コース"/>:cc&&courseContent())}
           {view==="dept"&&(L?<LockedView title="学系"/>:cd&&deptContent())}
@@ -864,6 +871,7 @@ export default function App(){
         {lmsDownBanner}
         {view==="home"&&<><MHdr title="ScienceTokyo App" right={<div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>setView("notif")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</button><button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button><button onClick={()=>setView("profile")} style={{background:"none",border:"none",cursor:"pointer",display:"flex",padding:0}}><Av u={user} sz={26}/></button></div>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit}/></>}
         {view==="timetable"&&(L?<><MHdr title="時間割"/><LockedView title="時間割"/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
+        {view==="med-tt"&&(L?<><MHdr title="医歯学時間割"/><LockedView title="医歯学時間割"/></>:<><MHdr title="医歯学時間割"/><MedTTView courses={medRawCourses} mob setCid={setCid} setView={setView} setCh={setCh}/></>)}
         {view==="tasks"&&(L?<><MHdr title="課題管理"/><LockedView title="課題管理"/></>:<><MHdr title="課題管理"/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/></>)}
         {view==="courseSelect"&&(L?<><MHdr title="コース・学院・学系"/><LockedView title="コース"/></>:<><MHdr title="コース・学院・学系"/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={allCourses} depts={userDepts} schools={userSchools} setDid={setDid} userUnit={userUnit}/></>)}
         {view==="course"&&(L?<><MHdr title="コース" back={goBack}/><LockedView title="コース"/></>:cc&&<><CourseHdr/>{courseContent()}</>)}
@@ -888,7 +896,7 @@ export default function App(){
         {view==="admin"&&<><MHdr title="管理者" back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
         {view==="freshman"&&<><MHdr title="新入生掲示板" back={mBack}/><FreshmanBoardView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/></>}
       </div>
-      <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread}/>
+      <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread} hasMed={medRawCourses.length>0}/>
       <div className="sa-bottom" style={{background:T.bg2,flexShrink:0}}/>
       {showMembers&&(view==="course"&&cc?<MemberPanel mList={members} onlineList={online} col={cc.col} onClose={()=>setShowMembers(false)}/>:view==="dept"&&cd?<MemberPanel mList={deptMembers} onlineList={online} col={cd.col||T.accent} onClose={()=>setShowMembers(false)}/>:null)}
       {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}

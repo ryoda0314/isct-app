@@ -67,7 +67,7 @@ function loadPdfjs(){
 /* ──────────────────────────────────────────────
    Custom PDF Viewer
    ────────────────────────────────────────────── */
-const PdfViewer=({url,mob})=>{
+const PdfViewer=({url,dlUrl,mob})=>{
   const [pdf,setPdf]=useState(null);
   const [pages,setPages]=useState([]);
   const [zoom,setZoom]=useState(0.75);
@@ -154,7 +154,7 @@ const PdfViewer=({url,mob})=>{
   const zoomIn=()=>setZoom(z=>Math.min(z+0.25,3));
   const zoomOut=()=>setZoom(z=>Math.max(z-0.25,0.5));
 
-  if(err) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:T.txD,fontSize:13,padding:40}}>{err}</div>;
+  if(err) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40}}><div>{err}</div>{dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" style={{padding:"8px 16px",borderRadius:8,background:T.accent,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none"}}>新しいタブで開く</a>}</div>;
   if(!pdf) return <Loader msg={loadMsg} size="md"/>;
 
   return(
@@ -223,7 +223,7 @@ const Preview=({m,mob,onClose})=>{
         <button onClick={toggleFs} title={fs?"全画面解除":"全画面"} style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,borderRadius:6,border:`1px solid ${T.bd}`,background:fs?`${T.accent}18`:T.bg3,color:fs?T.accent:T.txD,cursor:"pointer",flexShrink:0}}><FsIcon active={fs}/></button>
         {dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" download style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,background:T.accent,color:"#fff",fontSize:12,fontWeight:600,textDecoration:"none",flexShrink:0}}>{I.dl} DL</a>}
       </div>
-      {ft==="pdf"&&<PdfViewer url={previewUrl} mob={mob}/>}
+      {ft==="pdf"&&<PdfViewer url={previewUrl} dlUrl={dlUrl} mob={mob}/>}
       {ft==="image"&&<div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:16}}><img src={previewUrl} alt={m.filename||m.name} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:4,boxShadow:"0 2px 12px rgba(0,0,0,.3)"}}/></div>}
       {ft==="video"&&<div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:16}}><video src={previewUrl} controls style={{maxWidth:"100%",maxHeight:"100%",borderRadius:4}}/></div>}
       {ft==="audio"&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:40}}><div style={{textAlign:"center",width:"100%"}}><div style={{fontSize:14,color:T.txH,fontWeight:600,marginBottom:16}}>{m.filename||m.name}</div><audio src={previewUrl} controls style={{width:"100%",maxWidth:400}}/></div></div>}

@@ -27,6 +27,8 @@ const tabs = [
   { id: "exams", label: "期末試験", icon: I.clip },
   { id: "t2schola", label: "T2SCHOLA", icon: I.search },
   { id: "guests", label: "ゲスト分析", icon: I.eye },
+  { id: "med_syllabus", label: "医歯学データ", icon: I.cal },
+  { id: "med_fetch", label: "医歯学取得", icon: I.cal },
   { id: "moodle_capture", label: "Moodle取得", icon: I.search },
   { id: "settings", label: "設定", icon: I.shield },
 ];
@@ -2277,6 +2279,356 @@ const SettingsTab = () => {
   );
 };
 
+// ---- Medical/Dental Syllabus Data Tab ----
+const MedSyllabusTab = () => {
+  const [sessions, setSessions] = useState([]);
+  const [stats, setStats] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filterFac, setFilterFac] = useState("");
+  const [filterSemester, setFilterSemester] = useState("");
+  const [expandedCourse, setExpandedCourse] = useState(null);
+
+  useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t); }, [search]);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch(`${API}/api/admin`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "get_med_sessions", faculty: filterFac || undefined, year: "2026", search: debouncedSearch || undefined }),
+    }).then(r => r.json()).then(d => {
+      setSessions(d.sessions || []);
+      setStats({ total: d.totalSessions, courses: d.totalCourses, fac: d.facCounts || {} });
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [filterFac, debouncedSearch]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Group sessions by course (lct_cd)
+  const courseGroups = useMemo(() => {
+    const map = {};
+    for (const s of sessions) {
+      if (!map[s.lct_cd]) map[s.lct_cd] = { lctCd: s.lct_cd, name: s.name, faculty: s.faculty, semester: s.semester, credits: s.credits, instructor: s.instructor, sessions: [] };
+      if (s.date) map[s.lct_cd].sessions.push(s);
+    }
+    return Object.values(map);
+  }, [sessions]);
+
+  const filtered = courseGroups.filter(c => {
+    if (filterSemester && c.semester && !c.semester.includes(filterSemester)) return false;
+    return true;
+  });
+
+  const semesters = [...new Set(courseGroups.map(c => c.semester).filter(Boolean))].sort();
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>医歯学セッションデータ</div>
+
+      {/* Stats */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <Card label="総セッション数" value={stats.total || 0} color={T.accent} />
+        <Card label="科目数" value={stats.courses || 0} color={T.green} />
+        <Card label="歯学部" value={stats.fac?.DEN || 0} color="#a855c7" />
+        <Card label="医学部" value={stats.fac?.MED || 0} color="#3dae72" />
+        <Card label="教養部" value={stats.fac?.LIB || 0} color="#d4843e" />
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="科目コード・名前..." style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13, width: 200 }} />
+        <select value={filterFac} onChange={e => setFilterFac(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
+          <option value="">全学部</option>
+          <option value="MED">医学部</option>
+          <option value="DEN">歯学部</option>
+          <option value="LIB">教養部</option>
+        </select>
+        <select value={filterSemester} onChange={e => setFilterSemester(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
+          <option value="">全学期</option>
+          {semesters.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <span style={{ fontSize: 12, color: T.txD }}>{filtered.length}科目</span>
+      </div>
+
+      {loading && <div style={{ color: T.txD, fontSize: 13, padding: 20 }}>読み込み中...</div>}
+
+      {!loading && filtered.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {filtered.slice(0, 100).map(c => {
+            const isOpen = expandedCourse === c.lctCd;
+            return (
+              <div key={c.lctCd} style={{ borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}`, overflow: "hidden" }}>
+                {/* Course header */}
+                <div onClick={() => setExpandedCourse(isOpen ? null : c.lctCd)}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", cursor: "pointer" }}>
+                  <span style={{ fontSize: 11, fontFamily: "monospace", color: T.accent, minWidth: 60 }}>{c.lctCd}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: T.txH, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+                  <span style={{ fontSize: 10, color: T.txD, padding: "1px 6px", borderRadius: 4, background: T.bg2 }}>{c.faculty}</span>
+                  <span style={{ fontSize: 10, color: T.txD }}>{c.semester || "-"}</span>
+                  <span style={{ fontSize: 10, color: T.txD }}>{c.credits ? c.credits + "単位" : ""}</span>
+                  <span style={{ fontSize: 10, color: T.txD }}>{c.sessions.length}回</span>
+                  <span style={{ fontSize: 12, color: T.txD }}>{isOpen ? "▲" : "▼"}</span>
+                </div>
+
+                {/* Sessions table */}
+                {isOpen && c.sessions.length > 0 && (
+                  <div style={{ borderTop: `1px solid ${T.bd}`, overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                      <thead>
+                        <tr style={{ background: T.bg2 }}>
+                          {["回", "日付", "曜日", "時刻", "教室", "教員"].map(h => (
+                            <th key={h} style={{ padding: "4px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {c.sessions.map((s, i) => (
+                          <tr key={i} style={{ borderBottom: `1px solid ${T.bd}15` }}>
+                            <td style={{ padding: "3px 8px", color: T.txD, fontFamily: "monospace" }}>{s.seq_no || "-"}</td>
+                            <td style={{ padding: "3px 8px", color: T.txH }}>{s.date || "-"}</td>
+                            <td style={{ padding: "3px 8px", color: T.txD }}>{s.day || "-"}</td>
+                            <td style={{ padding: "3px 8px", color: T.txH, fontFamily: "monospace" }}>{s.time_start}～{s.time_end}</td>
+                            <td style={{ padding: "3px 8px", color: T.txD, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.room || "-"}</td>
+                            <td style={{ padding: "3px 8px", color: T.txD, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.session_instructor || "-"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {isOpen && c.sessions.length === 0 && (
+                  <div style={{ padding: "8px 12px", fontSize: 11, color: T.txD, borderTop: `1px solid ${T.bd}` }}>スケジュールなし</div>
+                )}
+              </div>
+            );
+          })}
+          {filtered.length > 100 && <div style={{ fontSize: 11, color: T.txD, padding: 8 }}>...他 {filtered.length - 100} 科目</div>}
+        </div>
+      )}
+
+      {!loading && filtered.length === 0 && <div style={{ color: T.txD, fontSize: 13, padding: 20 }}>データがありません。「医歯学取得」タブからスクレイピングしてください。</div>}
+    </div>
+  );
+};
+
+// ---- Medical/Dental Syllabus Fetch Tab ----
+const MedSyllabusFetchTab = () => {
+  const [faculties, setFaculties] = useState([]);
+  const [years, setYears] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [scrapeYear, setScrapeYear] = useState("");
+  const [selectedFacs, setSelectedFacs] = useState(new Set());
+  const [scraping, setScraping] = useState("");
+  const [queue, setQueue] = useState([]);
+  const [batchResults, setBatchResults] = useState([]);
+  const [progress, setProgress] = useState(null);
+  const [stats, setStats] = useState({});
+
+  const load = useCallback(() => {
+    setLoading(true);
+    Promise.all([
+      fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "med_faculty_list" }) }).then(r => r.json()),
+      fetch(`${API}/api/admin?action=syllabus`).then(r => r.json()),
+    ]).then(([facData, syllData]) => {
+      setFaculties(facData.faculties || []);
+      setYears(facData.years || []);
+      // Extract med stats from syllabus stats
+      const medDepts = new Set((facData.faculties || []).map(f => f.key));
+      const medStats = {};
+      for (const [k, v] of Object.entries(syllData.stats || {})) {
+        if (medDepts.has(v.dept)) medStats[k] = v;
+      }
+      setStats(medStats);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Poll progress
+  useEffect(() => {
+    if (!scraping) { setProgress(null); return; }
+    const id = setInterval(async () => {
+      try {
+        const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "med_scrape_progress", key: scraping }) });
+        const d = await r.json();
+        if (d.progress) setProgress(d.progress);
+      } catch {}
+    }, 1000);
+    return () => clearInterval(id);
+  }, [scraping]);
+
+  const scrapeSingle = async (faculty, year) => {
+    const key = `med_${faculty}_${year}`;
+    setScraping(key);
+    setProgress({ total: 0, done: 0, phase: "search", current: "" });
+    try {
+      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "scrape_med_syllabus", faculty, year }) });
+      const d = await r.json();
+      if (r.ok) return { faculty, year, ok: true, count: d.added || 0 };
+      return { faculty, year, ok: false, error: d.error || "不明なエラー" };
+    } catch (e) {
+      return { faculty, year, ok: false, error: e.message };
+    } finally {
+      setScraping("");
+      setProgress(null);
+    }
+  };
+
+  const handleBatchScrape = async (facList, year) => {
+    setBatchResults([]);
+    setQueue(facList.map(f => ({ faculty: f, year })));
+    const results = [];
+    for (const fac of facList) {
+      setQueue(prev => prev.filter(q => q.faculty !== fac));
+      const result = await scrapeSingle(fac, year);
+      results.push(result);
+      setBatchResults(prev => [...prev, result]);
+    }
+    load();
+    const ok = results.filter(r => r.ok);
+    const fail = results.filter(r => !r.ok);
+    let msg = `取得完了: ${ok.length}/${results.length} 学部成功`;
+    if (ok.length > 0) msg += `\n合計 ${ok.reduce((s, r) => s + r.count, 0)} 件`;
+    if (fail.length > 0) msg += `\n\n失敗: ${fail.map(r => `${r.faculty} (${r.error})`).join(", ")}`;
+    alert(msg);
+  };
+
+  const handleScrape = async (faculty, year) => {
+    setBatchResults([]);
+    const result = await scrapeSingle(faculty, year);
+    setBatchResults([result]);
+    load();
+    if (result.ok) alert(`${faculty} ${year}: ${result.count}件取得完了`);
+    else alert(`取得失敗: ${result.error}`);
+  };
+
+  const isBusy = !!scraping || queue.length > 0;
+
+  const bySchool = {};
+  for (const f of faculties) {
+    if (!bySchool[f.school]) bySchool[f.school] = [];
+    bySchool[f.school].push(f);
+  }
+
+  const toggleFac = (key) => setSelectedFacs(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+  const selectAll = () => { if (selectedFacs.size === faculties.length) setSelectedFacs(new Set()); else setSelectedFacs(new Set(faculties.map(f => f.key))); };
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>医歯学時間割取得</div>
+
+      {loading && <div style={{ color: T.txD, fontSize: 13, padding: 20 }}>読み込み中...</div>}
+
+      {!loading && (
+        <>
+          {/* Scrape controls */}
+          <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>医歯学シラバスから取得</div>
+            <div style={{ fontSize: 11, color: T.txD, marginBottom: 12, lineHeight: 1.6 }}>
+              yushima2.tmd.ac.jp のシラバスシステムからコード列挙で取得します。<br />
+              歯学部は約100科目、医学部は約200科目。取得には数分かかります。
+            </div>
+
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+              <select value={scrapeYear} onChange={e => setScrapeYear(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
+                <option value="">年度を選択</option>
+                {years.map(y => <option key={y} value={y}>{y}年度</option>)}
+              </select>
+              <Btn onClick={selectAll} color={T.txD} small>
+                {selectedFacs.size === faculties.length ? "全解除" : "全選択"}
+              </Btn>
+              <Btn onClick={() => handleBatchScrape([...selectedFacs], scrapeYear)} color={T.green} disabled={!scrapeYear || selectedFacs.size === 0 || isBusy}>
+                {isBusy ? "取得中..." : `選択した${selectedFacs.size}学部を取得`}
+              </Btn>
+            </div>
+
+            {/* Faculty chips */}
+            {Object.entries(bySchool).map(([school, facs]) => (
+              <div key={school} style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: T.txD, marginBottom: 4 }}>{school}</div>
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  {facs.map(f => {
+                    const sel = selectedFacs.has(f.key);
+                    const done = batchResults.find(r => r.faculty === f.key);
+                    return (
+                      <button key={f.key} onClick={() => toggleFac(f.key)} disabled={isBusy} style={{
+                        padding: "3px 8px", borderRadius: 6, fontSize: 11, cursor: isBusy ? "default" : "pointer",
+                        border: `1px solid ${done ? (done.ok ? T.green : T.red) : sel ? T.accent : T.bd}`,
+                        background: done ? (done.ok ? `${T.green}15` : `${T.red}15`) : sel ? `${T.accent}15` : T.bg2,
+                        color: done ? (done.ok ? T.green : T.red) : sel ? T.accent : T.txD,
+                        fontWeight: sel ? 600 : 400,
+                      }}>
+                        {f.key} {f.label}
+                        {done && done.ok && <span style={{ marginLeft: 3 }}>{done.count}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {/* Progress */}
+            {scraping && progress && (
+              <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 10, background: T.bg2, border: `1px solid ${T.accent}40` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: T.txH }}>
+                    {scraping.replace(/med_/, "").replace("_", " ")} — {progress.phase === "search" ? "検索中..." : progress.phase === "saving" ? "DB保存中..." : `詳細取得中 ${progress.done}/${progress.total}`}
+                    {queue.length > 0 && <span style={{ color: T.txD, fontWeight: 400 }}> (残り {queue.length})</span>}
+                  </span>
+                </div>
+                {progress.total > 0 && (
+                  <div style={{ height: 6, borderRadius: 3, background: T.bd, overflow: "hidden" }}>
+                    <div style={{ height: "100%", borderRadius: 3, background: T.accent, width: `${Math.round((progress.done / progress.total) * 100)}%`, transition: "width 0.3s" }} />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Status table */}
+          {faculties.length > 0 && (
+            <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>取得状況</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>学部</th>
+                    {years.map(y => <th key={y} style={{ padding: "6px 8px", textAlign: "center", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>{y}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {faculties.map(f => (
+                    <tr key={f.key} style={{ borderBottom: `1px solid ${T.bd}20` }}>
+                      <td style={{ padding: "4px 8px", color: T.txH, fontWeight: 500 }}>{f.key} <span style={{ color: T.txD, fontWeight: 400 }}>{f.label}</span></td>
+                      {years.map(y => {
+                        const s = stats[`${f.key}_${y}`];
+                        const isScraping = scraping === `med_${f.key}_${y}`;
+                        return (
+                          <td key={y} style={{ padding: "4px 8px", textAlign: "center" }}>
+                            {s ? (
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                                <span style={{ color: T.green, fontWeight: 600 }}>{s.count}</span>
+                                <button onClick={() => handleScrape(f.key, y)} disabled={isBusy} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", padding: 0, fontSize: 10 }} title="再取得">{isScraping ? "..." : "↻"}</button>
+                              </span>
+                            ) : (
+                              <button onClick={() => handleScrape(f.key, y)} disabled={isBusy} style={{ background: "none", border: `1px solid ${T.bd}`, borderRadius: 6, padding: "2px 8px", color: T.txD, cursor: "pointer", fontSize: 10 }}>{isScraping ? "..." : "取得"}</button>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
 // ---- Moodle Capture Tab (医歯学系データ確認) ----
 const MoodleCaptureTab = () => {
   const [targets, setTargets] = useState([]);
@@ -2842,6 +3194,8 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "exams" && <ExamTab />}
         {tab === "t2schola" && <T2ScholaTab />}
         {tab === "guests" && <GuestAnalyticsTab />}
+        {tab === "med_syllabus" && <MedSyllabusTab />}
+        {tab === "med_fetch" && <MedSyllabusFetchTab />}
         {tab === "moodle_capture" && <MoodleCaptureTab />}
         {tab === "settings" && <SettingsTab />}
       </div>

@@ -21,8 +21,16 @@ const SCHOOL_NUM_MAP = {
   "3": "computing",     // 情報理工学院
   "4": "lifesci",       // 生命理工学院
   "5": "envsoc",        // 環境・社会理工学院
-  "6": "medicine",      // 医学部
-  "7": "dentistry",     // 歯学部
+  "6": "medicine",      // 医歯学系 (5桁目で学科判定)
+};
+// 新形式 医歯学系: schoolNum "6" + 5桁目 → { schoolKey, deptKey }
+const MED_NEW_MAP = {
+  "1": { schoolKey: "medicine",  deptKey: "MED_M" }, // 医学科
+  "2": { schoolKey: "medicine",  deptKey: "MED_N" }, // 保健衛生学科 看護学専攻
+  "3": { schoolKey: "medicine",  deptKey: "MED_T" }, // 保健衛生学科 検査技術学専攻
+  "5": { schoolKey: "dentistry", deptKey: "DEN_D" }, // 歯学科
+  "6": { schoolKey: "dentistry", deptKey: "DEN_H" }, // 口腔保健学科 口腔保健衛生学専攻
+  "7": { schoolKey: "dentistry", deptKey: "DEN_E" }, // 口腔保健学科 口腔保健工学専攻
 };
 const SCHOOL_LABEL = {
   science: "理学院", engineering: "工学院", matsci: "物質理工学院",
@@ -41,13 +49,17 @@ const MED_LEGACY_MAP = {
 function parseStudentId(id) {
   if (!id || id.length < 4) return null;
   // 新形式: ○○[BMDR]○○○○○ (例: 24B00001, 25M60001)
-  const m = id.match(/^(\d{2})([BMDR])(\d)/i);
+  const m = id.match(/^(\d{2})([BMDR])(\d)(\d)?/i);
   if (m) {
     const year = m[1];
     const degree = m[2].toUpperCase();
     const schoolNum = m[3];
-    const schoolKey = SCHOOL_NUM_MAP[schoolNum] || null;
-    return { year, degree, schoolNum, yearGroup: year + degree, schoolKey, schoolLabel: schoolKey ? SCHOOL_LABEL[schoolKey] : null, deptKey: null, isMedDental: schoolNum >= "6" };
+    const subNum = m[4] || null;
+    // 医歯学系: schoolNum "6" + 5桁目で学部・学科を特定
+    const medInfo = schoolNum === "6" && subNum ? MED_NEW_MAP[subNum] : null;
+    const schoolKey = medInfo ? medInfo.schoolKey : (SCHOOL_NUM_MAP[schoolNum] || null);
+    const deptKey = medInfo ? medInfo.deptKey : null;
+    return { year, degree, schoolNum, yearGroup: year + degree, schoolKey, schoolLabel: schoolKey ? SCHOOL_LABEL[schoolKey] : null, deptKey, isMedDental: schoolNum === "6" };
   }
   // 旧医歯学系形式: 8桁数字 (例: 11220001 → 医学科, 22年入学)
   const mLegacy = id.match(/^(\d{2})(\d{2})(\d{4})$/);
@@ -457,9 +469,18 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
   // 学籍番号から学年・課程・学院/学部を自動抽出
   useEffect(() => {
     if (isMedRoute) {
-      // 医歯学系: 学部・学科は手動選択、年度のみ学籍番号から推定
       const parsed = parseStudentId(medStudentId);
-      if (parsed) setYearGroup(parsed.yearGroup);
+      if (parsed) {
+        setYearGroup(parsed.yearGroup);
+        // 学部・学科が両方特定できたら自動セット
+        if (parsed.deptKey) {
+          setMedFaculty(parsed.schoolKey);
+          setSchool(parsed.schoolKey);
+          setSetupDeptSchool(parsed.schoolKey);
+          setMedDept(parsed.deptKey);
+          setSetupDept(parsed.deptKey);
+        }
+      }
     } else {
       const parsed = parseStudentId(portalId);
       if (parsed) {
@@ -470,7 +491,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
     }
   }, [portalId, medStudentId, isMedRoute]);
 
-  // 医歯学系: 手動選択した学部をschool/deptに反映
+  // 医歯学系: 手動選択した学部をschool/deptに反映(旧形式 or 手動変更時)
   useEffect(() => {
     if (isMedRoute && medFaculty) {
       setSchool(medFaculty);
@@ -922,57 +943,72 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
             </>}
 
             {/* ── 医歯学系: 学籍番号 + 学部学科選択 ── */}
-            {isMedRoute && <>
+            {isMedRoute && (() => {
+              const medParsed = parseStudentId(medStudentId);
+              const autoDetected = medParsed && medParsed.deptKey;
+              return <>
               <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>医歯学系</h2>
-              <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>学籍番号と所属を入力してください</p>
+              <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>学籍番号を入力してください</p>
               <ErrorBanner error={error} />
               <div style={cardStyle}>
-                <InputField label="学籍番号" value={medStudentId} onChange={e => setMedStudentId(e.target.value)} placeholder="例: 11220001 / 24B60001" mono />
+                <InputField label="学籍番号" value={medStudentId} onChange={e => setMedStudentId(e.target.value)} placeholder="例: 11220001 / 24B61001" mono />
 
-                {/* 学部選択 */}
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" }}>学部</label>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    {[["medicine","医学部"],["dentistry","歯学部"]].map(([k,l])=>{
-                      const s = SCHOOLS[k];
-                      const on = medFaculty === k;
-                      return (
-                        <button key={k} onClick={() => { setMedFaculty(on ? null : k); setMedDept(null); }}
-                          style={{
-                            flex: 1, padding: "10px 0", borderRadius: 8,
-                            border: `1px solid ${on ? s.col : T.bd}`,
-                            background: on ? `${s.col}14` : "transparent",
-                            color: on ? s.col : T.txH,
-                            fontSize: 14, fontWeight: on ? 700 : 500, cursor: "pointer",
-                            transition: "all .15s",
-                          }}>{l}</button>
-                      );
-                    })}
+                {/* 自動検出バッジ */}
+                {autoDetected && (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {[`20${medParsed.year}年入学`, DEGREE_MAP[medParsed.degree], SCHOOL_LABEL[medParsed.schoolKey], DEPTS[medParsed.deptKey]?.name].filter(Boolean).map(t => (
+                      <span key={t} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: `${T.green}14`, color: T.green }}>{t}</span>
+                    ))}
                   </div>
-                </div>
+                )}
 
-                {/* 学科・専攻選択 */}
-                {medFaculty && (
+                {/* パース不能な形式のみ手動選択(医歯学系IDの入力途中は出さない) */}
+                {!autoDetected && medParsed && !medParsed.isMedDental && <>
+                  {/* 学部選択 */}
                   <div>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" }}>学科・専攻</label>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      {Object.entries(DEPTS).filter(([,d]) => d.school === medFaculty).map(([key, d]) => {
-                        const on = medDept === key;
+                    <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" }}>学部</label>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {[["medicine","医学部"],["dentistry","歯学部"]].map(([k,l])=>{
+                        const s = SCHOOLS[k];
+                        const on = medFaculty === k;
                         return (
-                          <button key={key} onClick={() => setMedDept(on ? null : key)}
+                          <button key={k} onClick={() => { setMedFaculty(on ? null : k); setMedDept(null); }}
                             style={{
-                              padding: "10px 14px", borderRadius: 8, textAlign: "left",
-                              border: `1px solid ${on ? d.col : T.bd}`,
-                              background: on ? `${d.col}14` : "transparent",
-                              color: on ? d.col : T.txH,
-                              fontSize: 13, fontWeight: on ? 700 : 500, cursor: "pointer",
+                              flex: 1, padding: "10px 0", borderRadius: 8,
+                              border: `1px solid ${on ? s.col : T.bd}`,
+                              background: on ? `${s.col}14` : "transparent",
+                              color: on ? s.col : T.txH,
+                              fontSize: 14, fontWeight: on ? 700 : 500, cursor: "pointer",
                               transition: "all .15s",
-                            }}>{d.name}</button>
+                            }}>{l}</button>
                         );
                       })}
                     </div>
                   </div>
-                )}
+
+                  {/* 学科・専攻選択 */}
+                  {medFaculty && (
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" }}>学科・専攻</label>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {Object.entries(DEPTS).filter(([,d]) => d.school === medFaculty).map(([key, d]) => {
+                          const on = medDept === key;
+                          return (
+                            <button key={key} onClick={() => setMedDept(on ? null : key)}
+                              style={{
+                                padding: "10px 14px", borderRadius: 8, textAlign: "left",
+                                border: `1px solid ${on ? d.col : T.bd}`,
+                                background: on ? `${d.col}14` : "transparent",
+                                color: on ? d.col : T.txH,
+                                fontSize: 13, fontWeight: on ? 700 : 500, cursor: "pointer",
+                                transition: "all .15s",
+                              }}>{d.name}</button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>}
               </div>
               <div style={{
                 display: "flex", alignItems: "center", gap: 8, marginTop: 12,
@@ -988,7 +1024,8 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
               <div style={{ marginTop: 24 }}>
                 <button onClick={nextStep} disabled={!hasMedId} style={primaryBtnStyle(hasMedId)}>次へ</button>
               </div>
-            </>}
+            </>;
+            })()}
           </div>
         </div>
       )}
