@@ -164,15 +164,20 @@ export const DeptModal = ({ user, onClose }) => {
   const handleSave = async () => {
     if (!canSave) return;
     const sid = mode === "med" ? medStudentId : sciStudentId;
-    if (sid) {
+    const yg = mode === "med" ? medParsed?.yearGroup : (sciParsed?.yearGroup || null);
+    if (sid || yg) {
+      const patch = {};
+      if (sid) patch.studentId = sid;
+      if (yg) patch.yearGroup = yg;
       try {
         await fetch("/api/auth/me", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ studentId: sid }),
+          body: JSON.stringify(patch),
         });
       } catch {}
     }
+    if (yg) updateUserPref({ yearGroup: yg });
     const deptKey = mode === "med" ? medParsed.deptKey : (setupDept !== "none" ? setupDept : null);
     if (deptKey) updateUserPref({ myDept: deptKey });
     onClose();
