@@ -41,6 +41,7 @@ import { AcademicCalendarView } from "./views/AcademicCalendarView.jsx";
 import { ExamView } from "./views/ExamView.jsx";
 import { RegView } from "./views/RegView.jsx";
 import { MedTTView } from "./views/MedTTView.jsx";
+import { DeptModal } from "./components/DeptModal.jsx";
 import { ACADEMIC_EVENTS, getCurrentQuarter } from "./academicCalendar.js";
 import { useFriends } from "./hooks/useFriends.js";
 import { useBlocks } from "./hooks/useBlocks.js";
@@ -607,6 +608,8 @@ export default function App(){
     return {id:user.myUnit,yg,num,name:`ユニット${num}`,col:UNIT_COL,prefix:`unit:${user.myUnit}`};
   },[user.myUnit]);
   const SANDBOX={id:"sandbox",name:"テスト広場",col:"#6366f1",prefix:"global:sandbox"};
+  // TODO: 本番では user.isAdmin を外して !user.myDept だけにする
+  const showDeptModal=user.isAdmin||!user.myDept;
   const cd=did===SANDBOX.prefix?SANDBOX:userDepts.find(d=>d.prefix===did)||userSchools.find(s=>s.prefix===did)||(userUnit&&did===userUnit.prefix?userUnit:null);
   const qCourseIds=useMemo(()=>new Set(allCourses.filter(c=>c.quarter===quarter&&(!_selY||!c.year||c.year===_selY)).map(c=>c.id)),[allCourses,quarter,_selY]);
   const hiddenSet=useMemo(()=>new Set(hiddenAsgn),[hiddenAsgn]);
@@ -854,6 +857,7 @@ export default function App(){
           {view==="admin"&&<AdminView mob={false} courses={allCourses} depts={userDepts} schools={userSchools}/>}
           {view==="freshman"&&<FreshmanBoardView mob={false} loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/>}
         </div>
+        {showDeptModal&&<DeptModal user={user} onClose={()=>{}}/>}
         {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
         <DemoBanner/>
         <Toasts/>
@@ -899,6 +903,7 @@ export default function App(){
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread} hasMed={medRawCourses.length>0}/>
       <div className="sa-bottom" style={{background:T.bg2,flexShrink:0}}/>
       {showMembers&&(view==="course"&&cc?<MemberPanel mList={members} onlineList={online} col={cc.col} onClose={()=>setShowMembers(false)}/>:view==="dept"&&cd?<MemberPanel mList={deptMembers} onlineList={online} col={cd.col||T.accent} onClose={()=>setShowMembers(false)}/>:null)}
+      {showDeptModal&&<DeptModal user={user} onClose={()=>{}}/>}
       {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
       <DemoBanner/>
       <Toasts/>

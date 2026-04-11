@@ -147,6 +147,15 @@ export async function PATCH(request) {
       updates.color = col || null;
     }
 
+    // student_id: e.g. "25B60001" or "31220001" or null
+    if ('studentId' in body) {
+      const sid = body.studentId;
+      if (sid !== null && (typeof sid !== 'string' || sid.length > 20)) {
+        return NextResponse.json({ error: 'Invalid studentId' }, { status: 400 });
+      }
+      updates.student_id = sid || null;
+    }
+
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No valid fields' }, { status: 400 });
     }
