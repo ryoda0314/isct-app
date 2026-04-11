@@ -85,7 +85,7 @@ const WeekGrid = ({ weekDates, byDate, PERIODS, gridStart, gridHeight, colorMap,
   if (GRID_H <= 0) return null;
 
   return (
-    <div style={{ display: "flex", overflowX: "auto" }}>
+    <div style={{ display: "flex", width: "100%", overflow: "hidden" }}>
       {/* Time labels */}
       <div style={{ width: mob ? 40 : 52, flexShrink: 0, paddingTop: HDR_H }}>
         <div style={{ position: "relative", height: GRID_H }}>
