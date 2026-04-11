@@ -205,7 +205,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
           const upcoming=tab==="active"?calItems.filter(a=>a.due>=NOW):calItems;
           const makeDates=list=>[...new Set(list.map(a=>dKey(a.due)))].sort((a,b)=>{const[ay,am,ad]=a.split("-").map(Number);const[by,bm,bd]=b.split("-").map(Number);return new Date(ay,am,ad)-new Date(by,bm,bd);});
           const upDates=makeDates(upcoming);
-          const renderItems=(list)=>makeDates(list).map(dk=>{const[y,m,dd]=dk.split("-").map(Number);const date=new Date(y,m,dd);const dayItems=list.filter(a=>isSameDay(a.due,date));const dl=uDue(date);return(
+          const renderItems=(list)=>makeDates(list).map(dk=>{const[y,m,dd]=dk.split("-").map(Number);const date=new Date(y,m,dd);const dayItems=list.filter(a=>isSameDay(a.due,date));const dl=uDue(new Date(Math.max(...dayItems.map(a=>a.due))));return(
               <div key={dk} style={{marginBottom:12}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
                   <span style={{fontSize:13,fontWeight:700,color:tab==="done"?T.green:dl.c}}>{date.getMonth()+1}/{date.getDate()}</span>

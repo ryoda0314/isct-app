@@ -5,8 +5,12 @@ import { isDemoMode } from "../demoMode.js";
 import { buildDemoMedSessions } from "../demoData.js";
 
 const DAYS = ["月", "火", "水", "木", "金"];
-const COLORS = ["#6375f0", "#e5534b", "#3dae72", "#a855c7", "#d4843e", "#c6a236", "#2d9d8f", "#c75d8e",
-  "#5b8def", "#d45d5d", "#46b87a", "#b06fd0", "#c08040", "#b8a830", "#35a898", "#c06090"];
+const COLORS = [
+  "#6375f0", "#e5534b", "#3dae72", "#a855c7", "#d4843e", "#c6a236", "#2d9d8f", "#c75d8e",
+  "#5b8def", "#d45d5d", "#46b87a", "#b06fd0", "#c08040", "#b8a830", "#35a898", "#c06090",
+  "#4a90d9", "#d97b4a", "#38c78a", "#9b59b6", "#e67e22", "#1abc9c", "#e74c8b", "#7f8cdd",
+  "#c0392b", "#27ae60", "#8e44ad", "#f39c12", "#16a085", "#d35498", "#2980b9", "#e84393",
+];
 
 // ── Time axis (hourly grid lines, period-system agnostic) ──
 const GRID_START_MIN = 8 * 60 + 30;   // 08:30
@@ -211,12 +215,18 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey }
     })();
   }, [courses]);
 
-  // Color map for courses
+  // Color map for courses (medCourses + any additional codes from sessions)
   const colorMap = useMemo(() => {
     const map = {};
-    medCourses.forEach((c, i) => { map[c.code] = COLORS[i % COLORS.length]; });
+    let idx = 0;
+    medCourses.forEach((c) => { map[c.code] = COLORS[idx++ % COLORS.length]; });
+    // Also assign colors to session codes not in medCourses (e.g. LIB courses)
+    const sessionCodes = new Set(sessions.map(s => s.code));
+    for (const code of sessionCodes) {
+      if (!map[code]) map[code] = COLORS[idx++ % COLORS.length];
+    }
     return map;
-  }, [medCourses]);
+  }, [medCourses, sessions]);
 
   // code → moodleId map for navigation
   const moodleIdMap = useMemo(() => {
