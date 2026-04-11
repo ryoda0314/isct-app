@@ -8,26 +8,10 @@ const DAYS = ["月", "火", "水", "木", "金"];
 const COLORS = ["#6375f0", "#e5534b", "#3dae72", "#a855c7", "#d4843e", "#c6a236", "#2d9d8f", "#c75d8e",
   "#5b8def", "#d45d5d", "#46b87a", "#b06fd0", "#c08040", "#b8a830", "#35a898", "#c06090"];
 
-// ── Period grids per faculty ──
-// 歯学部: 11–19限 (50min each, lunch gap after 13)
-const DEN_PERIODS = [
-  { id: "11", label: "11限", time: "09:00–09:50" },
-  { id: "12", label: "12限", time: "10:00–10:50" },
-  { id: "13", label: "13限", time: "11:00–11:50" },
-  { id: "15", label: "15限", time: "12:50–13:40" },
-  { id: "16", label: "16限", time: "13:50–14:40" },
-  { id: "17", label: "17限", time: "14:50–15:40" },
-  { id: "18", label: "18限", time: "15:50–16:40" },
-  { id: "19", label: "19限", time: "16:50–17:40" },
-];
-// 医学部: g1–g5 (90min each)
-const MED_PERIODS = [
-  { id: "g1", label: "g1", time: "08:50–10:20" },
-  { id: "g2", label: "g2", time: "10:45–12:15" },
-  { id: "g3", label: "g3", time: "13:30–15:00" },
-  { id: "g4", label: "g4", time: "15:25–16:55" },
-  { id: "g5", label: "g5", time: "17:15–18:45" },
-];
+// ── Time axis (hourly grid lines, period-system agnostic) ──
+const GRID_START_MIN = 8 * 60 + 30;   // 08:30
+const GRID_END_MIN   = 19 * 60;       // 19:00
+const HOUR_LABELS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
 
 const getMonday = (d) => {
   const dt = new Date(d);
@@ -48,7 +32,8 @@ const parseTime = (t) => {
   return h * 60 + m;
 };
 
-const WeekGrid = ({ weekDates, byDate, PERIODS, gridStart, gridHeight, colorMap, mob, today, goToCourse }) => {
+// WeekGrid (unused — inline rendering below)
+const _WeekGrid_unused = ({ weekDates, byDate, gridStart, gridHeight, colorMap, mob, today, goToCourse }) => {
   const PX_PER_MIN = mob ? 1.2 : 1.5;
   const GRID_H = gridHeight * PX_PER_MIN;
   const HDR_H = 28;
@@ -88,20 +73,18 @@ const WeekGrid = ({ weekDates, byDate, PERIODS, gridStart, gridHeight, colorMap,
 
   return (
     <div style={{ display: "flex", width: "100%", overflow: "hidden" }}>
-      {/* Time labels */}
-      <div style={{ width: mob ? 40 : 52, flexShrink: 0, paddingTop: HDR_H }}>
+      {/* Time labels (hourly) */}
+      <div style={{ width: mob ? 36 : 44, flexShrink: 0, paddingTop: HDR_H }}>
         <div style={{ position: "relative", height: GRID_H }}>
-          {PERIODS.map((pd) => {
-            const [sh, sm] = pd.time.split("–")[0].split(":").map(Number);
-            const top = (sh * 60 + sm - gridStart) * PX_PER_MIN;
+          {HOUR_LABELS.map((h) => {
+            const top = (h * 60 - gridStart) * PX_PER_MIN;
             return (
-              <div key={pd.id} style={{
-                position: "absolute", top, width: "100%",
-                display: "flex", flexDirection: "column", alignItems: "flex-end",
-                paddingRight: 4, fontSize: mob ? 9 : 11, color: T.txD, lineHeight: 1.2,
+              <div key={h} style={{
+                position: "absolute", top: top - 6, width: "100%",
+                textAlign: "right", paddingRight: 4,
+                fontSize: mob ? 9 : 10, fontWeight: 500, color: T.txD,
               }}>
-                <span style={{ fontWeight: 700, color: T.txH }}>{pd.label}</span>
-                <span style={{ fontSize: mob ? 7 : 9 }}>{pd.time.split("–")[0]}</span>
+                {h}:00
               </div>
             );
           })}
@@ -124,10 +107,9 @@ const WeekGrid = ({ weekDates, byDate, PERIODS, gridStart, gridHeight, colorMap,
               {DAYS[di]} {date.getDate()}
             </div>
             <div style={{ position: "relative", height: GRID_H }}>
-              {PERIODS.map((pd) => {
-                const [sh, sm] = pd.time.split("–")[0].split(":").map(Number);
-                const top = (sh * 60 + sm - gridStart) * PX_PER_MIN;
-                return <div key={pd.id} style={{ position: "absolute", top, width: "100%", borderTop: `1px solid ${T.bd}15` }} />;
+              {HOUR_LABELS.map((h) => {
+                const top = (h * 60 - gridStart) * PX_PER_MIN;
+                return <div key={h} style={{ position: "absolute", top, width: "100%", borderTop: `1px solid ${T.bd}15` }} />;
               })}
               {blocks.map((b, bi) => {
                 const { s, startMin, endMin } = b;
@@ -170,7 +152,7 @@ const WeekGrid = ({ weekDates, byDate, PERIODS, gridStart, gridHeight, colorMap,
  * Medical/Dental timetable view.
  * Shows session-based schedule fetched from yushima2 syllabus system.
  */
-export const MedTTView = ({ courses = [], mob, setCid, setView, setCh }) => {
+export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey }) => {
   const [sessions, setSessions] = useState([]);
   const [courseMeta, setCourseMeta] = useState({});
   const [loading, setLoading] = useState(false);
@@ -252,11 +234,11 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh }) => {
     }
   };
 
-  // Detect demo persona type from course codes
+  // Demo mode: demoKey is passed from App.jsx (e.g. "med", "med_b1", "den_b2", "den")
   const demoPersonaType = useMemo(() => {
     if (!isDemoMode() || medCourses.length === 0) return null;
-    return medCourses.some(c => c.code?.startsWith("DEN.")) ? "den" : "med";
-  }, [medCourses]);
+    return demoKey || (medCourses.some(c => c.code?.startsWith("DEN.")) ? "den" : "med");
+  }, [medCourses, demoKey]);
 
   // Fetch sessions from API (or demo data)
   const fetchSessions = useCallback(async () => {
@@ -321,70 +303,18 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh }) => {
     });
   }, [weekStart]);
 
-  // Detect faculty type from course codes or periodStr
+  // Faculty label (医学部 / 歯学部) — derived from course codes
   const faculty = useMemo(() => {
-    // Check course code prefixes
-    const hasDEN = medCourses.some(c => c.code?.startsWith("DEN."));
-    const hasMED = medCourses.some(c => c.code?.startsWith("MED."));
+    const hasDEN = medCourses.some(c => c.code?.startsWith("DEN.") || /^02/.test(c.lctCd));
+    const hasMED = medCourses.some(c => c.code?.startsWith("MED.") || /^01/.test(c.lctCd));
     if (hasDEN && !hasMED) return "DEN";
     if (hasMED && !hasDEN) return "MED";
-    // Check periodStr patterns in sessions
-    const hasNumeric = sessions.some(s => /^\d+$/.test(s.periodStr));
-    const hasG = sessions.some(s => /^g\d/.test(s.periodStr));
-    if (hasNumeric) return "DEN";
-    if (hasG) return "MED";
-    return "DEN"; // default
+    return sessions.some(s => /^[gb]\d|^c\d/.test(s.periodStr)) ? "MED" : "DEN";
   }, [medCourses, sessions]);
 
-  const PERIODS = faculty === "MED" ? MED_PERIODS : DEN_PERIODS;
-
-  // Time axis: derive from first/last period
-  const gridStart = useMemo(() => {
-    const [h, m] = PERIODS[0].time.split("–")[0].split(":").map(Number);
-    return h * 60 + m;
-  }, [PERIODS]);
-  const gridEnd = useMemo(() => {
-    const [h, m] = PERIODS[PERIODS.length - 1].time.split("–")[1].split(":").map(Number);
-    return h * 60 + m;
-  }, [PERIODS]);
-  const gridHeight = gridEnd - gridStart;
-
-  // Build week grid: periods × days, each cell = session or null
-  const weekGrid = useMemo(() => {
-    // grid[periodIdx][dayIdx] = session | null
-    const grid = PERIODS.map(() => Array(5).fill(null));
-
-    for (let di = 0; di < 5; di++) {
-      const dateStr = fmtDate(weekDates[di]);
-      const daySessions = byDate[dateStr] || [];
-
-      for (const s of daySessions) {
-        const pid = s.periodStr;
-        const pend = s.periodEnd || pid;
-        if (!pid) continue;
-        const piStart = PERIODS.findIndex(p => p.id === pid);
-        const piEnd = PERIODS.findIndex(p => p.id === pend);
-        if (piStart === -1) continue;
-        // Fill all periods from start to end
-        const end = piEnd >= piStart ? piEnd : piStart;
-        for (let pi = piStart; pi <= end; pi++) {
-          grid[pi][di] = s;
-        }
-      }
-    }
-    return grid;
-  }, [weekDates, byDate, PERIODS]);
-
-  // No vertical merging — each period is its own entry (教員・教室が回ごとに異なるため)
-  const mergedGrid = useMemo(() => {
-    const entries = [];
-    for (let di = 0; di < 5; di++) {
-      for (let pi = 0; pi < PERIODS.length; pi++) {
-        entries.push({ pi, di, span: 1, session: weekGrid[pi]?.[di] || null });
-      }
-    }
-    return entries;
-  }, [weekGrid, PERIODS]);
+  // Fixed time-axis grid (period-system agnostic)
+  const gridStart = GRID_START_MIN;
+  const gridHeight = GRID_END_MIN - GRID_START_MIN;
 
   // Calendar data
   const calFirst = new Date(calMonth.y, calMonth.m, 1);
@@ -477,20 +407,18 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh }) => {
 
             return (
               <div style={{ display: "flex" }}>
-                {/* Time axis labels */}
-                <div style={{ width: mob ? 36 : 48, flexShrink: 0, paddingTop: HDR_H }}>
+                {/* Time axis labels (hourly) */}
+                <div style={{ width: mob ? 36 : 44, flexShrink: 0, paddingTop: HDR_H }}>
                   <div style={{ position: "relative", height: GRID_H }}>
-                    {PERIODS.map((pd) => {
-                      const [sh, sm] = pd.time.split("–")[0].split(":").map(Number);
-                      const top = (sh * 60 + sm - gridStart) * PX_PER_MIN;
+                    {HOUR_LABELS.map((h) => {
+                      const top = (h * 60 - gridStart) * PX_PER_MIN;
                       return (
-                        <div key={pd.id} style={{
-                          position: "absolute", top, width: "100%",
-                          display: "flex", flexDirection: "column", alignItems: "flex-end",
-                          paddingRight: 3, fontSize: mob ? 8 : 10, lineHeight: 1.2,
+                        <div key={h} style={{
+                          position: "absolute", top: top - 6, width: "100%",
+                          textAlign: "right", paddingRight: 4,
+                          fontSize: mob ? 9 : 10, fontWeight: 500, color: T.txD,
                         }}>
-                          <span style={{ fontWeight: 700, color: T.txH, fontSize: mob ? 9 : 11 }}>{pd.label}</span>
-                          <span style={{ color: T.txD, fontSize: mob ? 7 : 8 }}>{pd.time.split("–")[0]}</span>
+                          {h}:00
                         </div>
                       );
                     })}
@@ -513,14 +441,11 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh }) => {
                         {DAYS[di]} {date.getDate()}
                       </div>
                       <div style={{ position: "relative", height: GRID_H }}>
-                        {/* Period grid lines */}
-                        {PERIODS.map((pd) => {
-                          const [sh, sm] = pd.time.split("–")[0].split(":").map(Number);
-                          const top = (sh * 60 + sm - gridStart) * PX_PER_MIN;
-                          return <div key={pd.id} style={{ position: "absolute", top, width: "100%", borderTop: `1px solid ${T.bd}12` }} />;
+                        {/* Hourly grid lines */}
+                        {HOUR_LABELS.map((h) => {
+                          const top = (h * 60 - gridStart) * PX_PER_MIN;
+                          return <div key={h} style={{ position: "absolute", top, width: "100%", borderTop: `1px solid ${T.bd}${h === 12 ? '25' : '12'}` }} />;
                         })}
-                        {/* Lunch line */}
-                        <div style={{ position: "absolute", top: (12 * 60 - gridStart) * PX_PER_MIN, width: "100%", borderTop: `1px dashed ${T.bd}30` }} />
 
                         {/* Session blocks */}
                         {blocks.map((b, bi) => {
