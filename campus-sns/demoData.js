@@ -860,6 +860,74 @@ const CAP_Q4 = [
   { id: "mc_q4_405", moodleId: 4405, code: "LAH.T101", name: "哲学入門", per: "金1-2", room: "WL1-301", col: "#d4843e", mem: 150, quarter: 4, building: "wl1", bldg: "西講義棟1" },
 ];
 
+// ── 医学部 医学科 (MED_M) ──
+const MED_Q1 = [
+  { id: "mc_q1_501", moodleId: 5101, code: "MED.A101", name: "解剖学I", per: "月1-2", room: "M&Dタワー26F", col: "#e04e6a", mem: 110, quarter: 1, building: "mdt", bldg: "M&Dタワー" },
+  { id: "mc_q1_502", moodleId: 5102, code: "MED.A111", name: "生理学I", per: "火1-2", room: "1号館-講義室A", col: "#d4577a", mem: 110, quarter: 1, building: "ichi", bldg: "1号館" },
+  { id: "mc_q1_503", moodleId: 5103, code: "MED.A121", name: "生化学I", per: "水1-2", room: "M&Dタワー26F", col: "#c9405e", mem: 110, quarter: 1, building: "mdt", bldg: "M&Dタワー" },
+  { id: "mc_q1_504", moodleId: 5104, code: "MED.A131", name: "組織学", per: "水3-4", room: "3号館-201", col: "#e86b83", mem: 110, quarter: 1, building: "san", bldg: "3号館" },
+  { id: "mc_q1_505", moodleId: 5105, code: "MED.A141", name: "医学英語I", per: "木1-2", room: "1号館-講義室B", col: "#3dae72", mem: 110, quarter: 1, building: "ichi", bldg: "1号館" },
+  { id: "mc_q1_506", moodleId: 5106, code: "MED.A151", name: "医療概論", per: "金1-2", room: "M&Dタワー26F", col: "#6375f0", mem: 110, quarter: 1, building: "mdt", bldg: "M&Dタワー" },
+];
+const MED_Q2 = [
+  { id: "mc_501", moodleId: 501, code: "MED.A202", name: "解剖学II", per: "月1-2", room: "M&Dタワー26F", col: "#e04e6a", mem: 110, quarter: 2, building: "mdt", bldg: "M&Dタワー" },
+  { id: "mc_502", moodleId: 502, code: "MED.A212", name: "生理学II", per: "月3-4", room: "1号館-講義室A", col: "#d4577a", mem: 110, quarter: 2, building: "ichi", bldg: "1号館" },
+  { id: "mc_503", moodleId: 503, code: "MED.A222", name: "生化学II", per: "火1-2", room: "M&Dタワー26F", col: "#c9405e", mem: 110, quarter: 2, building: "mdt", bldg: "M&Dタワー" },
+  { id: "mc_504", moodleId: 504, code: "MED.A232", name: "微生物学", per: "火5-6", room: "3号館-201", col: "#a855c7", mem: 110, quarter: 2, building: "san", bldg: "3号館" },
+  { id: "mc_505", moodleId: 505, code: "MED.A242", name: "免疫学", per: "水1-2", room: "M&Dタワー26F", col: "#2d9d8f", mem: 110, quarter: 2, building: "mdt", bldg: "M&Dタワー" },
+  { id: "mc_506", moodleId: 506, code: "MED.A252", name: "医学英語II", per: "木1-2", room: "1号館-講義室B", col: "#3dae72", mem: 110, quarter: 2, building: "ichi", bldg: "1号館" },
+  { id: "mc_507", moodleId: 507, code: "MED.A262", name: "発生学", per: "木3-4", room: "3号館-201", col: "#e86b83", mem: 110, quarter: 2, building: "san", bldg: "3号館" },
+  { id: "mc_508", moodleId: 508, code: "MED.A272", name: "人体構造実習", per: "金3-8", room: "解剖実習室", col: "#d96854", mem: 110, quarter: 2, building: "kaibou", bldg: "解剖実習棟" },
+];
+const MED_Q3 = [
+  { id: "mc_q3_501", moodleId: 5301, code: "MED.A301", name: "病理学I", per: "月1-2", room: "M&Dタワー26F", col: "#e04e6a", mem: 110, quarter: 3, building: "mdt", bldg: "M&Dタワー" },
+  { id: "mc_q3_502", moodleId: 5302, code: "MED.A311", name: "薬理学I", per: "火1-2", room: "1号館-講義室A", col: "#d4577a", mem: 110, quarter: 3, building: "ichi", bldg: "1号館" },
+  { id: "mc_q3_503", moodleId: 5303, code: "MED.A321", name: "社会医学", per: "水1-2", room: "3号館-201", col: "#6375f0", mem: 110, quarter: 3, building: "san", bldg: "3号館" },
+  { id: "mc_q3_504", moodleId: 5304, code: "MED.A331", name: "医学統計学", per: "木1-2", room: "M&Dタワー26F", col: "#c6a236", mem: 110, quarter: 3, building: "mdt", bldg: "M&Dタワー" },
+  { id: "mc_q3_505", moodleId: 5305, code: "MED.A341", name: "医学研究入門", per: "金3-8", room: "各研究室", col: "#a855c7", mem: 110, quarter: 3, building: "lab", bldg: "各研究室" },
+];
+const MED_Q4 = [
+  { id: "mc_q4_501", moodleId: 5401, code: "MED.A302", name: "病理学II", per: "月1-2", room: "M&Dタワー26F", col: "#e04e6a", mem: 110, quarter: 4, building: "mdt", bldg: "M&Dタワー" },
+  { id: "mc_q4_502", moodleId: 5402, code: "MED.A312", name: "薬理学II", per: "火1-2", room: "1号館-講義室A", col: "#d4577a", mem: 110, quarter: 4, building: "ichi", bldg: "1号館" },
+  { id: "mc_q4_503", moodleId: 5403, code: "MED.A352", name: "寄生虫学", per: "水1-2", room: "3号館-201", col: "#2d9d8f", mem: 110, quarter: 4, building: "san", bldg: "3号館" },
+  { id: "mc_q4_504", moodleId: 5404, code: "MED.A362", name: "法医学", per: "木1-2", room: "M&Dタワー26F", col: "#c9405e", mem: 110, quarter: 4, building: "mdt", bldg: "M&Dタワー" },
+  { id: "mc_q4_505", moodleId: 5405, code: "MED.A372", name: "病理実習", per: "金3-8", room: "病理実習室", col: "#d96854", mem: 110, quarter: 4, building: "byouri", bldg: "病理実習室" },
+];
+
+// ── 歯学部 歯学科 (DEN_D) ──
+const DEN_Q1 = [
+  { id: "mc_q1_601", moodleId: 6101, code: "DEN.A101", name: "口腔解剖学I", per: "月1-2", room: "1号館-第1講義室", col: "#4ea8e0", mem: 55, quarter: 1, building: "ichi", bldg: "1号館" },
+  { id: "mc_q1_602", moodleId: 6102, code: "DEN.A111", name: "口腔生理学I", per: "火1-2", room: "1号館-第2講義室", col: "#3d96cf", mem: 55, quarter: 1, building: "ichi", bldg: "1号館" },
+  { id: "mc_q1_603", moodleId: 6103, code: "DEN.A121", name: "口腔生化学", per: "水1-2", room: "3号館-歯科棟301", col: "#6bb8e8", mem: 55, quarter: 1, building: "san", bldg: "3号館" },
+  { id: "mc_q1_604", moodleId: 6104, code: "DEN.A131", name: "歯科材料学I", per: "水3-4", room: "3号館-歯科棟301", col: "#2d8abf", mem: 55, quarter: 1, building: "san", bldg: "3号館" },
+  { id: "mc_q1_605", moodleId: 6105, code: "DEN.A141", name: "歯学英語I", per: "木1-2", room: "1号館-第2講義室", col: "#3dae72", mem: 55, quarter: 1, building: "ichi", bldg: "1号館" },
+  { id: "mc_q1_606", moodleId: 6106, code: "DEN.A151", name: "歯学概論", per: "金1-2", room: "1号館-第1講義室", col: "#6375f0", mem: 55, quarter: 1, building: "ichi", bldg: "1号館" },
+];
+const DEN_Q2 = [
+  { id: "mc_601", moodleId: 601, code: "DEN.A202", name: "口腔解剖学II", per: "月1-2", room: "1号館-第1講義室", col: "#4ea8e0", mem: 55, quarter: 2, building: "ichi", bldg: "1号館" },
+  { id: "mc_602", moodleId: 602, code: "DEN.A212", name: "口腔生理学II", per: "月3-4", room: "1号館-第2講義室", col: "#3d96cf", mem: 55, quarter: 2, building: "ichi", bldg: "1号館" },
+  { id: "mc_603", moodleId: 603, code: "DEN.A222", name: "口腔微生物学", per: "火1-2", room: "3号館-歯科棟301", col: "#2d9d8f", mem: 55, quarter: 2, building: "san", bldg: "3号館" },
+  { id: "mc_604", moodleId: 604, code: "DEN.A232", name: "歯科材料学II", per: "火3-4", room: "3号館-歯科棟301", col: "#2d8abf", mem: 55, quarter: 2, building: "san", bldg: "3号館" },
+  { id: "mc_605", moodleId: 605, code: "DEN.A242", name: "口腔組織学", per: "水1-2", room: "1号館-第1講義室", col: "#6bb8e8", mem: 55, quarter: 2, building: "ichi", bldg: "1号館" },
+  { id: "mc_606", moodleId: 606, code: "DEN.A252", name: "歯学英語II", per: "木1-2", room: "1号館-第2講義室", col: "#3dae72", mem: 55, quarter: 2, building: "ichi", bldg: "1号館" },
+  { id: "mc_607", moodleId: 607, code: "DEN.A262", name: "歯科薬理学", per: "木3-4", room: "3号館-歯科棟301", col: "#a855c7", mem: 55, quarter: 2, building: "san", bldg: "3号館" },
+  { id: "mc_608", moodleId: 608, code: "DEN.A272", name: "歯科基礎実習", per: "金3-8", room: "歯科基礎実習室", col: "#d4843e", mem: 55, quarter: 2, building: "shika", bldg: "歯科基礎実習室" },
+];
+const DEN_Q3 = [
+  { id: "mc_q3_601", moodleId: 6301, code: "DEN.A301", name: "口腔病理学", per: "月1-2", room: "1号館-第1講義室", col: "#4ea8e0", mem: 55, quarter: 3, building: "ichi", bldg: "1号館" },
+  { id: "mc_q3_602", moodleId: 6302, code: "DEN.A311", name: "歯科補綴学I", per: "火1-2", room: "3号館-歯科棟301", col: "#3d96cf", mem: 55, quarter: 3, building: "san", bldg: "3号館" },
+  { id: "mc_q3_603", moodleId: 6303, code: "DEN.A321", name: "保存修復学", per: "水1-2", room: "1号館-第1講義室", col: "#6bb8e8", mem: 55, quarter: 3, building: "ichi", bldg: "1号館" },
+  { id: "mc_q3_604", moodleId: 6304, code: "DEN.A331", name: "歯科放射線学", per: "木1-2", room: "3号館-歯科棟301", col: "#2d8abf", mem: 55, quarter: 3, building: "san", bldg: "3号館" },
+  { id: "mc_q3_605", moodleId: 6305, code: "DEN.A341", name: "歯科模型実習", per: "金3-8", room: "歯科模型実習室", col: "#d4843e", mem: 55, quarter: 3, building: "mokei", bldg: "歯科模型実習室" },
+];
+const DEN_Q4 = [
+  { id: "mc_q4_601", moodleId: 6401, code: "DEN.A302", name: "歯周病学", per: "月1-2", room: "1号館-第1講義室", col: "#4ea8e0", mem: 55, quarter: 4, building: "ichi", bldg: "1号館" },
+  { id: "mc_q4_602", moodleId: 6402, code: "DEN.A312", name: "歯科補綴学II", per: "火1-2", room: "3号館-歯科棟301", col: "#3d96cf", mem: 55, quarter: 4, building: "san", bldg: "3号館" },
+  { id: "mc_q4_603", moodleId: 6403, code: "DEN.A322", name: "歯内療法学", per: "水1-2", room: "1号館-第1講義室", col: "#6bb8e8", mem: 55, quarter: 4, building: "ichi", bldg: "1号館" },
+  { id: "mc_q4_604", moodleId: 6404, code: "DEN.A332", name: "口腔外科学I", per: "木1-2", room: "3号館-歯科棟301", col: "#2d8abf", mem: 55, quarter: 4, building: "san", bldg: "3号館" },
+  { id: "mc_q4_605", moodleId: 6405, code: "DEN.A342", name: "歯科臨床基礎実習", per: "金3-8", room: "歯科臨床実習室", col: "#d4843e", mem: 55, quarter: 4, building: "rinsho", bldg: "歯科臨床実習室" },
+];
+
 // ── 課題テンプレ生成 (Q2 アクティブ + Q1 完了済み) ──
 function buildPersonaAsgn(q1Courses, q2Courses) {
   const c = q2Courses;
@@ -952,6 +1020,32 @@ const DEMO_PERSONAS = [
     q: { 1: CSC_Q1, 2: DEMO_COURSES, 3: CSC_Q3, 4: CSC_Q4 },
     asgn: DEMO_ASGN,
     _screenshot: true,
+  },
+  {
+    id: "med",
+    name: "白石 遥",
+    dept: "医学科",
+    school: "医学部",
+    schoolCol: "#e04e6a",
+    year: "B2",
+    yearGroup: "25B",
+    studentId: "25B61033",
+    icon: "🩺",
+    q: { 1: MED_Q1, 2: MED_Q2, 3: MED_Q3, 4: MED_Q4 },
+    asgn: null,
+  },
+  {
+    id: "den",
+    name: "清水 凛",
+    dept: "歯学科",
+    school: "歯学部",
+    schoolCol: "#4ea8e0",
+    year: "B2",
+    yearGroup: "25B",
+    studentId: "25B65017",
+    icon: "🦷",
+    q: { 1: DEN_Q1, 2: DEN_Q2, 3: DEN_Q3, 4: DEN_Q4 },
+    asgn: null,
   },
 ];
 
@@ -1178,6 +1272,130 @@ function capPosts(c) {
   };
 }
 
+// ── MED 投稿 ──
+function medmPosts(c) {
+  return {
+    [c[0].id]: [ // 解剖学II
+      { id: 3000, ...P1, text: "📌 **人体構造実習レポート提出要件**\n- 形式: PDF（スケッチ含む）\n- ファイル名: `学籍番号_anatomy_report.pdf`\n- 締切: 来週月曜 23:59\n- 対象部位: 上肢の筋・神経・血管\n\n遅延提出は**受理不可**",
+        type: "info", likes: [10002,10003,10004,99999], ts: d(-2,10,0), pinned: true, commentCount: 2, reactions: {"👍":[10002,10003,10004]} },
+      { id: 3001, ...P2, text: "腕神経叢の枝の覚え方：\n「**武**蔵(筋皮)の**正**体(正中)は**尺**八(尺骨)を吹く**橈**骨(橈骨)な**腋**(腋窩)」\n\n$$C5-T1 \\to \\text{幹} \\to \\text{束} \\to \\text{枝}$$\n外側束→筋皮神経＋正中神経外側頭\n内側束→尺骨神経＋正中神経内側頭\n後束→橈骨神経＋腋窩神経",
+        type: "material", likes: [10001,10003,99999,10004], ts: d(-1,20,15), commentCount: 3, reactions: {"🔥":[10001,10002],"👏":[10003]} },
+      { id: 3002, ...P3, text: "大腿三角（スカルパ三角）の境界がいつも混乱する…\n- 上辺: 鼠径靭帯\n- 外側: 縫工筋\n- 内側: 長内転筋\n\n中を通るもの(外→内): **N**erve, **A**rtery, **V**ein, **E**mpty space, **L**ymphatics → NAVEL で覚える？",
+        type: "question", likes: [10002,10004], ts: d(0,11,30), commentCount: 4, reactions: {"👍":[10002]} },
+      { id: 3003, ...P4, text: "📊 解剖実習のスケッチ、何で描いてる？",
+        type: "poll", likes: [10001], ts: d(0,10,0), pollOptions: ["色鉛筆","iPad (Procreate)","紙＋写真","PowerPoint"], pollVotes: {"色鉛筆":[10001,10004],"iPad (Procreate)":[10002,99999,10003],"紙＋写真":[10005],"PowerPoint":[]}, commentCount: 1 },
+      { id: 3004, ...PA, text: "解剖実習のホルマリン臭がきつすぎて毎回頭痛い…マスク二重にしても限界がある",
+        type: "anon", likes: [10001,10002,10003,10004,10005], ts: d(-3,22,0), commentCount: 4, reactions: {"😢":[10001,10002,10003],"👍":[10004]} },
+    ],
+    [c[1].id]: [ // 生理学II
+      { id: 3010, ...P2, text: "📌 **中間試験範囲**\n- 心臓の電気生理学（活動電位、刺激伝導系）\n- 心電図の基礎（P波, QRS, T波）\n- 循環調節（圧受容器反射, レニン-アンジオテンシン系）\n- 呼吸生理（ガス交換, 酸素解離曲線）\n\n持ち込み不可",
+        type: "info", likes: [10001,10003,99999], ts: d(-3,18,0), pinned: true, commentCount: 2, reactions: {"👍":[10001,10003]} },
+      { id: 3011, ...P1, text: "酸素解離曲線のシフト因子、右方移動 = 酸素放出しやすくなる：\n- pH↓（ボーア効果）\n- $P_{CO_2}$↑\n- 温度↑\n- 2,3-DPG↑\n\n覚え方: 「**運動**すると全部上がる」→ 組織に酸素供給↑",
+        type: "material", likes: [10002,99999,10004], ts: d(0,10,0), commentCount: 2, reactions: {"👍":[10002]} },
+      { id: 3012, ...P3, text: "心電図の読み方がまだ不安…QRS幅が広いのが脚ブロックで、ST上昇が心筋梗塞でいいんだよね？\nP波消失＋irregularly irregular = 心房細動？",
+        type: "question", likes: [10001,10004], ts: d(-1,16,0), commentCount: 3 },
+    ],
+    [c[2].id]: [ // 生化学II
+      { id: 3020, ...P3, text: "TCA回路の基質、語呂合わせ：\n「**ク**エン**イ**ソ（あ）**ア**ルファ（の）**サ**クシニル**コ**ハク**フ**マル**リ**ンゴ**オ**キサロ」\n\nクエン酸→イソクエン酸→α-ケトグルタル酸→サクシニルCoA→コハク酸→フマル酸→リンゴ酸→オキサロ酢酸",
+        type: "material", likes: [10001,10002,99999], ts: d(-1,14,0), pinned: true, commentCount: 2, reactions: {"🔥":[10001],"👏":[10002]} },
+      { id: 3021, ...P2, text: "糖新生とグリコーゲン代謝の制御、インスリン vs グルカゴンの対比で整理すると覚えやすい：\n\n|  | インスリン | グルカゴン |\n|--|--|--|\n| 血糖 | ↓ | ↑ |\n| グリコーゲン合成 | 促進 | 抑制 |\n| 糖新生 | 抑制 | 促進 |\n| 脂肪合成 | 促進 | 抑制 |",
+        type: "info", likes: [10001,10003,99999], ts: d(0,10,0), commentCount: 2, reactions: {"👍":[10001,10003]} },
+    ],
+    [c[3].id]: [ // 微生物学
+      { id: 3030, ...P2, text: "グラム染色の手順と原理まとめ：\n1. クリスタルバイオレット → 全菌紫\n2. ヨウ素液 → CV-I複合体形成\n3. アルコール脱色 → **陰性菌のみ脱色**（外膜のLPSが溶ける）\n4. サフラニン → 陰性菌がピンクに\n\nグラム**陽**性 = 厚いペプチドグリカン層 → **紫**\nグラム**陰**性 = 薄い + 外膜あり → **ピンク**",
+        type: "material", likes: [10001,10003,99999,10004], ts: d(-1,20,15), pinned: true, commentCount: 2, reactions: {"🔥":[10001,10002],"👏":[99999]} },
+      { id: 3031, ...P4, text: "📊 微生物の実習、一番面白かった実験は？",
+        type: "poll", likes: [], ts: d(0,10,0), pollOptions: ["グラム染色","培養・コロニー観察","抗菌薬感受性試験","PCR"], pollVotes: {"グラム染色":[10001,10004],"培養・コロニー観察":[10002,10003],"抗菌薬感受性試験":[99999,10005],"PCR":[10006]}, pollSettings: {anon:true} },
+    ],
+    [c[4].id]: [ // 免疫学
+      { id: 3040, ...P3, text: "T細胞のサブセット整理：\n- **CD4+ Th1**: IFN-γ → マクロファージ活性化（細胞内寄生菌）\n- **CD4+ Th2**: IL-4, IL-5 → B細胞のIgE産生（寄生虫・アレルギー）\n- **CD4+ Th17**: IL-17 → 好中球動員（細菌・真菌）\n- **CD4+ Treg**: IL-10, TGF-β → 免疫抑制\n- **CD8+ CTL**: パーフォリン・グランザイム → 細胞傷害",
+        type: "material", likes: [10001,10002,99999], ts: d(-1,15,30), pinned: true, reactions: {"👍":[10001,10002]} },
+      { id: 3041, ...P1, text: "I型アレルギーのメカニズム、国試頻出：\n1. 抗原に初回曝露 → B細胞がIgE産生\n2. IgEがマスト細胞のFcεRIに結合（感作）\n3. 再曝露 → 抗原がIgE架橋 → マスト細胞脱顆粒\n4. ヒスタミン放出 → 血管透過性↑、平滑筋収縮",
+        type: "info", likes: [10002,99999,10004], ts: d(0,10,0), commentCount: 2, reactions: {"👍":[10002,10004]} },
+    ],
+    [c[5].id]: [ // 医学英語II
+      { id: 3050, ...P1, text: "今週のcase presentation、英語で症例提示するの緊張する…\n\"A 45-year-old male presented with acute onset chest pain...\" みたいなテンプレ使えばいい？",
+        type: "question", likes: [10003,10004], ts: d(0,14,0), commentCount: 2 },
+      { id: 3051, ...P4, text: "📊 医学英語、一番苦手なスキルは？",
+        type: "poll", likes: [], ts: d(-1,16,0), pollOptions: ["Case presentation","Journal reading","Medical terminology","OSCE英語"], pollVotes: {"Case presentation":[10001,10003],"Journal reading":[10004],"Medical terminology":[10002],"OSCE英語":[99999,10005]}, pollSettings: {anon:true} },
+    ],
+    [c[6].id]: [ // 発生学
+      { id: 3060, ...P2, text: "胚葉の分化先まとめ：\n- **外胚葉**: 表皮, 神経系, 感覚器\n- **中胚葉**: 骨格筋, 骨, 心血管系, 腎臓, 血液\n- **内胚葉**: 消化管上皮, 肝臓, 膵臓, 肺\n\n覚え方: 外=皮膚と脳、中=運動器と循環、内=消化吸収",
+        type: "material", likes: [10001,10003,99999], ts: d(-1,14,0), pinned: true, commentCount: 2, reactions: {"🔥":[10001],"👏":[10003]} },
+      { id: 3061, ...P3, text: "催奇形因子の critical period、特に心臓が3-8週って狭いのに先天性心疾患が多い理由がわかった気がする",
+        type: "discussion", likes: [10002,10004], ts: d(0,11,30), commentCount: 2 },
+    ],
+    [c[7].id]: [ // 人体構造実習
+      { id: 3070, ...P4, text: "実習で同定すべき構造物リスト長すぎない？今回は上肢だけで筋20個以上…\n三角筋、上腕二頭筋、上腕三頭筋はわかるけど、回旋筋腱板（ローテーターカフ）の4つがいつも混ざる",
+        type: "question", likes: [99999,10001], ts: d(0,15,30), commentCount: 3 },
+      { id: 3071, ...PU, text: "回旋筋腱板（SITS）の覚え方：\n- **S**upraspinatus（棘上筋）→ 外転の開始\n- **I**nfraspinatus（棘下筋）→ 外旋\n- **T**eres minor（小円筋）→ 外旋\n- **S**ubscapularis（肩甲下筋）→ 内旋\n\n「**S**uper **I**ntelligent **T**eacher **S**ays」で覚えよう",
+        type: "info", likes: [10004,10001,10003], ts: d(0,16,10), reactions: {"👍":[10004,10003]} },
+      { id: 3072, ...PA, text: "実習後に手がホルマリン臭くてご飯が食べられない…グローブ二重にしても染みる",
+        type: "anon", likes: [10001,10002,10003,10004,10005], ts: d(-2,22,0), reactions: {"😢":[10001,10002,10003]} },
+    ],
+  };
+}
+
+// ── DEN 投稿 ──
+function dendPosts(c) {
+  return {
+    [c[0].id]: [ // 口腔解剖学II
+      { id: 3100, ...P1, text: "📌 **頭蓋骨スケッチレポート**\n- 対象: 蝶形骨・篩骨・上顎骨・下顎骨\n- 形式: 手描きスケッチ＋ランドマーク記入\n- 締切: 来週月曜 23:59\n- A3用紙推奨\n\n**名称は日本語＋ラテン語**で記入すること",
+        type: "info", likes: [10002,10003,10004,99999], ts: d(-2,10,0), pinned: true, commentCount: 2, reactions: {"👍":[10002,10003,10004]} },
+      { id: 3101, ...P2, text: "三叉神経の3枝の走行まとめ：\n- **V1 眼神経**: 上眼窩裂 → 前頭部・眼瞼上部\n- **V2 上顎神経**: 正円孔 → 上顎歯・頬部\n- **V3 下顎神経**: 卵円孔 → 下顎歯・咀嚼筋(運動枝)\n\n歯科で特に重要なのはV2(上顎歯の麻酔)とV3(下顎孔伝達麻酔)！",
+        type: "material", likes: [10001,10003,99999,10004], ts: d(-1,20,15), commentCount: 3, reactions: {"🔥":[10001,10002],"👏":[10003]} },
+      { id: 3102, ...P3, text: "咀嚼筋4つの作用がごっちゃになる…\n- 咬筋: 閉口\n- 側頭筋: 閉口＋後退\n- 内側翼突筋: 閉口\n- 外側翼突筋: **開口**・前方移動\n\n外側翼突筋だけ開口なのがポイント？",
+        type: "question", likes: [10002,10004], ts: d(0,11,30), commentCount: 4, reactions: {"👍":[10002]} },
+      { id: 3103, ...PA, text: "頭蓋骨の孔が多すぎて覚えきれない…大後頭孔、頸静脈孔、正円孔、卵円孔、棘孔、内耳孔、茎乳突孔…",
+        type: "anon", likes: [10001,10002,10003,10004,10005], ts: d(-3,22,0), commentCount: 4, reactions: {"😢":[10001,10002,10003],"👍":[10004]} },
+    ],
+    [c[1].id]: [ // 口腔生理学II
+      { id: 3110, ...P2, text: "📌 **中間試験範囲**\n- 唾液分泌の調節（自律神経支配）\n- 味覚の受容機構（甘味・苦味・うま味のGPCR）\n- 咀嚼運動の神経制御\n- 嚥下反射のメカニズム\n\n持ち込み不可、選択+記述",
+        type: "info", likes: [10001,10003,99999], ts: d(-3,18,0), pinned: true, commentCount: 2, reactions: {"👍":[10001,10003]} },
+      { id: 3111, ...P1, text: "唾液の機能って意外に多い：\n1. 消化（アミラーゼ）\n2. 潤滑（ムチン）\n3. 緩衝（重炭酸）\n4. 抗菌（リゾチーム, IgA, ラクトフェリン）\n5. 再石灰化（Ca²⁺, PO₄³⁻過飽和）\n\n口腔乾燥症(ドライマウス)で齲蝕が激増する理由がわかる",
+        type: "material", likes: [10002,99999,10004], ts: d(0,10,0), commentCount: 2, reactions: {"👍":[10002]} },
+    ],
+    [c[2].id]: [ // 口腔微生物学
+      { id: 3120, ...P3, text: "齲蝕の病因論、Keyesの3つの輪：\n- **宿主**（歯の質・形態）\n- **細菌**（S. mutans, Lactobacillus）\n- **食餌**（ショ糖 = スクロース）\n\n+ **時間** → Newbrunの4つの輪\n\nS. mutans が産生するグルカン(不溶性グルカン)がバイオフィルム形成の鍵",
+        type: "material", likes: [10001,10002,99999], ts: d(-1,14,0), pinned: true, commentCount: 2, reactions: {"🔥":[10001],"👏":[10002]} },
+      { id: 3121, ...P4, text: "📊 微生物の培養実習、コロニー形態の判別できた？",
+        type: "poll", likes: [], ts: d(0,10,0), pollOptions: ["余裕","だいたいOK","怪しい","全然わからん"], pollVotes: {"余裕":[],"だいたいOK":[10002,99999],"怪しい":[10001,10003,10004],"全然わからん":[10005]}, pollSettings: {anon:true} },
+    ],
+    [c[3].id]: [ // 歯科材料学II
+      { id: 3130, ...P2, text: "印象材の分類と特性：\n- **アルジネート**: 安価・操作簡便、寸法変化あり（概形印象用）\n- **シリコーンゴム**: 精密、弾性回復◎（精密印象用）\n- **ポリエーテル**: 親水性◎、硬い\n- **寒天**: 精密だが温度管理が必要\n\n臨床ではシリコーンが主流。付加型 vs 縮合型の違いも要注意",
+        type: "material", likes: [10001,10003,99999], ts: d(-1,14,0), pinned: true, commentCount: 2, reactions: {"👍":[10001,10003]} },
+      { id: 3131, ...P1, text: "コンポジットレジンの重合収縮が辺縁適合性に影響するって話、C-factor（ボンド面/フリー面の比）が高いと収縮応力も大きくなるのがポイントだよね",
+        type: "discussion", likes: [10002,10004], ts: d(0,11,30), commentCount: 2 },
+    ],
+    [c[4].id]: [ // 口腔組織学
+      { id: 3140, ...P3, text: "エナメル質の構造：\n- **エナメル小柱**(enamel rod): 直径4-8μm、HA結晶の集合\n- **小柱鞘**(rod sheath): 有機質が多い境界\n- **レチウス線条**: 成長線（木の年輪のようなもの）\n- **新生児線**: 出生時のストレスによる明瞭なレチウス線\n\n人体で最も硬い組織だけど、**酸に弱い**（pH 5.5以下で脱灰開始）",
+        type: "material", likes: [10001,10002,99999,10004], ts: d(-1,15,30), pinned: true, reactions: {"🔥":[10001],"👏":[10002,10003]} },
+      { id: 3141, ...P2, text: "象牙質の種類：\n- **一次象牙質**: 歯の萌出まで\n- **二次象牙質**: 萌出後、生理的に形成\n- **第三象牙質**(修復象牙質): 刺激(齲蝕等)に応じて形成\n\n象牙細管の直径と密度が歯髄に近いほど増すのも臨床的に重要",
+        type: "info", likes: [10001,10003,99999], ts: d(0,10,0), commentCount: 2, reactions: {"👍":[10001,10003]} },
+    ],
+    [c[5].id]: [ // 歯学英語II
+      { id: 3150, ...P1, text: "Patient communication で \"Does it hurt when I tap here?\" って打診のときに使うんだね。\"sensitivity to cold\" と \"sensitivity to heat\" の鑑別が問診のポイントらしい",
+        type: "discussion", likes: [10003,99999], ts: d(0,14,0), commentCount: 2 },
+      { id: 3151, ...P4, text: "📊 歯科英語の用語、一番覚えにくいのは？",
+        type: "poll", likes: [], ts: d(-1,16,0), pollOptions: ["解剖用語","材料用語","病名","手技の名前"], pollVotes: {"解剖用語":[10001,10003],"材料用語":[10002],"病名":[10004,10005],"手技の名前":[99999]}, pollSettings: {anon:true} },
+    ],
+    [c[6].id]: [ // 歯科薬理学
+      { id: 3160, ...P2, text: "局所麻酔薬の分類：\n- **エステル型**: プロカイン、テトラカイン（血中エステラーゼで分解→アレルギー起きやすい）\n- **アミド型**: リドカイン、メピバカイン、アーティカイン（肝代謝→アレルギー稀）\n\n歯科ではリドカイン(キシロカイン) + アドレナリン1:80,000が標準",
+        type: "material", likes: [10001,10003,99999], ts: d(-1,14,0), pinned: true, commentCount: 2, reactions: {"👍":[10001,10003]} },
+      { id: 3161, ...P3, text: "エピネフリン(アドレナリン)添加の理由：\n1. 血管収縮 → 麻酔薬の吸収遅延 → **持続時間延長**\n2. 出血減少\n3. 全身的副作用↓\n\nただし心疾患患者では使用注意！フェリプレシン含有製剤に切替え",
+        type: "info", likes: [10002,99999,10004], ts: d(0,10,0), commentCount: 2 },
+    ],
+    [c[7].id]: [ // 歯科基礎実習
+      { id: 3170, ...P4, text: "ワックスアップで臼歯の咬合面形態を再現するの難しすぎる…咬頭の位置と溝の走行がうまくいかない",
+        type: "question", likes: [99999,10001], ts: d(0,15,30), commentCount: 3 },
+      { id: 3171, ...PU, text: "窩洞形成の基本原則（Black）：\n1. **Outline form**: 齲蝕を含む適切な辺縁\n2. **Resistance form**: 咬合力に耐える形態\n3. **Retention form**: 修復物の維持形態\n4. **Convenience form**: 操作しやすい形態\n\nメタルインレーの窩洞は**テーパー2-5°**がポイント",
+        type: "info", likes: [10001,10004,10003], ts: d(0,16,10), reactions: {"👍":[10004,10003]} },
+      { id: 3172, ...PA, text: "マネキン相手でもハンドピース持つ手が震える…患者さん相手の臨床実習が来年って考えると不安しかない",
+        type: "anon", likes: [10001,10002,10003,10004,10005], ts: d(-2,22,0), reactions: {"😢":[10001,10002,10003]} },
+    ],
+  };
+}
+
 // ── ペルソナ別チャットメッセージ ──
 function mecChat(c) {
   return {
@@ -1315,6 +1533,92 @@ function capChat(c) {
   };
 }
 
+function medmChat(c) {
+  return {
+    [c[0].id]: [ // 解剖学II
+      { id: "dcm_md1", ...P1, text: "今日の実習、上肢の神経同定できた？正中神経と尺骨神経の走行の違い、実物だとわかりやすかった", ts: d(-1,14,20) },
+      { id: "dcm_md2", ...P2, text: "正中神経は前腕の前面中央、尺骨神経は肘の内側（funny bone）を通るのがポイント。触って確認できるよ", ts: d(-1,14,35) },
+      { id: "dcm_md3", ...P3, text: "腕神経叢の枝、配布先を表にまとめたノート共有します。臨床では「手のしびれ」の鑑別に直結するから大事", ts: d(-1,15,0) },
+      { id: "dcm_md4", ...PU, text: "Visible Body（解剖アプリ）で3Dモデル回転させながら覚えると効率いいよ。実習前の予習に使ってる", ts: d(0,9,30) },
+      { id: "dcm_md5", ...P4, text: "📊 解剖実習、予習どれくらいしてる？",
+        ts: d(0,11,0), pollOptions: ["2時間以上","1時間くらい","アトラスざっと見","ぶっつけ本番"], pollVotes: {"2時間以上":[10002],"1時間くらい":[10001,10003,99999],"アトラスざっと見":[10004],"ぶっつけ本番":[10005]}, pollSettings: {anon:true} },
+    ],
+    [c[1].id]: [ // 生理学II
+      { id: "dcm_md10", ...P2, text: "スターリングの心臓の法則：前負荷↑ → 一回拍出量↑。フランク-スターリング曲線を描くとわかりやすい", ts: d(-1,16,0) },
+      { id: "dcm_md11", ...P3, text: "心不全だとこの曲線が右下にシフトする。同じ前負荷でも拍出量が落ちるから肺うっ血が起こるんだよね", ts: d(0,9,10) },
+    ],
+    [c[2].id]: [ // 生化学II
+      { id: "dcm_md20", ...P3, text: "電子伝達系の複合体I-IV、ATPの産生量は結局1分子のNADHから2.5ATP、FADHₕから1.5ATPでいいんだっけ？", ts: d(-1,14,0) },
+      { id: "dcm_md21", ...P2, text: "そう、旧教科書の3ATP/2ATPから改訂された。P/O比が実測値に近づいた結果。グルコース1分子からの総ATP≒30-32", ts: d(-1,14,20) },
+      { id: "dcm_md22", ...PU, text: "代謝マップ、KEGGデータベースで全体像を見ると繋がりがわかる。特にTCA回路とアミノ酸代謝の接点が試験に出やすい", ts: d(0,10,0) },
+    ],
+    [c[3].id]: [ // 微生物学
+      { id: "dcm_md30", ...P1, text: "MRSA（メチシリン耐性黄色ブドウ球菌）の耐性機構って、mecA遺伝子がPBP2'を発現→β-ラクタム系が効かなくなるんだよね", ts: d(-1,15,0) },
+      { id: "dcm_md31", ...P4, text: "バンコマイシンが最終兵器だったけどVRSAも出てきてるし、AMR（薬剤耐性）は本当に深刻な問題", ts: d(0,9,30) },
+    ],
+    [c[4].id]: [ // 免疫学
+      { id: "dcm_md40", ...P4, text: "MHC class I は全有核細胞に発現、class II はAPCのみ。CD8はI、CD4はIIを認識。「8×1=8, 4×2=8」で覚えた", ts: d(-1,14,0) },
+      { id: "dcm_md41", ...PU, text: "免疫チェックポイント阻害薬(PD-1/PD-L1阻害)って腫瘍免疫の講義で出てきたけど、ノーベル賞の本庶先生の研究だよね。臨床応用が急速に進んでる", ts: d(0,10,0) },
+    ],
+    [c[5].id]: [ // 医学英語II
+      { id: "dcm_md50", ...P1, text: "症例提示の定型文 \"The patient is a [age]-year-old [gender] who presents with [chief complaint] of [duration]\" は暗記した方がいい", ts: d(-1,13,0) },
+      { id: "dcm_md51", ...P3, text: "Physical exam の所見を英語で言うの難しい…\"Auscultation reveals a grade 3/6 systolic murmur best heard at the apex\" みたいな", ts: d(0,9,0) },
+    ],
+    [c[6].id]: [ // 発生学
+      { id: "dcm_md60", ...P2, text: "神経管閉鎖不全：前方が閉じないと無脳症、後方だと二分脊椎。葉酸摂取で予防できるの知ってた？", ts: d(-1,14,0) },
+      { id: "dcm_md61", ...PU, text: "心臓の発生が複雑すぎる…心臓ループ形成→中隔形成→弁形成の流れ、図を描きながら覚えるしかない", ts: d(0,9,30) },
+    ],
+    [c[7].id]: [ // 人体構造実習
+      { id: "dcm_md70", ...P4, text: "次の実習範囲、胸部（心臓・肺・縦隔）だけど予習のポイントある？", ts: d(-1,13,0) },
+      { id: "dcm_md71", ...P1, text: "縦隔の区画（上縦隔・前縦隔・中縦隔・後縦隔）と各区画の臓器をまず整理しておくと楽。ネッターのアトラスp.200あたり", ts: d(-1,13,20) },
+      { id: "dcm_md72", ...P3, text: "📊 解剖アトラス、何使ってる？",
+        ts: d(0,9,0), pollOptions: ["ネッター","プロメテウス","グレイ","Visible Body(アプリ)"], pollVotes: {"ネッター":[10001,10004],"プロメテウス":[10002,10003],"グレイ":[99999],"Visible Body(アプリ)":[10005]}, pollSettings: {} },
+    ],
+  };
+}
+
+function dendChat(c) {
+  return {
+    [c[0].id]: [ // 口腔解剖学II
+      { id: "dcm_dd1", ...P1, text: "顎関節の構造、関節円板がポイントだよね。前方脱臼(開口障害)と関節円板のずれの関係を理解しないと", ts: d(-1,14,20) },
+      { id: "dcm_dd2", ...P2, text: "顎関節は回転運動（開口初期）と滑走運動（大開口時）の複合運動。側方運動では作業側と非作業側で動きが違う", ts: d(-1,14,35) },
+      { id: "dcm_dd3", ...P3, text: "オトガイ孔の位置（下顎小臼歯部の下方）は局所麻酔で使うから臨床的に超重要。あとオトガイ神経はV3の枝", ts: d(-1,15,0) },
+      { id: "dcm_dd4", ...PU, text: "頭蓋骨の模型、解剖学実習室で借りて触りながら覚えると効率いいよ。蝶形骨は実物見ないと立体構造わからない", ts: d(0,9,30) },
+    ],
+    [c[1].id]: [ // 口腔生理学II
+      { id: "dcm_dd10", ...P2, text: "味覚の閾値って甘味・塩味・酸味・苦味・うま味で全然違うんだよね。苦味が一番低い(=少量で感じる)のは毒物回避の進化的意味", ts: d(-1,16,0) },
+      { id: "dcm_dd11", ...P3, text: "嚥下の3相：口腔相(随意)→咽頭相(不随意・反射)→食道相(蠕動運動)。咽頭相の喉頭蓋閉鎖が誤嚥防止の鍵", ts: d(0,9,10) },
+    ],
+    [c[2].id]: [ // 口腔微生物学
+      { id: "dcm_dd20", ...P3, text: "歯周病の原因菌 Red Complex (Socransky)：\n- P. gingivalis\n- T. forsythia\n- T. denticola\nこの3菌が歯周ポケット内で増殖すると組織破壊が進む", ts: d(-1,14,0) },
+      { id: "dcm_dd21", ...P2, text: "プラーク(バイオフィルム)の成熟過程：ペリクル形成→初期付着菌(Streptococcus)→共凝集→嫌気性菌の増殖。約2週間で成熟する", ts: d(-1,14,20) },
+      { id: "dcm_dd22", ...PU, text: "位相差顕微鏡で歯垢を見る実習面白かった。螺旋菌（スピロヘータ）が動いてるの初めて見た…", ts: d(0,10,0) },
+    ],
+    [c[3].id]: [ // 歯科材料学II
+      { id: "dcm_dd30", ...P1, text: "CAD/CAMの材料、ジルコニアとe.maxの使い分けってどうなってる？強度はジルコニア、審美はe.max？", ts: d(-1,14,0) },
+      { id: "dcm_dd31", ...P4, text: "ジルコニアは曲げ強度1000MPa以上で臼歯部に最適。e.maxはフレームレスで透明感◎だからと前歯に使う。最近はマルチレイヤードジルコニアで両立もできる", ts: d(-1,14,20) },
+    ],
+    [c[4].id]: [ // 口腔組織学
+      { id: "dcm_dd40", ...P4, text: "セメント質の種類、無細胞セメント質(歯頸部)と有細胞セメント質(根尖部)で機能が違うの覚えておこう", ts: d(-1,14,0) },
+      { id: "dcm_dd41", ...PU, text: "歯根膜(PDL)の機能まとめ：\n- 支持（歯をソケットに固定）\n- 感覚（咬合力の感知 → 咬合調整反射）\n- 栄養（血管からセメント質・歯槽骨へ）\n- 修復（セメント芽細胞・骨芽細胞を含む）", ts: d(-1,14,30) },
+    ],
+    [c[5].id]: [ // 歯学英語II
+      { id: "dcm_dd50", ...P1, text: "患者への説明で \"You have a cavity in your upper right molar\" って言うんだね。\"cavity\" = 齲蝕、日本語の「虫歯」に相当", ts: d(-1,13,0) },
+      { id: "dcm_dd51", ...P3, text: "歯式の英語表記、FDI方式(11-48)とUniversal方式(1-32)の両方覚えないといけないの面倒…国際学会ではFDI", ts: d(0,9,0) },
+    ],
+    [c[6].id]: [ // 歯科薬理学
+      { id: "dcm_dd60", ...P2, text: "NSAIDsの作用機序：COX阻害→PG合成↓→鎮痛・抗炎症。でも胃粘膜保護のPGも↓だから胃潰瘍のリスク。COX-2選択的阻害薬(セレコキシブ)で軽減", ts: d(-1,14,0) },
+      { id: "dcm_dd61", ...PU, text: "歯科でよく処方する薬:\n- 鎮痛: ロキソプロフェン(ロキソニン)\n- 抗菌: アモキシシリン(サワシリン)\n- 消炎: アズレンスルホン酸Na(うがい薬)\n処方箋の書き方も試験に出るから注意", ts: d(0,10,0) },
+    ],
+    [c[7].id]: [ // 歯科基礎実習
+      { id: "dcm_dd70", ...P4, text: "ワックスアップの咬頭頂の位置、模型と教科書見比べても微妙にズレる…先生のお手本が上手すぎて参考にならない", ts: d(-1,13,0) },
+      { id: "dcm_dd71", ...P1, text: "コツは最初に咬頭頂の4点(近心頬側・遠心頬側・近心舌側・遠心舌側)をしっかり決めてから隆線を繋ぐこと。溝は最後に掘る", ts: d(-1,13,20) },
+      { id: "dcm_dd72", ...P3, text: "📊 実習で一番苦手な操作は？",
+        ts: d(0,9,0), pollOptions: ["ワックスアップ","印象採得","支台歯形成","石膏注入"], pollVotes: {"ワックスアップ":[10001,10004],"印象採得":[10002,10003],"支台歯形成":[99999],"石膏注入":[10005]}, pollSettings: {} },
+    ],
+  };
+}
+
 // ── ペルソナ別通知 ──
 function generateNotifications(q2) {
   return [
@@ -1424,6 +1728,77 @@ const PERSONA_GRADES = {
       { code: "CAP.A241", name: "化学実験第二", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "複数教員", recommendation: "R", gradeNum: null },
     ],
   },
+  med: {
+    summary: { studentId: "25B61033", name: "白石 遥", totalCredits: 52, gpa: { overall: 3.05, major: 3.20, liberal: 2.60 } },
+    categories: [
+      { name: "基礎医学科目", credits: 32 }, { name: "教養科目", credits: 8 }, { name: "医学英語", credits: 4 },
+      { name: "実習科目", credits: 6 }, { name: "社会医学系科目", credits: 2 },
+    ],
+    courses: [
+      // 2025 1Q
+      { code: "MED.A101", name: "解剖学I", grade: "82", credits: "3", quarter: "1", period: "2025-1Q", instructor: "山田 太一", recommendation: "R", gradeNum: 82 },
+      { code: "MED.A111", name: "生理学I", grade: "78", credits: "2", quarter: "1", period: "2025-1Q", instructor: "高田 明", recommendation: "R", gradeNum: 78 },
+      { code: "MED.A121", name: "生化学I", grade: "85", credits: "2", quarter: "1", period: "2025-1Q", instructor: "中島 裕", recommendation: "R", gradeNum: 85 },
+      { code: "MED.A131", name: "組織学", grade: "80", credits: "2", quarter: "1", period: "2025-1Q", instructor: "西村 純", recommendation: "R", gradeNum: 80 },
+      { code: "MED.A141", name: "医学英語I", grade: "75", credits: "1", quarter: "1", period: "2025-1Q", instructor: "Wilson R.", recommendation: "R", gradeNum: 75 },
+      { code: "MED.A151", name: "医療概論", grade: "合格", credits: "1", quarter: "1", period: "2025-1Q", instructor: "複数教員", recommendation: "R", gradeNum: null },
+      // 2025 2Q
+      { code: "MED.A202", name: "解剖学II", grade: "88", credits: "3", quarter: "2", period: "2025-2Q", instructor: "山田 太一", recommendation: "R", gradeNum: 88 },
+      { code: "MED.A212", name: "生理学II", grade: "75", credits: "2", quarter: "2", period: "2025-2Q", instructor: "高田 明", recommendation: "R", gradeNum: 75 },
+      { code: "MED.A222", name: "生化学II", grade: "80", credits: "2", quarter: "2", period: "2025-2Q", instructor: "中島 裕", recommendation: "R", gradeNum: 80 },
+      { code: "MED.A252", name: "医学英語II", grade: "72", credits: "1", quarter: "2", period: "2025-2Q", instructor: "Wilson R.", recommendation: "R", gradeNum: 72 },
+      // 2025 3Q
+      { code: "MED.A301", name: "病理学I", grade: "83", credits: "2", quarter: "3", period: "2025-3Q", instructor: "藤原 誠一", recommendation: "R", gradeNum: 83 },
+      { code: "MED.A311", name: "薬理学I", grade: "77", credits: "2", quarter: "3", period: "2025-3Q", instructor: "大西 健", recommendation: "R", gradeNum: 77 },
+      { code: "MED.A321", name: "社会医学", grade: "合格", credits: "2", quarter: "3", period: "2025-3Q", instructor: "上田 洋子", recommendation: "R", gradeNum: null },
+      // 2025 4Q
+      { code: "MED.A302", name: "病理学II", grade: "86", credits: "2", quarter: "4", period: "2025-4Q", instructor: "藤原 誠一", recommendation: "R", gradeNum: 86 },
+      { code: "MED.A312", name: "薬理学II", grade: "74", credits: "2", quarter: "4", period: "2025-4Q", instructor: "大西 健", recommendation: "R", gradeNum: 74 },
+      { code: "MED.A352", name: "寄生虫学", grade: "79", credits: "2", quarter: "4", period: "2025-4Q", instructor: "関口 誠", recommendation: "R", gradeNum: 79 },
+      // 現在受講中 (2026-2Q)
+      { code: "MED.A202", name: "解剖学II", grade: "未報告", credits: "3", quarter: "2", period: "2026-2Q", instructor: "山田 太一", recommendation: "R", gradeNum: null },
+      { code: "MED.A212", name: "生理学II", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "高田 明", recommendation: "R", gradeNum: null },
+      { code: "MED.A222", name: "生化学II", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "中島 裕", recommendation: "R", gradeNum: null },
+      { code: "MED.A232", name: "微生物学", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "松本 剛", recommendation: "R", gradeNum: null },
+      { code: "MED.A242", name: "免疫学", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "井上 誠", recommendation: "R", gradeNum: null },
+      { code: "MED.A272", name: "人体構造実習", grade: "未報告", credits: "3", quarter: "2", period: "2026-2Q", instructor: "山田 太一", recommendation: "R", gradeNum: null },
+    ],
+  },
+  den: {
+    summary: { studentId: "25B65017", name: "清水 凛", totalCredits: 48, gpa: { overall: 2.85, major: 2.95, liberal: 2.55 } },
+    categories: [
+      { name: "歯学基礎科目", credits: 28 }, { name: "教養科目", credits: 8 }, { name: "歯学英語", credits: 4 },
+      { name: "実習科目", credits: 6 }, { name: "歯科臨床基礎科目", credits: 2 },
+    ],
+    courses: [
+      // 2025 1Q
+      { code: "DEN.A101", name: "口腔解剖学I", grade: "78", credits: "2", quarter: "1", period: "2025-1Q", instructor: "森田 誠", recommendation: "R", gradeNum: 78 },
+      { code: "DEN.A111", name: "口腔生理学I", grade: "72", credits: "2", quarter: "1", period: "2025-1Q", instructor: "佐藤 健一", recommendation: "R", gradeNum: 72 },
+      { code: "DEN.A121", name: "口腔生化学", grade: "80", credits: "2", quarter: "1", period: "2025-1Q", instructor: "小川 誠", recommendation: "R", gradeNum: 80 },
+      { code: "DEN.A131", name: "歯科材料学I", grade: "85", credits: "2", quarter: "1", period: "2025-1Q", instructor: "田辺 拓也", recommendation: "R", gradeNum: 85 },
+      { code: "DEN.A141", name: "歯学英語I", grade: "70", credits: "1", quarter: "1", period: "2025-1Q", instructor: "Carter A.", recommendation: "R", gradeNum: 70 },
+      { code: "DEN.A151", name: "歯学概論", grade: "合格", credits: "1", quarter: "1", period: "2025-1Q", instructor: "複数教員", recommendation: "R", gradeNum: null },
+      // 2025 2Q
+      { code: "DEN.A202", name: "口腔解剖学II", grade: "82", credits: "2", quarter: "2", period: "2025-2Q", instructor: "森田 誠", recommendation: "R", gradeNum: 82 },
+      { code: "DEN.A212", name: "口腔生理学II", grade: "75", credits: "2", quarter: "2", period: "2025-2Q", instructor: "佐藤 健一", recommendation: "R", gradeNum: 75 },
+      { code: "DEN.A222", name: "口腔微生物学", grade: "78", credits: "2", quarter: "2", period: "2025-2Q", instructor: "野口 修", recommendation: "R", gradeNum: 78 },
+      { code: "DEN.A252", name: "歯学英語II", grade: "68", credits: "1", quarter: "2", period: "2025-2Q", instructor: "Carter A.", recommendation: "R", gradeNum: 68 },
+      // 2025 3Q
+      { code: "DEN.A301", name: "口腔病理学", grade: "80", credits: "2", quarter: "3", period: "2025-3Q", instructor: "伊東 大輔", recommendation: "R", gradeNum: 80 },
+      { code: "DEN.A311", name: "歯科補綴学I", grade: "77", credits: "2", quarter: "3", period: "2025-3Q", instructor: "大塚 誠", recommendation: "R", gradeNum: 77 },
+      { code: "DEN.A321", name: "保存修復学", grade: "83", credits: "2", quarter: "3", period: "2025-3Q", instructor: "清野 健", recommendation: "R", gradeNum: 83 },
+      // 2025 4Q
+      { code: "DEN.A302", name: "歯周病学", grade: "75", credits: "2", quarter: "4", period: "2025-4Q", instructor: "村田 洋介", recommendation: "R", gradeNum: 75 },
+      { code: "DEN.A312", name: "歯科補綴学II", grade: "81", credits: "2", quarter: "4", period: "2025-4Q", instructor: "大塚 誠", recommendation: "R", gradeNum: 81 },
+      { code: "DEN.A332", name: "口腔外科学I", grade: "73", credits: "2", quarter: "4", period: "2025-4Q", instructor: "岡本 哲", recommendation: "R", gradeNum: 73 },
+      // 現在受講中 (2026-2Q)
+      { code: "DEN.A202", name: "口腔解剖学II", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "森田 誠", recommendation: "R", gradeNum: null },
+      { code: "DEN.A212", name: "口腔生理学II", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "佐藤 健一", recommendation: "R", gradeNum: null },
+      { code: "DEN.A222", name: "口腔微生物学", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "野口 修", recommendation: "R", gradeNum: null },
+      { code: "DEN.A232", name: "歯科材料学II", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "田辺 拓也", recommendation: "R", gradeNum: null },
+      { code: "DEN.A272", name: "歯科基礎実習", grade: "未報告", credits: "2", quarter: "2", period: "2026-2Q", instructor: "複数教員", recommendation: "R", gradeNum: null },
+    ],
+  },
 };
 
 // ── ペルソナデータ活性化 (既存 DEMO_* オブジェクトを書き換え) ──
@@ -1439,6 +1814,8 @@ function activatePersonaData(personaId, q2Courses) {
   else if (personaId === "mec") Object.assign(DEMO_POSTS, mecPosts(q2Courses));
   else if (personaId === "phy") Object.assign(DEMO_POSTS, phyPosts(q2Courses));
   else if (personaId === "cap") Object.assign(DEMO_POSTS, capPosts(q2Courses));
+  else if (personaId === "med") Object.assign(DEMO_POSTS, medmPosts(q2Courses));
+  else if (personaId === "den") Object.assign(DEMO_POSTS, dendPosts(q2Courses));
 
   // Chat
   for (const k of Object.keys(DEMO_CHAT_MESSAGES)) delete DEMO_CHAT_MESSAGES[k];
@@ -1446,6 +1823,8 @@ function activatePersonaData(personaId, q2Courses) {
   else if (personaId === "mec") Object.assign(DEMO_CHAT_MESSAGES, mecChat(q2Courses));
   else if (personaId === "phy") Object.assign(DEMO_CHAT_MESSAGES, phyChat(q2Courses));
   else if (personaId === "cap") Object.assign(DEMO_CHAT_MESSAGES, capChat(q2Courses));
+  else if (personaId === "med") Object.assign(DEMO_CHAT_MESSAGES, medmChat(q2Courses));
+  else if (personaId === "den") Object.assign(DEMO_CHAT_MESSAGES, dendChat(q2Courses));
 
   // Notifications
   DEMO_NOTIFICATIONS.length = 0;
@@ -1522,5 +1901,100 @@ export {
   DEMO_DM_CONVERSATIONS, DEMO_GROUPS, DEMO_NOTIFICATIONS,
   DEMO_POSTS, DEMO_CIRCLES, DEMO_CIRCLE_MESSAGES, DEMO_DISCOVER_CIRCLES,
   DEMO_CHAT_MESSAGES, DEMO_EXAMS,
-  DEMO_PERSONAS, buildDemoDataForPersona
+  DEMO_PERSONAS, buildDemoDataForPersona,
+  DEMO_MED_RAW_COURSES, buildDemoMedSessions,
 };
+
+// ══════════════════════════════════════════════
+//  医歯学時間割デモ用データ
+// ══════════════════════════════════════════════
+
+// MedTTView に渡す raw Moodle コース形式 (fullname に【lctCd】が必要)
+const DEMO_MED_RAW_COURSES = {
+  med: [
+    { id: 501, fullname: "解剖学II / Anatomy II【021201】", shortname: "MED.A202[2026]", visible: 1 },
+    { id: 502, fullname: "生理学II / Physiology II【021202】", shortname: "MED.A212[2026]", visible: 1 },
+    { id: 503, fullname: "生化学II / Biochemistry II【021203】", shortname: "MED.A222[2026]", visible: 1 },
+    { id: 504, fullname: "微生物学 / Microbiology【021204】", shortname: "MED.A232[2026]", visible: 1 },
+    { id: 505, fullname: "免疫学 / Immunology【021205】", shortname: "MED.A242[2026]", visible: 1 },
+    { id: 506, fullname: "医学英語II / Medical English II【021206】", shortname: "MED.A252[2026]", visible: 1 },
+    { id: 507, fullname: "発生学 / Embryology【021207】", shortname: "MED.A262[2026]", visible: 1 },
+    { id: 508, fullname: "人体構造実習 / Gross Anatomy Lab【021208】", shortname: "MED.A272[2026]", visible: 1 },
+  ],
+  den: [
+    { id: 601, fullname: "口腔解剖学II / Oral Anatomy II【021301】", shortname: "DEN.A202[2026]", visible: 1 },
+    { id: 602, fullname: "口腔生理学II / Oral Physiology II【021302】", shortname: "DEN.A212[2026]", visible: 1 },
+    { id: 603, fullname: "口腔微生物学 / Oral Microbiology【021303】", shortname: "DEN.A222[2026]", visible: 1 },
+    { id: 604, fullname: "歯科材料学II / Dental Materials II【021304】", shortname: "DEN.A232[2026]", visible: 1 },
+    { id: 605, fullname: "口腔組織学 / Oral Histology【021305】", shortname: "DEN.A242[2026]", visible: 1 },
+    { id: 606, fullname: "歯学英語II / Dental English II【021306】", shortname: "DEN.A252[2026]", visible: 1 },
+    { id: 607, fullname: "歯科薬理学 / Dental Pharmacology【021307】", shortname: "DEN.A262[2026]", visible: 1 },
+    { id: 608, fullname: "歯科基礎実習 / Basic Dental Lab【021308】", shortname: "DEN.A272[2026]", visible: 1 },
+  ],
+};
+
+// 週間スケジュールテンプレート → 複数週のセッションを動的生成
+const _MED_WEEKLY = [
+  { code: "MED.A202", name: "解剖学II", lctCd: "021201", dayIdx: 0, timeStart: "08:50", timeEnd: "10:20", periodStr: "g1", periodEnd: "g1", room: "M&Dタワー26F", instructor: "山田 太一" },
+  { code: "MED.A212", name: "生理学II", lctCd: "021202", dayIdx: 0, timeStart: "13:30", timeEnd: "16:55", periodStr: "g3", periodEnd: "g4", room: "1号館-講義室A", instructor: "高田 明" },
+  { code: "MED.A222", name: "生化学II", lctCd: "021203", dayIdx: 1, timeStart: "08:50", timeEnd: "12:15", periodStr: "g1", periodEnd: "g2", room: "M&Dタワー26F", instructor: "中島 裕" },
+  { code: "MED.A232", name: "微生物学", lctCd: "021204", dayIdx: 1, timeStart: "13:30", timeEnd: "15:00", periodStr: "g3", periodEnd: "g3", room: "3号館-201", instructor: "松本 剛" },
+  { code: "MED.A242", name: "免疫学", lctCd: "021205", dayIdx: 2, timeStart: "08:50", timeEnd: "12:15", periodStr: "g1", periodEnd: "g2", room: "M&Dタワー26F", instructor: "井上 誠" },
+  { code: "MED.A252", name: "医学英語II", lctCd: "021206", dayIdx: 3, timeStart: "08:50", timeEnd: "10:20", periodStr: "g1", periodEnd: "g1", room: "1号館-講義室B", instructor: "Wilson R." },
+  { code: "MED.A262", name: "発生学", lctCd: "021207", dayIdx: 3, timeStart: "13:30", timeEnd: "15:00", periodStr: "g3", periodEnd: "g3", room: "3号館-201", instructor: "西村 純" },
+  { code: "MED.A272", name: "人体構造実習", lctCd: "021208", dayIdx: 4, timeStart: "10:45", timeEnd: "18:45", periodStr: "g2", periodEnd: "g5", room: "解剖実習室", instructor: "山田 太一" },
+];
+const _DEN_WEEKLY = [
+  { code: "DEN.A202", name: "口腔解剖学II", lctCd: "021301", dayIdx: 0, timeStart: "09:00", timeEnd: "11:50", periodStr: "11", periodEnd: "13", room: "1号館-第1講義室", instructor: "森田 誠" },
+  { code: "DEN.A212", name: "口腔生理学II", lctCd: "021302", dayIdx: 0, timeStart: "12:50", timeEnd: "14:40", periodStr: "15", periodEnd: "16", room: "1号館-第2講義室", instructor: "佐藤 健一" },
+  { code: "DEN.A222", name: "口腔微生物学", lctCd: "021303", dayIdx: 1, timeStart: "09:00", timeEnd: "11:50", periodStr: "11", periodEnd: "13", room: "3号館-歯科棟301", instructor: "野口 修" },
+  { code: "DEN.A232", name: "歯科材料学II", lctCd: "021304", dayIdx: 1, timeStart: "12:50", timeEnd: "14:40", periodStr: "15", periodEnd: "16", room: "3号館-歯科棟301", instructor: "田辺 拓也" },
+  { code: "DEN.A242", name: "口腔組織学", lctCd: "021305", dayIdx: 2, timeStart: "09:00", timeEnd: "11:50", periodStr: "11", periodEnd: "13", room: "1号館-第1講義室", instructor: "小川 誠" },
+  { code: "DEN.A252", name: "歯学英語II", lctCd: "021306", dayIdx: 3, timeStart: "09:00", timeEnd: "10:50", periodStr: "11", periodEnd: "12", room: "1号館-第2講義室", instructor: "Carter A." },
+  { code: "DEN.A262", name: "歯科薬理学", lctCd: "021307", dayIdx: 3, timeStart: "12:50", timeEnd: "15:40", periodStr: "15", periodEnd: "17", room: "3号館-歯科棟301", instructor: "大西 健" },
+  { code: "DEN.A272", name: "歯科基礎実習", lctCd: "021308", dayIdx: 4, timeStart: "09:00", timeEnd: "17:40", periodStr: "11", periodEnd: "19", room: "歯科基礎実習室", instructor: "複数教員" },
+];
+
+const DAY_NAMES = ["月", "火", "水", "木", "金"];
+
+/**
+ * 週間テンプレートから前期(4月〜7月)の全セッションを生成
+ * @param {"med"|"den"} personaId
+ * @returns {{ sessions: Array, courseMeta: Object }}
+ */
+function buildDemoMedSessions(personaId) {
+  const weekly = personaId === "den" ? _DEN_WEEKLY : _MED_WEEKLY;
+  const sessions = [];
+  const courseMeta = {};
+
+  // 前期: 2026/04/06 (月) 〜 2026/07/17 (金) ≒ 15週
+  const semStart = new Date(2026, 3, 6); // April 6, 2026 (Monday)
+  for (let week = 0; week < 15; week++) {
+    for (const tmpl of weekly) {
+      const dt = new Date(semStart);
+      dt.setDate(dt.getDate() + week * 7 + tmpl.dayIdx);
+      const dateStr = `${dt.getFullYear()}/${String(dt.getMonth() + 1).padStart(2, "0")}/${String(dt.getDate()).padStart(2, "0")}`;
+      sessions.push({
+        date: dateStr,
+        day: DAY_NAMES[tmpl.dayIdx],
+        timeStart: tmpl.timeStart,
+        timeEnd: tmpl.timeEnd,
+        periodStr: tmpl.periodStr,
+        periodEnd: tmpl.periodEnd,
+        code: tmpl.code,
+        name: tmpl.name,
+        room: tmpl.room,
+        instructor: tmpl.instructor,
+      });
+      if (!courseMeta[tmpl.code]) {
+        courseMeta[tmpl.code] = {
+          name: tmpl.name,
+          instructor: tmpl.instructor,
+          credits: tmpl.code.includes("272") ? 3 : 2,
+          semester: "前期",
+        };
+      }
+    }
+  }
+  return { sessions, courseMeta };
+}

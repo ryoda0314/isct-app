@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
+import { isDemoMode } from "../demoMode.js";
+import { buildDemoMedSessions } from "../demoData.js";
 
 const DAYS = ["月", "火", "水", "木", "金"];
 const COLORS = ["#6375f0", "#e5534b", "#3dae72", "#a855c7", "#d4843e", "#c6a236", "#2d9d8f", "#c75d8e",
@@ -250,9 +252,25 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh }) => {
     }
   };
 
-  // Fetch sessions from API
+  // Detect demo persona type from course codes
+  const demoPersonaType = useMemo(() => {
+    if (!isDemoMode() || medCourses.length === 0) return null;
+    return medCourses.some(c => c.code?.startsWith("DEN.")) ? "den" : "med";
+  }, [medCourses]);
+
+  // Fetch sessions from API (or demo data)
   const fetchSessions = useCallback(async () => {
     if (medCourses.length === 0) { console.log("[MedTT] No med courses, skipping fetch"); return; }
+
+    // Demo mode: use generated session data
+    if (isDemoMode() && demoPersonaType) {
+      console.log("[MedTT] Demo mode: generating sessions for", demoPersonaType);
+      const demo = buildDemoMedSessions(demoPersonaType);
+      setSessions(demo.sessions);
+      setCourseMeta(demo.courseMeta);
+      return;
+    }
+
     console.log("[MedTT] Fetching sessions for", medCourses.length, "courses...");
     setLoading(true);
     setError(null);
@@ -274,7 +292,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh }) => {
     } finally {
       setLoading(false);
     }
-  }, [medCourses]);
+  }, [medCourses, demoPersonaType]);
 
   useEffect(() => { fetchSessions(); }, [fetchSessions]);
 
