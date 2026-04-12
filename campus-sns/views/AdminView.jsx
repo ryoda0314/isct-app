@@ -26,6 +26,7 @@ const tabs = [
   { id: "syllabus_fetch", label: "時間割取得", icon: I.cal },
   { id: "exams", label: "期末試験", icon: I.clip },
   { id: "t2schola", label: "T2SCHOLA", icon: I.search },
+  { id: "user_analytics", label: "ユーザー分析", icon: I.bar },
   { id: "guests", label: "ゲスト分析", icon: I.eye },
   { id: "med_syllabus", label: "医歯学データ", icon: I.cal },
   { id: "med_fetch", label: "医歯学取得", icon: I.cal },
@@ -1883,6 +1884,202 @@ const ExamTab = () => {
   );
 };
 
+// ---- User Analytics Tab ----
+const CAMPUS_COLORS = { science_eng: "#6375f0", med_dental: "#e04e6a", unknown: "#888" };
+const CAMPUS_LABELS = { science_eng: "理工学系", med_dental: "医歯学系", unknown: "不明" };
+const SCHOOL_COLORS = {
+  science:"#6375f0", engineering:"#e5534b", matsci:"#3dae72",
+  computing:"#a855c7", lifesci:"#2d9d8f", envsoc:"#d4843e",
+  medicine:"#e04e6a", dentistry:"#4ea8e0",
+};
+const DEGREE_LABELS = { B: "学士(B)", M: "修士(M)", D: "博士(D)", R: "その他(R)" };
+const DEGREE_COLORS = { B: "#6375f0", M: "#e5534b", D: "#3dae72", R: "#d4843e" };
+
+const HBar = ({ label, value, max, color, total }) => {
+  const pct = max > 0 ? (value / max) * 100 : 0;
+  const ratio = total > 0 ? ((value / total) * 100).toFixed(1) : "0.0";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+      <div style={{ width: 140, fontSize: 12, color: T.txH, textAlign: "right", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={label}>{label}</div>
+      <div style={{ flex: 1, height: 22, background: T.bg3, borderRadius: 6, overflow: "hidden", position: "relative" }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: color || T.accent, borderRadius: 6, transition: "width 0.3s" }} />
+      </div>
+      <div style={{ width: 80, fontSize: 12, color: T.txD, textAlign: "right", flexShrink: 0, fontFamily: "monospace" }}>{value} ({ratio}%)</div>
+    </div>
+  );
+};
+
+const UserAnalyticsTab = () => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState("campus"); // campus | school | dept | grade
+
+  useEffect(() => {
+    fetch(`${API}/api/admin?action=user_analytics`)
+      .then(r => r.json())
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div style={{ padding: 20, color: T.txD, fontSize: 13 }}>読み込み中...</div>;
+  if (!data) return <div style={{ padding: 20, color: T.txD, fontSize: 13 }}>データを取得できませんでした</div>;
+
+  const viewBtns = [
+    { id: "campus", label: "キャンパス" },
+    { id: "school", label: "学院・学部" },
+    { id: "dept", label: "学系・学科" },
+    { id: "grade", label: "学年" },
+  ];
+
+  // school entries sorted by count
+  const schoolEntries = Object.entries(data.bySchool || {}).sort((a, b) => b[1] - a[1]);
+  const schoolMax = schoolEntries.length > 0 ? schoolEntries[0][1] : 1;
+
+  // dept entries grouped by school
+  const deptEntries = Object.entries(data.byDept || {}).sort((a, b) => b[1] - a[1]);
+  const deptMax = deptEntries.length > 0 ? deptEntries[0][1] : 1;
+
+  // Group depts by school for organized display
+  const deptsBySchool = {};
+  for (const [dk, count] of deptEntries) {
+    const sk = data.deptToSchool?.[dk] || "unknown";
+    if (!deptsBySchool[sk]) deptsBySchool[sk] = [];
+    deptsBySchool[sk].push({ key: dk, name: data.deptNames?.[dk] || dk, count });
+  }
+
+  // year_group entries (e.g. "21B", "23M") sorted by year desc, then degree
+  const ygEntries = Object.entries(data.byYearGroup || {}).sort((a, b) => {
+    if (a[0] === "不明") return 1;
+    if (b[0] === "不明") return -1;
+    const ya = parseInt(a[0].slice(0, 2)) || 0, yb = parseInt(b[0].slice(0, 2)) || 0;
+    if (ya !== yb) return ya - yb; // older year (senior) first
+    const order = { B: 0, M: 1, D: 2, R: 3 };
+    const da = a[0].match(/[BMDR]/i)?.[0]?.toUpperCase(), db = b[0].match(/[BMDR]/i)?.[0]?.toUpperCase();
+    return (order[da] ?? 9) - (order[db] ?? 9);
+  });
+  const ygMax = ygEntries.length > 0 ? Math.max(...ygEntries.map(e => e[1])) : 1;
+
+  const campusTotal = data.byCampus.science_eng + data.byCampus.med_dental + data.byCampus.unknown;
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>ユーザー数分析</div>
+
+      {/* Summary cards */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+        <Card label="総ユーザー数" value={data.total} color={T.accent} />
+        <Card label="理工学系" value={data.byCampus.science_eng} color="#6375f0" />
+        <Card label="医歯学系" value={data.byCampus.med_dental} color="#e04e6a" />
+        <Card label="所属不明" value={data.byCampus.unknown} color={T.txD} />
+      </div>
+
+      {/* Coverage info */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+        <Card label="学科設定済み" value={data.withDept} color={T.green} />
+        <Card label="学籍番号あり" value={data.withStudentId} color={T.orange} />
+      </div>
+
+      {/* Degree type breakdown */}
+      {data.byDegree && Object.keys(data.byDegree).length > 0 && (
+        <div style={{ marginBottom: 20, padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>課程別</div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {Object.entries(data.byDegree).sort((a, b) => b[1] - a[1]).map(([d, count]) => (
+              <div key={d} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 10, height: 10, borderRadius: 3, background: DEGREE_COLORS[d] || T.txD }} />
+                <span style={{ fontSize: 13, color: T.txH, fontWeight: 600 }}>{DEGREE_LABELS[d] || d}</span>
+                <span style={{ fontSize: 13, color: T.txD }}>{count}人</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* View switcher */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+        {viewBtns.map(v => (
+          <button key={v.id} onClick={() => setView(v.id)} style={{
+            padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: view === v.id ? 600 : 400,
+            border: `1px solid ${view === v.id ? T.accent : T.bd}`,
+            background: view === v.id ? `${T.accent}18` : T.bg3,
+            color: view === v.id ? T.accent : T.txD,
+            cursor: "pointer",
+          }}>{v.label}</button>
+        ))}
+      </div>
+
+      {/* Campus view */}
+      {view === "campus" && (
+        <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 14 }}>キャンパス別（理工 vs 医歯学）</div>
+          {/* Stacked bar */}
+          <div style={{ height: 32, borderRadius: 8, overflow: "hidden", display: "flex", marginBottom: 14 }}>
+            {campusTotal > 0 && ["science_eng", "med_dental", "unknown"].map(k => {
+              const w = (data.byCampus[k] / campusTotal) * 100;
+              if (w === 0) return null;
+              return <div key={k} style={{ width: `${w}%`, background: CAMPUS_COLORS[k], height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {w > 8 && <span style={{ fontSize: 11, color: "#fff", fontWeight: 600 }}>{Math.round(w)}%</span>}
+              </div>;
+            })}
+          </div>
+          {["science_eng", "med_dental", "unknown"].map(k => (
+            <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <div style={{ width: 10, height: 10, borderRadius: 3, background: CAMPUS_COLORS[k] }} />
+              <span style={{ fontSize: 13, color: T.txH }}>{CAMPUS_LABELS[k]}</span>
+              <span style={{ fontSize: 13, color: T.txD, fontFamily: "monospace" }}>{data.byCampus[k]}人 ({campusTotal > 0 ? ((data.byCampus[k] / campusTotal) * 100).toFixed(1) : 0}%)</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* School view */}
+      {view === "school" && (
+        <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 14 }}>学院・学部別</div>
+          {schoolEntries.map(([sk, count]) => (
+            <HBar key={sk} label={data.schoolNames?.[sk] || sk} value={count} max={schoolMax} total={data.total} color={SCHOOL_COLORS[sk] || T.accent} />
+          ))}
+          {schoolEntries.length === 0 && <div style={{ fontSize: 12, color: T.txD }}>データなし</div>}
+        </div>
+      )}
+
+      {/* Dept view */}
+      {view === "dept" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {Object.entries(deptsBySchool).sort((a, b) => {
+            const order = ["science","engineering","matsci","computing","lifesci","envsoc","medicine","dentistry","unknown"];
+            return order.indexOf(a[0]) - order.indexOf(b[0]);
+          }).map(([sk, depts]) => (
+            <div key={sk} style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: SCHOOL_COLORS[sk] || T.txH, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 10, height: 10, borderRadius: 3, background: SCHOOL_COLORS[sk] || T.txD }} />
+                {data.schoolNames?.[sk] || sk}
+              </div>
+              {depts.map(d => (
+                <HBar key={d.key} label={d.name} value={d.count} max={deptMax} total={data.total} color={SCHOOL_COLORS[sk] || T.accent} />
+              ))}
+            </div>
+          ))}
+          {deptEntries.length === 0 && <div style={{ padding: 16, fontSize: 12, color: T.txD }}>学科データなし（学科未設定のユーザーが多い可能性があります）</div>}
+        </div>
+      )}
+
+      {/* Year group view */}
+      {view === "grade" && (
+        <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 14 }}>学年別（入学年度・課程）</div>
+          {ygEntries.map(([yg, count]) => {
+            const degree = yg.match(/[BMDR]/i)?.[0]?.toUpperCase();
+            return <HBar key={yg} label={yg} value={count} max={ygMax} total={data.total} color={DEGREE_COLORS[degree] || T.txD} />;
+          })}
+          {ygEntries.length === 0 && <div style={{ fontSize: 12, color: T.txD }}>データなし</div>}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ---- Guest Analytics Tab ----
 const MODE_LABELS = { freshman: "新入生掲示板", navi: "キャンパスナビ", reg: "履修登録" };
 const MODE_COLORS = { freshman: "#4fc3f7", navi: "#81c784", reg: "#ffb74d" };
@@ -3193,6 +3390,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "syllabus_fetch" && <SyllabusFetchTab />}
         {tab === "exams" && <ExamTab />}
         {tab === "t2schola" && <T2ScholaTab />}
+        {tab === "user_analytics" && <UserAnalyticsTab />}
         {tab === "guests" && <GuestAnalyticsTab />}
         {tab === "med_syllabus" && <MedSyllabusTab />}
         {tab === "med_fetch" && <MedSyllabusFetchTab />}
