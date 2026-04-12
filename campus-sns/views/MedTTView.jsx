@@ -156,7 +156,7 @@ const _WeekGrid_unused = ({ weekDates, byDate, gridStart, gridHeight, colorMap, 
  * Medical/Dental timetable view.
  * Shows session-based schedule fetched from yushima2 syllabus system.
  */
-export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey }) => {
+export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, asgn = [], hiddenSet = new Set() }) => {
   const [sessions, setSessions] = useState([]);
   const [courseMeta, setCourseMeta] = useState({});
   const [loading, setLoading] = useState(false);
@@ -234,6 +234,14 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey }
     medCourses.forEach(c => { if (c.moodleId) map[c.code] = c.moodleId; });
     return map;
   }, [medCourses]);
+
+  // Count pending assignments for a moodle course id
+  const cntByCode = useCallback((code) => {
+    const mid = moodleIdMap[code];
+    if (!mid) return 0;
+    const cid = `mc_${mid}`;
+    return asgn.filter(a => a.cid === cid && a.st !== "completed" && !hiddenSet.has(a.id)).length;
+  }, [asgn, hiddenSet, moodleIdMap]);
 
   const goToCourse = (code) => {
     const mid = moodleIdMap[code];
@@ -463,6 +471,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey }
                           const top = startMin * PX_PER_MIN;
                           const height = (endMin - startMin) * PX_PER_MIN;
                           const col = colorMap[s.code] || COLORS[0];
+                          const n = cntByCode(s.code);
                           return (
                             <div key={bi} onClick={() => goToCourse(s.code)} style={{
                               position: "absolute", top, height,
@@ -472,6 +481,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey }
                               padding: "2px 4px", overflow: "hidden", cursor: "pointer",
                               fontSize: mob ? 8 : 10, lineHeight: 1.3,
                             }} title={`${s.name}\n${s.timeStart}～${s.timeEnd}\n${s.room || ""}\n${s.instructor || ""}`}>
+                              {n > 0 && <div style={{ position: "absolute", top: mob ? 2 : 3, right: mob ? 2 : 3, minWidth: mob ? 14 : 18, height: mob ? 14 : 18, borderRadius: 9, background: T.red, color: "#fff", fontSize: mob ? 7 : 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px", boxShadow: `0 2px 6px ${T.red}60`, zIndex: 1 }}>{n}</div>}
                               <div style={{ fontWeight: 700, color: col, fontSize: mob ? 9 : 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                 {s.name}
                               </div>
@@ -505,6 +515,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey }
               {medCourses.map((c, i) => {
                 const col = colorMap[c.code] || COLORS[0];
                 const meta = courseMeta[c.code];
+                const n = cntByCode(c.code);
                 return (
                   <div key={c.code} onClick={() => goToCourse(c.code)} style={{
                     display: "flex", alignItems: "center", gap: mob ? 8 : 12,
@@ -533,6 +544,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey }
                         {meta?.instructor && <span>· {meta.instructor}</span>}
                       </div>
                     </div>
+                    {n > 0 && <div style={{ padding: "4px 10px", borderRadius: 12, background: `${T.red}15`, color: T.red, fontSize: 11, fontWeight: 700, flexShrink: 0, border: `1px solid ${T.red}30` }}>課題 {n}</div>}
                   </div>
                 );
               })}
