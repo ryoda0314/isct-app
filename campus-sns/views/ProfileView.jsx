@@ -168,6 +168,32 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   const [showPw,setShowPw]=useState(false);
   const [showTotp,setShowTotp]=useState(false);
 
+  // TOTPコードビューア
+  const [totpVisible,setTotpVisible]=useState(false);
+  const [totpCode,setTotpCode]=useState(null);
+  const [totpLeft,setTotpLeft]=useState(30);
+  const totpTimer=useRef(null);
+  const fetchTotpCode=async()=>{
+    try{
+      const r=await fetch("/api/auth/totp-code");
+      if(!r.ok)return;
+      const{code,remaining}=await r.json();
+      setTotpCode(code);setTotpLeft(remaining);
+    }catch{}
+  };
+  useEffect(()=>{
+    if(!totpVisible){setTotpCode(null);clearInterval(totpTimer.current);return;}
+    fetchTotpCode();
+    const iv=setInterval(()=>{
+      setTotpLeft(p=>{
+        if(p<=1){fetchTotpCode();return 30;}
+        return p-1;
+      });
+    },1000);
+    totpTimer.current=iv;
+    return()=>clearInterval(iv);
+  },[totpVisible]);
+
   // Portal認証情報
   const [portalOpen,setPortalOpen]=useState(false);
   const [portalForm,setPortalForm]=useState({userId:"",password:"",matrix:{}});
@@ -438,6 +464,33 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               <span style={{fontSize:12,color:T.green,fontWeight:600}}>ISCT LMSに接続済み</span>
             </div>
             <div style={{fontSize:12,color:T.txD,marginBottom:12,lineHeight:1.5}}>認証情報はAES-256-GCMで暗号化保存されています。</div>
+            {/* TOTPコードビューア */}
+            <div style={{marginBottom:12,borderRadius:8,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
+              <button onClick={()=>setTotpVisible(p=>!p)} style={{
+                width:"100%",padding:"10px 12px",background:T.bg3,border:"none",cursor:"pointer",
+                display:"flex",alignItems:"center",justifyContent:"space-between",
+              }}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                  <span style={{fontSize:12,fontWeight:600,color:T.txH}}>ワンタイムコード</span>
+                </div>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{transform:totpVisible?"rotate(180deg)":"none",transition:"transform .2s"}}><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              {totpVisible&&<div style={{padding:"12px",borderTop:`1px solid ${T.bd}`,textAlign:"center"}}>
+                {totpCode?<>
+                  <div style={{fontSize:28,fontWeight:700,fontFamily:"monospace",letterSpacing:6,color:T.txH,marginBottom:6}}>
+                    {totpCode.slice(0,3)} {totpCode.slice(3)}
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                    <div style={{width:40,height:4,borderRadius:2,background:`${T.accent}20`,overflow:"hidden"}}>
+                      <div style={{height:"100%",borderRadius:2,background:totpLeft<=5?T.red:T.accent,width:`${(totpLeft/30)*100}%`,transition:"width 1s linear"}}/>
+                    </div>
+                    <span style={{fontSize:11,color:totpLeft<=5?T.red:T.txD,fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{totpLeft}s</span>
+                  </div>
+                  <div style={{fontSize:10,color:T.txD,marginTop:8,lineHeight:1.4}}>PCでISCTにログインする際にこのコードを入力してください</div>
+                </>:<div style={{fontSize:12,color:T.txD}}>読み込み中...</div>}
+              </div>}
+            </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setCredStatus(p=>({...p,_editing:true}))}
                 style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,fontWeight:600,cursor:"pointer"}}>
