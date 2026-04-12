@@ -4,6 +4,19 @@ import { getToken, invalidateToken } from '../../../../../lib/auth/token-manager
 import { createSessionToken, sessionCookieOptions, COOKIE_NAME } from '../../../../../lib/auth/session.js';
 import { getSupabaseAdmin } from '../../../../../lib/supabase/server.js';
 
+// Per-userId rate limit to prevent DoS via Puppeteer (3 attempts/15 min)
+// This endpoint is unauthenticated (first-time setup), so IP-based rate limit
+// in middleware is the primary defense. This adds per-account protection.
+const validateAttempts = new Map();
+const VALIDATE_MAX = 3;
+const VALIDATE_WINDOW = 15 * 60 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of validateAttempts) {
+    if (now - v.first > VALIDATE_WINDOW) validateAttempts.delete(k);
+  }
+}, 5 * 60 * 1000);
+
 export async function POST(request) {
   try {
     const { userId, password, totpSecret } = await request.json();
@@ -13,6 +26,21 @@ export async function POST(request) {
         { valid: false, error: 'すべての項目を入力してください' },
         { status: 400 }
       );
+    }
+
+    // Rate limit per userId to prevent Puppeteer resource exhaustion
+    const now = Date.now();
+    const rec = validateAttempts.get(userId);
+    if (rec && now - rec.first < VALIDATE_WINDOW && rec.count >= VALIDATE_MAX) {
+      return NextResponse.json(
+        { valid: false, error: '検証の試行回数が上限に達しました。しばらく待ってから再試行してください' },
+        { status: 429 }
+      );
+    }
+    if (!rec || now - rec.first > VALIDATE_WINDOW) {
+      validateAttempts.set(userId, { count: 1, first: now });
+    } else {
+      rec.count++;
     }
 
     // Save credentials temporarily so getToken/SSO can load them.

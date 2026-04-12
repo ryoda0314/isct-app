@@ -50,30 +50,29 @@ export function useSharedMaterials(courseId) {
         schema: 'public',
         table: 'shared_materials',
         filter: `course_id=eq.${courseId}`,
-      }, (payload) => {
-        const m = payload.new;
-        if (idsRef.current.has(m.id)) return;
-        idsRef.current.add(m.id);
-
-        // Build public URL client-side
-        const { data: urlData } = sb.storage
-          .from('shared-materials')
-          .getPublicUrl(m.storage_path);
-
-        setFiles(prev => [{
-          id: m.id,
-          filename: m.filename,
-          filesize: m.filesize,
-          mimetype: m.mimetype,
-          category: m.category,
-          url: urlData?.publicUrl || '',
-          storagePath: m.storage_path,
-          createdAt: new Date(m.created_at),
-          uid: m.moodle_user_id,
-          name: null,
-          avatar: null,
-          color: null,
-        }, ...prev]);
+      }, async () => {
+        // Re-fetch from API to get proper signed URLs (bucket is private)
+        try {
+          const r = await fetch(`/api/shared-materials?course_id=${courseId}`);
+          if (!r.ok) return;
+          const data = await r.json();
+          const list = data.map(m => ({
+            id: m.id,
+            filename: m.filename,
+            filesize: m.filesize,
+            mimetype: m.mimetype,
+            category: m.category,
+            url: m.url,
+            storagePath: m.storage_path,
+            createdAt: new Date(m.created_at),
+            uid: m.moodle_user_id,
+            name: m.profiles?.name,
+            avatar: m.profiles?.avatar,
+            color: m.profiles?.color,
+          }));
+          idsRef.current = new Set(list.map(m => m.id));
+          setFiles(list);
+        } catch {}
       })
       .on('postgres_changes', {
         event: 'DELETE',

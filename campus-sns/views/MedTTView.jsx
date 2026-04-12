@@ -554,7 +554,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
       )}
 
       {!loading && viewMode === "calendar" && (
-        <div style={{ flex: 1, overflow: "auto", padding: "8px 14px" }}>
+        <div style={{ flex: 1, overflow: "auto", padding: "8px 14px 80px" }}>
           {/* Month nav */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 12 }}>
             <button onClick={prevM} style={{ background: "none", border: "none", cursor: "pointer", color: T.txD, fontSize: 18 }}>‹</button>
