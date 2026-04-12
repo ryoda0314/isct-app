@@ -377,7 +377,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
       {error && <div style={{ padding: 12, color: "#e5534b", fontSize: 12 }}>{error}</div>}
 
       {!loading && viewMode === "week" && (
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 80 }}>
           {/* Week nav */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "8px 14px", flexShrink: 0 }}>
             <button onClick={prevW} style={{ background: "none", border: "none", cursor: "pointer", color: T.txD, fontSize: 18 }}>‹</button>
