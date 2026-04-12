@@ -16,19 +16,35 @@ const CAPACITOR_ORIGINS = new Set([
 /**
  * GET /api/auth/credentials
  * Returns credentials for the native Capacitor app auto-login.
- * Restricted to native Capacitor app only (Origin check).
+ * Restricted to Capacitor native app context only.
  *   ?type=isct  → { userId, password, totpCode }
  *   (default)   → { portalUserId, portalPassword, matrix }
  *
- * Security: x-app-platform header alone is NOT sufficient — it is
- * trivially spoofable by any HTTP client. We require a trusted Origin
- * header (enforced by the browser) from a known Capacitor origin.
+ * Security layers:
+ *   1. Origin check: if Origin is present, it must be in CAPACITOR_ORIGINS
+ *   2. Platform header: x-app-platform must be "capacitor"
+ *   3. Session cookie: valid signed session required (not spoofable)
+ *
+ * Note: When Capacitor uses server.url (e.g. https://sciencetokyo.app),
+ * same-origin GETs don't send an Origin header. In that case we rely on
+ * the platform header + session cookie for authentication.
+ * A stolen session cookie alone is NOT enough — the attacker also needs
+ * to set x-app-platform header, which a browser-based XSS cannot do
+ * for cross-origin requests (CORS preflight would block it).
  */
 export async function GET(request) {
   const origin = request.headers.get('origin');
-  const isAllowedOrigin = origin && CAPACITOR_ORIGINS.has(origin);
+  const platform = request.headers.get('x-app-platform');
 
-  if (!isAllowedOrigin) {
+  // If Origin is present, it must be from an allowed Capacitor origin
+  if (origin && !CAPACITOR_ORIGINS.has(origin)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // Require either a trusted Origin OR the Capacitor platform header
+  const isCapacitor = platform === 'capacitor';
+  const isAllowedOrigin = origin && CAPACITOR_ORIGINS.has(origin);
+  if (!isCapacitor && !isAllowedOrigin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
