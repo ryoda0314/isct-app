@@ -1,6 +1,11 @@
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
+import { requireAuth } from '../../../../lib/auth/require-auth.js';
 
 export async function GET(req) {
+  // Require authentication
+  const auth = await requireAuth(req);
+  if (auth.error) return auth.error;
+
   const { searchParams } = new URL(req.url);
   const q = searchParams.get('q') || '';
   const year = searchParams.get('year') || '2026';
@@ -15,10 +20,19 @@ export async function GET(req) {
     .select('code,name,teacher,day,per,period_start,period_end,room,quarter,syllabus_url,school,requirement')
     .eq('year', year);
 
-  if (quarter) query = query.ilike('quarter', `%${quarter}%`);
+  if (quarter) {
+    // Sanitize: escape PostgREST special characters to prevent filter injection
+    const safeQuarter = quarter.slice(0, 20).replace(/[,%()]/g, '');
+    query = query.ilike('quarter', `%${safeQuarter}%`);
+  }
 
-  // Search by name or code
-  query = query.or(`name.ilike.%${q}%,code.ilike.%${q}%`);
+  // Sanitize search query: escape PostgREST filter injection characters
+  // The .or() method interpolates strings directly into PostgREST filter syntax,
+  // so commas and parentheses can inject additional filter conditions.
+  const safeQ = q.slice(0, 100).replace(/[,%()]/g, '');
+  if (!safeQ) return Response.json({ courses: [] });
+
+  query = query.or(`name.ilike.%${safeQ}%,code.ilike.%${safeQ}%`);
   query = query.limit(30);
 
   const { data, error } = await query;

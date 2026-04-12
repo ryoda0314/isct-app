@@ -3,6 +3,17 @@ import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 const VALID_MODES = ['freshman', 'navi', 'reg'];
 
+// Simple in-memory rate limit for unauthenticated endpoint (10 req/min per session)
+const guestHits = new Map();
+setInterval(() => { const now = Date.now(); for (const [k, v] of guestHits) { if (now - v.s > 60000) guestHits.delete(k); } }, 60000);
+function checkGuestRate(sessionId) {
+  const now = Date.now();
+  let rec = guestHits.get(sessionId);
+  if (!rec || now - rec.s > 60000) { rec = { s: now, c: 0 }; guestHits.set(sessionId, rec); }
+  rec.c++;
+  return rec.c <= 10;
+}
+
 // POST /api/guest-track — ゲストセッション記録（認証不要）
 export async function POST(request) {
   try {
@@ -11,6 +22,16 @@ export async function POST(request) {
 
     if (!sessionId || !VALID_MODES.includes(mode)) {
       return NextResponse.json({ error: 'Invalid params' }, { status: 400 });
+    }
+
+    // Validate sessionId format to prevent DB pollution
+    if (typeof sessionId !== 'string' || sessionId.length > 64 || !/^[a-zA-Z0-9_-]+$/.test(sessionId)) {
+      return NextResponse.json({ error: 'Invalid sessionId' }, { status: 400 });
+    }
+
+    // Rate limit per sessionId
+    if (!checkGuestRate(sessionId)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
     const sb = getSupabaseAdmin();

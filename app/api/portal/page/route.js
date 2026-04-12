@@ -288,7 +288,13 @@ export async function GET(request) {
         (m, q, url) => `url(${q}${rewriteUrl(url)}${q})`);
 
       return new NextResponse(html, {
-        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+          // Prevent scripts in proxied portal HTML from executing in app's origin context.
+          // This blocks access to session cookies and app APIs from injected scripts.
+          'Content-Security-Policy': "default-src 'none'; img-src https: data:; style-src 'unsafe-inline' https:; font-src https: data:; frame-ancestors 'self'",
+        },
       });
     } finally {
       if (browser) await browser.close();

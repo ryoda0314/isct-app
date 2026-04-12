@@ -15,7 +15,8 @@ export async function POST(request) {
       );
     }
 
-    // Save credentials so getToken/SSO can load them
+    // Save credentials temporarily so getToken/SSO can load them.
+    // If validation fails, they are deleted immediately.
     await saveCredentials(userId, { password, totpSecret });
 
     // Auto-retry up to 2 times before returning failure
@@ -26,6 +27,7 @@ export async function POST(request) {
       try {
         const { userid, fullname } = await getToken(userId);
 
+        // SSO succeeded — credentials are now verified and safely persisted.
         // Ensure profile exists
         try {
           const sb = getSupabaseAdmin();
@@ -53,7 +55,7 @@ export async function POST(request) {
       }
     }
 
-    // All attempts exhausted
+    // All attempts exhausted — delete unverified credentials immediately
     await deleteCredentials(userId);
     invalidateToken(userId);
     return NextResponse.json(

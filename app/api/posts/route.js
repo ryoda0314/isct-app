@@ -93,6 +93,12 @@ export async function GET(request) {
     const isHidden = (uid) => blockedIds.has(uid) || mutedIds.has(uid);
     const filterBlocked = (list) => (blockedIds.size === 0 && mutedIds.size === 0) ? list : list.filter(p => !isHidden(p.moodle_user_id));
 
+    // Strip author identity from anonymous posts to prevent de-anonymization
+    function hideAnonAuthor(post) {
+      if (post.type !== 'anon') return post;
+      return { ...post, moodle_user_id: null, profiles: { name: '匿名', avatar: '?', color: '#888' } };
+    }
+
     // Re-sign attachment URLs (signed URLs expire after 1 hour)
     async function refreshAttachments(post) {
       if (!post.attachments?.length) return post;
@@ -105,7 +111,7 @@ export async function GET(request) {
     }
 
     if (search) {
-      const raw = filterBlocked(data).map(p => ({
+      const raw = filterBlocked(data).map(p => hideAnonAuthor({
         ...p,
         comment_count: p.comments?.[0]?.count || 0,
         comments: undefined,
@@ -115,12 +121,12 @@ export async function GET(request) {
     }
 
     // Filter blocked from pinned too
-    pinnedPosts = await Promise.all(filterBlocked(pinnedPosts).map(refreshAttachments));
+    pinnedPosts = await Promise.all(filterBlocked(pinnedPosts).map(p => refreshAttachments(hideAnonAuthor(p))));
 
     // Flatten comment count from [{count: N}] to comment_count: N
     const filtered = filterBlocked(data);
     const hasMore = filtered.length > limit;
-    const raw = (hasMore ? filtered.slice(0, limit) : filtered).map(p => ({
+    const raw = (hasMore ? filtered.slice(0, limit) : filtered).map(p => hideAnonAuthor({
       ...p,
       comment_count: p.comments?.[0]?.count || 0,
       comments: undefined,

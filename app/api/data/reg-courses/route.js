@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
+import { requireAuth } from '../../../../lib/auth/require-auth.js';
 
 // ── Department prefix → category for 100-level ──
 function getCat100(code, name) {
@@ -50,6 +51,9 @@ function getCatHigher(code) {
 }
 
 export async function GET(req) {
+  const auth = await requireAuth(req);
+  if (auth.error) return auth.error;
+
   const { searchParams } = new URL(req.url);
   const year = searchParams.get('year') || '2026';
   const quarter = searchParams.get('quarter') || '1Q';
@@ -63,13 +67,15 @@ export async function GET(req) {
   const deptSet = deptFilter ? new Set(deptFilter.split(',').map(s => s.trim()).filter(Boolean)) : null;
 
   const sb = getSupabaseAdmin();
-  const q = quarter.charAt(0);
+  // Sanitize quarter to prevent PostgREST filter injection
+  const safeQuarter = quarter.replace(/[^0-9Q\-]/g, '').slice(0, 5);
+  const q = safeQuarter.charAt(0);
   const range = q <= '2' ? '1-2Q' : '3-4Q';
 
   let query = sb.from('syllabus_courses')
     .select('name,code,section,day,per,period_start,period_end,room,quarter,requirement,credits')
     .eq('year', year)
-    .or(`quarter.eq.${quarter},quarter.eq.${range},quarter.eq.1-4Q`);
+    .or(`quarter.eq.${safeQuarter},quarter.eq.${range},quarter.eq.1-4Q`);
 
   // Filter at DB level: level via LIKE pattern (code format: XXX.Ynnn, _ matches letter, level matches digit)
   if (!searchQ) {

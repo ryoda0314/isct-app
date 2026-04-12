@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server';
 import { performPortalLogin } from '../../../../../lib/auth/portal-login.js';
+import { verifySession, COOKIE_NAME } from '../../../../../lib/auth/session.js';
 
 export async function POST(request) {
   try {
+    // Require a valid session — prevents unauthenticated abuse of Puppeteer resources
+    const cookie = request.cookies.get(COOKIE_NAME)?.value;
+    const session = verifySession(cookie);
+    if (!session) {
+      return NextResponse.json({ valid: false, error: 'ログインが必要です' }, { status: 401 });
+    }
+
     const { portalUserId, portalPassword, matrix } = await request.json();
 
     if (!portalUserId || !portalPassword || !matrix) {

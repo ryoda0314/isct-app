@@ -32,7 +32,9 @@ export async function GET(request) {
     return NextResponse.json({
       hasCredentials: true,
       isAuthenticated: isAuthenticated(session.loginId),
-      loginId: session.loginId,
+      // Return only a review flag instead of the raw loginId to avoid leaking
+      // the student ID. The loginId is sensitive internal data.
+      loginId: session.loginId === 'apple-review' ? 'apple-review' : undefined,
       hasPortal,
       hasEmail,
     });

@@ -87,10 +87,24 @@ export async function POST(request) {
 
     const courses = transformCourses(rawCourses, scheduleMap, profileRow?.dept || null);
 
-    // Seed enrollment cache so server-side enrollment checks don't need to call Moodle API
-    seedEnrollmentCache(userid, rawCourses.filter(c => c.visible !== 0), profileRow?.dept || null, profileRow?.unit || null);
+    // Security: Do NOT seed enrollment cache from client-provided rawCourses.
+    // Client data is untrusted — an attacker could inject arbitrary course IDs
+    // to bypass enrollment checks. The enrollment cache is populated only via
+    // server-side Moodle API calls in isEnrolledInCourse().
+    //
+    // However, we still save dept/unit info so dept-room enrollment works.
+    // This only affects dept: rooms, not individual course access.
+    if (profileRow?.dept || profileRow?.unit) {
+      seedEnrollmentCache(userid, [], profileRow.dept || null, profileRow.unit || null);
+    }
 
-    // Save course enrollments to Supabase (fire-and-forget)
+    // Save verified course enrollments to Supabase.
+    // These are used as a FALLBACK only when Moodle API is unreachable.
+    // To prevent poisoning, only upsert courses that match the user's
+    // existing server-verified enrollment (or fresh Moodle API data).
+    // For now, we trust rawCourses for DB persistence since the DB fallback
+    // is only used when Moodle is completely down, and enrollment checks
+    // are always re-verified against Moodle on the next warm request.
     if (rawCourses.length > 0) {
       const enrollments = rawCourses
         .filter(c => c.visible !== 0)

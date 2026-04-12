@@ -949,7 +949,10 @@ export async function POST(request) {
       let query = sb.from('med_sessions').select('*').order('lct_cd').order('date').order('time_start');
       if (faculty) query = query.eq('faculty', faculty);
       if (year) query = query.eq('year', year);
-      if (search) query = query.or(`name.ilike.%${search}%,lct_cd.ilike.%${search}%`);
+      if (search) {
+        const safeSearch = search.slice(0, 100).replace(/[,%()]/g, '');
+        if (safeSearch) query = query.or(`name.ilike.%${safeSearch}%,lct_cd.ilike.%${safeSearch}%`);
+      }
       // Paginate
       const PAGE = 2000;
       let all = [];
