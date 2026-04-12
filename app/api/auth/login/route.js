@@ -4,6 +4,9 @@ import { createSessionToken, sessionCookieOptions, COOKIE_NAME, verifySession } 
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 // H7: Per-account brute force protection
+// WARNING: In-memory Map resets on serverless cold starts.
+// For production, persist login attempts to Supabase or Vercel KV.
+// Current in-memory approach provides partial protection on warm instances only.
 const loginAttempts = new Map();
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes

@@ -107,6 +107,33 @@ export async function POST(request) {
       { onConflict: 'moodle_id', ignoreDuplicates: true }
     );
 
+    // Verify all members are friends with the creator (prevent forced group addition)
+    const otherIds = member_ids.filter(id => id !== userid);
+    if (otherIds.length > 0) {
+      const { data: friendships } = await sb
+        .from('friendships')
+        .select('requester_id, addressee_id')
+        .eq('status', 'accepted')
+        .or(
+          otherIds.map(id =>
+            `and(requester_id.eq.${userid},addressee_id.eq.${id}),and(requester_id.eq.${id},addressee_id.eq.${userid})`
+          ).join(',')
+        );
+
+      const friendSet = new Set();
+      (friendships || []).forEach(f => {
+        friendSet.add(f.requester_id === userid ? f.addressee_id : f.requester_id);
+      });
+
+      const nonFriends = otherIds.filter(id => !friendSet.has(Number(id)));
+      if (nonFriends.length > 0) {
+        return NextResponse.json(
+          { error: '友達でないユーザーはグループに追加できません' },
+          { status: 403 }
+        );
+      }
+    }
+
     const colors = ['#6375f0', '#3dae72', '#e5534b', '#d4843e', '#c6a236', '#8b5cf6', '#ec4899', '#14b8a6'];
     const color = colors[Math.floor(Math.random() * colors.length)];
     const avatar = name.trim().charAt(0);

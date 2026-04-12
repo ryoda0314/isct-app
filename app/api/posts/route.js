@@ -93,26 +93,39 @@ export async function GET(request) {
     const isHidden = (uid) => blockedIds.has(uid) || mutedIds.has(uid);
     const filterBlocked = (list) => (blockedIds.size === 0 && mutedIds.size === 0) ? list : list.filter(p => !isHidden(p.moodle_user_id));
 
+    // Re-sign attachment URLs (signed URLs expire after 1 hour)
+    async function refreshAttachments(post) {
+      if (!post.attachments?.length) return post;
+      const refreshed = await Promise.all(post.attachments.map(async (a) => {
+        if (!a.path) return a;
+        const { data: urlData } = await sb.storage.from('post-attachments').createSignedUrl(a.path, 3600);
+        return { ...a, url: urlData?.signedUrl || a.url };
+      }));
+      return { ...post, attachments: refreshed };
+    }
+
     if (search) {
-      const posts = filterBlocked(data).map(p => ({
+      const raw = filterBlocked(data).map(p => ({
         ...p,
         comment_count: p.comments?.[0]?.count || 0,
         comments: undefined,
       }));
+      const posts = await Promise.all(raw.map(refreshAttachments));
       return NextResponse.json({ posts, pinnedPosts: [], hasMore: false });
     }
 
     // Filter blocked from pinned too
-    pinnedPosts = filterBlocked(pinnedPosts);
+    pinnedPosts = await Promise.all(filterBlocked(pinnedPosts).map(refreshAttachments));
 
     // Flatten comment count from [{count: N}] to comment_count: N
     const filtered = filterBlocked(data);
     const hasMore = filtered.length > limit;
-    const posts = (hasMore ? filtered.slice(0, limit) : filtered).map(p => ({
+    const raw = (hasMore ? filtered.slice(0, limit) : filtered).map(p => ({
       ...p,
       comment_count: p.comments?.[0]?.count || 0,
       comments: undefined,
     }));
+    const posts = await Promise.all(raw.map(refreshAttachments));
     return NextResponse.json({ posts, pinnedPosts, hasMore });
   } catch (err) {
     console.error('[Posts GET]', err);
@@ -216,8 +229,12 @@ export async function POST(request) {
     if (files && files.length > 0) {
       attachments = [];
       const ts = Date.now();
+      // Sanitize course_id to prevent path traversal (same as shared-materials)
+      const safeCourseId = String(course_id).replace(/[^a-zA-Z0-9_\-:]/g, '_');
       for (const f of files) {
-        const path = `posts/${course_id}/${ts}_${f.name}`;
+        // Sanitize filename: strip directory separators and path traversal
+        const safeName = f.name.replace(/[/\\]/g, '_').replace(/\.\./g, '_');
+        const path = `posts/${safeCourseId}/${ts}_${safeName}`;
         const buf = Buffer.from(await f.arrayBuffer());
         const { error: upErr } = await sb.storage
           .from('post-attachments')
@@ -226,8 +243,8 @@ export async function POST(request) {
           console.error('[Posts POST] upload:', upErr.message);
           continue;
         }
-        const { data: urlData } = sb.storage.from('post-attachments').getPublicUrl(path);
-        attachments.push({ name: f.name, path, size: f.size, type: f.type, url: urlData.publicUrl });
+        const { data: urlData } = await sb.storage.from('post-attachments').createSignedUrl(path, 3600);
+        attachments.push({ name: f.name, path, size: f.size, type: f.type, url: urlData?.signedUrl || '' });
       }
       if (attachments.length > 0) row.attachments = attachments;
     }
@@ -293,27 +310,29 @@ export async function PATCH(request) {
 
     // --- LIKE ---
     if (action === 'like') {
-      const { data: post, error: fetchErr } = await sb
-        .from('posts')
-        .select('likes')
-        .eq('id', post_id)
-        .single();
+      // Use atomic RPC to prevent race conditions (falls back to JS if RPC not available)
+      const { data: rpcResult, error: rpcErr } = await sb.rpc('toggle_post_like', {
+        p_post_id: post_id,
+        p_user_id: userid,
+      });
 
-      if (fetchErr) {
-        console.error('[Posts PATCH like] fetch:', fetchErr.message);
-        return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+      if (rpcErr) {
+        // Fallback: non-atomic JS approach (for environments without the RPC function)
+        console.warn('[Posts PATCH like] RPC failed, falling back:', rpcErr.message);
+        const { data: post, error: fetchErr } = await sb
+          .from('posts').select('likes').eq('id', post_id).single();
+        if (fetchErr) return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+        const likes = post.likes || [];
+        const newLikes = likes.includes(userid)
+          ? likes.filter(id => id !== userid)
+          : [...likes, userid];
+        await sb.from('posts').update({ likes: newLikes }).eq('id', post_id);
       }
-
-      const likes = post.likes || [];
-      const newLikes = likes.includes(userid)
-        ? likes.filter(id => id !== userid)
-        : [...likes, userid];
 
       const { data, error } = await sb
         .from('posts')
-        .update({ likes: newLikes })
-        .eq('id', post_id)
         .select('*, profiles(name, avatar, color)')
+        .eq('id', post_id)
         .single();
 
       if (error) return NextResponse.json({ error: 'Internal error' }, { status: 500 });
@@ -389,28 +408,34 @@ export async function PATCH(request) {
         return NextResponse.json({ error: 'Invalid emoji' }, { status: 400 });
       }
 
-      const { data: post, error: fetchErr } = await sb
-        .from('posts')
-        .select('reactions')
-        .eq('id', post_id)
-        .single();
+      // Use atomic RPC to prevent race conditions
+      const { error: rpcErr } = await sb.rpc('toggle_post_reaction', {
+        p_post_id: post_id,
+        p_user_id: userid,
+        p_emoji: emoji,
+      });
 
-      if (fetchErr || !post) return NextResponse.json({ error: 'Post not found' }, { status: 404 });
-
-      const reactions = post.reactions || {};
-      const arr = reactions[emoji] || [];
-      if (arr.includes(userid)) {
-        reactions[emoji] = arr.filter(id => id !== userid);
-        if (reactions[emoji].length === 0) delete reactions[emoji];
-      } else {
-        reactions[emoji] = [...arr, userid];
+      if (rpcErr) {
+        // Fallback: non-atomic JS approach
+        console.warn('[Posts PATCH react] RPC failed, falling back:', rpcErr.message);
+        const { data: post, error: fetchErr } = await sb
+          .from('posts').select('reactions').eq('id', post_id).single();
+        if (fetchErr || !post) return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+        const reactions = post.reactions || {};
+        const arr = reactions[emoji] || [];
+        if (arr.includes(userid)) {
+          reactions[emoji] = arr.filter(id => id !== userid);
+          if (reactions[emoji].length === 0) delete reactions[emoji];
+        } else {
+          reactions[emoji] = [...arr, userid];
+        }
+        await sb.from('posts').update({ reactions }).eq('id', post_id);
       }
 
       const { data, error } = await sb
         .from('posts')
-        .update({ reactions })
-        .eq('id', post_id)
         .select('*, profiles(name, avatar, color)')
+        .eq('id', post_id)
         .single();
 
       if (error) return NextResponse.json({ error: 'Internal error' }, { status: 500 });

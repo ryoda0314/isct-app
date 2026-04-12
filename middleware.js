@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 
 // M4: In-memory tiered rate limiter (fixed window)
+// WARNING: In-memory rate limiting is ineffective on Vercel serverless.
+// Each cold start creates a fresh Map, so attackers can bypass limits by
+// waiting for instance recycling or hitting different edge functions.
+// TODO: Migrate to Vercel KV, Upstash Redis, or Supabase-based rate limiting
+// for production-grade protection. The login brute force protection in
+// auth/login/route.js has the same limitation.
 const hits = new Map();
 const TIERS = {
   auth:   { window: 60_000, max: 10 },   // 認証系: 10 req/min
@@ -63,7 +69,15 @@ export function middleware(request) {
   const CAPACITOR_ORIGINS = ['capacitor://localhost', 'https://localhost', 'http://localhost'];
   if (isApi && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method)) {
     const origin = request.headers.get('origin');
-    if (origin && !CAPACITOR_ORIGINS.includes(origin)) {
+    if (!origin) {
+      // Reject requests without Origin header to prevent CSRF via form submissions
+      // or other mechanisms that may strip the Origin header.
+      // Exception: allow same-origin requests without Origin (some browsers on same-site navigations)
+      const secFetchSite = request.headers.get('sec-fetch-site');
+      if (secFetchSite && secFetchSite !== 'same-origin') {
+        return NextResponse.json({ error: 'Origin header required' }, { status: 403 });
+      }
+    } else if (!CAPACITOR_ORIGINS.includes(origin)) {
       try {
         const originHost = new URL(origin).host;
         const host = request.headers.get('host');

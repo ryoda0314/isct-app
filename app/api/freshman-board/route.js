@@ -168,23 +168,29 @@ export async function PATCH(request) {
 
     // --- LIKE ---
     if (action === 'like') {
-      const { data: post, error: fetchErr } = await sb
-        .from('freshman_posts')
-        .select('likes')
-        .eq('id', post_id)
-        .single();
-      if (fetchErr || !post) return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      // Use atomic RPC to prevent race conditions
+      const { error: rpcErr } = await sb.rpc('toggle_freshman_like', {
+        p_post_id: post_id,
+        p_user_id: userid,
+      });
 
-      const likes = post.likes || [];
-      const newLikes = likes.includes(userid)
-        ? likes.filter(id => id !== userid)
-        : [...likes, userid];
+      if (rpcErr) {
+        // Fallback: non-atomic JS approach
+        console.warn('[FreshmanBoard PATCH like] RPC failed, falling back:', rpcErr.message);
+        const { data: post, error: fetchErr } = await sb
+          .from('freshman_posts').select('likes').eq('id', post_id).single();
+        if (fetchErr || !post) return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+        const likes = post.likes || [];
+        const newLikes = likes.includes(userid)
+          ? likes.filter(id => id !== userid)
+          : [...likes, userid];
+        await sb.from('freshman_posts').update({ likes: newLikes }).eq('id', post_id);
+      }
 
       const { data, error } = await sb
         .from('freshman_posts')
-        .update({ likes: newLikes })
-        .eq('id', post_id)
         .select('*, profiles(name, avatar, color)')
+        .eq('id', post_id)
         .single();
       if (error) return NextResponse.json({ error: 'Internal error' }, { status: 500 });
       return NextResponse.json(data);

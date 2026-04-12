@@ -16,21 +16,19 @@ const CAPACITOR_ORIGINS = new Set([
 /**
  * GET /api/auth/credentials
  * Returns credentials for the native Capacitor app auto-login.
- * Restricted to native Capacitor app only (Origin check + platform header).
+ * Restricted to native Capacitor app only (Origin check).
  *   ?type=isct  → { userId, password, totpCode }
  *   (default)   → { portalUserId, portalPassword, matrix }
+ *
+ * Security: x-app-platform header alone is NOT sufficient — it is
+ * trivially spoofable by any HTTP client. We require a trusted Origin
+ * header (enforced by the browser) from a known Capacitor origin.
  */
 export async function GET(request) {
-  // Capacitor ネイティブアプリからのリクエストか検証
-  // server.url=https://sciencetokyo.app の場合、同一オリジン GET では
-  // ブラウザは Origin ヘッダーを送らない（null になる）ため、
-  // x-app-platform ヘッダーで判定する（セッション cookie で認証済み）
   const origin = request.headers.get('origin');
-  const platform = request.headers.get('x-app-platform');
-  const isCapacitor = platform === 'capacitor';
   const isAllowedOrigin = origin && CAPACITOR_ORIGINS.has(origin);
 
-  if (!isCapacitor && !isAllowedOrigin) {
+  if (!isAllowedOrigin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
