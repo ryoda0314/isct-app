@@ -5,7 +5,8 @@ import { I } from "../icons.jsx";
 import { NOW, uDue, pDone } from "../utils.jsx";
 import { Tag } from "../shared.jsx";
 import { getSpot } from "../hooks/useLocationSharing.js";
-import { getAcademicInfo } from "../academicCalendar.js";
+import { getAcademicInfo, getCurrentQuarter } from "../academicCalendar.js";
+import { buildTimetable } from "../../lib/transform/timetable-builder.js";
 import { PERIOD_TIMES } from "../examData.js";
 import { isNative } from "../capacitor.js";
 import { openPortal, openIsctPortal } from "../plugins/portalWebView.js";
@@ -135,13 +136,22 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
 
   // 今日の授業（学年暦対応: 祝日・休暇・振替授業・年度を考慮）
   const DOW_MAP={"月":0,"火":1,"水":2,"木":3,"金":4};
-  const curTT=qd?.TT||[];
   const todayAY=now.getMonth()>=3?now.getFullYear():now.getFullYear()-1;
-  const getTT=(q,yr)=>{
-    const qAll=qDataAll[q]?.TT;
-    if(qAll){
-      return qAll.map(row=>(row||[]).map(cell=>cell&&(!cell.year||cell.year===yr)?cell:null));
+  // Build year-filtered timetable grids (same logic as CalendarView)
+  const yearTTMap=useMemo(()=>{
+    const map={};
+    for(const [q,qObj] of Object.entries(qDataAll)){
+      if(!qObj?.C)continue;
+      const byYear={};
+      for(const c of qObj.C){const y=c.year||0;if(!byYear[y])byYear[y]=[];byYear[y].push(c);}
+      map[q]={};
+      for(const [y,cs] of Object.entries(byYear)){map[q][y]=buildTimetable(cs);}
     }
+    return map;
+  },[qDataAll]);
+  const getTT=(q,yr)=>{
+    const tt=yearTTMap[q]?.[yr];
+    if(tt&&tt.some(row=>row.some(cell=>cell)))return tt;
     return[];
   };
   const nowMin=now.getHours()*60+now.getMinutes();
@@ -162,8 +172,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
     }
     const dow=now.getDay(),di=dow>=1&&dow<=5?dow-1:-1;
     if(di<0) return [];
-    const filteredCurTT=curTT.map(row=>(row||[]).map(cell=>cell&&(!cell.year||cell.year===todayAY)?cell:null));
-    return PD.map((pd,pi)=>{const co=filteredCurTT[pi]?.[di];if(!co)return null;const sM=pd.s[0]*60+pd.s[1],eM=pd.e[0]*60+pd.e[1];const st=nowMin>=eM?"done":nowMin>=sM?"now":"next";return{co,pd,pi,st,sM,eM,type:"class"};}).filter(Boolean);
+    const tt=getTT(getCurrentQuarter(now),todayAY);
+    return PD.map((pd,pi)=>{const co=tt[pi]?.[di];if(!co)return null;const sM=pd.s[0]*60+pd.s[1],eM=pd.e[0]*60+pd.e[1];const st=nowMin>=eM?"done":nowMin>=sM?"now":"next";return{co,pd,pi,st,sM,eM,type:"class"};}).filter(Boolean);
   })();
 
   const vis=asgn.filter(a=>!hiddenSet.has(a.id));
