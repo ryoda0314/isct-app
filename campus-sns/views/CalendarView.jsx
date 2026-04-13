@@ -3,8 +3,9 @@ import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { NOW, fDS, fDF, fTs, uDue, aMap, sMap } from "../utils.jsx";
 import { Tag } from "../shared.jsx";
-import { getAcademicInfo } from "../academicCalendar.js";
+import { getAcademicInfo, getCurrentQuarter } from "../academicCalendar.js";
 import { PERIOD_TIMES } from "../examData.js";
+import { buildTimetable } from "../../lib/transform/timetable-builder.js";
 const DAYS=["月","火","水","木","金","土","日"];
 const COLORS=["#6375f0","#e5534b","#3dae72","#a855c7","#d4843e","#c6a236","#2d9d8f","#c75d8e"];
 const dKey=d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -29,7 +30,7 @@ const rangesOverlap=(s1h,s1m,e1h,e1m,s2h,s2m,e2h,e2m)=>{
 
 const getMonday=d=>{const dt=new Date(d);const day=dt.getDay();const diff=day===0?-6:1-day;dt.setDate(dt.getDate()+diff);dt.setHours(0,0,0,0);return dt;};
 
-export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},mob,pastTTCache={},fetchPastTimetable})=>{
+export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},mob,pastTTCache={},fetchPastTimetable,medSessions=[]})=>{
   const [viewMode,setViewMode]=useState("month");
   const [calMonth,setCalMonth]=useState(()=>({y:NOW.getFullYear(),m:NOW.getMonth()}));
   const [weekStart,setWeekStart]=useState(()=>getMonday(NOW));
@@ -116,44 +117,82 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
     if(!hasInCurrent&&!pastTTCache[viewedAY]){fetchPastTimetable(viewedAY);}
   },[viewedAY,qDataAll,pastTTCache,fetchPastTimetable]);
 
-  // Timetable classes for a given date (academic calendar + year aware)
-  const curTT=qd?.TT||[];
-  const getTT=(q,yr)=>{
-    // 1. Try qDataAll filtered by year
-    const qAll=qDataAll[q]?.TT;
-    if(qAll){
-      const filtered=qAll.map(row=>(row||[]).map(cell=>cell&&(!cell.year||cell.year===yr)?cell:null));
-      if(filtered.some(row=>row.some(cell=>cell)))return filtered;
+  // Build year-filtered timetables to avoid cross-year slot collisions.
+  // When courses from multiple years share the same quarter (e.g. 2025-1Q and 2026-1Q),
+  // building one grid overwrites slots. Filter by year first, then build separate grids.
+  const yearTTMap=useMemo(()=>{
+    const map={};
+    for(const [q,qObj] of Object.entries(qDataAll)){
+      if(!qObj?.C)continue;
+      const byYear={};
+      for(const c of qObj.C){const y=c.year||0;if(!byYear[y])byYear[y]=[];byYear[y].push(c);}
+      map[q]={};
+      for(const [y,courses] of Object.entries(byYear)){map[q][y]=buildTimetable(courses);}
     }
+    return map;
+  },[qDataAll]);
+  const getTT=(q,yr)=>{
+    // 1. Try year-filtered timetable from qDataAll
+    const tt=yearTTMap[q]?.[yr];
+    if(tt&&tt.some(row=>row.some(cell=>cell)))return tt;
     // 2. Fallback: pastTTCache for that year
     const past=pastTTCache[yr];
     if(past?.qData?.[q]?.TT)return past.qData[q].TT;
-    // 3. If same year as current quarter, use curTT as last resort
     return[];
   };
   const DOW_MAP={"月":0,"火":1,"水":2,"木":3,"金":4};
+  // Index med sessions by date key (YYYY-M-D) for fast lookup
+  const medByDay=useMemo(()=>{
+    const map={};
+    for(const s of medSessions){
+      if(!s.date)continue;
+      // s.date is "YYYY/MM/DD" — convert to dKey format
+      const parts=s.date.split("/").map(Number);
+      const k=`${parts[0]}-${parts[1]-1}-${parts[2]}`;
+      if(!map[k])map[k]=[];
+      map[k].push(s);
+    }
+    return map;
+  },[medSessions]);
+  const getMedClasses=date=>{
+    const sessions=medByDay[dKey(date)];
+    if(!sessions||sessions.length===0)return [];
+    const seen=new Set();
+    return sessions.filter(s=>{
+      const key=`${s.code}|${s.timeStart}|${s.timeEnd}`;
+      if(seen.has(key))return false;
+      seen.add(key);return true;
+    }).map(s=>{
+      const [sh,sm]=(s.timeStart||"0:0").split(":").map(Number);
+      const [eh,em]=(s.timeEnd||"0:0").split(":").map(Number);
+      return{type:"class",course:{name:s.name,col:"#e04e6a",room:s.room||null,code:s.code},pd:{l:s.timeStart,s:[sh,sm],e:[eh,em]},pi:null,n:null,sub:false,dow:s.day};
+    });
+  };
   const getClasses=date=>{
     const yr=dateToAY(date);
     const info=getAcademicInfo(date);
     const hasAcad=info.items.length>0||info.period;
+    let results=[];
     if(hasAcad){
       const classItems=info.items.filter(it=>it.type==="class");
-      if(classItems.length===0) return [];
-      const results=[];
-      for(const item of classItems){
-        const di=DOW_MAP[item.dow];
-        if(di===undefined) continue;
-        const tt=getTT(item.q,yr);
-        PD.forEach((pd,pi)=>{const co=tt[pi]?.[di];if(co) results.push({type:"class",course:co,pd,pi,n:item.n,sub:item.sub,dow:item.dow});});
+      if(classItems.length>0){
+        for(const item of classItems){
+          const di=DOW_MAP[item.dow];
+          if(di===undefined) continue;
+          const tt=getTT(item.q,yr);
+          PD.forEach((pd,pi)=>{const co=tt[pi]?.[di];if(co) results.push({type:"class",course:co,pd,pi,n:item.n,sub:item.sub,dow:item.dow});});
+        }
       }
-      return results;
+    } else {
+      const dow=date.getDay();
+      if(dow>=1&&dow<=5){
+        const di=dow-1;
+        const tt=getTT(getCurrentQuarter(date),yr);
+        results=PD.map((pd,pi)=>{const co=tt[pi]?.[di];if(!co)return null;return{type:"class",course:co,pd,pi,n:null,sub:false};}).filter(Boolean);
+      }
     }
-    const dow=date.getDay();
-    if(dow<1||dow>5)return [];
-    const di=dow-1;
-    // No academic calendar entry — use current quarter TT filtered by date's year
-    const filteredCurTT=curTT.map(row=>(row||[]).map(cell=>cell&&(!cell.year||cell.year===yr)?cell:null));
-    return PD.map((pd,pi)=>{const co=filteredCurTT[pi]?.[di];if(!co)return null;return{type:"class",course:co,pd,pi,n:null,sub:false};}).filter(Boolean);
+    // Append med sessions (date-based, not timetable grid)
+    return results.concat(getMedClasses(date));
   };
 
   // Build calendar data
