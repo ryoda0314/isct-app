@@ -16,12 +16,18 @@ export async function POST(request) {
       return NextResponse.json({ error: 'ISCT または Portal の認証情報が必要です' }, { status: 400 });
     }
 
-    const loginId = userId || portalUserId;
+    // 既存セッションがあればそのloginIdを優先（後からPortalを追加する場合に
+    // portalUserIdで別ファイルに保存してしまうのを防ぐ）
+    const cookieEarly = request.cookies.get(COOKIE_NAME)?.value;
+    const sessionEarly = verifySession(cookieEarly);
+    const loginId = sessionEarly?.loginId || userId || portalUserId;
 
     const hadCreds = await hasCredentials(loginId);
 
-    // Build credential object
+    // Build credential object — only set fields that were actually provided
+    // so saveCredentials can merge with existing without clobbering.
     const credData = {};
+    if (password) credData.password = password;
     if (totpSecret) credData.totpSecret = totpSecret;
     if (hasPortal) {
       credData.portalUserId = portalUserId;
@@ -29,10 +35,7 @@ export async function POST(request) {
       credData.matrix = matrix;
     }
 
-    await saveCredentials(loginId, {
-      password: password || portalPassword,
-      ...credData,
-    });
+    await saveCredentials(loginId, credData);
 
     // portalUserId or studentId (学籍番号) を profiles に保存
     const saveStudentId = async (moodleId) => {
