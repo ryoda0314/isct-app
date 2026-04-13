@@ -284,8 +284,16 @@ export async function GET(request) {
         console.error('[TimetablePast] DB lookup failed:', e.message);
       }
     }
+    console.log(`[TimetablePast][DBG] year=${year} uniqueCodes=${uniqueCodes.length} dbRows=${dbRows.length}`);
+    if (dbRows.length > 0) {
+      const withUrl = dbRows.filter(r => r.syllabus_url).length;
+      const withId = dbRows.filter(r => r.syllabus_url && /(\d{9})(?:[?#].*)?$/.test(r.syllabus_url)).length;
+      console.log(`[TimetablePast][DBG] dbRows w/ syllabus_url=${withUrl}, w/ 9-digit idnumber=${withId}`);
+      console.log(`[TimetablePast][DBG] sample row:`, JSON.stringify(dbRows[0]));
+    }
 
-    // Build schedule map from DB rows — store ARRAYS (courses can have multiple slots)
+    // Build schedule map from DB rows — store ARRAYS (courses can have multiple slots).
+    // Also key by syllabus idnumber (URL tail) so Moodle courses disambiguate Q-variants.
     const scheduleMap = {};
     for (const row of dbRows) {
       const schedule = {
@@ -294,7 +302,24 @@ export async function GET(request) {
         room: row.room, quarter: row.quarter,
         building: row.building || null,
         dept: row.dept || null,
+        syllabusUrl: row.syllabus_url || null,
       };
+      const idMatch = row.syllabus_url && row.syllabus_url.match(/(\d{9})(?:[?#].*)?$/);
+      if (idMatch) {
+        const idKey = `@${idMatch[1]}`;
+        if (!scheduleMap[idKey]) scheduleMap[idKey] = [];
+        scheduleMap[idKey].push(schedule);
+      }
+      if (row.year) {
+        const yKey = `${row.code}#${row.year}`;
+        if (!scheduleMap[yKey]) scheduleMap[yKey] = [];
+        scheduleMap[yKey].push(schedule);
+        if (row.section) {
+          const ysKey = `${row.code}:${row.section}#${row.year}`;
+          if (!scheduleMap[ysKey]) scheduleMap[ysKey] = [];
+          scheduleMap[ysKey].push(schedule);
+        }
+      }
       if (row.section) {
         const key = `${row.code}:${row.section}`;
         if (!scheduleMap[key]) scheduleMap[key] = [];
@@ -333,6 +358,25 @@ export async function GET(request) {
         ...mc,
         _t2quarter: catToQuarter[mc.category] || null,
       }));
+
+    const idKeys = Object.keys(scheduleMap).filter(k => k.startsWith('@'));
+    console.log(`[TimetablePast][DBG] scheduleMap keys: total=${Object.keys(scheduleMap).length}, idnumber-keys=${idKeys.length}`);
+    if (adapted.length > 0) {
+      const sample = adapted.slice(0, 5).map(mc => {
+        const code = mc.shortname.match(/([A-Z]{2,4}\.[A-Z]\d{3})/)?.[1] || null;
+        const id = mc.idnumber || null;
+        const idKey = id && /^\d{9}$/.test(id) ? `@${id}` : null;
+        return {
+          id: mc.id,
+          shortname: mc.shortname,
+          idnumber: id,
+          code,
+          idMatch: idKey ? !!scheduleMap[idKey] : 'no-idnumber',
+          codeMatch: code ? !!scheduleMap[code] : 'no-code',
+        };
+      });
+      console.log(`[TimetablePast][DBG] adapted sample match:`, JSON.stringify(sample, null, 2));
+    }
 
     const courses = transformCourses(adapted, scheduleMap);
 

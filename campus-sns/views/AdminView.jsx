@@ -3009,51 +3009,49 @@ const MoodleCaptureTab = () => {
 
 // ---- T2SCHOLA Explorer Tab ----
 const T2ScholaTab = () => {
-  const [token, setToken] = useState("");
   const [siteInfo, setSiteInfo] = useState(null);
-  const [wsfunction, setWsfunction] = useState("core_enrol_get_users_courses");
-  const [paramsText, setParamsText] = useState("");
-  const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [history, setHistory] = useState([]);
   const [password, setPassword] = useState("");
   const [timetable, setTimetable] = useState(null);
-  const [ttLoading, setTtLoading] = useState(false);
   const [ttQuarter, setTtQuarter] = useState(1);
 
-  const presets = [
-    { label: "サイト情報", fn: "core_webservice_get_site_info", params: "" },
-    { label: "履修科目一覧", fn: "core_enrol_get_users_courses", params: '{"userid":"__USERID__"}' },
-    { label: "コース内容", fn: "core_course_get_contents", params: '{"courseid":""}' },
-    { label: "コース検索", fn: "core_course_search_courses", params: '{"criterianame":"search","criteriavalue":""}' },
-    { label: "ユーザー情報", fn: "core_user_get_users_by_field", params: '{"field":"id","values":["__USERID__"]}' },
-    { label: "コース登録者", fn: "core_enrol_get_enrolled_users", params: '{"courseid":""}' },
-    { label: "利用可能関数一覧", fn: "core_webservice_get_site_info", params: "" },
-  ];
+  const fetchSiteInfo = async (wstoken) => {
+    const resp = await fetch(`${API}/api/admin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "t2schola_call", wstoken, wsfunction: "core_webservice_get_site_info", params: {} }),
+    });
+    const d = await resp.json();
+    if (d.error) throw new Error(d.error);
+    return d.data;
+  };
 
-  const callApi = async (fn, params) => {
-    setLoading(true);
-    setError("");
-    setResult(null);
+  const fetchTimetable = async (wstoken) => {
+    const resp = await fetch(`${API}/api/data/timetable-past?t2token=${encodeURIComponent(wstoken)}&year=2024`);
+    const d = await resp.json();
+    if (d.error) throw new Error(d.error);
+    return d;
+  };
+
+  const runAll = async () => {
+    if (!password.trim()) return;
+    setLoading(true); setError(""); setSiteInfo(null); setTimetable(null);
     try {
-      let parsedParams = {};
-      if (params && params.trim()) {
-        parsedParams = JSON.parse(params);
-      }
-      const resp = await fetch(`${API}/api/admin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "t2schola_call", wstoken: token, wsfunction: fn, params: parsedParams }),
+      const tokResp = await fetch(`${API}/api/admin`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "t2schola_get_token", password }),
       });
-      const d = await resp.json();
-      if (d.error) { setError(d.error); return; }
-      setResult(d.data);
-      setHistory(h => [{ fn, params, time: new Date().toLocaleTimeString(), preview: JSON.stringify(d.data).slice(0, 100) }, ...h].slice(0, 20));
-      // Auto-extract userid from site_info
-      if (fn === "core_webservice_get_site_info" && d.data?.userid) {
-        setSiteInfo(d.data);
+      const tokData = await tokResp.json();
+      if (!tokData.ok || !tokData.token) {
+        setError(tokData.error || tokData.errorcode || "トークン取得失敗");
+        return;
       }
+      setPassword("");
+      const info = await fetchSiteInfo(tokData.token);
+      setSiteInfo(info);
+      const tt = await fetchTimetable(tokData.token);
+      setTimetable(tt);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -3061,60 +3059,25 @@ const T2ScholaTab = () => {
     }
   };
 
-  const autoGetToken = async () => {
-    if (!password.trim()) return;
-    setLoading(true); setError("");
-    try {
-      const resp = await fetch(`${API}/api/admin`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "t2schola_get_token", password }),
-      });
-      const d = await resp.json();
-      if (d.ok && d.token) {
-        setToken(d.token);
-        setPassword("");
-        // Auto-connect with site info
-        await callApi("core_webservice_get_site_info", "");
-      } else {
-        setError(d.error || d.errorcode || "トークン取得失敗");
-      }
-    } catch (e) { setError(e.message); }
-    finally { setLoading(false); }
-  };
-
-  const connectToken = async () => {
-    if (!token.trim()) return;
-    await callApi("core_webservice_get_site_info", "");
-  };
-
   const inputStyle = { padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none", fontFamily: "monospace" };
 
   return (
     <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>T2SCHOLA API Explorer</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>T2SCHOLA 2024年度 時間割取得</div>
       <div style={{ fontSize: 12, color: T.txD, lineHeight: 1.6 }}>
-        旧T2SCHOLA (t2schola.titech.ac.jp) のMoodle APIを探索。2024年度の履修データ取得に使用。<br />
-        トークン取得: ブラウザでT2SCHOLAにログイン → DevToolsのNetwork → token= を探す
+        Science Tokyo パスワードを入力すると、T2SCHOLAからトークンを自動取得し、2024年度の履修時間割までまとめて生成します。
       </div>
 
-      {/* Token: manual or auto-acquire with password */}
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <input
-          value={token} onChange={e => setToken(e.target.value)}
-          placeholder="T2SCHOLA wstoken (32文字hex)"
-          style={{ ...inputStyle, flex: 1, minWidth: 200 }}
-        />
-        <Btn onClick={connectToken} color={T.accent} disabled={loading || !token.trim()}>接続テスト</Btn>
-      </div>
+      {/* Single input: password → token → siteInfo → timetable */}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <input
           type="password" value={password} onChange={e => setPassword(e.target.value)}
           placeholder="Science Tokyo パスワード"
           style={{ ...inputStyle, flex: 1, minWidth: 200 }}
-          onKeyDown={e => { if (e.key === "Enter") autoGetToken(); }}
+          onKeyDown={e => { if (e.key === "Enter") runAll(); }}
         />
-        <Btn onClick={autoGetToken} color="#4CAF50" disabled={loading || !password.trim()}>
-          {loading ? "取得中..." : "パスワードでトークン自動取得"}
+        <Btn onClick={runAll} color="#4CAF50" disabled={loading || !password.trim()}>
+          {loading ? "取得中..." : "時間割を取得"}
         </Btn>
       </div>
 
@@ -3130,139 +3093,6 @@ const T2ScholaTab = () => {
         </div>
       )}
 
-      {/* Timetable Generation */}
-      {siteInfo && token && (
-        <div style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>2024年度 時間割</div>
-            <Btn onClick={async () => {
-              setTtLoading(true); setError("");
-              try {
-                const resp = await fetch(`${API}/api/data/timetable-past?t2token=${encodeURIComponent(token)}&year=2024`);
-                const d = await resp.json();
-                if (d.error) { setError(d.error); return; }
-                setTimetable(d);
-              } catch (e) { setError(e.message); }
-              finally { setTtLoading(false); }
-            }} color={T.accent} disabled={ttLoading}>
-              {ttLoading ? "生成中..." : timetable ? "再取得" : "時間割を生成"}
-            </Btn>
-          </div>
-
-          {timetable && (
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: T.txD }}>
-                  {timetable.stats.total}科目中 {timetable.stats.withSchedule}科目の時間割あり (DB: {timetable.stats.dbRows}行)
-                </div>
-              </div>
-
-              {/* Quarter selector */}
-              <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
-                {[1,2,3,4].map(q => (
-                  <button key={q} onClick={() => setTtQuarter(q)} style={{
-                    padding: "5px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                    border: ttQuarter === q ? `1px solid ${T.accent}` : `1px solid ${T.bd}`,
-                    background: ttQuarter === q ? `${T.accent}15` : T.bg2,
-                    color: ttQuarter === q ? T.accent : T.txD,
-                  }}>{q}Q</button>
-                ))}
-              </div>
-
-              {/* Timetable grid */}
-              {(() => {
-                const qd = timetable.qData[ttQuarter];
-                if (!qd || !qd.TT) return <div style={{ fontSize: 12, color: T.txD }}>この学期のデータなし</div>;
-                const days = ["月", "火", "水", "木", "金"];
-                const times = ["1-2\n8:50", "3-4\n10:45", "5-6\n13:20", "7-8\n15:15", "9-10\n17:10"];
-                return (
-                  <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", fontSize: 11, borderCollapse: "collapse", tableLayout: "fixed" }}>
-                      <thead>
-                        <tr>
-                          <th style={{ width: 44, padding: 4, color: T.txD, borderBottom: `1px solid ${T.bd}` }}></th>
-                          {days.map(d => (
-                            <th key={d} style={{ padding: 4, color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, textAlign: "center" }}>{d}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {qd.TT.map((row, ri) => (
-                          <tr key={ri}>
-                            <td style={{ padding: 4, color: T.txD, fontSize: 9, whiteSpace: "pre-line", verticalAlign: "top", borderRight: `1px solid ${T.bd}` }}>{times[ri]}</td>
-                            {row.map((cell, ci) => (
-                              <td key={ci} style={{
-                                padding: 3, verticalAlign: "top", border: `1px solid ${T.bd}`,
-                                background: cell ? `${cell.col || T.accent}15` : "transparent",
-                                minHeight: 48,
-                              }}>
-                                {cell && (
-                                  <div>
-                                    <div style={{ fontSize: 10, fontWeight: 600, color: cell.col || T.accent, lineHeight: 1.3 }}>{cell.name}</div>
-                                    {cell.room && <div style={{ fontSize: 9, color: T.txD, marginTop: 2 }}>{cell.room}</div>}
-                                  </div>
-                                )}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })()}
-
-              {/* Course list for this quarter */}
-              <div style={{ marginTop: 10, fontSize: 11, color: T.txD }}>
-                {timetable.qData[ttQuarter]?.C?.map((c, i) => (
-                  <div key={i} style={{ padding: "3px 0", display: "flex", gap: 8 }}>
-                    <span style={{ color: c.col || T.accent, fontFamily: "monospace", minWidth: 80 }}>{c.code}</span>
-                    <span style={{ color: T.txH }}>{c.name}</span>
-                    <span style={{ color: T.txD }}>{c.per || "時間不明"}</span>
-                    <span style={{ color: T.txD }}>{c.room || ""}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Preset Buttons */}
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 8 }}>プリセット</div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {presets.map((p, i) => (
-            <Btn key={i} onClick={() => {
-              setWsfunction(p.fn);
-              let params = p.params;
-              if (siteInfo?.userid) params = params.replace(/__USERID__/g, String(siteInfo.userid));
-              setParamsText(params);
-            }} color={T.txD} small>{p.label}</Btn>
-          ))}
-        </div>
-      </div>
-
-      {/* API Call Form */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <input
-            value={wsfunction} onChange={e => setWsfunction(e.target.value)}
-            placeholder="wsfunction (例: core_enrol_get_users_courses)"
-            style={{ ...inputStyle, flex: 1, minWidth: 300 }}
-          />
-          <Btn onClick={() => callApi(wsfunction, paramsText)} color={T.accent} disabled={loading || !token.trim()}>
-            {loading ? "実行中..." : "実行"}
-          </Btn>
-        </div>
-        <textarea
-          value={paramsText} onChange={e => setParamsText(e.target.value)}
-          placeholder='パラメータ JSON (例: {"userid":"12345"})'
-          rows={3}
-          style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
-        />
-      </div>
-
       {/* Error */}
       {error && (
         <div style={{ padding: 10, borderRadius: 8, background: "#ff444420", border: "1px solid #ff444440", color: "#ff6666", fontSize: 12 }}>
@@ -3270,63 +3100,79 @@ const T2ScholaTab = () => {
         </div>
       )}
 
-      {/* Result */}
-      {result !== null && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: T.txD }}>
-              レスポンス {Array.isArray(result) ? `(${result.length}件)` : ""}
+      {/* Timetable */}
+      {timetable && (
+        <div style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.txH, marginBottom: 12 }}>2024年度 時間割</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: T.txD }}>
+              {timetable.stats.total}科目中 {timetable.stats.withSchedule}科目の時間割あり (DB: {timetable.stats.dbRows}行)
             </div>
-            <Btn onClick={() => { navigator.clipboard.writeText(JSON.stringify(result, null, 2)); }} color={T.txD} small>コピー</Btn>
           </div>
 
-          {/* If it's an array of courses, show table view */}
-          {Array.isArray(result) && result.length > 0 && result[0].shortname && (
-            <div style={{ overflowX: "auto", borderRadius: 10, border: `1px solid ${T.bd}` }}>
-              <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ background: T.bg3 }}>
-                    {["id", "shortname", "fullname", "enrolledusercount"].map(col => (
-                      <th key={col} style={{ padding: "8px 10px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>{col}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.map((row, i) => (
-                    <tr key={i} style={{ borderBottom: `1px solid ${T.bd}` }}>
-                      <td style={{ padding: "6px 10px", color: T.txD }}>{row.id}</td>
-                      <td style={{ padding: "6px 10px", color: T.accent, fontFamily: "monospace", fontSize: 11 }}>{row.shortname}</td>
-                      <td style={{ padding: "6px 10px", color: T.txH }}>{row.fullname}</td>
-                      <td style={{ padding: "6px 10px", color: T.txD }}>{row.enrolledusercount}</td>
+          {/* Quarter selector */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+            {[1,2,3,4].map(q => (
+              <button key={q} onClick={() => setTtQuarter(q)} style={{
+                padding: "5px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                border: ttQuarter === q ? `1px solid ${T.accent}` : `1px solid ${T.bd}`,
+                background: ttQuarter === q ? `${T.accent}15` : T.bg2,
+                color: ttQuarter === q ? T.accent : T.txD,
+              }}>{q}Q</button>
+            ))}
+          </div>
+
+          {/* Timetable grid */}
+          {(() => {
+            const qd = timetable.qData[ttQuarter];
+            if (!qd || !qd.TT) return <div style={{ fontSize: 12, color: T.txD }}>この学期のデータなし</div>;
+            const days = ["月", "火", "水", "木", "金"];
+            const times = ["1-2\n8:50", "3-4\n10:45", "5-6\n13:20", "7-8\n15:15", "9-10\n17:10"];
+            return (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", fontSize: 11, borderCollapse: "collapse", tableLayout: "fixed" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: 44, padding: 4, color: T.txD, borderBottom: `1px solid ${T.bd}` }}></th>
+                      {days.map(d => (
+                        <th key={d} style={{ padding: 4, color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, textAlign: "center" }}>{d}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody>
+                    {qd.TT.map((row, ri) => (
+                      <tr key={ri}>
+                        <td style={{ padding: 4, color: T.txD, fontSize: 9, whiteSpace: "pre-line", verticalAlign: "top", borderRight: `1px solid ${T.bd}` }}>{times[ri]}</td>
+                        {row.map((cell, ci) => (
+                          <td key={ci} style={{
+                            padding: 3, verticalAlign: "top", border: `1px solid ${T.bd}`,
+                            background: cell ? `${cell.col || T.accent}15` : "transparent",
+                            minHeight: 48,
+                          }}>
+                            {cell && (
+                              <div>
+                                <div style={{ fontSize: 10, fontWeight: 600, color: cell.col || T.accent, lineHeight: 1.3 }}>{cell.name}</div>
+                                {cell.room && <div style={{ fontSize: 9, color: T.txD, marginTop: 2 }}>{cell.room}</div>}
+                              </div>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
 
-          {/* Raw JSON */}
-          <pre style={{
-            padding: 12, borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}`,
-            color: T.txH, fontSize: 11, fontFamily: "monospace", lineHeight: 1.5,
-            overflow: "auto", maxHeight: 400, whiteSpace: "pre-wrap", wordBreak: "break-all",
-          }}>
-            {JSON.stringify(result, null, 2)}
-          </pre>
-        </div>
-      )}
-
-      {/* History */}
-      {history.length > 0 && (
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 8 }}>呼び出し履歴</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {history.map((h, i) => (
-              <div key={i} onClick={() => { setWsfunction(h.fn); setParamsText(h.params); }}
-                style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, cursor: "pointer", fontSize: 11, display: "flex", gap: 8, alignItems: "center" }}>
-                <span style={{ color: T.txD }}>{h.time}</span>
-                <span style={{ color: T.accent, fontFamily: "monospace" }}>{h.fn}</span>
-                <span style={{ color: T.txD, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.preview}</span>
+          {/* Course list for this quarter */}
+          <div style={{ marginTop: 10, fontSize: 11, color: T.txD }}>
+            {timetable.qData[ttQuarter]?.C?.map((c, i) => (
+              <div key={i} style={{ padding: "3px 0", display: "flex", gap: 8 }}>
+                <span style={{ color: c.col || T.accent, fontFamily: "monospace", minWidth: 80 }}>{c.code}</span>
+                <span style={{ color: T.txH }}>{c.name}</span>
+                <span style={{ color: T.txD }}>{c.per || "時間不明"}</span>
+                <span style={{ color: T.txD }}>{c.room || ""}</span>
               </div>
             ))}
           </div>

@@ -1,740 +1,17 @@
 {
-  "timestamp": 1775978999967,
+  "timestamp": 1776058901525,
   "courses": {
-    "MEC.C201": {
-      "per": "木1-4",
-      "day": "木",
-      "periodStart": 1,
-      "periodEnd": 4,
-      "room": "M-B07(H101)",
-      "quarter": "1Q"
-    },
-    "MEC.A211": {
-      "per": "月5-8",
-      "day": "月",
-      "periodStart": 5,
-      "periodEnd": 8,
-      "room": "W2-401(W241)",
-      "quarter": "1Q"
-    },
-    "MEC.A202": {
-      "per": "木5-8",
-      "day": "木",
-      "periodStart": 5,
-      "periodEnd": 8,
-      "room": "M-B07(H101)",
-      "quarter": "1Q"
-    },
-    "MEC.A201": {
-      "per": "水1-4",
-      "day": "水",
-      "periodStart": 1,
-      "periodEnd": 4,
-      "room": "M-278(H121)",
-      "quarter": "1Q"
-    },
-    "MEC.I212": {
-      "per": "金1-4",
-      "day": "金",
-      "periodStart": 1,
-      "periodEnd": 4,
-      "room": "WL1-401(W541)",
-      "quarter": "2Q"
-    },
-    "MEC.H202": {
-      "per": "木3-8",
-      "day": "木",
-      "periodStart": 3,
-      "periodEnd": 8,
-      "room": "W2-401(W241)",
-      "quarter": "2Q"
-    },
-    "MEC.E201": {
-      "per": "火5-8",
-      "day": "火",
-      "periodStart": 5,
-      "periodEnd": 8,
-      "room": "M-B07(H101)",
-      "quarter": "2Q"
-    },
-    "MEC.B201": {
-      "per": "月5-8",
-      "day": "月",
-      "periodStart": 5,
-      "periodEnd": 8,
-      "room": "S2-203(S222)",
-      "quarter": "2Q"
-    },
-    "MEC.A212": {
-      "per": "金5-8",
-      "day": "金",
-      "periodStart": 5,
-      "periodEnd": 8,
-      "room": "WL1-301(W531)",
-      "quarter": "2Q"
-    },
-    "MEC.I211": {
-      "per": "火1-4",
-      "day": "火",
-      "periodStart": 1,
-      "periodEnd": 4,
-      "room": "S2-203(S222)",
-      "quarter": "3Q"
-    },
-    "MEC.H203": {
-      "per": "金5-10",
-      "day": "金",
-      "periodStart": 5,
-      "periodEnd": 10,
-      "room": "I1-256(I121)",
-      "quarter": "3Q"
-    },
-    "MEC.F201": {
-      "per": "木5-8",
-      "day": "木",
-      "periodStart": 5,
-      "periodEnd": 8,
-      "room": "M-278(H121)",
-      "quarter": "3Q"
-    },
-    "MEC.D201": {
-      "per": "月5-8",
-      "day": "月",
-      "periodStart": 5,
-      "periodEnd": 8,
-      "room": "WL1-301",
-      "quarter": "3Q"
-    },
-    "MEC.C211": {
-      "per": "金1-4",
-      "day": "金",
-      "periodStart": 1,
-      "periodEnd": 4,
-      "room": "WL1-301",
-      "quarter": "3Q"
-    },
-    "MEC.B221": {
-      "per": "火5-8",
-      "day": "火",
-      "periodStart": 5,
-      "periodEnd": 8,
-      "room": "I1-256(I121)",
-      "quarter": "3Q"
-    },
-    "MEC.P211:B": {
-      "per": "金5-8",
-      "day": "金",
-      "periodStart": 5,
-      "periodEnd": 8,
-      "room": "E201",
-      "quarter": "4Q"
-    },
-    "MEC.P211": {
-      "per": "金5-8",
-      "day": "金",
-      "periodStart": 5,
-      "periodEnd": 8,
-      "room": "E201",
-      "quarter": "4Q"
-    },
-    "MEC.B222": {
-      "per": "木5-8",
-      "day": "木",
-      "periodStart": 5,
-      "periodEnd": 8,
-      "room": "M-124",
-      "quarter": "4Q"
-    },
-    "LAL.S201:S16": {
-      "per": "火1-2",
-      "day": "火",
-      "periodStart": 1,
-      "periodEnd": 2,
-      "room": "S201",
-      "quarter": "1Q"
-    },
-    "LAL.S201": {
-      "per": "火1-2",
-      "day": "火",
-      "periodStart": 1,
-      "periodEnd": 2,
-      "room": "S201",
-      "quarter": "1Q"
-    },
-    "LAL.S202:S16": {
-      "per": "火1-2",
-      "day": "火",
-      "periodStart": 1,
-      "periodEnd": 2,
-      "room": "S202",
-      "quarter": "2Q"
-    },
-    "LAL.S202": {
-      "per": "火1-2",
-      "day": "火",
-      "periodStart": 1,
-      "periodEnd": 2,
-      "room": "S202",
-      "quarter": "2Q"
-    },
-    "LAL.S203:S38": {
-      "per": "水1-2",
-      "day": "水",
-      "periodStart": 1,
-      "periodEnd": 2,
-      "room": "S2-202(S223)",
-      "quarter": "3Q"
-    },
-    "LAL.S203": {
-      "per": "水1-2",
-      "day": "水",
-      "periodStart": 1,
-      "periodEnd": 2,
-      "room": "S2-202(S223)",
-      "quarter": "3Q"
-    },
-    "LAL.S204:S38": {
-      "per": "水1-2",
-      "day": "水",
-      "periodStart": 1,
-      "periodEnd": 2,
-      "room": "S2-201(S224)",
-      "quarter": "4Q"
-    },
-    "LAL.S204": {
-      "per": "水1-2",
-      "day": "水",
-      "periodStart": 1,
-      "periodEnd": 2,
-      "room": "S2-201(S224)",
-      "quarter": "4Q"
-    },
-    "LAE.E211:14-RW": {
-      "per": "月3-4",
-      "day": "月",
-      "periodStart": 3,
-      "periodEnd": 4,
-      "room": "W3-301(W331)",
-      "quarter": "1Q"
-    },
-    "LAE.E211": {
-      "per": "月3-4",
-      "day": "月",
-      "periodStart": 3,
-      "periodEnd": 4,
-      "room": "W3-301(W331)",
-      "quarter": "1Q"
-    },
-    "LAE.E212:14-RW": {
-      "per": "月3-4",
-      "day": "月",
-      "periodStart": 3,
-      "periodEnd": 4,
-      "room": "W3-301(W331)",
-      "quarter": "2Q"
-    },
-    "LAE.E212": {
-      "per": "月3-4",
-      "day": "月",
-      "periodStart": 3,
-      "periodEnd": 4,
-      "room": "W3-301(W331)",
-      "quarter": "2Q"
-    },
-    "LAE.E213:29-LS": {
-      "per": "木3-4",
-      "day": "木",
-      "periodStart": 3,
-      "periodEnd": 4,
-      "room": "M-B107(H104)",
-      "quarter": "3Q"
-    },
-    "LAE.E213": {
-      "per": "木3-4",
-      "day": "木",
-      "periodStart": 3,
-      "periodEnd": 4,
-      "room": "M-B107(H104)",
-      "quarter": "3Q"
-    },
-    "LAE.E214:29-LS": {
-      "per": "木3-4",
-      "day": "木",
-      "periodStart": 3,
-      "periodEnd": 4,
-      "room": "M-B43(H106)",
-      "quarter": "4Q"
-    },
-    "LAE.E214": {
-      "per": "木3-4",
-      "day": "木",
-      "periodStart": 3,
-      "periodEnd": 4,
-      "room": "M-B43(H106)",
-      "quarter": "4Q"
-    },
-    "LAH.H206": {
-      "per": "月1-2",
-      "day": "月",
-      "periodStart": 1,
-      "periodEnd": 2,
-      "room": "S2-204(S221)",
-      "quarter": "2Q"
-    },
-    "LAH.S213": {
-      "per": "月1-2",
-      "day": "月",
-      "periodStart": 1,
-      "periodEnd": 2,
-      "room": "M-278(H121)",
-      "quarter": "3Q"
-    },
-    "ENT.V206": {
-      "per": null,
-      "day": null,
-      "periodStart": null,
-      "periodEnd": null,
-      "room": null,
-      "quarter": "4Q"
-    },
-    "DSA.B201:2": {
-      "per": "水5-6",
-      "day": "水",
-      "periodStart": 5,
-      "periodEnd": 6,
-      "room": "南4号館3階第2演習室",
-      "quarter": "3Q",
-      "building": "S4"
-    },
-    "DSA.B201": {
-      "per": "水5-6",
-      "day": "水",
-      "periodStart": 5,
-      "periodEnd": 6,
-      "room": "南4号館3階第2演習室",
-      "quarter": "3Q",
-      "building": "S4"
-    },
-    "DSA.B202:2": {
-      "per": "水5-6",
-      "day": "水",
-      "periodStart": 5,
-      "periodEnd": 6,
-      "room": "南4号館3階第2演習室",
-      "quarter": "4Q",
-      "building": "S4"
-    },
-    "DSA.B202": {
-      "per": "水5-6",
-      "day": "水",
-      "periodStart": 5,
-      "periodEnd": 6,
-      "room": "南4号館3階第2演習室",
-      "quarter": "4Q",
-      "building": "S4"
-    },
-    "LAE.E311:申告専用": [
+    "@202601913": [
       {
-        "per": "月3-4",
+        "per": "月5-8",
         "day": "月",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "S3-206",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "各研究室",
         "quarter": "1Q",
-        "building": "S3",
-        "dept": "LAE"
-      },
-      {
-        "per": "水1-2",
-        "day": "水",
-        "periodStart": 1,
-        "periodEnd": 2,
-        "room": "M-112",
-        "quarter": "3Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水3-4",
-        "day": "水",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-135",
-        "quarter": "3Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水3-4",
-        "day": "水",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-112",
-        "quarter": "3Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水5-6",
-        "day": "水",
-        "periodStart": 5,
-        "periodEnd": 6,
-        "room": "M-135",
-        "quarter": "3Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水5-6",
-        "day": "水",
-        "periodStart": 5,
-        "periodEnd": 6,
-        "room": "J2-302",
-        "quarter": "3Q",
-        "building": "J2",
-        "dept": "LAE"
-      },
-      {
-        "per": "木3-4",
-        "day": "木",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "W5-107",
-        "quarter": "3Q",
-        "building": "W5",
-        "dept": "LAE"
-      },
-      {
-        "per": "月3-4",
-        "day": "月",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-B45",
-        "quarter": "4Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "月3-4",
-        "day": "月",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "W9-325",
-        "quarter": "4Q",
-        "building": "W9",
-        "dept": "LAE"
-      },
-      {
-        "per": "水1-2",
-        "day": "水",
-        "periodStart": 1,
-        "periodEnd": 2,
-        "room": "M-143A",
-        "quarter": "4Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水3-4",
-        "day": "水",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-112",
-        "quarter": "4Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水3-4",
-        "day": "水",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-155",
-        "quarter": "1Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水3-4",
-        "day": "水",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-B45",
-        "quarter": "4Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水5-6",
-        "day": "水",
-        "periodStart": 5,
-        "periodEnd": 6,
-        "room": "M-135",
-        "quarter": "4Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "木3-4",
-        "day": "木",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "W8E-306",
-        "quarter": "4Q",
-        "building": "W8E",
-        "dept": "LAE"
-      },
-      {
-        "per": "水5-6",
-        "day": "水",
-        "periodStart": 5,
-        "periodEnd": 6,
-        "room": "J2-302",
-        "quarter": "1Q",
-        "building": "J2",
-        "dept": "LAE"
-      },
-      {
-        "per": "月3-4",
-        "day": "月",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-B45",
-        "quarter": "2Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水3-4",
-        "day": "水",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "W5-105",
-        "quarter": "2Q",
-        "building": "W5",
-        "dept": "LAE"
-      },
-      {
-        "per": "月3-4",
-        "day": "月",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "I3-203",
-        "quarter": "3Q",
-        "building": "I3",
-        "dept": "LAE"
-      },
-      {
-        "per": "月3-4",
-        "day": "月",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-B107",
-        "quarter": "3Q",
-        "building": "M",
-        "dept": "LAE"
-      }
-    ],
-    "LAE.E311": [
-      {
-        "per": "月3-4",
-        "day": "月",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "S3-206",
-        "quarter": "1Q",
-        "building": "S3",
-        "dept": "LAE"
-      },
-      {
-        "per": "水1-2",
-        "day": "水",
-        "periodStart": 1,
-        "periodEnd": 2,
-        "room": "M-112",
-        "quarter": "3Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水3-4",
-        "day": "水",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-135",
-        "quarter": "3Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水3-4",
-        "day": "水",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-112",
-        "quarter": "3Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水5-6",
-        "day": "水",
-        "periodStart": 5,
-        "periodEnd": 6,
-        "room": "M-135",
-        "quarter": "3Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水5-6",
-        "day": "水",
-        "periodStart": 5,
-        "periodEnd": 6,
-        "room": "J2-302",
-        "quarter": "3Q",
-        "building": "J2",
-        "dept": "LAE"
-      },
-      {
-        "per": "木3-4",
-        "day": "木",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "W5-107",
-        "quarter": "3Q",
-        "building": "W5",
-        "dept": "LAE"
-      },
-      {
-        "per": "月3-4",
-        "day": "月",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-B45",
-        "quarter": "4Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "月3-4",
-        "day": "月",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "W9-325",
-        "quarter": "4Q",
-        "building": "W9",
-        "dept": "LAE"
-      },
-      {
-        "per": "水1-2",
-        "day": "水",
-        "periodStart": 1,
-        "periodEnd": 2,
-        "room": "M-143A",
-        "quarter": "4Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水3-4",
-        "day": "水",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-112",
-        "quarter": "4Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水3-4",
-        "day": "水",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-155",
-        "quarter": "1Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水3-4",
-        "day": "水",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-B45",
-        "quarter": "4Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水5-6",
-        "day": "水",
-        "periodStart": 5,
-        "periodEnd": 6,
-        "room": "M-135",
-        "quarter": "4Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "木3-4",
-        "day": "木",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "W8E-306",
-        "quarter": "4Q",
-        "building": "W8E",
-        "dept": "LAE"
-      },
-      {
-        "per": "水5-6",
-        "day": "水",
-        "periodStart": 5,
-        "periodEnd": 6,
-        "room": "J2-302",
-        "quarter": "1Q",
-        "building": "J2",
-        "dept": "LAE"
-      },
-      {
-        "per": "月3-4",
-        "day": "月",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-B45",
-        "quarter": "2Q",
-        "building": "M",
-        "dept": "LAE"
-      },
-      {
-        "per": "水3-4",
-        "day": "水",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "W5-105",
-        "quarter": "2Q",
-        "building": "W5",
-        "dept": "LAE"
-      },
-      {
-        "per": "月3-4",
-        "day": "月",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "I3-203",
-        "quarter": "3Q",
-        "building": "I3",
-        "dept": "LAE"
-      },
-      {
-        "per": "月3-4",
-        "day": "月",
-        "periodStart": 3,
-        "periodEnd": 4,
-        "room": "M-B107",
-        "quarter": "3Q",
-        "building": "M",
-        "dept": "LAE"
+        "building": null,
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601913"
       }
     ],
     "MEC.Z381": [
@@ -746,7 +23,21 @@
         "room": "各研究室",
         "quarter": "1Q",
         "building": null,
-        "dept": "MEC"
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601913"
+      }
+    ],
+    "@202601862": [
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "S2-203",
+        "quarter": "1Q",
+        "building": "S2",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601862"
       }
     ],
     "MEC.I334": [
@@ -758,7 +49,32 @@
         "room": "S2-203",
         "quarter": "1Q",
         "building": "S2",
-        "dept": "MEC"
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601862"
+      }
+    ],
+    "@202601842": [
+      {
+        "per": "火5-6",
+        "day": "火",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "W2-402",
+        "quarter": "1Q",
+        "building": "W2",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601842"
+      },
+      {
+        "per": "金5-6",
+        "day": "金",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "W2-402",
+        "quarter": "1Q",
+        "building": "W2",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601842"
       }
     ],
     "MEC.I312": [
@@ -767,20 +83,35 @@
         "day": "火",
         "periodStart": 5,
         "periodEnd": 6,
-        "room": "SL-101",
+        "room": "W2-402",
         "quarter": "1Q",
-        "building": "SL",
-        "dept": "MEC"
+        "building": "W2",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601842"
       },
       {
         "per": "金5-6",
         "day": "金",
         "periodStart": 5,
         "periodEnd": 6,
-        "room": "SL-101",
+        "room": "W2-402",
         "quarter": "1Q",
-        "building": "SL",
-        "dept": "MEC"
+        "building": "W2",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601842"
+      }
+    ],
+    "@202601839": [
+      {
+        "per": "火1-4",
+        "day": "火",
+        "periodStart": 1,
+        "periodEnd": 4,
+        "room": "W2-401",
+        "quarter": "1Q",
+        "building": "W2",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601839"
       }
     ],
     "MEC.D311": [
@@ -792,7 +123,21 @@
         "room": "W2-401",
         "quarter": "1Q",
         "building": "W2",
-        "dept": "MEC"
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601839"
+      }
+    ],
+    "@202601568": [
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "W3-201",
+        "quarter": "1Q",
+        "building": "W3",
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110300-0/202601568"
       }
     ],
     "LAL.K301:a": [
@@ -804,7 +149,8 @@
         "room": "W3-201",
         "quarter": "1Q",
         "building": "W3",
-        "dept": "LAL"
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110300-0/202601568"
       }
     ],
     "LAL.K301": [
@@ -816,7 +162,60 @@
         "room": "W3-201",
         "quarter": "1Q",
         "building": "W3",
-        "dept": "LAL"
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110300-0/202601568"
+      }
+    ],
+    "@202617478": [
+      {
+        "per": "",
+        "day": null,
+        "periodStart": null,
+        "periodEnd": null,
+        "room": null,
+        "quarter": "1Q",
+        "building": null,
+        "dept": "LAE",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110200-0/202617478"
+      }
+    ],
+    "LAE.E311:申告専用": [
+      {
+        "per": "",
+        "day": null,
+        "periodStart": null,
+        "periodEnd": null,
+        "room": null,
+        "quarter": "1Q",
+        "building": null,
+        "dept": "LAE",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110200-0/202617478"
+      }
+    ],
+    "LAE.E311": [
+      {
+        "per": "",
+        "day": null,
+        "periodStart": null,
+        "periodEnd": null,
+        "room": null,
+        "quarter": "1Q",
+        "building": null,
+        "dept": "LAE",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110200-0/202617478"
+      }
+    ],
+    "@202601847": [
+      {
+        "per": "水3-4",
+        "day": "水",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "SL-101",
+        "quarter": "2Q",
+        "building": "SL",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601847"
       }
     ],
     "MEC.K332": [
@@ -825,10 +224,24 @@
         "day": "水",
         "periodStart": 3,
         "periodEnd": 4,
+        "room": "SL-101",
+        "quarter": "2Q",
+        "building": "SL",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601847"
+      }
+    ],
+    "@202601861": [
+      {
+        "per": "木5-8",
+        "day": "木",
+        "periodStart": 5,
+        "periodEnd": 8,
         "room": "I1-256",
         "quarter": "2Q",
         "building": "I1",
-        "dept": "MEC"
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601861"
       }
     ],
     "MEC.I333": [
@@ -840,7 +253,21 @@
         "room": "I1-256",
         "quarter": "2Q",
         "building": "I1",
-        "dept": "MEC"
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601861"
+      }
+    ],
+    "@202637916": [
+      {
+        "per": "金1-4",
+        "day": "金",
+        "periodStart": 1,
+        "periodEnd": 4,
+        "room": "I1-256",
+        "quarter": "2Q",
+        "building": "I1",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202637916"
       }
     ],
     "MEC.B334": [
@@ -852,7 +279,21 @@
         "room": "I1-256",
         "quarter": "2Q",
         "building": "I1",
-        "dept": "MEC"
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202637916"
+      }
+    ],
+    "@202601569": [
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "W3-201",
+        "quarter": "2Q",
+        "building": "W3",
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110300-0/202601569"
       }
     ],
     "LAL.K302:a": [
@@ -864,7 +305,8 @@
         "room": "W3-201",
         "quarter": "2Q",
         "building": "W3",
-        "dept": "LAL"
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110300-0/202601569"
       }
     ],
     "LAL.K302": [
@@ -876,7 +318,975 @@
         "room": "W3-201",
         "quarter": "2Q",
         "building": "W3",
-        "dept": "LAL"
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110300-0/202601569"
+      }
+    ],
+    "@202501822": [
+      {
+        "per": "木1-4",
+        "day": "木",
+        "periodStart": 1,
+        "periodEnd": 4,
+        "room": "M-B07",
+        "quarter": "1Q",
+        "building": "M",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501822"
+      }
+    ],
+    "MEC.C201": [
+      {
+        "per": "木1-4",
+        "day": "木",
+        "periodStart": 1,
+        "periodEnd": 4,
+        "room": "M-B07",
+        "quarter": "1Q",
+        "building": "M",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501822"
+      }
+    ],
+    "@202536186": [
+      {
+        "per": "月5-8",
+        "day": "月",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "W2-401",
+        "quarter": "1Q",
+        "building": "W2",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202536186"
+      }
+    ],
+    "MEC.A211": [
+      {
+        "per": "月5-8",
+        "day": "月",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "W2-401",
+        "quarter": "1Q",
+        "building": "W2",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202536186"
+      }
+    ],
+    "@202511236": [
+      {
+        "per": "木5-8",
+        "day": "木",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "M-B07, I3- 201A～C, I3-303",
+        "quarter": "1Q",
+        "building": "M, I3",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202511236"
+      }
+    ],
+    "MEC.A202": [
+      {
+        "per": "木5-8",
+        "day": "木",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "M-B07, I3- 201A～C, I3-303",
+        "quarter": "1Q",
+        "building": "M, I3",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202511236"
+      }
+    ],
+    "@202501820": [
+      {
+        "per": "水1-4",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 4,
+        "room": "M-278",
+        "quarter": "1Q",
+        "building": "M",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501820"
+      }
+    ],
+    "MEC.A201": [
+      {
+        "per": "水1-4",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 4,
+        "room": "M-278",
+        "quarter": "1Q",
+        "building": "M",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501820"
+      }
+    ],
+    "@202534738": [
+      {
+        "per": "火1-2",
+        "day": "火",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "第4ラボ(西3号館8階)",
+        "quarter": "1Q",
+        "building": "W3",
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110300-0/202534738"
+      }
+    ],
+    "LAL.S201:S16": [
+      {
+        "per": "火1-2",
+        "day": "火",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "第4ラボ(西3号館8階)",
+        "quarter": "1Q",
+        "building": "W3",
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110300-0/202534738"
+      }
+    ],
+    "LAL.S201": [
+      {
+        "per": "火1-2",
+        "day": "火",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "第4ラボ(西3号館8階)",
+        "quarter": "1Q",
+        "building": "W3",
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110300-0/202534738"
+      }
+    ],
+    "@202501156": [
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "W3-301",
+        "quarter": "1Q",
+        "building": "W3",
+        "dept": "LAE",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110200-0/202501156"
+      }
+    ],
+    "LAE.E211:14-RW": [
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "W3-301",
+        "quarter": "1Q",
+        "building": "W3",
+        "dept": "LAE",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110200-0/202501156"
+      }
+    ],
+    "LAE.E211": [
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "W3-301",
+        "quarter": "1Q",
+        "building": "W3",
+        "dept": "LAE",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110200-0/202501156"
+      }
+    ],
+    "@202536190": [
+      {
+        "per": "金1-4",
+        "day": "金",
+        "periodStart": 1,
+        "periodEnd": 4,
+        "room": "WL1-401",
+        "quarter": "2Q",
+        "building": "WL1",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202536190"
+      }
+    ],
+    "MEC.I212": [
+      {
+        "per": "金1-4",
+        "day": "金",
+        "periodStart": 1,
+        "periodEnd": 4,
+        "room": "WL1-401",
+        "quarter": "2Q",
+        "building": "WL1",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202536190"
+      }
+    ],
+    "@202501905": [
+      {
+        "per": "木3-8",
+        "day": "木",
+        "periodStart": 3,
+        "periodEnd": 8,
+        "room": "W2-401, I3-201A，C",
+        "quarter": "2Q",
+        "building": "W2, I3",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501905"
+      }
+    ],
+    "MEC.H202": [
+      {
+        "per": "木3-8",
+        "day": "木",
+        "periodStart": 3,
+        "periodEnd": 8,
+        "room": "W2-401, I3-201A，C",
+        "quarter": "2Q",
+        "building": "W2, I3",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501905"
+      }
+    ],
+    "@202501906": [
+      {
+        "per": "火5-8",
+        "day": "火",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "M-B07",
+        "quarter": "2Q",
+        "building": "M",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501906"
+      }
+    ],
+    "MEC.E201": [
+      {
+        "per": "火5-8",
+        "day": "火",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "M-B07",
+        "quarter": "2Q",
+        "building": "M",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501906"
+      }
+    ],
+    "@202501865": [
+      {
+        "per": "月5-8",
+        "day": "月",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "S2-203(S222) ，I3-302，303，310",
+        "quarter": "2Q",
+        "building": "S2",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501865"
+      }
+    ],
+    "MEC.B201": [
+      {
+        "per": "月5-8",
+        "day": "月",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "S2-203(S222) ，I3-302，303，310",
+        "quarter": "2Q",
+        "building": "S2",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501865"
+      }
+    ],
+    "@202536187": [
+      {
+        "per": "金5-8",
+        "day": "金",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "WL1-301",
+        "quarter": "2Q",
+        "building": "WL1",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202536187"
+      }
+    ],
+    "MEC.A212": [
+      {
+        "per": "金5-8",
+        "day": "金",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "WL1-301",
+        "quarter": "2Q",
+        "building": "WL1",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202536187"
+      }
+    ],
+    "@202534743": [
+      {
+        "per": "火1-2",
+        "day": "火",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "第4ラボ(西3号館8階)",
+        "quarter": "2Q",
+        "building": "W3",
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110300-0/202534743"
+      }
+    ],
+    "LAL.S202:S16": [
+      {
+        "per": "火1-2",
+        "day": "火",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "第4ラボ(西3号館8階)",
+        "quarter": "2Q",
+        "building": "W3",
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110300-0/202534743"
+      }
+    ],
+    "LAL.S202": [
+      {
+        "per": "火1-2",
+        "day": "火",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "第4ラボ(西3号館8階)",
+        "quarter": "2Q",
+        "building": "W3",
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110300-0/202534743"
+      }
+    ],
+    "@202500887": [
+      {
+        "per": "月1-2",
+        "day": "月",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "S2-204",
+        "quarter": "2Q",
+        "building": "S2",
+        "dept": "LAH",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110100-0/202500887"
+      },
+      {
+        "per": "木1-2",
+        "day": "木",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "S2-204",
+        "quarter": "2Q",
+        "building": "S2",
+        "dept": "LAH",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110100-0/202500887"
+      }
+    ],
+    "LAH.H206": [
+      {
+        "per": "月1-2",
+        "day": "月",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "S2-204",
+        "quarter": "2Q",
+        "building": "S2",
+        "dept": "LAH",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110100-0/202500887"
+      },
+      {
+        "per": "木1-2",
+        "day": "木",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "S2-204",
+        "quarter": "2Q",
+        "building": "S2",
+        "dept": "LAH",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110100-0/202500887"
+      }
+    ],
+    "@202501204": [
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "W3-301",
+        "quarter": "2Q",
+        "building": "W3",
+        "dept": "LAE",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110200-0/202501204"
+      }
+    ],
+    "LAE.E212:14-RW": [
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "W3-301",
+        "quarter": "2Q",
+        "building": "W3",
+        "dept": "LAE",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110200-0/202501204"
+      }
+    ],
+    "LAE.E212": [
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "W3-301",
+        "quarter": "2Q",
+        "building": "W3",
+        "dept": "LAE",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110200-0/202501204"
+      }
+    ],
+    "@202538881": [
+      {
+        "per": "水5-6",
+        "day": "水",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "南4号館3階第2演習室",
+        "quarter": "3Q",
+        "building": "S4",
+        "dept": "DSA",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/0/0-981-400037-0-0/202538881"
+      }
+    ],
+    "DSA.B201:2": [
+      {
+        "per": "水5-6",
+        "day": "水",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "南4号館3階第2演習室",
+        "quarter": "3Q",
+        "building": "S4",
+        "dept": "DSA",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/0/0-981-400037-0-0/202538881"
+      }
+    ],
+    "DSA.B201": [
+      {
+        "per": "水5-6",
+        "day": "水",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "南4号館3階第2演習室",
+        "quarter": "3Q",
+        "building": "S4",
+        "dept": "DSA",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/0/0-981-400037-0-0/202538881"
+      }
+    ],
+    "@202501889": [
+      {
+        "per": "火1-4",
+        "day": "火",
+        "periodStart": 1,
+        "periodEnd": 4,
+        "room": "S2-203",
+        "quarter": "3Q",
+        "building": "S2",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501889"
+      }
+    ],
+    "MEC.I211": [
+      {
+        "per": "火1-4",
+        "day": "火",
+        "periodStart": 1,
+        "periodEnd": 4,
+        "room": "S2-203",
+        "quarter": "3Q",
+        "building": "S2",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501889"
+      }
+    ],
+    "@202501826": [
+      {
+        "per": "金5-10",
+        "day": "金",
+        "periodStart": 5,
+        "periodEnd": 10,
+        "room": "I1-256, I1-204, I3-301～3, 310",
+        "quarter": "3Q",
+        "building": "I1, I3",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501826"
+      }
+    ],
+    "MEC.H203": [
+      {
+        "per": "金5-10",
+        "day": "金",
+        "periodStart": 5,
+        "periodEnd": 10,
+        "room": "I1-256, I1-204, I3-301～3, 310",
+        "quarter": "3Q",
+        "building": "I1, I3",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501826"
+      }
+    ],
+    "@202501895": [
+      {
+        "per": "木5-8",
+        "day": "木",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "M-278",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501895"
+      }
+    ],
+    "MEC.F201": [
+      {
+        "per": "木5-8",
+        "day": "木",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "M-278",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501895"
+      }
+    ],
+    "@202501901": [
+      {
+        "per": "月5-8",
+        "day": "月",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "WL1-301(レクチャーシアター)",
+        "quarter": "3Q",
+        "building": "WL1",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501901"
+      }
+    ],
+    "MEC.D201": [
+      {
+        "per": "月5-8",
+        "day": "月",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "WL1-301(レクチャーシアター)",
+        "quarter": "3Q",
+        "building": "WL1",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501901"
+      }
+    ],
+    "@202501837": [
+      {
+        "per": "金1-4",
+        "day": "金",
+        "periodStart": 1,
+        "periodEnd": 4,
+        "room": "WL1-301(レクチャーシアター)",
+        "quarter": "3Q",
+        "building": "WL1",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501837"
+      }
+    ],
+    "MEC.C211": [
+      {
+        "per": "金1-4",
+        "day": "金",
+        "periodStart": 1,
+        "periodEnd": 4,
+        "room": "WL1-301(レクチャーシアター)",
+        "quarter": "3Q",
+        "building": "WL1",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501837"
+      }
+    ],
+    "@202536188": [
+      {
+        "per": "火5-8",
+        "day": "火",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "I1-256",
+        "quarter": "3Q",
+        "building": "I1",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202536188"
+      }
+    ],
+    "MEC.B221": [
+      {
+        "per": "火5-8",
+        "day": "火",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "I1-256",
+        "quarter": "3Q",
+        "building": "I1",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202536188"
+      }
+    ],
+    "@202537756": [
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "S2-202",
+        "quarter": "3Q",
+        "building": "S2",
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110300-0/202537756"
+      }
+    ],
+    "LAL.S203:S38": [
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "S2-202",
+        "quarter": "3Q",
+        "building": "S2",
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110300-0/202537756"
+      }
+    ],
+    "LAL.S203": [
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "S2-202",
+        "quarter": "3Q",
+        "building": "S2",
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110300-0/202537756"
+      }
+    ],
+    "@202519046": [
+      {
+        "per": "月1-2",
+        "day": "月",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "M-278",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAH",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110100-0/202519046"
+      },
+      {
+        "per": "木1-2",
+        "day": "木",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "M-278",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAH",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110100-0/202519046"
+      }
+    ],
+    "LAH.S213": [
+      {
+        "per": "月1-2",
+        "day": "月",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "M-278",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAH",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110100-0/202519046"
+      },
+      {
+        "per": "木1-2",
+        "day": "木",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "M-278",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAH",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110100-0/202519046"
+      }
+    ],
+    "@202501267": [
+      {
+        "per": "木3-4",
+        "day": "木",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-B107",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAE",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110200-0/202501267"
+      }
+    ],
+    "LAE.E213:29-LS": [
+      {
+        "per": "木3-4",
+        "day": "木",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-B107",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAE",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110200-0/202501267"
+      }
+    ],
+    "LAE.E213": [
+      {
+        "per": "木3-4",
+        "day": "木",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-B107",
+        "quarter": "3Q",
+        "building": "M",
+        "dept": "LAE",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110200-0/202501267"
+      }
+    ],
+    "@202537648": [
+      {
+        "per": "",
+        "day": null,
+        "periodStart": null,
+        "periodEnd": null,
+        "room": null,
+        "quarter": "3-4Q",
+        "building": null,
+        "dept": "ENT",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110610-0/202537648"
+      }
+    ],
+    "ENT.V206": [
+      {
+        "per": "",
+        "day": null,
+        "periodStart": null,
+        "periodEnd": null,
+        "room": null,
+        "quarter": "3-4Q",
+        "building": null,
+        "dept": "ENT",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110610-0/202537648"
+      }
+    ],
+    "@202538882": [
+      {
+        "per": "水5-6",
+        "day": "水",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "南4号館3階第2演習室",
+        "quarter": "4Q",
+        "building": "S4",
+        "dept": "DSA",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/0/0-981-400037-0-0/202538882"
+      }
+    ],
+    "DSA.B202:2": [
+      {
+        "per": "水5-6",
+        "day": "水",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "南4号館3階第2演習室",
+        "quarter": "4Q",
+        "building": "S4",
+        "dept": "DSA",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/0/0-981-400037-0-0/202538882"
+      }
+    ],
+    "DSA.B202": [
+      {
+        "per": "水5-6",
+        "day": "水",
+        "periodStart": 5,
+        "periodEnd": 6,
+        "room": "南4号館3階第2演習室",
+        "quarter": "4Q",
+        "building": "S4",
+        "dept": "DSA",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/0/0-981-400037-0-0/202538882"
+      }
+    ],
+    "@202501849": [
+      {
+        "per": "月5-8",
+        "day": "月",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "石川台1号館 204，253号室",
+        "quarter": "4Q",
+        "building": "I1",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501849"
+      }
+    ],
+    "MEC.P211:B": [
+      {
+        "per": "月5-8",
+        "day": "月",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "石川台1号館 204，253号室",
+        "quarter": "4Q",
+        "building": "I1",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501849"
+      }
+    ],
+    "MEC.P211": [
+      {
+        "per": "月5-8",
+        "day": "月",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "石川台1号館 204，253号室",
+        "quarter": "4Q",
+        "building": "I1",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202501849"
+      }
+    ],
+    "@202536189": [
+      {
+        "per": "木5-8",
+        "day": "木",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "M-124",
+        "quarter": "4Q",
+        "building": "M",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202536189"
+      }
+    ],
+    "MEC.B222": [
+      {
+        "per": "木5-8",
+        "day": "木",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "M-124",
+        "quarter": "4Q",
+        "building": "M",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/2/0-902-321500-0-0/202536189"
+      }
+    ],
+    "@202537802": [
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "S2-201",
+        "quarter": "4Q",
+        "building": "S2",
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110300-0/202537802"
+      }
+    ],
+    "LAL.S204:S38": [
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "S2-201",
+        "quarter": "4Q",
+        "building": "S2",
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110300-0/202537802"
+      }
+    ],
+    "LAL.S204": [
+      {
+        "per": "水1-2",
+        "day": "水",
+        "periodStart": 1,
+        "periodEnd": 2,
+        "room": "S2-201",
+        "quarter": "4Q",
+        "building": "S2",
+        "dept": "LAL",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110300-0/202537802"
+      }
+    ],
+    "@202501317": [
+      {
+        "per": "木3-4",
+        "day": "木",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-B43",
+        "quarter": "4Q",
+        "building": "M",
+        "dept": "LAE",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110200-0/202501317"
+      }
+    ],
+    "LAE.E214:29-LS": [
+      {
+        "per": "木3-4",
+        "day": "木",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-B43",
+        "quarter": "4Q",
+        "building": "M",
+        "dept": "LAE",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110200-0/202501317"
+      }
+    ],
+    "LAE.E214": [
+      {
+        "per": "木3-4",
+        "day": "木",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "M-B43",
+        "quarter": "4Q",
+        "building": "M",
+        "dept": "LAE",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2025/7/0-907-0-110200-0/202501317"
       }
     ]
   }

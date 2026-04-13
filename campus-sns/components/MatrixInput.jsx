@@ -11,6 +11,9 @@ export function MatrixInput({ matrix, setMatrix }) {
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [pasteError, setPasteError] = useState("");
   const fileRef = useRef(null);
   const filled = COLS.every(c => ROWS.every(r => matrix[c]?.[r]));
 
@@ -44,6 +47,39 @@ export function MatrixInput({ matrix, setMatrix }) {
     setConfirmOpen(false);
     fileRef.current?.click();
   }, []);
+
+  const handlePasteApply = useCallback(() => {
+    setPasteError("");
+    let arr = null;
+    try {
+      const parsed = JSON.parse(pasteText);
+      if (Array.isArray(parsed)) arr = parsed.map(s => String(s).trim());
+    } catch {
+      // Fallback: extract letters A-Z (one per position)
+      const letters = pasteText.match(/[A-Za-z]/g);
+      if (letters) arr = letters;
+    }
+    if (!arr) { setPasteError("JSON配列または文字列として解釈できません"); return; }
+    if (arr.length !== COLS.length * ROWS.length) {
+      setPasteError(`70文字必要です（入力: ${arr.length}文字）`);
+      return;
+    }
+    const next = {};
+    let i = 0;
+    for (const col of COLS) {
+      next[col] = {};
+      for (const row of ROWS) {
+        const v = String(arr[i] || "").toUpperCase().slice(0, 1);
+        next[col][row] = v;
+        i++;
+      }
+    }
+    setMatrix(next);
+    setPasteOpen(false);
+    setPasteText("");
+    setExpanded(true);
+    setScanMsg({ type: 'ok', text: '70セルを一括入力しました。結果を確認してください。' });
+  }, [pasteText, setMatrix]);
 
   const handleScan = useCallback(async (e) => {
     const file = e.target.files?.[0];
@@ -101,7 +137,58 @@ export function MatrixInput({ matrix, setMatrix }) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
           {scanning ? "読み取り中..." : "カード写真から読み取り"}
         </button>
+        <button onClick={() => { setPasteOpen(true); setPasteError(""); }} style={{
+          width: "100%", marginTop: 6, padding: "8px 0",
+          background: "none", border: "none", color: T.txD,
+          fontSize: 11, cursor: "pointer", textDecoration: "underline",
+        }}>
+          または、配列/文字列から一括入力
+        </button>
       </div>
+
+      {/* 一括貼り付けダイアログ */}
+      {pasteOpen && <>
+        <div onClick={() => setPasteOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 999 }} />
+        <div style={{
+          position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+          width: "min(420px, 92vw)", background: T.bg2, borderRadius: 14,
+          border: `1px solid ${T.bd}`, boxShadow: "0 8px 32px rgba(0,0,0,.4)",
+          padding: 20, zIndex: 1000,
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.txH, marginBottom: 8 }}>一括入力</div>
+          <p style={{ fontSize: 12, color: T.txD, lineHeight: 1.6, margin: "0 0 10px" }}>
+            A1→A7→B1→B7→...→J7 の順で70文字。JSON配列（<code style={{ fontFamily: "monospace" }}>{'["G","P",...]'}</code>）または連続文字列を貼り付けてください。
+          </p>
+          <textarea
+            value={pasteText}
+            onChange={e => { setPasteText(e.target.value); setPasteError(""); }}
+            placeholder={'["G","P","O","A","K","C","L", ...]'}
+            rows={6}
+            style={{
+              width: "100%", padding: 10, borderRadius: 8,
+              border: `1px solid ${pasteError ? T.red : T.bd}`,
+              background: T.bg3, color: T.txH, fontSize: 12,
+              fontFamily: "monospace", outline: "none", resize: "vertical",
+              boxSizing: "border-box",
+            }}
+          />
+          {pasteError && (
+            <div style={{ fontSize: 11, color: T.red, marginTop: 6 }}>{pasteError}</div>
+          )}
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button onClick={() => { setPasteOpen(false); setPasteText(""); setPasteError(""); }} style={{
+              flex: 1, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 600,
+              border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, cursor: "pointer",
+            }}>キャンセル</button>
+            <button onClick={handlePasteApply} disabled={!pasteText.trim()} style={{
+              flex: 1, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 700,
+              border: "none", background: T.accent, color: "#fff",
+              cursor: pasteText.trim() ? "pointer" : "not-allowed",
+              opacity: pasteText.trim() ? 1 : 0.5,
+            }}>適用</button>
+          </div>
+        </div>
+      </>}
 
       {/* 同意確認ダイアログ */}
       {confirmOpen && <>
