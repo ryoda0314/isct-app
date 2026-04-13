@@ -428,10 +428,26 @@ const SharedMaterials=({courseId,mob,onSelect})=>{
 /* ──────────────────────────────────────────────
    Main MatView — 2-tab layout
    ────────────────────────────────────────────── */
-export const MatView=({course,mob})=>{
+export const MatView=({course,mob,initialMatId,onInitialConsumed})=>{
   const {sections,totalFiles,loading,error}=useCourseMaterials(course?.moodleId);
   const [tab,setTab]=useState(0); // 0=講義資料, 1=みんなの共有
   const [sel,setSel]=useState(null);
+
+  // ホーム「今日の教材」から特定教材を開いた場合、教材一覧ロード後に自動選択
+  const initialConsumedRef=useRef(false);
+  useEffect(()=>{
+    if(!initialMatId||!sections.length||initialConsumedRef.current)return;
+    for(const sec of sections){
+      const m=sec.materials.find(x=>x.id===initialMatId);
+      if(m){
+        initialConsumedRef.current=true;
+        if(canPreview(m)) setSel(m);
+        else if(m.fileurl) window.open(m.fileurl,'_blank');
+        onInitialConsumed?.();
+        return;
+      }
+    }
+  },[initialMatId,sections,onInitialConsumed]);
 
   /* Mobile: full-screen preview */
   if(sel&&mob) return <Preview m={sel} mob onClose={()=>setSel(null)}/>;

@@ -59,7 +59,7 @@ const getQA=()=>{try{const v=localStorage.getItem("quickAccess");return v?JSON.p
 
 export { QA_ALL, QA_DEFAULT };
 
-export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvents=[],quarter,hiddenSet=new Set(),qd,qDataAll={},goToBuilding,setDid,userDepts=[],userSchools=[],userUnit,medSessions=[]})=>{
+export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvents=[],quarter,hiddenSet=new Set(),qd,qDataAll={},goToBuilding,setDid,userDepts=[],userSchools=[],userUnit,medSessions=[],setPendingMat})=>{
   const [qaIds]=useState(getQA);
   const isMed=medSessions.length>0;
   const qaItems=qaIds.map(id=>QA_ALL.find(q=>q.id===id)).filter(Boolean).filter(q=>(isNative()||!(q.id==="portal"||q.id==="isctportal"))&&(!isDemoMode()||!(q.id==="portal"||q.id==="isctportal"))&&!(isMed&&q.id==="portal"));
@@ -605,7 +605,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
       </div>
 
       {/* ── 今日の教材 ── */}
-      <TodayMaterials courses={todayCoursesForMat} mob={mob} setCid={setCid} setView={setView} setCh={setCh}/>
+      <TodayMaterials courses={todayCoursesForMat} mob={mob} setCid={setCid} setView={setView} setCh={setCh} setPendingMat={setPendingMat}/>
 
       <div style={{height:12}}/>
     </div>

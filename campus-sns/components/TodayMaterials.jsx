@@ -4,8 +4,9 @@ import { useCourseMaterials } from "../hooks/useCourseMaterials.js";
 
 const TC={pdf:'#e5534b',slide:'#d4843e',document:'#6375f0',spreadsheet:'#3dae72',image:'#a855c7',video:'#2d9d8f',audio:'#c6a236',archive:'#68687a',code:'#3dae72',text:'#68687a',link:'#6375f0',file:'#68687a'};
 const TL={pdf:'PDF',slide:'スライド',document:'文書',spreadsheet:'表計算',image:'画像',video:'動画',audio:'音声',archive:'圧縮',code:'コード',text:'テキスト',link:'リンク',file:'ファイル'};
+const PREVIEWABLE=new Set(['pdf','image','video','audio']);
 
-const CourseMatCard=({course,mob,setCid,setView,setCh})=>{
+const CourseMatCard=({course,mob,setCid,setView,setCh,setPendingMat})=>{
   const {sections,totalFiles,loading,error}=useCourseMaterials(course.moodleId);
   const [open,setOpen]=useState(false);
   const allMats=sections.flatMap(s=>s.materials);
@@ -25,9 +26,19 @@ const CourseMatCard=({course,mob,setCid,setView,setCh})=>{
         {allMats.map(mat=>{
           const tc=TC[mat.fileType]||"#68687a";
           const tl=TL[mat.fileType]||"ファイル";
-          const href=mat.modname==="url"?mat.fileurl:mat.fileurl;
+          const canPrev=PREVIEWABLE.has(mat.fileType)&&mat.fileurl;
+          const onClick=e=>{
+            if(canPrev){
+              e.preventDefault();
+              setPendingMat?.({courseId:course.id,matId:mat.id});
+              setCid(course.id);
+              setCh("materials");
+              setView("course");
+            }
+          };
           return(
-            <a key={mat.id} href={href} target="_blank" rel="noopener noreferrer"
+            <a key={mat.id} href={canPrev?"#":mat.fileurl} target={canPrev?undefined:"_blank"} rel="noopener noreferrer"
+              onClick={onClick}
               style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px 5px 16px",textDecoration:"none",cursor:"pointer",background:"transparent",transition:"background .1s"}}
               onMouseEnter={e=>e.currentTarget.style.background=T.bg3}
               onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
@@ -49,7 +60,7 @@ const CourseMatCard=({course,mob,setCid,setView,setCh})=>{
   );
 };
 
-export const TodayMaterials=({courses,mob,setCid,setView,setCh})=>{
+export const TodayMaterials=({courses,mob,setCid,setView,setCh,setPendingMat})=>{
   if(!courses||courses.length===0)return null;
   return(
     <div style={{padding:"4px 16px 8px"}}>
@@ -57,7 +68,7 @@ export const TodayMaterials=({courses,mob,setCid,setView,setCh})=>{
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txH} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         <span style={{fontWeight:700,color:T.txH,fontSize:14}}>今日の教材</span>
       </div>
-      {courses.map(c=><CourseMatCard key={c.id} course={c} mob={mob} setCid={setCid} setView={setView} setCh={setCh}/>)}
+      {courses.map(c=><CourseMatCard key={c.id} course={c} mob={mob} setCid={setCid} setView={setView} setCh={setCh} setPendingMat={setPendingMat}/>)}
     </div>
   );
 };
