@@ -13,6 +13,7 @@ import { openPortal, openIsctPortal } from "../plugins/portalWebView.js";
 import { isDemoMode } from "../demoMode.js";
 import { DEMO_EXAMS } from "../demoData.js";
 import { AnnouncementBanner } from "../AnnouncementBanner.jsx";
+import { TodayMaterials } from "../components/TodayMaterials.jsx";
 
 // SVG weather icons — clean, consistent style
 const WxIcon=({type,sz=20})=>{const s={width:sz,height:sz,display:"inline-block",verticalAlign:"middle",flexShrink:0};
@@ -175,6 +176,9 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
     const tt=getTT(getCurrentQuarter(now),todayAY);
     return PD.map((pd,pi)=>{const co=tt[pi]?.[di];if(!co)return null;const sM=pd.s[0]*60+pd.s[1],eM=pd.e[0]*60+pd.e[1];const st=nowMin>=eM?"done":nowMin>=sM?"now":"next";return{co,pd,pi,st,sM,eM,type:"class"};}).filter(Boolean);
   })();
+
+  // 今日の授業のユニーク科目一覧（教材表示用）
+  const todayCoursesForMat=(()=>{const seen=new Set();return todayClasses.filter(c=>{if(!c.co?.moodleId||seen.has(c.co.id))return false;seen.add(c.co.id);return true;}).map(c=>c.co);})();
 
   const vis=asgn.filter(a=>!hiddenSet.has(a.id));
   const active=vis.filter(a=>a.st!=="completed");
@@ -599,6 +603,10 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
         </div>}
 
       </div>
+
+      {/* ── 今日の教材 ── */}
+      <TodayMaterials courses={todayCoursesForMat} mob={mob} setCid={setCid} setView={setView} setCh={setCh}/>
+
       <div style={{height:12}}/>
     </div>
 
