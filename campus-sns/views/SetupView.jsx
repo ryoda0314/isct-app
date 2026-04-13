@@ -179,6 +179,20 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
 
   const [showGuide, setShowGuide] = useState(true);
   const [zoomImg, setZoomImg] = useState(null);
+  const [showManual, setShowManual] = useState(false);
+  const [manualInput, setManualInput] = useState("");
+  const [manualError, setManualError] = useState("");
+  const handleManualSubmit = () => {
+    const cleaned = manualInput.replace(/\s/g, "").toUpperCase();
+    if (!/^[A-Z2-7]+=*$/.test(cleaned) || cleaned.length < 16) {
+      setManualError("Base32形式（A-Z, 2-7）で16文字以上を入力してください");
+      return;
+    }
+    setTotpSecret(cleaned);
+    setShowManual(false);
+    setManualInput("");
+    setManualError("");
+  };
 
   const guideSteps = [
     { n: 1, text: "ISCTアカウントページにログインし、「多要素認証 (OTP)」タブを開く", img: "/guide/step1.png", top: 0, h: 109, zoom: "192%", ml: "-61%" },
@@ -261,18 +275,73 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
           </div>
         </div>
       )}
-      {!totpSecret && !showQR && (
-        <button onClick={() => setShowQR(true)} style={{
-          width: "100%", padding: "12px 0", borderRadius: 8,
-          border: `1px solid ${T.accent}40`, background: `${T.accent}08`,
-          color: T.accent, fontSize: 13, fontWeight: 600, cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+      {!totpSecret && !showQR && !showManual && (
+        <>
+          <button onClick={() => setShowQR(true)} style={{
+            width: "100%", padding: "12px 0", borderRadius: 8,
+            border: `1px solid ${T.accent}40`, background: `${T.accent}08`,
+            color: T.accent, fontSize: 13, fontWeight: 600, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+            </svg>
+            QRコードをスキャンして設定
+          </button>
+          <button onClick={() => { setShowManual(true); setManualError(""); }} style={{
+            width: "100%", marginTop: 6, padding: "8px 0",
+            background: "none", border: "none", color: T.txD,
+            fontSize: 11, cursor: "pointer", textDecoration: "underline",
+          }}>
+            または、シークレットキーを手入力
+          </button>
+        </>
+      )}
+      {showManual && (
+        <div style={{
+          padding: 12, borderRadius: 8,
+          border: `1px solid ${T.bd}`, background: T.bg3,
         }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
-          </svg>
-          QRコードをスキャンして設定
-        </button>
+          <label style={{ fontSize: 11, fontWeight: 600, color: T.txD, display: "block", marginBottom: 6 }}>
+            シークレットキー（Base32形式）
+          </label>
+          <input
+            type="text"
+            value={manualInput}
+            onChange={(e) => { setManualInput(e.target.value); setManualError(""); }}
+            placeholder="例: TT5SOVTA4BFN4IND"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            style={{
+              width: "100%", padding: "10px", borderRadius: 6,
+              border: `1px solid ${manualError ? T.red : T.bd}`,
+              background: T.bg2, color: T.txH, fontSize: 13,
+              fontFamily: "monospace", letterSpacing: 1, outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+          {manualError && (
+            <div style={{ fontSize: 11, color: T.red, marginTop: 6 }}>{manualError}</div>
+          )}
+          <div style={{ fontSize: 10, color: T.txD, marginTop: 6, lineHeight: 1.5 }}>
+            ISCTアカウントページのアプリ認証設定で、QRコードと一緒に表示されるシークレットキー文字列です
+          </div>
+          <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+            <button onClick={() => { setShowManual(false); setManualInput(""); setManualError(""); }} style={{
+              flex: 1, padding: "9px 0", borderRadius: 6,
+              border: `1px solid ${T.bd}`, background: T.bg2,
+              color: T.txD, fontSize: 12, fontWeight: 600, cursor: "pointer",
+            }}>キャンセル</button>
+            <button onClick={handleManualSubmit} disabled={!manualInput.trim()} style={{
+              flex: 1, padding: "9px 0", borderRadius: 6,
+              border: "none", background: T.accent,
+              color: "#fff", fontSize: 12, fontWeight: 700,
+              cursor: manualInput.trim() ? "pointer" : "not-allowed",
+              opacity: manualInput.trim() ? 1 : 0.5,
+            }}>登録</button>
+          </div>
+        </div>
       )}
       {showQR && (
         <QRScanner
