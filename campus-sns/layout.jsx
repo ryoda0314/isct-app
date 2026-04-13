@@ -133,7 +133,9 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
     ?[{id:"timeline",n:"タイムライン",i:I.feed},{id:"chat",n:"チャット",i:I.chat}]
     :[{id:"timeline",n:"タイムライン",i:I.feed},{id:"chat",n:"チャット",i:I.chat},{id:"assignments",n:"課題",i:I.tasks},{id:"materials",n:"教材",i:I.clip},{id:"reviews",n:"レビュー",i:I.star}];
   const col=isDept?dept.col:course?.col;
-  const onlineIds=new Set(online.map(u=>String(u.id)));
+  const memberIds=new Set(members.map(m=>String(m.id)));
+  const onlineMembers=online.filter(u=>memberIds.has(String(u.id)));
+  const onlineIds=new Set(onlineMembers.map(u=>String(u.id)));
   const offline=members.filter(m=>!onlineIds.has(String(m.id)));
   const W=compact?160:210;
   return(
@@ -151,9 +153,9 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
       <div style={{padding:"5px 0",flex:1,overflowY:"auto"}}>
         <div style={{padding:compact?"5px 8px 3px":"5px 12px 3px",fontSize:10,fontWeight:700,color:T.txD,textTransform:"uppercase",letterSpacing:.7}}>Channels</div>
         {chs.map(c=><button key={c.id} onClick={()=>setCh(c.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:6,padding:compact?"5px 8px":"5px 12px",border:"none",cursor:"pointer",fontSize:compact?11:12,background:ch===c.id?`${T.accent}14`:"transparent",color:ch===c.id?T.txH:T.txD,textAlign:"left",borderLeft:ch===c.id?`2px solid ${T.accent}`:"2px solid transparent"}}><span style={{color:ch===c.id?T.accent:T.txD,display:"flex"}}>{c.i}</span><span style={{flex:1}}>{c.n}</span></button>)}
-        {!compact&&online.length>0&&<>
-          <div style={{padding:"10px 12px 3px",fontSize:10,fontWeight:700,color:T.txD,textTransform:"uppercase",letterSpacing:.7}}>Online — {online.length}</div>
-          {online.map(u=><UserRow key={u.id} u={u} isOnline/>)}
+        {!compact&&onlineMembers.length>0&&<>
+          <div style={{padding:"10px 12px 3px",fontSize:10,fontWeight:700,color:T.txD,textTransform:"uppercase",letterSpacing:.7}}>Online — {onlineMembers.length}</div>
+          {onlineMembers.map(u=><UserRow key={u.id} u={u} isOnline/>)}
         </>}
         {!compact&&offline.length>0&&<>
           <div style={{padding:"10px 12px 3px",fontSize:10,fontWeight:700,color:T.txD,textTransform:"uppercase",letterSpacing:.7}}>Offline — {offline.length}</div>
