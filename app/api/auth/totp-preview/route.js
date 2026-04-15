@@ -1,23 +1,11 @@
 import { NextResponse } from 'next/server';
 import { authenticator } from 'otplib';
-import { verifySession, COOKIE_NAME } from '../../../../lib/auth/session.js';
 
-/**
- * POST /api/auth/totp-preview
- * Generate a TOTP code from a secret for preview purposes during setup.
- * Requires a valid session cookie to prevent unauthorized TOTP generation.
- * Uses POST to avoid exposing the secret in URL/query parameters/logs.
- * Returns the 6-digit code and seconds remaining until expiry.
- */
+// Called from the registration flow before a session exists, so this endpoint
+// is intentionally unauthenticated. Safe because the caller must already
+// possess the secret to get a code — we're not a TOTP oracle for unknown secrets.
 export async function POST(request) {
   try {
-    // Require at least a valid session (setup flow already has a session)
-    const cookie = request.cookies.get(COOKIE_NAME)?.value;
-    const session = verifySession(cookie);
-    if (!session) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-
     const body = await request.json();
     const secret = body?.secret;
 
