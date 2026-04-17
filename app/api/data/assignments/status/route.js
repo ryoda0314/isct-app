@@ -11,13 +11,20 @@ export async function POST(request) {
 
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
-    const { wstoken } = auth;
+    const { wstoken, userid, fullname } = auth;
 
-    const { assignments } = await request.json();
+    const { assignments, clientFailure } = await request.json();
     if (!Array.isArray(assignments) || assignments.length === 0) {
       return NextResponse.json({ statuses: {} });
     }
-    console.log(`[AssignStatus Timing] start: ${assignments.length} items, concurrency=${CONCURRENCY}`);
+    console.log(`[AssignStatus Timing] start: ${assignments.length} items, concurrency=${CONCURRENCY}, user=${userid} (${fullname || '-'})`);
+    if (clientFailure) {
+      // Client-side Moodle call failed and fell through to server. This is the
+      // critical diagnostic data — correlate with user to find who's stuck.
+      console.warn(`[AssignStatus] user=${userid} fell back from client-side. clientFailure=${JSON.stringify(clientFailure).substring(0, 1500)}`);
+    } else {
+      console.warn(`[AssignStatus] user=${userid} server-side call with NO clientFailure payload — likely old client bundle or unexpected path`);
+    }
 
     // Fetch submission status with concurrency limit
     const statuses = {};

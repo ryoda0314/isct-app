@@ -403,22 +403,27 @@ export default function App(){
   const fetchSubmissionStatusesClientSide=async(currentAsgn,wstoken)=>{
     const CONCURRENCY=5;
     const statuses={};
+    const errors=[]; // {id, moodleId, name, code, httpStatus, message}
+    const emptySubmissions=[]; // {id, moodleId} — succeeded but no submission data
     for(let i=0;i<currentAsgn.length;i+=CONCURRENCY){
       const batch=currentAsgn.slice(i,i+CONCURRENCY);
       await Promise.all(batch.map(async({id,moodleId})=>{
         try{
           const status=await moodleFetchSubmissionStatus(wstoken,moodleId);
-          if(!status?.lastattempt?.submission) return;
+          if(!status?.lastattempt?.submission){emptySubmissions.push({id,moodleId});return;}
           const sub=status.lastattempt.submission;
           let st='not_started';
           if(sub.status==='submitted') st='completed';
           else if(sub.status==='draft') st='in_progress';
           else if(sub.status==='new'&&sub.timemodified>0) st='in_progress';
           statuses[id]={st,sub:st==='completed'?new Date(sub.timemodified*1000).toISOString():null};
-        }catch(e){console.error(`[App] client submission status failed for ${id}:`,e.message);}
+        }catch(e){
+          errors.push({id,moodleId,name:e.name,code:e.code||null,httpStatus:e.httpStatus||null,message:(e.message||'').substring(0,200)});
+          console.error(`[App] client submission status failed for ${id} (moodle:${moodleId}): name=${e.name} code=${e.code||'-'} msg=${e.message}`);
+        }
       }));
     }
-    return statuses;
+    return {statuses,errors,emptySubmissions};
   };
 
   const fetchSubmissionStatuses=async(assignList)=>{
@@ -432,18 +437,28 @@ export default function App(){
       console.log(`[Timing] fetchSubmissionStatuses: requesting ${currentAsgn.length} items`);
 
       let statuses=null;
+      let clientFailure=null; // summary sent to server on fallback for Vercel-side diagnostics
 
       // Try client-side first (token from in-memory cache)
       try{
         const{wstoken}=await getClientToken();
-        statuses=await fetchSubmissionStatusesClientSide(currentAsgn,wstoken);
-        if(Object.keys(statuses).length>0) console.log(`[Timing] client-side submission statuses: ${(performance.now()-t0).toFixed(0)}ms`);
-        else statuses=null;
-      }catch(e){console.warn('[App] client-side submission status failed, falling back:',e.message);}
+        const res=await fetchSubmissionStatusesClientSide(currentAsgn,wstoken);
+        statuses=res.statuses;
+        if(Object.keys(statuses).length>0){
+          console.log(`[Timing] client-side submission statuses: ${(performance.now()-t0).toFixed(0)}ms (ok=${Object.keys(statuses).length} errors=${res.errors.length} empty=${res.emptySubmissions.length})`);
+        }else{
+          clientFailure={stage:'moodle_calls',total:currentAsgn.length,errors:res.errors.slice(0,10),emptyCount:res.emptySubmissions.length};
+          console.warn(`[App] client-side returned 0 statuses — errors=${res.errors.length} empty=${res.emptySubmissions.length}`);
+          statuses=null;
+        }
+      }catch(e){
+        clientFailure={stage:'token_or_setup',name:e.name,code:e.code||null,message:(e.message||'').substring(0,200)};
+        console.warn(`[App] client-side submission status threw: name=${e.name} code=${e.code||'-'} msg=${e.message}`);
+      }
 
       // Fallback to server-side
       if(!statuses){
-        const body=JSON.stringify({assignments:currentAsgn});
+        const body=JSON.stringify({assignments:currentAsgn,clientFailure});
         for(let attempt=1;attempt<=3;attempt++){
           try{
             const r=await fetch(`${API}/api/data/assignments/status`,{method:'POST',headers:{'Content-Type':'application/json'},body});
