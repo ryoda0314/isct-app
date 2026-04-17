@@ -748,7 +748,9 @@ export default function App(){
     </div>;
   };
 
-  const lmsDownBanner=lmsDown?<div style={{padding:"8px 16px",background:"#fef3cd",color:"#856404",fontSize:13,fontWeight:500,textAlign:"center",borderBottom:"1px solid #ffc107",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+  const userSchoolKey=user?.myDept?DEPTS[user.myDept]?.school:null;
+  const isMedDentalUser=userSchoolKey==="medicine"||userSchoolKey==="dentistry";
+  const lmsDownBanner=(lmsDown&&!isMedDentalUser)?<div style={{padding:"8px 16px",background:"#fef3cd",color:"#856404",fontSize:13,fontWeight:500,textAlign:"center",borderBottom:"1px solid #ffc107",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
     <span style={{fontSize:16}}>!</span>
     <span>T2SCHOLAに接続できないため、前回のデータを表示しています</span>
     <button onClick={async()=>{const r=await fetchData();if(r)setLmsDown(false);}} style={{marginLeft:8,padding:"3px 10px",borderRadius:6,border:"1px solid #856404",background:"transparent",color:"#856404",fontSize:12,cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}}>再試行</button>
