@@ -750,6 +750,7 @@ export default function App(){
 
   const userSchoolKey=user?.myDept?DEPTS[user.myDept]?.school:null;
   const isMedDentalUser=userSchoolKey==="medicine"||userSchoolKey==="dentistry";
+  const hasMed=medRawCourses.length>0||isMedDentalUser||!!user?.isAdmin;
   const lmsDownBanner=(lmsDown&&!isMedDentalUser)?<div style={{padding:"8px 16px",background:"#fef3cd",color:"#856404",fontSize:13,fontWeight:500,textAlign:"center",borderBottom:"1px solid #ffc107",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
     <span style={{fontSize:16}}>!</span>
     <span>T2SCHOLAに接続できないため、前回のデータを表示しています</span>
@@ -836,7 +837,7 @@ export default function App(){
     return(
       <div style={{display:"flex",height:"100dvh",width:"100%",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
 
-        <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} dmUnread={dmUnread} courses={allCourses} depts={userDepts} schools={userSchools} user={user} quarter={quarter} academicYear={_selY} pendingFriendCount={pendingFriendCount} userUnit={userUnit} compact={false} narrow={bp==="tablet"} hasMed={medRawCourses.length>0||user?.isAdmin}/>
+        <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} dmUnread={dmUnread} courses={allCourses} depts={userDepts} schools={userSchools} user={user} quarter={quarter} academicYear={_selY} pendingFriendCount={pendingFriendCount} userUnit={userUnit} compact={false} narrow={bp==="tablet"} hasMed={hasMed}/>
         {bp!=="mobile"&&view==="course"&&cc&&<DChan course={cc} ch={ch} setCh={setCh} online={online} members={members} compact={bp==="tablet"}/>}
         {bp!=="mobile"&&view==="dept"&&cd&&<DChan dept={cd} ch={ch} setCh={setCh} online={online} members={deptMembers} compact={bp==="tablet"}/>}
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
@@ -910,7 +911,7 @@ export default function App(){
         {view==="admin"&&<><MHdr title="管理者" back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
         {view==="freshman"&&<><MHdr title="新入生掲示板" back={mBack}/><FreshmanBoardView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/></>}
       </div>
-      <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread} hasMed={medRawCourses.length>0}/>
+      <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread} hasMed={hasMed}/>
       <div className="sa-bottom" style={{background:T.bg2,flexShrink:0}}/>
       {showMembers&&(view==="course"&&cc?<MemberPanel mList={members} onlineList={online} col={cc.col} onClose={()=>setShowMembers(false)}/>:view==="dept"&&cd?<MemberPanel mList={deptMembers} onlineList={online} col={cd.col||T.accent} onClose={()=>setShowMembers(false)}/>:null)}
       {showDeptModal&&<DeptModal user={user} onClose={()=>setDeptModalDone(true)}/>}
