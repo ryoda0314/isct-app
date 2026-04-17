@@ -156,7 +156,7 @@ const _WeekGrid_unused = ({ weekDates, byDate, gridStart, gridHeight, colorMap, 
  * Medical/Dental timetable view.
  * Shows session-based schedule fetched from yushima2 syllabus system.
  */
-export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, asgn = [], hiddenSet = new Set() }) => {
+export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, asgn = [], hiddenSet = new Set(), onRefresh }) => {
   const [sessions, setSessions] = useState([]);
   const [courseMeta, setCourseMeta] = useState({});
   const [loading, setLoading] = useState(false);
@@ -165,8 +165,20 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
   const [viewMode, setViewMode] = useState("week"); // "week" | "calendar"
   const [calMonth, setCalMonth] = useState(() => ({ y: new Date().getFullYear(), m: new Date().getMonth() }));
   const [selDay, setSelDay] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [capturedCourses, setCapturedCourses] = useState([]);
+
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      if (onRefresh) await onRefresh();
+      await fetchSessions();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // lct_cd to hide (duplicate module entries where the parent course is preferred)
   // 021181(顔面・顎・口腔疾患) → 021180(顎口腔医療) が同一モジュールで完全重複、021180側を優先
@@ -361,7 +373,24 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
           <span style={{ fontSize: 11, color: T.txD, background: T.bg3, padding: "2px 8px", borderRadius: 6 }}>{medCourses.length}科目</span>
           {sessions.length > 0 && <span style={{ fontSize: 10, color: T.txD, background: T.bg3, padding: "2px 6px", borderRadius: 6 }}>{faculty === "MED" ? "医学部" : "歯学部"}</span>}
         </div>
-        <div style={{ display: "flex", gap: 4 }}>
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          {onRefresh && (
+            <>
+              <style>{`@keyframes medttSpin{to{transform:rotate(360deg)}}`}</style>
+              <button onClick={handleRefresh} disabled={refreshing} title="Moodleから再取得" style={{
+                background: T.bg3, border: `1px solid ${T.bd}`, borderRadius: 8, padding: "4px 10px",
+                cursor: refreshing ? "default" : "pointer", display: "flex", alignItems: "center", gap: 4,
+                fontSize: 12, fontWeight: 600, color: refreshing ? T.txD : T.txH,
+                opacity: refreshing ? .6 : 1, transition: "all .2s",
+              }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ animation: refreshing ? "medttSpin 1s linear infinite" : "none" }}>
+                  <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+                </svg>
+                {refreshing ? "更新中..." : "更新"}
+              </button>
+            </>
+          )}
           {["week", "calendar"].map(m => (
             <button key={m} onClick={() => setViewMode(m)} style={{
               padding: "4px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
