@@ -72,17 +72,28 @@ export async function callMoodleAPI(wstoken, wsfunction, params = {}) {
     }
   }
 
-  const resp = await fetch(LMS_API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  });
+  let resp;
+  try {
+    resp = await fetch(LMS_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+  } catch (e) {
+    console.error(`[MoodleAPI] network error wsfunction=${wsfunction} name=${e.name} msg=${e.message}`);
+    const err = new Error(`Moodle network error (${wsfunction}): ${e.message}`);
+    err.code = 'MOODLE_NETWORK_ERROR';
+    err.cause = e;
+    throw err;
+  }
 
   const text = await resp.text();
 
   if (text.startsWith('<') || text.startsWith('<!')) {
-    const err = new Error(`Moodle returned HTML: ${text.substring(0, 120)}`);
+    console.error(`[MoodleAPI] HTML response wsfunction=${wsfunction} status=${resp.status} preview=${text.substring(0, 200)}`);
+    const err = new Error(`Moodle returned HTML (status=${resp.status}): ${text.substring(0, 120)}`);
     err.code = 'MOODLE_HTML_RESPONSE';
+    err.httpStatus = resp.status;
     throw err;
   }
 
@@ -90,10 +101,12 @@ export async function callMoodleAPI(wstoken, wsfunction, params = {}) {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error(`Moodle response is not valid JSON: ${text.substring(0, 120)}`);
+    console.error(`[MoodleAPI] invalid JSON wsfunction=${wsfunction} status=${resp.status} preview=${text.substring(0, 200)}`);
+    throw new Error(`Moodle response is not valid JSON (status=${resp.status}): ${text.substring(0, 120)}`);
   }
 
   if (data.exception) {
+    console.error(`[MoodleAPI] exception wsfunction=${wsfunction} errorcode=${data.errorcode} msg=${data.message}`);
     throw new Error(`Moodle API [${data.errorcode}]: ${data.message}`);
   }
 

@@ -22,9 +22,14 @@ export async function POST(request) {
     const lctCds = toFetch.map(c => c.lctCd);
     const codeByLctCd = {};
     for (const c of toFetch) codeByLctCd[c.lctCd] = c.code;
+    console.log(`[MedSchedule] user=${auth.userid} coursesIn=${courses.length} lctCds=${lctCds.length} sample=${lctCds.slice(0,5).join(',')}`);
 
     // Read from DB
     const dbRows = await lookupMedSessionsFromDB(lctCds, '2026');
+    console.log(`[MedSchedule] dbRows=${dbRows.length} year=2026`);
+    if (dbRows.length === 0 && lctCds.length > 0) {
+      console.warn(`[MedSchedule] DB empty for year=2026 lctCds=${lctCds.slice(0,10).join(',')} — scrape_med_syllabus may not have been run for 2026 yet`);
+    }
 
     const allSessions = [];
     const courseMeta = {};

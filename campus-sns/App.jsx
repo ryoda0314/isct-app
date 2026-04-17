@@ -302,47 +302,67 @@ export default function App(){
   /** Client-side Moodle API flow: fetch token, call Moodle directly, then send to server for transforms */
   const fetchDataClientSide=async()=>{
     const t0=performance.now();
-    // Step 1: Get token (in-memory cached, auto-expires after 10min)
-    let wstoken,userid;
+    let step='init';
+    const tag=(s)=>{step=s;console.log(`[ClientFetch] step=${s} t=${(performance.now()-t0).toFixed(0)}ms`);};
     try{
-      ({wstoken,userid}=await getClientToken());
+      // Step 1: Get token (in-memory cached, auto-expires after 10min)
+      tag('token');
+      let wstoken,userid;
+      try{
+        ({wstoken,userid}=await getClientToken());
+      }catch(e){
+        if(e.code==='AUTH_REQUIRED'){setAppState("setup");return false;}
+        console.error(`[ClientFetch] token fetch failed: name=${e.name} code=${e.code||'-'} msg=${e.message}`);
+        throw e;
+      }
+      console.log(`[Timing] client-side: token fetch ${(performance.now()-t0).toFixed(0)}ms`);
+
+      // Step 2: Call Moodle API directly from client
+      tag('courses');
+      const rawCourses=await moodleFetchCourses(wstoken,userid);
+      console.log(`[Timing] client-side: courses fetch ${(performance.now()-t0).toFixed(0)}ms (${rawCourses.length} courses)`);
+
+      // Extract medical/dental course info (fullname contains【lctCd】)
+      const medRaw=rawCourses.filter(c=>c.visible!==0&&/【\d{6}】/.test(c.fullname));
+      if(medRaw.length>0){
+        setMedRawCourses(medRaw);
+        // Fetch med sessions for home timeline
+        const medCrs=medRaw.map(c=>{const m=c.fullname.match(/【(\d{6})】/);const cm=c.shortname?.match(/([A-Z]{2,4}\.[A-Z]\d{3})/);return{code:cm?cm[1]:c.shortname,lctCd:m[1],name:c.fullname.split(" / ")[0].replace(/\s*\/?\s*【\d{6}】/,"").trim()};});
+        fetch("/api/data/med-schedule",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({courses:medCrs})}).then(r=>r.ok?r.json():null).then(d=>{if(d?.sessions)setMedSessions(d.sessions);}).catch(()=>{});
+      }
+
+      tag('assignments');
+      const moodleIds=rawCourses.filter(c=>c.visible!==0).map(c=>c.id);
+      let rawAssignments=null;
+      try{rawAssignments=await moodleFetchAssignments(wstoken,moodleIds);}
+      catch(e){console.error(`[ClientFetch] assignment fetch soft-fail: name=${e.name} code=${e.code||'-'} msg=${e.message}`);}
+      console.log(`[Timing] client-side: assignments fetch ${(performance.now()-t0).toFixed(0)}ms`);
+
+      // Step 3: Send raw data to server for transforms (syllabus, timetable, profile)
+      tag('all-meta');
+      const metaR=await fetch(`${API}/api/data/all-meta`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({rawCourses,rawAssignments}),
+      });
+      if(!metaR.ok){
+        const body=await metaR.text().catch(()=>'<body read failed>');
+        console.error(`[ClientFetch] all-meta failed status=${metaR.status} body=${body.substring(0,300)}`);
+        throw new Error(`all-meta failed: ${metaR.status}`);
+      }
+      tag('parse');
+      const d=await metaR.json();
+      try{localStorage.setItem('dataAllCache',JSON.stringify(d));}catch{}
+      setLmsDown(false);
+      const asnList=applyData(d);
+      console.log(`[Timing] client-side total: ${(performance.now()-t0).toFixed(0)}ms`);
+      return asnList;
     }catch(e){
-      if(e.code==='AUTH_REQUIRED'){setAppState("setup");return false;}
+      console.error(`[ClientFetch] THREW at step=${step} t=${(performance.now()-t0).toFixed(0)}ms name=${e.name} code=${e.code||'-'} msg=${e.message}`);
+      if(e.stack) console.error(`[ClientFetch] stack:`,e.stack);
+      e.clientFetchStep=step;
       throw e;
     }
-    console.log(`[Timing] client-side: token fetch ${(performance.now()-t0).toFixed(0)}ms`);
-
-    // Step 2: Call Moodle API directly from client
-    const rawCourses=await moodleFetchCourses(wstoken,userid);
-    console.log(`[Timing] client-side: courses fetch ${(performance.now()-t0).toFixed(0)}ms (${rawCourses.length} courses)`);
-
-    // Extract medical/dental course info (fullname contains【lctCd】)
-    const medRaw=rawCourses.filter(c=>c.visible!==0&&/【\d{6}】/.test(c.fullname));
-    if(medRaw.length>0){
-      setMedRawCourses(medRaw);
-      // Fetch med sessions for home timeline
-      const medCrs=medRaw.map(c=>{const m=c.fullname.match(/【(\d{6})】/);const cm=c.shortname?.match(/([A-Z]{2,4}\.[A-Z]\d{3})/);return{code:cm?cm[1]:c.shortname,lctCd:m[1],name:c.fullname.split(" / ")[0].replace(/\s*\/?\s*【\d{6}】/,"").trim()};});
-      fetch("/api/data/med-schedule",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({courses:medCrs})}).then(r=>r.ok?r.json():null).then(d=>{if(d?.sessions)setMedSessions(d.sessions);}).catch(()=>{});
-    }
-
-    const moodleIds=rawCourses.filter(c=>c.visible!==0).map(c=>c.id);
-    let rawAssignments=null;
-    try{rawAssignments=await moodleFetchAssignments(wstoken,moodleIds);}catch(e){console.error('[App] client-side assignment fetch failed:',e.message);}
-    console.log(`[Timing] client-side: assignments fetch ${(performance.now()-t0).toFixed(0)}ms`);
-
-    // Step 3: Send raw data to server for transforms (syllabus, timetable, profile)
-    const metaR=await fetch(`${API}/api/data/all-meta`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({rawCourses,rawAssignments}),
-    });
-    if(!metaR.ok) throw new Error(`all-meta failed: ${metaR.status}`);
-    const d=await metaR.json();
-    try{localStorage.setItem('dataAllCache',JSON.stringify(d));}catch{}
-    setLmsDown(false);
-    const asnList=applyData(d);
-    console.log(`[Timing] client-side total: ${(performance.now()-t0).toFixed(0)}ms`);
-    return asnList;
   };
 
   /** Original server-side flow (fallback) */
@@ -369,11 +389,11 @@ export default function App(){
       // Try client-side Moodle API first (bypasses server-side 403 block)
       return await fetchDataClientSide();
     }catch(e){
-      console.warn('[App] client-side fetch failed, falling back to server-side:',e.message);
+      console.warn(`[App] client-side fetch failed at step=${e.clientFetchStep||'?'} name=${e.name} code=${e.code||'-'} msg=${e.message}, falling back to server-side`);
       try{
         return await fetchDataServerSide();
       }catch(e2){
-        console.error('[App] fetchData exception:',e2);
+        console.error(`[App] fetchData exception: name=${e2.name} code=${e2.code||'-'} msg=${e2.message}`,e2);
         return loadCachedData();
       }
     }

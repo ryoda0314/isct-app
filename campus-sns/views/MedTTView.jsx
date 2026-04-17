@@ -215,13 +215,22 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
         });
         if (!r.ok) { console.error("[MedTT] admin API error:", r.status); return; }
         const d = await r.json();
-        const cap = d.captures?.[0];
-        if (cap?.raw_courses) {
+        const caps = d.captures || [];
+        if (caps.length === 0) { console.log("[MedTT] No captures found"); return; }
+        // Find the most recent capture that actually contains med/dental courses
+        // (a capture from a non-med user would have 0 med courses and be useless)
+        let pickedMed = null;
+        let pickedUser = null;
+        for (const cap of caps) {
+          if (!cap?.raw_courses) continue;
           const med = cap.raw_courses.filter(c => /【\d{6}】/.test(c.fullname));
-          console.log("[MedTT] Found", med.length, "med courses from capture");
-          if (med.length > 0) setCapturedCourses(med);
+          if (med.length > 0) { pickedMed = med; pickedUser = cap.moodle_user_id; break; }
+        }
+        if (pickedMed) {
+          console.log(`[MedTT] Using capture from user=${pickedUser} with ${pickedMed.length} med courses (scanned ${caps.length} captures)`);
+          setCapturedCourses(pickedMed);
         } else {
-          console.log("[MedTT] No captures found");
+          console.log(`[MedTT] No capture contains med courses (scanned ${caps.length})`);
         }
       } catch (e) { console.error("[MedTT] capture load error:", e); }
     })();
