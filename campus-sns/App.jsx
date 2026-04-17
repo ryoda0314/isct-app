@@ -750,7 +750,10 @@ export default function App(){
 
   const userSchoolKey=user?.myDept?DEPTS[user.myDept]?.school:null;
   const isMedDentalUser=userSchoolKey==="medicine"||userSchoolKey==="dentistry";
+  // 医歯学時間割メニューの表示可否（admin は確認用に表示）
   const hasMed=medRawCourses.length>0||isMedDentalUser||!!user?.isAdmin;
+  // 下部ナビの「時間割」を「医歯学時間割」に置き換える条件（admin単独では置き換えない）
+  const medPrimary=medRawCourses.length>0||isMedDentalUser;
   const lmsDownBanner=(lmsDown&&!isMedDentalUser)?<div style={{padding:"8px 16px",background:"#fef3cd",color:"#856404",fontSize:13,fontWeight:500,textAlign:"center",borderBottom:"1px solid #ffc107",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
     <span style={{fontSize:16}}>!</span>
     <span>T2SCHOLAに接続できないため、前回のデータを表示しています</span>
@@ -911,7 +914,7 @@ export default function App(){
         {view==="admin"&&<><MHdr title="管理者" back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
         {view==="freshman"&&<><MHdr title="新入生掲示板" back={mBack}/><FreshmanBoardView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/></>}
       </div>
-      <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread} hasMed={hasMed}/>
+      <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread} hasMed={medPrimary}/>
       <div className="sa-bottom" style={{background:T.bg2,flexShrink:0}}/>
       {showMembers&&(view==="course"&&cc?<MemberPanel mList={members} onlineList={online} col={cc.col} onClose={()=>setShowMembers(false)}/>:view==="dept"&&cd?<MemberPanel mList={deptMembers} onlineList={online} col={cd.col||T.accent} onClose={()=>setShowMembers(false)}/>:null)}
       {showDeptModal&&<DeptModal user={user} onClose={()=>setDeptModalDone(true)}/>}
