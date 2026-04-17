@@ -996,6 +996,31 @@ export async function POST(request) {
     }
 
     if (action === 'get_captured_moodle') {
+      const { filter } = body;
+      // filter='med' → paginate through captures and return only those containing
+      // med/dental courses (fullname with 【6-digit lct_cd】). Needed because
+      // the raw LIMIT-50 list can be dominated by a single heavy user's recent
+      // captures, hiding other users' med-bearing captures.
+      if (filter === 'med') {
+        const MED_RE = /【\d{6}】/;
+        const PAGE = 100;
+        const out = [];
+        for (let from = 0; from < 1000 && out.length < 20; from += PAGE) {
+          const { data, error } = await sb.from('moodle_capture')
+            .select('*')
+            .order('captured_at', { ascending: false })
+            .range(from, from + PAGE - 1);
+          if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+          if (!data || data.length === 0) break;
+          for (const c of data) {
+            const hasMed = (c.raw_courses || []).some(x => MED_RE.test(x.fullname || ''));
+            if (hasMed) out.push(c);
+            if (out.length >= 20) break;
+          }
+          if (data.length < PAGE) break;
+        }
+        return NextResponse.json({ captures: out });
+      }
       const { data, error } = await sb.from('moodle_capture')
         .select('*')
         .order('captured_at', { ascending: false })

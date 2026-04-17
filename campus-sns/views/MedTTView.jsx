@@ -207,11 +207,11 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
     if (courses.length > 0) return;
     (async () => {
       try {
-        console.log("[MedTT] Loading captured moodle data...");
+        console.log("[MedTT] Loading captured moodle data (filter=med)...");
         const r = await fetch("/api/admin", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "get_captured_moodle" }),
+          body: JSON.stringify({ action: "get_captured_moodle", filter: "med" }),
         });
         if (!r.ok) { console.error("[MedTT] admin API error:", r.status); return; }
         const d = await r.json();
