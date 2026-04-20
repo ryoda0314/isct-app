@@ -58,6 +58,8 @@ export async function POST(request) {
           name: row.name,
           room: row.room || null,
           instructor: row.session_instructor || row.instructor,
+          sessionTitle: row.session_title || null,
+          sessionContent: row.session_content || null,
         });
       }
     }

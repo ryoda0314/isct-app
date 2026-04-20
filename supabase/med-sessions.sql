@@ -31,3 +31,8 @@ create index if not exists idx_med_sessions_date on med_sessions(date);
 create unique index if not exists idx_med_sessions_unique on med_sessions(lct_cd, year, coalesce(seq_no, ''), coalesce(date, ''), coalesce(time_start, ''));
 
 alter table med_sessions enable row level security;
+
+-- 授業題目・授業内容・到達目標列の追加（既存テーブルへの追加用）
+-- alter table med_sessions add column if not exists session_title   text;
+-- alter table med_sessions add column if not exists session_content text;
+-- alter table med_sessions add column if not exists session_goal    text;

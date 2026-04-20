@@ -5,6 +5,19 @@ import { isDemoMode } from "../demoMode.js";
 import { buildDemoMedSessions } from "../demoData.js";
 
 const DAYS = ["月", "火", "水", "木", "金"];
+
+const EXAM_RE = /試験|テスト/;
+// instructor 欄の完全一致パターン: "試験"等の短い値のみ。文中に試験を含む長い教員記述は誤検知を防ぐため除外
+const EXAM_INSTRUCTOR_RE = /^(試験|追再試験|追試験|筆記試験|ユニット試験|テスト)$/;
+const EXAM_COLOR = "#e5534b";
+const isExam = (s) =>
+  EXAM_RE.test(s.sessionTitle) ||
+  EXAM_RE.test(s.sessionContent) ||
+  EXAM_INSTRUCTOR_RE.test(s.instructor);
+const examLabel = (s) =>
+  (s.sessionTitle && EXAM_RE.test(s.sessionTitle)) ? s.sessionTitle :
+  (s.sessionContent && EXAM_RE.test(s.sessionContent)) ? s.sessionContent :
+  (s.instructor && EXAM_INSTRUCTOR_RE.test(s.instructor)) ? s.instructor : "試験";
 const COLORS = [
   "#6375f0", "#e5534b", "#3dae72", "#a855c7", "#d4843e", "#c6a236", "#2d9d8f", "#c75d8e",
   "#5b8def", "#d45d5d", "#46b87a", "#b06fd0", "#c08040", "#b8a830", "#35a898", "#c06090",
@@ -508,29 +521,49 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
                           const { s, startMin, endMin } = b;
                           const top = startMin * PX_PER_MIN;
                           const height = (endMin - startMin) * PX_PER_MIN;
-                          const col = colorMap[s.code] || COLORS[0];
+                          const exam = isExam(s);
+                          const col = exam ? EXAM_COLOR : (colorMap[s.code] || COLORS[0]);
                           const n = cntByCode(s.code);
                           return (
                             <div key={bi} onClick={() => goToCourse(s.code)} style={{
                               position: "absolute", top, height,
                               left: `calc(${(b.col / b.totalCols) * 100}% + 1px)`,
                               width: `calc(${(1 / b.totalCols) * 100}% - 2px)`,
-                              borderRadius: 6, background: `${col}18`, border: `1px solid ${col}40`,
+                              borderRadius: 6,
+                              background: exam ? `${EXAM_COLOR}22` : `${col}18`,
+                              border: exam ? `1.5px solid ${EXAM_COLOR}80` : `1px solid ${col}40`,
+                              boxShadow: exam ? `0 2px 8px ${EXAM_COLOR}30` : "none",
                               padding: "2px 4px", overflow: "hidden", cursor: "pointer",
                               fontSize: mob ? 8 : 10, lineHeight: 1.3,
-                            }} title={`${s.name}\n${s.timeStart}～${s.timeEnd}\n${s.room || ""}\n${s.instructor || ""}`}>
+                            }} title={`${s.name}\n${examLabel(s)}\n${s.timeStart}～${s.timeEnd}\n${s.room || ""}`}>
                               {n > 0 && <div style={{ position: "absolute", top: mob ? 2 : 3, right: mob ? 2 : 3, minWidth: mob ? 14 : 18, height: mob ? 14 : 18, borderRadius: 9, background: T.red, color: "#fff", fontSize: mob ? 7 : 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px", boxShadow: `0 2px 6px ${T.red}60`, zIndex: 1 }}>{n}</div>}
-                              <div style={{ fontWeight: 700, color: col, fontSize: mob ? 9 : 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {s.name}
-                              </div>
-                              {height >= 25 && (
-                                <div style={{ color: T.txD, fontSize: mob ? 7 : 9 }}>{s.timeStart}～{s.timeEnd}</div>
-                              )}
-                              {height >= 45 && s.room && (
-                                <div style={{ color: T.txD, fontSize: mob ? 7 : 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.room}</div>
-                              )}
-                              {height >= 60 && s.instructor && (
-                                <div style={{ color: T.txD, fontSize: mob ? 7 : 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.instructor}</div>
+                              {exam ? (
+                                <>
+                                  <div style={{ fontWeight: 800, color: EXAM_COLOR, fontSize: mob ? 9 : 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    ⚠ {examLabel(s)}
+                                  </div>
+                                  {height >= 25 && (
+                                    <div style={{ color: EXAM_COLOR, fontSize: mob ? 7 : 9, opacity: 0.8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
+                                  )}
+                                  {height >= 40 && (
+                                    <div style={{ color: T.txD, fontSize: mob ? 7 : 9 }}>{s.timeStart}～{s.timeEnd}</div>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <div style={{ fontWeight: 700, color: col, fontSize: mob ? 9 : 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {s.name}
+                                  </div>
+                                  {height >= 25 && (
+                                    <div style={{ color: T.txD, fontSize: mob ? 7 : 9 }}>{s.timeStart}～{s.timeEnd}</div>
+                                  )}
+                                  {height >= 45 && s.room && (
+                                    <div style={{ color: T.txD, fontSize: mob ? 7 : 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.room}</div>
+                                  )}
+                                  {height >= 60 && s.instructor && (
+                                    <div style={{ color: T.txD, fontSize: mob ? 7 : 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.instructor}</div>
+                                  )}
+                                </>
                               )}
                             </div>
                           );
@@ -614,19 +647,22 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
               const daySessions = dateStr ? (byDate[dateStr] || []) : [];
               const isToday = date && isSameDay(date, today);
               const isSel = date && selDay && isSameDay(date, selDay);
-              // Unique courses for this day
               const uniqueCourses = [...new Set(daySessions.map(s => s.code))];
+              const hasExam = daySessions.some(isExam);
 
               return (
                 <div key={i} onClick={() => { if (date) { setSelDay(date); setWeekStart(getMonday(date)); } }}
                   style={{
                     minHeight: mob ? 48 : 60, padding: 3, borderRadius: 6, cursor: isValid ? "pointer" : "default",
                     background: isSel ? `${T.accent}12` : isToday ? `${T.accent}06` : "transparent",
-                    border: isSel ? `1px solid ${T.accent}40` : `1px solid ${T.bd}`,
+                    border: isSel ? `1px solid ${T.accent}40` : hasExam ? `1px solid ${EXAM_COLOR}40` : `1px solid ${T.bd}`,
                   }}>
                   {isValid && (
                     <>
-                      <div style={{ fontSize: 11, fontWeight: isToday ? 700 : 400, color: isToday ? T.accent : T.txH, marginBottom: 2 }}>{dayNum}</div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+                        <div style={{ fontSize: 11, fontWeight: isToday ? 700 : 400, color: isToday ? T.accent : T.txH }}>{dayNum}</div>
+                        {hasExam && <div style={{ fontSize: 8, fontWeight: 700, color: EXAM_COLOR, background: `${EXAM_COLOR}18`, padding: "0px 3px", borderRadius: 3, lineHeight: "14px" }}>試</div>}
+                      </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                         {uniqueCourses.slice(0, 3).map(code => (
                           <div key={code} style={{
@@ -669,15 +705,21 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
                     merged.push({ ...s });
                   }
                 }
-                return merged.map((s, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < merged.length - 1 ? `1px solid ${T.bd}15` : "none" }}>
-                    <div style={{ width: 4, height: 28, borderRadius: 2, background: colorMap[s.code] || COLORS[0], flexShrink: 0 }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: T.txH }}>{s.name}</div>
-                      <div style={{ fontSize: 11, color: T.txD }}>{s.timeStart}～{s.timeEnd}　{s.room || ""}</div>
+                return merged.map((s, i) => {
+                  const exam = isExam(s);
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < merged.length - 1 ? `1px solid ${T.bd}15` : "none" }}>
+                      <div style={{ width: 4, height: 28, borderRadius: 2, background: exam ? EXAM_COLOR : (colorMap[s.code] || COLORS[0]), flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: T.txH }}>{s.name}</div>
+                          {exam && <div style={{ fontSize: 10, fontWeight: 700, color: EXAM_COLOR, background: `${EXAM_COLOR}18`, padding: "1px 6px", borderRadius: 4, border: `1px solid ${EXAM_COLOR}40`, whiteSpace: "nowrap" }}>⚠ {examLabel(s)}</div>}
+                        </div>
+                        <div style={{ fontSize: 11, color: T.txD }}>{s.timeStart}～{s.timeEnd}　{s.room || ""}</div>
+                      </div>
                     </div>
-                  </div>
-                ));
+                  );
+                });
               })()}
               <button onClick={() => { setViewMode("week"); setWeekStart(getMonday(selDay)); }}
                 style={{ marginTop: 8, fontSize: 11, padding: "4px 12px", borderRadius: 6, border: `1px solid ${T.accent}40`, background: `${T.accent}10`, color: T.accent, cursor: "pointer" }}>
