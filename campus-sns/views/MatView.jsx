@@ -155,30 +155,67 @@ const PdfViewer=({url,dlUrl,mob})=>{
     const top=c.getBoundingClientRect().top-el.getBoundingClientRect().top+el.scrollTop-8;
     el.scrollTo({top,behavior:"smooth"});
   };
-  const zoomIn=()=>setZoom(z=>Math.min(z+0.25,3));
-  const zoomOut=()=>setZoom(z=>Math.max(z-0.25,0.5));
+  /* Zoom helper that keeps a focal point (viewport-local x,y) stable.
+     Used by +/− buttons (focal = viewport center). */
+  const zoomAt=(newZoom,focalX,focalY)=>{
+    const el=containerRef.current,w=pagesWrapRef.current;
+    if(!el||!w||newZoom===zoom)return;
+    const wr=w.getBoundingClientRect();
+    const focalWrapX=focalX-wr.left,focalWrapY=focalY-wr.top;
+    const r=newZoom/zoom;
+    setZoom(newZoom);
+    let tries=0;
+    const correct=()=>{
+      const w2=pagesWrapRef.current;
+      if(!w2)return;
+      const wr2=w2.getBoundingClientRect();
+      el.scrollLeft+=wr2.left-(focalX-focalWrapX*r);
+      el.scrollTop+=wr2.top-(focalY-focalWrapY*r);
+      if(++tries<4)requestAnimationFrame(correct);
+    };
+    requestAnimationFrame(()=>requestAnimationFrame(correct));
+  };
+  const zoomAtCenter=nz=>{
+    const el=containerRef.current;
+    if(!el){setZoom(nz);return;}
+    const r=el.getBoundingClientRect();
+    zoomAt(nz,r.left+r.width/2,r.top+r.height/2);
+  };
+  const zoomIn=()=>zoomAtCenter(Math.min(zoom+0.25,3));
+  const zoomOut=()=>zoomAtCenter(Math.max(zoom-0.25,0.5));
 
-  /* Pinch-to-zoom (touch) + trackpad pinch (ctrl+wheel) */
+  /* Pinch-to-zoom (touch) + trackpad pinch (ctrl+wheel)
+     - Anchor the transform at the pinch midpoint so content under the user's
+       fingers stays put (native-feeling zoom direction).
+     - After commit, adjust scroll so the focal point ends up at the same
+       viewport position post-re-render. */
   useEffect(()=>{
     const el=containerRef.current;
     if(!el)return;
-    const pinch={active:false,startDist:0,startZoom:zoom,lastZoom:zoom};
+    const pinch={active:false,startDist:0,startZoom:zoom,lastZoom:zoom,
+                 midX:0,midY:0,focalWrapX:0,focalWrapY:0};
     const dist=(a,b)=>Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
-    const applyVisual=r=>{
-      const w=pagesWrapRef.current;
-      if(w){w.style.transformOrigin="center top";w.style.transform=`scale(${r})`;}
-    };
     const resetVisual=()=>{
       const w=pagesWrapRef.current;
       if(w){w.style.transform="";w.style.transformOrigin="";}
     };
     const onStart=e=>{
-      if(e.touches.length===2){
-        pinch.active=true;
-        pinch.startDist=dist(e.touches[0],e.touches[1])||1;
-        pinch.startZoom=zoom;
-        pinch.lastZoom=zoom;
-      }
+      if(e.touches.length!==2)return;
+      const t1=e.touches[0],t2=e.touches[1];
+      const midX=(t1.clientX+t2.clientX)/2;
+      const midY=(t1.clientY+t2.clientY)/2;
+      const w=pagesWrapRef.current;
+      if(!w)return;
+      const wr=w.getBoundingClientRect();
+      pinch.active=true;
+      pinch.startDist=dist(t1,t2)||1;
+      pinch.startZoom=zoom;
+      pinch.lastZoom=zoom;
+      pinch.midX=midX;
+      pinch.midY=midY;
+      pinch.focalWrapX=midX-wr.left;
+      pinch.focalWrapY=midY-wr.top;
+      w.style.transformOrigin=`${pinch.focalWrapX}px ${pinch.focalWrapY}px`;
     };
     const onMove=e=>{
       if(!pinch.active||e.touches.length<2)return;
@@ -187,20 +224,61 @@ const PdfViewer=({url,dlUrl,mob})=>{
       const ratio=d/pinch.startDist;
       const nz=Math.min(3,Math.max(0.5,pinch.startZoom*ratio));
       pinch.lastZoom=nz;
-      applyVisual(nz/pinch.startZoom);
+      const w=pagesWrapRef.current;
+      if(w)w.style.transform=`scale(${nz/pinch.startZoom})`;
     };
     const onEnd=e=>{
       if(!pinch.active)return;
       if(e.touches.length<2){
         pinch.active=false;
+        const r=pinch.lastZoom/pinch.startZoom;
+        const midX=pinch.midX,midY=pinch.midY;
+        const focalWrapX=pinch.focalWrapX,focalWrapY=pinch.focalWrapY;
         resetVisual();
-        if(pinch.lastZoom!==pinch.startZoom)setZoom(pinch.lastZoom);
+        if(pinch.lastZoom!==pinch.startZoom){
+          setZoom(pinch.lastZoom);
+          /* After re-render, scroll so the focal point stays at the same
+             viewport position. Canvas CSS dimensions update when PDF.js
+             re-renders asynchronously; retry a few frames. */
+          let tries=0;
+          const correct=()=>{
+            const w=pagesWrapRef.current;
+            if(!w)return;
+            const wr=w.getBoundingClientRect();
+            const targetLeft=midX-focalWrapX*r;
+            const targetTop=midY-focalWrapY*r;
+            el.scrollLeft+=wr.left-targetLeft;
+            el.scrollTop+=wr.top-targetTop;
+            if(++tries<4)requestAnimationFrame(correct);
+          };
+          requestAnimationFrame(()=>requestAnimationFrame(correct));
+        }
       }
     };
     const onWheel=e=>{
       if(!e.ctrlKey)return;
       e.preventDefault();
-      setZoom(z=>Math.min(3,Math.max(0.5,z*(1-e.deltaY*0.01))));
+      /* Anchor ctrl+wheel zoom at cursor position */
+      const w=pagesWrapRef.current;
+      if(!w)return;
+      const wr=w.getBoundingClientRect();
+      const focalWrapX=e.clientX-wr.left;
+      const focalWrapY=e.clientY-wr.top;
+      const nz=Math.min(3,Math.max(0.5,zoom*(1-e.deltaY*0.01)));
+      if(nz===zoom)return;
+      const r=nz/zoom;
+      const cx=e.clientX,cy=e.clientY;
+      setZoom(nz);
+      let tries=0;
+      const correct=()=>{
+        const w2=pagesWrapRef.current;
+        if(!w2)return;
+        const wr2=w2.getBoundingClientRect();
+        el.scrollLeft+=wr2.left-(cx-focalWrapX*r);
+        el.scrollTop+=wr2.top-(cy-focalWrapY*r);
+        if(++tries<4)requestAnimationFrame(correct);
+      };
+      requestAnimationFrame(()=>requestAnimationFrame(correct));
     };
     el.addEventListener("touchstart",onStart,{passive:true});
     el.addEventListener("touchmove",onMove,{passive:false});
@@ -235,8 +313,8 @@ const PdfViewer=({url,dlUrl,mob})=>{
         <button onClick={zoomIn} style={{background:"none",border:"none",color:T.txH,cursor:"pointer",display:"flex",padding:4,borderRadius:4,fontSize:16,fontWeight:700,lineHeight:1}}>+</button>
       </div>
       {/* Pages */}
-      <div ref={containerRef} style={{flex:1,overflow:"auto",WebkitOverflowScrolling:"touch",background:T.bg,padding:mob?8:16,display:"flex",flexDirection:"column",alignItems:"safe center",gap:mob?8:12,touchAction:"pan-x pan-y"}}>
-        <div ref={pagesWrapRef} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:mob?8:12,willChange:"transform"}}>
+      <div ref={containerRef} style={{flex:1,overflow:"auto",WebkitOverflowScrolling:"touch",background:T.bg,padding:mob?8:16,touchAction:"pan-x pan-y"}}>
+        <div ref={pagesWrapRef} style={{width:"fit-content",display:"flex",flexDirection:"column",alignItems:"center",gap:mob?8:12,willChange:"transform"}}>
           {pages.map(p=>(
             <canvas key={p} ref={el=>{pageRefs.current[p]=el;}} style={{display:"block",borderRadius:4,boxShadow:"0 2px 12px rgba(0,0,0,.3)"}}/>
           ))}
