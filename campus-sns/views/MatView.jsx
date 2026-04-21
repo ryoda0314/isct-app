@@ -292,7 +292,7 @@ const PdfViewer=({url,dlUrl,mob})=>{
       el.removeEventListener("touchcancel",onEnd);
       el.removeEventListener("wheel",onWheel);
     };
-  },[zoom]);
+  },[zoom,pdf]);
 
   if(err) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40}}><div>{err}</div>{dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" style={{padding:"8px 16px",borderRadius:8,background:T.accent,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none"}}>新しいタブで開く</a>}</div>;
   if(!pdf) return <Loader msg={loadMsg} size="md"/>;
