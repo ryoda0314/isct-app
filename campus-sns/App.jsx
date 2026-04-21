@@ -785,11 +785,13 @@ export default function App(){
 
   const userSchoolKey=user?.myDept?DEPTS[user.myDept]?.school:null;
   const isMedDentalUser=userSchoolKey==="medicine"||userSchoolKey==="dentistry";
+  // 26B（2026年度学士新入生）はT2SCHOLAに未登録のため接続失敗バナーを非表示
+  const isFreshman26B=user?.yearGroup==="26B";
   // 医歯学時間割メニューの表示可否（admin は確認用に表示）
   const hasMed=medRawCourses.length>0||isMedDentalUser||!!user?.isAdmin;
   // 下部ナビの「時間割」を「医歯学時間割」に置き換える条件（admin単独では置き換えない）
   const medPrimary=medRawCourses.length>0||isMedDentalUser;
-  const lmsDownBanner=(lmsDown&&!isMedDentalUser)?<div style={{padding:"8px 16px",background:"#fef3cd",color:"#856404",fontSize:13,fontWeight:500,textAlign:"center",borderBottom:"1px solid #ffc107",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+  const lmsDownBanner=(lmsDown&&!isMedDentalUser&&!isFreshman26B)?<div style={{padding:"8px 16px",background:"#fef3cd",color:"#856404",fontSize:13,fontWeight:500,textAlign:"center",borderBottom:"1px solid #ffc107",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
     <span style={{fontSize:16}}>!</span>
     <span>T2SCHOLAに接続できないため、前回のデータを表示しています</span>
     <button onClick={async()=>{const r=await fetchData();if(r)setLmsDown(false);}} style={{marginLeft:8,padding:"3px 10px",borderRadius:6,border:"1px solid #856404",background:"transparent",color:"#856404",fontSize:12,cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}}>再試行</button>

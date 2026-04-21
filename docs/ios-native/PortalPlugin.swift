@@ -32,6 +32,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
     private var overlayView: UIView?
     private var portalWebView: WKWebView?
     private var loadingOverlay: UIView?
+    private var shareButton: UIButton?
     private var isIsctMode = false
     private var sidebarWidth: CGFloat = 0
     private var leadingConstraint: NSLayoutConstraint?
@@ -226,7 +227,13 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         reloadBtn.setTitleColor(navColor, for: .normal)
         reloadBtn.addTarget(self, action: #selector(reloadTapped), for: .touchUpInside)
 
-        let navStack = UIStackView(arrangedSubviews: [backBtn, fwdBtn, reloadBtn])
+        let shareBtn = UIButton(type: .system)
+        shareBtn.setImage(UIImage(systemName: "square.and.arrow.up"), for: .normal)
+        shareBtn.tintColor = navColor
+        shareBtn.addTarget(self, action: #selector(shareTapped), for: .touchUpInside)
+        shareButton = shareBtn
+
+        let navStack = UIStackView(arrangedSubviews: [backBtn, fwdBtn, reloadBtn, shareBtn])
         navStack.axis = .horizontal
         navStack.spacing = 0
         toolbar.addSubview(navStack)
@@ -235,7 +242,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             navStack.trailingAnchor.constraint(equalTo: toolbar.trailingAnchor, constant: -12),
             navStack.centerYAnchor.constraint(equalTo: closeBtn.centerYAnchor),
         ])
-        for btn in [backBtn, fwdBtn, reloadBtn] {
+        for btn in [backBtn, fwdBtn, reloadBtn, shareBtn] {
             btn.widthAnchor.constraint(equalToConstant: 40).isActive = true
             btn.heightAnchor.constraint(equalToConstant: 44).isActive = true
         }
@@ -349,6 +356,95 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc private func reloadTapped() { portalWebView?.reload() }
 
+    @objc private func shareTapped() {
+        guard let wv = portalWebView,
+              let url = wv.url,
+              let vc = bridge?.viewController else { return }
+
+        let loadingAlert = UIAlertController(
+            title: nil, message: "ダウンロード中…", preferredStyle: .alert)
+        vc.present(loadingAlert, animated: true)
+
+        wv.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
+            var request = URLRequest(url: url)
+            let host = url.host ?? ""
+            let cookieHeader = cookies
+                .filter { cookie in
+                    let d = cookie.domain.hasPrefix(".")
+                        ? String(cookie.domain.dropFirst()) : cookie.domain
+                    return host == d || host.hasSuffix("." + d)
+                }
+                .map { "\($0.name)=\($0.value)" }
+                .joined(separator: "; ")
+            if !cookieHeader.isEmpty {
+                request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+            }
+            if let ua = wv.customUserAgent {
+                request.setValue(ua, forHTTPHeaderField: "User-Agent")
+            }
+
+            URLSession.shared.downloadTask(with: request) { tempURL, response, error in
+                DispatchQueue.main.async {
+                    loadingAlert.dismiss(animated: true) {
+                        guard let tempURL = tempURL, error == nil else {
+                            let alert = UIAlertController(
+                                title: "保存に失敗しました",
+                                message: error?.localizedDescription,
+                                preferredStyle: .alert)
+                            alert.addAction(UIAlertAction(title: "OK", style: .default))
+                            vc.present(alert, animated: true)
+                            return
+                        }
+                        let filename = self?.filenameFor(response: response, url: url) ?? "download"
+                        let destURL = FileManager.default.temporaryDirectory
+                            .appendingPathComponent(filename)
+                        try? FileManager.default.removeItem(at: destURL)
+                        do {
+                            try FileManager.default.moveItem(at: tempURL, to: destURL)
+                        } catch {
+                            NSLog("PortalPlugin: moveItem failed: \(error)")
+                            return
+                        }
+                        let activityVC = UIActivityViewController(
+                            activityItems: [destURL], applicationActivities: nil)
+                        if let popover = activityVC.popoverPresentationController {
+                            popover.sourceView = self?.shareButton ?? vc.view
+                            popover.sourceRect = self?.shareButton?.bounds
+                                ?? CGRect(x: vc.view.bounds.midX, y: vc.view.bounds.midY,
+                                          width: 0, height: 0)
+                            popover.permittedArrowDirections = .up
+                        }
+                        vc.present(activityVC, animated: true)
+                    }
+                }
+            }.resume()
+        }
+    }
+
+    private func filenameFor(response: URLResponse?, url: URL) -> String {
+        if let http = response as? HTTPURLResponse,
+           let disposition = http.value(forHTTPHeaderField: "Content-Disposition") {
+            if let range = disposition.range(
+                of: #"filename\*=UTF-8''([^;]+)"#, options: .regularExpression) {
+                let raw = String(disposition[range])
+                    .replacingOccurrences(of: "filename*=UTF-8''", with: "")
+                if let decoded = raw.removingPercentEncoding, !decoded.isEmpty {
+                    return decoded
+                }
+            }
+            if let range = disposition.range(
+                of: #"filename="?([^";]+)"?"#, options: .regularExpression) {
+                let raw = String(disposition[range])
+                    .replacingOccurrences(of: "filename=", with: "")
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "\" "))
+                if !raw.isEmpty { return raw }
+            }
+        }
+        let last = url.lastPathComponent
+        if !last.isEmpty, last != "/" { return last }
+        return "download"
+    }
+
     @objc private func bottomNavTapped(_ gesture: UITapGestureRecognizer) {
         let location = gesture.location(in: bridge?.viewController?.view)
         removeOverlay()
@@ -380,6 +476,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         portalWebView?.navigationDelegate = nil
         portalWebView = nil
         loadingOverlay = nil
+        shareButton = nil
         leadingConstraint = nil
         bottomConstraint = nil
         overlayView?.removeFromSuperview()
