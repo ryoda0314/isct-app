@@ -544,10 +544,8 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
                                   ⚠ {examLabel(s)}
                                 </div>
                               )}
-                              {height >= (exam ? 40 : 25) && (
-                                <div style={{ color: T.txD, fontSize: mob ? 7 : 9 }}>{s.timeStart}～{s.timeEnd}</div>
-                              )}
-                              {height >= (exam ? 55 : 45) && s.room && (
+                              <div style={{ color: T.txD, fontSize: mob ? 7 : 9 }}>{s.timeStart}～{s.timeEnd}</div>
+                              {s.room && (
                                 <div style={{ color: T.txD, fontSize: mob ? 7 : 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.room}</div>
                               )}
                               {!exam && height >= 60 && s.instructor && (
