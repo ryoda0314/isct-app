@@ -785,8 +785,8 @@ export default function App(){
 
   const userSchoolKey=user?.myDept?DEPTS[user.myDept]?.school:null;
   const isMedDentalUser=userSchoolKey==="medicine"||userSchoolKey==="dentistry";
-  // 26B（2026年度学士新入生）はT2SCHOLAに未登録のため接続失敗バナーを非表示
-  const isFreshman26B=user?.yearGroup==="26B";
+  // 25B/26B（学士1〜2年）はT2SCHOLAに未登録のため接続失敗バナーを非表示
+  const isFreshman26B=user?.yearGroup==="26B"||user?.yearGroup==="25B";
   // 医歯学時間割メニューの表示可否（admin は確認用に表示）
   const hasMed=medRawCourses.length>0||isMedDentalUser||!!user?.isAdmin;
   // 下部ナビの「時間割」を「医歯学時間割」に置き換える条件（admin単独では置き換えない）
