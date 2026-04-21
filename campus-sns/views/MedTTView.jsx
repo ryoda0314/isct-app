@@ -522,7 +522,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
                           const top = startMin * PX_PER_MIN;
                           const height = (endMin - startMin) * PX_PER_MIN;
                           const exam = isExam(s);
-                          const col = exam ? EXAM_COLOR : (colorMap[s.code] || COLORS[0]);
+                          const col = colorMap[s.code] || COLORS[0];
                           const n = cntByCode(s.code);
                           return (
                             <div key={bi} onClick={() => goToCourse(s.code)} style={{
@@ -530,40 +530,28 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
                               left: `calc(${(b.col / b.totalCols) * 100}% + 1px)`,
                               width: `calc(${(1 / b.totalCols) * 100}% - 2px)`,
                               borderRadius: 6,
-                              background: exam ? `${EXAM_COLOR}22` : `${col}18`,
-                              border: exam ? `1.5px solid ${EXAM_COLOR}80` : `1px solid ${col}40`,
-                              boxShadow: exam ? `0 2px 8px ${EXAM_COLOR}30` : "none",
+                              background: `${col}18`,
+                              border: `1px solid ${col}40`,
                               padding: "2px 4px", overflow: "hidden", cursor: "pointer",
                               fontSize: mob ? 8 : 10, lineHeight: 1.3,
-                            }} title={`${s.name}\n${examLabel(s)}\n${s.timeStart}～${s.timeEnd}\n${s.room || ""}`}>
+                            }} title={`${s.name}${exam ? `\n${examLabel(s)}` : ""}\n${s.timeStart}～${s.timeEnd}\n${s.room || ""}`}>
                               {n > 0 && <div style={{ position: "absolute", top: mob ? 2 : 3, right: mob ? 2 : 3, minWidth: mob ? 14 : 18, height: mob ? 14 : 18, borderRadius: 9, background: T.red, color: "#fff", fontSize: mob ? 7 : 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px", boxShadow: `0 2px 6px ${T.red}60`, zIndex: 1 }}>{n}</div>}
-                              {exam ? (
-                                <>
-                                  <div style={{ fontWeight: 800, color: EXAM_COLOR, fontSize: mob ? 9 : 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                    ⚠ {examLabel(s)}
-                                  </div>
-                                  {height >= 25 && (
-                                    <div style={{ color: EXAM_COLOR, fontSize: mob ? 7 : 9, opacity: 0.8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
-                                  )}
-                                  {height >= 40 && (
-                                    <div style={{ color: T.txD, fontSize: mob ? 7 : 9 }}>{s.timeStart}～{s.timeEnd}</div>
-                                  )}
-                                </>
-                              ) : (
-                                <>
-                                  <div style={{ fontWeight: 700, color: col, fontSize: mob ? 9 : 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                    {s.name}
-                                  </div>
-                                  {height >= 25 && (
-                                    <div style={{ color: T.txD, fontSize: mob ? 7 : 9 }}>{s.timeStart}～{s.timeEnd}</div>
-                                  )}
-                                  {height >= 45 && s.room && (
-                                    <div style={{ color: T.txD, fontSize: mob ? 7 : 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.room}</div>
-                                  )}
-                                  {height >= 60 && s.instructor && (
-                                    <div style={{ color: T.txD, fontSize: mob ? 7 : 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.instructor}</div>
-                                  )}
-                                </>
+                              <div style={{ fontWeight: 700, color: col, fontSize: mob ? 9 : 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {s.name}
+                              </div>
+                              {exam && (
+                                <div style={{ fontWeight: 800, color: EXAM_COLOR, fontSize: mob ? 9 : 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  ⚠ {examLabel(s)}
+                                </div>
+                              )}
+                              {height >= (exam ? 40 : 25) && (
+                                <div style={{ color: T.txD, fontSize: mob ? 7 : 9 }}>{s.timeStart}～{s.timeEnd}</div>
+                              )}
+                              {height >= (exam ? 55 : 45) && s.room && (
+                                <div style={{ color: T.txD, fontSize: mob ? 7 : 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.room}</div>
+                              )}
+                              {!exam && height >= 60 && s.instructor && (
+                                <div style={{ color: T.txD, fontSize: mob ? 7 : 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.instructor}</div>
                               )}
                             </div>
                           );

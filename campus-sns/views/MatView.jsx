@@ -75,6 +75,7 @@ const PdfViewer=({url,dlUrl,mob})=>{
   const [err,setErr]=useState(null);
   const [loadMsg,setLoadMsg]=useState("PDF.js を読み込み中...");
   const containerRef=useRef(null);
+  const pagesWrapRef=useRef(null);
   const pageRefs=useRef({});
   const renderTasks=useRef({});
   const DPR=typeof window!=="undefined"?window.devicePixelRatio||1:1;
@@ -137,10 +138,10 @@ const PdfViewer=({url,dlUrl,mob})=>{
     const el=containerRef.current;
     if(!el)return;
     const onScroll=()=>{
-      const ct=el.scrollTop+el.clientHeight/3;
+      const threshold=el.getBoundingClientRect().top+el.clientHeight/3;
       for(let i=pages.length-1;i>=0;i--){
         const c=pageRefs.current[pages[i]];
-        if(c&&c.offsetTop<=ct){setCurPage(pages[i]);break;}
+        if(c&&c.getBoundingClientRect().top<=threshold){setCurPage(pages[i]);break;}
       }
     };
     el.addEventListener("scroll",onScroll,{passive:true});
@@ -149,10 +150,71 @@ const PdfViewer=({url,dlUrl,mob})=>{
 
   const scrollToPage=n=>{
     const c=pageRefs.current[n];
-    if(c&&containerRef.current) containerRef.current.scrollTo({top:c.offsetTop-8,behavior:"smooth"});
+    const el=containerRef.current;
+    if(!c||!el)return;
+    const top=c.getBoundingClientRect().top-el.getBoundingClientRect().top+el.scrollTop-8;
+    el.scrollTo({top,behavior:"smooth"});
   };
   const zoomIn=()=>setZoom(z=>Math.min(z+0.25,3));
   const zoomOut=()=>setZoom(z=>Math.max(z-0.25,0.5));
+
+  /* Pinch-to-zoom (touch) + trackpad pinch (ctrl+wheel) */
+  useEffect(()=>{
+    const el=containerRef.current;
+    if(!el)return;
+    const pinch={active:false,startDist:0,startZoom:zoom,lastZoom:zoom};
+    const dist=(a,b)=>Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+    const applyVisual=r=>{
+      const w=pagesWrapRef.current;
+      if(w){w.style.transformOrigin="center top";w.style.transform=`scale(${r})`;}
+    };
+    const resetVisual=()=>{
+      const w=pagesWrapRef.current;
+      if(w){w.style.transform="";w.style.transformOrigin="";}
+    };
+    const onStart=e=>{
+      if(e.touches.length===2){
+        pinch.active=true;
+        pinch.startDist=dist(e.touches[0],e.touches[1])||1;
+        pinch.startZoom=zoom;
+        pinch.lastZoom=zoom;
+      }
+    };
+    const onMove=e=>{
+      if(!pinch.active||e.touches.length<2)return;
+      e.preventDefault();
+      const d=dist(e.touches[0],e.touches[1]);
+      const ratio=d/pinch.startDist;
+      const nz=Math.min(3,Math.max(0.5,pinch.startZoom*ratio));
+      pinch.lastZoom=nz;
+      applyVisual(nz/pinch.startZoom);
+    };
+    const onEnd=e=>{
+      if(!pinch.active)return;
+      if(e.touches.length<2){
+        pinch.active=false;
+        resetVisual();
+        if(pinch.lastZoom!==pinch.startZoom)setZoom(pinch.lastZoom);
+      }
+    };
+    const onWheel=e=>{
+      if(!e.ctrlKey)return;
+      e.preventDefault();
+      setZoom(z=>Math.min(3,Math.max(0.5,z*(1-e.deltaY*0.01))));
+    };
+    el.addEventListener("touchstart",onStart,{passive:true});
+    el.addEventListener("touchmove",onMove,{passive:false});
+    el.addEventListener("touchend",onEnd);
+    el.addEventListener("touchcancel",onEnd);
+    el.addEventListener("wheel",onWheel,{passive:false});
+    return()=>{
+      el.removeEventListener("touchstart",onStart);
+      el.removeEventListener("touchmove",onMove);
+      el.removeEventListener("touchend",onEnd);
+      el.removeEventListener("touchcancel",onEnd);
+      el.removeEventListener("wheel",onWheel);
+    };
+  },[zoom]);
 
   if(err) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40}}><div>{err}</div>{dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" style={{padding:"8px 16px",borderRadius:8,background:T.accent,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none"}}>新しいタブで開く</a>}</div>;
   if(!pdf) return <Loader msg={loadMsg} size="md"/>;
@@ -173,10 +235,12 @@ const PdfViewer=({url,dlUrl,mob})=>{
         <button onClick={zoomIn} style={{background:"none",border:"none",color:T.txH,cursor:"pointer",display:"flex",padding:4,borderRadius:4,fontSize:16,fontWeight:700,lineHeight:1}}>+</button>
       </div>
       {/* Pages */}
-      <div ref={containerRef} style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",background:T.bg,padding:mob?8:16,display:"flex",flexDirection:"column",alignItems:"center",gap:mob?8:12}}>
-        {pages.map(p=>(
-          <canvas key={p} ref={el=>{pageRefs.current[p]=el;}} style={{display:"block",borderRadius:4,boxShadow:"0 2px 12px rgba(0,0,0,.3)"}}/>
-        ))}
+      <div ref={containerRef} style={{flex:1,overflow:"auto",WebkitOverflowScrolling:"touch",background:T.bg,padding:mob?8:16,display:"flex",flexDirection:"column",alignItems:"safe center",gap:mob?8:12,touchAction:"pan-x pan-y"}}>
+        <div ref={pagesWrapRef} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:mob?8:12,willChange:"transform"}}>
+          {pages.map(p=>(
+            <canvas key={p} ref={el=>{pageRefs.current[p]=el;}} style={{display:"block",borderRadius:4,boxShadow:"0 2px 12px rgba(0,0,0,.3)"}}/>
+          ))}
+        </div>
       </div>
     </div>
   );
