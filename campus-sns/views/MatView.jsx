@@ -182,7 +182,7 @@ const PdfViewer=({url,dlUrl,mob})=>{
     zoomAt(nz,r.left+r.width/2,r.top+r.height/2);
   };
   const zoomIn=()=>zoomAtCenter(Math.min(zoom+0.25,3));
-  const zoomOut=()=>zoomAtCenter(Math.max(zoom-0.25,0.5));
+  const zoomOut=()=>zoomAtCenter(Math.max(zoom-0.25,0.25));
 
   /* Pinch-to-zoom (touch) + trackpad pinch (ctrl+wheel)
      - Anchor the transform at the pinch midpoint so content under the user's
@@ -222,7 +222,7 @@ const PdfViewer=({url,dlUrl,mob})=>{
       e.preventDefault();
       const d=dist(e.touches[0],e.touches[1]);
       const ratio=d/pinch.startDist;
-      const nz=Math.min(3,Math.max(0.5,pinch.startZoom*ratio));
+      const nz=Math.min(3,Math.max(0.25,pinch.startZoom*ratio));
       pinch.lastZoom=nz;
       const w=pagesWrapRef.current;
       if(w)w.style.transform=`scale(${nz/pinch.startZoom})`;
@@ -264,7 +264,7 @@ const PdfViewer=({url,dlUrl,mob})=>{
       const wr=w.getBoundingClientRect();
       const focalWrapX=e.clientX-wr.left;
       const focalWrapY=e.clientY-wr.top;
-      const nz=Math.min(3,Math.max(0.5,zoom*(1-e.deltaY*0.01)));
+      const nz=Math.min(3,Math.max(0.25,zoom*(1-e.deltaY*0.01)));
       if(nz===zoom)return;
       const r=nz/zoom;
       const cx=e.clientX,cy=e.clientY;
