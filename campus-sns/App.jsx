@@ -687,7 +687,7 @@ export default function App(){
     </div>
     <div style={{fontSize:16,fontWeight:700,color:T.txH,textAlign:"center"}}>{title||"この機能は現在利用できません"}</div>
     <div style={{fontSize:13,color:T.txD,textAlign:"center",lineHeight:1.8,maxWidth:340}}>
-      {telecomMsg||"電気通信事業の届出手続き中のため、メッセージング機能（DM・チャット・サークルメッセージ等）を一時的に制限しています。"}
+      {telecomMsg||"メッセージング機能（DM・チャット・サークルメッセージ等）は現在一時的に制限されています。"}
     </div>
     <div style={{fontSize:12,color:T.txD,textAlign:"center",lineHeight:1.6,marginTop:4,padding:"10px 16px",borderRadius:10,background:T.bg3,border:`1px solid ${T.bd}`}}>
       投稿・コメント・フレンド機能など<br/>掲示板型の機能は引き続きご利用いただけます。

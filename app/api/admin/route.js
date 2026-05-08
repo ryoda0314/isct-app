@@ -842,7 +842,7 @@ export async function POST(request) {
       return NextResponse.json({ ok: true });
     }
 
-    // --- Telecom restriction toggle (電気通信事業の届出前制限) ---
+    // --- Communication features kill switch (通信媒介機能の一括制限トグル) ---
     if (action === 'toggle_telecom_restriction') {
       const { enabled, message } = body;
       const { error } = await sb.from('site_settings').upsert({

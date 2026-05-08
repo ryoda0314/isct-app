@@ -2380,10 +2380,10 @@ const SettingsTab = () => {
         </div>
       )}
 
-      {/* Telecom restriction (電気通信事業の届出前制限) */}
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>電気通信事業 届出前制限</div>
+      {/* Communication features kill switch (originally added for pre-registration period; kept as emergency toggle) */}
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>通信機能 一括制限</div>
       <div style={{ fontSize: 12, color: T.txD, marginBottom: 12, lineHeight: 1.6 }}>
-        電気通信事業の届出が未承認の間、通信媒介機能（DM・チャット・サークルメッセージ等）を一括で無効化します。
+        緊急時やメンテナンス時に、通信媒介機能（DM・チャット・サークルメッセージ等）を一括で無効化します。
         投稿・コメントなど掲示板型の機能は影響を受けません。
       </div>
       {settingsLoaded && (
@@ -2393,8 +2393,8 @@ const SettingsTab = () => {
             <Badge text={telecomRestricted ? "通信機能を制限中" : "全機能有効"} color={telecomRestricted ? T.orange : T.green} />
           </div>
           <div style={{ fontSize: 12, color: T.txD, marginBottom: 8 }}>制限対象: DM / コースチャット / サークルメッセージ / グループチャット</div>
-          <input value={telecomMsg} onChange={e => setTelecomMsg(e.target.value)} placeholder="ユーザーへの表示メッセージ（例: 届出手続き中のため一時制限中）" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 10 }} />
-          <Btn onClick={handleToggleTelecom} color={telecomRestricted ? T.green : T.orange}>{telecomRestricted ? "制限を解除（届出承認済み）" : "通信機能を一括制限"}</Btn>
+          <input value={telecomMsg} onChange={e => setTelecomMsg(e.target.value)} placeholder="ユーザーへの表示メッセージ（例: 緊急メンテナンスのため一時制限中）" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 10 }} />
+          <Btn onClick={handleToggleTelecom} color={telecomRestricted ? T.green : T.orange}>{telecomRestricted ? "制限を解除" : "通信機能を一括制限"}</Btn>
         </div>
       )}
 
