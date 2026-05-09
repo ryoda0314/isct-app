@@ -101,9 +101,30 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
         </div>
         <div style={{flex:1,overflowY:"auto",padding:8}}>
           {isGroup&&grpLoading&&<Loader msg="読み込み中" size="sm"/>}
-          {messages.map(m=>{
-            const me=m.uid===uid;
-            return <div key={m.id} className="dmMsg" style={{display:"flex",justifyContent:me?"flex-end":"flex-start",marginBottom:4,alignItems:"flex-end",gap:4}}>
+          {(()=>{
+            const _dateKey=d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+            const _dateLabel=d=>{
+              const now=new Date();const t=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+              const md=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+              const diff=Math.round((t-md)/864e5);
+              if(diff===0)return"今日";if(diff===1)return"昨日";
+              return `${d.getMonth()+1}月${d.getDate()}日`;
+            };
+            const grp=[];let lastDate="";messages.forEach(m=>{
+              const dk=_dateKey(m.ts);
+              if(dk!==lastDate){grp.push({_dateSep:true,_dateLabel:_dateLabel(m.ts),_key:`date_${dk}`});lastDate=dk;}
+              grp.push(m);
+            });
+            return grp.map(m=>{
+              if(m._dateSep) return(
+                <div key={m._key} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px 4px",margin:"4px 0"}}>
+                  <div style={{flex:1,height:1,background:T.bd}}/>
+                  <span style={{fontSize:11,color:T.txD,fontWeight:500,whiteSpace:"nowrap"}}>{m._dateLabel}</span>
+                  <div style={{flex:1,height:1,background:T.bd}}/>
+                </div>
+              );
+              const me=m.uid===uid;
+              return <div key={m.id} className="dmMsg" style={{display:"flex",justifyContent:me?"flex-end":"flex-start",marginBottom:4,alignItems:"flex-end",gap:4}}>
               {/* Group: show sender avatar */}
               {isGroup&&!me&&<div style={{marginRight:2,alignSelf:"flex-end"}}>
                 <Av u={{name:m.name,av:m.avatar,col:m.color}} sz={24}/>
@@ -120,7 +141,8 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
                 </div>
               </div>
             </div>;
-          })}
+            });
+          })()}
           <div ref={ref}/>
         </div>
         {/* Typing indicator */}
