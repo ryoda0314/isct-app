@@ -9,52 +9,52 @@ const saveSeen = (d) => { try { localStorage.setItem(KEY, JSON.stringify(d)); } 
 export function useUnreadDM(userId) {
   const [count, setCount] = useState(0);
 
-  // Initial: fetch DM list and count conversations with unseen messages
-  useEffect(() => {
+  const refetch = useCallback(async () => {
     if (!userId || isDemoMode()) return;
-    (async () => {
-      try {
-        const r = await fetch('/api/dm');
-        if (!r.ok) return;
-        const convos = await r.json();
-        const seen = getSeen();
-        let total = 0;
-        for (const c of convos) {
-          if (!c.msgs?.length) continue;
-          const last = c.msgs[c.msgs.length - 1];
-          const msgTs = new Date(last.ts).getTime();
-          const seenTs = seen[c.id] || 0;
-          if (msgTs > seenTs && last.uid !== userId) total++;
-        }
-        setCount(total);
-      } catch {}
-    })();
+    try {
+      const r = await fetch('/api/dm');
+      if (!r.ok) return;
+      const convos = await r.json();
+      const seen = getSeen();
+      let total = 0;
+      for (const c of convos) {
+        if (!c.msgs?.length) continue;
+        const last = c.msgs[c.msgs.length - 1];
+        const msgTs = new Date(last.ts).getTime();
+        const seenTs = seen[c.id] || 0;
+        if (msgTs > seenTs && last.uid !== userId) total++;
+      }
+      setCount(total);
+    } catch {}
   }, [userId]);
 
-  // Realtime: フィルタなしの dm_messages 購読は全ユーザーのDM本文が流れるため削除
-  // 代わりに notifications テーブル（useNotifications で user フィルタ済み）経由で
-  // DM通知を受け取る。ここでは定期ポーリングで未読数を更新する。
+  // Initial fetch
+  useEffect(() => { refetch(); }, [refetch]);
+
+  // Realtime: refetch unread count on every dm_messages INSERT.
+  // We deliberately do NOT read payload.new here — count is recomputed via the
+  // server endpoint which applies block/mute filters and (via RLS) limits rows
+  // to the current user's conversations.
   useEffect(() => {
     if (!userId || isDemoMode()) return;
-    const interval = setInterval(async () => {
-      try {
-        const r = await fetch('/api/dm');
-        if (!r.ok) return;
-        const convos = await r.json();
-        const seen = getSeen();
-        let total = 0;
-        for (const c of convos) {
-          if (!c.msgs?.length) continue;
-          const last = c.msgs[c.msgs.length - 1];
-          const msgTs = new Date(last.ts).getTime();
-          const seenTs = seen[c.id] || 0;
-          if (msgTs > seenTs && last.uid !== userId) total++;
-        }
-        setCount(total);
-      } catch {}
-    }, 30_000); // 30秒ごと
+    const sb = getSupabaseClient();
+    const channel = sb
+      .channel(`dm_unread:${userId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'dm_messages',
+      }, () => { refetch(); })
+      .subscribe();
+    return () => { sb.removeChannel(channel); };
+  }, [userId, refetch]);
+
+  // Fallback poll every 60s in case realtime drops (e.g., tab backgrounded then resumed)
+  useEffect(() => {
+    if (!userId || isDemoMode()) return;
+    const interval = setInterval(refetch, 60_000);
     return () => clearInterval(interval);
-  }, [userId]);
+  }, [userId, refetch]);
 
   const markSeen = useCallback((convId) => {
     const seen = getSeen();

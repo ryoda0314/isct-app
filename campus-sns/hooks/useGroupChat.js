@@ -58,7 +58,14 @@ export function useGroupMessages(groupId) {
     return () => { sb.removeChannel(channel); };
   }, [groupId]);
 
-  return { messages, loading };
+  const appendMessage = useCallback((m) => {
+    if (m?.id == null) return;
+    if (idsRef.current.has(m.id)) return;
+    idsRef.current.add(m.id);
+    setMessages(prev => [...prev, m]);
+  }, []);
+
+  return { messages, loading, appendMessage };
 }
 
 export function useGroupSend() {

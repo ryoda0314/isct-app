@@ -53,8 +53,12 @@ export function useDMMessages(conversationId) {
   const idsRef = useRef(new Set());
 
   useEffect(() => {
-    if (!conversationId) { setMessages([]); return; }
-    idsRef.current = new Set();
+    if (!conversationId) { setMessages([]); idsRef.current = new Set(); }
+    // For non-null convId, do NOT reset idsRef here — initMessages (called from
+    // DMView once conversation data loads) overwrites it. Resetting here would
+    // wipe an optimistically-appended id during the null→convId transition that
+    // happens when a brand-new DM is sent, allowing the realtime INSERT event
+    // to double-add the same message.
   }, [conversationId]);
 
   // Realtime subscription for specific conversation
@@ -90,7 +94,17 @@ export function useDMMessages(conversationId) {
     setMessages(msgs);
   }, []);
 
-  return { messages, setMessages: initMessages };
+  // Optimistic append (used immediately after send so UI reflects the new message
+  // without waiting for the realtime INSERT event ~1-3s later). idsRef guards
+  // against double-add when the realtime event eventually fires.
+  const appendMessage = useCallback((m) => {
+    if (m?.id == null) return;
+    if (idsRef.current.has(m.id)) return;
+    idsRef.current.add(m.id);
+    setMessages(prev => [...prev, m]);
+  }, []);
+
+  return { messages, setMessages: initMessages, appendMessage };
 }
 
 export function useDMSend() {

@@ -26,9 +26,9 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
   const {typingUsers,setTyping}=useTyping(typingRoom,{id:user?.moodleId||user?.id,name:user?.name});
 
   // DM messages (only active when sel.type==='dm')
-  const {messages:dmMsgs,setMessages:initDMMsgs}=useDMMessages(sel?.type==='dm'?sel.id:null);
+  const {messages:dmMsgs,setMessages:initDMMsgs,appendMessage:appendDMMsg}=useDMMessages(sel?.type==='dm'?sel.id:null);
   // Group messages (only active when sel.type==='group')
-  const {messages:grpMsgs,loading:grpLoading}=useGroupMessages(sel?.type==='group'?sel.id:null);
+  const {messages:grpMsgs,loading:grpLoading,appendMessage:appendGrpMsg}=useGroupMessages(sel?.type==='group'?sel.id:null);
 
   const messages=sel?.type==='group'?grpMsgs:dmMsgs;
 
@@ -48,14 +48,18 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
   const sendMsg=async()=>{
     if(!inp.trim()||!sel)return;
     const text=inp.trim();
+    const myUid=user?.moodleId||user?.id;
     setInp("");
     if(sel.type==='group'){
-      await sendGrpMsg(text,sel.id);
+      const result=await sendGrpMsg(text,sel.id);
+      if(result?.id) appendGrpMsg({id:result.id,uid:myUid,text:result.text||text,ts:new Date(result.created_at||Date.now()),name:user?.name,avatar:user?.av,color:user?.col});
     }else if(sel.id){
-      await sendDM(text,sel.id);
+      const result=await sendDM(text,sel.id);
+      if(result?.id) appendDMMsg({id:result.id,uid:result.sender_id||myUid,text:result.text||text,ts:new Date(result.created_at||Date.now())});
     }else if(sel.withId){
       const result=await sendDM(text,null,sel.withId);
       if(result?.conversation_id) setSel(prev=>({...prev,id:result.conversation_id}));
+      if(result?.id) appendDMMsg({id:result.id,uid:result.sender_id||myUid,text:result.text||text,ts:new Date(result.created_at||Date.now())});
     }
   };
 
