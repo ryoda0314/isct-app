@@ -1,0 +1,32 @@
+[
+  {
+    "id": "ryokai",
+    "label": "了解！",
+    "src": "/stamps/ryokai.webp"
+  },
+  {
+    "id": "arigatou",
+    "label": "ありがとう！",
+    "src": "/stamps/arigatou.webp"
+  },
+  {
+    "id": "otsukare",
+    "label": "おつかれさま！",
+    "src": "/stamps/otsukare.webp"
+  },
+  {
+    "id": "gomenne",
+    "label": "ごめんね",
+    "src": "/stamps/gomenne.webp"
+  },
+  {
+    "id": "ok",
+    "label": "OK！",
+    "src": "/stamps/ok.webp"
+  },
+  {
+    "id": "matane",
+    "label": "またね！",
+    "src": "/stamps/matane.webp"
+  }
+]

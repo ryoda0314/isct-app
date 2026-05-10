@@ -6,6 +6,10 @@ import { getBlockedIds } from '../../../lib/blocks.js';
 import { getMutedIds } from '../../../lib/mutes.js';
 import { requireTelecomAllowed } from '../../../lib/telecom-restriction.js';
 
+// Server-side allowlist for stamp IDs. Must match public/stamps/manifest.json.
+// Stored as plain text in dm_messages.stamp_id; client maps id -> /stamps/<id>.webp.
+const ALLOWED_STAMP_IDS = new Set(['ryokai', 'arigatou', 'otsukare', 'gomenne', 'ok', 'matane']);
+
 // GET: list DM conversations for current user
 export async function GET(request) {
   try {
@@ -18,7 +22,7 @@ export async function GET(request) {
       .from('dm_conversations')
       .select(`
         id, user1_id, user2_id, created_at, last_read,
-        dm_messages(id, sender_id, text, created_at)
+        dm_messages(id, sender_id, text, stamp_id, created_at)
       `)
       .or(`user1_id.eq.${userid},user2_id.eq.${userid}`)
       .order('created_at', { referencedTable: 'dm_messages', ascending: false })
@@ -58,6 +62,7 @@ export async function GET(request) {
             id: m.id,
             uid: m.sender_id,
             text: m.text,
+            stamp_id: m.stamp_id || null,
             ts: m.created_at,
           })),
         };
@@ -124,18 +129,25 @@ export async function POST(request) {
     if (auth.error) return auth.error;
     const { userid } = auth;
 
-    const { to_user_id, text, conversation_id } = await request.json();
-    if (!text?.trim()) {
-      return NextResponse.json({ error: 'text required' }, { status: 400 });
+    const { to_user_id, text, stamp_id, conversation_id } = await request.json();
+    const hasText = !!text?.trim();
+    const hasStamp = !!stamp_id;
+    if (!hasText && !hasStamp) {
+      return NextResponse.json({ error: 'text or stamp_id required' }, { status: 400 });
     }
-    if (text.length > 2000) {
+    if (hasText && text.length > 2000) {
       return NextResponse.json({ error: 'Text too long' }, { status: 400 });
     }
+    if (hasStamp && !ALLOWED_STAMP_IDS.has(stamp_id)) {
+      return NextResponse.json({ error: 'Unknown stamp' }, { status: 400 });
+    }
 
-    // NG word check
-    const ngResult = await checkNgWords(text, { userId: userid, type: 'dm' });
-    if (ngResult.blocked) {
-      return NextResponse.json({ error: '禁止ワードが含まれています' }, { status: 400 });
+    // NG word check (text only — stamps bypass NG filter)
+    if (hasText) {
+      const ngResult = await checkNgWords(text, { userId: userid, type: 'dm' });
+      if (ngResult.blocked) {
+        return NextResponse.json({ error: '禁止ワードが含まれています' }, { status: 400 });
+      }
     }
 
     const sb = getSupabaseAdmin();
@@ -203,7 +215,12 @@ export async function POST(request) {
 
     const { data, error } = await sb
       .from('dm_messages')
-      .insert({ conversation_id: convId, sender_id: userid, text: text.trim() })
+      .insert({
+        conversation_id: convId,
+        sender_id: userid,
+        text: hasText ? text.trim() : '',
+        stamp_id: hasStamp ? stamp_id : null,
+      })
       .select()
       .single();
 

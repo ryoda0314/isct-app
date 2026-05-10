@@ -9,12 +9,23 @@ import { useGroupMessages, useGroupSend } from '../hooks/useGroupChat.js';
 import { useTyping } from '../hooks/useTyping.js';
 import { ReportModal } from '../ReportModal.jsx';
 
+// Must match server allowlist in app/api/dm/route.js and public/stamps/manifest.json
+const STAMPS = [
+  { id: 'ryokai',   label: '了解！' },
+  { id: 'arigatou', label: 'ありがとう！' },
+  { id: 'otsukare', label: 'おつかれさま！' },
+  { id: 'gomenne',  label: 'ごめんね' },
+  { id: 'ok',       label: 'OK！' },
+  { id: 'matane',   label: 'またね！' },
+];
+
 export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,createGroup})=>{
   const user=useCurrentUser();
   const {conversations,loading}=useDMList(user?.moodleId);
   const [sel,setSel]=useState(null); // {type:'dm'|'group', ...}
   const [inp,setInp]=useState("");
   const [showPicker,setShowPicker]=useState(false);
+  const [showStamps,setShowStamps]=useState(false);
   const [reportTarget,setReportTarget]=useState(null);
   const [showNewGroup,setShowNewGroup]=useState(false);
   const [grpName,setGrpName]=useState("");
@@ -63,12 +74,29 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
     }
   };
 
+  // Stamps are DM-only (group chat send/render is text-only for now).
+  const sendStamp=async(stampId)=>{
+    if(!sel||sel.type==='group')return;
+    setShowStamps(false);
+    const myUid=user?.moodleId||user?.id;
+    if(sel.id){
+      const result=await sendDM(null,sel.id,null,{stampId});
+      if(result?.id) appendDMMsg({id:result.id,uid:result.sender_id||myUid,text:'',stamp_id:stampId,ts:new Date(result.created_at||Date.now())});
+    }else if(sel.withId){
+      const result=await sendDM(null,null,sel.withId,{stampId});
+      if(result?.conversation_id) setSel(prev=>({...prev,id:result.conversation_id}));
+      if(result?.id) appendDMMsg({id:result.id,uid:result.sender_id||myUid,text:'',stamp_id:stampId,ts:new Date(result.created_at||Date.now())});
+    }
+  };
+
   useEffect(()=>{
     if(sel?.type==='dm'&&sel){
       const conv=conversations.find(c=>c.id===sel.id);
       if(conv) initDMMsgs(conv.msgs);
     }
   },[sel,conversations,initDMMsgs]);
+
+  useEffect(()=>{ setShowStamps(false); },[sel?.id,sel?.type]);
 
   useEffect(()=>{ref.current?.scrollIntoView({behavior:"smooth"});},[messages]);
 
@@ -132,13 +160,23 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
               {!me&&<span className="dmMsgFlag" onClick={()=>setReportTarget({type:isGroup?"message":"dm",id:m.id,userId:m.uid})} style={{cursor:"pointer",color:T.txD,display:"flex",opacity:0,transition:"opacity .15s",alignSelf:"center",flexShrink:0}} title="通報">{I.flag}</span>}
               <div style={{maxWidth:"75%"}}>
                 {isGroup&&!me&&<div style={{fontSize:11,fontWeight:600,color:m.color||T.txD,marginBottom:2,marginLeft:2}}>{m.name}</div>}
-                <div style={{padding:"8px 12px",borderRadius:me?"14px 14px 4px 14px":"14px 14px 14px 4px",background:me?T.accent:T.bg3,color:me?"#fff":T.txH,fontSize:14}}>
-                  <Tx>{m.text}</Tx>
-                  <div style={{fontSize:10,color:me?"rgba(255,255,255,.6)":T.txD,textAlign:"right",marginTop:2,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:3}}>
-                    <span>{fTs(m.ts)}</span>
-                    {me&&!isGroup&&<span style={{fontSize:9,opacity:isRead(m.ts)?.9:.5}}>{isRead(m.ts)?"✓✓":"✓"}</span>}
+                {m.stamp_id?
+                  <div>
+                    <img src={`/stamps/${m.stamp_id}.webp`} alt="" draggable={false} style={{display:"block",width:160,height:160,objectFit:"contain",userSelect:"none"}}/>
+                    <div style={{fontSize:10,color:T.txD,textAlign:"right",marginTop:2,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:3}}>
+                      <span>{fTs(m.ts)}</span>
+                      {me&&!isGroup&&<span style={{fontSize:9,opacity:isRead(m.ts)?.9:.5}}>{isRead(m.ts)?"✓✓":"✓"}</span>}
+                    </div>
                   </div>
-                </div>
+                  :
+                  <div style={{padding:"8px 12px",borderRadius:me?"14px 14px 4px 14px":"14px 14px 14px 4px",background:me?T.accent:T.bg3,color:me?"#fff":T.txH,fontSize:14}}>
+                    <Tx>{m.text}</Tx>
+                    <div style={{fontSize:10,color:me?"rgba(255,255,255,.6)":T.txD,textAlign:"right",marginTop:2,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:3}}>
+                      <span>{fTs(m.ts)}</span>
+                      {me&&!isGroup&&<span style={{fontSize:9,opacity:isRead(m.ts)?.9:.5}}>{isRead(m.ts)?"✓✓":"✓"}</span>}
+                    </div>
+                  </div>
+                }
               </div>
             </div>;
             });
@@ -149,9 +187,21 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
         {typingUsers.length>0&&<div style={{padding:"2px 14px",fontSize:11,color:T.txD,fontStyle:"italic"}}>
           {typingUsers.join("、")}が入力中...
         </div>}
+        {!isGroup&&showStamps&&<div style={{padding:"10px 10px 0",background:T.bg2,borderTop:`1px solid ${T.bd}`}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3, 1fr)",gap:8,maxHeight:280,overflowY:"auto"}}>
+            {STAMPS.map(s=>(
+              <button key={s.id} onClick={()=>sendStamp(s.id)} style={{padding:6,borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <img src={`/stamps/${s.id}.webp`} alt={s.label} draggable={false} style={{width:"100%",aspectRatio:"1/1",objectFit:"contain",display:"block"}}/>
+              </button>
+            ))}
+          </div>
+        </div>}
         <div style={{padding:"8px 10px",borderTop:`1px solid ${T.bd}`,background:T.bg2}}>
-          <div style={{display:"flex",gap:6,alignItems:"center",padding:"3px 3px 3px 12px",borderRadius:20,background:T.bg3,border:`1px solid ${T.bd}`}}>
-            <input value={inp} onChange={e=>{setInp(e.target.value);setTyping(!!e.target.value.trim());}} onKeyDown={e=>e.key==="Enter"&&(e.preventDefault(),sendMsg())} placeholder="メッセージ..." style={{flex:1,padding:"8px 0",border:"none",background:"transparent",color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
+          <div style={{display:"flex",gap:6,alignItems:"center",padding:"3px 3px 3px 6px",borderRadius:20,background:T.bg3,border:`1px solid ${T.bd}`}}>
+            {!isGroup&&<button onClick={()=>setShowStamps(s=>!s)} title="スタンプ" style={{width:32,height:32,borderRadius:"50%",border:"none",background:showStamps?`${T.accent}22`:"transparent",color:showStamps?T.accent:T.txD,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10"/><path d="M21 15l-6 6"/><path d="M21 15h-4a2 2 0 0 0-2 2v4"/></svg>
+            </button>}
+            <input value={inp} onChange={e=>{setInp(e.target.value);setTyping(!!e.target.value.trim());}} onKeyDown={e=>e.key==="Enter"&&(e.preventDefault(),sendMsg())} onFocus={()=>setShowStamps(false)} placeholder="メッセージ..." style={{flex:1,padding:"8px 0",border:"none",background:"transparent",color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
             <button onClick={()=>{sendMsg();setTyping(false);}} style={{width:34,height:34,borderRadius:"50%",border:"none",background:inp.trim()?T.accent:"transparent",color:inp.trim()?"#fff":T.txD,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>{I.send}</button>
           </div>
         </div>
@@ -263,7 +313,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
         const last=conv.msgs[conv.msgs.length-1];
         return(
           <div key={conv.id} onClick={()=>{setSel({type:'dm',...conv});markDMSeen?.(conv.id);markRead(conv.id);}} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6,cursor:"pointer"}}>
-            <Av u={wu} sz={36} st/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{wu.name}</div><div style={{fontSize:12,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{last?.text}</div></div>
+            <Av u={wu} sz={36} st/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{wu.name}</div><div style={{fontSize:12,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{last?.stamp_id?"[スタンプ]":last?.text}</div></div>
             <span style={{fontSize:10,color:T.txD}}>{last?fT(last.ts):""}</span>
           </div>
         );

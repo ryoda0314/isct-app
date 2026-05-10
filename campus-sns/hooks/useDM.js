@@ -80,6 +80,7 @@ export function useDMMessages(conversationId) {
           id: m.id,
           uid: m.sender_id,
           text: m.text,
+          stamp_id: m.stamp_id || null,
           ts: new Date(m.created_at),
         }]);
       })
@@ -108,14 +109,19 @@ export function useDMMessages(conversationId) {
 }
 
 export function useDMSend() {
-  const sendDM = useCallback(async (text, conversationId, toUserId) => {
-    if (!text?.trim()) return null;
+  // text+conversationId / text+toUserId / stamp+conversationId / stamp+toUserId
+  // stamp_id can be passed via opts: { stampId } as the 4th positional arg slot replacement.
+  const sendDM = useCallback(async (text, conversationId, toUserId, opts = {}) => {
+    const stampId = opts.stampId || null;
+    const trimmed = text?.trim() || '';
+    if (!trimmed && !stampId) return null;
     try {
       const r = await fetch('/api/dm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: text.trim(),
+          text: trimmed || undefined,
+          stamp_id: stampId || undefined,
           conversation_id: conversationId || undefined,
           to_user_id: toUserId || undefined,
         }),
