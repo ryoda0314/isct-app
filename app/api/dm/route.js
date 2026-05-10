@@ -8,7 +8,15 @@ import { requireTelecomAllowed } from '../../../lib/telecom-restriction.js';
 
 // Server-side allowlist for stamp IDs. Must match public/stamps/manifest.json.
 // Stored as plain text in dm_messages.stamp_id; client maps id -> /stamps/<id>.webp.
-const ALLOWED_STAMP_IDS = new Set(['ryokai', 'arigatou', 'otsukare', 'gomenne', 'ok', 'matane']);
+const ALLOWED_STAMP_IDS = new Set([
+  // Set 1: imoticon/1 (kawaii character)
+  'ryokai', 'arigatou', 'otsukare', 'gomenne', 'ok', 'matane',
+  // Set 2: imoticon/2 (campus life chibi)
+  'now_ookayama', 'near_yushima', 'engr_face', 'med_face',
+  'togo_topic', 'today_suzu', 'lost_tamachi', 'summon_ooka',
+  'experimenting', 'kadai_oware', 'med_eng', 'kokuritsu_kyu',
+  'back_to_lab', 'mood_yushima', 'mem_tokyotech', 'mem_idaishika',
+]);
 
 // GET: list DM conversations for current user
 export async function GET(request) {

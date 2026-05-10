@@ -9,15 +9,58 @@ import { useGroupMessages, useGroupSend } from '../hooks/useGroupChat.js';
 import { useTyping } from '../hooks/useTyping.js';
 import { ReportModal } from '../ReportModal.jsx';
 
-// Must match server allowlist in app/api/dm/route.js and public/stamps/manifest.json
-const STAMPS = [
-  { id: 'ryokai',   label: '了解！' },
-  { id: 'arigatou', label: 'ありがとう！' },
-  { id: 'otsukare', label: 'おつかれさま！' },
-  { id: 'gomenne',  label: 'ごめんね' },
-  { id: 'ok',       label: 'OK！' },
-  { id: 'matane',   label: 'またね！' },
+// Must match server allowlist in app/api/dm/route.js and public/stamps/manifest.json.
+// Stamps are grouped by category for the picker UI; the on-disk path is
+// /stamps/<category>/<id>.webp.
+const STAMP_GROUPS = [
+  {
+    category: 'reactions',
+    label: 'リアクション',
+    stamps: [
+      { id: 'ryokai',   label: '了解！' },
+      { id: 'arigatou', label: 'ありがとう！' },
+      { id: 'otsukare', label: 'おつかれさま！' },
+      { id: 'gomenne',  label: 'ごめんね' },
+      { id: 'ok',       label: 'OK！' },
+      { id: 'matane',   label: 'またね！' },
+    ],
+  },
+  {
+    category: 'campus',
+    label: 'キャンパス',
+    stamps: [
+      { id: 'now_ookayama',  label: '今大岡山！' },
+      { id: 'near_yushima',  label: '湯島寄りです' },
+      { id: 'engr_face',     label: '理工の顔してる' },
+      { id: 'med_face',      label: '医歯学の顔してる' },
+      { id: 'togo_topic',    label: 'その話、統合向き' },
+      { id: 'today_suzu',    label: '今日はすずかけ' },
+      { id: 'lost_tamachi',  label: '田町で迷子' },
+      { id: 'summon_ooka',   label: '大岡山に召喚' },
+      { id: 'experimenting', label: '実験中です' },
+      { id: 'kadai_oware',   label: '課題に追われています' },
+      { id: 'med_eng',       label: '医工連携してる' },
+      { id: 'kokuritsu_kyu', label: 'それ、指定国立級' },
+      { id: 'back_to_lab',   label: '研究室に戻ります' },
+      { id: 'mood_yushima',  label: '今日は湯島の気分' },
+      { id: 'mem_tokyotech', label: '東工大の記憶' },
+      { id: 'mem_idaishika', label: '医科歯科の記憶' },
+    ],
+  },
 ];
+
+// Lookup stamp_id → category for resolving image src on received messages.
+const STAMP_CATEGORY_BY_ID = (() => {
+  const map = {};
+  for (const g of STAMP_GROUPS) for (const s of g.stamps) map[s.id] = g.category;
+  return map;
+})();
+const stampSrc = (id) => {
+  const cat = STAMP_CATEGORY_BY_ID[id];
+  // Fall back to flat /stamps/<id>.webp if id is unknown (e.g., stamps deprecated
+  // mid-rollout). Modern messages will always have a known category.
+  return cat ? `/stamps/${cat}/${id}.webp` : `/stamps/${id}.webp`;
+};
 
 export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,createGroup})=>{
   const user=useCurrentUser();
@@ -162,7 +205,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
                 {isGroup&&!me&&<div style={{fontSize:11,fontWeight:600,color:m.color||T.txD,marginBottom:2,marginLeft:2}}>{m.name}</div>}
                 {m.stamp_id?
                   <div>
-                    <img src={`/stamps/${m.stamp_id}.webp`} alt="" draggable={false} style={{display:"block",width:160,height:160,objectFit:"contain",userSelect:"none"}}/>
+                    <img src={stampSrc(m.stamp_id)} alt="" draggable={false} style={{display:"block",width:160,height:160,objectFit:"contain",userSelect:"none"}}/>
                     <div style={{fontSize:10,color:T.txD,textAlign:"right",marginTop:2,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:3}}>
                       <span>{fTs(m.ts)}</span>
                       {me&&!isGroup&&<span style={{fontSize:9,opacity:isRead(m.ts)?.9:.5}}>{isRead(m.ts)?"✓✓":"✓"}</span>}
@@ -187,14 +230,19 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
         {typingUsers.length>0&&<div style={{padding:"2px 14px",fontSize:11,color:T.txD,fontStyle:"italic"}}>
           {typingUsers.join("、")}が入力中...
         </div>}
-        {!isGroup&&showStamps&&<div style={{padding:"10px 10px 0",background:T.bg2,borderTop:`1px solid ${T.bd}`}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3, 1fr)",gap:8,maxHeight:280,overflowY:"auto"}}>
-            {STAMPS.map(s=>(
-              <button key={s.id} onClick={()=>sendStamp(s.id)} style={{padding:6,borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                <img src={`/stamps/${s.id}.webp`} alt={s.label} draggable={false} style={{width:"100%",aspectRatio:"1/1",objectFit:"contain",display:"block"}}/>
-              </button>
-            ))}
-          </div>
+        {!isGroup&&showStamps&&<div style={{padding:"10px 10px 0",background:T.bg2,borderTop:`1px solid ${T.bd}`,maxHeight:320,overflowY:"auto"}}>
+          {STAMP_GROUPS.map(g=>(
+            <div key={g.category} style={{marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:T.txD,letterSpacing:.4,padding:"2px 4px 6px",textTransform:"uppercase"}}>{g.label}</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3, 1fr)",gap:8}}>
+                {g.stamps.map(s=>(
+                  <button key={s.id} onClick={()=>sendStamp(s.id)} style={{padding:6,borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    <img src={`/stamps/${g.category}/${s.id}.webp`} alt={s.label} draggable={false} style={{width:"100%",aspectRatio:"1/1",objectFit:"contain",display:"block"}}/>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>}
         <div style={{padding:"8px 10px",borderTop:`1px solid ${T.bd}`,background:T.bg2}}>
           <div style={{display:"flex",gap:6,alignItems:"center",padding:"3px 3px 3px 6px",borderRadius:20,background:T.bg3,border:`1px solid ${T.bd}`}}>

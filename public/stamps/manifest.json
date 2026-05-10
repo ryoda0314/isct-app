@@ -1,32 +1,126 @@
-[
-  {
-    "id": "ryokai",
-    "label": "了解！",
-    "src": "/stamps/ryokai.webp"
-  },
-  {
-    "id": "arigatou",
-    "label": "ありがとう！",
-    "src": "/stamps/arigatou.webp"
-  },
-  {
-    "id": "otsukare",
-    "label": "おつかれさま！",
-    "src": "/stamps/otsukare.webp"
-  },
-  {
-    "id": "gomenne",
-    "label": "ごめんね",
-    "src": "/stamps/gomenne.webp"
-  },
-  {
-    "id": "ok",
-    "label": "OK！",
-    "src": "/stamps/ok.webp"
-  },
-  {
-    "id": "matane",
-    "label": "またね！",
-    "src": "/stamps/matane.webp"
-  }
-]
+{
+  "groups": [
+    {
+      "category": "reactions",
+      "label": "リアクション",
+      "stamps": [
+        {
+          "id": "ryokai",
+          "label": "了解！",
+          "src": "/stamps/reactions/ryokai.webp"
+        },
+        {
+          "id": "arigatou",
+          "label": "ありがとう！",
+          "src": "/stamps/reactions/arigatou.webp"
+        },
+        {
+          "id": "otsukare",
+          "label": "おつかれさま！",
+          "src": "/stamps/reactions/otsukare.webp"
+        },
+        {
+          "id": "gomenne",
+          "label": "ごめんね",
+          "src": "/stamps/reactions/gomenne.webp"
+        },
+        {
+          "id": "ok",
+          "label": "OK！",
+          "src": "/stamps/reactions/ok.webp"
+        },
+        {
+          "id": "matane",
+          "label": "またね！",
+          "src": "/stamps/reactions/matane.webp"
+        }
+      ]
+    },
+    {
+      "category": "campus",
+      "label": "キャンパス",
+      "stamps": [
+        {
+          "id": "now_ookayama",
+          "label": "今大岡山！",
+          "src": "/stamps/campus/now_ookayama.webp"
+        },
+        {
+          "id": "near_yushima",
+          "label": "湯島寄りです",
+          "src": "/stamps/campus/near_yushima.webp"
+        },
+        {
+          "id": "engr_face",
+          "label": "理工の顔してる",
+          "src": "/stamps/campus/engr_face.webp"
+        },
+        {
+          "id": "med_face",
+          "label": "医歯学の顔してる",
+          "src": "/stamps/campus/med_face.webp"
+        },
+        {
+          "id": "togo_topic",
+          "label": "その話、統合向き",
+          "src": "/stamps/campus/togo_topic.webp"
+        },
+        {
+          "id": "today_suzu",
+          "label": "今日はすずかけ",
+          "src": "/stamps/campus/today_suzu.webp"
+        },
+        {
+          "id": "lost_tamachi",
+          "label": "田町で迷子",
+          "src": "/stamps/campus/lost_tamachi.webp"
+        },
+        {
+          "id": "summon_ooka",
+          "label": "大岡山に召喚",
+          "src": "/stamps/campus/summon_ooka.webp"
+        },
+        {
+          "id": "experimenting",
+          "label": "実験中です",
+          "src": "/stamps/campus/experimenting.webp"
+        },
+        {
+          "id": "kadai_oware",
+          "label": "課題に追われています",
+          "src": "/stamps/campus/kadai_oware.webp"
+        },
+        {
+          "id": "med_eng",
+          "label": "医工連携してる",
+          "src": "/stamps/campus/med_eng.webp"
+        },
+        {
+          "id": "kokuritsu_kyu",
+          "label": "それ、指定国立級",
+          "src": "/stamps/campus/kokuritsu_kyu.webp"
+        },
+        {
+          "id": "back_to_lab",
+          "label": "研究室に戻ります",
+          "src": "/stamps/campus/back_to_lab.webp"
+        },
+        {
+          "id": "mood_yushima",
+          "label": "今日は湯島の気分",
+          "src": "/stamps/campus/mood_yushima.webp"
+        },
+        {
+          "id": "mem_tokyotech",
+          "label": "東工大の記憶",
+          "src": "/stamps/campus/mem_tokyotech.webp"
+        },
+        {
+          "id": "mem_idaishika",
+          "label": "医科歯科の記憶",
+          "src": "/stamps/campus/mem_idaishika.webp"
+        }
+      ]
+    }
+  ]
+}

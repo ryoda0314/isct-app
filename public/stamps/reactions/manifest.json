@@ -1,0 +1,12 @@
+{
+  "category": "reactions",
+  "label": "リアクション",
+  "stamps": [
+    { "id": "ryokai",   "label": "了解！",         "src": "/stamps/reactions/ryokai.webp" },
+    { "id": "arigatou", "label": "ありがとう！",   "src": "/stamps/reactions/arigatou.webp" },
+    { "id": "otsukare", "label": "おつかれさま！", "src": "/stamps/reactions/otsukare.webp" },
+    { "id": "gomenne",  "label": "ごめんね",       "src": "/stamps/reactions/gomenne.webp" },
+    { "id": "ok",       "label": "OK！",           "src": "/stamps/reactions/ok.webp" },
+    { "id": "matane",   "label": "またね！",       "src": "/stamps/reactions/matane.webp" }
+  ]
+}
