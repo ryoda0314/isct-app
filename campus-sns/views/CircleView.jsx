@@ -1589,7 +1589,7 @@ const DiscoverSection = ({ discover, joinCircle }) => {
 };
 
 /* ── サークルView ── */
-export const CircleView = ({ mob, circles = [], messages = {}, discover = [], sendMessage, createCircle, joinCircle, leaveCircle, addChannel, deleteChannel, pinMessage, updateCircle, onBack }) => {
+export const CircleView = ({ mob, circles = [], messages = {}, discover = [], sendMessage, createCircle, joinCircle, leaveCircle, addChannel, deleteChannel, pinMessage, updateCircle, fetchMessages, onBack }) => {
   const user = useCurrentUser();
   const uid = user?.moodleId || user?.id;
   const [selCircle, setSelCircle] = useState(null);
@@ -1608,6 +1608,10 @@ export const CircleView = ({ mob, circles = [], messages = {}, discover = [], se
   const ref = useRef(null);
   const typingRoom = selChannel ? `circle:${selChannel}` : null;
   const { typingUsers, setTyping } = useTyping(typingRoom, { id: uid, name: user?.name });
+
+  useEffect(() => {
+    if (selChannel && fetchMessages) fetchMessages(selChannel);
+  }, [selChannel, fetchMessages]);
 
   const sc = circles.find(c => c.id === selCircle);
   const chMsgs = selChannel ? (messages[selChannel] || []) : [];
