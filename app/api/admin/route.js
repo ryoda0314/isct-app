@@ -538,6 +538,46 @@ export async function GET(request) {
       return NextResponse.json({ courses, stats, dbLookupEnabled, ...deptList });
     }
 
+    // --- Textbooks list (course_textbooks_raw) ---
+    if (action === 'textbooks') {
+      const dept = searchParams.get('dept') || '';
+      const year = searchParams.get('year') || '';
+      const faculty = searchParams.get('faculty') || '';
+      const kind = searchParams.get('kind') || '';
+      const search = searchParams.get('search') || '';
+
+      let query = sb.from('course_textbooks_raw').select('*')
+        .order('course_code').order('kind');
+      if (year) query = query.eq('syllabus_year', year);
+      if (faculty) query = query.eq('faculty', faculty);
+      if (kind) query = query.eq('kind', kind);
+      if (dept) {
+        // course_code like "MEC.C201" or "MEC.C201:14-RW" — match by prefix
+        const safeDept = dept.replace(/[%_,]/g, '');
+        if (safeDept) query = query.ilike('course_code', `${safeDept}.%`);
+      }
+      if (search) {
+        const safe = search.slice(0, 100).replace(/[,%()]/g, '');
+        if (safe) query = query.or(`course_code.ilike.%${safe}%,raw_text.ilike.%${safe}%`);
+      }
+
+      const PAGE = 1000;
+      let rows = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await query.range(from, from + PAGE - 1);
+        if (error) {
+          console.error('[Admin textbooks]', error.message);
+          return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+        }
+        if (!data || data.length === 0) break;
+        rows = rows.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      return NextResponse.json({ rows, total: rows.length });
+    }
+
     // --- Guest analytics: overview stats ---
     if (action === 'guest_stats') {
       const now = new Date();

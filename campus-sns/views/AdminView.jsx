@@ -1662,7 +1662,111 @@ const SyllabusFetchTab = () => {
 
           {/* Curriculum requirement update */}
           <CurriculumInput years={years} />
+
+          {/* Textbooks viewer */}
+          <TextbooksViewer years={years} departments={departments} />
         </>
+      )}
+    </div>
+  );
+};
+
+// ---- Textbooks Viewer (course_textbooks_raw) ----
+const TextbooksViewer = ({ years, departments }) => {
+  const [year, setYear] = useState("");
+  const [dept, setDept] = useState("");
+  const [kind, setKind] = useState("");
+  const [search, setSearch] = useState("");
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ action: "textbooks" });
+      if (year) params.set("year", year);
+      if (dept) params.set("dept", dept);
+      if (kind) params.set("kind", kind);
+      if (search) params.set("search", search);
+      const r = await fetch(`${API}/api/admin?${params.toString()}`);
+      const d = await r.json();
+      setRows(d.rows || []);
+      setLoaded(true);
+    } catch (e) {
+      console.error("[Textbooks] fetch failed:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [year, dept, kind, search]);
+
+  const kindLabel = (k) => k === "textbook" ? "教科書" : k === "reference" ? "参考書" : k;
+
+  return (
+    <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, marginTop: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>
+        教科書一覧 ({rows.length})
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+        <select value={year} onChange={e => setYear(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
+          <option value="">年度（すべて）</option>
+          {years.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <select value={dept} onChange={e => setDept(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
+          <option value="">学院（すべて）</option>
+          {departments.map(d => <option key={d.key} value={d.key}>{d.key} {d.label}</option>)}
+        </select>
+        <select value={kind} onChange={e => setKind(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
+          <option value="">種別（すべて）</option>
+          <option value="textbook">教科書</option>
+          <option value="reference">参考書</option>
+        </select>
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") load(); }}
+          placeholder="科目コード/本文検索"
+          style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13, minWidth: 180 }}
+        />
+        <Btn onClick={load} color={T.accent} small disabled={loading}>
+          {loading ? "読込中..." : "検索"}
+        </Btn>
+      </div>
+
+      {/* Table */}
+      {loaded && rows.length === 0 && (
+        <div style={{ color: T.txD, fontSize: 13, padding: 12 }}>該当データなし</div>
+      )}
+      {rows.length > 0 && (
+        <div style={{ overflowX: "auto", maxHeight: 600, overflowY: "auto", border: `1px solid ${T.bd}`, borderRadius: 8 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead style={{ position: "sticky", top: 0, background: T.bg2, zIndex: 1 }}>
+              <tr>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>科目</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>年度</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>種別</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>内容</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>シラバス</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.id} style={{ borderBottom: `1px solid ${T.bd}` }}>
+                  <td style={{ padding: "6px 8px", color: T.txH, fontFamily: "monospace", whiteSpace: "nowrap", verticalAlign: "top" }}>{r.course_code}</td>
+                  <td style={{ padding: "6px 8px", color: T.txD, whiteSpace: "nowrap", verticalAlign: "top" }}>{r.syllabus_year}</td>
+                  <td style={{ padding: "6px 8px", color: r.kind === "textbook" ? T.accent : T.txD, whiteSpace: "nowrap", verticalAlign: "top" }}>{kindLabel(r.kind)}</td>
+                  <td style={{ padding: "6px 8px", color: T.txH, whiteSpace: "pre-wrap", verticalAlign: "top", maxWidth: 600 }}>{r.raw_text}</td>
+                  <td style={{ padding: "6px 8px", whiteSpace: "nowrap", verticalAlign: "top" }}>
+                    {r.source_url && <a href={r.source_url} target="_blank" rel="noopener noreferrer" style={{ color: T.accent, fontSize: 11 }}>開く</a>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
