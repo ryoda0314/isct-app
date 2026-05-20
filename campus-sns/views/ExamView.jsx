@@ -30,11 +30,29 @@ const countdownText = dateStr => {
   return `あと${days}日`;
 };
 
-function findMyExams(allExams, courses) {
+// 期末試験の年度/クォーターと、履修コースの年度/クォーターを正規化して比較する
+// course.year: '2025' 等の文字列 / course.quarter: 1-4 の数値
+// exam.year:   '2026' 等の文字列 / exam.quarter: '1Q' 等の文字列
+const normQ = q => {
+  if (q == null || q === "") return null;
+  const s = String(q);
+  const m = s.match(/(\d)/);
+  return m ? m[1] : null;
+};
+const matchCourseYQ = (c, year, quarter) => {
+  const ny = year == null ? null : String(year);
+  const nq = normQ(quarter);
+  if (ny && (!c.year || String(c.year) !== ny)) return false;
+  if (nq && (c.quarter == null || normQ(c.quarter) !== nq)) return false;
+  return true;
+};
+
+function findMyExams(allExams, courses, year, quarter) {
   if (!courses || courses.length === 0 || !allExams.length) return [];
   const rawSet = new Set();
   const baseOnlySet = new Set();
   for (const c of courses) {
+    if (!matchCourseYQ(c, year, quarter)) continue;
     if (c.codeRaw && c.codeRaw !== c.code) rawSet.add(c.codeRaw);
     else if (c.code) baseOnlySet.add(c.code);
   }
@@ -104,20 +122,25 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
     fetchExams(year, quarter);
   };
 
-  const myExams = useMemo(() => findMyExams(allExams, courses), [allExams, courses]);
+  const myExams = useMemo(() => findMyExams(allExams, courses, selYear, selQ), [allExams, courses, selYear, selQ]);
+
+  const matchedCourses = useMemo(() => {
+    if (!selYear && !selQ) return courses;
+    return courses.filter(c => matchCourseYQ(c, selYear, selQ));
+  }, [courses, selYear, selQ]);
 
   const myCodes = useMemo(() => {
-    return courses.map(c => c.code?.replace(/-\d+$/, "")).filter(Boolean);
-  }, [courses]);
+    return matchedCourses.map(c => c.code?.replace(/-\d+$/, "")).filter(Boolean);
+  }, [matchedCourses]);
 
   const codeMap = useMemo(() => {
     const m = {};
-    courses.forEach(c => {
+    matchedCourses.forEach(c => {
       const base = c.code?.replace(/-\d+$/, "");
       if (base) m[base] = c;
     });
     return m;
-  }, [courses]);
+  }, [matchedCourses]);
 
   const displayExams = showAll ? allExams : myExams;
 
