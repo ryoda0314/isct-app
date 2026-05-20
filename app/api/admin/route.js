@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { sendPushToUser } from '../../../lib/push.js';
-import { getSyllabusFromDB, getSyllabusStats, fetchDeptSyllabus, getDeptList, getScrapeProgress } from '../../../lib/api/syllabus-bulk.js';
+import { getSyllabusFromDB, getSyllabusStats, fetchDeptSyllabus, getDeptList, getScrapeProgress, fetchDeptTextbooks } from '../../../lib/api/syllabus-bulk.js';
 import { fetchMedFacultySyllabus, getMedFacultyList, getMedScrapeProgress } from '../../../lib/api/syllabus-med.js';
 
 export const maxDuration = 300;
@@ -918,6 +918,20 @@ export async function POST(request) {
       } catch (e) {
         console.error(`[Admin] scrape_syllabus ${dept}_${year} failed:`, e);
         return NextResponse.json({ error: 'Scrape failed' }, { status: 500 });
+      }
+    }
+
+    // --- Textbook scrape (per department + year) ---
+    if (action === 'scrape_textbooks') {
+      const { dept, year } = body;
+      if (!dept || !year) return NextResponse.json({ error: 'dept and year required' }, { status: 400 });
+      await auditLog(sb, auth.userid, 'scrape_textbooks', 'textbooks', `${dept}_${year}`);
+      try {
+        const result = await fetchDeptTextbooks(dept, year);
+        return NextResponse.json({ ok: true, ...result });
+      } catch (e) {
+        console.error(`[Admin] scrape_textbooks ${dept}_${year} failed:`, e);
+        return NextResponse.json({ error: 'Textbook scrape failed' }, { status: 500 });
       }
     }
 

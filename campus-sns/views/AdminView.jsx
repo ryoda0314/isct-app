@@ -1412,20 +1412,23 @@ const SyllabusFetchTab = () => {
     return () => clearInterval(id);
   }, [scraping]);
 
-  // Process queue sequentially
-  const scrapeSingle = async (dept, year) => {
-    const key = `${dept}_${year}`;
+  // Process queue sequentially. action: 'scrape_syllabus' | 'scrape_textbooks'
+  const scrapeSingle = async (dept, year, action = "scrape_syllabus") => {
+    const key = action === "scrape_textbooks" ? `tb_${dept}_${year}` : `${dept}_${year}`;
     setScraping(key);
     setProgress({ total: 0, done: 0, phase: "listing", current: "" });
     try {
-      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "scrape_syllabus", dept, year }) });
+      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, dept, year }) });
       const text = await r.text();
       let d;
       try { d = JSON.parse(text); } catch {
         console.error(`[scrape] ${dept} status=${r.status} body=`, text.slice(0, 500));
         return { dept, year, ok: false, error: `HTTP ${r.status}: ${text.slice(0, 120)}` };
       }
-      if (r.ok) return { dept, year, ok: true, count: d.added || 0 };
+      if (r.ok) {
+        const count = action === "scrape_textbooks" ? (d.rows || 0) : (d.added || 0);
+        return { dept, year, ok: true, count };
+      }
       return { dept, year, ok: false, error: d.error || "不明なエラー" };
     } catch (e) {
       console.error(`[scrape] ${dept} fetch error:`, e);
@@ -1436,31 +1439,33 @@ const SyllabusFetchTab = () => {
     }
   };
 
-  const handleBatchScrape = async (deptList, year) => {
+  const handleBatchScrape = async (deptList, year, action = "scrape_syllabus") => {
     setBatchResults([]);
     setQueue(deptList.map(d => ({ dept: d, year })));
     const results = [];
     for (const dept of deptList) {
       setQueue(prev => prev.filter(q => q.dept !== dept));
-      const result = await scrapeSingle(dept, year);
+      const result = await scrapeSingle(dept, year, action);
       results.push(result);
       setBatchResults(prev => [...prev, result]);
     }
     load();
     const ok = results.filter(r => r.ok);
     const fail = results.filter(r => !r.ok);
-    let msg = `取得完了: ${ok.length}/${results.length} 学科成功`;
+    const label = action === "scrape_textbooks" ? "教科書取得" : "取得";
+    let msg = `${label}完了: ${ok.length}/${results.length} 学科成功`;
     if (ok.length > 0) msg += `\n合計 ${ok.reduce((s, r) => s + r.count, 0)} 件`;
     if (fail.length > 0) msg += `\n\n失敗: ${fail.map(r => `${r.dept} (${r.error})`).join(", ")}`;
     alert(msg);
   };
 
-  const handleScrape = async (dept, year) => {
+  const handleScrape = async (dept, year, action = "scrape_syllabus") => {
     setBatchResults([]);
-    const result = await scrapeSingle(dept, year);
+    const result = await scrapeSingle(dept, year, action);
     setBatchResults([result]);
     load();
-    if (result.ok) alert(`${dept} ${year}: ${result.count}件取得完了`);
+    const label = action === "scrape_textbooks" ? "教科書" : "";
+    if (result.ok) alert(`${dept} ${year}: ${label}${result.count}件取得完了`);
     else alert(`取得失敗: ${result.error}`);
   };
 
@@ -1525,6 +1530,13 @@ const SyllabusFetchTab = () => {
                 disabled={!scrapeYear || selectedDepts.size === 0 || isBusy}
               >
                 {isBusy ? "取得中..." : `選択した${selectedDepts.size}学科を取得`}
+              </Btn>
+              <Btn
+                onClick={() => handleBatchScrape([...selectedDepts], scrapeYear, "scrape_textbooks")}
+                color={T.accent}
+                disabled={!scrapeYear || selectedDepts.size === 0 || isBusy}
+              >
+                {isBusy ? "取得中..." : `教科書を取得`}
               </Btn>
             </div>
 
