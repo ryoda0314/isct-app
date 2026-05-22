@@ -575,7 +575,61 @@ export async function GET(request) {
         if (data.length < PAGE) break;
         from += PAGE;
       }
-      return NextResponse.json({ rows, total: rows.length });
+
+      // Attach split preview (Stage A normalization preview)
+      const { splitTextbookLines } = await import('../../../lib/textbooks/split.js');
+      const totals = { book: 0, noise: 0, annotation: 0 };
+      for (const r of rows) {
+        r.lines = splitTextbookLines(r.raw_text || '');
+        for (const l of r.lines) totals[l.kind]++;
+      }
+      return NextResponse.json({ rows, total: rows.length, lineTotals: totals });
+    }
+
+    // --- Books list (Stage B normalized canonical book table) ---
+    if (action === 'books') {
+      const dept = searchParams.get('dept') || '';
+      const year = searchParams.get('year') || '';
+      const faculty = searchParams.get('faculty') || '';
+      const confidence = searchParams.get('confidence') || '';
+      const search = searchParams.get('search') || '';
+      const onlyOrphan = searchParams.get('only_orphan') === '1';
+
+      // Pull course_books joined with books for the filter
+      let q = sb.from('course_books')
+        .select('id, course_code, syllabus_year, faculty, kind, book_id, raw_line, confidence, status, note, books:book_id (id, isbn13, title, author, publisher, published_year, cover_url, source)')
+        .order('course_code').order('kind');
+      if (year) q = q.eq('syllabus_year', year);
+      if (faculty) q = q.eq('faculty', faculty);
+      if (confidence) q = q.eq('confidence', confidence);
+      if (onlyOrphan) q = q.is('book_id', null);
+      if (dept) {
+        const safe = dept.replace(/[%_,]/g, '');
+        if (safe) q = q.ilike('course_code', `${safe}.%`);
+      }
+      if (search) {
+        const safe = search.slice(0, 100).replace(/[,%()]/g, '');
+        if (safe) q = q.or(`course_code.ilike.%${safe}%,raw_line.ilike.%${safe}%`);
+      }
+
+      const PAGE = 1000;
+      let rows = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await q.range(from, from + PAGE - 1);
+        if (error) {
+          console.error('[Admin books]', error.message);
+          return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+        }
+        if (!data || data.length === 0) break;
+        rows = rows.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      // Summary counts
+      const counts = { high: 0, medium: 0, low: 0, none: 0 };
+      for (const r of rows) counts[r.confidence] = (counts[r.confidence] || 0) + 1;
+      return NextResponse.json({ rows, total: rows.length, counts });
     }
 
     // --- Guest analytics: overview stats ---
@@ -958,6 +1012,36 @@ export async function POST(request) {
       } catch (e) {
         console.error(`[Admin] scrape_syllabus ${dept}_${year} failed:`, e);
         return NextResponse.json({ error: 'Scrape failed' }, { status: 500 });
+      }
+    }
+
+    // --- Enrich textbooks (Stage C: NDL/Google Books name search) ---
+    if (action === 'enrich_textbooks') {
+      const { dept, year, faculty, useGoogleBooks } = body;
+      if (!year) return NextResponse.json({ error: 'year required' }, { status: 400 });
+      await auditLog(sb, auth.userid, 'enrich_textbooks', 'textbooks', `${dept || 'all'}_${year}_${faculty || 'isct'}`);
+      try {
+        const { enrichTextbooks } = await import('../../../lib/textbooks/enrich.js');
+        const result = await enrichTextbooks({ year, dept, faculty, useGoogleBooks });
+        return NextResponse.json({ ok: true, ...result });
+      } catch (e) {
+        console.error('[Admin] enrich_textbooks failed:', e);
+        return NextResponse.json({ error: e.message || 'Enrich failed' }, { status: 500 });
+      }
+    }
+
+    // --- Normalize textbooks (Stage B: ISBN extract + openBD) ---
+    if (action === 'normalize_textbooks') {
+      const { dept, year, faculty } = body;
+      if (!year) return NextResponse.json({ error: 'year required' }, { status: 400 });
+      await auditLog(sb, auth.userid, 'normalize_textbooks', 'textbooks', `${dept || 'all'}_${year}_${faculty || 'isct'}`);
+      try {
+        const { normalizeTextbooks } = await import('../../../lib/textbooks/normalize.js');
+        const result = await normalizeTextbooks({ year, dept, faculty });
+        return NextResponse.json({ ok: true, ...result });
+      } catch (e) {
+        console.error('[Admin] normalize_textbooks failed:', e);
+        return NextResponse.json({ error: e.message || 'Normalize failed' }, { status: 500 });
       }
     }
 
