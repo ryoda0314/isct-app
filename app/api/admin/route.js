@@ -519,6 +519,18 @@ export async function GET(request) {
       return NextResponse.json({ progress });
     }
 
+    // --- Textbook normalize/enrich progress ---
+    if (action === 'normalize_progress') {
+      const key = searchParams.get('key') || '';
+      const { getNormalizeProgress } = await import('../../../lib/textbooks/normalize.js');
+      return NextResponse.json({ progress: getNormalizeProgress(key) });
+    }
+    if (action === 'enrich_progress') {
+      const key = searchParams.get('key') || '';
+      const { getEnrichProgress } = await import('../../../lib/textbooks/enrich.js');
+      return NextResponse.json({ progress: getEnrichProgress(key) });
+    }
+
     // --- Syllabus / timetable data ---
     if (action === 'syllabus') {
       const dept = searchParams.get('dept') || '';
@@ -592,6 +604,7 @@ export async function GET(request) {
       const year = searchParams.get('year') || '';
       const faculty = searchParams.get('faculty') || '';
       const confidence = searchParams.get('confidence') || '';
+      const statusFilter = searchParams.get('status') || '';
       const search = searchParams.get('search') || '';
       const onlyOrphan = searchParams.get('only_orphan') === '1';
 
@@ -602,6 +615,7 @@ export async function GET(request) {
       if (year) q = q.eq('syllabus_year', year);
       if (faculty) q = q.eq('faculty', faculty);
       if (confidence) q = q.eq('confidence', confidence);
+      if (statusFilter) q = q.eq('status', statusFilter);
       if (onlyOrphan) q = q.is('book_id', null);
       if (dept) {
         const safe = dept.replace(/[%_,]/g, '');
@@ -1012,6 +1026,176 @@ export async function POST(request) {
       } catch (e) {
         console.error(`[Admin] scrape_syllabus ${dept}_${year} failed:`, e);
         return NextResponse.json({ error: 'Scrape failed' }, { status: 500 });
+      }
+    }
+
+    // --- Stage D: Update a course_books row's status (and optionally book_id) ---
+    if (action === 'update_course_book') {
+      const { id, status, book_id, note } = body;
+      if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+      if (status && !['pending', 'confirmed', 'rejected', 'not_a_book'].includes(status)) {
+        return NextResponse.json({ error: 'invalid status' }, { status: 400 });
+      }
+      const patch = { updated_at: new Date().toISOString() };
+      if (status !== undefined) patch.status = status;
+      if (book_id !== undefined) patch.book_id = book_id;
+      if (note !== undefined) patch.note = note;
+      const { data, error } = await sb.from('course_books').update(patch).eq('id', id).select('id').single();
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      await auditLog(sb, auth.userid, 'update_course_book', 'textbooks', `id=${id} status=${status}`);
+      return NextResponse.json({ ok: true, id: data?.id });
+    }
+
+    // --- Stage D: Manual ISBN entry → lookup openBD/GBooks → upsert book → link ---
+    if (action === 'manual_link_isbn') {
+      const { course_book_id, isbn } = body;
+      if (!course_book_id || !isbn) return NextResponse.json({ error: 'course_book_id and isbn required' }, { status: 400 });
+      const { extractIsbns } = await import('../../../lib/textbooks/isbn.js');
+      const validIsbns = extractIsbns(isbn);
+      if (validIsbns.length === 0) {
+        return NextResponse.json({ error: 'Invalid ISBN format/checksum' }, { status: 400 });
+      }
+      const isbn13 = validIsbns[0];
+
+      // Lookup openBD first
+      const { lookupIsbns } = await import('../../../lib/textbooks/openbd.js');
+      const openbdMap = await lookupIsbns([isbn13]);
+      let bookData = openbdMap.get(isbn13);
+      let source = 'openbd';
+
+      // Fallback to Google Books
+      if (!bookData) {
+        try {
+          const { searchGoogleBooks } = await import('../../../lib/textbooks/googlebooks.js');
+          const gbResults = await searchGoogleBooks(`isbn:${isbn13}`, { maxResults: 1 });
+          if (gbResults[0] && gbResults[0].isbn13 === isbn13) {
+            bookData = {
+              isbn13,
+              title: gbResults[0].title || '(タイトル不明)',
+              author: gbResults[0].author,
+              publisher: gbResults[0].publisher,
+              published_year: gbResults[0].published_year,
+              cover_url: gbResults[0].cover_url,
+              source_data: gbResults[0].source_data,
+            };
+            source = 'google_books';
+          }
+        } catch {}
+      }
+
+      if (!bookData) {
+        return NextResponse.json({
+          error: 'ISBN not found in openBD or Google Books. Use manual_create_book to enter metadata.',
+          isbn13,
+        }, { status: 404 });
+      }
+
+      // Upsert into books
+      const { data: bookRow, error: upsertErr } = await sb.from('books').upsert({
+        isbn13,
+        title: bookData.title || '(タイトル不明)',
+        author: bookData.author || null,
+        publisher: bookData.publisher || null,
+        published_year: bookData.published_year || null,
+        cover_url: bookData.cover_url || null,
+        source,
+        source_data: bookData.source_data || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'isbn13' }).select('id').single();
+      if (upsertErr) return NextResponse.json({ error: upsertErr.message }, { status: 500 });
+
+      // Link course_books
+      const { error: linkErr } = await sb.from('course_books').update({
+        book_id: bookRow.id,
+        confidence: 'high',
+        status: 'confirmed',
+        note: `manually linked via ${source}`,
+        updated_at: new Date().toISOString(),
+      }).eq('id', course_book_id);
+      if (linkErr) return NextResponse.json({ error: linkErr.message }, { status: 500 });
+
+      await auditLog(sb, auth.userid, 'manual_link_isbn', 'textbooks', `cb=${course_book_id} isbn=${isbn13}`);
+      return NextResponse.json({ ok: true, book_id: bookRow.id, source, title: bookData.title });
+    }
+
+    // --- Stage D: Manually create a book entry (no ISBN lookup) and link ---
+    if (action === 'manual_create_book') {
+      const { course_book_id, title, author, publisher, published_year, isbn13 } = body;
+      if (!course_book_id || !title) return NextResponse.json({ error: 'course_book_id and title required' }, { status: 400 });
+      const row = {
+        isbn13: isbn13 || null,
+        title,
+        author: author || null,
+        publisher: publisher || null,
+        published_year: published_year || null,
+        source: 'manual',
+        updated_at: new Date().toISOString(),
+      };
+      const upsertQ = isbn13
+        ? sb.from('books').upsert(row, { onConflict: 'isbn13' }).select('id').single()
+        : sb.from('books').insert(row).select('id').single();
+      const { data: bookRow, error: upsertErr } = await upsertQ;
+      if (upsertErr) return NextResponse.json({ error: upsertErr.message }, { status: 500 });
+      const { error: linkErr } = await sb.from('course_books').update({
+        book_id: bookRow.id,
+        confidence: 'high',
+        status: 'confirmed',
+        note: 'manually entered',
+        updated_at: new Date().toISOString(),
+      }).eq('id', course_book_id);
+      if (linkErr) return NextResponse.json({ error: linkErr.message }, { status: 500 });
+      await auditLog(sb, auth.userid, 'manual_create_book', 'textbooks', `cb=${course_book_id}`);
+      return NextResponse.json({ ok: true, book_id: bookRow.id });
+    }
+
+    // --- Re-cleanup course_books (re-apply splitter noise filters without losing matches) ---
+    if (action === 'recleanup_course_books') {
+      const { dept, year, faculty } = body;
+      if (!year) return NextResponse.json({ error: 'year required' }, { status: 400 });
+      await auditLog(sb, auth.userid, 'recleanup_course_books', 'textbooks', `${dept || 'all'}_${year}_${faculty || 'isct'}`);
+      try {
+        const { splitTextbookLines } = await import('../../../lib/textbooks/split.js');
+        // Fetch all course_books in scope (paginated)
+        const PAGE = 1000;
+        const all = [];
+        for (let from = 0; ; from += PAGE) {
+          let q = sb.from('course_books').select('id, raw_line, book_id, status')
+            .eq('syllabus_year', year).order('id').range(from, from + PAGE - 1);
+          if (faculty) q = q.eq('faculty', faculty);
+          if (dept) {
+            const safe = dept.replace(/[%_,]/g, '');
+            if (safe) q = q.ilike('course_code', `${safe}.%`);
+          }
+          const { data, error } = await q;
+          if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+          if (!data || data.length === 0) break;
+          all.push(...data);
+          if (data.length < PAGE) break;
+        }
+        // Re-classify each line and find ones now classified as non-book
+        const toDelete = [];
+        for (const r of all) {
+          // Skip rows already confirmed/rejected manually so we don't lose human work
+          if (r.status === 'confirmed' || r.status === 'rejected' || r.status === 'not_a_book') continue;
+          const lines = splitTextbookLines(r.raw_line || '');
+          const firstKind = lines[0]?.kind;
+          if (firstKind && firstKind !== 'book') {
+            toDelete.push(r.id);
+          }
+        }
+        // Batch delete
+        let deleted = 0;
+        const DEL_BATCH = 500;
+        for (let i = 0; i < toDelete.length; i += DEL_BATCH) {
+          const ids = toDelete.slice(i, i + DEL_BATCH);
+          const { error, count } = await sb.from('course_books').delete({ count: 'exact' }).in('id', ids);
+          if (error) console.error('[Recleanup] delete batch:', error.message);
+          else deleted += count || ids.length;
+        }
+        return NextResponse.json({ ok: true, scanned: all.length, deleted });
+      } catch (e) {
+        console.error('[Admin] recleanup failed:', e);
+        return NextResponse.json({ error: e.message || 'Recleanup failed' }, { status: 500 });
       }
     }
 

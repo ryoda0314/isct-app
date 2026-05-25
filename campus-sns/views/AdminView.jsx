@@ -1834,6 +1834,10 @@ const BooksViewer = ({ years, departments }) => {
   const [normResult, setNormResult] = useState(null);
   const [enriching, setEnriching] = useState(false);
   const [enrichResult, setEnrichResult] = useState(null);
+  const [enrichProgress, setEnrichProgress] = useState(null);
+  const [normProgress, setNormProgress] = useState(null);
+  const [status, setStatus] = useState("");
+  const [actionLoading, setActionLoading] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1843,6 +1847,7 @@ const BooksViewer = ({ years, departments }) => {
       if (dept) params.set("dept", dept);
       if (confidence) params.set("confidence", confidence);
       if (onlyOrphan) params.set("only_orphan", "1");
+      if (status) params.set("status", status);
       if (search) params.set("search", search);
       const r = await fetch(`${API}/api/admin?${params.toString()}`);
       const d = await r.json();
@@ -1854,13 +1859,60 @@ const BooksViewer = ({ years, departments }) => {
     } finally {
       setLoading(false);
     }
-  }, [year, dept, confidence, onlyOrphan, search]);
+  }, [year, dept, confidence, onlyOrphan, status, search]);
+
+  // Stage D action handlers
+  const updateRowStatus = async (rowId, newStatus) => {
+    setActionLoading(prev => ({ ...prev, [rowId]: true }));
+    try {
+      const r = await fetch(`${API}/api/admin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update_course_book", id: rowId, status: newStatus }),
+      });
+      if (r.ok) {
+        setRows(prev => prev.map(x => x.id === rowId ? { ...x, status: newStatus } : x));
+      } else {
+        const d = await r.json();
+        alert(`失敗: ${d.error}`);
+      }
+    } catch (e) {
+      alert(`エラー: ${e.message}`);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [rowId]: false }));
+    }
+  };
+
+  const manualLinkIsbn = async (rowId) => {
+    const isbn = prompt("ISBN を入力してください (10 または 13 桁、ハイフン可)");
+    if (!isbn) return;
+    setActionLoading(prev => ({ ...prev, [rowId]: true }));
+    try {
+      const r = await fetch(`${API}/api/admin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "manual_link_isbn", course_book_id: rowId, isbn }),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        alert(`紐付け成功: ${d.title || d.book_id} (${d.source})`);
+        await load();
+      } else {
+        alert(`失敗: ${d.error}`);
+      }
+    } catch (e) {
+      alert(`エラー: ${e.message}`);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [rowId]: false }));
+    }
+  };
 
   const runNormalize = async () => {
     if (!year) { alert("年度を選択してください"); return; }
     if (!confirm(`${dept || "全学院"} ${year} を正規化します。よろしいですか？`)) return;
     setNormalizing(true);
     setNormResult(null);
+    setNormProgress({ phase: "loading" });
     try {
       const r = await fetch(`${API}/api/admin`, {
         method: "POST",
@@ -1878,6 +1930,28 @@ const BooksViewer = ({ years, departments }) => {
       alert(`エラー: ${e.message}`);
     } finally {
       setNormalizing(false);
+      setNormProgress(null);
+    }
+  };
+
+  const runRecleanup = async () => {
+    if (!year) { alert("年度を選択してください"); return; }
+    if (!confirm(`${dept || "全学院"} ${year} の course_books に対して新しいノイズフィルタを適用し、ノイズ行を削除します。マッチ済みデータは保持されます。よろしいですか？`)) return;
+    try {
+      const r = await fetch(`${API}/api/admin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "recleanup_course_books", dept: dept || undefined, year, faculty: "isct" }),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        alert(`再クリーンアップ完了\n対象 ${d.scanned}件、ノイズ削除 ${d.deleted}件`);
+        await load();
+      } else {
+        alert(`失敗: ${d.error}`);
+      }
+    } catch (e) {
+      alert(`エラー: ${e.message}`);
     }
   };
 
@@ -1886,6 +1960,7 @@ const BooksViewer = ({ years, departments }) => {
     if (!confirm(`${dept || "全学院"} ${year} のISBN未マッチ書籍を名前検索（NDL）で補完します。時間がかかります。よろしいですか？`)) return;
     setEnriching(true);
     setEnrichResult(null);
+    setEnrichProgress({ phase: "loading", done: 0, total: 0, matched: 0 });
     try {
       const r = await fetch(`${API}/api/admin`, {
         method: "POST",
@@ -1903,14 +1978,50 @@ const BooksViewer = ({ years, departments }) => {
       alert(`エラー: ${e.message}`);
     } finally {
       setEnriching(false);
+      setEnrichProgress(null);
     }
   };
+
+  // Poll progress while enriching
+  useEffect(() => {
+    if (!enriching) return;
+    const key = `enrich_${dept || "all"}_${year}_isct`;
+    const id = setInterval(async () => {
+      try {
+        const r = await fetch(`${API}/api/admin?action=enrich_progress&key=${encodeURIComponent(key)}`);
+        const d = await r.json();
+        if (d.progress) setEnrichProgress(d.progress);
+      } catch {}
+    }, 1500);
+    return () => clearInterval(id);
+  }, [enriching, dept, year]);
+
+  // Poll progress while normalizing
+  useEffect(() => {
+    if (!normalizing) return;
+    const key = `norm_${dept || "all"}_${year}_isct`;
+    const id = setInterval(async () => {
+      try {
+        const r = await fetch(`${API}/api/admin?action=normalize_progress&key=${encodeURIComponent(key)}`);
+        const d = await r.json();
+        if (d.progress) setNormProgress(d.progress);
+      } catch {}
+    }, 1500);
+    return () => clearInterval(id);
+  }, [normalizing, dept, year]);
 
   const confidenceStyle = (c) => {
     if (c === "high") return { color: T.green, bg: `${T.green}15`, label: "高" };
     if (c === "medium") return { color: T.accent, bg: `${T.accent}15`, label: "中" };
     if (c === "low") return { color: "#e58c25", bg: "#e58c2515", label: "低" };
     return { color: T.txD, bg: T.bg2, label: "—" };
+  };
+
+  const statusStyle = (s) => {
+    if (s === "confirmed") return { color: T.green, bg: `${T.green}20`, label: "✓ 確定" };
+    if (s === "rejected") return { color: T.red, bg: `${T.red}20`, label: "✗ 違う" };
+    if (s === "not_a_book") return { color: T.txD, bg: T.bg2, label: "⊘ 本でない" };
+    return { color: T.txD, bg: "transparent", label: "未確定" };
   };
 
   return (
@@ -1942,6 +2053,13 @@ const BooksViewer = ({ years, departments }) => {
           <option value="low">低</option>
           <option value="none">未マッチ</option>
         </select>
+        <select value={status} onChange={e => setStatus(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
+          <option value="">レビュー状態（すべて）</option>
+          <option value="pending">未確定</option>
+          <option value="confirmed">確定</option>
+          <option value="rejected">違う</option>
+          <option value="not_a_book">本でない</option>
+        </select>
         <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: T.txD, cursor: "pointer" }}>
           <input type="checkbox" checked={onlyOrphan} onChange={e => setOnlyOrphan(e.target.checked)} />
           未マッチのみ
@@ -1961,7 +2079,56 @@ const BooksViewer = ({ years, departments }) => {
         <Btn onClick={runEnrich} color={T.accent} disabled={normalizing || enriching || !year}>
           {enriching ? "検索中..." : `C: 名前検索で補完`}
         </Btn>
+        <Btn onClick={runRecleanup} color={T.txD} disabled={normalizing || enriching || !year}>
+          再ノイズ除去
+        </Btn>
       </div>
+
+      {/* Live progress while normalizing */}
+      {normalizing && normProgress && (
+        <div style={{ padding: "10px 14px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.green}40`, marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, fontSize: 12, color: T.txH }}>
+            <span><b>B 正規化中</b> — フェーズ: {normProgress.phase || "—"}</span>
+            {normProgress.total > 0 && <span>{normProgress.done || 0} / {normProgress.total}</span>}
+          </div>
+          {normProgress.total > 0 && (
+            <div style={{ height: 6, borderRadius: 3, background: T.bd, overflow: "hidden" }}>
+              <div style={{ height: "100%", borderRadius: 3, background: T.green, width: `${Math.min(100, Math.round(((normProgress.done || 0) / normProgress.total) * 100))}%`, transition: "width 0.3s" }} />
+            </div>
+          )}
+          {normProgress.rawRows && <div style={{ fontSize: 11, color: T.txD, marginTop: 4 }}>raw {normProgress.rawRows}件, 書籍候補 {normProgress.bookLines || "?"}, books up {normProgress.booksUpserted || 0}</div>}
+        </div>
+      )}
+
+      {/* Live progress while enriching */}
+      {enriching && enrichProgress && (
+        <div style={{ padding: "10px 14px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.accent}40`, marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, fontSize: 12, color: T.txH }}>
+            <span><b>C 名前検索中</b> — {enrichProgress.phase || "—"}</span>
+            {enrichProgress.total > 0 && (
+              <span>
+                {enrichProgress.done || 0} / {enrichProgress.total}
+                {" "}({Math.round(((enrichProgress.done || 0) / enrichProgress.total) * 100)}%)
+              </span>
+            )}
+          </div>
+          {enrichProgress.total > 0 && (
+            <div style={{ height: 6, borderRadius: 3, background: T.bd, overflow: "hidden" }}>
+              <div style={{ height: "100%", borderRadius: 3, background: T.accent, width: `${Math.min(100, Math.round(((enrichProgress.done || 0) / enrichProgress.total) * 100))}%`, transition: "width 0.3s" }} />
+            </div>
+          )}
+          <div style={{ fontSize: 11, color: T.txD, marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <span>マッチ {enrichProgress.matched || 0}件</span>
+            <span style={{ color: T.green }}>NDL {enrichProgress.ndlHits || 0}</span>
+            <span style={{ color: enrichProgress.useGoogleBooks === false ? T.red : T.accent }}>
+              Google {enrichProgress.googleHits || 0}{enrichProgress.useGoogleBooks === false && " (停止中)"}
+            </span>
+            {enrichProgress.currentText && (
+              <span style={{ fontFamily: "monospace", color: T.txD, fontSize: 10, marginLeft: "auto", maxWidth: 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{enrichProgress.currentText}</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {normResult && (
         <div style={{ padding: "8px 12px", borderRadius: 8, background: `${T.green}15`, border: `1px solid ${T.green}40`, color: T.txH, fontSize: 12, marginBottom: 8 }}>
@@ -1992,12 +2159,20 @@ const BooksViewer = ({ years, departments }) => {
                 <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>信頼</th>
                 <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>マッチした書籍 / 元テキスト</th>
                 <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>ISBN</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>操作</th>
               </tr>
             </thead>
             <tbody>
               {rows.map(r => {
                 const cs = confidenceStyle(r.confidence);
+                const ss = statusStyle(r.status);
                 const b = r.books;
+                const busy = actionLoading[r.id];
+                const btnStyle = (color, faded) => ({
+                  padding: "2px 6px", borderRadius: 4, fontSize: 10, cursor: busy ? "wait" : "pointer",
+                  border: `1px solid ${color}40`, background: faded ? "transparent" : `${color}10`,
+                  color, fontWeight: 600, opacity: busy ? 0.5 : 1,
+                });
                 return (
                   <tr key={r.id} style={{ borderBottom: `1px solid ${T.bd}` }}>
                     <td style={{ padding: "6px 8px", color: T.txH, fontFamily: "monospace", whiteSpace: "nowrap", verticalAlign: "top" }}>
@@ -2007,8 +2182,11 @@ const BooksViewer = ({ years, departments }) => {
                     <td style={{ padding: "6px 8px", color: r.kind === "textbook" ? T.accent : T.txD, whiteSpace: "nowrap", verticalAlign: "top" }}>
                       {r.kind === "textbook" ? "教科書" : "参考書"}
                     </td>
-                    <td style={{ padding: "6px 8px", verticalAlign: "top" }}>
-                      <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: cs.bg, color: cs.color, fontWeight: 600 }}>{cs.label}</span>
+                    <td style={{ padding: "6px 8px", verticalAlign: "top", display: "flex", flexDirection: "column", gap: 3 }}>
+                      <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: cs.bg, color: cs.color, fontWeight: 600, textAlign: "center" }}>{cs.label}</span>
+                      {r.status && r.status !== "pending" && (
+                        <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: ss.bg, color: ss.color, fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{ss.label}</span>
+                      )}
                     </td>
                     <td style={{ padding: "6px 8px", color: T.txH, verticalAlign: "top", maxWidth: 500 }}>
                       {b ? (
@@ -2030,6 +2208,18 @@ const BooksViewer = ({ years, departments }) => {
                     </td>
                     <td style={{ padding: "6px 8px", whiteSpace: "nowrap", verticalAlign: "top", fontFamily: "monospace", fontSize: 11, color: T.txD }}>
                       {b?.isbn13 || ""}
+                    </td>
+                    <td style={{ padding: "6px 8px", whiteSpace: "nowrap", verticalAlign: "top" }}>
+                      <div style={{ display: "flex", gap: 3, flexDirection: "column" }}>
+                        {b && (
+                          <button disabled={busy} onClick={() => updateRowStatus(r.id, "confirmed")} style={btnStyle(T.green, r.status !== "confirmed")} title="この本でOK">✓ 確定</button>
+                        )}
+                        {b && (
+                          <button disabled={busy} onClick={() => updateRowStatus(r.id, "rejected")} style={btnStyle(T.red, r.status !== "rejected")} title="マッチが間違い">✗ 違う</button>
+                        )}
+                        <button disabled={busy} onClick={() => updateRowStatus(r.id, "not_a_book")} style={btnStyle(T.txD, r.status !== "not_a_book")} title="そもそも本じゃない">⊘ 本でない</button>
+                        <button disabled={busy} onClick={() => manualLinkIsbn(r.id)} style={btnStyle(T.accent, true)} title="手動でISBNを指定">🔍 ISBN</button>
+                      </div>
                     </td>
                   </tr>
                 );

@@ -13,6 +13,7 @@ const C = {
 const APPS = [
   { id: "dm",         icon: I.mail,      label: "メッセージ",   color: C.green,  badge: "dmUnread" },
   { id: "timetable",  icon: I.cal,       label: "時間割",       color: C.blue },
+  { id: "textbooks",  icon: I.book,      label: "教科書",       color: C.brown },
   { id: "tasks",      icon: I.tasks,     label: "課題",         color: C.red,    badge: "ac" },
   { id: "calendar",   icon: I.event,     label: "カレンダー",   color: C.orange },
   { id: "grades",     icon: I.grad,      label: "成績",         color: C.indigo },

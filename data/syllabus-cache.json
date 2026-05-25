@@ -1,5 +1,5 @@
 {
-  "timestamp": 1776667409681,
+  "timestamp": 1779675115369,
   "courses": {
     "@202601913": [
       {
@@ -51,54 +51,6 @@
         "building": "S2",
         "dept": "MEC",
         "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601862"
-      }
-    ],
-    "@202601842": [
-      {
-        "per": "火5-6",
-        "day": "火",
-        "periodStart": 5,
-        "periodEnd": 6,
-        "room": "W2-402",
-        "quarter": "1Q",
-        "building": "W2",
-        "dept": "MEC",
-        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601842"
-      },
-      {
-        "per": "金5-6",
-        "day": "金",
-        "periodStart": 5,
-        "periodEnd": 6,
-        "room": "W2-402",
-        "quarter": "1Q",
-        "building": "W2",
-        "dept": "MEC",
-        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601842"
-      }
-    ],
-    "MEC.I312": [
-      {
-        "per": "火5-6",
-        "day": "火",
-        "periodStart": 5,
-        "periodEnd": 6,
-        "room": "W2-402",
-        "quarter": "1Q",
-        "building": "W2",
-        "dept": "MEC",
-        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601842"
-      },
-      {
-        "per": "金5-6",
-        "day": "金",
-        "periodStart": 5,
-        "periodEnd": 6,
-        "room": "W2-402",
-        "quarter": "1Q",
-        "building": "W2",
-        "dept": "MEC",
-        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601842"
       }
     ],
     "@202601839": [
