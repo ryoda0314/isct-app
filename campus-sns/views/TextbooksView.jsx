@@ -1,91 +1,167 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { T } from '../theme.js';
+import { I } from '../icons.jsx';
 import { Loader, Tag } from '../shared.jsx';
 
 /**
  * マイ教科書ビュー
  *  - props.courses: App.jsx の allCourses (transformCourses 結果)
- *    各要素は { code, section, name, quarter, ... } を持つ。
- *  - section は Moodle fullname の【XX】から抽出される。
- *  - クライアント側で取得済みの履修データをサーバへ POST し、
- *    サーバは course_books DB の lookup のみ行う (Moodle 再呼び出しなし)。
+ *  - props.academicYear: App.jsx の _selY と連動
+ *  - props.setAcademicYear: 年度変更
  */
 
-const BookCard = ({ entry, kindLabel, kindColor }) => {
+// Cover gradient by ISBN hash (fallback when no cover_url)
+const COVER_GRADIENTS = [
+  ['#6375f0', '#7b8bf5'], ['#e5534b', '#f07670'], ['#3dae72', '#5cc28e'],
+  ['#d4843e', '#e6a45f'], ['#a855c7', '#c478dd'], ['#2d9d8f', '#4ab8aa'],
+  ['#c75d8e', '#dc7fa9'], ['#c6a236', '#dab958'], ['#61afef', '#84c2f3'],
+];
+const hashStr = (s) => { let h = 0; for (const c of (s || 'x')) h = ((h << 5) - h + c.charCodeAt(0)) | 0; return Math.abs(h); };
+
+const BookCover = ({ book, size = 'md' }) => {
+  const W = size === 'sm' ? 48 : 64;
+  const H = size === 'sm' ? 68 : 90;
+  const grad = COVER_GRADIENTS[hashStr(book?.isbn13 || book?.title) % COVER_GRADIENTS.length];
+  const initial = (book?.title || '?').replace(/^[「『"]/, '').slice(0, 1);
+
+  if (book?.cover_url) {
+    return (
+      <div style={{
+        width: W, minWidth: W, height: H, borderRadius: 5, overflow: 'hidden',
+        boxShadow: '0 2px 5px rgba(0,0,0,0.12)', background: T.bg3,
+      }}>
+        <img src={book.cover_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      </div>
+    );
+  }
+  return (
+    <div style={{
+      width: W, minWidth: W, height: H, borderRadius: 5,
+      background: `linear-gradient(135deg, ${grad[0]}, ${grad[1]})`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', fontSize: size === 'sm' ? 22 : 28, fontWeight: 700,
+      boxShadow: '0 2px 5px rgba(0,0,0,0.12)',
+      textShadow: '0 1px 2px rgba(0,0,0,0.2)',
+    }}>{initial}</div>
+  );
+};
+
+const BookCard = ({ entry, kindAccent }) => {
   const b = entry.book;
   if (!b) return null;
   const isbn = b.isbn13;
   const amazonUrl = isbn ? `https://www.amazon.co.jp/s?k=${isbn}&i=stripbooks` : null;
   const ndlUrl = isbn ? `https://ndlsearch.ndl.go.jp/search?cs=bib&keyword=${isbn}` : null;
+
   return (
     <div style={{
-      display: 'flex', gap: 12, padding: 12, marginBottom: 8,
+      display: 'flex', gap: 10, padding: 10,
       background: T.bg2, border: `1px solid ${T.bd}`, borderRadius: 8,
-    }}>
-      <div style={{
-        width: 60, minWidth: 60, height: 84,
-        background: T.bg3, borderRadius: 4, overflow: 'hidden',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        {b.cover_url
-          ? <img src={b.cover_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <span style={{ fontSize: 24, opacity: 0.3 }}>📖</span>}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {kindLabel && (
-          <div style={{ marginBottom: 4 }}>
-            <Tag color={kindColor}>{kindLabel}</Tag>
+      transition: 'border-color .15s, transform .15s',
+    }}
+    onMouseEnter={(e) => { e.currentTarget.style.borderColor = kindAccent; }}
+    onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.bd; }}>
+
+      <BookCover book={b} size="md" />
+
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{
+            fontSize: 13, fontWeight: 700, color: T.txH, lineHeight: 1.35,
+            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+            overflow: 'hidden', wordBreak: 'break-word', marginBottom: 4,
+          }}>
+            {b.title || '(タイトル不明)'}
           </div>
-        )}
-        <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, lineHeight: 1.3, marginBottom: 4 }}>
-          {b.title || '(タイトル不明)'}
+          {b.author && (
+            <div style={{
+              fontSize: 11, color: T.tx, marginBottom: 2, lineHeight: 1.3,
+              display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}>{b.author}</div>
+          )}
+          {b.publisher && (
+            <div style={{ fontSize: 10, color: T.txD, marginBottom: 4 }}>
+              {b.publisher}{b.published_year ? ` · ${b.published_year}` : ''}
+            </div>
+          )}
         </div>
-        {b.author && <div style={{ fontSize: 11, color: T.tx, marginBottom: 2 }}>{b.author}</div>}
-        {b.publisher && (
-          <div style={{ fontSize: 11, color: T.txD, marginBottom: 4 }}>
-            {b.publisher}{b.published_year ? ` (${b.published_year})` : ''}
+
+        <div>
+          {/* Course list */}
+          <div style={{
+            fontSize: 10, color: T.txD, marginBottom: 6,
+            display: 'flex', gap: 4, flexWrap: 'wrap',
+          }}>
+            {entry.courses.slice(0, 3).map((c, i) => (
+              <span key={i} style={{
+                padding: '1px 6px', borderRadius: 8,
+                background: `${kindAccent}14`, color: kindAccent,
+                fontWeight: 600, fontSize: 9, whiteSpace: 'nowrap',
+              }}>
+                {c.quarter ? `${c.quarter}Q ` : ''}{(c.name || '').slice(0, 18)}
+              </span>
+            ))}
+            {entry.courses.length > 3 && (
+              <span style={{ fontSize: 9, color: T.txD }}>+{entry.courses.length - 3}</span>
+            )}
           </div>
-        )}
-        <div style={{ fontSize: 10, color: T.txD, marginBottom: 6 }}>
-          {entry.courses.map((c, i) => (
-            <span key={i} style={{ marginRight: 8 }}>
-              {c.quarter ? `${c.quarter}Q ` : ''}{c.name}
-            </span>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {isbn && <span style={{ fontSize: 10, color: T.txD, fontFamily: 'monospace' }}>ISBN {isbn}</span>}
-          {amazonUrl && (
-            <a href={amazonUrl} target="_blank" rel="noopener noreferrer"
-              style={{ fontSize: 11, color: T.accent, textDecoration: 'none', fontWeight: 600 }}>
-              🛒 Amazon
-            </a>
-          )}
-          {ndlUrl && (
-            <a href={ndlUrl} target="_blank" rel="noopener noreferrer"
-              style={{ fontSize: 11, color: T.txD, textDecoration: 'none' }}>
-              📚 NDL
-            </a>
-          )}
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {amazonUrl && (
+              <a href={amazonUrl} target="_blank" rel="noopener noreferrer"
+                style={{
+                  fontSize: 10, color: '#fff', textDecoration: 'none', fontWeight: 600,
+                  background: '#ff9900', padding: '3px 8px', borderRadius: 4,
+                }}>Amazon で見る</a>
+            )}
+            {ndlUrl && (
+              <a href={ndlUrl} target="_blank" rel="noopener noreferrer"
+                style={{
+                  fontSize: 10, color: T.txD, textDecoration: 'none',
+                  border: `1px solid ${T.bd}`, padding: '2px 6px', borderRadius: 4,
+                }}>NDL</a>
+            )}
+            {isbn && (
+              <span style={{ fontSize: 9, color: T.txD, fontFamily: 'monospace', marginLeft: 'auto' }}>
+                {isbn}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-const SectionHeader = ({ icon, title, count, color }) => (
+const SectionHeader = ({ title, count, color, accent = false }) => (
   <div style={{
-    display: 'flex', alignItems: 'center', gap: 8,
-    padding: '8px 4px', marginBottom: 8, marginTop: 16,
-    borderBottom: `2px solid ${color}40`,
+    display: 'flex', alignItems: 'center', gap: 10,
+    padding: '6px 2px', marginBottom: 10, marginTop: 18,
   }}>
-    <span style={{ fontSize: 18 }}>{icon}</span>
-    <span style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>{title}</span>
+    <div style={{
+      width: 3, height: 16, borderRadius: 2, background: color,
+    }} />
+    <span style={{ fontSize: 13, fontWeight: 700, color: T.txH, letterSpacing: 0.3 }}>{title}</span>
     <span style={{
-      padding: '2px 8px', borderRadius: 10, background: `${color}20`,
-      color, fontSize: 11, fontWeight: 700,
-    }}>{count}冊</span>
+      padding: '1px 8px', borderRadius: 10, background: accent ? color : `${color}1c`,
+      color: accent ? '#fff' : color, fontSize: 10, fontWeight: 700,
+    }}>{count}</span>
+    <div style={{ flex: 1, height: 1, background: T.bd, marginLeft: 4 }} />
   </div>
+);
+
+const Pill = ({ value, label, current, onClick }) => (
+  <button
+    onClick={() => onClick(value)}
+    style={{
+      padding: '5px 11px', borderRadius: 14, border: 'none', cursor: 'pointer',
+      fontSize: 11, fontWeight: 600,
+      background: current === value ? T.accent : T.bg3,
+      color: current === value ? '#fff' : T.txD,
+      transition: 'all .12s',
+    }}>{label}</button>
 );
 
 export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) => {
@@ -94,7 +170,6 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
   const [data, setData] = useState({ courses: [], books: [], summary: {} });
   const [quarter, setQuarter] = useState('');
 
-  // Default to academicYear from App, or current Japan-academic year
   const currentJpYear = useMemo(() => {
     const jd = new Date(Date.now() + 9 * 3600000);
     return jd.getUTCMonth() >= 3 ? jd.getUTCFullYear() : jd.getUTCFullYear() - 1;
@@ -102,11 +177,9 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
   const year = academicYear || currentJpYear;
   const yearStr = String(year);
 
-  // Filter courses to selected year (course.year is set by transformCourses from Moodle shortname year prefix)
   const yearCourses = useMemo(() => {
     return (courses || []).filter(c => {
       if (!c || !c.code) return false;
-      // If course has no year info, include it (might be a current course)
       if (!c.year) return true;
       return c.year === year;
     });
@@ -118,10 +191,8 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
       const payload = yearCourses
         .filter(c => c && c.code && !/^\d{6}$/.test(c.section || ''))
         .map(c => ({
-          code: c.code,
-          section: c.section || null,
-          name: c.name || c.code,
-          quarter: c.quarter || null,
+          code: c.code, section: c.section || null,
+          name: c.name || c.code, quarter: c.quarter || null,
         }));
 
       const r = await fetch('/api/data/my-textbooks', {
@@ -142,7 +213,6 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
 
   useEffect(() => { load(quarter, yearStr); /* eslint-disable-next-line */ }, [quarter, yearStr, yearCourses.length]);
 
-  // Available years from user's courses (descending)
   const availableYears = useMemo(() => {
     const years = new Set();
     for (const c of (courses || [])) if (c?.year) years.add(c.year);
@@ -150,7 +220,6 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
     return [...years].sort((a, b) => b - a);
   }, [courses, currentJpYear]);
 
-  // 教科書/参考書を分離 (必修+参考の本は必修側に入れる)
   const { textbooks, references } = useMemo(() => {
     const tx = [], rf = [];
     for (const b of (data.books || [])) {
@@ -160,24 +229,22 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
     return { textbooks: tx, references: rf };
   }, [data.books]);
 
-  const Pill = ({ value, label, current, onClick }) => (
-    <button
-      onClick={() => onClick(value)}
-      style={{
-        padding: '6px 12px', borderRadius: 16, border: 'none', cursor: 'pointer',
-        fontSize: 12, fontWeight: 600,
-        background: current === value ? T.accent : T.bg3,
-        color: current === value ? '#fff' : T.txD,
-        transition: 'all .12s',
-      }}>{label}</button>
-  );
+  // Estimate budget (simple heuristic — no price data so this is a placeholder)
+  const totalBooks = textbooks.length + references.length;
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
-      <div style={{ marginBottom: 12 }}>
+    <div style={{ flex: 1, overflowY: 'auto' }}>
+      {/* Sticky header */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 5,
+        background: T.bg, padding: '12px 14px 10px',
+        borderBottom: `1px solid ${T.bd}`,
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>📚 マイ教科書</div>
-          {/* Year selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: T.accent, display: 'flex' }}>{I.book}</span>
+            <span style={{ fontSize: 17, fontWeight: 800, color: T.txH, letterSpacing: 0.3 }}>マイ教科書</span>
+          </div>
           {availableYears.length > 1 && setAcademicYear ? (
             <select value={year} onChange={(e) => setAcademicYear(Number(e.target.value))}
               style={{
@@ -188,19 +255,31 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
               {availableYears.map(y => <option key={y} value={y}>{y}年度</option>)}
             </select>
           ) : (
-            <div style={{ fontSize: 11, color: T.txD }}>{year}年度</div>
+            <div style={{
+              fontSize: 11, color: T.txD, background: T.bg3,
+              padding: '3px 8px', borderRadius: 10,
+            }}>{year}年度</div>
           )}
-          <div style={{ fontSize: 11, color: T.txD }}>
-            ({yearCourses.length}講義)
-          </div>
-        </div>
-        <div style={{ fontSize: 12, color: T.txD, marginBottom: 10 }}>
-          履修中の講義から自動抽出。
-          {textbooks.length > 0 && <>必修 <b style={{ color: T.accent }}>{textbooks.length}</b>冊</>}
-          {references.length > 0 && <> ／ 参考 <b style={{ color: T.txD }}>{references.length}</b>冊</>}
+          <div style={{ flex: 1 }} />
+          {!loading && totalBooks > 0 && (
+            <div style={{ display: 'flex', gap: 14, fontSize: 11 }}>
+              <div>
+                <span style={{ color: T.accent, fontWeight: 700, fontSize: 14 }}>{textbooks.length}</span>
+                <span style={{ color: T.txD, marginLeft: 3 }}>必修</span>
+              </div>
+              <div>
+                <span style={{ color: T.txH, fontWeight: 700, fontSize: 14 }}>{references.length}</span>
+                <span style={{ color: T.txD, marginLeft: 3 }}>参考</span>
+              </div>
+              <div>
+                <span style={{ color: T.txH, fontWeight: 700, fontSize: 14 }}>{yearCourses.length}</span>
+                <span style={{ color: T.txD, marginLeft: 3 }}>講義</span>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
           <Pill value="" label="全Q" current={quarter} onClick={setQuarter} />
           {[1, 2, 3, 4].map(q => (
             <Pill key={q} value={String(q)} label={`${q}Q`} current={quarter} onClick={setQuarter} />
@@ -208,61 +287,74 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
         </div>
       </div>
 
-      {loading && <Loader msg="教科書を集計中" size="sm" />}
-      {err && <div style={{ padding: 16, color: T.red, fontSize: 13 }}>エラー: {err}</div>}
+      <div style={{ padding: '0 14px 16px' }}>
+        {loading && <div style={{ padding: 20 }}><Loader msg="教科書を集計中" size="sm" /></div>}
+        {err && <div style={{ padding: 16, color: T.red, fontSize: 13 }}>エラー: {err}</div>}
 
-      {!loading && !err && (courses?.length || 0) === 0 && (
-        <div style={{ textAlign: 'center', padding: 40, color: T.txD, fontSize: 13 }}>
-          履修中の講義が読み込まれていません
-        </div>
-      )}
+        {!loading && !err && (courses?.length || 0) === 0 && (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: T.txD, fontSize: 13 }}>
+            <div style={{ color: T.bd, display: 'flex', justifyContent: 'center', marginBottom: 10, transform: 'scale(2)' }}>{I.inbox}</div>
+            履修中の講義が読み込まれていません
+          </div>
+        )}
 
-      {!loading && !err && (courses?.length || 0) > 0 && yearCourses.length === 0 && (
-        <div style={{ textAlign: 'center', padding: 40, color: T.txD, fontSize: 13 }}>
-          {year}年度に履修中の講義はありません
-        </div>
-      )}
+        {!loading && !err && (courses?.length || 0) > 0 && yearCourses.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: T.txD, fontSize: 13 }}>
+            <div style={{ color: T.bd, display: 'flex', justifyContent: 'center', marginBottom: 10, transform: 'scale(2)' }}>{I.cal}</div>
+            {year}年度に履修中の講義はありません
+          </div>
+        )}
 
-      {!loading && !err && yearCourses.length > 0 && textbooks.length === 0 && references.length === 0 && (
-        <div style={{ textAlign: 'center', padding: 40, color: T.txD, fontSize: 13 }}>
-          {year !== 2026 ? (
-            <>{year}年度の教科書データは現在登録されていません<br/>
-              <span style={{ fontSize: 11 }}>(2026年度シラバスのみ DB 整備済み)</span></>
-          ) : (
-            '条件に合う教科書はありません'
-          )}
-        </div>
-      )}
+        {!loading && !err && yearCourses.length > 0 && textbooks.length === 0 && references.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: T.txD, fontSize: 13 }}>
+            <div style={{ color: T.bd, display: 'flex', justifyContent: 'center', marginBottom: 10, transform: 'scale(2)' }}>{I.book}</div>
+            {year !== 2026 ? (
+              <>{year}年度の教科書データは現在登録されていません<br/>
+                <span style={{ fontSize: 11 }}>(2026年度シラバスのみ DB 整備済み)</span></>
+            ) : (
+              '条件に合う教科書はありません'
+            )}
+          </div>
+        )}
 
-      {/* 教科書 (必修) */}
-      {!loading && textbooks.length > 0 && (
-        <>
-          <SectionHeader icon="📕" title="教科書 (必修)" count={textbooks.length} color={T.accent} />
-          {textbooks.map((entry, idx) => (
-            <BookCard
-              key={`tx-${entry.book?.isbn13 || entry.book?.id}-${idx}`}
-              entry={entry}
-              kindLabel={entry.isReference ? '必修+参考' : null}
-              kindColor={T.accent}
-            />
-          ))}
-        </>
-      )}
+        {!loading && textbooks.length > 0 && (
+          <>
+            <SectionHeader title="教科書 (必修)" count={textbooks.length} color={T.accent} accent />
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+              gap: 8,
+            }}>
+              {textbooks.map((entry, idx) => (
+                <BookCard
+                  key={`tx-${entry.book?.isbn13 || entry.book?.id}-${idx}`}
+                  entry={entry}
+                  kindAccent={T.accent}
+                />
+              ))}
+            </div>
+          </>
+        )}
 
-      {/* 参考書 */}
-      {!loading && references.length > 0 && (
-        <>
-          <SectionHeader icon="📘" title="参考書" count={references.length} color={T.txD} />
-          {references.map((entry, idx) => (
-            <BookCard
-              key={`rf-${entry.book?.isbn13 || entry.book?.id}-${idx}`}
-              entry={entry}
-              kindLabel={null}
-              kindColor={T.txD}
-            />
-          ))}
-        </>
-      )}
+        {!loading && references.length > 0 && (
+          <>
+            <SectionHeader title="参考書" count={references.length} color={T.txD} />
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+              gap: 8,
+            }}>
+              {references.map((entry, idx) => (
+                <BookCard
+                  key={`rf-${entry.book?.isbn13 || entry.book?.id}-${idx}`}
+                  entry={entry}
+                  kindAccent={T.txD}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 };
