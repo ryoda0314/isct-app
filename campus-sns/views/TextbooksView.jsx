@@ -88,17 +88,34 @@ const SectionHeader = ({ icon, title, count, color }) => (
   </div>
 );
 
-export const TextbooksView = ({ courses = [] }) => {
+export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [data, setData] = useState({ courses: [], books: [], summary: {} });
   const [quarter, setQuarter] = useState('');
-  const [year] = useState('2026');
 
-  const load = async (q = quarter) => {
+  // Default to academicYear from App, or current Japan-academic year
+  const currentJpYear = useMemo(() => {
+    const jd = new Date(Date.now() + 9 * 3600000);
+    return jd.getUTCMonth() >= 3 ? jd.getUTCFullYear() : jd.getUTCFullYear() - 1;
+  }, []);
+  const year = academicYear || currentJpYear;
+  const yearStr = String(year);
+
+  // Filter courses to selected year (course.year is set by transformCourses from Moodle shortname year prefix)
+  const yearCourses = useMemo(() => {
+    return (courses || []).filter(c => {
+      if (!c || !c.code) return false;
+      // If course has no year info, include it (might be a current course)
+      if (!c.year) return true;
+      return c.year === year;
+    });
+  }, [courses, year]);
+
+  const load = async (q = quarter, y = yearStr) => {
     setLoading(true); setErr(null);
     try {
-      const payload = (courses || [])
+      const payload = yearCourses
         .filter(c => c && c.code && !/^\d{6}$/.test(c.section || ''))
         .map(c => ({
           code: c.code,
@@ -111,7 +128,7 @@ export const TextbooksView = ({ courses = [] }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ courses: payload, year, quarter: q }),
+        body: JSON.stringify({ courses: payload, year: y, quarter: q }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(`HTTP ${r.status}: ${j.detail || j.error || ''}`);
@@ -123,7 +140,15 @@ export const TextbooksView = ({ courses = [] }) => {
     setLoading(false);
   };
 
-  useEffect(() => { load(quarter); /* eslint-disable-next-line */ }, [quarter, courses?.length]);
+  useEffect(() => { load(quarter, yearStr); /* eslint-disable-next-line */ }, [quarter, yearStr, yearCourses.length]);
+
+  // Available years from user's courses (descending)
+  const availableYears = useMemo(() => {
+    const years = new Set();
+    for (const c of (courses || [])) if (c?.year) years.add(c.year);
+    years.add(currentJpYear);
+    return [...years].sort((a, b) => b - a);
+  }, [courses, currentJpYear]);
 
   // 教科書/参考書を分離 (必修+参考の本は必修側に入れる)
   const { textbooks, references } = useMemo(() => {
@@ -150,9 +175,24 @@ export const TextbooksView = ({ courses = [] }) => {
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
       <div style={{ marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>📚 マイ教科書</div>
-          <div style={{ fontSize: 11, color: T.txD }}>{year}年度</div>
+          {/* Year selector */}
+          {availableYears.length > 1 && setAcademicYear ? (
+            <select value={year} onChange={(e) => setAcademicYear(Number(e.target.value))}
+              style={{
+                fontSize: 12, fontWeight: 600, color: T.txH, background: T.bg3,
+                border: `1px solid ${T.bd}`, borderRadius: 6, padding: '3px 8px',
+                cursor: 'pointer',
+              }}>
+              {availableYears.map(y => <option key={y} value={y}>{y}年度</option>)}
+            </select>
+          ) : (
+            <div style={{ fontSize: 11, color: T.txD }}>{year}年度</div>
+          )}
+          <div style={{ fontSize: 11, color: T.txD }}>
+            ({yearCourses.length}講義)
+          </div>
         </div>
         <div style={{ fontSize: 12, color: T.txD, marginBottom: 10 }}>
           履修中の講義から自動抽出。
@@ -177,9 +217,20 @@ export const TextbooksView = ({ courses = [] }) => {
         </div>
       )}
 
-      {!loading && !err && (courses?.length || 0) > 0 && textbooks.length === 0 && references.length === 0 && (
+      {!loading && !err && (courses?.length || 0) > 0 && yearCourses.length === 0 && (
         <div style={{ textAlign: 'center', padding: 40, color: T.txD, fontSize: 13 }}>
-          条件に合う教科書はありません
+          {year}年度に履修中の講義はありません
+        </div>
+      )}
+
+      {!loading && !err && yearCourses.length > 0 && textbooks.length === 0 && references.length === 0 && (
+        <div style={{ textAlign: 'center', padding: 40, color: T.txD, fontSize: 13 }}>
+          {year !== 2026 ? (
+            <>{year}年度の教科書データは現在登録されていません<br/>
+              <span style={{ fontSize: 11 }}>(2026年度シラバスのみ DB 整備済み)</span></>
+          ) : (
+            '条件に合う教科書はありません'
+          )}
         </div>
       )}
 

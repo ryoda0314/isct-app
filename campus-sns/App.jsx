@@ -906,7 +906,7 @@ export default function App(){
           {view==="acadCal"&&<AcademicCalendarView mob={false}/>}
           {view==="exams"&&(L?<LockedView title="期末試験"/>:<ExamView courses={allCourses} mob={false} goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/>)}
           {view==="reg"&&<RegView mob={false}/>}
-          {view==="textbooks"&&(L?<LockedView title="マイ教科書"/>:<TextbooksView courses={allCourses}/>)}
+          {view==="textbooks"&&(L?<LockedView title="マイ教科書"/>:<TextbooksView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/>)}
           {view==="admin"&&<AdminView mob={false} courses={allCourses} depts={userDepts} schools={userSchools}/>}
           {view==="freshman"&&<FreshmanBoardView mob={false} loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/>}
         </div>
@@ -950,7 +950,7 @@ export default function App(){
         {view==="acadCal"&&<AcademicCalendarView mob/>}
         {view==="exams"&&(L?<><MHdr title="期末試験" back={mBack}/><LockedView title="期末試験"/></>:<><MHdr title="期末試験" back={mBack}/><ExamView courses={allCourses} mob goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/></>)}
         {view==="reg"&&<><MHdr title="履修登録補助" back={mBack}/><RegView mob/></>}
-        {view==="textbooks"&&(L?<><MHdr title="マイ教科書" back={mBack}/><LockedView title="マイ教科書"/></>:<><MHdr title="マイ教科書" back={mBack}/><TextbooksView courses={allCourses}/></>)}
+        {view==="textbooks"&&(L?<><MHdr title="マイ教科書" back={mBack}/><LockedView title="マイ教科書"/></>:<><MHdr title="マイ教科書" back={mBack}/><TextbooksView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/></>)}
         {view==="admin"&&<><MHdr title="管理者" back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
         {view==="freshman"&&<><MHdr title="新入生掲示板" back={mBack}/><FreshmanBoardView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/></>}
       </div>
