@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
+import { getDeptList } from '../../../../lib/api/syllabus-bulk.js';
 
 const PAGE_SIZE = 60;
 
@@ -52,9 +53,23 @@ export async function GET(request) {
         if (data.length < PAGE) break;
         from += PAGE;
       }
+      // 学系コード→日本語名のマッピング (getDeptList が学院/コース名を持つ)
+      const deptDict = {};
+      try {
+        const list = getDeptList();
+        for (const d of list.departments) {
+          deptDict[d.key] = { label: d.label, school: d.school };
+        }
+      } catch {}
+
       return NextResponse.json({
         years: [...yearSet].sort().reverse(),
-        depts: [...deptSet].sort().map(d => ({ key: d, school: schoolByDept[d] || '' })),
+        depts: [...deptSet].sort().map(d => ({
+          key: d,
+          // DB から school を引いて優先、無ければ buildDeptPaths 由来
+          school: schoolByDept[d] || deptDict[d]?.school || '',
+          label: deptDict[d]?.label || '',
+        })),
         quarters: [...quarterSet].sort(),
       });
     }
@@ -77,7 +92,21 @@ export async function GET(request) {
       .select('code, section, name, dept, quarter, day, per, room, building, school')
       .eq('year', year);
     if (dept) courseQuery = courseQuery.eq('dept', dept);
-    if (quarter) courseQuery = courseQuery.eq('quarter', quarter);
+    if (quarter) {
+      // "1Q" を指定したら "1Q"/"1-2Q"/"1-4Q"/"1・3Q"/"2・1Q" 等すべて一致させる。
+      // quarter 列の値に「単独の数字 N」が含まれているか OR で判定。
+      const digit = quarter.replace(/[Qq]/, '');
+      // 数値 1-4 のみ受け付ける
+      if (/^[1-4]$/.test(digit)) {
+        courseQuery = courseQuery.or([
+          `quarter.eq.${digit}Q`,
+          `quarter.like.${digit}-%`,
+          `quarter.like.%-${digit}Q`,
+          `quarter.like.${digit}・%`,
+          `quarter.like.%・${digit}Q`,
+        ].join(','));
+      }
+    }
     if (day) courseQuery = courseQuery.eq('day', day);
     if (search) courseQuery = courseQuery.or(`code.ilike.%${search}%,name.ilike.%${search}%`);
 
@@ -117,7 +146,7 @@ export async function GET(request) {
     for (let i = 0; i < keysArr.length; i += CHUNK) {
       const chunk = keysArr.slice(i, i + CHUNK);
       let q = sb.from('course_grading')
-        .select('course_code, raw_text, breakdown, total_percent, has_breakdown, source_url')
+        .select('course_code, raw_text, breakdown, total_percent, has_breakdown, is_pass_fail, source_url')
         .eq('syllabus_year', year)
         .in('course_code', chunk);
       if (onlyParsed) q = q.eq('has_breakdown', true);
@@ -156,6 +185,7 @@ export async function GET(request) {
       breakdown: row.breakdown,
       total_percent: row.total_percent,
       has_breakdown: row.has_breakdown,
+      is_pass_fail: !!row.is_pass_fail,
       source_url: row.source_url,
     }));
 

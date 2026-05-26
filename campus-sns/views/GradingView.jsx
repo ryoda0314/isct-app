@@ -86,10 +86,13 @@ const GradingCard = ({ row, dense = false }) => {
   const [expanded, setExpanded] = useState(false);
   const totalPct = row.total_percent;
   const hasFullPct = row.has_breakdown;
+  const isPassFail = row.is_pass_fail;
   return (
     <div style={{
       padding: dense ? 10 : 12,
-      background: T.bg2, border: `1px solid ${T.bd}`, borderRadius: 10,
+      background: T.bg2,
+      border: `1px solid ${isPassFail ? '#8a9c5a' : T.bd}`,
+      borderRadius: 10,
       transition: 'border-color .15s',
     }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
@@ -112,9 +115,28 @@ const GradingCard = ({ row, dense = false }) => {
             fontSize: 10, color: T.txD,
           }}>{row.day}{row.per ? row.per.replace(row.day, '') : ''}</span>
         )}
+        {isPassFail && (
+          <span style={{
+            padding: '1px 8px', borderRadius: 8,
+            background: '#8a9c5a22', color: '#6b7e3c',
+            fontSize: 10, fontWeight: 800,
+            border: '1px solid #8a9c5a55',
+          }}>合否科目</span>
+        )}
       </div>
 
-      {hasFullPct ? (
+      {isPassFail ? (
+        <div style={{
+          padding: '8px 12px', borderRadius: 8,
+          background: '#8a9c5a14',
+          border: '1px dashed #8a9c5a66',
+          fontSize: 12, color: '#6b7e3c', fontWeight: 600,
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ fontSize: 16 }}>✓</span>
+          <span>合格・不合格で評価される科目（%による配点なし）</span>
+        </div>
+      ) : hasFullPct ? (
         <>
           <BreakdownBar breakdown={row.breakdown} />
           <BreakdownItems breakdown={row.breakdown} compact={dense} />
@@ -191,6 +213,26 @@ const Pill = ({ value, label, current, onClick, color }) => (
     }}>{label}</button>
 );
 
+// アクティブ時にアクセントカラーで縁取りされるコンパクトなセレクトボックス
+const FilterSelect = ({ value, onChange, active, activeColor, children }) => {
+  const accent = activeColor || T.accent;
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      style={{
+        padding: '5px 8px', borderRadius: 6, fontSize: 12, fontWeight: active ? 700 : 500,
+        cursor: 'pointer',
+        background: active ? `${accent}1a` : T.bg3,
+        color: active ? accent : T.txH,
+        border: `1px solid ${active ? accent : T.bd}`,
+        maxWidth: 180,
+      }}>
+      {children}
+    </select>
+  );
+};
+
 // =============================================================
 // マイ履修タブ
 // =============================================================
@@ -252,45 +294,55 @@ const MyGradingPanel = ({ courses = [], academicYear, setAcademicYear }) => {
   const filtered = useMemo(() => {
     let list = data.courses || [];
     if (quarter) {
-      list = list.filter(c => String(c.quarter || '') === quarter);
+      // "1Q" 選択時は "1Q"/"1-2Q"/"1-4Q"/"1・3Q"/"3・1Q" 等すべてマッチ
+      const digit = quarter.replace(/[Qq]/, '');
+      const re = new RegExp(`(?:^|[^0-9])${digit}(?:[^0-9]|$)`);
+      list = list.filter(c => c.quarter && re.test(String(c.quarter)));
     }
     return list;
   }, [data.courses, quarter]);
 
   const parsedCount = filtered.filter(c => c.has_breakdown).length;
+  const passFailCount = filtered.filter(c => c.is_pass_fail).length;
 
   return (
     <div>
       <div style={{
         position: 'sticky', top: 0, zIndex: 5,
-        background: T.bg, padding: '10px 14px 8px',
+        background: T.bg, padding: '10px 14px',
         borderBottom: `1px solid ${T.bd}`,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           {availableYears.length > 1 && setAcademicYear ? (
-            <select value={year} onChange={(e) => setAcademicYear(Number(e.target.value))}
-              style={{
-                fontSize: 12, fontWeight: 600, color: T.txH, background: T.bg3,
-                border: `1px solid ${T.bd}`, borderRadius: 6, padding: '3px 8px',
-                cursor: 'pointer',
-              }}>
+            <FilterSelect
+              value={year}
+              onChange={v => setAcademicYear(Number(v))}
+              active={false}>
               {availableYears.map(y => <option key={y} value={y}>{y}年度</option>)}
-            </select>
+            </FilterSelect>
           ) : (
-            <div style={{ fontSize: 11, color: T.txD, background: T.bg3, padding: '3px 8px', borderRadius: 10 }}>{year}年度</div>
+            <div style={{ fontSize: 12, color: T.txD, background: T.bg3, padding: '5px 10px', borderRadius: 6, border: `1px solid ${T.bd}` }}>{year}年度</div>
           )}
+          <FilterSelect value={quarter} onChange={setQuarter} active={!!quarter}>
+            <option value="">全Q</option>
+            <option value="1Q">1Q</option>
+            <option value="2Q">2Q</option>
+            <option value="3Q">3Q</option>
+            <option value="4Q">4Q</option>
+          </FilterSelect>
           <div style={{ flex: 1 }} />
           {!loading && (
-            <div style={{ fontSize: 11, color: T.txD }}>
-              <span style={{ color: T.accent, fontWeight: 700, fontSize: 14 }}>{parsedCount}</span>
-              <span style={{ marginLeft: 3 }}>/ {filtered.length} 件で割合解析</span>
+            <div style={{ fontSize: 11, color: T.txD, display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span>
+                <span style={{ color: T.accent, fontWeight: 700, fontSize: 14 }}>{parsedCount}</span>
+                <span style={{ marginLeft: 3 }}>/ {filtered.length} 件で割合解析</span>
+              </span>
+              {passFailCount > 0 && (
+                <span style={{ color: '#6b7e3c' }}>
+                  · <span style={{ fontWeight: 700, fontSize: 13 }}>{passFailCount}</span> 件は合否
+                </span>
+              )}
             </div>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-          <Pill value="" label="全Q" current={quarter} onClick={setQuarter} />
-          {['1Q', '2Q', '3Q', '4Q', '1-2Q', '3-4Q'].map(q =>
-            <Pill key={q} value={q} label={q} current={quarter} onClick={setQuarter} />
           )}
         </div>
       </div>
@@ -403,52 +455,50 @@ const SearchGradingPanel = () => {
     <div>
       <div style={{
         position: 'sticky', top: 0, zIndex: 5,
-        background: T.bg, padding: '10px 14px 10px',
+        background: T.bg, padding: '10px 14px',
         borderBottom: `1px solid ${T.bd}`,
       }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
-          <select value={year} onChange={e => setYear(e.target.value)}
-            style={{ padding: '4px 8px', borderRadius: 6, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 12 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <FilterSelect value={year} onChange={setYear} active={false}>
             {(meta.years || ['2026']).map(y => <option key={y} value={y}>{y}年度</option>)}
-          </select>
-          <select value={dept} onChange={e => setDept(e.target.value)}
-            style={{ padding: '4px 8px', borderRadius: 6, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 12, maxWidth: 200 }}>
+          </FilterSelect>
+          <FilterSelect value={dept} onChange={setDept} active={!!dept}>
             <option value="">全学系</option>
             {Object.entries(deptsBySchool).map(([school, ds]) => (
               <optgroup key={school} label={school}>
-                {ds.map(d => <option key={d.key} value={d.key}>{d.key}</option>)}
+                {ds.map(d => (
+                  <option key={d.key} value={d.key}>
+                    {d.label ? `${d.label} (${d.key})` : d.key}
+                  </option>
+                ))}
               </optgroup>
             ))}
-          </select>
+          </FilterSelect>
+          <FilterSelect value={quarter} onChange={setQuarter} active={!!quarter}>
+            <option value="">全Q</option>
+            <option value="1Q">1Q</option>
+            <option value="2Q">2Q</option>
+            <option value="3Q">3Q</option>
+            <option value="4Q">4Q</option>
+          </FilterSelect>
+          <FilterSelect value={category} onChange={setCategory} active={!!category}
+            activeColor={category ? CATEGORY_COLORS[category] : null}>
+            <option value="">全カテゴリ</option>
+            {CATEGORY_ORDER.map(c => (
+              <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
+            ))}
+          </FilterSelect>
           <input
             type="text" placeholder="科目コード/名/本文で検索"
             value={search} onChange={e => setSearch(e.target.value)}
             style={{
-              flex: 1, minWidth: 140, padding: '4px 8px', borderRadius: 6,
+              flex: 1, minWidth: 140, padding: '5px 10px', borderRadius: 6,
               background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 12,
             }}/>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: T.txD, cursor: 'pointer' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: T.txD, cursor: 'pointer', whiteSpace: 'nowrap' }}>
             <input type="checkbox" checked={onlyParsed} onChange={e => setOnlyParsed(e.target.checked)} />
             割合解析済のみ
           </label>
-        </div>
-
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 6 }}>
-          <Pill value="" label="全Q" current={quarter} onClick={setQuarter} />
-          {(meta.quarters || ['1Q', '2Q', '3Q', '4Q']).slice(0, 8).map(q =>
-            <Pill key={q} value={q} label={q} current={quarter} onClick={setQuarter} />
-          )}
-        </div>
-
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-          <Pill value="" label="カテゴリ無指定" current={category} onClick={setCategory} />
-          {CATEGORY_ORDER.map(c => (
-            <Pill
-              key={c} value={c} label={CATEGORY_LABELS[c]}
-              current={category} onClick={setCategory}
-              color={CATEGORY_COLORS[c]}
-            />
-          ))}
         </div>
       </div>
 

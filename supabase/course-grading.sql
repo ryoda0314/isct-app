@@ -21,9 +21,13 @@ create table if not exists course_grading (
   breakdown       jsonb,                    -- [{label, percent, category}]
   total_percent   int,                      -- breakdown 合計 (検証用)
   has_breakdown   boolean not null default false, -- パース成功フラグ
+  is_pass_fail    boolean not null default false, -- 合否科目 (Pass/Fail) フラグ
   source_url      text,                     -- シラバス詳細ページURL
   scraped_at      timestamptz default now()
 );
+
+-- 既存テーブルへの追加 (再実行安全)
+alter table course_grading add column if not exists is_pass_fail boolean not null default false;
 
 -- 同一(科目, 年度, faculty) はスクレイプ再実行で上書き
 create unique index if not exists idx_grading_unique

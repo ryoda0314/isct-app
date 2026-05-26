@@ -46,7 +46,7 @@ export async function POST(request) {
 
     const sb = getSupabaseAdmin();
     const { data, error } = await sb.from('course_grading')
-      .select('course_code, raw_text, breakdown, total_percent, has_breakdown, source_url')
+      .select('course_code, raw_text, breakdown, total_percent, has_breakdown, is_pass_fail, source_url')
       .eq('syllabus_year', year)
       .in('course_code', allKeys);
     if (error) {
@@ -77,6 +77,7 @@ export async function POST(request) {
       breakdown: row.breakdown,
       total_percent: row.total_percent,
       has_breakdown: row.has_breakdown,
+      is_pass_fail: !!row.is_pass_fail,
       source_url: row.source_url,
     })).sort((a, b) =>
       (a.quarter || 9) - (b.quarter || 9) ||
