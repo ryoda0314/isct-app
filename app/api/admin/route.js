@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { sendPushToUser } from '../../../lib/push.js';
-import { getSyllabusFromDB, getSyllabusStats, fetchDeptSyllabus, getDeptList, getScrapeProgress, fetchDeptTextbooks } from '../../../lib/api/syllabus-bulk.js';
+import { getSyllabusFromDB, getSyllabusStats, fetchDeptSyllabus, getDeptList, getScrapeProgress, fetchDeptTextbooks, fetchDeptGrading, getGradingStats } from '../../../lib/api/syllabus-bulk.js';
 import { fetchMedFacultySyllabus, getMedFacultyList, getMedScrapeProgress } from '../../../lib/api/syllabus-med.js';
 
 export const maxDuration = 300;
@@ -539,15 +539,23 @@ export async function GET(request) {
       const day = searchParams.get('day') || '';
       const search = searchParams.get('search') || '';
       console.log(`[Admin syllabus] query: dept=${dept} year=${year} quarter=${quarter} day=${day} search=${search}`);
-      const [courses, stats, lookupSetting] = await Promise.all([
+      const [courses, stats, gradingStatsResult, lookupSetting] = await Promise.all([
         getSyllabusFromDB({ dept, year, quarter, day, search }),
         getSyllabusStats(),
+        getGradingStats(),
         sb.from('site_settings').select('value').eq('key', 'syllabus_db_lookup').maybeSingle(),
       ]);
       const deptList = getDeptList();
       console.log(`[Admin syllabus] result: ${courses.length} courses, ${Object.keys(stats).length} stat entries, years=${deptList.years}`);
       const dbLookupEnabled = lookupSetting?.data?.value?.enabled !== false;
-      return NextResponse.json({ courses, stats, dbLookupEnabled, ...deptList });
+      return NextResponse.json({
+        courses, stats, dbLookupEnabled,
+        gradingStats: gradingStatsResult.stats,
+        gradingTotals: gradingStatsResult.totals,
+        gradingTableExists: gradingStatsResult.tableExists,
+        gradingTableError: gradingStatsResult.error,
+        ...deptList,
+      });
     }
 
     // --- Textbooks list (course_textbooks_raw) ---
@@ -596,6 +604,59 @@ export async function GET(request) {
         for (const l of r.lines) totals[l.kind]++;
       }
       return NextResponse.json({ rows, total: rows.length, lineTotals: totals });
+    }
+
+    // --- Grading list (course_grading) ---
+    if (action === 'grading') {
+      const dept = searchParams.get('dept') || '';
+      const year = searchParams.get('year') || '';
+      const faculty = searchParams.get('faculty') || '';
+      const onlyParsed = searchParams.get('only_parsed') === '1';
+      const search = searchParams.get('search') || '';
+
+      let query = sb.from('course_grading').select('*')
+        .order('course_code');
+      if (year) query = query.eq('syllabus_year', year);
+      if (faculty) query = query.eq('faculty', faculty);
+      if (onlyParsed) query = query.eq('has_breakdown', true);
+      if (dept) {
+        const safeDept = dept.replace(/[%_,]/g, '');
+        if (safeDept) query = query.ilike('course_code', `${safeDept}.%`);
+      }
+      if (search) {
+        const safe = search.slice(0, 100).replace(/[,%()]/g, '');
+        if (safe) query = query.or(`course_code.ilike.%${safe}%,raw_text.ilike.%${safe}%`);
+      }
+
+      const PAGE = 1000;
+      let rows = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await query.range(from, from + PAGE - 1);
+        if (error) {
+          console.error('[Admin grading]', error.message);
+          return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+        }
+        if (!data || data.length === 0) break;
+        rows = rows.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+
+      // 集計
+      const counts = { total: rows.length, parsed: 0, raw_only: 0 };
+      const categoryTotals = {};
+      for (const r of rows) {
+        if (r.has_breakdown) {
+          counts.parsed++;
+          for (const item of (r.breakdown || [])) {
+            categoryTotals[item.category] = (categoryTotals[item.category] || 0) + 1;
+          }
+        } else {
+          counts.raw_only++;
+        }
+      }
+      return NextResponse.json({ rows, total: rows.length, counts, categoryTotals });
     }
 
     // --- Books list (Stage B normalized canonical book table) ---
@@ -1240,6 +1301,20 @@ export async function POST(request) {
       } catch (e) {
         console.error(`[Admin] scrape_textbooks ${dept}_${year} failed:`, e);
         return NextResponse.json({ error: 'Textbook scrape failed' }, { status: 500 });
+      }
+    }
+
+    // --- Grading scrape (per department + year) ---
+    if (action === 'scrape_grading') {
+      const { dept, year } = body;
+      if (!dept || !year) return NextResponse.json({ error: 'dept and year required' }, { status: 400 });
+      await auditLog(sb, auth.userid, 'scrape_grading', 'grading', `${dept}_${year}`);
+      try {
+        const result = await fetchDeptGrading(dept, year);
+        return NextResponse.json({ ok: true, ...result });
+      } catch (e) {
+        console.error(`[Admin] scrape_grading ${dept}_${year} failed:`, e);
+        return NextResponse.json({ error: 'Grading scrape failed' }, { status: 500 });
       }
     }
 

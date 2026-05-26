@@ -1412,9 +1412,11 @@ const SyllabusFetchTab = () => {
     return () => clearInterval(id);
   }, [scraping]);
 
-  // Process queue sequentially. action: 'scrape_syllabus' | 'scrape_textbooks'
+  // Process queue sequentially. action: 'scrape_syllabus' | 'scrape_textbooks' | 'scrape_grading'
   const scrapeSingle = async (dept, year, action = "scrape_syllabus") => {
-    const key = action === "scrape_textbooks" ? `tb_${dept}_${year}` : `${dept}_${year}`;
+    const keyPrefix = action === "scrape_textbooks" ? "tb_"
+      : action === "scrape_grading" ? "gr_" : "";
+    const key = `${keyPrefix}${dept}_${year}`;
     setScraping(key);
     setProgress({ total: 0, done: 0, phase: "listing", current: "" });
     try {
@@ -1426,8 +1428,10 @@ const SyllabusFetchTab = () => {
         return { dept, year, ok: false, error: `HTTP ${r.status}: ${text.slice(0, 120)}` };
       }
       if (r.ok) {
-        const count = action === "scrape_textbooks" ? (d.rows || 0) : (d.added || 0);
-        return { dept, year, ok: true, count };
+        const count = action === "scrape_textbooks" ? (d.rows || 0)
+          : action === "scrape_grading" ? (d.rows || 0)
+          : (d.added || 0);
+        return { dept, year, ok: true, count, extra: action === "scrape_grading" ? d.withBreakdown : null };
       }
       return { dept, year, ok: false, error: d.error || "不明なエラー" };
     } catch (e) {
@@ -1452,9 +1456,16 @@ const SyllabusFetchTab = () => {
     load();
     const ok = results.filter(r => r.ok);
     const fail = results.filter(r => !r.ok);
-    const label = action === "scrape_textbooks" ? "教科書取得" : "取得";
+    const label = action === "scrape_textbooks" ? "教科書取得"
+      : action === "scrape_grading" ? "成績割合取得"
+      : "取得";
     let msg = `${label}完了: ${ok.length}/${results.length} 学科成功`;
-    if (ok.length > 0) msg += `\n合計 ${ok.reduce((s, r) => s + r.count, 0)} 件`;
+    if (ok.length > 0) {
+      msg += `\n合計 ${ok.reduce((s, r) => s + r.count, 0)} 件`;
+      if (action === "scrape_grading") {
+        msg += ` (うち割合解析成功 ${ok.reduce((s, r) => s + (r.extra || 0), 0)} 件)`;
+      }
+    }
     if (fail.length > 0) msg += `\n\n失敗: ${fail.map(r => `${r.dept} (${r.error})`).join(", ")}`;
     alert(msg);
   };
@@ -1464,7 +1475,9 @@ const SyllabusFetchTab = () => {
     const result = await scrapeSingle(dept, year, action);
     setBatchResults([result]);
     load();
-    const label = action === "scrape_textbooks" ? "教科書" : "";
+    const label = action === "scrape_textbooks" ? "教科書"
+      : action === "scrape_grading" ? "成績割合"
+      : "";
     if (result.ok) alert(`${dept} ${year}: ${label}${result.count}件取得完了`);
     else alert(`取得失敗: ${result.error}`);
   };
@@ -1472,6 +1485,10 @@ const SyllabusFetchTab = () => {
   const departments = data?.departments || [];
   const years = data?.years || [];
   const stats = data?.stats || {};
+  const gradingStats = data?.gradingStats || {};
+  const gradingTotals = data?.gradingTotals || { total: 0, parsed: 0 };
+  const gradingTableExists = data?.gradingTableExists !== false; // undefined = まだロード中
+  const gradingTableError = data?.gradingTableError;
   const isBusy = !!scraping || queue.length > 0;
 
   const bySchool = {};
@@ -1537,6 +1554,13 @@ const SyllabusFetchTab = () => {
                 disabled={!scrapeYear || selectedDepts.size === 0 || isBusy}
               >
                 {isBusy ? "取得中..." : `教科書を取得`}
+              </Btn>
+              <Btn
+                onClick={() => handleBatchScrape([...selectedDepts], scrapeYear, "scrape_grading")}
+                color={T.purple || "#a855c7"}
+                disabled={!scrapeYear || selectedDepts.size === 0 || isBusy}
+              >
+                {isBusy ? "取得中..." : `成績割合を取得`}
               </Btn>
             </div>
 
@@ -1639,6 +1663,90 @@ const SyllabusFetchTab = () => {
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {/* 成績割合 取得状況 */}
+          {departments.length > 0 && (
+            <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>成績割合 取得状況</div>
+                {gradingTableExists && (
+                  <div style={{ fontSize: 11, color: T.txD }}>
+                    合計 <span style={{ color: T.txH, fontWeight: 700 }}>{gradingTotals.total}</span> 件
+                    {" / うち割合解析済 "}
+                    <span style={{ color: T.accent, fontWeight: 700 }}>{gradingTotals.parsed}</span> 件
+                    {gradingTotals.total > 0 && (
+                      <span> ({Math.round(gradingTotals.parsed / gradingTotals.total * 100)}%)</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {!gradingTableExists && (
+                <div style={{
+                  padding: "10px 14px", borderRadius: 10,
+                  background: `${T.red}15`, border: `1px solid ${T.red}60`,
+                  color: T.red, fontSize: 12, marginBottom: 12,
+                }}>
+                  ⚠ <strong>course_grading テーブルが未作成です。</strong><br/>
+                  <span style={{ color: T.txH }}>
+                    Supabase Dashboard の SQL Editor で <code style={{ background: T.bg2, padding: "1px 5px", borderRadius: 3 }}>supabase/course-grading.sql</code> を実行してください。
+                  </span>
+                  {gradingTableError && (
+                    <div style={{ marginTop: 6, fontSize: 10, color: T.txD, fontFamily: "monospace" }}>
+                      detail: {gradingTableError}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {gradingTableExists && (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>学科</th>
+                        {years.map(y => (
+                          <th key={y} style={{ padding: "6px 8px", textAlign: "center", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>
+                            {y} <span style={{ fontWeight: 400, fontSize: 10 }}>(件/解析済)</span>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(bySchool).map(([school, depts]) => (
+                        <React.Fragment key={school}>
+                          <tr><td colSpan={1 + years.length} style={{ padding: "6px 8px", fontWeight: 700, fontSize: 11, color: T.txD, background: T.bg2, borderBottom: `1px solid ${T.bd}` }}>{school}</td></tr>
+                          {depts.map(d => (
+                            <tr key={d.key} style={{ borderBottom: `1px solid ${T.bd}` }}>
+                              <td style={{ padding: "4px 8px", color: T.txH, fontWeight: 500 }}>{d.key} <span style={{ color: T.txD, fontWeight: 400 }}>{d.label}</span></td>
+                              {years.map(y => {
+                                const s = gradingStats[`${d.key}_${y}`];
+                                const isScraping = scraping === `gr_${d.key}_${y}`;
+                                return (
+                                  <td key={y} style={{ padding: "4px 8px", textAlign: "center" }}>
+                                    {s ? (
+                                      <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                                        <span style={{ color: T.txH, fontWeight: 600 }}>{s.total}</span>
+                                        <span style={{ color: T.txD }}>/</span>
+                                        <span style={{ color: s.parsed > 0 ? T.accent : T.txD, fontWeight: 600 }}>{s.parsed}</span>
+                                        <button onClick={() => handleScrape(d.key, y, "scrape_grading")} disabled={isBusy} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", padding: 0, fontSize: 10 }} title="再取得">{isScraping ? "..." : "↻"}</button>
+                                      </span>
+                                    ) : (
+                                      <button onClick={() => handleScrape(d.key, y, "scrape_grading")} disabled={isBusy} style={{ background: "none", border: `1px solid ${T.bd}`, borderRadius: 6, padding: "2px 8px", color: T.txD, cursor: "pointer", fontSize: 10 }}>{isScraping ? "..." : "取得"}</button>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </React.Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 

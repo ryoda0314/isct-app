@@ -47,10 +47,45 @@ export function clearClientToken() {
   _tokenExpiry = 0;
 }
 
+// Errorcodes that indicate the wstoken is no longer accepted by Moodle —
+// happens when the token expires server-side (~weeks). One refresh + retry
+// should recover transparently.
+const TOKEN_INVALID_ERRORCODES = new Set([
+  'invalidtoken',
+]);
+
+// Single in-flight refresh promise so concurrent invalidtoken errors share one SSO.
+let _refreshInFlight = null;
+
+async function refreshClientToken() {
+  if (_refreshInFlight) return _refreshInFlight;
+  _refreshInFlight = (async () => {
+    const r = await fetch('/api/auth/token/refresh', { method: 'POST' });
+    if (r.status === 401) {
+      const err = new Error('Not authenticated');
+      err.code = 'AUTH_REQUIRED';
+      throw err;
+    }
+    if (!r.ok) throw new Error(`Token refresh failed: ${r.status}`);
+    const { wstoken, userid } = await r.json();
+    _cachedToken = wstoken;
+    _cachedUserid = userid;
+    _tokenExpiry = Date.now() + TOKEN_CLIENT_TTL;
+    return { wstoken, userid };
+  })();
+  try {
+    return await _refreshInFlight;
+  } finally {
+    _refreshInFlight = null;
+  }
+}
+
 /**
  * Call a Moodle webservice function directly from the client.
+ * Internally retries once after refreshing the wstoken if Moodle returns
+ * `invalidtoken` (token expired server-side).
  */
-export async function callMoodleAPI(wstoken, wsfunction, params = {}) {
+export async function callMoodleAPI(wstoken, wsfunction, params = {}, _retried = false) {
   const body = new URLSearchParams();
   body.set('wstoken', wstoken);
   body.set('wsfunction', wsfunction);
@@ -106,8 +141,15 @@ export async function callMoodleAPI(wstoken, wsfunction, params = {}) {
   }
 
   if (data.exception) {
+    if (!_retried && TOKEN_INVALID_ERRORCODES.has(data.errorcode)) {
+      console.warn(`[MoodleAPI] token rejected (${data.errorcode}) for ${wsfunction}, refreshing & retrying once`);
+      const fresh = await refreshClientToken();
+      return callMoodleAPI(fresh.wstoken, wsfunction, params, true);
+    }
     console.error(`[MoodleAPI] exception wsfunction=${wsfunction} errorcode=${data.errorcode} msg=${data.message}`);
-    throw new Error(`Moodle API [${data.errorcode}]: ${data.message}`);
+    const err = new Error(`Moodle API [${data.errorcode}]: ${data.message}`);
+    err.errorcode = data.errorcode;
+    throw err;
   }
 
   return data;

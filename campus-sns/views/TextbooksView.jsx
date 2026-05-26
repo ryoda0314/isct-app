@@ -18,19 +18,45 @@ const COVER_GRADIENTS = [
 ];
 const hashStr = (s) => { let h = 0; for (const c of (s || 'x')) h = ((h << 5) - h + c.charCodeAt(0)) | 0; return Math.abs(h); };
 
+// Convert ISBN-13 → ISBN-10 for Amazon image URLs
+function isbn13to10(isbn13) {
+  if (!isbn13 || !/^978\d{10}$/.test(isbn13)) return null;
+  const core = isbn13.slice(3, 12);
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += Number(core[i]) * (10 - i);
+  const check = (11 - (sum % 11)) % 11;
+  return core + (check === 10 ? 'X' : check);
+}
+
 const BookCover = ({ book, size = 'md' }) => {
   const W = size === 'sm' ? 48 : 64;
   const H = size === 'sm' ? 68 : 90;
   const grad = COVER_GRADIENTS[hashStr(book?.isbn13 || book?.title) % COVER_GRADIENTS.length];
   const initial = (book?.title || '?').replace(/^[「『"]/, '').slice(0, 1);
 
-  if (book?.cover_url) {
+  // Build fallback chain: stored cover_url → Amazon JP (.09 then .01) → letter gradient
+  const isbn10 = book?.isbn13 ? isbn13to10(book.isbn13) : null;
+  const amazonJp = isbn10 ? `https://images-na.ssl-images-amazon.com/images/P/${isbn10}.09.LZZZZZZZ.jpg` : null;
+  const amazonIntl = isbn10 ? `https://images-na.ssl-images-amazon.com/images/P/${isbn10}.01.LZZZZZZZ.jpg` : null;
+
+  const sources = [book?.cover_url, amazonJp, amazonIntl].filter(Boolean);
+  const [srcIdx, setSrcIdx] = React.useState(0);
+  const currentSrc = sources[srcIdx];
+
+  if (currentSrc) {
     return (
       <div style={{
         width: W, minWidth: W, height: H, borderRadius: 5, overflow: 'hidden',
-        boxShadow: '0 2px 5px rgba(0,0,0,0.12)', background: T.bg3,
+        boxShadow: '0 2px 5px rgba(0,0,0,0.12)',
+        background: `linear-gradient(135deg, ${grad[0]}, ${grad[1]})`,  // fallback bg during loading
+        position: 'relative',
       }}>
-        <img src={book.cover_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img
+          src={currentSrc}
+          alt=""
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          onError={() => setSrcIdx(srcIdx + 1)}
+        />
       </div>
     );
   }
@@ -88,20 +114,32 @@ const BookCard = ({ entry, kindAccent }) => {
         </div>
 
         <div>
-          {/* Course list */}
+          {/* Course list — clickable chips that link to syllabus */}
           <div style={{
             fontSize: 10, color: T.txD, marginBottom: 6,
             display: 'flex', gap: 4, flexWrap: 'wrap',
           }}>
-            {entry.courses.slice(0, 3).map((c, i) => (
-              <span key={i} style={{
+            {entry.courses.slice(0, 3).map((c, i) => {
+              const label = `${c.quarter ? `${c.quarter}Q ` : ''}${(c.name || '').slice(0, 18)}`;
+              const chipStyle = {
                 padding: '1px 6px', borderRadius: 8,
                 background: `${kindAccent}14`, color: kindAccent,
                 fontWeight: 600, fontSize: 9, whiteSpace: 'nowrap',
-              }}>
-                {c.quarter ? `${c.quarter}Q ` : ''}{(c.name || '').slice(0, 18)}
-              </span>
-            ))}
+                textDecoration: 'none', cursor: c.syllabus_url ? 'pointer' : 'default',
+                display: 'inline-flex', alignItems: 'center', gap: 3,
+                border: 'none',
+              };
+              if (c.syllabus_url) {
+                return (
+                  <a key={i} href={c.syllabus_url} target="_blank" rel="noopener noreferrer"
+                    title={`シラバス: ${c.name}`} style={chipStyle}>
+                    {label}
+                    <span style={{ opacity: 0.6, fontSize: 8 }}>↗</span>
+                  </a>
+                );
+              }
+              return <span key={i} style={chipStyle}>{label}</span>;
+            })}
             {entry.courses.length > 3 && (
               <span style={{ fontSize: 9, color: T.txD }}>+{entry.courses.length - 3}</span>
             )}

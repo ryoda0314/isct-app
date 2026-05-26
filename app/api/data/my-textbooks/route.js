@@ -62,6 +62,21 @@ export async function POST(request) {
       return NextResponse.json({ error: 'DB error', detail: error.message }, { status: 500 });
     }
 
+    // Fetch syllabus URLs for each course_code
+    const baseCodes = [...new Set(allKeys.map(k => k.includes(':') ? k.split(':')[0] : k))];
+    const syllabusMap = new Map();  // course_code (with section) → syllabus_url
+    if (baseCodes.length > 0) {
+      const { data: syl } = await sb.from('syllabus_courses')
+        .select('code, section, syllabus_url').eq('year', year).in('code', baseCodes);
+      for (const s of (syl || [])) {
+        if (!s.syllabus_url) continue;
+        const key = s.section ? `${s.code}:${s.section}` : s.code;
+        if (!syllabusMap.has(key)) syllabusMap.set(key, s.syllabus_url);
+        // Also store under base code if first encounter (for fallback)
+        if (!syllabusMap.has(s.code)) syllabusMap.set(s.code, s.syllabus_url);
+      }
+    }
+
     const byCourse = new Map();
     for (const row of (data || [])) {
       const meta = keysToCourse.get(row.course_code);
@@ -88,7 +103,10 @@ export async function POST(request) {
         const isbn = it.book.isbn13 || `null:${it.book.id}`;
         if (!booksMap.has(isbn)) booksMap.set(isbn, { book: it.book, courses: [], kinds: new Set() });
         const e = booksMap.get(isbn);
-        e.courses.push({ course_code: c.course_code, name: c.course.name, quarter: c.course.quarter, kind: it.kind });
+        e.courses.push({
+          course_code: c.course_code, name: c.course.name, quarter: c.course.quarter, kind: it.kind,
+          syllabus_url: syllabusMap.get(c.course_code) || null,
+        });
         e.kinds.add(it.kind);
         if (it.kind === 'textbook') nTextbook++;
         else if (it.kind === 'reference') nReference++;

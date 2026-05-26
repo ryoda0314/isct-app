@@ -133,7 +133,7 @@ export const FreshmanBoardView=({mob,loggedIn,onLogin})=>{
   if(threadPost){
     const c=CAT_MAP[threadPost.cat];
     const liked=threadPost.likes.includes(userId);
-    const lines=threadPost.text.split("\n");
+    const lines=(threadPost.text||"").split("\n");
     const title=lines[0].replace(/^\*\*(.+)\*\*$/,"$1").replace(/^#+\s*/,"");
     return(
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -263,7 +263,7 @@ export const FreshmanBoardView=({mob,loggedIn,onLogin})=>{
                   <div style={{display:"flex",flexDirection:"column",gap:6}}>
                     {recent.map(p=>{
                       const liked=p.likes.includes(userId);
-                      const firstLine=p.text.split("\n")[0].replace(/^\*\*(.+)\*\*$/,"$1").slice(0,60);
+                      const firstLine=(p.text||"").split("\n")[0].replace(/^\*\*(.+)\*\*$/,"$1").slice(0,60);
                       return(
                         <div key={p.id} onClick={()=>setOpenPost(p.id)}
                           style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer",transition:"background .1s"}}
@@ -408,7 +408,7 @@ export const FreshmanBoardView=({mob,loggedIn,onLogin})=>{
           )}
           {filtered.map(p=>{
             const liked=p.likes.includes(userId);
-            const lines=p.text.split("\n");
+            const lines=(p.text||"").split("\n");
             const title=lines[0].replace(/^\*\*(.+)\*\*$/,"$1").replace(/^#+\s*/,"");
             const preview=lines.slice(1).join("\n").trim().slice(0,100);
             const isPinned=p.pinned;

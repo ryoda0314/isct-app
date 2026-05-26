@@ -37,7 +37,7 @@ function checkRateLimit(ip, tier) {
 }
 
 function getTier(pathname, method) {
-  if (pathname === '/api/auth/token') return 'token'; // トークン取得は厳しく制限
+  if (pathname === '/api/auth/token' || pathname === '/api/auth/token/refresh') return 'token'; // トークン取得は厳しく制限
   if (pathname.startsWith('/api/auth/')) return 'auth';
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return 'write';
   return null;
