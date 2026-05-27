@@ -241,6 +241,7 @@ const MyGradingPanel = ({ courses = [], academicYear, setAcademicYear }) => {
   const [err, setErr] = useState(null);
   const [data, setData] = useState({ courses: [], summary: { total: 0, with_breakdown: 0 } });
   const [quarter, setQuarter] = useState('');
+  const [level, setLevel] = useState('');
 
   const currentJpYear = useMemo(() => {
     const jd = new Date(Date.now() + 9 * 3600000);
@@ -294,13 +295,17 @@ const MyGradingPanel = ({ courses = [], academicYear, setAcademicYear }) => {
   const filtered = useMemo(() => {
     let list = data.courses || [];
     if (quarter) {
-      // "1Q" 選択時は "1Q"/"1-2Q"/"1-4Q"/"1・3Q"/"3・1Q" 等すべてマッチ
       const digit = quarter.replace(/[Qq]/, '');
       const re = new RegExp(`(?:^|[^0-9])${digit}(?:[^0-9]|$)`);
       list = list.filter(c => c.quarter && re.test(String(c.quarter)));
     }
+    if (level) {
+      // "MEC.A211" → A211 → "2" がレベル数字
+      const re = new RegExp(`\\.[A-Z]${level}[0-9]{2}`);
+      list = list.filter(c => c.course_code && re.test(c.course_code));
+    }
     return list;
-  }, [data.courses, quarter]);
+  }, [data.courses, quarter, level]);
 
   const parsedCount = filtered.filter(c => c.has_breakdown).length;
   const passFailCount = filtered.filter(c => c.is_pass_fail).length;
@@ -329,6 +334,15 @@ const MyGradingPanel = ({ courses = [], academicYear, setAcademicYear }) => {
             <option value="2Q">2Q</option>
             <option value="3Q">3Q</option>
             <option value="4Q">4Q</option>
+          </FilterSelect>
+          <FilterSelect value={level} onChange={setLevel} active={!!level}>
+            <option value="">全レベル</option>
+            <option value="1">100番台</option>
+            <option value="2">200番台</option>
+            <option value="3">300番台</option>
+            <option value="4">400番台</option>
+            <option value="5">500番台</option>
+            <option value="6">600番台</option>
           </FilterSelect>
           <div style={{ flex: 1 }} />
           {!loading && (
@@ -382,6 +396,7 @@ const SearchGradingPanel = () => {
   const [year, setYear] = useState('2026');
   const [dept, setDept] = useState('');
   const [quarter, setQuarter] = useState('');
+  const [level, setLevel] = useState('');
   const [search, setSearch] = useState('');
   const [searchDeferred, setSearchDeferred] = useState('');
   const [onlyParsed, setOnlyParsed] = useState(true);
@@ -421,6 +436,7 @@ const SearchGradingPanel = () => {
       const params = new URLSearchParams({ year });
       if (dept) params.set('dept', dept);
       if (quarter) params.set('quarter', quarter);
+      if (level) params.set('level', level);
       if (searchDeferred) params.set('search', searchDeferred);
       if (onlyParsed) params.set('only_parsed', '1');
       if (category) params.set('category', category);
@@ -434,12 +450,12 @@ const SearchGradingPanel = () => {
       setErr(e.message || '読み込みに失敗しました');
     }
     setLoading(false);
-  }, [year, dept, quarter, searchDeferred, onlyParsed, category, page]);
+  }, [year, dept, quarter, level, searchDeferred, onlyParsed, category, page]);
 
   useEffect(() => { load(); }, [load]);
 
   // when filters change reset page to 0
-  useEffect(() => { setPage(0); }, [year, dept, quarter, searchDeferred, onlyParsed, category]);
+  useEffect(() => { setPage(0); }, [year, dept, quarter, level, searchDeferred, onlyParsed, category]);
 
   const deptsBySchool = useMemo(() => {
     const m = {};
@@ -480,6 +496,15 @@ const SearchGradingPanel = () => {
             <option value="2Q">2Q</option>
             <option value="3Q">3Q</option>
             <option value="4Q">4Q</option>
+          </FilterSelect>
+          <FilterSelect value={level} onChange={setLevel} active={!!level}>
+            <option value="">全レベル</option>
+            <option value="1">100番台 (1年)</option>
+            <option value="2">200番台 (2年)</option>
+            <option value="3">300番台 (3年)</option>
+            <option value="4">400番台 (4年・院)</option>
+            <option value="5">500番台 (修士)</option>
+            <option value="6">600番台 (博士)</option>
           </FilterSelect>
           <FilterSelect value={category} onChange={setCategory} active={!!category}
             activeColor={category ? CATEGORY_COLORS[category] : null}>

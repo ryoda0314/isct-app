@@ -78,6 +78,7 @@ export async function GET(request) {
     const dept = searchParams.get('dept') || '';
     const quarter = searchParams.get('quarter') || '';
     const day = searchParams.get('day') || '';
+    const level = searchParams.get('level') || '';   // "1"..."6" = 100番台...600番台
     const search = (searchParams.get('search') || '').slice(0, 100).replace(/[,%()]/g, '');
     const onlyParsed = searchParams.get('only_parsed') === '1';
     const category = searchParams.get('category') || '';
@@ -108,6 +109,12 @@ export async function GET(request) {
       }
     }
     if (day) courseQuery = courseQuery.eq('day', day);
+    if (level && /^[1-9]$/.test(level)) {
+      // 科目コード "MEC.A211" のサブ番号の最初の数字 = レベル
+      // syllabus_courses.code は section/quarter を含まない基本コード ("MEC.A211")。
+      // PostgREST の `match` で正規表現マッチ。
+      courseQuery = courseQuery.filter('code', 'match', `\\.[A-Z]${level}[0-9]{2}`);
+    }
     if (search) courseQuery = courseQuery.or(`code.ilike.%${search}%,name.ilike.%${search}%`);
 
     const { data: courseRows, error: courseErr } = await courseQuery.limit(4000);
