@@ -357,7 +357,7 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
                 display: 'inline-flex', alignItems: 'center', gap: 5,
                 transition: 'all .12s',
               }}>
-              <span role="img" aria-label="cart">🛒</span>
+              <span style={{ display: 'flex', transform: 'scale(0.8)' }}>{I.search}</span>
               textnext で探す
             </button>
           )}
