@@ -270,6 +270,30 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
   // Estimate budget (simple heuristic — no price data so this is a placeholder)
   const totalBooks = textbooks.length + references.length;
 
+  // 履修教科書の ISBN13 + タイトルを textnext へ渡すための一覧（重複・無効ISBN除去）
+  const textnextBaseUrl = (process.env.NEXT_PUBLIC_TEXTNEXT_URL || 'https://textnext.jp').replace(/\/+$/, '');
+  const textnextBooks = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const entry of (data.books || [])) {
+      const isbn = String(entry?.book?.isbn13 || '').replace(/[^0-9]/g, '');
+      if (!/^97[89]\d{10}$/.test(isbn) || seen.has(isbn)) continue;
+      seen.add(isbn);
+      out.push({ i: isbn, t: entry.book?.title || '' });
+    }
+    return out;
+  }, [data.books]);
+
+  const openInTextnext = () => {
+    if (textnextBooks.length === 0) return;
+    // textnext 側の decodeBooksParam と対になる base64url(UTF-8 JSON) エンコード
+    const bytes = new TextEncoder().encode(JSON.stringify(textnextBooks));
+    let bin = '';
+    for (const byte of bytes) bin += String.fromCharCode(byte);
+    const d = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    window.open(`${textnextBaseUrl}/textbooks?d=${d}`, '_blank', 'noopener');
+  };
+
   return (
     <div style={{ flex: 1, overflowY: 'auto' }}>
       {/* Sticky header */}
@@ -317,11 +341,26 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
           <Pill value="" label="全Q" current={quarter} onClick={setQuarter} />
           {[1, 2, 3, 4].map(q => (
             <Pill key={q} value={String(q)} label={`${q}Q`} current={quarter} onClick={setQuarter} />
           ))}
+          {!loading && textnextBooks.length > 0 && (
+            <button
+              onClick={openInTextnext}
+              title="履修教科書を textnext の出品から探す"
+              style={{
+                marginLeft: 'auto', padding: '5px 12px', borderRadius: 14,
+                border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                color: '#fff', background: T.accent,
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                transition: 'all .12s',
+              }}>
+              <span role="img" aria-label="cart">🛒</span>
+              textnext で探す
+            </button>
+          )}
         </div>
       </div>
 
