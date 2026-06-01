@@ -46,9 +46,25 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
   useEffect(()=>{fetch("/api/exams").then(r=>r.json()).then(d=>setExams(d.exams||[])).catch(()=>{});},[]);
   const myExams=useMemo(()=>{
     if(!courses?.length||!exams.length)return [];
-    const rawSet=new Set(),baseSet=new Set();
-    courses.forEach(c=>{if(c.codeRaw&&c.codeRaw!==c.code)rawSet.add(c.codeRaw);else if(c.code)baseSet.add(c.code);});
-    return exams.filter(e=>rawSet.has(e.code_raw)||baseSet.has(e.code));
+    // 試験(e)と履修科目(c)の年度/クォーターを正規化して比較
+    // exam.year:'2025' 文字列 / exam.quarter:数値or'4Q' ; course.year:'2025' / course.quarter:1-4数値
+    const normQ=q=>{if(q==null||q==="")return"";const m=String(q).match(/(\d)/);return m?m[1]:"";};
+    // 試験日(YYYY-MM-DD)が属する年度: 4月〜翌3月が同一年度 (dateToAYと同じ規則)
+    const examAY=ds=>{const [y,m]=ds.split("-").map(Number);return (m-1)>=3?y:y-1;};
+    const matchYQ=(c,ey,eq)=>{
+      if(ey&&(!c.year||String(c.year)!==ey))return false;
+      if(eq&&(c.quarter==null||normQ(c.quarter)!==eq))return false;
+      return true;
+    };
+    return exams.filter(e=>{
+      const ey=e.year==null?"":String(e.year);
+      const eq=normQ(e.quarter);
+      // 試験の年度と、表示される日付の年度が一致すること (2026年度試験→年度2026の日付にのみ)
+      if(ey&&e.date&&String(examAY(e.date))!==ey)return false;
+      return courses.some(c=>matchYQ(c,ey,eq)&&(
+        (c.codeRaw&&c.codeRaw!==c.code)?c.codeRaw===e.code_raw:c.code===e.code
+      ));
+    });
   },[exams,courses]);
 
   const addFav=p=>{const next=[...favPresets,p];setFavPresets(next);saveFavs(next);};
