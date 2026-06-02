@@ -5,6 +5,7 @@ import { checkNgWords } from '../../../lib/ng-filter.js';
 import { getBlockedIds } from '../../../lib/blocks.js';
 import { getMutedIds } from '../../../lib/mutes.js';
 import { requireTelecomAllowed } from '../../../lib/telecom-restriction.js';
+import { createNotification } from '../../../lib/notify.js';
 
 // Server-side allowlist for stamp IDs. Must match public/stamps/manifest.json.
 // Stored as plain text in dm_messages.stamp_id; client maps id -> /stamps/<id>.webp.
@@ -135,7 +136,7 @@ export async function POST(request) {
 
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
-    const { userid } = auth;
+    const { userid, fullname } = auth;
 
     const { to_user_id, text, stamp_id, conversation_id } = await request.json();
     const hasText = !!text?.trim();
@@ -233,6 +234,25 @@ export async function POST(request) {
       .single();
 
     if (error) throw error;
+
+    // Notify the recipient (best-effort). Awaited so the row is written before
+    // the serverless function freezes; skip if the recipient muted the sender.
+    if (targetUserId) {
+      try {
+        const targetMuted = await getMutedIds(targetUserId);
+        if (!targetMuted.has(userid)) {
+          const senderName = fullname || `User ${userid}`;
+          const preview = hasText ? text.trim().slice(0, 60) : 'スタンプを送信しました';
+          await createNotification({
+            userId: targetUserId,
+            type: 'dm',
+            text: `${senderName}さんからメッセージ: ${preview}`,
+            pushTitle: senderName,
+          });
+        }
+      } catch (e) { console.error('[DM] notify:', e.message); }
+    }
+
     return NextResponse.json({ ...data, conversation_id: convId });
   } catch (err) {
     console.error('[DM] POST error:', err.message, err.stack);

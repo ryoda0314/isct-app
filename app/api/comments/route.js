@@ -3,6 +3,7 @@ import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { isEnrolledInCourse } from '../../../lib/auth/course-enrollment.js';
 import { notifyMentions } from '../../../lib/mentions.js';
+import { createNotification } from '../../../lib/notify.js';
 import { checkNgWords } from '../../../lib/ng-filter.js';
 import { getBlockedIds } from '../../../lib/blocks.js';
 import { getMutedIds } from '../../../lib/mutes.js';
@@ -84,10 +85,10 @@ export async function POST(request) {
 
     const sb = getSupabaseAdmin();
 
-    // Look up the post's course_id for enrollment check
+    // Look up the post's course_id (enrollment check) and author (comment notification)
     const { data: post, error: postErr } = await sb
       .from('posts')
-      .select('course_id')
+      .select('course_id, moodle_user_id')
       .eq('id', post_id)
       .single();
 
@@ -125,6 +126,22 @@ export async function POST(request) {
 
     // Notify mentioned users (non-blocking)
     try { await notifyMentions(text, userid, fullname, post.course_id, 'コメント'); } catch (e) { console.error('[Comments POST] mentions:', e); }
+
+    // Notify the post author about the new comment (skip self, skip if they muted the commenter)
+    if (post.moodle_user_id && post.moodle_user_id !== userid) {
+      try {
+        const authorMuted = await getMutedIds(post.moodle_user_id);
+        if (!authorMuted.has(userid)) {
+          await createNotification({
+            userId: post.moodle_user_id,
+            type: 'comment',
+            text: `${fullname || `User ${userid}`}さんがあなたの投稿にコメントしました`,
+            courseId: post.course_id || null,
+            pushTitle: 'コメント',
+          });
+        }
+      } catch (e) { console.error('[Comments POST] comment notify:', e.message); }
+    }
 
     return NextResponse.json(data);
   } catch (err) {

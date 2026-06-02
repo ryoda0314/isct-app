@@ -28,6 +28,20 @@ async function subscribePush() {
   } catch {}
 }
 
+// Respect the user's notification preferences (stored in localStorage by the
+// settings UI) before popping a browser notification. Types without a matching
+// toggle (mention, comment, friend_request, system) are always shown.
+const TYPE_TO_SETTING = { dm: 'dm', deadline: 'deadline', course: 'course', event: 'event' };
+function browserNotifAllowed(type) {
+  try {
+    if (JSON.parse(localStorage.getItem('notifEnabled') ?? 'true') === false) return false;
+    const key = TYPE_TO_SETTING[type];
+    if (!key) return true;
+    const settings = JSON.parse(localStorage.getItem('notifSettings') || '{}');
+    return settings[key] !== false;
+  } catch { return true; }
+}
+
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -93,8 +107,8 @@ export function useNotifications(enabled = true) {
           ts: new Date(n.created_at),
           read: n.read,
         }, ...prev]);
-        // Browser push notification
-        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        // Browser push notification (respect per-type user preferences)
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && browserNotifAllowed(n.type)) {
           try { new Notification('ScienceTokyo App', { body: n.text, icon: '/icons/icon-192x192.png' }); } catch {}
         }
       })

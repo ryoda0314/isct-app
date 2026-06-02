@@ -6,6 +6,7 @@ import { QData, ASGN0, MYTK0, EVENTS0, REVIEWS0, MYEVENTS0, SCHOOLS, DEPTS, UNIT
 import { DEMO_EVENTS, DEMO_REVIEWS, DEMO_MY_EVENTS, DEMO_TASKS, DEMO_PERSONAS, buildDemoDataForPersona, DEMO_MED_RAW_COURSES, buildDemoMedSessions } from "./demoData.js";
 import { setDemoMode, isDemoMode, setScreenshotMode, isScreenshotMode } from "./demoMode.js";
 import { useNotifications } from "./hooks/useNotifications.js";
+import { useDeadlineNotifications } from "./hooks/useDeadlineNotifications.js";
 import { useCurrentUser, setCurrentUserFromAPI, resetCurrentUserCache } from "./hooks/useCurrentUser.js";
 import { usePresence } from "./hooks/usePresence.js";
 import { useCourseMembers, resetCourseMembersCache } from "./hooks/useCourseMembers.js";
@@ -661,6 +662,7 @@ export default function App(){
   const asgnLoading=asgn.some(a=>a.st==='loading');
   const ac=asgnLoading?null:asgn.filter(a=>a.st!=="completed"&&qCourseIds.has(a.cid)&&!hiddenSet.has(a.id)).length;
   const {unreadCount:unreadN}=useNotifications(ready);
+  useDeadlineNotifications(asgn, ready && notifEnabled && notifSettings.deadline);
   const {unreadDM:dmUnread,markDMSeen}=useUnreadDM(user?.moodleId||user?.id);
   const {friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,friendIds:_fIds,isFriend:_isFriend,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,lookupById,refetch:refetchFriends}=useFriends(ready,user?.moodleId||user?.id);
   const {blocks:blockList,isBlocked,blockUser,unblockUser}=useBlocks(ready);
