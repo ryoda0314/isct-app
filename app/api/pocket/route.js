@@ -47,7 +47,8 @@ export async function GET(request) {
     return NextResponse.json(items);
   } catch (err) {
     console.error('[Pocket] GET error:', err.message, err.stack);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    // TODO(debug): 一時的に実エラーを返す。原因特定後に削除すること。
+    return NextResponse.json({ error: 'Internal error', _debug: { message: err.message, code: err.code, name: err.name } }, { status: 500 });
   }
 }
 
@@ -121,7 +122,8 @@ export async function POST(request) {
     return NextResponse.json(signed);
   } catch (err) {
     console.error('[Pocket] POST error:', err.message, err.stack);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    // TODO(debug): 一時的に実エラーを返す。原因特定後に削除すること。
+    return NextResponse.json({ error: 'Internal error', _debug: { message: err.message, code: err.code, name: err.name } }, { status: 500 });
   }
 }
 
