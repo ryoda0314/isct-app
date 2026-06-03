@@ -73,7 +73,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
   const [showNewGroup,setShowNewGroup]=useState(false);
   const [grpName,setGrpName]=useState("");
   const [grpSel,setGrpSel]=useState([]);
-  const ref=useRef(null);
+  const listRef=useRef(null);
   const sendDM=useDMSend();
   const sendGrpMsg=useGroupSend();
   const typingRoom=sel?(sel.type==='group'?`grp:${sel.id}`:`dm:${sel.id}`):null;
@@ -141,7 +141,10 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
 
   useEffect(()=>{ setShowStamps(false); },[sel?.id,sel?.type]);
 
-  useEffect(()=>{ref.current?.scrollIntoView({behavior:"smooth"});},[messages]);
+  // Scroll the message list to the bottom by moving the container's own
+  // scrollTop — NOT scrollIntoView, which also scrolls every scrollable
+  // ancestor and would push the whole DM panel (header + list) off-screen.
+  useEffect(()=>{const el=listRef.current;if(el)el.scrollTop=el.scrollHeight;},[messages]);
 
   const uid=user?.moodleId||user?.id;
 
@@ -170,7 +173,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
             style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${T.bd}`,background:"transparent",color:T.txD,fontSize:11,fontWeight:500,cursor:"pointer"}}
             title="グループ退出">退出</button>}
         </div>
-        <div style={{flex:1,overflowY:"auto",padding:8}}>
+        <div ref={listRef} style={{flex:1,overflowY:"auto",padding:8}}>
           {isGroup&&grpLoading&&<Loader msg="読み込み中" size="sm"/>}
           {(()=>{
             const _dateKey=d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -224,7 +227,6 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
             </div>;
             });
           })()}
-          <div ref={ref}/>
         </div>
         {/* Typing indicator */}
         {typingUsers.length>0&&<div style={{padding:"2px 14px",fontSize:11,color:T.txD,fontStyle:"italic"}}>
