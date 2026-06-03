@@ -23,6 +23,7 @@ import { FeedView } from "./views/FeedView.jsx";
 import { ChatView } from "./views/ChatView.jsx";
 import { MatView } from "./views/MatView.jsx";
 import { DMView } from "./views/DMView.jsx";
+import { PocketView } from "./views/PocketView.jsx";
 import { NotifView } from "./views/NotifView.jsx";
 import { EventView } from "./views/EventView.jsx";
 import { GradeView } from "./views/GradeView.jsx";
@@ -895,6 +896,7 @@ export default function App(){
           {view==="dept"&&(L?<LockedView title="学系"/>:cd&&deptContent())}
           {view==="friends"&&(L?<LockedView title="友達"/>:<FriendsView mob={false} setView={setView} {...friendProps}/>)}
           {view==="dm"&&(L?<LockedView title="DM"/>:TR?<TelecomBlockView title="DMは現在利用できません"/>:<DMView mob={false} setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/>)}
+          {view==="pocket"&&(L?<LockedView title="ポケット"/>:<PocketView mob={false}/>)}
           {view==="notif"&&(L?<LockedView title="通知"/>:<NotifView mob={false}/>)}
           {view==="grades"&&(L?<LockedView title="成績"/>:<GradeView mob={false}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
@@ -940,6 +942,7 @@ export default function App(){
         {view==="moreMenu"&&<><MHdr title="その他"/><MoreMenu setView={setView} unreadN={unreadN} pendingFriendCount={pendingFriendCount} dmUnread={dmUnread} isAdmin={!!user.isAdmin}/></>}
         {view==="friends"&&(L?<><MHdr title="友達" back={mBack}/><LockedView title="友達"/></>:<><MHdr title="友達" back={mBack}/><FriendsView mob setView={setView} {...friendProps}/></>)}
         {view==="dm"&&(L?<><MHdr title="DM"/><LockedView title="DM"/></>:TR?<><MHdr title="DM"/><TelecomBlockView title="DMは現在利用できません" onBack={goBack}/></>:<><MHdr title="DM"/><DMView mob setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/></>)}
+        {view==="pocket"&&(L?<><MHdr title="ポケット" back={mBack}/><LockedView title="ポケット"/></>:<><MHdr title="ポケット" back={mBack}/><PocketView mob/></>)}
         {view==="notif"&&(L?<><MHdr title="通知" back={mBack}/><LockedView title="通知"/></>:<><MHdr title="通知" back={mBack}/><NotifView mob/></>)}
         {view==="grades"&&(L?<><MHdr title="成績" back={mBack}/><LockedView title="成績"/></>:<><MHdr title="成績" back={mBack}/><GradeView mob/></>)}
         {view==="pomo"&&<><MHdr title="ポモドーロ" back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}

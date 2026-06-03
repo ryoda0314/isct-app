@@ -66,18 +66,10 @@ export const AnnouncementBanner = () => {
                 <span style={{ fontSize: 12, fontWeight: 600, color: s.color }}>{s.label}</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{a.title}</span>
               </div>
-              <div style={{ position: "relative" }}>
-                <div style={{
-                  fontSize: 12, color: T.tx, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word",
-                  maxHeight: collapsed ? 88 : "none", overflow: "hidden",
-                }}>{a.body}</div>
-                {collapsed && (
-                  <div style={{
-                    position: "absolute", left: 0, right: 0, bottom: 0, height: 40, pointerEvents: "none",
-                    background: `linear-gradient(to bottom, ${s.color}00, ${s.color}10 60%, ${s.color}1a)`,
-                  }} />
-                )}
-              </div>
+              <div style={{
+                fontSize: 12, color: T.tx, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word",
+                ...(collapsed ? { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" } : {}),
+              }}>{a.body}</div>
               {long && (
                 <button onClick={() => toggle(a.id)} style={{
                   marginTop: 6, background: "none", border: "none", color: s.color, fontSize: 12, fontWeight: 600,

@@ -44,17 +44,20 @@ const catColor=k=>CATS.find(c=>c.key===k)?.color||T.txD;
    PDF.js CDN loader — v3 legacy build (UMD)
    ────────────────────────────────────────────── */
 const PDFJS_VER="3.11.174";
-const PDFJS_CDN=`https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VER}`;
+/* jsdelivr (npm pdfjs-dist) を使用。cdnjs は cmaps/ ディレクトリを配信しておらず
+   (403)、CID 方式の日本語フォント(Adobe-Japan1)のグリフ解決に失敗して
+   日本語テキストが空白になるため。 */
+const PDFJS_CDN=`https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VER}`;
 let pdfjsLoading=null;
 function loadPdfjs(){
   if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
   if(pdfjsLoading) return pdfjsLoading;
   pdfjsLoading=new Promise((resolve,reject)=>{
     const s=document.createElement("script");
-    s.src=`${PDFJS_CDN}/pdf.min.js`;
+    s.src=`${PDFJS_CDN}/build/pdf.min.js`;
     s.onload=()=>{
       if(window.pdfjsLib){
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc=`${PDFJS_CDN}/pdf.worker.min.js`;
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc=`${PDFJS_CDN}/build/pdf.worker.min.js`;
         resolve(window.pdfjsLib);
       }else reject(new Error("pdfjsLib not found"));
     };
@@ -94,7 +97,7 @@ const PdfViewer=({url,dlUrl,mob})=>{
         const buf=await resp.arrayBuffer();
         if(cancelled)return;
         setLoadMsg("PDF を解析中...");
-        const doc=await lib.getDocument({data:buf,cMapUrl:`${PDFJS_CDN}/cmaps/`,cMapPacked:true}).promise;
+        const doc=await lib.getDocument({data:buf,cMapUrl:`${PDFJS_CDN}/cmaps/`,cMapPacked:true,standardFontDataUrl:`${PDFJS_CDN}/standard_fonts/`}).promise;
         if(cancelled)return;
         setPdf(doc);
         setPages(Array.from({length:doc.numPages},(_,i)=>i+1));
