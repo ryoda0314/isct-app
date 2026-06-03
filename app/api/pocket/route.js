@@ -101,7 +101,8 @@ export async function POST(request) {
         .upload(path, buf, { contentType: file.type || 'application/octet-stream' });
       if (upErr) {
         console.error('[Pocket] upload:', upErr.message);
-        return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+        // TODO(debug): 一時的に実エラーを返す。原因特定後に削除すること。
+        return NextResponse.json({ error: 'Upload failed', _debug: { message: upErr.message, name: upErr.name, status: upErr.statusCode || upErr.status } }, { status: 500 });
       }
       row.kind = (file.type || '').startsWith('image/') ? 'image' : 'file';
       row.attachment = { name: file.name || safeName, path, size: file.size, type: file.type || '' };
