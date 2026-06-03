@@ -36,6 +36,11 @@ export async function GET(request) {
       .order('created_at', { ascending: false })
       .limit(limit);
 
+    // テーブル未作成（supabase/pocket.sql 未実行）の場合は空一覧として扱う
+    if (error?.code === '42P01') {
+      console.warn('[Pocket] pocket_items テーブルが未作成です。supabase/pocket.sql を実行してください。');
+      return NextResponse.json([]);
+    }
     if (error) throw error;
 
     const items = await Promise.all((data || []).map(it => signAttachment(sb, it)));

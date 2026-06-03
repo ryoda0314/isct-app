@@ -33,4 +33,13 @@ alter table pocket_items enable row level security;
 -- 中身は購読イベントをトリガに認証付きAPIで再取得するため、payload は信頼しない。
 -- DELETE イベントでも owner_id でフィルタできるよう REPLICA IDENTITY FULL を設定。
 alter table pocket_items replica identity full;
-alter publication supabase_realtime add table pocket_items;
+-- 既に登録済みでも再実行できるよう冪等化
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'pocket_items'
+  ) then
+    alter publication supabase_realtime add table pocket_items;
+  end if;
+end $$;
