@@ -6,7 +6,8 @@ import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 // 添付は非公開バケット post-attachments の pocket/<owner_id>/ 配下に保存し署名URLで返す。
 
 const MAX_TEXT_LENGTH = 10000;
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB（投稿添付と同じ。Vercel本文サイズ制限に合わせる）
+// ファイルはクライアントから署名URLで直接アップロードするため Vercel の本文サイズ制限を受けない
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const SIGN_TTL = 3600; // 署名URL有効期限(秒)
 const BUCKET = 'post-attachments';
 
@@ -47,12 +48,15 @@ export async function GET(request) {
     return NextResponse.json(items);
   } catch (err) {
     console.error('[Pocket] GET error:', err.message, err.stack);
-    // TODO(debug): 一時的に実エラーを返す。原因特定後に削除すること。
-    return NextResponse.json({ error: 'Internal error', _debug: { message: err.message, code: err.code, name: err.name } }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 
-// POST: テキスト/URL を保存、またはファイル/画像をアップロード
+// POST: 3つのモード
+//   1) { action:'sign-upload', name, type, size } → 署名付きアップロードURLを発行（クライアントが直接Supabaseへ）
+//   2) { attachment:{name,path,size,type}, text? } → アップロード済みファイルをDBに記録
+//   3) { text } → テキスト/URL を保存
+// ファイル本体はサーバーを経由せず、クライアント→Supabase に直接アップロードする（Vercelの本文サイズ制限を回避）。
 export async function POST(request) {
   try {
     const auth = await requireAuth(request);
@@ -60,71 +64,66 @@ export async function POST(request) {
     const { userid } = auth;
     const sb = getSupabaseAdmin();
 
-    const contentType = request.headers.get('content-type') || '';
-    let text = '';
-    let file = null;
+    const body = await request.json().catch(() => ({}));
 
-    if (contentType.includes('multipart/form-data')) {
-      const fd = await request.formData();
-      const jsonStr = fd.get('json');
-      if (jsonStr) {
-        try { text = (JSON.parse(jsonStr).text || '').toString(); } catch {}
+    // 1) 署名付きアップロードURLの発行
+    if (body.action === 'sign-upload') {
+      const size = Number(body.size) || 0;
+      if (size > MAX_FILE_SIZE) {
+        return NextResponse.json({ error: 'File too large (max 50MB)' }, { status: 400 });
       }
-      const f = fd.get('file');
-      if (f instanceof File && f.size > 0) file = f;
-    } else {
-      const body = await request.json();
-      text = (body.text || '').toString();
+      const safeName = (body.name || 'file').toString().replace(/[/\\]/g, '_').replace(/\.\./g, '_');
+      const ts = Date.now();
+      const path = `pocket/${userid}/${ts}_${safeName}`;
+      const { data, error } = await sb.storage.from(BUCKET).createSignedUploadUrl(path);
+      if (error) {
+        console.error('[Pocket] createSignedUploadUrl:', error.message);
+        return NextResponse.json({ error: 'sign failed', _debug: { message: error.message } }, { status: 500 });
+      }
+      return NextResponse.json({ path, token: data.token });
     }
 
-    text = text.trim();
+    // 2) アップロード済みファイルの記録
+    if (body.attachment) {
+      const a = body.attachment;
+      // セキュリティ: 自分のプレフィックス配下のパスのみ記録可
+      if (typeof a.path !== 'string' || !a.path.startsWith(`pocket/${userid}/`)) {
+        return NextResponse.json({ error: 'invalid path' }, { status: 400 });
+      }
+      const row = {
+        owner_id: userid,
+        kind: (a.type || '').startsWith('image/') ? 'image' : 'file',
+        attachment: { name: a.name || 'file', path: a.path, size: Number(a.size) || 0, type: a.type || '' },
+      };
+      const caption = (body.text || '').toString().trim();
+      if (caption) row.text = caption;
+      const { data, error } = await sb
+        .from('pocket_items')
+        .insert(row)
+        .select('id, kind, text, attachment, pinned, created_at')
+        .single();
+      if (error) throw error;
+      return NextResponse.json(await signAttachment(sb, data));
+    }
+
+    // 3) テキスト/URL
+    const text = (body.text || '').toString().trim();
+    if (!text) {
+      return NextResponse.json({ error: 'text required' }, { status: 400 });
+    }
     if (text.length > MAX_TEXT_LENGTH) {
       return NextResponse.json({ error: 'Text too long' }, { status: 400 });
     }
-    if (!file && !text) {
-      return NextResponse.json({ error: 'text or file required' }, { status: 400 });
-    }
-
-    const row = { owner_id: userid };
-
-    if (file) {
-      if (file.size > MAX_FILE_SIZE) {
-        return NextResponse.json({ error: 'File too large (max 10MB)' }, { status: 400 });
-      }
-      // ファイル名をサニタイズ（ディレクトリ区切り・親参照を除去）
-      const safeName = (file.name || 'file').replace(/[/\\]/g, '_').replace(/\.\./g, '_');
-      const ts = Date.now();
-      const path = `pocket/${userid}/${ts}_${safeName}`;
-      const buf = Buffer.from(await file.arrayBuffer());
-      const { error: upErr } = await sb.storage
-        .from(BUCKET)
-        .upload(path, buf, { contentType: file.type || 'application/octet-stream' });
-      if (upErr) {
-        console.error('[Pocket] upload:', upErr.message);
-        // TODO(debug): 一時的に実エラーを返す。原因特定後に削除すること。
-        return NextResponse.json({ error: 'Upload failed', _debug: { message: upErr.message, name: upErr.name, status: upErr.statusCode || upErr.status } }, { status: 500 });
-      }
-      row.kind = (file.type || '').startsWith('image/') ? 'image' : 'file';
-      row.attachment = { name: file.name || safeName, path, size: file.size, type: file.type || '' };
-      if (text) row.text = text; // キャプション
-    } else {
-      row.kind = 'text';
-      row.text = text;
-    }
-
     const { data, error } = await sb
       .from('pocket_items')
-      .insert(row)
+      .insert({ owner_id: userid, kind: 'text', text })
       .select('id, kind, text, attachment, pinned, created_at')
       .single();
     if (error) throw error;
-
-    const signed = await signAttachment(sb, data);
-    return NextResponse.json(signed);
+    return NextResponse.json(data);
   } catch (err) {
     console.error('[Pocket] POST error:', err.message, err.stack);
-    // TODO(debug): 一時的に実エラーを返す。原因特定後に削除すること。
-    return NextResponse.json({ error: 'Internal error', _debug: { message: err.message, code: err.code, name: err.name } }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
 

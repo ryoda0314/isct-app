@@ -90,21 +90,42 @@ export function usePocket() {
     }
   }, []);
 
-  // ファイル/画像を追加
+  // ファイル/画像を追加（サーバーを経由せずクライアントから直接Supabaseへアップロード）
   const addFile = useCallback(async (file, caption) => {
     if (!file) return;
     if (isDemoMode()) return;
-    const fd = new FormData();
-    fd.append('file', file);
-    if (caption) fd.append('json', JSON.stringify({ text: caption }));
-    const r = await fetch('/api/pocket', { method: 'POST', body: fd });
-    if (r.ok) {
-      const item = await r.json();
-      setItems(prev => prev.some(p => p.id === item.id) ? prev : [item, ...prev]);
-    } else {
-      const e = await r.json().catch(() => ({}));
-      throw new Error(e.error || 'アップロードに失敗しました');
+
+    // 1) 署名付きアップロードURLを取得
+    const signRes = await fetch('/api/pocket', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'sign-upload', name: file.name, type: file.type, size: file.size }),
+    });
+    if (!signRes.ok) {
+      const e = await signRes.json().catch(() => ({}));
+      throw new Error(e.error || '署名URLの取得に失敗しました');
     }
+    const { path, token } = await signRes.json();
+
+    // 2) Supabase ストレージへ直接アップロード（Vercelの本文サイズ制限を回避）
+    const sb = getSupabaseClient();
+    const { error: upErr } = await sb.storage
+      .from('post-attachments')
+      .uploadToSignedUrl(path, token, file, { contentType: file.type || undefined });
+    if (upErr) throw new Error(upErr.message || 'アップロードに失敗しました');
+
+    // 3) DBに記録
+    const recRes = await fetch('/api/pocket', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ attachment: { name: file.name, path, size: file.size, type: file.type }, text: caption }),
+    });
+    if (!recRes.ok) {
+      const e = await recRes.json().catch(() => ({}));
+      throw new Error(e.error || '保存に失敗しました');
+    }
+    const item = await recRes.json();
+    setItems(prev => prev.some(p => p.id === item.id) ? prev : [item, ...prev]);
   }, []);
 
   // 削除（楽観的）
