@@ -85,9 +85,22 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
   useEffect(()=>{if(isDemoMode()){setExams(DEMO_EXAMS.exams||[]);return;}fetch("/api/exams").then(r=>r.json()).then(d=>setExams(d.exams||[])).catch(()=>{});},[]);
   const myExams=useMemo(()=>{
     if(!courses?.length||!exams.length)return [];
-    const rawSet=new Set(),baseSet=new Set();
-    courses.forEach(c=>{if(c.codeRaw&&c.codeRaw!==c.code)rawSet.add(c.codeRaw);else if(c.code)baseSet.add(c.code);});
-    return exams.filter(e=>rawSet.has(e.code_raw)||baseSet.has(e.code));
+    // 試験(e)と履修科目(c)の年度/クォーターを正規化して比較 (CalendarViewと同一ロジック)
+    const normQ=q=>{if(q==null||q==="")return"";const m=String(q).match(/(\d)/);return m?m[1]:"";};
+    const examAY=ds=>{const [y,m]=ds.split("-").map(Number);return (m-1)>=3?y:y-1;};
+    const matchYQ=(c,ey,eq)=>{
+      if(ey&&(!c.year||String(c.year)!==ey))return false;
+      if(eq&&(c.quarter==null||normQ(c.quarter)!==eq))return false;
+      return true;
+    };
+    return exams.filter(e=>{
+      const ey=e.year==null?"":String(e.year);
+      const eq=normQ(e.quarter);
+      if(ey&&e.date&&String(examAY(e.date))!==ey)return false;
+      return courses.some(c=>matchYQ(c,ey,eq)&&(
+        (c.codeRaw&&c.codeRaw!==c.code)?c.codeRaw===e.code_raw:c.code===e.code
+      ));
+    });
   },[exams,courses]);
   useEffect(()=>{try{localStorage.setItem("wxLoc",JSON.stringify(loc));}catch{}},[loc]);
   useEffect(()=>{if(!isNative())fetch("/api/portal/page?warmup=1",{cache:"no-store"}).catch(()=>{});},[]);
