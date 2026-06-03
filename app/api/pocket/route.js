@@ -72,9 +72,14 @@ export async function POST(request) {
       if (size > MAX_FILE_SIZE) {
         return NextResponse.json({ error: 'File too large (max 50MB)' }, { status: 400 });
       }
-      const safeName = (body.name || 'file').toString().replace(/[/\\]/g, '_').replace(/\.\./g, '_');
+      // Storageのキーは ASCII安全な文字のみ許可（日本語等は InvalidKey になる）。
+      // 表示名は別途 attachment.name に元のまま保持するので、ここは安全な拡張子だけ維持すればよい。
+      const rawName = (body.name || 'file').toString();
+      const dot = rawName.lastIndexOf('.');
+      const ext = dot > 0 ? rawName.slice(dot).replace(/[^A-Za-z0-9.]/g, '') : '';
+      const base = (dot > 0 ? rawName.slice(0, dot) : rawName).replace(/[^A-Za-z0-9._-]/g, '_') || 'file';
       const ts = Date.now();
-      const path = `pocket/${userid}/${ts}_${safeName}`;
+      const path = `pocket/${userid}/${ts}_${base}${ext}`;
       const { data, error } = await sb.storage.from(BUCKET).createSignedUploadUrl(path);
       if (error) {
         console.error('[Pocket] createSignedUploadUrl:', error.message);
