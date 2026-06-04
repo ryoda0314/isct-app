@@ -43,6 +43,7 @@ import { GradingView } from "./views/GradingView.jsx";
 import { FreshmanBoardView } from "./views/FreshmanBoardView.jsx";
 import { AcademicCalendarView } from "./views/AcademicCalendarView.jsx";
 import { ExamView } from "./views/ExamView.jsx";
+import { FreeRoomView } from "./views/FreeRoomView.jsx";
 import { RegView } from "./views/RegView.jsx";
 import { MedTTView } from "./views/MedTTView.jsx";
 import { DeptModal } from "./components/DeptModal.jsx";
@@ -873,7 +874,7 @@ export default function App(){
 
   // --- DESKTOP ---
   if(!mob){
-    const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",acadCal:"学年暦",exams:"期末試験",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",navigation:"キャンパスナビ",friends:"友達",circles:"サークル",admin:"管理者",freshman:"新入生掲示板",reg:"履修登録補助"};
+    const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",acadCal:"学年暦",exams:"期末試験",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",navigation:"キャンパスナビ",friends:"友達",circles:"サークル",admin:"管理者",freshman:"新入生掲示板",reg:"履修登録補助",freeroom:"空き教室"};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:"タイムライン",chat:"チャット",assignments:"課題",materials:"教材",reviews:"レビュー"}[ch]}</>;
       if(view==="dept"&&cd){const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?cd.name:cd.prefix}</span> {nameOnly?"":`${cd.name} `}— {{timeline:"タイムライン",chat:"チャット"}[ch]||""}</>;}
@@ -910,6 +911,7 @@ export default function App(){
           {view==="circles"&&(TR?<TelecomBlockView title="サークルは現在利用できません"/>:<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs}/>)}
           {view==="acadCal"&&<AcademicCalendarView mob={false}/>}
           {view==="exams"&&(L?<LockedView title="期末試験"/>:<ExamView courses={allCourses} mob={false} goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/>)}
+          {view==="freeroom"&&(L?<LockedView title="空き教室"/>:<FreeRoomView mob={false} goToBuilding={goToBuilding}/>)}
           {view==="reg"&&<RegView mob={false}/>}
           {view==="textbooks"&&(L?<LockedView title="マイ教科書"/>:<TextbooksView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/>)}
           {view==="grading"&&(L?<LockedView title="成績割合"/>:<GradingView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/>)}
@@ -956,6 +958,7 @@ export default function App(){
         {view==="circles"&&(TR?<><MHdr title="サークル" back={mBack}/><TelecomBlockView title="サークルは現在利用できません" onBack={goBack}/></>:<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs} onBack={mBack}/>)}
         {view==="acadCal"&&<AcademicCalendarView mob/>}
         {view==="exams"&&(L?<><MHdr title="期末試験" back={mBack}/><LockedView title="期末試験"/></>:<><MHdr title="期末試験" back={mBack}/><ExamView courses={allCourses} mob goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/></>)}
+        {view==="freeroom"&&(L?<><MHdr title="空き教室" back={mBack}/><LockedView title="空き教室"/></>:<><MHdr title="空き教室" back={mBack}/><FreeRoomView mob goToBuilding={goToBuilding}/></>)}
         {view==="reg"&&<><MHdr title="履修登録補助" back={mBack}/><RegView mob/></>}
         {view==="textbooks"&&(L?<><MHdr title="マイ教科書" back={mBack}/><LockedView title="マイ教科書"/></>:<><MHdr title="マイ教科書" back={mBack}/><TextbooksView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/></>)}
         {view==="grading"&&(L?<><MHdr title="成績割合" back={mBack}/><LockedView title="成績割合"/></>:<><MHdr title="成績割合" back={mBack}/><GradingView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/></>)}

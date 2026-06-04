@@ -14,7 +14,7 @@ const SideItem=({icon,label,on,click,badge,compact})=>(
 
 const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,courses=[],depts=[],schools=[],user={},quarter,academicYear,pendingFriendCount=0,userUnit=null,compact=false,narrow=false,hasMed=false})=>{
   const [moreOpen,setMoreOpen]=useState(false);
-  const extras=["grades","pomo","events","reviews","bmarks","acadCal","exams","freshman","reg"];
+  const extras=["grades","pomo","events","reviews","bmarks","acadCal","exams","freeroom","freshman","reg"];
   const isExtra=extras.includes(view);
   const W=compact?56:narrow?150:180;
   const cp=compact;
@@ -108,7 +108,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
           <button onClick={()=>setMoreOpen(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.x}</button>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          {[{id:"grades",i:I.grad,l:"成績",c:T.accentSoft},{id:"exams",i:I.clip,l:"期末試験",c:T.red},{id:"reg",i:I.pen,l:"履修登録",c:T.accent},{id:"acadCal",i:I.cal,l:"学年暦",c:"#6366f1"},{id:"pomo",i:I.play,l:"ポモドーロ",c:T.green},{id:"events",i:I.event,l:"イベント",c:T.orange},{id:"reviews",i:I.star,l:"授業レビュー",c:"#c6a236"},{id:"bmarks",i:I.bmark,l:"ブックマーク",c:T.txD}].map(n=>
+          {[{id:"grades",i:I.grad,l:"成績",c:T.accentSoft},{id:"exams",i:I.clip,l:"期末試験",c:T.red},{id:"freeroom",i:I.pin,l:"空き教室",c:T.green},{id:"reg",i:I.pen,l:"履修登録",c:T.accent},{id:"acadCal",i:I.cal,l:"学年暦",c:"#6366f1"},{id:"pomo",i:I.play,l:"ポモドーロ",c:T.green},{id:"events",i:I.event,l:"イベント",c:T.orange},{id:"reviews",i:I.star,l:"授業レビュー",c:"#c6a236"},{id:"bmarks",i:I.bmark,l:"ブックマーク",c:T.txD}].map(n=>
             <button key={n.id} onClick={()=>{setView(n.id);setMoreOpen(false);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,padding:"16px 8px",borderRadius:12,border:view===n.id?`2px solid ${n.c}`:`1px solid ${T.bd}`,background:view===n.id?`${n.c}10`:T.bg3,cursor:"pointer",transition:"all .12s"}}>
               <span style={{color:n.c,display:"flex"}}>{n.i}</span>
               <span style={{fontSize:12,fontWeight:view===n.id?600:400,color:view===n.id?T.txH:T.tx}}>{n.l}</span>
@@ -174,7 +174,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
 // ============================================================
 
 const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false})=>{
-  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal","exams","freshman","reg","med-tt","timetable","pocket"];
+  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket"];
   const ttId=hasMed?"med-tt":"timetable";
   const isMore=moreViews.includes(view)&&view!==ttId;
   return(
@@ -204,6 +204,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
       {id:"textbooks",i:I.book,l:"マイ教科書"},
       {id:"grading",i:I.bar,l:"成績割合"},
       {id:"exams",i:I.clip,l:"期末試験"},
+      {id:"freeroom",i:I.pin,l:"空き教室"},
       {id:"reg",i:I.pen,l:"履修登録補助"},
       {id:"acadCal",i:I.cal,l:"学年暦"},
       {id:"reviews",i:I.star,l:"授業レビュー"},
