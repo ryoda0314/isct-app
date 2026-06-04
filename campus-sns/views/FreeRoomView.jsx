@@ -13,6 +13,32 @@ const SLOT_TIMES = ["8:50–10:30", "10:45–12:25", "13:30–15:10", "15:25–1
 const SLOT_END_MIN = [10 * 60 + 30, 12 * 60 + 25, 15 * 60 + 10, 17 * 60 + 5, 18 * 60 + 55];
 const DAY_START_MIN = 8 * 60 + 50;
 
+// 教室名 → 階(フロア)情報。"M-278"→2F, "W5-106"→1F, "M-B07"→B1F, "建築製図室"→階不明
+function floorInfo(room) {
+  const dash = room.lastIndexOf("-");
+  const part = dash >= 0 ? room.slice(dash + 1) : room;
+  const m = part.match(/^(B?)(\d+)/i);
+  if (!m) return { label: "階不明", sort: 999 };
+  if (m[1]) return { label: "B1F", sort: -1 }; // 地下 (本館B1F等)
+  const d = m[2];
+  const fl = d.length >= 3 ? parseInt(d.slice(0, d.length - 2)) : parseInt(d[0]);
+  if (!fl || Number.isNaN(fl)) return { label: "階不明", sort: 999 };
+  return { label: `${fl}F`, sort: fl };
+}
+
+// 建物内の教室を階ごとにまとめる
+function groupByFloor(list) {
+  const m = new Map(); // label -> { sort, rooms[] }
+  for (const r of list) {
+    const f = floorInfo(r.room);
+    if (!m.has(f.label)) m.set(f.label, { sort: f.sort, rooms: [] });
+    m.get(f.label).rooms.push(r);
+  }
+  return [...m.entries()]
+    .map(([label, v]) => ({ label, sort: v.sort, rooms: v.rooms }))
+    .sort((a, b) => a.sort - b.sort);
+}
+
 // 建物コード → 表示色 (なんとなく系統で色分け)
 const buildingColor = (b) => {
   const palette = ["#6375f0", "#3dae72", "#d4843e", "#a855c7", "#e5534b", "#0ea5e9", "#c6a236", "#14b8a6"];
@@ -198,103 +224,84 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
     setSlot(nc.slot);
   };
 
-  const pill = (active, col = T.accent) => ({
-    padding: mob ? "6px 12px" : "6px 14px", borderRadius: 8,
-    border: `1px solid ${active ? col : T.bd}`,
-    background: active ? `${col}15` : T.bg2,
-    color: active ? col : T.txD,
-    fontSize: mob ? 12 : 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
-  });
+  const selStyle = {
+    padding: mob ? "5px 6px" : "6px 8px", borderRadius: 8, border: `1px solid ${T.bd}`,
+    background: T.bg2, color: T.txH, fontSize: mob ? 12 : 13, fontWeight: 600, cursor: "pointer", outline: "none",
+  };
+  const statusBtn = (key, label, n, col) => (
+    <button onClick={() => setStatus(key)} style={{
+      flex: "0 0 auto", padding: mob ? "5px 9px" : "5px 11px", borderRadius: 7,
+      border: `1px solid ${status === key ? col : T.bd}`,
+      background: status === key ? `${col}18` : T.bg2,
+      color: status === key ? col : T.txD,
+      fontSize: mob ? 11.5 : 12.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+    }}>{label} {n}</button>
+  );
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: mob ? 12 : 20 }}>
-      {/* ヘッダー */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14, gap: 8, flexWrap: "wrap" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 style={{ margin: 0, fontSize: mob ? 18 : 20, fontWeight: 800, color: T.txH }}>空き教室</h2>
-          <div style={{ fontSize: 12, color: T.txD, marginTop: 2 }}>
-            {loading ? "読み込み中..." : error ? "エラー" : `${campus} ・ ${day}曜 ${SLOT_LABEL[slot]} ・ ${quarter}`}
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }}>
+      {/* === 固定ヘッダー === */}
+      <div style={{ flexShrink: 0, padding: mob ? "10px 12px 8px" : "12px 20px 10px", borderBottom: `1px solid ${T.bd}`, background: T.bg, display: "flex", flexDirection: "column", gap: 8 }}>
+        {/* 行1: キャンパス + 年度/Q */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 5, flex: 1, minWidth: 0, overflowX: "auto" }}>
+            {(data?.campuses || ["大岡山"]).map((c) => {
+              const on = c === campus;
+              return (
+                <button key={c} onClick={() => { setCampus(c); setAreaFilter(null); }} style={{
+                  padding: mob ? "5px 12px" : "6px 16px", borderRadius: 8,
+                  border: `1.5px solid ${on ? T.accent : T.bd}`,
+                  background: on ? T.accent : T.bg2, color: on ? "#fff" : T.txD,
+                  fontSize: mob ? 12.5 : 13.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+                }}>{c}</button>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+            <select value={year} onChange={(e) => setYear(e.target.value)} style={selStyle}>
+              {yearOpts.map((y) => <option key={y} value={y}>{y}年度</option>)}
+            </select>
+            <select value={quarter} onChange={(e) => setQuarter(e.target.value)} style={selStyle}>
+              {(data?.quarters || ["1Q", "2Q", "3Q", "4Q"]).map((q) => <option key={q} value={q}>{q}</option>)}
+            </select>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          <select value={year} onChange={(e) => setYear(e.target.value)}
-            style={{ padding: "6px 8px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 12, fontWeight: 600, cursor: "pointer", outline: "none" }}>
-            {yearOpts.map((y) => <option key={y} value={y}>{y}年度</option>)}
+
+        {/* 行2: 曜日 + 時限 + 今 + 地域 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <select value={dayIdx} onChange={(e) => setDayIdx(Number(e.target.value))} style={selStyle}>
+            {DAYS.map((d, i) => <option key={d} value={i}>{d}曜</option>)}
           </select>
-          <select value={quarter} onChange={(e) => setQuarter(e.target.value)}
-            style={{ padding: "6px 8px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 12, fontWeight: 600, cursor: "pointer", outline: "none" }}>
-            {(data?.quarters || ["1Q", "2Q", "3Q", "4Q"]).map((q) => <option key={q} value={q}>{q}</option>)}
+          <select value={slot} onChange={(e) => setSlot(Number(e.target.value))} style={selStyle}>
+            {SLOT_LABEL.map((lbl, i) => <option key={lbl} value={i}>{lbl}（{SLOT_TIMES[i]}）</option>)}
           </select>
+          <button onClick={resetToNow} disabled={isNow} title="現在の曜日・時限に合わせる" style={{
+            display: "flex", alignItems: "center", gap: 4, padding: mob ? "5px 9px" : "6px 11px", borderRadius: 8,
+            border: `1px solid ${isNow ? T.bd : T.accent}`, background: isNow ? T.bg2 : `${T.accent}15`,
+            color: isNow ? T.txD : T.accent, fontSize: mob ? 11.5 : 12.5, fontWeight: 700, cursor: isNow ? "default" : "pointer", opacity: isNow ? 0.6 : 1, whiteSpace: "nowrap",
+          }}>{I.clock}今</button>
+          {campusAreas.length > 1 && (
+            <select value={areaFilter || ""} onChange={(e) => setAreaFilter(e.target.value || null)} style={{ ...selStyle, marginLeft: "auto" }}>
+              <option value="">全地域</option>
+              {campusAreas.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          )}
         </div>
+
+        {/* 行3: 表示ステータス (件数) */}
+        {!loading && !error && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            {statusBtn("free", "空き", freeTotal, T.green)}
+            {statusBtn("busy", "使用中", busyTotal, T.red)}
+            {statusBtn("all", "すべて", roomTotal, T.txH)}
+            {nc.isWeekend && <span style={{ fontSize: 10.5, color: T.txD, marginLeft: 2 }}>※土日のため月曜を表示</span>}
+            {!nc.isWeekend && nc.offHours && isNow && <span style={{ fontSize: 10.5, color: T.txD, marginLeft: 2 }}>※現在は授業時間外</span>}
+          </div>
+        )}
       </div>
 
-      {/* キャンパス選択 */}
-      {!loading && !error && (data?.campuses?.length || 0) > 0 && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 12, overflowX: "auto", paddingBottom: 2 }}>
-          {data.campuses.map((c) => {
-            const on = c === campus;
-            return (
-              <button key={c} onClick={() => { setCampus(c); setAreaFilter(null); }} style={{
-                padding: mob ? "7px 16px" : "8px 20px", borderRadius: 10,
-                border: `1.5px solid ${on ? T.accent : T.bd}`,
-                background: on ? T.accent : T.bg2,
-                color: on ? "#fff" : T.txD,
-                fontSize: mob ? 13 : 14, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
-              }}>{c}</button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* 今へ戻る / 時間外案内 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-        <button onClick={resetToNow} disabled={isNow} style={{
-          display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8,
-          border: `1px solid ${isNow ? T.bd : T.accent}`, background: isNow ? T.bg2 : `${T.accent}15`,
-          color: isNow ? T.txD : T.accent, fontSize: 12, fontWeight: 600, cursor: isNow ? "default" : "pointer", opacity: isNow ? 0.7 : 1,
-        }}>
-          {I.clock}{isNow ? "現在の時間帯" : "今に合わせる"}
-        </button>
-        {nc.isWeekend && <span style={{ fontSize: 11, color: T.txD }}>※土日は授業がないため月曜を表示中</span>}
-        {!nc.isWeekend && nc.offHours && isNow && <span style={{ fontSize: 11, color: T.txD }}>※現在は授業時間外です</span>}
-      </div>
-
-      {/* 曜日セレクタ */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 8, overflowX: "auto", paddingBottom: 2 }}>
-        {DAYS.map((d, i) => (
-          <button key={d} onClick={() => setDayIdx(i)} style={pill(i === dayIdx)}>{d}</button>
-        ))}
-      </div>
-
-      {/* 時限セレクタ */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", paddingBottom: 2 }}>
-        {SLOT_LABEL.map((lbl, i) => (
-          <button key={lbl} onClick={() => setSlot(i)} style={{ ...pill(i === slot), display: "flex", flexDirection: "column", alignItems: "center", gap: 1, lineHeight: 1.2 }}>
-            <span>{lbl}</span>
-            <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.8 }}>{SLOT_TIMES[i]}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* 表示ステータス */}
-      {!loading && !error && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-          <button onClick={() => setStatus("free")} style={pill(status === "free", T.green)}>空き {freeTotal}</button>
-          <button onClick={() => setStatus("busy")} style={pill(status === "busy", T.red)}>使用中 {busyTotal}</button>
-          <button onClick={() => setStatus("all")} style={pill(status === "all", T.txH)}>すべて {roomTotal}</button>
-        </div>
-      )}
-
-      {/* 地域フィルタ (選択中キャンパス内) */}
-      {!loading && !error && campusAreas.length > 1 && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", paddingBottom: 2 }}>
-          <button onClick={() => setAreaFilter(null)} style={pill(areaFilter === null, T.txH)}>全地域</button>
-          {campusAreas.map((a) => (
-            <button key={a} onClick={() => setAreaFilter(a === areaFilter ? null : a)} style={pill(a === areaFilter, T.accent)}>{a}</button>
-          ))}
-        </div>
-      )}
-
+      {/* === スクロール本体 === */}
+      <div style={{ flex: 1, overflowY: "auto", padding: mob ? 12 : 20 }}>
       {/* 本体 */}
       {loading && <div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 14 }}>読み込み中...</div>}
       {!loading && error && (
@@ -339,35 +346,45 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
                   </button>}
                   <span style={{ fontSize: 11, fontWeight: 600, color: col, padding: "2px 10px", borderRadius: 6, background: `${col}15` }}>{list.length}室</span>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {list.map(({ room, busy, classes }) => (
-                    <div key={room} style={{
-                      display: "flex", alignItems: "center", gap: 8, padding: mob ? "8px 10px" : "9px 12px",
-                      borderRadius: 10,
-                      border: `1px solid ${busy ? `${T.red}25` : `${T.green}30`}`,
-                      background: busy ? `${T.red}08` : `${T.green}0c`,
-                    }}>
-                      <span style={{ color: busy ? T.red : T.green, display: "flex", flexShrink: 0 }}>{I.pin}</span>
-                      <span style={{ fontSize: mob ? 13 : 14, fontWeight: 700, color: T.txH, flexShrink: 0, minWidth: mob ? 64 : 80 }}>{room}</span>
-                      {busy ? (
-                        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
-                          {classes.length === 0
-                            ? <span style={{ fontSize: 12, color: T.txD }}>授業あり</span>
-                            : classes.map((c, i) => (
-                              <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 6, overflow: "hidden" }}>
-                                {c.code && <span style={{ fontSize: 11, fontWeight: 700, color: T.red, flexShrink: 0 }}>{c.code}</span>}
-                                <span style={{ fontSize: mob ? 12 : 13, color: T.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name || "（科目名なし）"}</span>
-                              </div>
-                            ))}
-                        </div>
-                      ) : (
-                        <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: T.green, padding: "2px 10px", borderRadius: 6, background: `${T.green}18` }}>空き</span>
-                        </div>
-                      )}
+                {groupByFloor(list).map(({ label, rooms: fRooms }) => (
+                  <div key={label} style={{ marginBottom: 8 }}>
+                    {/* 階(フロア)見出し */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, margin: "4px 0 6px 2px" }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: col, padding: "1px 8px", borderRadius: 5, background: `${col}12`, border: `1px solid ${col}25` }}>{label}</span>
+                      <div style={{ flex: 1, height: 1, background: `${col}15` }} />
+                      <span style={{ fontSize: 10, color: T.txD }}>{fRooms.length}室</span>
                     </div>
-                  ))}
-                </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginLeft: mob ? 0 : 6 }}>
+                      {fRooms.map(({ room, busy, classes }) => (
+                        <div key={room} style={{
+                          display: "flex", alignItems: "center", gap: 8, padding: mob ? "8px 10px" : "9px 12px",
+                          borderRadius: 10,
+                          border: `1px solid ${busy ? `${T.red}25` : `${T.green}30`}`,
+                          background: busy ? `${T.red}08` : `${T.green}0c`,
+                        }}>
+                          <span style={{ color: busy ? T.red : T.green, display: "flex", flexShrink: 0 }}>{I.pin}</span>
+                          <span style={{ fontSize: mob ? 13 : 14, fontWeight: 700, color: T.txH, flexShrink: 0, minWidth: mob ? 64 : 80 }}>{room}</span>
+                          {busy ? (
+                            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+                              {classes.length === 0
+                                ? <span style={{ fontSize: 12, color: T.txD }}>授業あり</span>
+                                : classes.map((c, i) => (
+                                  <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 6, overflow: "hidden" }}>
+                                    {c.code && <span style={{ fontSize: 11, fontWeight: 700, color: T.red, flexShrink: 0 }}>{c.code}</span>}
+                                    <span style={{ fontSize: mob ? 12 : 13, color: T.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name || "（科目名なし）"}</span>
+                                  </div>
+                                ))}
+                            </div>
+                          ) : (
+                            <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: T.green, padding: "2px 10px", borderRadius: 6, background: `${T.green}18` }}>空き</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             );
           })}
@@ -377,6 +394,7 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
       <div style={{ fontSize: 10, color: T.txD, marginTop: 16, lineHeight: 1.6 }}>
         ※ シラバスの授業データから「その時限に授業が割り当てられていない教室」を表示しています。
         補講・会議・予約等の利用は反映されないため、実際の空き状況とは異なる場合があります。
+      </div>
       </div>
     </div>
   );
