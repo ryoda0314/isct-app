@@ -13,17 +13,26 @@ const SLOT_TIMES = ["8:50–10:30", "10:45–12:25", "13:30–15:10", "15:25–1
 const SLOT_END_MIN = [10 * 60 + 30, 12 * 60 + 25, 15 * 60 + 10, 17 * 60 + 5, 18 * 60 + 55];
 const DAY_START_MIN = 8 * 60 + 50;
 
-// 教室名 → 階(フロア)情報。"M-278"→2F, "W5-106"→1F, "M-B07"→B1F, "建築製図室"→階不明
+// 教室名 → 階(フロア)情報。
+// "M-278"→2F, "W5-106"→1F, "M-B07"→B1F, "石川台1号館2階253"→2F,
+// "南5号館112"→1F, "SP-2007"→2F, "建築製図室"→階不明
 function floorInfo(room) {
+  // 1) 明示的な「N階」表記を最優先 (建物番号より優先)
+  let m = room.match(/(\d{1,2})\s*階/);
+  if (m) { const n = parseInt(m[1]); if (n >= 1 && n <= 12) return { label: `${n}F`, sort: n }; }
+  // 2) 「NF」表記 (前後が英字でない数字+F)
+  m = room.match(/(?:^|[^0-9A-Za-z])(\d{1,2})F(?![A-Za-z])/);
+  if (m) { const n = parseInt(m[1]); if (n >= 1 && n <= 12) return { label: `${n}F`, sort: n }; }
+  // 3) コード形式: 末尾ハイフン以降の室番号 (先頭桁=階。地下はB始まり)
   const dash = room.lastIndexOf("-");
   const part = dash >= 0 ? room.slice(dash + 1) : room;
-  const m = part.match(/^(B?)(\d+)/i);
-  if (!m) return { label: "階不明", sort: 999 };
-  if (m[1]) return { label: "B1F", sort: -1 }; // 地下 (本館B1F等)
-  const d = m[2];
-  const fl = d.length >= 3 ? parseInt(d.slice(0, d.length - 2)) : parseInt(d[0]);
-  if (!fl || Number.isNaN(fl)) return { label: "階不明", sort: 999 };
-  return { label: `${fl}F`, sort: fl };
+  if (/^B\d/i.test(part)) return { label: "B1F", sort: -1 };
+  m = part.match(/^(\d{3,4})/);
+  if (m) return { label: `${m[1][0]}F`, sort: parseInt(m[1][0]) };
+  // 4) 名称室中に現れる3〜4桁の室番号 (南5号館112, 統合創造工房201-A号室, E207)
+  m = room.match(/(\d{3,4})/);
+  if (m) return { label: `${m[1][0]}F`, sort: parseInt(m[1][0]) };
+  return { label: "階不明", sort: 999 };
 }
 
 // 建物内の教室を階ごとにまとめる
@@ -46,6 +55,91 @@ const buildingColor = (b) => {
   for (let i = 0; i < b.length; i++) h = (h * 31 + b.charCodeAt(i)) >>> 0;
   return palette[h % palette.length];
 };
+
+// 教室をクリックしたとき: その教室の週間(曜日×時限)空き状況モーダル
+function RoomScheduleModal({ sel, occ, quarter, year, mob, nowDay, nowSlot, nowActive, onClose, goToBuilding }) {
+  const { room, building } = sel;
+  const col = buildingColor(building);
+  const fl = floorInfo(room).label;
+  let freeN = 0;
+  const grid = DAYS.map((d, di) =>
+    SLOT_LABEL.map((_, si) => {
+      const entry = (occ?.[quarter]?.[d]?.[si] || []).find((e) => e.room === room);
+      if (!entry) freeN++;
+      return entry || null;
+    })
+  );
+  const canNav = building !== "その他" && typeof goToBuilding === "function";
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: mob ? 12 : 24 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 560, maxHeight: "90%", overflowY: "auto", background: T.bg2, border: `1px solid ${T.bdL || T.bd}`, borderRadius: 16, boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
+        {/* ヘッダー */}
+        <div style={{ position: "sticky", top: 0, background: T.bg2, padding: mob ? "14px 14px 10px" : "16px 18px 12px", borderBottom: `1px solid ${T.bd}`, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ minWidth: 34, height: 34, padding: "0 9px", borderRadius: 9, background: `${col}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: col }}>{building}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: mob ? 16 : 18, fontWeight: 800, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{room}</div>
+            <div style={{ fontSize: 11.5, color: T.txD }}>{year}年度 {quarter} ・ 週 {freeN}/25 コマ空き{fl !== "階不明" ? ` ・ ${fl}` : ""}</div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", flexShrink: 0 }}>{I.x}</button>
+        </div>
+
+        {/* 週間グリッド */}
+        <div style={{ padding: mob ? 12 : 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: `auto repeat(5, 1fr)`, gap: 4 }}>
+            {/* 曜日ヘッダー行 */}
+            <div />
+            {DAYS.map((d, di) => (
+              <div key={d} style={{ textAlign: "center", fontSize: 12, fontWeight: 700, color: nowActive && di === nowDay ? T.accent : T.txD, padding: "2px 0" }}>{d}</div>
+            ))}
+            {/* 各時限行 */}
+            {SLOT_LABEL.map((lbl, si) => (
+              <React.Fragment key={lbl}>
+                <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", paddingRight: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: T.txH }}>{lbl}</span>
+                  <span style={{ fontSize: 8.5, color: T.txD }}>{SLOT_TIMES[si]}</span>
+                </div>
+                {DAYS.map((d, di) => {
+                  const entry = grid[di][si];
+                  const busy = !!entry;
+                  const isNowCell = nowActive && di === nowDay && si === nowSlot;
+                  const c0 = entry?.classes?.[0];
+                  return (
+                    <div key={d} title={busy ? entry.classes.map((c) => `${c.code} ${c.name}`).join(" / ") : "空き"} style={{
+                      minHeight: mob ? 44 : 48, borderRadius: 8, padding: "4px 5px",
+                      border: `1px solid ${isNowCell ? T.accent : busy ? `${T.red}25` : `${T.green}30`}`,
+                      background: busy ? `${T.red}0e` : `${T.green}12`,
+                      boxShadow: isNowCell ? `0 0 0 1px ${T.accent}` : "none",
+                      display: "flex", flexDirection: "column", justifyContent: "center", alignItems: busy ? "flex-start" : "center", overflow: "hidden",
+                    }}>
+                      {busy ? (
+                        <>
+                          <span style={{ fontSize: 9.5, fontWeight: 700, color: T.red, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{c0?.code || "使用中"}</span>
+                          {c0?.name && <span style={{ fontSize: 9, color: T.txD, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{c0.name}</span>}
+                        </>
+                      ) : (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: T.green }}>空</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+          </div>
+
+          {/* フッター */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
+            {canNav && (
+              <button onClick={() => { onClose(); goToBuilding(building); }} style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", borderRadius: 9, border: `1px solid ${T.accent}`, background: `${T.accent}15`, color: T.accent, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                {I.map}地図で{building}棟を見る
+              </button>
+            )}
+            <span style={{ fontSize: 10, color: T.txD, flex: 1 }}>緑=空き / 赤=授業あり</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // JST の現在時刻から (曜日index, スロットindex, 時間外フラグ) を求める
 function nowContext() {
@@ -127,6 +221,7 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
   const [campus, setCampus] = useState("大岡山");
   const [areaFilter, setAreaFilter] = useState(null); // null = 全地域
   const [status, setStatus] = useState("free"); // "free" | "busy" | "all"
+  const [selRoom, setSelRoom] = useState(null); // {room, building} クリックした教室
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -360,8 +455,8 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
                       return (
                         <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${minW}px, 1fr))`, gap: 6, marginLeft: mob ? 0 : 6 }}>
                           {fRooms.map(({ room, busy, classes }) => busy ? (
-                            <div key={room} title={classes.map((c) => `${c.code} ${c.name}`).join(" / ")} style={{
-                              display: "flex", flexDirection: "column", gap: 2, padding: "6px 9px", borderRadius: 9,
+                            <div key={room} onClick={() => setSelRoom({ room, building })} title="クリックで週間の空き状況" style={{
+                              display: "flex", flexDirection: "column", gap: 2, padding: "6px 9px", borderRadius: 9, cursor: "pointer",
                               border: `1px solid ${T.red}25`, background: `${T.red}08`, minWidth: 0,
                             }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -378,8 +473,8 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
                                   </div>}
                             </div>
                           ) : (
-                            <div key={room} title="空き" style={{
-                              display: "flex", alignItems: "center", gap: 5, padding: "7px 9px", borderRadius: 9,
+                            <div key={room} onClick={() => setSelRoom({ room, building })} title="クリックで週間の空き状況" style={{
+                              display: "flex", alignItems: "center", gap: 5, padding: "7px 9px", borderRadius: 9, cursor: "pointer",
                               border: `1px solid ${T.green}30`, background: `${T.green}0c`, minWidth: 0,
                             }}>
                               <span style={{ color: T.green, display: "flex", flexShrink: 0 }}>{I.pin}</span>
@@ -403,6 +498,15 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
       </div>
       </div>
       </div>
+
+      {selRoom && (
+        <RoomScheduleModal
+          sel={selRoom} occ={data?.occ} quarter={quarter} year={year} mob={mob}
+          nowDay={nc.dayIdx} nowSlot={nc.slot}
+          nowActive={quarter === nc.quarter && year === String(currentAcademicYear())}
+          onClose={() => setSelRoom(null)} goToBuilding={goToBuilding}
+        />
+      )}
     </div>
   );
 };
