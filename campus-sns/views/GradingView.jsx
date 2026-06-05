@@ -16,6 +16,10 @@ const CATEGORY_ORDER = [
   'project', 'discussion', 'other',
 ];
 
+// 成績割合データは現状2026年度ぶんのみDB登録済みのため、年度を固定する。
+// 他年度のデータが揃ったら、ここを外して年度セレクタを復活させる。
+const GRADING_YEAR = '2026';
+
 // 範囲表記用の表示文字列: "60-70%" / "65%"
 const formatPercent = (b) => {
   if (b.is_range && b.percent_min != null && b.percent_max != null) {
@@ -213,6 +217,38 @@ const Pill = ({ value, label, current, onClick, color }) => (
     }}>{label}</button>
 );
 
+// スライドトグル: 選択中の項目へインジケータが滑るセグメント型スイッチ
+const SlideToggle = ({ options, value, onChange }) => {
+  const idx = Math.max(0, options.findIndex(o => o.value === value));
+  return (
+    <div style={{
+      position: 'relative', display: 'inline-flex',
+      background: T.bg3, border: `1px solid ${T.bd}`,
+      borderRadius: 14, padding: 2,
+    }}>
+      <div style={{
+        position: 'absolute', top: 2, bottom: 2, left: 2,
+        width: `calc((100% - 4px) / ${options.length})`,
+        transform: `translateX(${idx * 100}%)`,
+        background: T.accent, borderRadius: 12,
+        transition: 'transform .18s ease',
+      }} />
+      {options.map(o => (
+        <button
+          key={o.value}
+          onClick={() => onChange(o.value)}
+          style={{
+            position: 'relative', zIndex: 1, flex: 1,
+            border: 'none', background: 'none', cursor: 'pointer',
+            padding: '4px 14px', fontSize: 11, fontWeight: 700,
+            color: value === o.value ? '#fff' : T.txD,
+            transition: 'color .18s', whiteSpace: 'nowrap',
+          }}>{o.label}</button>
+      ))}
+    </div>
+  );
+};
+
 // アクティブ時にアクセントカラーで縁取りされるコンパクトなセレクトボックス
 const FilterSelect = ({ value, onChange, active, activeColor, children }) => {
   const accent = activeColor || T.accent;
@@ -236,19 +272,16 @@ const FilterSelect = ({ value, onChange, active, activeColor, children }) => {
 // =============================================================
 // マイ履修タブ
 // =============================================================
-const MyGradingPanel = ({ courses = [], academicYear, setAcademicYear }) => {
+const MyGradingPanel = ({ courses = [] }) => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [data, setData] = useState({ courses: [], summary: { total: 0, with_breakdown: 0 } });
   const [quarter, setQuarter] = useState('');
   const [level, setLevel] = useState('');
 
-  const currentJpYear = useMemo(() => {
-    const jd = new Date(Date.now() + 9 * 3600000);
-    return jd.getUTCMonth() >= 3 ? jd.getUTCFullYear() : jd.getUTCFullYear() - 1;
-  }, []);
-  const year = academicYear || currentJpYear;
-  const yearStr = String(year);
+  // 成績割合は当面2026年度に固定 (GRADING_YEAR)
+  const year = Number(GRADING_YEAR);
+  const yearStr = GRADING_YEAR;
 
   const yearCourses = useMemo(() => {
     return (courses || []).filter(c => {
@@ -285,13 +318,6 @@ const MyGradingPanel = ({ courses = [], academicYear, setAcademicYear }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  const availableYears = useMemo(() => {
-    const years = new Set();
-    for (const c of (courses || [])) if (c?.year) years.add(c.year);
-    years.add(currentJpYear);
-    return [...years].sort((a, b) => b - a);
-  }, [courses, currentJpYear]);
-
   const filtered = useMemo(() => {
     let list = data.courses || [];
     if (quarter) {
@@ -318,16 +344,7 @@ const MyGradingPanel = ({ courses = [], academicYear, setAcademicYear }) => {
         borderBottom: `1px solid ${T.bd}`,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          {availableYears.length > 1 && setAcademicYear ? (
-            <FilterSelect
-              value={year}
-              onChange={v => setAcademicYear(Number(v))}
-              active={false}>
-              {availableYears.map(y => <option key={y} value={y}>{y}年度</option>)}
-            </FilterSelect>
-          ) : (
-            <div style={{ fontSize: 12, color: T.txD, background: T.bg3, padding: '5px 10px', borderRadius: 6, border: `1px solid ${T.bd}` }}>{year}年度</div>
-          )}
+          <div style={{ fontSize: 12, color: T.txD, background: T.bg3, padding: '5px 10px', borderRadius: 6, border: `1px solid ${T.bd}` }}>{GRADING_YEAR}年度</div>
           <FilterSelect value={quarter} onChange={setQuarter} active={!!quarter}>
             <option value="">全Q</option>
             <option value="1Q">1Q</option>
@@ -393,7 +410,8 @@ const MyGradingPanel = ({ courses = [], academicYear, setAcademicYear }) => {
 const SearchGradingPanel = () => {
   const [meta, setMeta] = useState({ years: [], depts: [], quarters: [] });
   const [metaLoading, setMetaLoading] = useState(true);
-  const [year, setYear] = useState('2026');
+  const year = GRADING_YEAR; // 当面2026年度に固定
+  const [deptCat, setDeptCat] = useState('senmon'); // 'senmon' | 'kyoyo'
   const [dept, setDept] = useState('');
   const [quarter, setQuarter] = useState('');
   const [level, setLevel] = useState('');
@@ -413,12 +431,7 @@ const SearchGradingPanel = () => {
       try {
         const r = await fetch('/api/data/grading-search?meta=1', { credentials: 'include' });
         const j = await r.json();
-        if (r.ok) {
-          setMeta(j);
-          if (j.years?.length && !j.years.includes(year)) {
-            setYear(j.years[0]);
-          }
-        }
+        if (r.ok) setMeta(j);
       } catch (e) { console.error('[GradingView/meta]', e); }
       setMetaLoading(false);
     })();
@@ -455,17 +468,29 @@ const SearchGradingPanel = () => {
   useEffect(() => { load(); }, [load]);
 
   // when filters change reset page to 0
-  useEffect(() => { setPage(0); }, [year, dept, quarter, level, searchDeferred, onlyParsed, category]);
+  useEffect(() => { setPage(0); }, [year, deptCat, dept, quarter, level, searchDeferred, onlyParsed, category]);
+
+  // school 名に「教養」を含むものを教養カテゴリとみなす (学部教養 + 大学院 教養)
+  const isKyoyoSchool = (school) => (school || '').includes('教養');
 
   const deptsBySchool = useMemo(() => {
     const m = {};
     for (const d of (meta.depts || [])) {
+      const kyoyo = isKyoyoSchool(d.school);
+      if ((deptCat === 'kyoyo') !== kyoyo) continue; // 選択カテゴリ外は除外
       const s = d.school || 'その他';
       if (!m[s]) m[s] = [];
       m[s].push(d);
     }
     return m;
-  }, [meta.depts]);
+  }, [meta.depts, deptCat]);
+
+  // カテゴリ切替時、選択中の学系が新カテゴリに属さなければクリア
+  useEffect(() => {
+    if (!dept) return;
+    const d = (meta.depts || []).find(x => x.key === dept);
+    if (d && (deptCat === 'kyoyo') !== isKyoyoSchool(d.school)) setDept('');
+  }, [deptCat]); // eslint-disable-line
 
   return (
     <div>
@@ -475,11 +500,17 @@ const SearchGradingPanel = () => {
         borderBottom: `1px solid ${T.bd}`,
       }}>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-          <FilterSelect value={year} onChange={setYear} active={false}>
-            {(meta.years || ['2026']).map(y => <option key={y} value={y}>{y}年度</option>)}
-          </FilterSelect>
+          <div style={{ fontSize: 12, color: T.txD, background: T.bg3, padding: '5px 10px', borderRadius: 6, border: `1px solid ${T.bd}` }}>{GRADING_YEAR}年度</div>
+          <SlideToggle
+            value={deptCat}
+            onChange={setDeptCat}
+            options={[
+              { value: 'senmon', label: '専門' },
+              { value: 'kyoyo', label: '教養' },
+            ]}
+          />
           <FilterSelect value={dept} onChange={setDept} active={!!dept}>
-            <option value="">全学系</option>
+            <option value="">{deptCat === 'kyoyo' ? '全教養' : '全学系'}</option>
             {Object.entries(deptsBySchool).map(([school, ds]) => (
               <optgroup key={school} label={school}>
                 {ds.map(d => (
@@ -584,7 +615,7 @@ const SearchGradingPanel = () => {
 // =============================================================
 // 親コンポーネント (タブ切替)
 // =============================================================
-export const GradingView = ({ courses = [], academicYear, setAcademicYear }) => {
+export const GradingView = ({ courses = [] }) => {
   const [tab, setTab] = useState('my'); // 'my' | 'search'
 
   return (
@@ -616,7 +647,7 @@ export const GradingView = ({ courses = [], academicYear, setAcademicYear }) => 
       </div>
 
       {tab === 'my'
-        ? <MyGradingPanel courses={courses} academicYear={academicYear} setAcademicYear={setAcademicYear} />
+        ? <MyGradingPanel courses={courses} />
         : <SearchGradingPanel />}
     </div>
   );
