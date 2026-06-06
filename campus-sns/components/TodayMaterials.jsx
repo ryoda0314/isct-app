@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { T } from "../theme.js";
 import { useCourseMaterials } from "../hooks/useCourseMaterials.js";
+import { openMaterial } from "../openMaterial.js";
 
 const TC={pdf:'#e5534b',slide:'#d4843e',document:'#6375f0',spreadsheet:'#3dae72',image:'#a855c7',video:'#2d9d8f',audio:'#c6a236',archive:'#68687a',code:'#3dae72',text:'#68687a',link:'#6375f0',file:'#68687a'};
 const TL={pdf:'PDF',slide:'スライド',document:'文書',spreadsheet:'表計算',image:'画像',video:'動画',audio:'音声',archive:'圧縮',code:'コード',text:'テキスト',link:'リンク',file:'ファイル'};
 const PREVIEWABLE=new Set(['pdf','image','video','audio']);
 
 const CourseMatCard=({course,mob,setCid,setView,setCh,setPendingMat})=>{
-  const {sections,totalFiles,loading,error}=useCourseMaterials(course.moodleId);
+  const {sections,totalFiles,loading,error,refresh}=useCourseMaterials(course.moodleId);
   const [open,setOpen]=useState(false);
   const allMats=sections.flatMap(s=>s.materials);
 
@@ -28,12 +29,14 @@ const CourseMatCard=({course,mob,setCid,setView,setCh,setPendingMat})=>{
           const tl=TL[mat.fileType]||"ファイル";
           const canPrev=PREVIEWABLE.has(mat.fileType)&&mat.fileurl;
           const onClick=e=>{
+            e.preventDefault();
             if(canPrev){
-              e.preventDefault();
               setPendingMat?.({courseId:course.id,matId:mat.id});
               setCid(course.id);
               setCh("materials");
               setView("course");
+            }else{
+              openMaterial(mat,refresh);
             }
           };
           return(

@@ -5,6 +5,7 @@ import { Tag, Loader } from "../shared.jsx";
 import { useCourseMaterials } from "../hooks/useCourseMaterials.js";
 import { useSharedMaterials } from "../hooks/useSharedMaterials.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
+import { openMaterial } from "../openMaterial.js";
 
 const tCol={pdf:'#e5534b',slide:'#d4843e',document:'#6375f0',spreadsheet:'#3dae72',image:'#a855c7',video:'#2d9d8f',audio:'#c6a236',archive:'#68687a',code:'#3dae72',text:'#68687a',link:'#6375f0',file:'#68687a'};
 const tLbl={pdf:'PDF',slide:'スライド',document:'文書',spreadsheet:'表計算',image:'画像',video:'動画',audio:'音声',archive:'圧縮',code:'コード',text:'テキスト',link:'リンク',file:'ファイル'};
@@ -70,7 +71,7 @@ function loadPdfjs(){
 /* ──────────────────────────────────────────────
    Custom PDF Viewer
    ────────────────────────────────────────────── */
-const PdfViewer=({url,dlUrl,mob,onStale})=>{
+const PdfViewer=({url,dlUrl,mob,onStale,onOpen})=>{
   const [pdf,setPdf]=useState(null);
   const [pages,setPages]=useState([]);
   const [zoom,setZoom]=useState(0.75);
@@ -310,7 +311,9 @@ const PdfViewer=({url,dlUrl,mob,onStale})=>{
     };
   },[zoom,pdf]);
 
-  if(err) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40}}><div>{err}</div>{dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" style={{padding:"8px 16px",borderRadius:8,background:T.accent,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none"}}>新しいタブで開く</a>}</div>;
+  if(err) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40}}><div>{err}</div>{onOpen
+    ?<button onClick={onOpen} style={{padding:"8px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>新しいタブで開く</button>
+    :dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" style={{padding:"8px 16px",borderRadius:8,background:T.accent,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none"}}>新しいタブで開く</a>}</div>;
   if(!pdf) return <Loader msg={loadMsg} size="md"/>;
 
   return(
@@ -385,10 +388,14 @@ const Preview=({m,mob,onClose,onStale})=>{
         <div style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:13,fontWeight:600,color:T.txH}}>{m.filename||m.name}</div>
         <Tag color={c}>{tLbl[ft]||'ファイル'}</Tag>
         <button onClick={toggleFs} title={fs?"全画面解除":"全画面"} style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,borderRadius:6,border:`1px solid ${T.bd}`,background:fs?`${T.accent}18`:T.bg3,color:fs?T.accent:T.txD,cursor:"pointer",flexShrink:0}}><FsIcon active={fs}/></button>
-        {dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" download style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,background:T.accent,color:"#fff",fontSize:12,fontWeight:600,textDecoration:"none",flexShrink:0}}>{I.dl} DL</a>}
+        {dlUrl&&(m.fileurl
+          ?<button onClick={()=>openMaterial(m,onStale,{download:true})} style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0}}>{I.dl} DL</button>
+          :<a href={dlUrl} target="_blank" rel="noopener noreferrer" download style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,background:T.accent,color:"#fff",fontSize:12,fontWeight:600,textDecoration:"none",flexShrink:0}}>{I.dl} DL</a>)}
       </div>
-      {ft==="pdf"&&<PdfViewer url={previewUrl} dlUrl={dlUrl} mob={mob} onStale={onStale}/>}
-      {ft!=="pdf"&&mediaErr&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40,textAlign:"center"}}><div>資料が見つかりませんでした。更新された可能性があります。一覧を更新しました。</div>{dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" style={{padding:"8px 16px",borderRadius:8,background:T.accent,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none"}}>新しいタブで開く</a>}</div>}
+      {ft==="pdf"&&<PdfViewer url={previewUrl} dlUrl={dlUrl} mob={mob} onStale={onStale} onOpen={m.fileurl?()=>openMaterial(m,onStale):null}/>}
+      {ft!=="pdf"&&mediaErr&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40,textAlign:"center"}}><div>資料が見つかりませんでした。更新された可能性があります。一覧を更新しました。</div>{m.fileurl
+        ?<button onClick={()=>openMaterial(m,onStale)} style={{padding:"8px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>新しいタブで開く</button>
+        :dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" style={{padding:"8px 16px",borderRadius:8,background:T.accent,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none"}}>新しいタブで開く</a>}</div>}
       {ft==="image"&&!mediaErr&&<div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:16}}><img src={previewUrl} alt={m.filename||m.name} onError={onMediaErr} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:4,boxShadow:"0 2px 12px rgba(0,0,0,.3)"}}/></div>}
       {ft==="video"&&!mediaErr&&<div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:16}}><video src={previewUrl} controls onError={onMediaErr} style={{maxWidth:"100%",maxHeight:"100%",borderRadius:4}}/></div>}
       {ft==="audio"&&!mediaErr&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:40}}><div style={{textAlign:"center",width:"100%"}}><div style={{fontSize:14,color:T.txH,fontWeight:600,marginBottom:16}}>{m.filename||m.name}</div><audio src={previewUrl} controls onError={onMediaErr} style={{width:"100%",maxWidth:400}}/></div></div>}
@@ -405,13 +412,12 @@ const Preview=({m,mob,onClose,onStale})=>{
 /* ──────────────────────────────────────────────
    File list row (Moodle materials)
    ────────────────────────────────────────────── */
-const FileRow=({m,onClick})=>{
+const FileRow=({m,onClick,onStale})=>{
   const c=tCol[m.fileType]||T.txD;
   const preview=canPreview(m);
-  const Row=preview?"div":"a";
-  const extra=preview?{onClick:()=>onClick(m)}:{href:m.fileurl,target:"_blank",rel:"noopener noreferrer"};
+  const handle=preview?()=>onClick(m):()=>openMaterial(m,onStale);
   return(
-    <Row {...extra} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:6,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:3,textDecoration:"none",cursor:"pointer"}}>
+    <div onClick={handle} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:6,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:3,textDecoration:"none",cursor:"pointer"}}>
       <span style={{color:c,display:"flex",flexShrink:0}}>{m.fileType==="link"?I.arr:I.file}</span>
       <div style={{flex:1,minWidth:0}}>
         <div style={{color:T.txH,fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.filename||m.name}</div>
@@ -419,7 +425,7 @@ const FileRow=({m,onClick})=>{
       </div>
       <Tag color={c}>{tLbl[m.fileType]||'ファイル'}</Tag>
       {m.fileType!=="link"&&<span style={{color:T.txD,display:"flex",flexShrink:0}}>{preview?I.arr:I.dl}</span>}
-    </Row>
+    </div>
   );
 };
 
@@ -488,7 +494,7 @@ const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect,onRefres
               <span style={{fontSize:11,color:T.txD}}>{sec.materials.length}</span>
             </div>
           )}
-          {!collapsed[sec.id]&&sec.materials.map(m=><FileRow key={m.id} m={m} onClick={onSelect}/>)}
+          {!collapsed[sec.id]&&sec.materials.map(m=><FileRow key={m.id} m={m} onClick={onSelect} onStale={onRefresh}/>)}
         </div>
       ))}
       {filtered.length===0&&!loading&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{search?"検索結果がありません":"教材はまだありません"}</div>}
@@ -608,7 +614,7 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed})=>{
       if(m){
         initialConsumedRef.current=true;
         if(canPreview(m)) setSel(m);
-        else if(m.fileurl) window.open(m.fileurl,'_blank');
+        else openMaterial(m,refresh);
         onInitialConsumed?.();
         return;
       }
@@ -635,7 +641,7 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed})=>{
                 <div key={sec.id} style={{marginBottom:8}}>
                   <div style={{fontSize:11,fontWeight:700,color:T.txD,padding:"4px 6px",marginBottom:2}}>{sec.name}</div>
                   {sec.materials.map(m=>{const c=tCol[m.fileType]||T.txD;const active=sel.id===m.id;return(
-                    <div key={m.id} onClick={()=>canPreview(m)?setSel(m):window.open(m.fileurl,'_blank')} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 8px",borderRadius:6,background:active?`${T.accent}14`:T.bg2,border:`1px solid ${active?T.accent+'40':T.bd}`,marginBottom:2,cursor:"pointer"}}>
+                    <div key={m.id} onClick={()=>canPreview(m)?setSel(m):openMaterial(m,refresh)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 8px",borderRadius:6,background:active?`${T.accent}14`:T.bg2,border:`1px solid ${active?T.accent+'40':T.bd}`,marginBottom:2,cursor:"pointer"}}>
                       <span style={{color:c,display:"flex",flexShrink:0}}>{I.file}</span>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{color:active?T.accent:T.txH,fontSize:12,fontWeight:active?600:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.filename||m.name}</div>
