@@ -70,7 +70,7 @@ function loadPdfjs(){
 /* ──────────────────────────────────────────────
    Custom PDF Viewer
    ────────────────────────────────────────────── */
-const PdfViewer=({url,dlUrl,mob})=>{
+const PdfViewer=({url,dlUrl,mob,onStale})=>{
   const [pdf,setPdf]=useState(null);
   const [pages,setPages]=useState([]);
   const [zoom,setZoom]=useState(0.75);
@@ -93,8 +93,21 @@ const PdfViewer=({url,dlUrl,mob})=>{
         if(cancelled)return;
         setLoadMsg("PDF をダウンロード中...");
         const resp=await fetch(url);
-        if(!resp.ok)throw new Error(`HTTP ${resp.status}`);
+        const ct=(resp.headers.get("content-type")||"").toLowerCase();
         const buf=await resp.arrayBuffer();
+        // Moodle serves filenotfound (e.g. a replaced resource) as a JSON error
+        // body — often with HTTP 200 — instead of the PDF. Catch it before it
+        // reaches PDF.js (which would throw a cryptic parse error), then refresh
+        // the stale list so a retry picks up the new URL.
+        if(!resp.ok||ct.includes("application/json")||new Uint8Array(buf)[0]===0x7b){
+          let code=null;
+          try{code=JSON.parse(new TextDecoder().decode(buf)).errorcode;}catch{}
+          if(code){
+            onStale?.();
+            throw new Error("資料が見つかりませんでした。更新された可能性があります。一覧を更新します。");
+          }
+          if(!resp.ok)throw new Error(`HTTP ${resp.status}`);
+        }
         if(cancelled)return;
         setLoadMsg("PDF を解析中...");
         const doc=await lib.getDocument({data:buf,cMapUrl:`${PDFJS_CDN}/cmaps/`,cMapPacked:true,standardFontDataUrl:`${PDFJS_CDN}/standard_fonts/`}).promise;
@@ -104,7 +117,7 @@ const PdfViewer=({url,dlUrl,mob})=>{
       }catch(e){if(!cancelled)setErr(e.message||"PDF読み込み失敗");}
     })();
     return()=>{cancelled=true;};
-  },[url]);
+  },[url,onStale]);
 
   /* Render a single page to canvas */
   const renderPage=useCallback(async(pageNum)=>{
@@ -336,13 +349,19 @@ const FsIcon=({active})=>active
    Preview component (PDF / image / video / audio)
    Works for both Moodle materials and shared files
    ────────────────────────────────────────────── */
-const Preview=({m,mob,onClose})=>{
+const Preview=({m,mob,onClose,onStale})=>{
   const ft=m.fileType||detectType(m.mimetype);
   const c=tCol[ft]||T.txD;
+  // Client-direct (fileurl) is the primary path: the LMS rejects server-side
+  // fetches (403), so the proxy is only a last-resort fallback. filenotfound is
+  // detected client-side instead — Moodle returns it as a JSON body.
   const previewUrl=m.fileurl||m.url||m.proxyUrl;
   const dlUrl=m.fileurl||m.url;
   const wrapRef=useRef(null);
   const [fs,setFs]=useState(false);
+  const [mediaErr,setMediaErr]=useState(false);
+  useEffect(()=>{setMediaErr(false);},[previewUrl]);
+  const onMediaErr=()=>{setMediaErr(true);onStale?.();};
 
   useEffect(()=>{
     const onChange=()=>setFs(!!document.fullscreenElement);
@@ -368,10 +387,11 @@ const Preview=({m,mob,onClose})=>{
         <button onClick={toggleFs} title={fs?"全画面解除":"全画面"} style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,borderRadius:6,border:`1px solid ${T.bd}`,background:fs?`${T.accent}18`:T.bg3,color:fs?T.accent:T.txD,cursor:"pointer",flexShrink:0}}><FsIcon active={fs}/></button>
         {dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" download style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,background:T.accent,color:"#fff",fontSize:12,fontWeight:600,textDecoration:"none",flexShrink:0}}>{I.dl} DL</a>}
       </div>
-      {ft==="pdf"&&<PdfViewer url={previewUrl} dlUrl={dlUrl} mob={mob}/>}
-      {ft==="image"&&<div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:16}}><img src={previewUrl} alt={m.filename||m.name} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:4,boxShadow:"0 2px 12px rgba(0,0,0,.3)"}}/></div>}
-      {ft==="video"&&<div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:16}}><video src={previewUrl} controls style={{maxWidth:"100%",maxHeight:"100%",borderRadius:4}}/></div>}
-      {ft==="audio"&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:40}}><div style={{textAlign:"center",width:"100%"}}><div style={{fontSize:14,color:T.txH,fontWeight:600,marginBottom:16}}>{m.filename||m.name}</div><audio src={previewUrl} controls style={{width:"100%",maxWidth:400}}/></div></div>}
+      {ft==="pdf"&&<PdfViewer url={previewUrl} dlUrl={dlUrl} mob={mob} onStale={onStale}/>}
+      {ft!=="pdf"&&mediaErr&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40,textAlign:"center"}}><div>資料が見つかりませんでした。更新された可能性があります。一覧を更新しました。</div>{dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" style={{padding:"8px 16px",borderRadius:8,background:T.accent,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none"}}>新しいタブで開く</a>}</div>}
+      {ft==="image"&&!mediaErr&&<div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:16}}><img src={previewUrl} alt={m.filename||m.name} onError={onMediaErr} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:4,boxShadow:"0 2px 12px rgba(0,0,0,.3)"}}/></div>}
+      {ft==="video"&&!mediaErr&&<div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:16}}><video src={previewUrl} controls onError={onMediaErr} style={{maxWidth:"100%",maxHeight:"100%",borderRadius:4}}/></div>}
+      {ft==="audio"&&!mediaErr&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:40}}><div style={{textAlign:"center",width:"100%"}}><div style={{fontSize:14,color:T.txH,fontWeight:600,marginBottom:16}}>{m.filename||m.name}</div><audio src={previewUrl} controls onError={onMediaErr} style={{width:"100%",maxWidth:400}}/></div></div>}
       <div style={{display:"flex",alignItems:"center",gap:12,padding:"6px 14px",borderTop:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2,fontSize:11,color:T.txD}}>
         {(m.filesizeFormatted||m.filesize>0)&&<span>{m.filesizeFormatted||fmtSize(m.filesize)}</span>}
         {m.timemodified>0&&<span>{fmtD(m.timemodified)}</span>}
@@ -435,7 +455,7 @@ const SharedFileRow=({m,onClick,myId,onDelete})=>{
 /* ──────────────────────────────────────────────
    Tab: 講義資料 (Moodle materials)
    ────────────────────────────────────────────── */
-const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect})=>{
+const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect,onRefresh})=>{
   const [collapsed,setCollapsed]=useState({});
   const [search,setSearch]=useState("");
   const togSec=id=>setCollapsed(p=>({...p,[id]:!p[id]}));
@@ -452,6 +472,7 @@ const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect})=>{
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:12}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
         <span style={{fontSize:12,color:T.txD,fontWeight:600}}>{totalFiles}件の教材</span>
+        {onRefresh&&<button onClick={onRefresh} title="最新の情報に更新" style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txD,cursor:"pointer",flexShrink:0}}>{I.reset}</button>}
         <div style={{flex:1,display:"flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:6,background:T.bg3,border:`1px solid ${T.bd}`,minWidth:mob?"100%":140,maxWidth:240}}>
           <span style={{color:T.txD,display:"flex"}}>{I.search}</span>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="教材を検索..." style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
@@ -574,7 +595,7 @@ const SharedMaterials=({courseId,mob,onSelect})=>{
    Main MatView — 2-tab layout
    ────────────────────────────────────────────── */
 export const MatView=({course,mob,initialMatId,onInitialConsumed})=>{
-  const {sections,totalFiles,loading,error}=useCourseMaterials(course?.moodleId);
+  const {sections,totalFiles,loading,error,refresh}=useCourseMaterials(course?.moodleId);
   const [tab,setTab]=useState(0); // 0=講義資料, 1=みんなの共有
   const [sel,setSel]=useState(null);
 
@@ -595,7 +616,7 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed})=>{
   },[initialMatId,sections,onInitialConsumed]);
 
   /* Mobile: full-screen preview */
-  if(sel&&mob) return <Preview m={sel} mob onClose={()=>setSel(null)}/>;
+  if(sel&&mob) return <Preview m={sel} mob onClose={()=>setSel(null)} onStale={refresh}/>;
 
   /* Desktop: split view when previewing */
   if(sel&&!mob){
@@ -625,7 +646,7 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed})=>{
               ))
           }
         </div>
-        <Preview m={sel} mob={false} onClose={()=>setSel(null)}/>
+        <Preview m={sel} mob={false} onClose={()=>setSel(null)} onStale={refresh}/>
       </div>
     );
   }
@@ -649,7 +670,7 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed})=>{
       </div>
 
       {/* Tab content */}
-      {tab===0&&<LectureMaterials sections={sections} totalFiles={totalFiles} loading={loading} error={error} mob={mob} onSelect={setSel}/>}
+      {tab===0&&<LectureMaterials sections={sections} totalFiles={totalFiles} loading={loading} error={error} mob={mob} onSelect={setSel} onRefresh={refresh}/>}
       {tab===1&&<SharedMaterials courseId={course?.moodleId} mob={mob} onSelect={m=>{
         const ft=detectType(m.mimetype);
         if(m.url&&PREVIEWABLE.has(ft)){
