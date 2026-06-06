@@ -6,7 +6,7 @@ import { openMaterial } from "../openMaterial.js";
 const TC={pdf:'#e5534b',slide:'#d4843e',document:'#6375f0',spreadsheet:'#3dae72',image:'#a855c7',video:'#2d9d8f',audio:'#c6a236',archive:'#68687a',code:'#3dae72',text:'#68687a',link:'#6375f0',file:'#68687a'};
 const TL={pdf:'PDF',slide:'スライド',document:'文書',spreadsheet:'表計算',image:'画像',video:'動画',audio:'音声',archive:'圧縮',code:'コード',text:'テキスト',link:'リンク',file:'ファイル'};
 const PREVIEWABLE=new Set(['pdf','image','video','audio']);
-/* .docx も MatView 側で mammoth プレビュー可能(canPreview と判定を揃える)。 */
+/* .docx も MatView 側で docx-preview プレビュー可能(canPreview と判定を揃える)。 */
 const isDocx=m=>{const f=(m?.filename||m?.name||'').toLowerCase();return f.endsWith('.docx')||(m?.mimetype||'').toLowerCase().includes('wordprocessingml');};
 const canPrevType=(m,ft)=>PREVIEWABLE.has(ft)||(ft==='document'&&isDocx(m));
 

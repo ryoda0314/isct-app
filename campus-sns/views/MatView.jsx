@@ -13,7 +13,7 @@ const fmtD=ts=>{if(!ts)return'';const d=new Date(ts*1000);return`${d.getFullYear
 const fmtDt=d=>{if(!d)return'';return`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;};
 const fmtSize=b=>{if(!b)return'';if(b<1024)return`${b} B`;if(b<1048576)return`${(b/1024).toFixed(1)} KB`;return`${(b/1048576).toFixed(1)} MB`;};
 const PREVIEWABLE=new Set(['pdf','image','video','audio']);
-/* .docx は mammoth で HTML 変換してプレビューできる(.doc 旧形式は非対応→DL)。 */
+/* .docx は docx-preview でプレビューできる(.doc 旧形式は非対応→DL)。 */
 const isDocx=m=>{if(!m)return false;const f=(m.filename||m.name||'').toLowerCase();return f.endsWith('.docx')||(m.mimetype||'').toLowerCase().includes('wordprocessingml');};
 const canPreviewType=(m,ft)=>PREVIEWABLE.has(ft)||(ft==='document'&&isDocx(m));
 const canPreview=m=>m&&m.fileurl&&canPreviewType(m,m.fileType);
@@ -347,36 +347,83 @@ const PdfViewer=({url,dlUrl,mob,onStale,onOpen})=>{
 };
 
 /* ──────────────────────────────────────────────
-   Word (.docx) viewer — mammoth.js (docx → HTML), loaded from CDN.
+   Word (.docx) viewer — docx-preview (high-fidelity: pages, fonts, colors,
+   column layout, tables with widths), loaded from CDN. mammoth was dropped
+   because it discards styling (lost colors/columns → unreadable layout).
    Same client-direct fetch + filenotfound handling as PdfViewer, so the
    self-authenticating fileurl never leaves the device (no MS/Google viewer).
+   docx-preview's UMD build needs a global JSZip, so we load that first.
    ────────────────────────────────────────────── */
-const MAMMOTH_VER="1.12.0";
-const MAMMOTH_CDN=`https://cdn.jsdelivr.net/npm/mammoth@${MAMMOTH_VER}/mammoth.browser.min.js`;
-let mammothLoading=null;
-function loadMammoth(){
-  if(window.mammoth) return Promise.resolve(window.mammoth);
-  if(mammothLoading) return mammothLoading;
-  mammothLoading=new Promise((resolve,reject)=>{
+const JSZIP_CDN="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
+const DOCXP_CDN="https://cdn.jsdelivr.net/npm/docx-preview@0.3.7/dist/docx-preview.min.js";
+function loadScriptOnce(src){
+  return new Promise((resolve,reject)=>{
     const s=document.createElement("script");
-    s.src=MAMMOTH_CDN;
-    s.onload=()=>{window.mammoth?resolve(window.mammoth):reject(new Error("mammoth not found"));};
-    s.onerror=reject;
+    s.src=src;s.onload=resolve;s.onerror=()=>reject(new Error(`load failed: ${src}`));
     document.head.appendChild(s);
   });
-  return mammothLoading;
+}
+let docxpLoading=null;
+function loadDocxPreview(){
+  if(window.docx?.renderAsync) return Promise.resolve(window.docx);
+  if(docxpLoading) return docxpLoading;
+  docxpLoading=(async()=>{
+    if(!window.JSZip) await loadScriptOnce(JSZIP_CDN);   // docx-preview reads global JSZip at eval time
+    if(!window.docx?.renderAsync) await loadScriptOnce(DOCXP_CDN);
+    if(!window.docx?.renderAsync) throw new Error("docx-preview not found");
+    return window.docx;
+  })();
+  return docxpLoading;
 }
 
 const DocxViewer=({url,mob,onStale,onOpen})=>{
-  const [html,setHtml]=useState(null);
+  const scrollRef=useRef(null);   // scroll viewport
+  const holderRef=useRef(null);   // flow box sized to the *scaled* page
+  const scalerRef=useRef(null);   // natural-size box that gets CSS-scaled to fit
   const [err,setErr]=useState(null);
+  const [loading,setLoading]=useState(true);
   const [loadMsg,setLoadMsg]=useState("Word を読み込み中...");
+  // Absolute display scale. null = auto fit-to-width. Mobile defaults to ~40%
+  // (a phone is too narrow to read full-fit comfortably); desktop fits the pane.
+  const [scale,setScale]=useState(mob?0.4:null);
+  const [pct,setPct]=useState(40);    // displayed effective scale (% of real size)
+  const effRef=useRef(mob?0.4:1);     // last applied effective scale (for relative zoom steps)
+
+  /* Render at fixed A4 width, then CSS-scale so the real layout is preserved
+     instead of reflowed. scale=null → fit the viewport width. */
+  const fit=useCallback(()=>{
+    const sc=scrollRef.current,h=holderRef.current,sk=scalerRef.current;
+    if(!sc||!h||!sk)return;
+    const wrap=sk.querySelector(".docx-wrapper");
+    if(!wrap)return;
+    sk.style.transform="none";
+    const natW=wrap.offsetWidth,natH=wrap.offsetHeight;
+    if(!natW)return;
+    const base=Math.min(1,(sc.clientWidth-(mob?8:24))/natW);
+    const eff=scale==null?base:scale;
+    sk.style.transformOrigin="0 0";
+    sk.style.transform=`scale(${eff})`;
+    h.style.width=`${natW*eff}px`;
+    h.style.height=`${natH*eff}px`;
+    // Centre when it fits; left-align when zoomed past the viewport so both edges scroll.
+    h.style.margin=natW*eff<=sc.clientWidth?"0 auto":"0";
+    effRef.current=eff;
+    setPct(Math.round(eff*100));
+  },[mob,scale]);
+
+  const zoomIn=()=>setScale(Math.min(5,+(effRef.current*1.25).toFixed(3)));
+  const zoomOut=()=>setScale(Math.max(0.1,+(effRef.current/1.25).toFixed(3)));
+  const zoomReset=()=>setScale(null);   // back to fit-to-width
+
+  /* Re-fit whenever the scale changes. */
+  useEffect(()=>{fit();},[scale,fit]);
+
   useEffect(()=>{
     let cancelled=false;
-    setHtml(null);setErr(null);setLoadMsg("Word を読み込み中...");
+    setErr(null);setLoading(true);setLoadMsg("Word を読み込み中...");
     (async()=>{
       try{
-        const lib=await loadMammoth();
+        const lib=await loadDocxPreview();
         if(cancelled)return;
         setLoadMsg("ファイルをダウンロード中...");
         const resp=await fetch(url);
@@ -389,21 +436,46 @@ const DocxViewer=({url,mob,onStale,onOpen})=>{
           if(!resp.ok)throw new Error(`HTTP ${resp.status}`);
         }
         if(cancelled)return;
-        setLoadMsg("Word を変換中...");
-        const {value}=await lib.convertToHtml({arrayBuffer:buf});
+        const sk=scalerRef.current;
+        if(!sk)return;
+        sk.innerHTML="";
+        setLoadMsg("Word を表示中...");
+        await lib.renderAsync(buf,sk,null,{
+          className:"docx",inWrapper:true,breakPages:true,experimental:true,
+          useBase64URL:true,renderHeaders:true,renderFooters:true,renderFootnotes:true,renderEndnotes:true,
+        });
         if(cancelled)return;
-        setHtml(value&&value.trim()?value:"<p>（このファイルには表示できる内容がありませんでした）</p>");
-      }catch(e){if(!cancelled)setErr(e.message||"Word読み込み失敗");}
+        setLoading(false);
+        requestAnimationFrame(fit);
+        setTimeout(()=>{if(!cancelled)fit();},150); // re-fit after late layout (embedded fonts/images)
+      }catch(e){if(!cancelled){setErr(e.message||"Word読み込み失敗");setLoading(false);}}
     })();
     return()=>{cancelled=true;};
-  },[url,onStale]);
+  },[url,onStale,fit]);
 
-  if(err) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40,textAlign:"center"}}><div>{err}</div>{onOpen&&<button onClick={onOpen} style={{padding:"8px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>新しいタブで開く</button>}</div>;
-  if(html===null) return <Loader msg={loadMsg} size="md"/>;
+  /* Re-fit when the viewport (split-pane / rotation / fullscreen) resizes. */
+  useEffect(()=>{
+    const sc=scrollRef.current;
+    if(!sc||typeof ResizeObserver==="undefined")return;
+    const ro=new ResizeObserver(()=>fit());
+    ro.observe(sc);
+    return()=>ro.disconnect();
+  },[fit]);
+
   return(
-    <div style={{flex:1,overflow:"auto",WebkitOverflowScrolling:"touch",background:T.bg,padding:mob?12:24,display:"flex",justifyContent:"center"}}>
-      <style>{`.docx-page img{max-width:100%;height:auto}.docx-page table{border-collapse:collapse;max-width:100%}.docx-page td,.docx-page th{border:1px solid #ccc;padding:4px 8px}.docx-page a{color:#2563eb}.docx-page h1,.docx-page h2,.docx-page h3{line-height:1.3}.docx-page p{margin:0 0 .8em}`}</style>
-      <div className="docx-page" dangerouslySetInnerHTML={{__html:html}} style={{background:"#fff",color:"#1a1a1a",maxWidth:820,width:"100%",height:"fit-content",padding:mob?"24px 20px":"56px 64px",borderRadius:4,boxShadow:"0 2px 12px rgba(0,0,0,.3)",lineHeight:1.7,fontSize:15,boxSizing:"border-box",wordBreak:"break-word"}}/>
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      {/* Toolbar */}
+      <div style={{display:"flex",alignItems:"center",gap:mob?4:8,padding:mob?"6px 8px":"6px 12px",background:T.bg2,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>
+        <button onClick={zoomOut} disabled={loading||!!err} style={{background:"none",border:"none",color:loading||err?T.bd:T.txH,cursor:loading||err?"default":"pointer",display:"flex",padding:4,borderRadius:4,fontSize:16,fontWeight:700,lineHeight:1}}>−</button>
+        <button onClick={zoomReset} disabled={loading||!!err} title="幅に合わせる" style={{background:"none",border:"none",color:loading||err?T.bd:T.txH,cursor:loading||err?"default":"pointer",fontSize:12,fontWeight:600,minWidth:44,textAlign:"center",padding:"2px 4px",borderRadius:4,fontFamily:"inherit"}}>{pct}%</button>
+        <button onClick={zoomIn} disabled={loading||!!err} style={{background:"none",border:"none",color:loading||err?T.bd:T.txH,cursor:loading||err?"default":"pointer",display:"flex",padding:4,borderRadius:4,fontSize:16,fontWeight:700,lineHeight:1}}>+</button>
+      </div>
+      {/* Pages */}
+      <div ref={scrollRef} style={{flex:1,overflow:"auto",WebkitOverflowScrolling:"touch",background:"#5f6368",position:"relative"}}>
+        {loading&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,zIndex:2}}><Loader msg={loadMsg} size="md"/></div>}
+        {err&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40,textAlign:"center",background:T.bg,zIndex:2}}><div>{err}</div>{onOpen&&<button onClick={onOpen} style={{padding:"8px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>新しいタブで開く</button>}</div>}
+        <div ref={holderRef} style={{margin:"0 auto"}}><div ref={scalerRef}/></div>
+      </div>
     </div>
   );
 };
