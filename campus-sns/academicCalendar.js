@@ -566,6 +566,29 @@ export function getAcademicInfo(date) {
   return { items, period };
 }
 
+/**
+ * 指定した学年度(4月始まり)・クオーターの全授業日を返す（出欠管理用）。
+ * 返り値: [{ dateStr:"YYYY-MM-DD", dow:"月", n:第N回, sub:振替か }] を日付昇順で。
+ * 学年度: 4〜12月はその年、1〜3月は前年扱い（例 2026-01-15 → 学年度2025）。
+ */
+export function getClassDates(academicYear, quarter) {
+  const out = [];
+  for (const dateStr of Object.keys(D)) {
+    const items = D[dateStr];
+    const m = parseInt(dateStr.slice(5, 7), 10); // 月
+    const y = parseInt(dateStr.slice(0, 4), 10);
+    const ay = m >= 4 ? y : y - 1;               // 学年度
+    if (academicYear != null && ay !== academicYear) continue;
+    for (const it of items) {
+      if (it[0] === "C" && it[1] === quarter) {
+        out.push({ dateStr, dow: it[2], n: it[3], sub: !!it[4] });
+      }
+    }
+  }
+  out.sort((a, b) => (a.dateStr < b.dateStr ? -1 : a.dateStr > b.dateStr ? 1 : 0));
+  return out;
+}
+
 // イベントビュー用の大学行事データ
 export const ACADEMIC_EVENTS = [
   // 2025年度

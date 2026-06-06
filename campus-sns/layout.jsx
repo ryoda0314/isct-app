@@ -25,6 +25,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
       <SideItem icon={I.home} label="ホーム" on={view==="home"} click={()=>setView("home")} compact={cp}/>
       <SideItem icon={I.cal} label="時間割" on={view==="timetable"} click={()=>setView("timetable")} compact={cp}/>
       {hasMed&&<SideItem icon={I.cal} label="医歯学時間割" on={view==="med-tt"} click={()=>setView("med-tt")} compact={cp}/>}
+      <SideItem icon={I.attend} label="出欠管理" on={view==="attendance"} click={()=>setView("attendance")} compact={cp}/>
       <SideItem icon={I.book} label="マイ教科書" on={view==="textbooks"} click={()=>setView("textbooks")} compact={cp}/>
       <SideItem icon={I.bar} label="成績割合" on={view==="grading"} click={()=>setView("grading")} compact={cp}/>
       <SideItem icon={I.tasks} label="課題" on={view==="tasks"} click={()=>setView("tasks")} badge={ac} compact={cp}/>
@@ -201,6 +202,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
     ]},
     {title:"学習",items:[
       {id:"grades",i:I.grad,l:"成績"},
+      {id:"attendance",i:I.attend,l:"出欠管理"},
       {id:"textbooks",i:I.book,l:"マイ教科書"},
       {id:"grading",i:I.bar,l:"成績割合"},
       {id:"exams",i:I.clip,l:"期末試験"},

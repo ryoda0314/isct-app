@@ -293,3 +293,19 @@ create index if not exists idx_course_enrollments_course
 alter table course_enrollments enable row level security;
 create policy "anon_select_course_enrollments"
   on course_enrollments for select to anon using (true);
+
+-- 28. attendance_records: 講義の授業回ごと出欠（学生の自己管理。理工=sci / 医歯=med）
+-- 授業回リスト自体はクライアント生成。DBは「記録した回の状態」だけを保持する（軽量）。
+create table if not exists attendance_records (
+  moodle_user_id  bigint not null references profiles(moodle_id),
+  kind            text   not null,            -- 'sci' | 'med'
+  course_key      text   not null,            -- sci: co.id(文字列) / med: 科目code
+  session_key     text   not null,            -- sci: "曜日+第N回"(例 "月3") / med: "date_timeStart"
+  session_date    date,                       -- 表示・並び用（取得できる範囲で）
+  status          text   not null,            -- 'present' | 'absent' | 'late'
+  updated_at      timestamptz default now(),
+  primary key (moodle_user_id, kind, course_key, session_key)
+);
+create index if not exists idx_attendance_user on attendance_records(moodle_user_id);
+alter table attendance_records enable row level security;
+-- 個人情報のため anon ポリシーは付けない（読み書きとも service_role 経由のみ。リアルタイム不要）

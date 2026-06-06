@@ -46,6 +46,8 @@ import { ExamView } from "./views/ExamView.jsx";
 import { FreeRoomView } from "./views/FreeRoomView.jsx";
 import { RegView } from "./views/RegView.jsx";
 import { MedTTView } from "./views/MedTTView.jsx";
+import { SciAttendanceView } from "./views/SciAttendanceView.jsx";
+import { MedAttendanceView } from "./views/MedAttendanceView.jsx";
 import { DeptModal } from "./components/DeptModal.jsx";
 import { ACADEMIC_EVENTS, getCurrentQuarter } from "./academicCalendar.js";
 import { useFriends } from "./hooks/useFriends.js";
@@ -57,6 +59,7 @@ import { getClientToken, clearClientToken, fetchUserCourses as moodleFetchCourse
 import { useCircles } from "./hooks/useCircles.js";
 import { Toasts } from "./hooks/useToast.js";
 import { useBookmarks } from "./hooks/useBookmarks.js";
+import { useAttendance } from "./hooks/useAttendance.js";
 import { useUnreadDM } from "./hooks/useUnreadDM.js";
 import { useAppLock } from "./hooks/useAppLock.js";
 import { installFetchInterceptor, updateStatusBarTheme } from "./capacitor.js";
@@ -215,6 +218,8 @@ export default function App(){
   const [myTasks,setMyTasks]=useState(MYTK0);
   const appLock=useAppLock();
   const {bmarks,toggle:togBmark}=useBookmarks(ready);
+  const {records:attRecords,setStatus:setAttStatus}=useAttendance(ready);
+  const [attSys,setAttSys]=useState(null); // 出欠管理: 'sci'|'med' 手動切替（両方持つユーザー用）
   const [events,setEvents]=useState(EVENTS0);
   const allEvents=useMemo(()=>[...events,...ACADEMIC_EVENTS],[events]);
   // grades are now fetched inside GradeView directly
@@ -819,6 +824,27 @@ export default function App(){
     return null;
   };
 
+  // 出欠管理: 理工(sci)/医歯(med)で出し分け。両系統のデータを持つユーザーには手動トグルを表示。
+  const renderAttendance=(m)=>{
+    const medAvail=medPrimary||(medSessions&&medSessions.length>0);
+    const sciAvail=allCourses.some(c=>c.quarter);
+    const eff=attSys||(medPrimary?"med":"sci");
+    const both=medAvail&&sciAvail;
+    return(
+      <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0,minHeight:0}}>
+        {both&&<div style={{display:"flex",gap:6,padding:m?"8px 12px 0":"12px 20px 0",flexShrink:0}}>
+          {[["sci","理工学系"],["med","医歯学系"]].map(([k,l])=>(
+            <button key={k} onClick={()=>setAttSys(k)}
+              style={{flex:m?1:"none",border:`1px solid ${eff===k?T.accent:T.bd}`,background:eff===k?`${T.accent}15`:"transparent",color:eff===k?T.accent:T.txD,borderRadius:8,padding:"6px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>{l}</button>
+          ))}
+        </div>}
+        {eff==="med"
+          ?<MedAttendanceView medSessions={medSessions} records={attRecords} setStatus={setAttStatus} mob={m}/>
+          :<SciAttendanceView courses={allCourses} records={attRecords} setStatus={setAttStatus} quarter={quarter} setQuarter={setQuarter} mob={m}/>}
+      </div>
+    );
+  };
+
   // Guest session tracking
   useEffect(()=>{
     if(!guestMode)return;
@@ -874,7 +900,7 @@ export default function App(){
 
   // --- DESKTOP ---
   if(!mob){
-    const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",acadCal:"学年暦",exams:"期末試験",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",navigation:"キャンパスナビ",friends:"友達",circles:"サークル",admin:"管理者",freshman:"新入生掲示板",reg:"履修登録補助",freeroom:"空き教室"};
+    const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",acadCal:"学年暦",exams:"期末試験",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",navigation:"キャンパスナビ",friends:"友達",circles:"サークル",admin:"管理者",freshman:"新入生掲示板",reg:"履修登録補助",freeroom:"空き教室",attendance:"出欠管理"};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:"タイムライン",chat:"チャット",assignments:"課題",materials:"教材",reviews:"レビュー"}[ch]}</>;
       if(view==="dept"&&cd){const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?cd.name:cd.prefix}</span> {nameOnly?"":`${cd.name} `}— {{timeline:"タイムライン",chat:"チャット"}[ch]||""}</>;}
@@ -905,6 +931,7 @@ export default function App(){
           {view==="events"&&<EventView events={allEvents} mob={false} rsvps={rsvps} onRsvp={handleRsvp}/>}
           {view==="reviews"&&(L?<LockedView title="授業レビュー"/>:<ReviewView reviews={reviews} setReviews={setReviews} mob={false} courses={allCourses}/>)}
           {view==="bmarks"&&(L?<LockedView title="ブックマーク"/>:<BookmarkView bmarks={bmarks} mob={false} setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/>)}
+          {view==="attendance"&&(L?<LockedView title="出欠管理"/>:renderAttendance(false))}
           {view==="search"&&(L?<LockedView title="検索"/>:<SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses}/>)}
           {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/>}
           {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/>}
@@ -952,6 +979,7 @@ export default function App(){
         {view==="events"&&<><MHdr title="イベント" back={mBack}/><EventView events={allEvents} mob rsvps={rsvps} onRsvp={handleRsvp}/></>}
         {view==="reviews"&&(L?<><MHdr title="授業レビュー" back={mBack}/><LockedView title="授業レビュー"/></>:<><MHdr title="授業レビュー" back={mBack}/><ReviewView reviews={reviews} setReviews={setReviews} mob courses={allCourses}/></>)}
         {view==="bmarks"&&(L?<><MHdr title="ブックマーク" back={mBack}/><LockedView title="ブックマーク"/></>:<><MHdr title="ブックマーク" back={mBack}/><BookmarkView bmarks={bmarks} mob setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/></>)}
+        {view==="attendance"&&(L?<><MHdr title="出欠管理" back={mBack}/><LockedView title="出欠管理"/></>:<><MHdr title="出欠管理" back={mBack}/>{renderAttendance(true)}</>)}
         {view==="search"&&(L?<><MHdr title="検索" back={mBack}/><LockedView title="検索"/></>:<><MHdr title="検索" back={mBack}/><SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses}/></>)}
         {view==="profile"&&<><MHdr title="プロフィール" back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/></>}
         {view==="navigation"&&<><MHdr title="キャンパスナビ" back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
