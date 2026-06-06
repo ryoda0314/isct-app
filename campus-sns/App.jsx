@@ -840,7 +840,7 @@ export default function App(){
         </div>}
         {eff==="med"
           ?<MedAttendanceView medSessions={medSessions} records={attRecords} setStatus={setAttStatus} mob={m}/>
-          :<SciAttendanceView courses={allCourses} records={attRecords} setStatus={setAttStatus} quarter={quarter} setQuarter={setQuarter} mob={m}/>}
+          :<SciAttendanceView courses={allCourses} records={attRecords} setStatus={setAttStatus} quarter={quarter} setQuarter={setQuarter} academicYear={_selY} setAcademicYear={_setSelY} mob={m}/>}
       </div>
     );
   };

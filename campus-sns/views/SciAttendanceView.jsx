@@ -46,9 +46,9 @@ const loadLimit = (courseKey, fallback) => {
   }
 };
 
-const CourseCard = ({ co, statuses, setStatus, mob }) => {
+const CourseCard = ({ co, statuses, setStatus, year, mob }) => {
   const [open, setOpen] = useState(false);
-  const sessions = useMemo(() => getSciSessions(co), [co]);
+  const sessions = useMemo(() => getSciSessions({ ...co, year: co.year != null ? co.year : year }), [co, year]);
   const total = sessions.length;
 
   let present = 0, absent = 0, late = 0;
@@ -136,10 +136,20 @@ const stepBtn = {
   color: T.txH, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
 };
 
-export const SciAttendanceView = ({ courses = [], records = {}, setStatus, quarter, setQuarter, mob }) => {
+export const SciAttendanceView = ({ courses = [], records = {}, setStatus, quarter, setQuarter, academicYear, setAcademicYear, mob }) => {
   const [qOpen, setQOpen] = useState(false);
+  const [yrOpen, setYrOpen] = useState(false);
   const sciRecords = records.sci || {};
-  const list = useMemo(() => courses.filter((c) => c.quarter === quarter), [courses, quarter]);
+  // 現在の学年度（4月始まり）を基準に直近3年度を候補に
+  const _jd = new Date(Date.now() + 9 * 3600000);
+  const _cAY = _jd.getUTCMonth() >= 3 ? _jd.getUTCFullYear() : _jd.getUTCFullYear() - 1;
+  const yr = academicYear != null ? academicYear : _cAY;
+  const yrOpts = [_cAY - 2, _cAY - 1, _cAY];
+  // 年度＋クォーターで絞り込み（年度未設定の科目は表示）
+  const list = useMemo(
+    () => courses.filter((c) => c.quarter === quarter && (c.year == null || Number(c.year) === yr)),
+    [courses, quarter, yr]
+  );
 
   const QDrop = () => (
     <div style={{ position: "relative", display: "inline-block" }}>
@@ -156,18 +166,33 @@ export const SciAttendanceView = ({ courses = [], records = {}, setStatus, quart
     </div>
   );
 
+  const YrDrop = () => (
+    <div style={{ position: "relative", display: "inline-block" }}>
+      <button onClick={() => setYrOpen((p) => !p)} style={{ background: T.bg3, border: `1px solid ${T.bd}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: mob ? 12 : 13, fontWeight: 700, color: T.txD }}>
+        {yr}年度
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+      {yrOpen && <><div onClick={() => setYrOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
+        <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: T.bg2, border: `1px solid ${T.bd}`, borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,.4)", overflow: "hidden", zIndex: 50, minWidth: 90 }}>
+          {yrOpts.map((y) => (
+            <div key={y} onClick={() => { setAcademicYear && setAcademicYear(y); setYrOpen(false); }} style={{ padding: "8px 14px", cursor: "pointer", fontSize: 13, fontWeight: y === yr ? 700 : 400, color: y === yr ? T.accent : T.txH, background: y === yr ? `${T.accent}10` : "transparent" }}>{y}年度</div>
+          ))}
+        </div></>}
+    </div>
+  );
+
   return (
     <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: mob ? 12 : 20 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         {!mob && <h2 style={{ color: T.txH, margin: 0, fontSize: 20, fontWeight: 800 }}>出欠管理</h2>}
         <QDrop />
-        {mob && <span style={{ fontSize: 12, color: T.txD }}>{quarter}Qの履修科目</span>}
+        <YrDrop />
       </div>
       {list.length === 0 ? (
-        <div style={{ textAlign: "center", color: T.txD, fontSize: 13, marginTop: 40 }}>{quarter}Qの履修科目がありません</div>
+        <div style={{ textAlign: "center", color: T.txD, fontSize: 13, marginTop: 40 }}>{yr}年度 {quarter}Qの履修科目がありません</div>
       ) : (
         list.map((co) => (
-          <CourseCard key={co.id} co={co} statuses={sciRecords[String(co.id)] || {}} setStatus={setStatus} mob={mob} />
+          <CourseCard key={co.id} co={co} statuses={sciRecords[String(co.id)] || {}} setStatus={setStatus} year={yr} mob={mob} />
         ))
       )}
     </div>
