@@ -770,7 +770,7 @@ export default function App(){
   };
 
   // Course header (gradient banner + equal-width icon+label tabs)
-  const cTabs=[{id:"timeline",l:"フィード",i:I.feed},{id:"chat",l:"チャット",i:I.chat},{id:"assignments",l:"課題",i:I.tasks},{id:"materials",l:"教材",i:I.clip},{id:"reviews",l:"レビュー",i:I.star}];
+  const cTabs=[{id:"materials",l:"教材",i:I.clip},{id:"assignments",l:"課題",i:I.tasks},{id:"timeline",l:"フィード",i:I.feed},{id:"chat",l:"チャット",i:I.chat},{id:"reviews",l:"レビュー",i:I.star}];
   const CourseHdr=()=>{
     if(!cc) return null;
     const bk=goBack;
@@ -824,12 +824,21 @@ export default function App(){
     return null;
   };
 
-  // 出欠管理: 理工(sci)/医歯(med)で出し分け。両系統のデータを持つユーザーには手動トグルを表示。
+  // 出欠管理: 医歯学系ユーザーは日付ベース(med)のみ。理工ルート(履修データ×年間予定)は出さない。
+  // 非医歯ユーザーは理工(sci)が基本で、医歯データも持つ場合(admin等)のみトグルで切替可。
   const renderAttendance=(m)=>{
-    const medAvail=medPrimary||(medSessions&&medSessions.length>0);
-    const sciAvail=allCourses.some(c=>c.quarter);
-    const eff=attSys||(medPrimary?"med":"sci");
-    const both=medAvail&&sciAvail;
+    // 医歯学系の学生: med 固定（理工表示・トグルなし）
+    if(isMedDentalUser){
+      return(
+        <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0,minHeight:0}}>
+          <MedAttendanceView medSessions={medSessions} records={attRecords} setStatus={setAttStatus} mob={m}/>
+        </div>
+      );
+    }
+    // 非医歯ユーザー
+    const medData=medRawCourses.length>0||(medSessions&&medSessions.length>0);
+    const both=medData; // 理工は基本表示。医歯データも持つ場合のみトグル
+    const eff=both?(attSys||"sci"):"sci";
     return(
       <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0,minHeight:0}}>
         {both&&<div style={{display:"flex",gap:6,padding:m?"8px 12px 0":"12px 20px 0",flexShrink:0}}>

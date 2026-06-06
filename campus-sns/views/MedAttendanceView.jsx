@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { T } from "../theme.js";
-import { getMedSessionsByCourse } from "../attendanceUtils.js";
+import { getMedSessionsByCourse, defaultAbsenceLimit } from "../attendanceUtils.js";
 
 const STATUS = [
   { k: "present", l: "出席", c: T.green },
@@ -24,6 +24,21 @@ const Toggle = ({ value, onPick, mob }) => (
 
 const MED_COL = "#e04e6a";
 
+const limitKey = (code) => `attLimit:med:${code}`;
+const loadLimit = (code, fallback) => {
+  try {
+    const v = localStorage.getItem(limitKey(code));
+    return v != null ? parseInt(v, 10) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const stepBtn = {
+  width: 24, height: 24, borderRadius: 6, border: `1px solid ${T.bd}`, background: T.bg3,
+  color: T.txH, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+};
+
 const CourseCard = ({ course, statuses, setStatus, mob }) => {
   const [open, setOpen] = useState(false);
   const sessions = course.sessions;
@@ -39,6 +54,20 @@ const CourseCard = ({ course, statuses, setStatus, mob }) => {
   const recorded = present + absent + late;
   const rate = recorded ? Math.round((present / recorded) * 100) : null;
 
+  const defLimit = defaultAbsenceLimit(total);
+  const [limit, setLimit] = useState(() => loadLimit(course.code, defLimit));
+  const remaining = limit - absent;
+  const danger = total > 0 && remaining <= 0;
+  const warn = total > 0 && !danger && remaining <= 1;
+
+  const changeLimit = (delta) => {
+    setLimit((p) => {
+      const nv = Math.max(0, p + delta);
+      try { localStorage.setItem(limitKey(course.code), String(nv)); } catch {}
+      return nv;
+    });
+  };
+
   return (
     <div style={{ background: T.bg2, border: `1px solid ${T.bd}`, borderRadius: 12, marginBottom: 10, overflow: "hidden", borderLeft: `3px solid ${MED_COL}` }}>
       <div onClick={() => setOpen((p) => !p)} style={{ display: "flex", alignItems: "center", gap: 10, padding: mob ? "10px 12px" : "12px 14px", cursor: "pointer" }}>
@@ -53,11 +82,26 @@ const CourseCard = ({ course, statuses, setStatus, mob }) => {
             {rate != null && <span>· 出席率{rate}%</span>}
           </div>
         </div>
-        <span style={{ color: T.txD, fontSize: 11, flexShrink: 0 }}>{open ? "閉じる ▲" : "日程 ▼"}</span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+          {total > 0 && (
+            <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, color: danger ? "#fff" : warn ? T.red : T.txD, background: danger ? T.red : warn ? `${T.red}18` : T.bg3, border: warn && !danger ? `1px solid ${T.red}40` : "none" }}>
+              {danger ? "欠席上限超過" : `あと${remaining}回欠席可`}
+            </span>
+          )}
+          <span style={{ color: T.txD, fontSize: 11 }}>{open ? "閉じる ▲" : "日程 ▼"}</span>
+        </div>
       </div>
 
       {open && (
         <div style={{ borderTop: `1px solid ${T.bd}`, padding: mob ? "8px 12px 12px" : "10px 14px 14px" }}>
+          {/* 欠席上限の調整 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 12, color: T.txD, flexWrap: "wrap" }}>
+            <span>欠席可能上限</span>
+            <button onClick={() => changeLimit(-1)} style={stepBtn}>−</button>
+            <span style={{ fontWeight: 700, color: T.txH, minWidth: 28, textAlign: "center" }}>{limit}回</span>
+            <button onClick={() => changeLimit(1)} style={stepBtn}>＋</button>
+            <span style={{ fontSize: 11 }}>（初期値: 全{total}回の1/3＝{defLimit}回）</span>
+          </div>
           {sessions.map((s) => {
             const st = statuses[s.sessionKey] || null;
             return (

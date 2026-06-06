@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { isDemoMode } from "../demoMode.js";
@@ -181,6 +181,25 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
   const [refreshing, setRefreshing] = useState(false);
 
   const [capturedCourses, setCapturedCourses] = useState([]);
+  const [pop, setPop] = useState(null); // 長押しで表示する講義詳細 { s, date }
+
+  // 長押し（ロングプレス）検出
+  const lpTimer = useRef(null);
+  const lpFired = useRef(false);
+  const beginLongPress = (payload) => {
+    lpFired.current = false;
+    clearTimeout(lpTimer.current);
+    lpTimer.current = setTimeout(() => {
+      lpFired.current = true;
+      try { navigator.vibrate?.(12); } catch {}
+      setPop(payload);
+    }, 420);
+  };
+  const endLongPress = () => clearTimeout(lpTimer.current);
+  const handleBlockClick = (s) => {
+    if (lpFired.current) { lpFired.current = false; return; }
+    goToCourse(s.code);
+  };
 
   const handleRefresh = async () => {
     if (refreshing) return;
@@ -355,15 +374,6 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
     });
   }, [weekStart]);
 
-  // Faculty label (医学部 / 歯学部) — derived from course codes
-  const faculty = useMemo(() => {
-    const hasDEN = medCourses.some(c => c.code?.startsWith("DEN.") || /^02/.test(c.lctCd));
-    const hasMED = medCourses.some(c => c.code?.startsWith("MED.") || /^01/.test(c.lctCd));
-    if (hasDEN && !hasMED) return "DEN";
-    if (hasMED && !hasDEN) return "MED";
-    return sessions.some(s => /^[gb]\d|^c\d/.test(s.periodStr)) ? "MED" : "DEN";
-  }, [medCourses, sessions]);
-
   // Fixed time-axis grid (period-system agnostic)
   const gridStart = GRID_START_MIN;
   const gridHeight = GRID_END_MIN - GRID_START_MIN;
@@ -391,9 +401,8 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
       {/* Header */}
       <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>医歯学時間割</div>
-          <span style={{ fontSize: 11, color: T.txD, background: T.bg3, padding: "2px 8px", borderRadius: 6 }}>{medCourses.length}科目</span>
-          {sessions.length > 0 && <span style={{ fontSize: 10, color: T.txD, background: T.bg3, padding: "2px 6px", borderRadius: 6 }}>{faculty === "MED" ? "医学部" : "歯学部"}</span>}
+          {/* モバイルでは上部の MHdr がタイトルを出すので内部タイトルは省略（重複回避） */}
+          {!mob && <div style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>医歯学時間割</div>}
         </div>
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           {onRefresh && (
@@ -413,14 +422,27 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
               </button>
             </>
           )}
-          {["week", "calendar"].map(m => (
-            <button key={m} onClick={() => setViewMode(m)} style={{
-              padding: "4px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
-              border: viewMode === m ? `1px solid ${T.accent}` : `1px solid ${T.bd}`,
-              background: viewMode === m ? `${T.accent}15` : T.bg3,
-              color: viewMode === m ? T.accent : T.txD,
-            }}>{m === "week" ? "週間" : "カレンダー"}</button>
-          ))}
+          {/* 今週/今月（ナビ行から昇格） */}
+          <button onClick={goToday} style={{
+            fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 8,
+            border: `1px solid ${T.bd}`, background: T.bg3, color: T.txD, cursor: "pointer",
+          }}>{viewMode === "calendar" ? "今月" : "今週"}</button>
+          {/* 週間/カレンダー スライドトグル */}
+          <div style={{ position: "relative", display: "flex", background: T.bg3, border: `1px solid ${T.bd}`, borderRadius: 9, padding: 3 }}>
+            <div style={{
+              position: "absolute", top: 3, bottom: 3, left: viewMode === "week" ? 3 : "calc(50% + 1px)",
+              width: "calc(50% - 4px)", background: T.accent, borderRadius: 7,
+              boxShadow: "0 1px 3px rgba(0,0,0,.15)", transition: "left .22s cubic-bezier(.4,0,.2,1)",
+            }} />
+            {["week", "calendar"].map(m => (
+              <button key={m} onClick={() => setViewMode(m)} style={{
+                position: "relative", zIndex: 1, width: 64, whiteSpace: "nowrap", textAlign: "center",
+                padding: "4px 0", background: "none", border: "none", cursor: "pointer",
+                fontSize: 12, fontWeight: 700, transition: "color .2s",
+                color: viewMode === m ? "#fff" : T.txD,
+              }}>{m === "week" ? "週間" : "カレンダー"}</button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -436,7 +458,6 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
               {fmtDateShort(weekDates[0])}（月）〜 {fmtDateShort(weekDates[4])}（金）
             </div>
             <button onClick={nextW} style={{ background: "none", border: "none", cursor: "pointer", color: T.txD, fontSize: 18 }}>›</button>
-            <button onClick={goToday} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txD, cursor: "pointer" }}>今週</button>
           </div>
 
           {/* Week grid — time-proportional with session blocks as-is from API */}
@@ -525,7 +546,16 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
                           const col = colorMap[s.code] || COLORS[0];
                           const n = cntByCode(s.code);
                           return (
-                            <div key={bi} onClick={() => goToCourse(s.code)} style={{
+                            <div key={bi}
+                              onClick={() => handleBlockClick(s)}
+                              onTouchStart={() => beginLongPress({ s, date })}
+                              onTouchEnd={endLongPress}
+                              onTouchMove={endLongPress}
+                              onMouseDown={() => beginLongPress({ s, date })}
+                              onMouseUp={endLongPress}
+                              onMouseLeave={endLongPress}
+                              onContextMenu={(e) => e.preventDefault()}
+                              style={{
                               position: "absolute", top, height,
                               left: `calc(${(b.col / b.totalCols) * 100}% + 1px)`,
                               width: `calc(${(1 / b.totalCols) * 100}% - 2px)`,
@@ -534,6 +564,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
                               border: `1px solid ${col}40`,
                               padding: "2px 4px", overflow: "hidden", cursor: "pointer",
                               fontSize: mob ? 8 : 10, lineHeight: 1.3,
+                              WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none",
                             }} title={`${s.name}${exam ? `\n${examLabel(s)}` : ""}\n${s.timeStart}～${s.timeEnd}\n${s.room || ""}`}>
                               {n > 0 && <div style={{ position: "absolute", top: mob ? 2 : 3, right: mob ? 2 : 3, minWidth: mob ? 14 : 18, height: mob ? 14 : 18, borderRadius: 9, background: T.red, color: "#fff", fontSize: mob ? 7 : 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px", boxShadow: `0 2px 6px ${T.red}60`, zIndex: 1 }}>{n}</div>}
                               <div style={{ fontWeight: 700, color: col, fontSize: mob ? 9 : 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -617,7 +648,6 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
             <button onClick={prevM} style={{ background: "none", border: "none", cursor: "pointer", color: T.txD, fontSize: 18 }}>‹</button>
             <div style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>{calMonth.y}年 {calMonth.m + 1}月</div>
             <button onClick={nextM} style={{ background: "none", border: "none", cursor: "pointer", color: T.txD, fontSize: 18 }}>›</button>
-            <button onClick={goToday} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txD, cursor: "pointer" }}>今月</button>
           </div>
 
           {/* Calendar grid */}
@@ -715,6 +745,84 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
           )}
         </div>
       )}
+
+      {/* 長押しで出る講義詳細ポップアップ */}
+      {pop && (() => {
+        const { s, date } = pop;
+        const exam = isExam(s);
+        const col = colorMap[s.code] || COLORS[0];
+        const meta = courseMeta[s.code];
+        const n = cntByCode(s.code);
+        const dayLabel = date ? `${date.getMonth() + 1}/${date.getDate()}（${DAYS[(date.getDay() + 6) % 7] || "日"}）` : "";
+        const Ico = (name) => <span style={{ width: 20, display: "inline-flex", justifyContent: "center", color: T.txD, flexShrink: 0 }}>{React.cloneElement(I[name], { width: 17, height: 17 })}</span>;
+        return (
+          <div onClick={() => setPop(null)} style={{
+            position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.35)",
+            display: "flex", alignItems: "flex-end", justifyContent: "center",
+            animation: "medttFade .15s ease",
+          }}>
+            <style>{`@keyframes medttFade{from{opacity:0}to{opacity:1}}@keyframes medttSheet{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
+            <div onClick={(e) => e.stopPropagation()} style={{
+              width: "100%", maxWidth: 460, background: T.bg, borderTopLeftRadius: 18, borderTopRightRadius: 18,
+              borderTop: `4px solid ${col}`, boxShadow: "0 -8px 32px rgba(0,0,0,.25)",
+              padding: "16px 18px calc(20px + env(safe-area-inset-bottom))", animation: "medttSheet .22s cubic-bezier(.4,0,.2,1)",
+            }}>
+              {/* grabber */}
+              <div style={{ width: 40, height: 4, borderRadius: 2, background: T.bd, margin: "0 auto 14px" }} />
+
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 12 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: T.txH, lineHeight: 1.3 }}>{s.name}</div>
+                  <div style={{ fontSize: 12, color: T.txD, marginTop: 3 }}>
+                    <span style={{ background: T.bg3, padding: "1px 7px", borderRadius: 5 }}>{s.code}</span>
+                  </div>
+                </div>
+                {exam && <div style={{ fontSize: 12, fontWeight: 800, color: EXAM_COLOR, background: `${EXAM_COLOR}18`, padding: "3px 9px", borderRadius: 6, border: `1px solid ${EXAM_COLOR}40`, whiteSpace: "nowrap", flexShrink: 0, display: "flex", alignItems: "center", gap: 4 }}>{React.cloneElement(I.alert, { width: 13, height: 13 })}{examLabel(s)}</div>}
+              </div>
+
+              {/* 情報行 */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+                {dayLabel && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {Ico("cal")}
+                    <span style={{ fontSize: 14, color: T.txH, fontWeight: 600 }}>{dayLabel}　{s.timeStart}〜{s.timeEnd}</span>
+                  </div>
+                )}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  {Ico("pin")}
+                  <span style={{ fontSize: 14, color: s.room ? T.txH : T.txD, fontWeight: s.room ? 700 : 400 }}>{s.room || "教室情報なし"}</span>
+                </div>
+                {(s.instructor || meta?.instructor) && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {Ico("user1")}
+                    <span style={{ fontSize: 14, color: T.txH }}>{s.instructor || meta?.instructor}</span>
+                  </div>
+                )}
+                {(meta?.semester || meta?.credits) && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {Ico("grad")}
+                    <span style={{ fontSize: 14, color: T.txH }}>{[meta?.semester, meta?.credits ? `${meta.credits}単位` : null].filter(Boolean).join("　")}</span>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => { setPop(null); goToCourse(s.code); }} style={{
+                  flex: 1, padding: "11px 0", borderRadius: 10, border: "none", cursor: "pointer",
+                  background: col, color: "#fff", fontSize: 14, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}>
+                  コースを開く{n > 0 && <span style={{ background: "rgba(255,255,255,.25)", borderRadius: 8, padding: "1px 8px", fontSize: 12 }}>課題 {n}</span>}
+                </button>
+                <button onClick={() => setPop(null)} style={{
+                  padding: "11px 18px", borderRadius: 10, border: `1px solid ${T.bd}`, cursor: "pointer",
+                  background: T.bg3, color: T.txD, fontSize: 14, fontWeight: 600,
+                }}>閉じる</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

@@ -135,7 +135,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
   const isDept=!!dept;
   const chs=isDept
     ?[{id:"timeline",n:"タイムライン",i:I.feed},{id:"chat",n:"チャット",i:I.chat}]
-    :[{id:"timeline",n:"タイムライン",i:I.feed},{id:"chat",n:"チャット",i:I.chat},{id:"assignments",n:"課題",i:I.tasks},{id:"materials",n:"教材",i:I.clip},{id:"reviews",n:"レビュー",i:I.star}];
+    :[{id:"materials",n:"教材",i:I.clip},{id:"assignments",n:"課題",i:I.tasks},{id:"timeline",n:"タイムライン",i:I.feed},{id:"chat",n:"チャット",i:I.chat},{id:"reviews",n:"レビュー",i:I.star}];
   const col=isDept?dept.col:course?.col;
   const memberIds=new Set(members.map(m=>String(m.id)));
   const onlineMembers=online.filter(u=>memberIds.has(String(u.id)));
