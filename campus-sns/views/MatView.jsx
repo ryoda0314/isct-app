@@ -13,7 +13,10 @@ const fmtD=ts=>{if(!ts)return'';const d=new Date(ts*1000);return`${d.getFullYear
 const fmtDt=d=>{if(!d)return'';return`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;};
 const fmtSize=b=>{if(!b)return'';if(b<1024)return`${b} B`;if(b<1048576)return`${(b/1024).toFixed(1)} KB`;return`${(b/1048576).toFixed(1)} MB`;};
 const PREVIEWABLE=new Set(['pdf','image','video','audio']);
-const canPreview=m=>m&&m.fileurl&&PREVIEWABLE.has(m.fileType);
+/* .docx は mammoth で HTML 変換してプレビューできる(.doc 旧形式は非対応→DL)。 */
+const isDocx=m=>{if(!m)return false;const f=(m.filename||m.name||'').toLowerCase();return f.endsWith('.docx')||(m.mimetype||'').toLowerCase().includes('wordprocessingml');};
+const canPreviewType=(m,ft)=>PREVIEWABLE.has(ft)||(ft==='document'&&isDocx(m));
+const canPreview=m=>m&&m.fileurl&&canPreviewType(m,m.fileType);
 
 /* Detect file type from mimetype */
 const detectType=mime=>{
@@ -343,6 +346,68 @@ const PdfViewer=({url,dlUrl,mob,onStale,onOpen})=>{
   );
 };
 
+/* ──────────────────────────────────────────────
+   Word (.docx) viewer — mammoth.js (docx → HTML), loaded from CDN.
+   Same client-direct fetch + filenotfound handling as PdfViewer, so the
+   self-authenticating fileurl never leaves the device (no MS/Google viewer).
+   ────────────────────────────────────────────── */
+const MAMMOTH_VER="1.12.0";
+const MAMMOTH_CDN=`https://cdn.jsdelivr.net/npm/mammoth@${MAMMOTH_VER}/mammoth.browser.min.js`;
+let mammothLoading=null;
+function loadMammoth(){
+  if(window.mammoth) return Promise.resolve(window.mammoth);
+  if(mammothLoading) return mammothLoading;
+  mammothLoading=new Promise((resolve,reject)=>{
+    const s=document.createElement("script");
+    s.src=MAMMOTH_CDN;
+    s.onload=()=>{window.mammoth?resolve(window.mammoth):reject(new Error("mammoth not found"));};
+    s.onerror=reject;
+    document.head.appendChild(s);
+  });
+  return mammothLoading;
+}
+
+const DocxViewer=({url,mob,onStale,onOpen})=>{
+  const [html,setHtml]=useState(null);
+  const [err,setErr]=useState(null);
+  const [loadMsg,setLoadMsg]=useState("Word を読み込み中...");
+  useEffect(()=>{
+    let cancelled=false;
+    setHtml(null);setErr(null);setLoadMsg("Word を読み込み中...");
+    (async()=>{
+      try{
+        const lib=await loadMammoth();
+        if(cancelled)return;
+        setLoadMsg("ファイルをダウンロード中...");
+        const resp=await fetch(url);
+        const ct=(resp.headers.get("content-type")||"").toLowerCase();
+        const buf=await resp.arrayBuffer();
+        if(!resp.ok||ct.includes("application/json")||new Uint8Array(buf)[0]===0x7b){
+          let code=null;
+          try{code=JSON.parse(new TextDecoder().decode(buf)).errorcode;}catch{}
+          if(code){onStale?.();throw new Error("資料が見つかりませんでした。更新された可能性があります。一覧を更新します。");}
+          if(!resp.ok)throw new Error(`HTTP ${resp.status}`);
+        }
+        if(cancelled)return;
+        setLoadMsg("Word を変換中...");
+        const {value}=await lib.convertToHtml({arrayBuffer:buf});
+        if(cancelled)return;
+        setHtml(value&&value.trim()?value:"<p>（このファイルには表示できる内容がありませんでした）</p>");
+      }catch(e){if(!cancelled)setErr(e.message||"Word読み込み失敗");}
+    })();
+    return()=>{cancelled=true;};
+  },[url,onStale]);
+
+  if(err) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40,textAlign:"center"}}><div>{err}</div>{onOpen&&<button onClick={onOpen} style={{padding:"8px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>新しいタブで開く</button>}</div>;
+  if(html===null) return <Loader msg={loadMsg} size="md"/>;
+  return(
+    <div style={{flex:1,overflow:"auto",WebkitOverflowScrolling:"touch",background:T.bg,padding:mob?12:24,display:"flex",justifyContent:"center"}}>
+      <style>{`.docx-page img{max-width:100%;height:auto}.docx-page table{border-collapse:collapse;max-width:100%}.docx-page td,.docx-page th{border:1px solid #ccc;padding:4px 8px}.docx-page a{color:#2563eb}.docx-page h1,.docx-page h2,.docx-page h3{line-height:1.3}.docx-page p{margin:0 0 .8em}`}</style>
+      <div className="docx-page" dangerouslySetInnerHTML={{__html:html}} style={{background:"#fff",color:"#1a1a1a",maxWidth:820,width:"100%",height:"fit-content",padding:mob?"24px 20px":"56px 64px",borderRadius:4,boxShadow:"0 2px 12px rgba(0,0,0,.3)",lineHeight:1.7,fontSize:15,boxSizing:"border-box",wordBreak:"break-word"}}/>
+    </div>
+  );
+};
+
 /* Fullscreen icon */
 const FsIcon=({active})=>active
   ?<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
@@ -393,7 +458,8 @@ const Preview=({m,mob,onClose,onStale})=>{
           :<a href={dlUrl} target="_blank" rel="noopener noreferrer" download style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,background:T.accent,color:"#fff",fontSize:12,fontWeight:600,textDecoration:"none",flexShrink:0}}>{I.dl} DL</a>)}
       </div>
       {ft==="pdf"&&<PdfViewer url={previewUrl} dlUrl={dlUrl} mob={mob} onStale={onStale} onOpen={m.fileurl?()=>openMaterial(m,onStale):null}/>}
-      {ft!=="pdf"&&mediaErr&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40,textAlign:"center"}}><div>資料が見つかりませんでした。更新された可能性があります。一覧を更新しました。</div>{m.fileurl
+      {ft==="document"&&isDocx(m)&&<DocxViewer url={previewUrl} mob={mob} onStale={onStale} onOpen={m.fileurl?()=>openMaterial(m,onStale):null}/>}
+      {ft!=="pdf"&&ft!=="document"&&mediaErr&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40,textAlign:"center"}}><div>資料が見つかりませんでした。更新された可能性があります。一覧を更新しました。</div>{m.fileurl
         ?<button onClick={()=>openMaterial(m,onStale)} style={{padding:"8px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>新しいタブで開く</button>
         :dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" style={{padding:"8px 16px",borderRadius:8,background:T.accent,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none"}}>新しいタブで開く</a>}</div>}
       {ft==="image"&&!mediaErr&&<div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:16}}><img src={previewUrl} alt={m.filename||m.name} onError={onMediaErr} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:4,boxShadow:"0 2px 12px rgba(0,0,0,.3)"}}/></div>}
@@ -435,7 +501,7 @@ const FileRow=({m,onClick,onStale})=>{
 const SharedFileRow=({m,onClick,myId,onDelete})=>{
   const ft=detectType(m.mimetype);
   const c=tCol[ft]||T.txD;
-  const previewable=m.url&&PREVIEWABLE.has(ft);
+  const previewable=m.url&&canPreviewType(m,ft);
   const isMine=myId&&m.uid===myId;
   return(
     <div onClick={()=>previewable?onClick(m):m.url&&window.open(m.url,'_blank')} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:6,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:3,cursor:"pointer"}}>
