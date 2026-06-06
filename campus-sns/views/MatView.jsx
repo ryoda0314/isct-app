@@ -388,6 +388,28 @@ const DocxViewer=({url,mob,onStale,onOpen})=>{
   const [scale,setScale]=useState(mob?0.4:null);
   const [pct,setPct]=useState(40);    // displayed effective scale (% of real size)
   const effRef=useRef(mob?0.4:1);     // last applied effective scale (for relative zoom steps)
+  const bordersRef=useRef([]);        // table borders to keep visible when scaled down
+
+  /* Collect every visible table border so we can keep it ≥1px after scaling.
+     Thin borders (0.5pt ≈ 0.67px) become sub-pixel when scaled to 40% and stop
+     rendering, so the table grid disappears on mobile. */
+  const collectBorders=useCallback(()=>{
+    const sk=scalerRef.current;
+    if(!sk){bordersRef.current=[];return;}
+    const sides=[["borderTopStyle","borderTopWidth"],["borderRightStyle","borderRightWidth"],["borderBottomStyle","borderBottomWidth"],["borderLeftStyle","borderLeftWidth"]];
+    const out=[];
+    sk.querySelectorAll("table,tr,td,th").forEach(el=>{
+      const cs=getComputedStyle(el);
+      for(const [ss,ws] of sides){
+        const st=cs[ss];
+        if(st&&st!=="none"&&st!=="hidden"){
+          const w=parseFloat(cs[ws])||0;
+          if(w>0) out.push({el,prop:ws,orig:w});
+        }
+      }
+    });
+    bordersRef.current=out;
+  },[]);
 
   /* Render at fixed A4 width, then CSS-scale so the real layout is preserved
      instead of reflowed. scale=null → fit the viewport width. */
@@ -401,6 +423,9 @@ const DocxViewer=({url,mob,onStale,onOpen})=>{
     if(!natW)return;
     const base=Math.min(1,(sc.clientWidth-(mob?8:24))/natW);
     const eff=scale==null?base:scale;
+    // Keep thin table borders ≥~1px once scaled (else they vanish when shrunk).
+    const minW=eff<1?1/eff:0;
+    for(const b of bordersRef.current) b.el.style[b.prop]=`${Math.max(b.orig,minW)}px`;
     sk.style.transformOrigin="0 0";
     sk.style.transform=`scale(${eff})`;
     h.style.width=`${natW*eff}px`;
@@ -445,13 +470,14 @@ const DocxViewer=({url,mob,onStale,onOpen})=>{
           useBase64URL:true,renderHeaders:true,renderFooters:true,renderFootnotes:true,renderEndnotes:true,
         });
         if(cancelled)return;
+        collectBorders();
         setLoading(false);
         requestAnimationFrame(fit);
-        setTimeout(()=>{if(!cancelled)fit();},150); // re-fit after late layout (embedded fonts/images)
+        setTimeout(()=>{if(!cancelled){collectBorders();fit();}},150); // re-collect/re-fit after late layout (embedded fonts/images)
       }catch(e){if(!cancelled){setErr(e.message||"Word読み込み失敗");setLoading(false);}}
     })();
     return()=>{cancelled=true;};
-  },[url,onStale,fit]);
+  },[url,onStale,fit,collectBorders]);
 
   /* Re-fit when the viewport (split-pane / rotation / fullscreen) resizes. */
   useEffect(()=>{
