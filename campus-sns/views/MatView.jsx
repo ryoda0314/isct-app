@@ -389,7 +389,7 @@ const Preview=({m,mob,onClose,onStale})=>{
         <Tag color={c}>{tLbl[ft]||'ファイル'}</Tag>
         <button onClick={toggleFs} title={fs?"全画面解除":"全画面"} style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,borderRadius:6,border:`1px solid ${T.bd}`,background:fs?`${T.accent}18`:T.bg3,color:fs?T.accent:T.txD,cursor:"pointer",flexShrink:0}}><FsIcon active={fs}/></button>
         {dlUrl&&(m.fileurl
-          ?<button onClick={()=>openMaterial(m,onStale,{download:true})} style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0}}>{I.dl} DL</button>
+          ?<button onClick={()=>openMaterial(m,onStale,{download:true,mob})} style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0}}>{I.dl} DL</button>
           :<a href={dlUrl} target="_blank" rel="noopener noreferrer" download style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,background:T.accent,color:"#fff",fontSize:12,fontWeight:600,textDecoration:"none",flexShrink:0}}>{I.dl} DL</a>)}
       </div>
       {ft==="pdf"&&<PdfViewer url={previewUrl} dlUrl={dlUrl} mob={mob} onStale={onStale} onOpen={m.fileurl?()=>openMaterial(m,onStale):null}/>}

@@ -11,19 +11,28 @@
  *
  * @param {object} m         material ({fileurl, filename, name, fileType})
  * @param {function} [onStale] called when the file is gone (to refetch fresh URLs)
- * @param {{download?: boolean}} [opts] download instead of opening in a tab
+ * @param {{download?: boolean, mob?: boolean}} [opts] download instead of opening
+ *        in a tab; on mobile (mob) the download falls back to opening in a tab
+ *        because `a.download` is a no-op there
  */
 export async function openMaterial(m, onStale, opts = {}) {
-  const { download = false } = opts;
+  const { download = false, mob = false } = opts;
   const url = m?.fileurl;
   if (!url) return;
 
   // External links (mod url) are real URLs — just open them.
   if (m.fileType === 'link') { window.open(url, '_blank', 'noopener'); return; }
 
+  // On mobile, `a.download` is ignored (esp. iOS Safari/PWA) and the click()
+  // fires after an async fetch — outside the user gesture — so the download is
+  // a silent no-op. Fall back to opening the blob in a tab; the user saves via
+  // the browser/OS share sheet.
+  const useDownload = download && !mob;
+
   // Open the tab synchronously inside the click gesture so popup blockers allow
-  // it; we redirect it to the blob once the fetch resolves. (Skipped for downloads.)
-  const w = download ? null : window.open('', '_blank');
+  // it; we redirect it to the blob once the fetch resolves. (Skipped for the
+  // desktop download path, which uses an <a download> anchor instead.)
+  const w = useDownload ? null : window.open('', '_blank');
 
   try {
     const resp = await fetch(url);
@@ -43,7 +52,7 @@ export async function openMaterial(m, onStale, opts = {}) {
     }
 
     const blobUrl = URL.createObjectURL(new Blob([buf], { type: ct || 'application/octet-stream' }));
-    if (download) {
+    if (useDownload) {
       const a = document.createElement('a');
       a.href = blobUrl;
       a.download = m.filename || m.name || '資料';
