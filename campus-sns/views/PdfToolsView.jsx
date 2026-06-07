@@ -351,23 +351,35 @@ export function PdfToolsView({ mob = false }) {
     }
   }
 
+  // blob → base64 (data: プレフィックス無し。Filesystem.writeFile はこの形式を要求)
+  function blobToBase64(blob) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result).split(",")[1] || "");
+      r.onerror = rej;
+      r.readAsDataURL(blob);
+    });
+  }
+
   // 3環境分岐 (openMaterial.js と同じ考え方)
   async function saveBlob(blob, fname) {
-    // ネイティブ(Capacitor): blob: / a.download が無効なので base64 data URL を
-    // システムブラウザ(SafariVC / Chrome Custom Tab)に渡して共有・保存させる。
+    // ネイティブ(Capacitor): blob:/a.download が無効。一旦キャッシュに書き出して
+    // OS の共有シート(「ファイルに保存」/AirDrop 等)に渡すのが確実。
     if (isNative()) {
       try {
-        const dataUrl = await new Promise((res, rej) => {
-          const r = new FileReader();
-          r.onload = () => res(r.result);
-          r.onerror = rej;
-          r.readAsDataURL(blob);
-        });
-        const { Browser } = await import("@capacitor/browser");
-        await Browser.open({ url: dataUrl });
+        const { Filesystem, Directory } = await import("@capacitor/filesystem");
+        const { Share } = await import("@capacitor/share");
+        const base64 = await blobToBase64(blob);
+        const { uri } = await Filesystem.writeFile({ path: fname, data: base64, directory: Directory.Cache });
+        await Share.share({ title: fname, text: fname, url: uri });
       } catch (e) {
-        console.error("[pdftools] native save", e?.message);
-        setErr("端末で保存用ビューを開けませんでした。");
+        // ユーザーが共有シートを閉じた場合もここに来るので、キャンセルは無視
+        const msg = String(e?.message || e || "");
+        if (/cancel/i.test(msg)) return;
+        console.error("[pdftools] native save", msg);
+        // 旧ビルド(プラグイン未実装)向けの保険: WebView内でPDFを開いて閲覧/共有させる
+        try { window.open(URL.createObjectURL(blob), "_blank"); } catch {}
+        setErr("保存機能はアプリの最新ビルドで利用できます。更新後に再度お試しください。");
       }
       return;
     }
