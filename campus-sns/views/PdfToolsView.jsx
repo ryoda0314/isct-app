@@ -361,10 +361,24 @@ export function PdfToolsView({ mob = false }) {
     });
   }
 
-  // 3環境分岐 (openMaterial.js と同じ考え方)
+  // 保存/共有 (openMaterial.js と同じ「OSに委ねる」考え方)
   async function saveBlob(blob, fname) {
-    // ネイティブ(Capacitor): blob:/a.download が無効。一旦キャッシュに書き出して
-    // OS の共有シート(「ファイルに保存」/AirDrop 等)に渡すのが確実。
+    const file = (() => { try { return new File([blob], fname, { type: "application/pdf" }); } catch { return null; } })();
+
+    // ① OSの共有シート(Web Share API)。iOSのアプリ/Safariで動作し、これが
+    //    教材DLの「Safariで開く/ファイルに保存」に相当。プラグイン・再ビルド不要。
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: fname });
+        return;
+      } catch (e) {
+        const m = String(e?.name || e?.message || "");
+        if (/Abort/i.test(m)) return; // ユーザーがキャンセル
+        console.warn("[pdftools] web share failed", m); // それ以外は下のフォールバックへ
+      }
+    }
+
+    // ② ネイティブ(Capacitor): ファイル書き出し→共有シート (要・最新ネイティブビルド)
     if (isNative()) {
       try {
         const { Filesystem, Directory } = await import("@capacitor/filesystem");
