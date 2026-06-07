@@ -3,91 +3,96 @@ import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { openMaterial } from "../openMaterial.js";
 
-// ── Static facility info (hours + official links) ──
-const FACILITIES = [
-  {
-    id: "taki", spotId: "taki", name: "Taki Plaza", sub: "Hisao & Hiroko Taki Plaza",
-    hours: [
-      { label: "平日", time: "8:30 – 21:00" },
-      { label: "土日祝", time: "9:00 – 20:00" },
-      { label: "長期休暇中(8/9/2/3月)", time: "平日 8:30–21:00 / 土 11:00–17:00 / 日祝 閉館" },
-    ],
-    links: [
-      { label: "学生向け案内", url: "https://www.titech.ac.jp/student-support/students/facilities/takiplaza" },
-      { label: "TAKI PLAZA 公式", url: "https://takiplaza.gakumu.titech.ac.jp/" },
-    ],
-  },
-  {
-    id: "lib", spotId: "lib", name: "大岡山図書館", sub: "附属図書館",
-    hours: [
-      { label: "平日", time: "8:45 – 21:00" },
-      { label: "土日", time: "11:00 – 20:00" },
-      { label: "備考", time: "試験期は延長 / 夏季は短縮。正確な日程はカレンダー参照" },
-    ],
-    links: [
-      { label: "公式サイト", url: "https://www.libra.titech.ac.jp/" },
-      { label: "図書館カレンダー", url: "https://www.libra.titech.ac.jp/calendar" },
-    ],
-  },
-];
+// ── Taki Plaza facility info. sched = [openMin, closeMin] for weekday(wd)/weekend(we) ──
+const TAKI = {
+  spotId: "taki", name: "Taki Plaza",
+  sched: { wd: [510, 1260], we: [540, 1200] }, // 平日 8:30–21:00 / 土日祝 9:00–20:00
+  hoursText: "平日 8:30–21:00 ・ 土日祝 9:00–20:00（長期休暇中は短縮）",
+  links: [
+    { label: "学生向け案内", url: "https://www.titech.ac.jp/student-support/students/facilities/takiplaza" },
+    { label: "TAKI PLAZA 公式", url: "https://takiplaza.gakumu.titech.ac.jp/" },
+  ],
+};
 
 // Spaces that students use freely until a reservation kicks them out.
-const FREE_USE = /WORK\s*POD|ワークショップ/i;
+const FREE_USE = /WORK\s*POD|ワークショップ|Workshop/i;
+// Japanese display labels for English facility names from the portal.
+const NAME_JA = {
+  "Event space(Library Side)": "イベントスペース（図書館側）",
+  "Event space(Dry Garden Side)": "イベントスペース（ドライガーデン側）",
+  "Event space (Kitchen)": "キッチンエリア",
+  "Grand Staircase": "大階段エリア",
+  "Workshop Room 1": "ワークショップルーム1",
+  "Workshop Room 2": "ワークショップルーム2",
+  "WORK POD A": "WORK POD A",
+  "WORK POD B": "WORK POD B",
+};
+const jaName = (n) => NAME_JA[n] || n;
+
+// フロア分け（暫定: 要確認）。B1F=ワークショップ/WORK POD, B2F=イベント/キッチン/大階段。
+const FLOOR_ORDER = ["B1F", "B2F"];
+const FLOOR_OF = {
+  "WORK POD A": "B1F", "WORK POD B": "B1F",
+  "ワークショップルーム1": "B2F", "ワークショップルーム2": "B2F",
+  "イベントスペース（図書館側）": "B2F", "イベントスペース（ドライガーデン側）": "B2F", "キッチンエリア": "B2F", "大階段エリア": "B2F",
+};
+const floorOf = (jaNm) => FLOOR_OF[jaNm] || "その他";
+const groupByFloor = (arr) => {
+  const order = [...FLOOR_ORDER, "その他"];
+  return order.map((fl) => ({ fl, list: arr.filter((it) => floorOf(it.name) === fl) })).filter((g) => g.list.length > 0);
+};
 
 const pad = (n) => String(n).padStart(2, "0");
 const toYMD = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
 const toISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const toMin = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
-
 const dowColor = (dow) => dow === "日" ? "#ef4444" : dow === "土" ? "#3b82f6" : T.txH;
 
-/**
- * Given today's reservation slots and current time (minutes), figure out the
- * "退出時刻" — when the next reservation forces you out.
- */
+const fmtMin = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+
+// Today's open status for a facility (weekday vs weekend hours; holidays not detected).
+function facilityStatus(sched, now) {
+  const we = now.getDay() === 0 || now.getDay() === 6;
+  const [o, c] = we ? sched.we : sched.wd;
+  const m = now.getHours() * 60 + now.getMinutes();
+  if (m < o) return { col: T.txD, label: "開館前", detail: `${fmtMin(o)} 開館` };
+  if (m >= c) return { col: T.red, label: "本日終了", detail: `次は ${fmtMin(o)}〜` };
+  const rem = c - m;
+  if (rem <= 60) return { col: T.orange, label: `まもなく閉館`, detail: `${fmtMin(c)} まで（あと${rem}分）` };
+  return { col: T.green, label: "開館中", detail: `${fmtMin(c)} まで` };
+}
+
 function computeNextEviction(slots, nowMin) {
   const sorted = [...slots].sort((a, b) => toMin(a.start) - toMin(b.start));
   for (const s of sorted) {
-    if (toMin(s.start) <= nowMin && nowMin < toMin(s.end)) {
-      return { state: "occupied", until: s.end, slot: s };
-    }
+    if (toMin(s.start) <= nowMin && nowMin < toMin(s.end)) return { state: "occupied", until: s.end, slot: s };
   }
   const next = sorted.find((s) => toMin(s.start) > nowMin);
-  if (next) {
-    return { state: "next", at: next.start, minsUntil: toMin(next.start) - nowMin, slot: next };
-  }
+  if (next) return { state: "next", at: next.start, minsUntil: toMin(next.start) - nowMin, slot: next };
   return { state: "free" };
 }
 
 export const FacilityReservationView = ({ mob, onNavigate }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null); // 'portal' | 'fetch' | 'grid'
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [error, setError] = useState(null);
   const [now, setNow] = useState(() => new Date());
-  const [showInfo, setShowInfo] = useState(false);
+  const [viewISO, setViewISO] = useState(null); // null = 今日
+  const [showCal, setShowCal] = useState(false);
+  const [calMonth, setCalMonth] = useState(null); // first-of-month Date for the picker
+  const [roomModal, setRoomModal] = useState(null); // {name, slots} of tapped room
 
-  // tick the clock every minute so "あとN分" stays fresh
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(id);
-  }, []);
+  useEffect(() => { const id = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(id); }, []);
 
-  const targetDate = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + weekOffset * 7);
-    return d;
-  }, [weekOffset]);
+  const todayISO = toISO(now);
+  const effISO = viewISO || todayISO; // 表示中の日付
+  const targetDate = useMemo(() => { const [y, m, d] = effISO.split("-").map(Number); return new Date(y, m - 1, d); }, [effISO]);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
       const r = await fetch(`/api/data/facility-reservations?date=${toYMD(targetDate)}&b=1`, { credentials: "include" });
-      if (!r.ok) {
-        setError(r.status === 400 ? "portal" : "fetch");
-        setLoading(false);
-        return;
-      }
+      if (!r.ok) { setError(r.status === 400 ? "portal" : "fetch"); setLoading(false); return; }
       const d = await r.json();
       if (d?.error) { setError("grid"); setLoading(false); return; }
       setData(d);
@@ -97,21 +102,15 @@ export const FacilityReservationView = ({ mob, onNavigate }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  const openLink = (url) => openMaterial({ fileurl: url, fileType: "link" }, undefined, { mob });
-
-  const todayISO = toISO(now);
-  const todayIdx = data?.days?.findIndex((d) => d.date === todayISO) ?? -1;
   const nowMin = now.getHours() * 60 + now.getMinutes();
 
-  // ── Header ──
+  const openLink = (url) => openMaterial({ fileurl: url, fileType: "link" }, undefined, { mob });
+
   const Header = (
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-      <div style={{ width: 40, height: 40, borderRadius: 10, background: `${T.accent}14`, display: "flex", alignItems: "center", justifyContent: "center", color: T.accent }}>
-        {I.clock}
-      </div>
+      <div style={{ width: 40, height: 40, borderRadius: 10, background: `${T.accent}14`, display: "flex", alignItems: "center", justifyContent: "center", color: T.accent }}>{I.clock}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: mob ? 17 : 19, fontWeight: 800, color: T.txH }}>スペース予約状況</div>
-        <div style={{ fontSize: 12, color: T.txD }}>Taki Plaza ・ 追い出される時間をチェック</div>
+        <div style={{ fontSize: mob ? 18 : 20, fontWeight: 800, color: T.txH }}>Taki Plaza</div>
       </div>
       <button onClick={load} title="再取得" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: 9, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txD, cursor: "pointer" }}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
@@ -121,182 +120,242 @@ export const FacilityReservationView = ({ mob, onNavigate }) => {
 
   const wrap = (children) => (
     <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
-      <div style={{ padding: mob ? "16px 14px 40px" : "24px 28px 48px", maxWidth: 900, margin: "0 auto", boxSizing: "border-box" }}>
-        {Header}
-        {children}
+      <div style={{ padding: mob ? "16px 14px 40px" : "24px 28px 48px", maxWidth: 760, margin: "0 auto", boxSizing: "border-box" }}>
+        {Header}{children}
       </div>
     </div>
   );
 
-  if (error === "portal") {
-    return wrap(
-      <div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 13, lineHeight: 1.8 }}>
-        ポータル（マトリクス認証）が設定されていません。<br />
-        セットアップ画面からポータルアカウントとマトリクスカードを登録してください。
-      </div>
-    );
-  }
-  if (error === "fetch" || error === "grid") {
-    return wrap(
-      <div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 13, lineHeight: 1.8 }}>
-        予約状況を取得できませんでした。<br />
-        ポータルのメンテナンス中か、通信に問題がある可能性があります。
-        <div><button onClick={load} style={{ marginTop: 16, padding: "8px 20px", borderRadius: 8, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>再試行</button></div>
-      </div>
-    );
-  }
-  if (loading || !data) {
-    return wrap(
-      <div style={{ textAlign: "center", padding: 60, color: T.txD, fontSize: 13 }}>
-        <span style={{ display: "inline-block", width: 22, height: 22, borderRadius: "50%", border: `2.5px solid ${T.accent}`, borderTopColor: "transparent", animation: "mnSpin .6s linear infinite", verticalAlign: "middle", marginRight: 10 }} />
-        予約状況を読み込み中…
-      </div>
-    );
-  }
+  if (error === "portal") return wrap(<div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 13, lineHeight: 1.8 }}>ポータル（マトリクス認証）が設定されていません。<br />セットアップ画面から登録してください。</div>);
+  if (error === "fetch" || error === "grid") return wrap(<div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 13, lineHeight: 1.8 }}>予約状況を取得できませんでした。<br />ポータルのメンテナンス中か通信に問題がある可能性があります。<div><button onClick={load} style={{ marginTop: 16, padding: "8px 20px", borderRadius: 8, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>再試行</button></div></div>);
+  if (loading || !data) return wrap(<div style={{ textAlign: "center", padding: 60, color: T.txD, fontSize: 13 }}><span style={{ display: "inline-block", width: 22, height: 22, borderRadius: "50%", border: `2.5px solid ${T.accent}`, borderTopColor: "transparent", animation: "mnSpin .6s linear infinite", verticalAlign: "middle", marginRight: 10 }} />予約状況を読み込み中…</div>);
 
-  // sort: free-use spaces first
-  const sortedSpaces = [...data.spaces].sort((a, b) => {
-    const fa = FREE_USE.test(`${a.group} ${a.name}`) ? 0 : 1;
-    const fb = FREE_USE.test(`${b.group} ${b.name}`) ? 0 : 1;
-    return fa - fb;
-  });
+  const sortedSpaces = [...data.spaces].sort((a, b) => (FREE_USE.test(`${a.group} ${a.name}`) ? 0 : 1) - (FREE_USE.test(`${b.group} ${b.name}`) ? 0 : 1));
+  const selIdx0 = data.days.findIndex((d) => d.date === effISO);
+  const sel = selIdx0 >= 0 ? selIdx0 : 0;
+  const selDay = data.days[sel];
+  const selIsToday = selDay?.date === todayISO;
 
-  const showSummary = todayIdx >= 0;
+  // ── Taki Plaza today status (always visible) ──
+  const fs = facilityStatus(TAKI.sched, now);
+  const weToday = now.getDay() === 0 || now.getDay() === 6;
+  const [tOpen, tClose] = weToday ? TAKI.sched.we : TAKI.sched.wd;
+  const infoBlock = (
+    <div style={{ marginBottom: 14, borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg2, padding: "12px 14px" }}>
+      {/* 状態 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style={{ width: 10, height: 10, borderRadius: "50%", background: fs.col, flexShrink: 0 }} />
+        <span style={{ fontSize: 15, fontWeight: 800, color: fs.col }}>{fs.label}</span>
+        {onNavigate && <button onClick={() => onNavigate(TAKI.spotId)} title="地図で見る" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, padding: "4px 9px", borderRadius: 7, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txD, fontSize: 11, cursor: "pointer" }}><span style={{ display: "flex" }}>{I.pin}</span>地図</button>}
+      </div>
+      {/* 本日の営業時間（主役） */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: T.txD }}>本日の営業</span>
+        <span style={{ fontSize: 18, fontWeight: 800, color: T.txH, lineHeight: 1.1 }}>{fmtMin(tOpen)} – {fmtMin(tClose)}</span>
+        <span style={{ fontSize: 11, color: T.txD }}>（{weToday ? "土日祝" : "平日"}）</span>
+        <span style={{ fontSize: 12.5, color: fs.col, fontWeight: 600 }}>{fs.detail}</span>
+      </div>
+      {/* 補助: 全体の時間 + リンク */}
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px 10px", marginTop: 8 }}>
+        <span style={{ fontSize: 10.5, color: T.txD, opacity: .9 }}>{TAKI.hoursText}</span>
+        {TAKI.links.map((l) => (
+          <button key={l.url} onClick={() => openLink(l.url)} style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: 0, border: "none", background: "transparent", color: T.accent, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+            {l.label}
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ── Day view (minimal): summary + only what matters (使用中 / 予約) ──
+  const items = sortedSpaces.map((sp) => ({
+    key: sp.name,
+    name: jaName(sp.name),
+    free: FREE_USE.test(`${sp.group} ${sp.name}`),
+    slots: sp.slots[sel] || [],
+    ev: computeNextEviction(sp.slots[sel] || [], nowMin),
+  }));
+  const total = items.length;
+  const inUse = selIsToday ? items.filter((it) => it.ev.state === "occupied") : [];
+  const reserved = !selIsToday ? items.filter((it) => it.slots.length > 0) : [];
+  const freeCount = total - (selIsToday ? inUse.length : reserved.length);
+
+  const Summary = ({ label, n, col }) => (
+    <div style={{ fontSize: 13, color: T.txD, marginBottom: 14 }}>
+      {label} <span style={{ fontSize: 22, fontWeight: 800, color: col }}>{n}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: T.txD }}> / {total} スペース</span>
+    </div>
+  );
+  const AllFree = ({ text }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, color: T.green, padding: "4px 0" }}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      <span style={{ fontSize: 15, fontWeight: 700 }}>{text}</span>
+    </div>
+  );
+  const restLine = (n, suffix) => n > 0 && <div style={{ fontSize: 12.5, color: T.txD, marginTop: 12, paddingLeft: 2 }}>他 {n} スペースは{suffix}</div>;
+  const FloorLabel = ({ fl }) => (
+    <div style={{ fontSize: 10.5, fontWeight: 800, color: T.txD, letterSpacing: .5, margin: "12px 0 2px" }}>{fl}</div>
+  );
+
+  const dayView = (
+    <div>
+      {selIsToday ? (
+        <>
+          <Summary label="今すぐ使える" n={freeCount} col={T.green} />
+          {inUse.length === 0 ? <AllFree text="今は全スペース空いています" /> : (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 700, color: T.red }}>使用中</div>
+              {groupByFloor(inUse).map(({ fl, list }) => (
+                <div key={fl}>
+                  <FloorLabel fl={fl} />
+                  {list.map((it) => (
+                    <div key={it.key} onClick={() => setRoomModal(it)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 2px", borderBottom: `1px solid ${T.bd}`, cursor: "pointer" }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{it.name}</span>
+                      <span style={{ marginLeft: "auto", fontSize: 13, color: T.txD }}><span style={{ fontSize: 15, fontWeight: 800, color: T.txH }}>{it.ev.until}</span> に空く</span>
+                      <span style={{ display: "flex", color: T.txD }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+              {restLine(freeCount, "空き")}
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <Summary label="予約あり" n={reserved.length} col={reserved.length ? T.txH : T.green} />
+          {reserved.length === 0 ? <AllFree text="この日は終日、全スペース空き" /> : (
+            <>
+              {groupByFloor(reserved).map(({ fl, list }) => (
+                <div key={fl}>
+                  <FloorLabel fl={fl} />
+                  {list.map((it) => (
+                    <div key={it.key} onClick={() => setRoomModal(it)} style={{ padding: "10px 2px", borderBottom: `1px solid ${T.bd}`, cursor: "pointer" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{it.name}</span>
+                        <span style={{ marginLeft: "auto", display: "flex", color: T.txD }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {it.slots.map((s, si) => <span key={si} style={{ fontSize: 12.5, fontWeight: 700, color: T.red, background: `${T.red}14`, padding: "2px 8px", borderRadius: 6 }}>{s.start}<span style={{ opacity: .55, margin: "0 1px" }}>–</span>{s.end}</span>)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+              {restLine(total - reserved.length, "終日空き")}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  // ── 月カレンダー（日付ピッカー） ──
+  const calNav = { width: 28, height: 28, borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg, color: T.txD, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, padding: 0 };
+  const cm = calMonth || new Date(parseInt(effISO.slice(0, 4)), parseInt(effISO.slice(5, 7)) - 1, 1);
+  const cy = cm.getFullYear(), cmo = cm.getMonth();
+  const firstDow = new Date(cy, cmo, 1).getDay();
+  const dim = new Date(cy, cmo + 1, 0).getDate();
+  const calendar = (
+    <>
+      <div onClick={() => setShowCal(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 998 }} />
+      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(330px, 90vw)", background: T.bg2, border: `1px solid ${T.bd}`, borderRadius: 16, padding: 16, zIndex: 999, boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>日付を選ぶ</span>
+          <button onClick={() => setShowCal(false)} style={{ marginLeft: "auto", background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex" }}>{I.x}</button>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <button onClick={() => setCalMonth(new Date(cy, cmo - 1, 1))} style={calNav}>‹</button>
+          <span style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>{cy}年 {cmo + 1}月</span>
+          <button onClick={() => setCalMonth(new Date(cy, cmo + 1, 1))} style={calNav}>›</button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 3, marginBottom: 3 }}>
+          {["日", "月", "火", "水", "木", "金", "土"].map((w, i) => (
+            <div key={w} style={{ textAlign: "center", fontSize: 10, fontWeight: 700, color: i === 0 ? "#ef4444" : i === 6 ? "#3b82f6" : T.txD }}>{w}</div>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 3 }}>
+          {Array.from({ length: firstDow }).map((_, i) => <div key={"p" + i} />)}
+          {Array.from({ length: dim }).map((_, i) => {
+            const day = i + 1;
+            const iso = `${cy}-${pad(cmo + 1)}-${pad(day)}`;
+            const isToday = iso === todayISO, isSel = iso === effISO;
+            const dow = new Date(cy, cmo, day).getDay();
+            return (
+              <button key={day} onClick={() => { setViewISO(iso); setShowCal(false); }} style={{
+                aspectRatio: "1 / 1", display: "flex", alignItems: "center", justifyContent: "center", position: "relative",
+                borderRadius: 8, cursor: "pointer", border: isSel ? `1px solid ${T.accent}` : `1px solid ${T.bd}`,
+                background: isSel ? T.accent : T.bg,
+                color: isSel ? "#fff" : (dow === 0 ? "#ef4444" : dow === 6 ? "#3b82f6" : T.txH),
+                fontSize: 14, fontWeight: (isToday || isSel) ? 800 : 500,
+              }}>
+                {day}
+                {isToday && !isSel && <span style={{ position: "absolute", bottom: 3, width: 4, height: 4, borderRadius: "50%", background: T.accent }} />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+
+  // ── ルーム予約の詳細モーダル（誰がいつ取っているか） ──
+  const roomModalEl = roomModal && (
+    <>
+      <div onClick={() => setRoomModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 998 }} />
+      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(360px, 92vw)", maxHeight: "80vh", overflowY: "auto", background: T.bg2, border: `1px solid ${T.bd}`, borderRadius: 16, padding: 16, zIndex: 999, boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 3 }}>
+          <span style={{ fontSize: 16, fontWeight: 800, color: T.txH }}>{roomModal.name}</span>
+          <button onClick={() => setRoomModal(null)} style={{ marginLeft: "auto", background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex" }}>{I.x}</button>
+        </div>
+        <div style={{ fontSize: 12, color: T.txD, marginBottom: 12 }}>{floorOf(roomModal.name)} ・ {selDay ? `${parseInt(selDay.date.slice(5, 7))}/${parseInt(selDay.date.slice(8))}(${selDay.dow})` : ""} の予約</div>
+        {roomModal.slots.length === 0 ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, color: T.green, padding: "6px 0" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>終日空き（予約なし）</span>
+          </div>
+        ) : (
+          roomModal.slots.map((s, si) => {
+            const ongoing = selIsToday && toMin(s.start) <= nowMin && nowMin < toMin(s.end);
+            return (
+              <div key={si} style={{ display: "flex", gap: 10, padding: "9px 0", borderBottom: si < roomModal.slots.length - 1 ? `1px solid ${T.bd}` : "none" }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: ongoing ? T.red : T.txH, minWidth: 100, flexShrink: 0 }}>{s.start}–{s.end}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: T.txH }}>{s.title || "（名称なし）"}{ongoing && <span style={{ fontSize: 10, fontWeight: 700, color: T.red, marginLeft: 6 }}>使用中</span>}</div>
+                  {s.org && <div style={{ fontSize: 11.5, color: T.txD, marginTop: 1 }}>{s.org}</div>}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </>
+  );
 
   return wrap(
     <>
-      {/* ── Facility info (collapsible) ── */}
-      <div style={{ marginBottom: 16, borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg2, overflow: "hidden" }}>
-        <button onClick={() => setShowInfo((v) => !v)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", background: "transparent", border: "none", cursor: "pointer", color: T.txH, fontSize: 14, fontWeight: 600, textAlign: "left" }}>
-          <span style={{ color: T.accent, display: "flex" }}>{I.book}</span>
-          <span style={{ flex: 1 }}>施設案内（開館時間・公式リンク）</span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: showInfo ? "rotate(180deg)" : "none", transition: "transform .15s" }}><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        {showInfo && (
-          <div style={{ padding: "0 14px 14px", display: "flex", flexDirection: "column", gap: 14, borderTop: `1px solid ${T.bd}`, paddingTop: 12 }}>
-            {FACILITIES.map((f) => (
-              <div key={f.id}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>{f.name}</span>
-                  <span style={{ fontSize: 11, color: T.txD }}>{f.sub}</span>
-                  {onNavigate && (
-                    <button onClick={() => onNavigate(f.spotId)} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 7, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txD, fontSize: 11, cursor: "pointer" }}>
-                      <span style={{ display: "flex" }}>{I.pin}</span>地図
-                    </button>
-                  )}
-                </div>
-                {f.hours.map((h, i) => (
-                  <div key={i} style={{ display: "flex", gap: 8, fontSize: 12, color: T.tx, padding: "1px 0" }}>
-                    <span style={{ color: T.txD, minWidth: 132, flexShrink: 0 }}>{h.label}</span>
-                    <span>{h.time}</span>
-                  </div>
-                ))}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-                  {f.links.map((l) => (
-                    <button key={l.url} onClick={() => openLink(l.url)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 7, border: `1px solid ${T.accent}40`, background: `${T.accent}10`, color: T.accent, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                      {l.label}
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {infoBlock}
+      {roomModalEl}
 
-      {/* ── Eviction summary (today) ── */}
-      {showSummary && (
-        <div style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.txD, letterSpacing: .4, marginBottom: 8 }}>
-            今日（{data.days[todayIdx]?.dow}）の空き状況・退出時刻
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 8 }}>
-            {sortedSpaces.map((sp, i) => {
-              const ev = computeNextEviction(sp.slots[todayIdx] || [], nowMin);
-              const free = FREE_USE.test(`${sp.group} ${sp.name}`);
-              let col = T.green, label = "現在 空き", detail = "本日この後の予約なし";
-              if (ev.state === "occupied") { col = T.red; label = "予約中"; detail = `${ev.until} まで使用中（${ev.slot.title}）`; }
-              else if (ev.state === "next") {
-                col = ev.minsUntil <= 30 ? T.orange : T.accent;
-                label = `あと ${ev.minsUntil}分で退出`;
-                detail = `次の予約 ${ev.at}〜（${ev.slot.title}）`;
-              }
-              return (
-                <div key={i} style={{ padding: "10px 12px", borderRadius: 10, background: T.bg2, border: `1px solid ${free ? `${col}40` : T.bd}`, borderLeft: `3px solid ${col}` }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                    {sp.group && <span style={{ fontSize: 10, color: T.txD, background: T.bg3, padding: "1px 5px", borderRadius: 4 }}>{sp.group}</span>}
-                    <span style={{ fontSize: 13, fontWeight: 700, color: T.txH }}>{sp.name}</span>
-                    {free && <span style={{ fontSize: 9, fontWeight: 700, color: T.accent, background: `${T.accent}15`, padding: "1px 5px", borderRadius: 4 }}>自由利用</span>}
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: col }}>{label}</div>
-                  <div style={{ fontSize: 11, color: T.txD, marginTop: 1 }}>{detail}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── Week navigation ── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginBottom: 10 }}>
-        <button onClick={() => setWeekOffset((w) => w - 1)} style={navBtn}>‹ 前週</button>
-        <span style={{ fontSize: 13, fontWeight: 700, color: T.txH }}>
-          {data.weekStart && data.weekEnd ? `${data.weekStart.replace(/-/g, "/").slice(5)} 〜 ${data.weekEnd.replace(/-/g, "/").slice(5)}` : "今週"}
-          {weekOffset === 0 && <span style={{ marginLeft: 6, fontSize: 10, color: T.accent }}>今週</span>}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 14, fontWeight: 800, color: T.txH }}>
+          {selDay ? `${selIsToday ? "今日 " : ""}${parseInt(selDay.date.slice(5, 7))}/${parseInt(selDay.date.slice(8))}(${selDay.dow})` : ""}
         </span>
-        <button onClick={() => setWeekOffset((w) => w + 1)} style={navBtn}>翌週 ›</button>
+        {!selIsToday && <button onClick={() => { setViewISO(null); setShowCal(false); }} style={{ padding: "4px 10px", borderRadius: 7, border: "none", background: `${T.accent}15`, color: T.accent, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>今日に戻る</button>}
+        <button onClick={() => setShowCal((v) => !v)} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: showCal ? `${T.accent}12` : T.bg2, color: showCal ? T.accent : T.txD, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+          <span style={{ display: "flex" }}>{I.cal}</span>{showCal ? "閉じる" : "日付を選ぶ"}
+        </button>
       </div>
 
-      {/* ── Week grid ── */}
-      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", border: `1px solid ${T.bd}`, borderRadius: 12 }}>
-        <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 720 }}>
-          <thead>
-            <tr>
-              <th style={{ ...thStyle, position: "sticky", left: 0, zIndex: 2, background: T.bg2, minWidth: 110, textAlign: "left" }}>スペース</th>
-              {data.days.map((d, i) => (
-                <th key={i} style={{ ...thStyle, background: i === todayIdx ? `${T.accent}12` : T.bg2 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: i === todayIdx ? T.accent : dowColor(d.dow) }}>{d.date ? parseInt(d.date.slice(8)) : ""}</div>
-                  <div style={{ fontSize: 10, color: i === todayIdx ? T.accent : dowColor(d.dow), opacity: .8 }}>{d.dow}</div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sortedSpaces.map((sp, ri) => (
-              <tr key={ri}>
-                <td style={{ ...tdStyle, position: "sticky", left: 0, zIndex: 1, background: T.bg, textAlign: "left", verticalAlign: "top" }}>
-                  {sp.group && <div style={{ fontSize: 9, color: T.txD }}>{sp.group}</div>}
-                  <div style={{ fontSize: 12, fontWeight: 600, color: T.txH }}>{sp.name}</div>
-                </td>
-                {sp.slots.map((daySlots, di) => (
-                  <td key={di} style={{ ...tdStyle, verticalAlign: "top", background: di === todayIdx ? `${T.accent}07` : "transparent" }}>
-                    {daySlots.length === 0 ? (
-                      <span style={{ color: T.txD, opacity: .4, fontSize: 11 }}>—</span>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                        {daySlots.map((s, si) => (
-                          <div key={si} style={{ fontSize: 10.5, lineHeight: 1.3, padding: "3px 5px", borderRadius: 5, background: `${T.red}10`, borderLeft: `2px solid ${T.red}90` }}>
-                            <div style={{ fontWeight: 700, color: T.txH }}>{s.start}–{s.end}</div>
-                            <div style={{ color: T.txD, overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div style={{ fontSize: 11, color: T.txD, marginTop: 10, lineHeight: 1.6 }}>
-        ※ 教務 施設予約システムの週表示を取得して表示しています。最新の状況は数分遅れる場合があります。
+      {showCal && calendar}
+
+      {dayView}
+
+      <div style={{ fontSize: 11, color: T.txD, marginTop: 16, lineHeight: 1.6 }}>
+        ※ 教務 施設予約システムから取得。最新の状況は数分遅れる場合があります。
       </div>
     </>
   );
 };
 
-const navBtn = { padding: "6px 14px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txD, fontSize: 12, fontWeight: 600, cursor: "pointer" };
-const thStyle = { padding: "8px 6px", borderBottom: `2px solid ${T.bd}`, textAlign: "center", fontSize: 11, color: T.txD, fontWeight: 700, whiteSpace: "nowrap" };
-const tdStyle = { padding: "6px 6px", borderBottom: `1px solid ${T.bd}`, borderLeft: `1px solid ${T.bd}`, textAlign: "center", fontSize: 11 };

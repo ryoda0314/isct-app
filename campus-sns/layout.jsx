@@ -28,6 +28,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
       <SideItem icon={I.attend} label="出欠管理" on={view==="attendance"} click={()=>setView("attendance")} compact={cp}/>
       <SideItem icon={I.book} label="マイ教科書" on={view==="textbooks"} click={()=>setView("textbooks")} compact={cp}/>
       <SideItem icon={I.bar} label="成績割合" on={view==="grading"} click={()=>setView("grading")} compact={cp}/>
+      <SideItem icon={I.file} label="PDF結合" on={view==="pdftools"} click={()=>setView("pdftools")} compact={cp}/>
       <SideItem icon={I.tasks} label="課題" on={view==="tasks"} click={()=>setView("tasks")} badge={ac} compact={cp}/>
       <SideItem icon={I.mail} label="DM" on={view==="dm"} click={()=>setView("dm")} badge={dmUnread} compact={cp}/>
       <SideItem icon={I.clip} label="ポケット" on={view==="pocket"} click={()=>setView("pocket")} compact={cp}/>
@@ -37,7 +38,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
       <SideItem icon={I.cal} label="カレンダー" on={view==="calendar"} click={()=>setView("calendar")} compact={cp}/>
       <SideItem icon={I.circle} label="サークル" on={view==="circles"} click={()=>setView("circles")} compact={cp}/>
       <SideItem icon={I.map} label="キャンパスナビ" on={view==="navigation"} click={()=>setView("navigation")} compact={cp}/>
-      <SideItem icon={I.clock} label="スペース予約" on={view==="takiplaza"} click={()=>setView("takiplaza")} compact={cp}/>
+      <SideItem icon={I.clock} label="Taki Plaza" on={view==="takiplaza"} click={()=>setView("takiplaza")} compact={cp}/>
       <SideItem icon={I.grad} label="新入生掲示板" on={view==="freshman"} click={()=>setView("freshman")} compact={cp}/>
       <SideItem icon={I.more} label="ツール" on={moreOpen||isExtra} click={()=>setMoreOpen(p=>!p)} compact={cp}/>
     </div>
@@ -176,7 +177,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
 // ============================================================
 
 const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false})=>{
-  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket","takiplaza"];
+  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket","takiplaza","pdftools"];
   const ttId=hasMed?"med-tt":"timetable";
   const isMore=moreViews.includes(view)&&view!==ttId;
   return(
@@ -207,6 +208,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
       {id:"attendance",i:I.attend,l:"出欠管理"},
       {id:"textbooks",i:I.book,l:"マイ教科書"},
       {id:"grading",i:I.bar,l:"成績割合"},
+      {id:"pdftools",i:I.file,l:"PDF結合"},
       {id:"exams",i:I.clip,l:"期末試験"},
       {id:"freeroom",i:I.pin,l:"空き教室"},
       {id:"reg",i:I.pen,l:"履修登録補助"},
@@ -215,7 +217,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
       {id:"pomo",i:I.play,l:"ポモドーロタイマー"},
     ]},
     {title:"キャンパス",items:[
-      {id:"takiplaza",i:I.clock,l:"スペース予約状況"},
+      {id:"takiplaza",i:I.clock,l:"Taki Plaza"},
       {id:"freshman",i:I.grad,l:"新入生掲示板"},
     ]},
     {title:"その他",items:otherItems},

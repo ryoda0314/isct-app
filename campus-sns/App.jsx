@@ -25,6 +25,7 @@ import { MatView } from "./views/MatView.jsx";
 import { DMView } from "./views/DMView.jsx";
 import { PocketView } from "./views/PocketView.jsx";
 import { MusicView } from "./views/MusicView.jsx";
+import { PdfToolsView } from "./views/PdfToolsView.jsx";
 import { MiniPlayer } from "./components/MiniPlayer.jsx";
 import { NotifView } from "./views/NotifView.jsx";
 import { EventView } from "./views/EventView.jsx";
@@ -917,7 +918,7 @@ export default function App(){
 
   // --- DESKTOP ---
   if(!mob){
-    const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",acadCal:"学年暦",exams:"期末試験",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",navigation:"キャンパスナビ",friends:"友達",circles:"サークル",admin:"管理者",freshman:"新入生掲示板",reg:"履修登録補助",freeroom:"空き教室",attendance:"出欠管理",music:"ミュージック"};
+    const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",acadCal:"学年暦",exams:"期末試験",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",navigation:"キャンパスナビ",friends:"友達",circles:"サークル",admin:"管理者",freshman:"新入生掲示板",reg:"履修登録補助",freeroom:"空き教室",attendance:"出欠管理",music:"ミュージック",pdftools:"PDF結合"};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:"タイムライン",chat:"チャット",assignments:"課題",materials:"教材",reviews:"レビュー"}[ch]}</>;
       if(view==="dept"&&cd){const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?cd.name:cd.prefix}</span> {nameOnly?"":`${cd.name} `}— {{timeline:"タイムライン",chat:"チャット"}[ch]||""}</>;}
@@ -942,6 +943,7 @@ export default function App(){
           {view==="dm"&&(L?<LockedView title="DM"/>:TR?<TelecomBlockView title="DMは現在利用できません"/>:<DMView mob={false} setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/>)}
           {view==="pocket"&&(L?<LockedView title="ポケット"/>:<PocketView mob={false}/>)}
           {view==="music"&&(L?<LockedView title="ミュージック"/>:<MusicView mob={false}/>)}
+          {view==="pdftools"&&(L?<LockedView title="PDF結合"/>:<PdfToolsView mob={false}/>)}
           {view==="notif"&&(L?<LockedView title="通知"/>:<NotifView mob={false}/>)}
           {view==="grades"&&(L?<LockedView title="成績"/>:<GradeView mob={false}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
@@ -953,7 +955,7 @@ export default function App(){
           {view==="search"&&(L?<LockedView title="検索"/>:<SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses}/>)}
           {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/>}
           {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/>}
-          {view==="takiplaza"&&(L?<LockedView title="スペース予約状況"/>:<FacilityReservationView mob={false} onNavigate={goToBuilding}/>)}
+          {view==="takiplaza"&&(L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob={false} onNavigate={goToBuilding}/>)}
           {view==="circles"&&(TR?<TelecomBlockView title="サークルは現在利用できません"/>:<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs}/>)}
           {view==="acadCal"&&<AcademicCalendarView mob={false}/>}
           {view==="exams"&&(L?<LockedView title="期末試験"/>:<ExamView courses={allCourses} mob={false} goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/>)}
@@ -993,6 +995,7 @@ export default function App(){
         {view==="dm"&&(L?<><MHdr title="DM"/><LockedView title="DM"/></>:TR?<><MHdr title="DM"/><TelecomBlockView title="DMは現在利用できません" onBack={goBack}/></>:<><MHdr title="DM"/><DMView mob setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/></>)}
         {view==="pocket"&&(L?<><MHdr title="ポケット" back={mBack}/><LockedView title="ポケット"/></>:<><MHdr title="ポケット" back={mBack}/><PocketView mob/></>)}
         {view==="music"&&(L?<><MHdr title="ミュージック" back={mBack}/><LockedView title="ミュージック"/></>:<><MHdr title="ミュージック" back={mBack}/><MusicView mob/></>)}
+        {view==="pdftools"&&(L?<><MHdr title="PDF結合" back={mBack}/><LockedView title="PDF結合"/></>:<><MHdr title="PDF結合" back={mBack}/><PdfToolsView mob/></>)}
         {view==="notif"&&(L?<><MHdr title="通知" back={mBack}/><LockedView title="通知"/></>:<><MHdr title="通知" back={mBack}/><NotifView mob/></>)}
         {view==="grades"&&(L?<><MHdr title="成績" back={mBack}/><LockedView title="成績"/></>:<><MHdr title="成績" back={mBack}/><GradeView mob/></>)}
         {view==="pomo"&&<><MHdr title="ポモドーロ" back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
@@ -1004,7 +1007,7 @@ export default function App(){
         {view==="search"&&(L?<><MHdr title="検索" back={mBack}/><LockedView title="検索"/></>:<><MHdr title="検索" back={mBack}/><SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses}/></>)}
         {view==="profile"&&<><MHdr title="プロフィール" back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/></>}
         {view==="navigation"&&<><MHdr title="キャンパスナビ" back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
-        {view==="takiplaza"&&<><MHdr title="スペース予約状況" back={mBack}/>{L?<LockedView title="スペース予約状況"/>:<FacilityReservationView mob onNavigate={goToBuilding}/>}</>}
+        {view==="takiplaza"&&<><MHdr title="Taki Plaza" back={mBack}/>{L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob onNavigate={goToBuilding}/>}</>}
         {view==="circles"&&(TR?<><MHdr title="サークル" back={mBack}/><TelecomBlockView title="サークルは現在利用できません" onBack={goBack}/></>:<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs} onBack={mBack}/>)}
         {view==="acadCal"&&<AcademicCalendarView mob/>}
         {view==="exams"&&(L?<><MHdr title="期末試験" back={mBack}/><LockedView title="期末試験"/></>:<><MHdr title="期末試験" back={mBack}/><ExamView courses={allCourses} mob goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/></>)}
