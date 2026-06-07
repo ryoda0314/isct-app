@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
-// 自分専用ミュージックライブラリ（Science Tokyo music）。owner_id = 認証ユーザー でのみ読み書き可能。
+// 自分専用ミュージックライブラリ（ScienceTokyo Music）。owner_id = 認証ユーザー でのみ読み書き可能。
 // 音源/カバーは非公開バケット post-attachments の music/<owner_id>/ 配下に保存し署名URLで返す。
 // 実体はクライアントから署名URLで直接アップロードするため Vercel の本文サイズ制限を受けない（pocket と同じ）。
 
@@ -84,10 +84,11 @@ export async function POST(request) {
       const size = Number(body.size) || 0;
       const type = (body.type || '').toString();
       // 全員配信（公式曲）は管理者のみ。保存先を music/public/ に分ける
-      const wantPublic = !!body.public;
-      if (wantPublic && !(await isAdmin(sb, userid))) {
-        return NextResponse.json({ error: '配信権限がありません' }, { status: 403 });
+      // アップロードは管理者のみ（一般ユーザーは配信曲を聴くだけ）
+      if (!(await isAdmin(sb, userid))) {
+        return NextResponse.json({ error: 'アップロード権限がありません（管理者のみ）' }, { status: 403 });
       }
+      const wantPublic = !!body.public;
 
       if (kind === 'audio') {
         if (size > MAX_AUDIO_SIZE) {
@@ -133,11 +134,11 @@ export async function POST(request) {
       return NextResponse.json({ path, token: data.token });
     }
 
-    // 2) アップロード済みの記録
-    const wantPublic = !!body.public;
-    if (wantPublic && !(await isAdmin(sb, userid))) {
-      return NextResponse.json({ error: '配信権限がありません' }, { status: 403 });
+    // 2) アップロード済みの記録（アップロードは管理者のみ）
+    if (!(await isAdmin(sb, userid))) {
+      return NextResponse.json({ error: 'アップロード権限がありません（管理者のみ）' }, { status: 403 });
     }
+    const wantPublic = !!body.public;
     // 公式曲は music/public/ 配下、個人曲は music/<userid>/ 配下のパスのみ受理
     const audioPrefix = wantPublic ? 'music/public/audio/' : `music/${userid}/audio/`;
     const coverPrefix = wantPublic ? 'music/public/cover/' : `music/${userid}/cover/`;

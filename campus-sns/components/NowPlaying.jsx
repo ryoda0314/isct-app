@@ -16,9 +16,32 @@ export function NowPlaying({ onClose, onOpenLibrary }) {
   const { track, playing, currentTime, duration, repeat, shuffle, volume,
     toggle, next, prev, seek, setVolume, toggleRepeat, toggleShuffle } = useMusicPlayer();
 
-  // シーク中はドラッグ値を優先表示（指を離した瞬間に飛ばないように）
-  const [scrub, setScrub] = useState(null);
-  useEffect(() => { setScrub(null); }, [track?.id]);
+  // シークは「ドラッグ中だけ React の再レンダリングを介さず DOM を直接更新」して遅延を消す。
+  // 再生中は timeupdate(約4Hz) で再レンダリングが走るため、controlled だと value/塗り/時刻が
+  // 毎回上書きされて指の動きと競合する。そこで uncontrolled にして ref で直接いじる。
+  const seekRef = useRef(null);
+  const elapsedRef = useRef(null);
+  const remainRef = useRef(null);
+  const draggingSeekRef = useRef(false);
+
+  const fmtTimes = (cur, dur) => {
+    if (elapsedRef.current) elapsedRef.current.textContent = fmt(cur);
+    if (remainRef.current) remainRef.current.textContent = "-" + fmt(Math.max(0, dur - cur));
+  };
+  // 再生に追従して表示を更新（ドラッグ中は触らない＝指の動きを邪魔しない）
+  useEffect(() => {
+    if (draggingSeekRef.current) return;
+    const el = seekRef.current;
+    const d = duration || track?.duration || 0;
+    if (el) {
+      el.max = String(d || 0);
+      const ct = Math.min(currentTime, d || 0);
+      el.value = String(ct);
+      el.style.setProperty("--pct", (d > 0 ? (ct / d) * 100 : 0) + "%");
+    }
+    fmtTimes(Math.min(currentTime, d || 0), d);
+  });
+  useEffect(() => { draggingSeekRef.current = false; }, [track?.id]);
 
   // 下スワイプで閉じる（指に追従。一定以上下げて離すと閉じ、途中で離すと戻る）
   const startYRef = useRef(0);
@@ -54,11 +77,8 @@ export function NowPlaying({ onClose, onOpenLibrary }) {
 
   if (!track) return null;
   const dur = duration || track.duration || 0;
-  const pos = scrub != null ? scrub : currentTime;
-  const remain = Math.max(0, dur - pos);
   const cover = track.cover?.url;
   const vol = volume ?? 1;
-  const seekPct = dur > 0 ? Math.min(100, (pos / dur) * 100) : 0;
 
   return (
     <div
@@ -109,24 +129,30 @@ export function NowPlaying({ onClose, onOpenLibrary }) {
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 22, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title}</div>
-            <div style={{ fontSize: 18, color: "rgba(255,255,255,0.7)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.artist || "Science Tokyo music"}</div>
+            <div style={{ fontSize: 18, color: "rgba(255,255,255,0.7)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.artist || "ScienceTokyo Music"}</div>
           </div>
         </div>
 
-        {/* シークバー */}
+        {/* シークバー（uncontrolled。ドラッグ中は onInput で DOM 直接更新→遅延ゼロ。離した時だけ engine へ反映） */}
         <div>
           <input
+            ref={seekRef}
             className="np-range"
-            type="range" min={0} max={dur || 0} step={0.1} value={Math.min(pos, dur || 0)}
-            onChange={(e) => setScrub(Number(e.target.value))}
-            onPointerUp={(e) => { seek(Number(e.target.value)); setScrub(null); }}
-            onMouseUp={(e) => { seek(Number(e.target.value)); setScrub(null); }}
-            onTouchEnd={(e) => { seek(Number(e.target.value)); setScrub(null); }}
-            style={{ width: "100%", ["--pct"]: `${seekPct}%` }}
+            type="range" min={0} max={dur || 0} step="any" defaultValue={0}
+            onPointerDown={() => { draggingSeekRef.current = true; }}
+            onInput={(e) => {
+              const v = Number(e.currentTarget.value);
+              const d = Number(e.currentTarget.max) || 0;
+              e.currentTarget.style.setProperty("--pct", (d > 0 ? (v / d) * 100 : 0) + "%");
+              fmtTimes(v, d); // 時刻表示も DOM 直接更新（再レンダリングしない）
+            }}
+            onPointerUp={(e) => { draggingSeekRef.current = false; seek(Number(e.currentTarget.value)); }}
+            onPointerCancel={(e) => { draggingSeekRef.current = false; seek(Number(e.currentTarget.value)); }}
+            style={{ width: "100%" }}
           />
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>
-            <span>{fmt(pos)}</span>
-            <span>-{fmt(remain)}</span>
+            <span ref={elapsedRef}>0:00</span>
+            <span ref={remainRef}>-0:00</span>
           </div>
         </div>
 

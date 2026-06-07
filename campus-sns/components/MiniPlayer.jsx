@@ -76,7 +76,7 @@ export function MiniPlayer({ mob = false, view, ch, onOpen }) {
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: T.txH, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title || "無題"}</div>
             <div style={{ fontSize: 11, color: T.txD, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {track.artist || "Science Tokyo music"} · {fmtTime(currentTime)} / {fmtTime(dur)}
+              {track.artist || "ScienceTokyo Music"} · {fmtTime(currentTime)} / {fmtTime(dur)}
             </div>
           </div>
         </button>

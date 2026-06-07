@@ -77,8 +77,8 @@ function setMediaSessionMeta(track) {
       : [];
     navigator.mediaSession.metadata = new window.MediaMetadata({
       title: track.title || '無題',
-      artist: track.artist || 'Science Tokyo music',
-      album: 'Science Tokyo music',
+      artist: track.artist || 'ScienceTokyo Music',
+      album: 'ScienceTokyo Music',
       artwork,
     });
   } catch {}

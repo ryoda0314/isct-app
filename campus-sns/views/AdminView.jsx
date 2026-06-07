@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useCallback, useMemo, createContext, useContext } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { Av } from "../shared.jsx";
 import { MapEditorView } from "./MapEditorView.jsx";
 import { usePresence } from "../hooks/usePresence.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
+import { useMusic } from "../hooks/useMusic.js";
+import { showToast } from "../hooks/useToast.js";
 
 const OnlineContext = createContext(new Set());
 
@@ -20,6 +22,7 @@ const tabs = [
   { id: "dms", label: "DM", icon: I.mail },
   { id: "circles", label: "サークル", icon: I.circle },
   { id: "announce", label: "お知らせ", icon: I.mega },
+  { id: "music", label: "ミュージック配信", icon: I.music },
   { id: "audit", label: "操作ログ", icon: I.clock },
   { id: "map", label: "地図編集", icon: I.pin },
   { id: "syllabus", label: "時間割データ", icon: I.cal },
@@ -909,6 +912,93 @@ const AnnouncementsTab = () => {
         {!loading && items.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>お知らせがありません</div>}
       </div>
       <Pager page={page} total={total} limit={30} onPage={load} />
+    </div>
+  );
+};
+
+// ---- Music (配信) Tab ----
+// 管理者がアップロードした曲は is_public=true で全ユーザーのミュージック画面に配信される。
+// ミュージック画面側は全員同一表示（聴くだけ）。管理はこのタブで行う。
+const MusicTab = () => {
+  const { tracks, loading, addTrack, removeTrack } = useMusic();
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState("");
+  const [artist, setArtist] = useState("");
+  const [audioFile, setAudioFile] = useState(null);
+  const [coverFile, setCoverFile] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const audioRef = useRef(null);
+  const coverRef = useRef(null);
+  const published = tracks.filter(t => t.is_public);
+
+  const reset = () => {
+    setShowForm(false); setTitle(""); setArtist(""); setAudioFile(null); setCoverFile(null);
+    if (audioRef.current) audioRef.current.value = "";
+    if (coverRef.current) coverRef.current.value = "";
+  };
+  const submit = async () => {
+    if (!audioFile) { showToast("音声ファイルを選択してください", "error"); return; }
+    setSaving(true);
+    try {
+      await addTrack({ audioFile, coverFile, title: title.trim(), artist: artist.trim(), isPublic: true });
+      showToast("配信しました", "success");
+      reset();
+    } catch (e) {
+      showToast(e.message || "アップロードに失敗しました", "error");
+    } finally { setSaving(false); }
+  };
+  const del = async (t) => {
+    if (!confirm(`「${t.title}」を配信停止（削除）しますか？`)) return;
+    await removeTrack(t.id);
+    showToast("削除しました", "success");
+  };
+
+  const fileInput = { flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" };
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>ミュージック配信 ({published.length})</div>
+        <div style={{ flex: 1 }} />
+        <Btn onClick={() => setShowForm(!showForm)} color={T.accent}>{I.plus} 曲を配信</Btn>
+      </div>
+      <div style={{ fontSize: 12, color: T.txD, marginBottom: 12 }}>アップロードした曲は全ユーザーの「ミュージック」画面に表示されます。</div>
+
+      {showForm && (
+        <div style={{ padding: 16, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <label style={{ fontSize: 12, color: T.txD }}>音声ファイル（mp3 / m4a / wav など）
+              <input ref={audioRef} type="file" accept="audio/*" onChange={e => { const f = e.target.files?.[0]; if (f) { setAudioFile(f); if (!title) setTitle(f.name.replace(/\.[^.]+$/, "")); } }} style={{ ...fileInput, width: "100%", marginTop: 4, boxSizing: "border-box" }} />
+            </label>
+            <label style={{ fontSize: 12, color: T.txD }}>カバー画像（任意）
+              <input ref={coverRef} type="file" accept="image/*" onChange={e => setCoverFile(e.target.files?.[0] || null)} style={{ ...fileInput, width: "100%", marginTop: 4, boxSizing: "border-box" }} />
+            </label>
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="曲名" style={fileInput} />
+            <input value={artist} onChange={e => setArtist(e.target.value)} placeholder="アーティスト名（任意・例: Suno AI）" style={fileInput} />
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+            <Btn onClick={reset} color={T.txD} disabled={saving}>キャンセル</Btn>
+            <Btn onClick={submit} color={T.accent} disabled={saving || !audioFile}>{saving ? "アップロード中..." : "配信"}</Btn>
+          </div>
+        </div>
+      )}
+
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {published.map(t => (
+          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
+            <div style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, overflow: "hidden", background: `linear-gradient(145deg, ${T.accent}, ${T.accent}99)`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+              {t.cover?.url ? <img src={t.cover.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : I.music}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+              <div style={{ fontSize: 12, color: T.txD, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.artist || "ScienceTokyo Music"}</div>
+            </div>
+            <Btn onClick={() => del(t)} color={T.red} small>{I.trash} 削除</Btn>
+          </div>
+        ))}
+        {!loading && published.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>配信中の曲がありません</div>}
+      </div>
     </div>
   );
 };
@@ -3914,6 +4004,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "dms" && <DMsTab />}
         {tab === "circles" && <CirclesTab />}
         {tab === "announce" && <AnnouncementsTab />}
+        {tab === "music" && <MusicTab />}
         {tab === "audit" && <AuditLogTab />}
         {tab === "map" && <MapEditorView mob={mob} />}
         {tab === "syllabus" && <SyllabusTab />}

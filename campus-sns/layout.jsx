@@ -37,6 +37,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
       <SideItem icon={I.cal} label="カレンダー" on={view==="calendar"} click={()=>setView("calendar")} compact={cp}/>
       <SideItem icon={I.circle} label="サークル" on={view==="circles"} click={()=>setView("circles")} compact={cp}/>
       <SideItem icon={I.map} label="キャンパスナビ" on={view==="navigation"} click={()=>setView("navigation")} compact={cp}/>
+      <SideItem icon={I.clock} label="スペース予約" on={view==="takiplaza"} click={()=>setView("takiplaza")} compact={cp}/>
       <SideItem icon={I.grad} label="新入生掲示板" on={view==="freshman"} click={()=>setView("freshman")} compact={cp}/>
       <SideItem icon={I.more} label="ツール" on={moreOpen||isExtra} click={()=>setMoreOpen(p=>!p)} compact={cp}/>
     </div>
@@ -175,7 +176,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
 // ============================================================
 
 const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false})=>{
-  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket"];
+  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket","takiplaza"];
   const ttId=hasMed?"med-tt":"timetable";
   const isMore=moreViews.includes(view)&&view!==ttId;
   return(
@@ -214,6 +215,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
       {id:"pomo",i:I.play,l:"ポモドーロタイマー"},
     ]},
     {title:"キャンパス",items:[
+      {id:"takiplaza",i:I.clock,l:"スペース予約状況"},
       {id:"freshman",i:I.grad,l:"新入生掲示板"},
     ]},
     {title:"その他",items:otherItems},
