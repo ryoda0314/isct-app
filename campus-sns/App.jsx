@@ -68,6 +68,11 @@ installFetchInterceptor();
 
 const API="";
 
+// Fetch with a hard timeout so a slow/unreachable backend (e.g. Supabase
+// disk-IO throttling) can't freeze startup forever. On timeout the promise
+// rejects, letting callers fall back to cache / setup instead of hanging.
+const fetchT=(url,opts={},ms=12000)=>fetch(url,{...opts,signal:AbortSignal.timeout(ms)});
+
 // Lock screen – defined outside App to avoid remount on parent re-render
 const LockScreen=({appLock,onLogout})=>{
   const [pin,setPin]=useState("");
@@ -378,7 +383,7 @@ export default function App(){
   /** Original server-side flow (fallback) */
   const fetchDataServerSide=async()=>{
     const t0=performance.now();
-    const r=await fetch(`${API}/api/data/all`);
+    const r=await fetchT(`${API}/api/data/all`,{},15000);
     console.log(`[Timing] /api/data/all fetch: ${(performance.now()-t0).toFixed(0)}ms`);
     if(r.status===401){console.warn('[App] fetchData: 401 — not authenticated');setAppState("setup");return false;}
     if(r.status===503){
@@ -554,7 +559,7 @@ export default function App(){
       // iOS PWA often fails to send cookies on the initial status check after cold start
       // 審査アカウント判定を最優先で行う（wasLoggedIn でも status チェック）
       try{
-        const sr=await fetch(`${API}/api/auth/status`);
+        const sr=await fetchT(`${API}/api/auth/status`);
         const sd=await sr.json();
         if(sd.loginId==="apple-review"){console.log("[App] review account detected, loading demo");onDemo("ss");return;}
       }catch{}
@@ -568,7 +573,7 @@ export default function App(){
       }
       try{
         const t0=performance.now();
-        const r=await fetch(`${API}/api/auth/status`);
+        const r=await fetchT(`${API}/api/auth/status`);
         const d=await r.json();
         console.log(`[Timing] /api/auth/status: ${(performance.now()-t0).toFixed(0)}ms (hasCredentials=${d.hasCredentials})`);
         if(d.loginId==="apple-review"){console.log("[App] review account detected, loading demo");onDemo("ss");return;}
@@ -634,7 +639,7 @@ export default function App(){
   useEffect(()=>{try{localStorage.setItem("quarter",String(quarter));}catch{}},[quarter]);
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
   useEffect(()=>{try{localStorage.setItem("notifSettings",JSON.stringify(notifSettings));}catch{}},[notifSettings]);
-  const onSetupComplete=async()=>{try{const sr=await fetch(`${API}/api/auth/status`);const sd=await sr.json();if(sd.loginId==="apple-review"){console.log("[App] review account detected, loading demo");onDemo("ss");return;}}catch{}const MAX=4;const attempt=async(n)=>{console.log(`[App] onSetupComplete: fetchData attempt ${n}/${MAX}`);const r=await fetchData();if(r){console.log(`[App] onSetupComplete: fetchData OK — ${r.length} assignments`);setAppState("ready");refreshRef.current=setInterval(async()=>{const r2=await fetchData();if(r2)fetchSubmissionStatuses(r2);},15*60*1000);fetchSiteSettings();fetchSubmissionStatuses(r);return;}if(n<MAX){const delay=n*2;console.warn(`[App] onSetupComplete: fetchData attempt ${n} failed, retrying in ${delay}s...`);await new Promise(r=>setTimeout(r,delay*1000));return attempt(n+1);}console.error(`[App] onSetupComplete: fetchData failed after ${MAX} attempts, returning to setup`);setAppState("setup");};await attempt(1);};
+  const onSetupComplete=async()=>{try{const sr=await fetchT(`${API}/api/auth/status`);const sd=await sr.json();if(sd.loginId==="apple-review"){console.log("[App] review account detected, loading demo");onDemo("ss");return;}}catch{}const MAX=4;const attempt=async(n)=>{console.log(`[App] onSetupComplete: fetchData attempt ${n}/${MAX}`);const r=await fetchData();if(r){console.log(`[App] onSetupComplete: fetchData OK — ${r.length} assignments`);setAppState("ready");refreshRef.current=setInterval(async()=>{const r2=await fetchData();if(r2)fetchSubmissionStatuses(r2);},15*60*1000);fetchSiteSettings();fetchSubmissionStatuses(r);return;}if(n<MAX){const delay=n*2;console.warn(`[App] onSetupComplete: fetchData attempt ${n} failed, retrying in ${delay}s...`);await new Promise(r=>setTimeout(r,delay*1000));return attempt(n+1);}console.error(`[App] onSetupComplete: fetchData failed after ${MAX} attempts, returning to setup`);setAppState("setup");};await attempt(1);};
   const onDemo=(personaId)=>{const pd=buildDemoDataForPersona(personaId);setDemoMode(true);setScreenshotMode(personaId==="ss");setAllCourses(pd.courses);setQDataLive(pd.qdata);setAsgn(pd.asgn.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setCurrentUserFromAPI(pd.user);const medRaw=DEMO_MED_RAW_COURSES[personaId];if(medRaw){setMedRawCourses(medRaw);setDemoMedKey(personaId);const ms=buildDemoMedSessions(personaId);setMedSessions(ms.sessions||[]);}else{setMedRawCourses([]);setDemoMedKey(null);setMedSessions([]);}const q2c=pd.courses.find(c=>c.quarter===2);setCid(q2c?q2c.id:pd.courses[0].id);setQuarter(2);circleInit();try{localStorage.setItem("myLocation","lib");}catch{}setAppState("ready");};
 
   const cc=allCourses.find(c=>c.id===cid);

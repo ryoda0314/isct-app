@@ -6,7 +6,7 @@ import { fetchScheduleForCourses } from '../../../../lib/api/syllabus-scraper.js
 import { transformCourses, groupByQuarter } from '../../../../lib/transform/course-transform.js';
 import { buildTimetable } from '../../../../lib/transform/timetable-builder.js';
 import { transformAssignments } from '../../../../lib/transform/assignment-transform.js';
-import { seedEnrollmentCache } from '../../../../lib/auth/course-enrollment.js';
+import { seedEnrollmentCache, syncEnrollments } from '../../../../lib/auth/course-enrollment.js';
 
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -106,13 +106,10 @@ export async function POST(request) {
     // is only used when Moodle is completely down, and enrollment checks
     // are always re-verified against Moodle on the next warm request.
     if (rawCourses.length > 0) {
-      const enrollments = rawCourses
-        .filter(c => c.visible !== 0)
-        .map(c => ({ moodle_user_id: userid, course_moodle_id: c.id, updated_at: new Date().toISOString() }));
-      sb.from('course_enrollments')
-        .upsert(enrollments, { onConflict: 'moodle_user_id,course_moodle_id' })
-        .then(({ error }) => { if (error) console.error('[AllMeta] enrollment upsert error:', error.message); })
-        .catch(() => {});
+      // Diff-sync (insert added / delete dropped, write only on change) instead
+      // of a blind re-upsert — keeps drops accurate and avoids disk-IO churn.
+      const courseIds = rawCourses.filter(c => c.visible !== 0).map(c => c.id);
+      syncEnrollments(userid, courseIds).catch(() => {});
     }
 
     // Timetable

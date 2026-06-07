@@ -26,7 +26,8 @@ export async function getClientToken() {
   if (_cachedToken && Date.now() < _tokenExpiry) {
     return { wstoken: _cachedToken, userid: _cachedUserid };
   }
-  const r = await fetch('/api/auth/token');
+  // Hard timeout so a hung backend can't freeze startup forever.
+  const r = await fetch('/api/auth/token', { signal: AbortSignal.timeout(12000) });
   if (r.status === 401) {
     const err = new Error('Not authenticated');
     err.code = 'AUTH_REQUIRED';

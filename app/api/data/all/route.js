@@ -8,6 +8,7 @@ import { fetchAssignments } from '../../../../lib/api/assignments.js';
 import { transformCourses, groupByQuarter } from '../../../../lib/transform/course-transform.js';
 import { buildTimetable } from '../../../../lib/transform/timetable-builder.js';
 import { transformAssignments } from '../../../../lib/transform/assignment-transform.js';
+import { syncEnrollments } from '../../../../lib/auth/course-enrollment.js';
 
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -77,15 +78,12 @@ export async function GET(request) {
 
     const courses = transformCourses(raw, scheduleMap, profileRow?.dept || null);
 
-    // Save course enrollments to Supabase (fire-and-forget)
+    // Save course enrollments to Supabase (fire-and-forget).
+    // Diff-sync (insert added / delete dropped, write only on change) instead
+    // of a blind re-upsert — keeps drops accurate and avoids disk-IO churn.
     if (raw && raw.length > 0) {
-      const enrollments = raw
-        .filter(c => c.visible !== 0)
-        .map(c => ({ moodle_user_id: userid, course_moodle_id: c.id, updated_at: new Date().toISOString() }));
-      sb.from('course_enrollments')
-        .upsert(enrollments, { onConflict: 'moodle_user_id,course_moodle_id' })
-        .then(({ error }) => { if (error) console.error('[All] enrollment upsert error:', error.message); })
-        .catch(() => {});
+      const courseIds = raw.filter(c => c.visible !== 0).map(c => c.id);
+      syncEnrollments(userid, courseIds).catch(() => {});
     }
 
     // Timetable
