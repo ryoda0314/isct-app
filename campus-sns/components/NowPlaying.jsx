@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { useMusicPlayer } from "../hooks/useMusicPlayer.js";
@@ -20,6 +20,38 @@ export function NowPlaying({ onClose, onOpenLibrary }) {
   const [scrub, setScrub] = useState(null);
   useEffect(() => { setScrub(null); }, [track?.id]);
 
+  // 下スワイプで閉じる（指に追従。一定以上下げて離すと閉じ、途中で離すと戻る）
+  const startYRef = useRef(0);
+  const movedRef = useRef(false);
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const CLOSE_THRESHOLD = 110;
+
+  const onPointerDown = (e) => {
+    // スライダーやボタンの操作はドラッグ閉じの対象外
+    if (e.target.closest("button, input")) return;
+    startYRef.current = e.clientY;
+    movedRef.current = false;
+    setDragging(true);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+  };
+  const onPointerMove = (e) => {
+    if (!dragging) return;
+    const dy = e.clientY - startYRef.current;
+    if (Math.abs(dy) > 6) movedRef.current = true;
+    setDragY(dy > 0 ? dy : dy * 0.25); // 上方向は抵抗を付ける
+  };
+  const endDrag = () => {
+    if (!dragging) return;
+    setDragging(false);
+    if (dragY > CLOSE_THRESHOLD) setClosing(true); // 閉じるアニメへ
+    else setDragY(0);                              // 元に戻す
+  };
+  const onTransitionEnd = (e) => {
+    if (closing && e.propertyName === "transform") onClose?.();
+  };
+
   if (!track) return null;
   const dur = duration || track.duration || 0;
   const pos = scrub != null ? scrub : currentTime;
@@ -29,24 +61,39 @@ export function NowPlaying({ onClose, onOpenLibrary }) {
   const seekPct = dur > 0 ? Math.min(100, (pos / dur) * 100) : 0;
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 200,
-      display: "flex", flexDirection: "column",
-      color: "#fff", overflow: "hidden",
-      paddingTop: "env(safe-area-inset-top, 0px)",
-      paddingBottom: "env(safe-area-inset-bottom, 0px)",
-    }}>
+    <div
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onTransitionEnd={onTransitionEnd}
+      style={{
+        position: "fixed", inset: 0, zIndex: 200,
+        display: "flex", flexDirection: "column",
+        color: "#fff", overflow: "hidden",
+        paddingTop: "env(safe-area-inset-top, 0px)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        touchAction: "none",
+        transform: `translateY(${closing ? "100%" : Math.max(0, dragY) + "px"})`,
+        transition: dragging ? "none" : "transform 0.32s cubic-bezier(0.22,0.61,0.36,1)",
+        willChange: "transform",
+        borderTopLeftRadius: dragY > 0 || closing ? 16 : 0,
+        borderTopRightRadius: dragY > 0 || closing ? 16 : 0,
+      }}
+    >
       {/* 背景: カバーをぼかして敷き、暗いスクリムを重ねる（カバーが無ければグラデ） */}
       <div style={{ position: "absolute", inset: 0, zIndex: -2, background: cover ? "#1a2733" : `linear-gradient(160deg, ${T.accent}cc, #1a2230)` }}>
         {cover && <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "blur(40px) brightness(0.7) saturate(1.2)", transform: "scale(1.2)" }} />}
       </div>
       <div style={{ position: "absolute", inset: 0, zIndex: -1, background: "linear-gradient(to bottom, rgba(0,0,0,0.25), rgba(0,0,0,0.55))" }} />
 
-      {/* 上部: ハンドル + 閉じる */}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 0 0" }}>
-        <button onClick={onClose} aria-label="閉じる" style={{ background: "none", border: "none", cursor: "pointer", padding: 8 }}>
-          <div style={{ width: 38, height: 5, borderRadius: 3, background: "rgba(255,255,255,0.5)" }} />
-        </button>
+      {/* 上部: ハンドル（下スワイプで閉じる / タップでも閉じる）。button だとドラッグ対象外になるので div で実装 */}
+      <div
+        onClick={() => { if (!movedRef.current) onClose?.(); }}
+        role="button" aria-label="閉じる"
+        style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "12px 0 8px", cursor: "grab" }}
+      >
+        <div style={{ width: 40, height: 5, borderRadius: 3, background: "rgba(255,255,255,0.55)" }} />
       </div>
 
       {/* 中央コンテンツ */}
@@ -120,13 +167,17 @@ export function NowPlaying({ onClose, onOpenLibrary }) {
       {/* 角丸トラック + 丸つまみ。進捗の塗りは --pct（インラインで指定）でトラックに描く。
           トラック高さ(6px)を明示し、thumb(15px)を margin-top:-4.5px=(6-15)/2 で中央に乗せる。 */}
       <style>{`
-        .np-range{ -webkit-appearance:none; appearance:none; cursor:pointer; outline:none; background:transparent; height:15px; }
+        /* touch-action:none でタッチのドラッグをスライダー操作として確実に拾う（スクロールに奪われない）。
+           当たり判定を 30px に広げ、見た目のトラックは 6px のまま。つまみは 18px。 */
+        .np-range{ -webkit-appearance:none; appearance:none; cursor:pointer; outline:none; background:transparent;
+          height:30px; touch-action:none; -webkit-tap-highlight-color:transparent; }
         .np-range::-webkit-slider-runnable-track{ -webkit-appearance:none; height:6px; border-radius:3px; border:none;
           background:linear-gradient(to right, #fff var(--pct,0%), rgba(255,255,255,0.28) var(--pct,0%)); }
         .np-range::-moz-range-track{ height:6px; border-radius:3px; border:none;
           background:linear-gradient(to right, #fff var(--pct,0%), rgba(255,255,255,0.28) var(--pct,0%)); }
-        .np-range::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:15px; height:15px; margin-top:-4.5px; border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.45); }
-        .np-range::-moz-range-thumb{ width:15px; height:15px; border:none; border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.45); }
+        .np-range::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:18px; height:18px; margin-top:-6px; border-radius:50%; background:#fff; box-shadow:0 1px 5px rgba(0,0,0,.5); }
+        .np-range::-moz-range-thumb{ width:18px; height:18px; border:none; border-radius:50%; background:#fff; box-shadow:0 1px 5px rgba(0,0,0,.5); }
+        .np-range:active::-webkit-slider-thumb{ transform:scale(1.15); }
       `}</style>
     </div>
   );
