@@ -46,6 +46,8 @@ function getTier(pathname, method) {
 export function middleware(request) {
   const pathname = request.nextUrl.pathname;
   const isApi = pathname.startsWith('/api/');
+  // Portal proxy pages are displayed inside a same-origin iframe
+  const isPortalPage = pathname.startsWith('/api/portal/page') || pathname.startsWith('/api/portal/proxy');
 
   // M4: Rate limit API endpoints (tiered)
   if (isApi) {
@@ -111,9 +113,28 @@ export function middleware(request) {
   // Generate nonce for CSP (allows Next.js inline scripts)
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
 
-  // Pass nonce to Next.js via request header so Server Components can read it
+  // M1: Content-Security-Policy with nonce for inline scripts
+  const cspValue = [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
+    "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
+    "img-src 'self' https: data: blob:",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lms.s.isct.ac.jp https://api.open-meteo.com https://geocoding-api.open-meteo.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com https://server.arcgisonline.com https://tile.openstreetmap.org",
+    "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com",
+    isPortalPage ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; ');
+
+  // Pass nonce + CSP to Next.js via request headers.
+  // Setting the CSP on the *request* header is what makes Next.js (1) inject the
+  // nonce into all its <script> tags and (2) render the route dynamically, so the
+  // per-request nonce matches in production builds (static pages would otherwise
+  // ship without a nonce and be blocked by 'strict-dynamic'). x-nonce is kept for
+  // any Server Component that wants to read it directly.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('Content-Security-Policy', cspValue);
 
   const res = NextResponse.next({
     request: {
@@ -137,28 +158,13 @@ export function middleware(request) {
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
 
-  // Portal proxy pages are displayed inside a same-origin iframe
-  const isPortalPage = pathname.startsWith('/api/portal/page') || pathname.startsWith('/api/portal/proxy');
   res.headers.set('X-Frame-Options', isPortalPage ? 'SAMEORIGIN' : 'DENY');
 
   // M2: HSTS
   res.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
 
-  // M1: Content-Security-Policy with nonce for inline scripts
-  res.headers.set(
-    'Content-Security-Policy',
-    [
-      "default-src 'self'",
-      `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
-      "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
-      "img-src 'self' https: data: blob:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lms.s.isct.ac.jp https://api.open-meteo.com https://geocoding-api.open-meteo.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com https://server.arcgisonline.com https://tile.openstreetmap.org",
-      "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com",
-      isPortalPage ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-    ].join('; ')
-  );
+  // M1: Content-Security-Policy with nonce (same value set on the request headers above)
+  res.headers.set('Content-Security-Policy', cspValue);
 
   // L4: Removed deprecated X-XSS-Protection header
 

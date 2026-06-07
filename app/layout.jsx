@@ -1,3 +1,8 @@
+// 全ルートを動的レンダリングにする。CSP は middleware がリクエスト毎に nonce を発行するため、
+// 静的生成された HTML（nonce 無し）だと 'strict-dynamic' で全スクリプトがブロックされてしまう。
+// 動的レンダリングなら Next.js が request ヘッダの CSP から nonce を読み、各 <script> に付与する。
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: "ScienceTokyo App",
   description: "東京科学大学キャンパスSNS",
