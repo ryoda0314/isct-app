@@ -109,7 +109,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
           <button onClick={()=>setMoreOpen(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.x}</button>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          {[{id:"grades",i:I.grad,l:"成績",c:T.accentSoft},{id:"exams",i:I.clip,l:"期末試験",c:T.red},{id:"freeroom",i:I.pin,l:"空き教室",c:T.green},{id:"reg",i:I.pen,l:"履修登録",c:T.accent},{id:"acadCal",i:I.cal,l:"学年暦",c:"#6366f1"},{id:"pomo",i:I.play,l:"ポモドーロ",c:T.green},{id:"events",i:I.event,l:"イベント",c:T.orange},{id:"reviews",i:I.star,l:"授業レビュー",c:"#c6a236"},{id:"bmarks",i:I.bmark,l:"ブックマーク",c:T.txD}].map(n=>
+          {[{id:"grades",i:I.grad,l:"成績",c:T.accentSoft},{id:"exams",i:I.clip,l:"期末試験",c:T.red},{id:"freeroom",i:I.pin,l:"空き教室",c:T.green},{id:"reg",i:I.pen,l:"履修登録",c:T.accent},{id:"acadCal",i:I.cal,l:"学年暦",c:"#6366f1"},{id:"pomo",i:I.play,l:"ポモドーロ",c:T.green},{id:"music",i:I.music,l:"ミュージック",c:"#FF2D55"},{id:"events",i:I.event,l:"イベント",c:T.orange},{id:"reviews",i:I.star,l:"授業レビュー",c:"#c6a236"},{id:"bmarks",i:I.bmark,l:"ブックマーク",c:T.txD}].map(n=>
             <button key={n.id} onClick={()=>{setView(n.id);setMoreOpen(false);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,padding:"16px 8px",borderRadius:12,border:view===n.id?`2px solid ${n.c}`:`1px solid ${T.bd}`,background:view===n.id?`${n.c}10`:T.bg3,cursor:"pointer",transition:"all .12s"}}>
               <span style={{color:n.c,display:"flex"}}>{n.i}</span>
               <span style={{fontSize:12,fontWeight:view===n.id?600:400,color:view===n.id?T.txH:T.tx}}>{n.l}</span>
@@ -199,6 +199,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
     {title:"コミュニケーション",items:[
       {id:"friends",i:I.users,l:"友達",b:pendingFriendCount},
       {id:"pocket",i:I.clip,l:"ポケット（端末間メモ）"},
+      {id:"music",i:I.music,l:"ミュージック"},
     ]},
     {title:"学習",items:[
       {id:"grades",i:I.grad,l:"成績"},

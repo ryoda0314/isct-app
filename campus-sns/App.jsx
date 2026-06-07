@@ -24,6 +24,8 @@ import { ChatView } from "./views/ChatView.jsx";
 import { MatView } from "./views/MatView.jsx";
 import { DMView } from "./views/DMView.jsx";
 import { PocketView } from "./views/PocketView.jsx";
+import { MusicView } from "./views/MusicView.jsx";
+import { MiniPlayer } from "./components/MiniPlayer.jsx";
 import { NotifView } from "./views/NotifView.jsx";
 import { EventView } from "./views/EventView.jsx";
 import { GradeView } from "./views/GradeView.jsx";
@@ -914,7 +916,7 @@ export default function App(){
 
   // --- DESKTOP ---
   if(!mob){
-    const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",acadCal:"学年暦",exams:"期末試験",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",navigation:"キャンパスナビ",friends:"友達",circles:"サークル",admin:"管理者",freshman:"新入生掲示板",reg:"履修登録補助",freeroom:"空き教室",attendance:"出欠管理"};
+    const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",acadCal:"学年暦",exams:"期末試験",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",navigation:"キャンパスナビ",friends:"友達",circles:"サークル",admin:"管理者",freshman:"新入生掲示板",reg:"履修登録補助",freeroom:"空き教室",attendance:"出欠管理",music:"ミュージック"};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:"タイムライン",chat:"チャット",assignments:"課題",materials:"教材",reviews:"レビュー"}[ch]}</>;
       if(view==="dept"&&cd){const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?cd.name:cd.prefix}</span> {nameOnly?"":`${cd.name} `}— {{timeline:"タイムライン",chat:"チャット"}[ch]||""}</>;}
@@ -938,6 +940,7 @@ export default function App(){
           {view==="friends"&&(L?<LockedView title="友達"/>:<FriendsView mob={false} setView={setView} {...friendProps}/>)}
           {view==="dm"&&(L?<LockedView title="DM"/>:TR?<TelecomBlockView title="DMは現在利用できません"/>:<DMView mob={false} setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/>)}
           {view==="pocket"&&(L?<LockedView title="ポケット"/>:<PocketView mob={false}/>)}
+          {view==="music"&&(L?<LockedView title="ミュージック"/>:<MusicView mob={false}/>)}
           {view==="notif"&&(L?<LockedView title="通知"/>:<NotifView mob={false}/>)}
           {view==="grades"&&(L?<LockedView title="成績"/>:<GradeView mob={false}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
@@ -963,6 +966,7 @@ export default function App(){
         {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
         <DemoBanner/>
         <Toasts/>
+        <MiniPlayer mob={false} onOpen={()=>setView("music")}/>
         {themeMode==="mizukumori"&&<FogOverlay/>}
         <style>{`*{box-sizing:border-box;margin:0;padding:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}input,textarea{-webkit-user-select:text;user-select:text}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${T.bd};border-radius:3px}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit}@keyframes mnSpin{to{transform:rotate(360deg)}}`}</style>
       </div>
@@ -986,6 +990,7 @@ export default function App(){
         {view==="friends"&&(L?<><MHdr title="友達" back={mBack}/><LockedView title="友達"/></>:<><MHdr title="友達" back={mBack}/><FriendsView mob setView={setView} {...friendProps}/></>)}
         {view==="dm"&&(L?<><MHdr title="DM"/><LockedView title="DM"/></>:TR?<><MHdr title="DM"/><TelecomBlockView title="DMは現在利用できません" onBack={goBack}/></>:<><MHdr title="DM"/><DMView mob setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/></>)}
         {view==="pocket"&&(L?<><MHdr title="ポケット" back={mBack}/><LockedView title="ポケット"/></>:<><MHdr title="ポケット" back={mBack}/><PocketView mob/></>)}
+        {view==="music"&&(L?<><MHdr title="ミュージック" back={mBack}/><LockedView title="ミュージック"/></>:<><MHdr title="ミュージック" back={mBack}/><MusicView mob/></>)}
         {view==="notif"&&(L?<><MHdr title="通知" back={mBack}/><LockedView title="通知"/></>:<><MHdr title="通知" back={mBack}/><NotifView mob/></>)}
         {view==="grades"&&(L?<><MHdr title="成績" back={mBack}/><LockedView title="成績"/></>:<><MHdr title="成績" back={mBack}/><GradeView mob/></>)}
         {view==="pomo"&&<><MHdr title="ポモドーロ" back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
@@ -1007,6 +1012,7 @@ export default function App(){
         {view==="admin"&&<><MHdr title="管理者" back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
         {view==="freshman"&&<><MHdr title="新入生掲示板" back={mBack}/><FreshmanBoardView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/></>}
       </div>
+      <MiniPlayer mob onOpen={()=>setView("music")}/>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread} hasMed={medPrimary}/>
       <div className="sa-bottom" style={{background:T.bg2,flexShrink:0}}/>
       {showMembers&&(view==="course"&&cc?<MemberPanel mList={members} onlineList={online} col={cc.col} onClose={()=>setShowMembers(false)}/>:view==="dept"&&cd?<MemberPanel mList={deptMembers} onlineList={online} col={cd.col||T.accent} onClose={()=>setShowMembers(false)}/>:null)}

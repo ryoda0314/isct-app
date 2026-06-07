@@ -26,6 +26,7 @@ const APPS = [
   { id: "navigation", icon: I.map,       label: "マップ",       color: C.blue },
   { id: "reviews",    icon: I.star,      label: "レビュー",     color: C.orange },
   { id: "pomo",       icon: I.play,      label: "ポモドーロ",   color: C.red },
+  { id: "music",      icon: I.music,     label: "ミュージック", color: C.pink },
   { id: "bmarks",     icon: I.bmark,     label: "ブックマーク", color: C.indigo },
   { id: "search",     icon: I.search,    label: "検索",         color: C.gray },
   { id: "profile",    icon: I.user1,     label: "プロフィール", color: C.teal },
