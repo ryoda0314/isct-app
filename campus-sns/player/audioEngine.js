@@ -12,6 +12,7 @@ let queue = [];              // 再生キュー（トラックの配列）
 let index = -1;             // queue 内の現在位置
 let repeat = 'off';          // 'off' | 'all' | 'one'
 let shuffle = false;
+let volume = 1;              // 0..1（iOS Safari は audio.volume を無視するため効かない場合がある）
 const listeners = new Set();
 
 // 購読側に渡すスナップショット（イミュータブル）。useSyncExternalStore のため参照を維持する。
@@ -23,6 +24,7 @@ let snapshot = {
   repeat: 'off',
   shuffle: false,
   hasQueue: false,
+  volume: 1,
 };
 
 const isClient = () => typeof window !== 'undefined';
@@ -36,6 +38,7 @@ function rebuildSnapshot() {
     repeat,
     shuffle,
     hasQueue: queue.length > 0,
+    volume: audio ? audio.volume : volume,
   };
 }
 
@@ -48,6 +51,7 @@ function ensureAudio() {
   if (audio || !isClient()) return audio;
   audio = new Audio();
   audio.preload = 'metadata';
+  audio.volume = volume;
   // iOS PWA でもバックグラウンド継続するための基本設定
   audio.setAttribute('playsinline', '');
 
@@ -164,6 +168,13 @@ export const engine = {
   seek(sec) {
     const a = ensureAudio();
     if (a && Number.isFinite(sec)) { a.currentTime = Math.max(0, sec); emit(); }
+  },
+
+  setVolume(v) {
+    volume = Math.min(1, Math.max(0, Number(v)));
+    const a = ensureAudio();
+    if (a) a.volume = volume;
+    emit();
   },
 
   toggleRepeat() {

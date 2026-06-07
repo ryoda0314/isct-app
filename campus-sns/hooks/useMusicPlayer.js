@@ -19,6 +19,7 @@ export function useMusicPlayer() {
     next: engine.next,
     prev: engine.prev,
     seek: engine.seek,
+    setVolume: engine.setVolume,
     toggleRepeat: engine.toggleRepeat,
     toggleShuffle: engine.toggleShuffle,
     syncQueue: engine.syncQueue,

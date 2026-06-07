@@ -966,7 +966,7 @@ export default function App(){
         {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
         <DemoBanner/>
         <Toasts/>
-        <MiniPlayer mob={false} onOpen={()=>setView("music")}/>
+        <MiniPlayer mob={false} view={view} ch={ch} onOpen={()=>setView("music")}/>
         {themeMode==="mizukumori"&&<FogOverlay/>}
         <style>{`*{box-sizing:border-box;margin:0;padding:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}input,textarea{-webkit-user-select:text;user-select:text}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${T.bd};border-radius:3px}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit}@keyframes mnSpin{to{transform:rotate(360deg)}}`}</style>
       </div>
@@ -1012,7 +1012,7 @@ export default function App(){
         {view==="admin"&&<><MHdr title="管理者" back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
         {view==="freshman"&&<><MHdr title="新入生掲示板" back={mBack}/><FreshmanBoardView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/></>}
       </div>
-      <MiniPlayer mob onOpen={()=>setView("music")}/>
+      <MiniPlayer mob view={view} ch={ch} onOpen={()=>setView("music")}/>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread} hasMed={medPrimary}/>
       <div className="sa-bottom" style={{background:T.bg2,flexShrink:0}}/>
       {showMembers&&(view==="course"&&cc?<MemberPanel mList={members} onlineList={online} col={cc.col} onClose={()=>setShowMembers(false)}/>:view==="dept"&&cd?<MemberPanel mList={deptMembers} onlineList={online} col={cd.col||T.accent} onClose={()=>setShowMembers(false)}/>:null)}
