@@ -91,6 +91,23 @@ async function acquireT2Token(loginId) {
     ]);
     console.log('[T2Token] After login submit:', page.url());
 
+    // 既定がOTP/Token等のアカウントはmatrix画面でなくIG認証選択画面に着地する。
+    // value=GridAuthOption(Matrix) を持つ <select> があれば選択して送信し matrix画面へ遷移する。
+    const matrixSwitchSelect = await page.evaluate(() => {
+      const input = document.querySelector('input[name="message3"]');
+      if (input && input.type === 'password') return null;
+      const opt = Array.from(document.querySelectorAll('option')).find((o) => o.value === 'GridAuthOption');
+      return opt ? (opt.closest('select')?.name || null) : null;
+    });
+    if (matrixSwitchSelect) {
+      console.log('[T2Token] Switching second factor to Matrix via', matrixSwitchSelect);
+      await page.select(`select[name="${matrixSwitchSelect}"]`, 'GridAuthOption');
+      await Promise.all([
+        page.waitForNavigation({ waitUntil: 'networkidle2' }),
+        page.click('input[name="OK"]'),
+      ]);
+    }
+
     // Step 3: Matrix authentication
     try {
       await page.waitForSelector('input[name="message3"]', { visible: true });

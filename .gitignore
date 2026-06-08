@@ -35,3 +35,8 @@ android/
 ios/
 www/
 .vercel
+
+# Portal login debug snapshots (may contain student ID / matrix card)
+debug-portal/
+data/trace-portal-*
+data/trace-*.png
