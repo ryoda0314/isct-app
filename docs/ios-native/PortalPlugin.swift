@@ -517,7 +517,10 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
     private func handleTitechPageFinished(_ url: String) {
         if !loginDone {
             injectTitechLogin()
-        } else if !matrixDone, matrixJson != nil, url.contains("AUTHMETHOD=IG") {
+        } else if !matrixDone, matrixJson != nil, url.contains("GetAccess/Login") {
+            // onetime/Token既定アカウントは AUTHMETHOD=IG のOTP画面に着地し、
+            // Matrixへ切り替えると URL から AUTHMETHOD=IG が消えた /GetAccess/Login の
+            // matrix画面へ遷移する。両方を拾うため GetAccess/Login で判定する。
             injectTitechMatrix()
         } else {
             matrixDone = true
@@ -552,7 +555,24 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         let js = """
         (function(){
             var inp=document.querySelector('input[name="message3"]');
-            if(!inp)return '';
+            if(!inp){
+                // matrix入力欄が無い＝OTP/Token等の認証選択画面。
+                // value=GridAuthOption(Matrix)のオプションを持つselectを選びOK送信し、matrix画面へ遷移する。
+                var opts=document.getElementsByTagName('option');
+                for(var k=0;k<opts.length;k++){
+                    if(opts[k].value==='GridAuthOption'){
+                        var sel=opts[k].parentNode;
+                        while(sel&&sel.tagName!=='SELECT')sel=sel.parentNode;
+                        if(sel){
+                            sel.value='GridAuthOption';
+                            var sok=document.querySelector('input[name="OK"]');
+                            if(sok)sok.click();
+                            return 'switch';
+                        }
+                    }
+                }
+                return '';
+            }
             var inputs=['message3','message4','message5'];
             var labels=[];
             var cells=document.querySelectorAll('td,th');

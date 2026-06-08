@@ -1,0 +1,1223 @@
+{
+  "ver": [
+    {
+      "v": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit",
+      "db": "postgres"
+    }
+  ],
+  "cumTop": [
+    {
+      "io_blks": 6331,
+      "blks_read": 1,
+      "blks_written": 0,
+      "temp_read": 640,
+      "calls": 5,
+      "total_ms": 14367,
+      "mean_ms": 2873.38,
+      "query": "with f as (\n      \n-- CTE with sane arg_modes, arg_names, and arg_types.\n-- All three are always of the same length.\n-- All three include all args, including OUT and TABLE args.\nwith functions as (\n  select\n    *,\n    -- proargmodes is null when all arg modes are IN\n    coalesce(\n      p.proargmodes,\n      array_fill($1::text, array[cardinality(coalesce(p.proallargtypes, p.proargtypes))])\n    ) as"
+    },
+    {
+      "io_blks": 403,
+      "blks_read": 403,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 2,
+      "total_ms": 242,
+      "mean_ms": 120.91,
+      "query": "WITH pgrst_source AS ( SELECT \"public\".\"syllabus_courses\".\"name\", \"public\".\"syllabus_courses\".\"code\", \"public\".\"syllabus_courses\".\"section\", \"public\".\"syllabus_courses\".\"day\", \"public\".\"syllabus_courses\".\"per\", \"public\".\"syllabus_courses\".\"period_start\", \"public\".\"syllabus_courses\".\"period_end\", \"public\".\"syllabus_courses\".\"room\", \"public\".\"syllabus_courses\".\"quarter\", \"public\".\"syllabus_courses\"."
+    },
+    {
+      "io_blks": 176,
+      "blks_read": 176,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 2,
+      "total_ms": 242,
+      "mean_ms": 120.97,
+      "query": "WITH pgrst_source AS ( SELECT \"public\".\"syllabus_courses\".\"name\", \"public\".\"syllabus_courses\".\"section\", \"public\".\"syllabus_courses\".\"day\", \"public\".\"syllabus_courses\".\"per\", \"public\".\"syllabus_courses\".\"period_start\", \"public\".\"syllabus_courses\".\"period_end\", \"public\".\"syllabus_courses\".\"room\", \"public\".\"syllabus_courses\".\"quarter\", \"public\".\"syllabus_courses\".\"code\" FROM \"public\".\"syllabus_cours"
+    },
+    {
+      "io_blks": 172,
+      "blks_read": 172,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 675,
+      "total_ms": 13978,
+      "mean_ms": 20.71,
+      "query": "WITH pgrst_source AS ( SELECT \"public\".\"syllabus_courses\".\"code\", \"public\".\"syllabus_courses\".\"section\", \"public\".\"syllabus_courses\".\"day\", \"public\".\"syllabus_courses\".\"per\", \"public\".\"syllabus_courses\".\"period_start\", \"public\".\"syllabus_courses\".\"period_end\", \"public\".\"syllabus_courses\".\"room\", \"public\".\"syllabus_courses\".\"quarter\", \"public\".\"syllabus_courses\".\"building\", \"public\".\"syllabus_cours"
+    },
+    {
+      "io_blks": 121,
+      "blks_read": 121,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 6,
+      "total_ms": 9005,
+      "mean_ms": 1500.88,
+      "query": "WITH\n-- Recursively get the base types of domains\nbase_types AS (\n  WITH RECURSIVE\n  recurse AS (\n    SELECT\n      oid,\n      typbasetype,\n      typnamespace AS base_namespace,\n      COALESCE(NULLIF(typbasetype, $2), oid) AS base_type\n    FROM pg_type\n    UNION\n    SELECT\n      t.oid,\n      b.typbasetype,\n      b.typnamespace AS base_namespace,\n      COALESCE(NULLIF(b.typbasetype, $3), b.oid) AS b"
+    },
+    {
+      "io_blks": 107,
+      "blks_read": 107,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 45,
+      "total_ms": 455,
+      "mean_ms": 10.12,
+      "query": "WITH pgrst_source AS ( SELECT \"public\".\"course_books\".\"id\", \"public\".\"course_books\".\"course_code\", \"public\".\"course_books\".\"kind\", \"public\".\"course_books\".\"raw_line\", \"public\".\"course_books\".\"confidence\", \"public\".\"course_books\".\"status\", row_to_json(\"course_books_books_1\".*)::jsonb AS \"books\" FROM \"public\".\"course_books\" LEFT JOIN LATERAL ( SELECT \"books_1\".\"id\", \"books_1\".\"isbn13\", \"books_1\".\"ti"
+    },
+    {
+      "io_blks": 86,
+      "blks_read": 86,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 21,
+      "total_ms": 992,
+      "mean_ms": 47.25,
+      "query": "WITH pgrst_source AS ( SELECT \"public\".\"syllabus_courses\".\"code\", \"public\".\"syllabus_courses\".\"name\", \"public\".\"syllabus_courses\".\"room\", \"public\".\"syllabus_courses\".\"building\", \"public\".\"syllabus_courses\".\"day\", \"public\".\"syllabus_courses\".\"period_start\", \"public\".\"syllabus_courses\".\"period_end\", \"public\".\"syllabus_courses\".\"quarter\" FROM \"public\".\"syllabus_courses\" WHERE  \"public\".\"syllabus_cour"
+    },
+    {
+      "io_blks": 80,
+      "blks_read": 80,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 6,
+      "total_ms": 1417,
+      "mean_ms": 236.18,
+      "query": "WITH\n-- Recursively get the base types of domains\nbase_types AS (\n  WITH RECURSIVE\n  recurse AS (\n    SELECT\n      oid,\n      typbasetype,\n      typnamespace AS base_namespace,\n      COALESCE(NULLIF(typbasetype, $3), oid) AS base_type\n    FROM pg_type\n    UNION\n    SELECT\n      t.oid,\n      b.typbasetype,\n      b.typnamespace AS base_namespace,\n      COALESCE(NULLIF(b.typbasetype, $4), b.oid) AS b"
+    },
+    {
+      "io_blks": 79,
+      "blks_read": 79,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 15,
+      "total_ms": 9406,
+      "mean_ms": 627.05,
+      "query": "SELECT t.oid, t.typname, t.typsend, t.typreceive, t.typoutput, t.typinput,\n       coalesce(d.typelem, t.typelem), coalesce(r.rngsubtype, $1), ARRAY (\n  SELECT a.atttypid\n  FROM pg_attribute AS a\n  WHERE a.attrelid = t.typrelid AND a.attnum > $2 AND NOT a.attisdropped\n  ORDER BY a.attnum\n)\n\nFROM pg_type AS t\nLEFT JOIN pg_type AS d ON t.typbasetype = d.oid\nLEFT JOIN pg_range AS r ON r.rngtypid = t.o"
+    },
+    {
+      "io_blks": 78,
+      "blks_read": 78,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 953,
+      "total_ms": 5359,
+      "mean_ms": 5.62,
+      "query": "WITH pgrst_source AS ( SELECT \"public\".\"course_enrollments\".\"course_moodle_id\" FROM \"public\".\"course_enrollments\" WHERE  \"public\".\"course_enrollments\".\"moodle_user_id\" = $1   LIMIT $2 OFFSET $3 )  SELECT $4::bigint AS total_result_set, pg_catalog.count(_postgrest_t) AS page_total, coalesce(json_agg(_postgrest_t), $5) AS body, nullif(current_setting($6, $7), $8) AS response_headers, nullif(current_"
+    },
+    {
+      "io_blks": 64,
+      "blks_read": 64,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 2,
+      "total_ms": 194,
+      "mean_ms": 97.07,
+      "query": "WITH pgrst_source AS ( SELECT \"public\".\"moodle_capture\".* FROM \"public\".\"moodle_capture\"  ORDER BY \"public\".\"moodle_capture\".\"captured_at\" DESC  LIMIT $1 OFFSET $2 )  SELECT $3::bigint AS total_result_set, pg_catalog.count(_postgrest_t) AS page_total, coalesce(json_agg(_postgrest_t), $4) AS body, nullif(current_setting($5, $6), $7) AS response_headers, nullif(current_setting($8, $9), $10) AS respo"
+    },
+    {
+      "io_blks": 59,
+      "blks_read": 59,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 45,
+      "total_ms": 384,
+      "mean_ms": 8.54,
+      "query": "WITH pgrst_source AS ( SELECT \"public\".\"syllabus_courses\".\"code\", \"public\".\"syllabus_courses\".\"section\", \"public\".\"syllabus_courses\".\"syllabus_url\" FROM \"public\".\"syllabus_courses\" WHERE  \"public\".\"syllabus_courses\".\"year\" = $1 AND  \"public\".\"syllabus_courses\".\"code\" = ANY ($2)    LIMIT $3 OFFSET $4 )  SELECT $5::bigint AS total_result_set, pg_catalog.count(_postgrest_t) AS page_total, coalesce(js"
+    },
+    {
+      "io_blks": 58,
+      "blks_read": 58,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 4,
+      "total_ms": 51,
+      "mean_ms": 12.7,
+      "query": "WITH pgrst_source AS ( SELECT \"public\".\"course_grading\".\"course_code\", \"public\".\"course_grading\".\"raw_text\", \"public\".\"course_grading\".\"breakdown\", \"public\".\"course_grading\".\"total_percent\", \"public\".\"course_grading\".\"has_breakdown\", \"public\".\"course_grading\".\"is_pass_fail\", \"public\".\"course_grading\".\"source_url\" FROM \"public\".\"course_grading\" WHERE  \"public\".\"course_grading\".\"syllabus_year\" = $1 "
+    },
+    {
+      "io_blks": 53,
+      "blks_read": 23,
+      "blks_written": 30,
+      "temp_read": 0,
+      "calls": 4719,
+      "total_ms": 118169,
+      "mean_ms": 25.04,
+      "query": "with sub_tables as (\n        select\n        rr.entity\n        from\n        pg_publication_tables pub,\n        lateral (\n        select\n        format($9, pub.schemaname, pub.tablename)::regclass entity\n        ) rr\n        where\n        pub.pubname = $1\n        and pub.schemaname like (case $2 when $10 then $11 else $2 end) escape $12\n        and pub.tablename like (case $3 when $13 then $14 else "
+    },
+    {
+      "io_blks": 40,
+      "blks_read": 40,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 79293,
+      "total_ms": 564734,
+      "mean_ms": 7.12,
+      "query": "SELECT wal->>$5 as type,\n       wal->>$6 as schema,\n       wal->>$7 as table,\n       COALESCE(wal->>$8, $9) as columns,\n       COALESCE(wal->>$10, $11) as record,\n       COALESCE(wal->>$12, $13) as old_record,\n       wal->>$14 as commit_timestamp,\n       subscription_ids,\n       errors,\n       slot_changes_count\nFROM realtime.list_changes($1, $2, $3, $4)"
+    },
+    {
+      "io_blks": 38,
+      "blks_read": 18,
+      "blks_written": 20,
+      "temp_read": 0,
+      "calls": 38,
+      "total_ms": 728,
+      "mean_ms": 19.16,
+      "query": "WITH pgrst_source AS (INSERT INTO \"public\".\"moodle_capture\"(\"course_count\", \"moodle_user_id\", \"raw_courses\", \"user_name\") SELECT \"pgrst_body\".\"course_count\", \"pgrst_body\".\"moodle_user_id\", \"pgrst_body\".\"raw_courses\", \"pgrst_body\".\"user_name\" FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"course_count\", \"moodle_user_id\", \"raw_courses\", \"user_name\" FROM json_to_record(pgrst_payload.js"
+    },
+    {
+      "io_blks": 37,
+      "blks_read": 37,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 8,
+      "total_ms": 6538,
+      "mean_ms": 817.29,
+      "query": "SELECT schemaname, tablename\n  FROM pg_publication_tables\n  WHERE pubname = $1"
+    },
+    {
+      "io_blks": 34,
+      "blks_read": 34,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 181,
+      "total_ms": 2557,
+      "mean_ms": 14.13,
+      "query": "WITH pgrst_source AS ( SELECT \"public\".\"med_sessions\".* FROM \"public\".\"med_sessions\" WHERE  \"public\".\"med_sessions\".\"lct_cd\" = ANY ($1)  AND  \"public\".\"med_sessions\".\"year\" = $2  ORDER BY \"public\".\"med_sessions\".\"date\" ASC , \"public\".\"med_sessions\".\"time_start\" ASC  LIMIT $3 OFFSET $4 )  SELECT $5::bigint AS total_result_set, pg_catalog.count(_postgrest_t) AS page_total, coalesce(json_agg(_postgre"
+    },
+    {
+      "io_blks": 32,
+      "blks_read": 32,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 333,
+      "total_ms": 1071,
+      "mean_ms": 3.22,
+      "query": "WITH pgrst_source AS ( SELECT \"public\".\"user_credentials\".\"encrypted_payload\" FROM \"public\".\"user_credentials\" WHERE  \"public\".\"user_credentials\".\"login_id\" = $1   LIMIT $2 OFFSET $3 )  SELECT $4::bigint AS total_result_set, pg_catalog.count(_postgrest_t) AS page_total, coalesce(json_agg(_postgrest_t)->$5, $6) AS body, nullif(current_setting($7, $8), $9) AS response_headers, nullif(current_setting"
+    },
+    {
+      "io_blks": 26,
+      "blks_read": 26,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 5,
+      "total_ms": 2592,
+      "mean_ms": 518.41,
+      "query": "SELECT\n    tbl.schemaname,\n    tbl.tablename,\n    tbl.quoted_name,\n    tbl.is_table,\n    json_agg(a) as columns\n  FROM\n    (\n      SELECT\n        n.nspname as schemaname,\n        c.relname as tablename,\n        (quote_ident(n.nspname) || $1 || quote_ident(c.relname)) as quoted_name,\n        $2 as is_table\n      FROM\n        pg_catalog.pg_class c\n        JOIN pg_catalog.pg_namespace n ON n.oid = c."
+    }
+  ],
+  "stmtDiff": null,
+  "statio": [
+    {
+      "relname": "syllabus_courses",
+      "idx_blks_hit": 19028,
+      "heap_blks_hit": 27332,
+      "idx_blks_read": 150,
+      "heap_blks_read": 753,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "course_enrollments",
+      "idx_blks_hit": 4962,
+      "heap_blks_hit": 11805,
+      "idx_blks_read": 49,
+      "heap_blks_read": 62,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "moodle_capture",
+      "idx_blks_hit": 303,
+      "heap_blks_hit": 78,
+      "idx_blks_read": 8,
+      "heap_blks_read": 3,
+      "toast_blks_read": 67
+    },
+    {
+      "relname": "course_grading",
+      "idx_blks_hit": 74,
+      "heap_blks_hit": 18,
+      "idx_blks_read": 27,
+      "heap_blks_read": 36,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "course_books",
+      "idx_blks_hit": 911,
+      "heap_blks_hit": 429,
+      "idx_blks_read": 22,
+      "heap_blks_read": 37,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "profiles",
+      "idx_blks_hit": 19968,
+      "heap_blks_hit": 69023,
+      "idx_blks_read": 4,
+      "heap_blks_read": 11,
+      "toast_blks_read": 44
+    },
+    {
+      "relname": "books",
+      "idx_blks_hit": 1373,
+      "heap_blks_hit": 570,
+      "idx_blks_read": 15,
+      "heap_blks_read": 42,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "user_credentials",
+      "idx_blks_hit": 731,
+      "heap_blks_hit": 503,
+      "idx_blks_read": 2,
+      "heap_blks_read": 47,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "med_sessions",
+      "idx_blks_hit": 1142,
+      "heap_blks_hit": 4458,
+      "idx_blks_read": 8,
+      "heap_blks_read": 30,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "exam_schedules",
+      "idx_blks_hit": 2705,
+      "heap_blks_hit": 9218,
+      "idx_blks_read": 7,
+      "heap_blks_read": 12,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "dm_conversations",
+      "idx_blks_hit": 9784,
+      "heap_blks_hit": 3386,
+      "idx_blks_read": 8,
+      "heap_blks_read": 4,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "email_auth",
+      "idx_blks_hit": 717,
+      "heap_blks_hit": 234,
+      "idx_blks_read": 4,
+      "heap_blks_read": 7,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "user_tokens",
+      "idx_blks_hit": 4605,
+      "heap_blks_hit": 4396,
+      "idx_blks_read": 2,
+      "heap_blks_read": 8,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "friendships",
+      "idx_blks_hit": 2286,
+      "heap_blks_hit": 79,
+      "idx_blks_read": 8,
+      "heap_blks_read": 1,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "circle_members",
+      "idx_blks_hit": 2171,
+      "heap_blks_hit": 198,
+      "idx_blks_read": 6,
+      "heap_blks_read": 1,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "notifications",
+      "idx_blks_hit": 537,
+      "heap_blks_hit": 190,
+      "idx_blks_read": 6,
+      "heap_blks_read": 1,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "freshman_posts",
+      "idx_blks_hit": 71,
+      "heap_blks_hit": 39,
+      "idx_blks_read": 5,
+      "heap_blks_read": 1,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "email_verification",
+      "idx_blks_hit": 17,
+      "heap_blks_hit": 32,
+      "idx_blks_read": 2,
+      "heap_blks_read": 4,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "ng_words",
+      "idx_blks_hit": 2,
+      "heap_blks_hit": 4,
+      "idx_blks_read": 2,
+      "heap_blks_read": 4,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "matrix_scan_log",
+      "idx_blks_hit": 32,
+      "heap_blks_hit": 12,
+      "idx_blks_read": 4,
+      "heap_blks_read": 2,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "dm_messages",
+      "idx_blks_hit": 5164,
+      "heap_blks_hit": 4519,
+      "idx_blks_read": 4,
+      "heap_blks_read": 1,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "user_mutes",
+      "idx_blks_hit": 10564,
+      "heap_blks_hit": 4,
+      "idx_blks_read": 4,
+      "heap_blks_read": 1,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "attendance_records",
+      "idx_blks_hit": 1674,
+      "heap_blks_hit": 1272,
+      "idx_blks_read": 4,
+      "heap_blks_read": 1,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "reports",
+      "idx_blks_hit": 265,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 5,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "circle_roles",
+      "idx_blks_hit": 67,
+      "heap_blks_hit": 23,
+      "idx_blks_read": 3,
+      "heap_blks_read": 1,
+      "toast_blks_read": 0
+    }
+  ],
+  "tablestat": [
+    {
+      "relname": "syllabus_courses",
+      "idx_scan": 5314,
+      "seq_scan": 21,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 253905,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "dm_messages",
+      "idx_scan": 240,
+      "seq_scan": 4262,
+      "n_tup_del": 0,
+      "n_tup_ins": 6,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 6,
+      "seq_tup_read": 221157,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "exam_schedules",
+      "idx_scan": 332,
+      "seq_scan": 332,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 193888,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "profiles",
+      "idx_scan": 11985,
+      "seq_scan": 319,
+      "n_tup_del": 0,
+      "n_tup_ins": 4,
+      "n_tup_upd": 308,
+      "n_dead_tup": 0,
+      "n_live_tup": 266,
+      "seq_tup_read": 84532,
+      "n_tup_hot_upd": 28,
+      "last_autovacuum": "2026-06-08 09:11",
+      "autovacuum_count": 3
+    },
+    {
+      "relname": "dm_conversations",
+      "idx_scan": 0,
+      "seq_scan": 3357,
+      "n_tup_del": 0,
+      "n_tup_ins": 1,
+      "n_tup_upd": 7,
+      "n_dead_tup": 7,
+      "n_live_tup": 1,
+      "seq_tup_read": 20497,
+      "n_tup_hot_upd": 7,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "notifications",
+      "idx_scan": 0,
+      "seq_scan": 175,
+      "n_tup_del": 0,
+      "n_tup_ins": 8,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 8,
+      "seq_tup_read": 6524,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "attendance_records",
+      "idx_scan": 377,
+      "seq_scan": 111,
+      "n_tup_del": 44,
+      "n_tup_ins": 277,
+      "n_tup_upd": 3,
+      "n_dead_tup": 21,
+      "n_live_tup": 278,
+      "seq_tup_read": 5275,
+      "n_tup_hot_upd": 2,
+      "last_autovacuum": "2026-06-08 05:57",
+      "autovacuum_count": 1
+    },
+    {
+      "relname": "messages",
+      "idx_scan": 0,
+      "seq_scan": 104,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 6,
+      "n_dead_tup": 4,
+      "n_live_tup": 0,
+      "seq_tup_read": 3120,
+      "n_tup_hot_upd": 6,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "posts",
+      "idx_scan": 0,
+      "seq_scan": 236,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 2360,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "user_tokens",
+      "idx_scan": 3143,
+      "seq_scan": 7,
+      "n_tup_del": 22,
+      "n_tup_ins": 27,
+      "n_tup_upd": 18,
+      "n_dead_tup": 23,
+      "n_live_tup": 6,
+      "seq_tup_read": 1552,
+      "n_tup_hot_upd": 17,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "site_settings",
+      "idx_scan": 1418,
+      "seq_scan": 218,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 1090,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "ng_words",
+      "idx_scan": 0,
+      "seq_scan": 2,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 720,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "circles",
+      "idx_scan": 24,
+      "seq_scan": 537,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 537,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "announcements",
+      "idx_scan": 0,
+      "seq_scan": 309,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 309,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "email_verification",
+      "idx_scan": 4,
+      "seq_scan": 8,
+      "n_tup_del": 4,
+      "n_tup_ins": 4,
+      "n_tup_upd": 0,
+      "n_dead_tup": 4,
+      "n_live_tup": 0,
+      "seq_tup_read": 144,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "music_tracks",
+      "idx_scan": 0,
+      "seq_scan": 31,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 124,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "freshman_posts",
+      "idx_scan": 12,
+      "seq_scan": 22,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 2,
+      "n_dead_tup": 2,
+      "n_live_tup": 0,
+      "seq_tup_read": 66,
+      "n_tup_hot_upd": 2,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "circle_messages",
+      "idx_scan": 0,
+      "seq_scan": 18,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 18,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "email_auth",
+      "idx_scan": 264,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 3,
+      "n_tup_upd": 1,
+      "n_dead_tup": 0,
+      "n_live_tup": 3,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 1,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "admin_users",
+      "idx_scan": 714,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "user_credentials",
+      "idx_scan": 379,
+      "seq_scan": 0,
+      "n_tup_del": 12,
+      "n_tup_ins": 16,
+      "n_tup_upd": 18,
+      "n_dead_tup": 21,
+      "n_live_tup": 4,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 12,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "circle_members",
+      "idx_scan": 489,
+      "seq_scan": 18,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "circle_roles",
+      "idx_scan": 24,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "event_rsvps",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "friendships",
+      "idx_scan": 676,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 1,
+      "n_tup_upd": 1,
+      "n_dead_tup": 1,
+      "n_live_tup": 1,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    }
+  ],
+  "sizes": [
+    {
+      "bytes": 11984896,
+      "relname": "syllabus_courses",
+      "table_size": "5464 kB",
+      "total_size": "11 MB",
+      "idx_toast_size": "6240 kB"
+    },
+    {
+      "bytes": 6070272,
+      "relname": "course_grading",
+      "table_size": "4520 kB",
+      "total_size": "5928 kB",
+      "idx_toast_size": "1408 kB"
+    },
+    {
+      "bytes": 5373952,
+      "relname": "books",
+      "table_size": "3888 kB",
+      "total_size": "5248 kB",
+      "idx_toast_size": "1360 kB"
+    },
+    {
+      "bytes": 3063808,
+      "relname": "course_textbooks_raw",
+      "table_size": "1792 kB",
+      "total_size": "2992 kB",
+      "idx_toast_size": "1200 kB"
+    },
+    {
+      "bytes": 2981888,
+      "relname": "med_sessions",
+      "table_size": "2104 kB",
+      "total_size": "2912 kB",
+      "idx_toast_size": "808 kB"
+    },
+    {
+      "bytes": 2736128,
+      "relname": "course_books",
+      "table_size": "1336 kB",
+      "total_size": "2672 kB",
+      "idx_toast_size": "1336 kB"
+    },
+    {
+      "bytes": 2498560,
+      "relname": "moodle_capture",
+      "table_size": "56 kB",
+      "total_size": "2440 kB",
+      "idx_toast_size": "2384 kB"
+    },
+    {
+      "bytes": 1040384,
+      "relname": "course_enrollments",
+      "table_size": "464 kB",
+      "total_size": "1016 kB",
+      "idx_toast_size": "552 kB"
+    },
+    {
+      "bytes": 663552,
+      "relname": "guest_sessions",
+      "table_size": "360 kB",
+      "total_size": "648 kB",
+      "idx_toast_size": "288 kB"
+    },
+    {
+      "bytes": 606208,
+      "relname": "profiles",
+      "table_size": "56 kB",
+      "total_size": "592 kB",
+      "idx_toast_size": "536 kB"
+    },
+    {
+      "bytes": 524288,
+      "relname": "user_credentials",
+      "table_size": "456 kB",
+      "total_size": "512 kB",
+      "idx_toast_size": "56 kB"
+    },
+    {
+      "bytes": 491520,
+      "relname": "admin_audit_log",
+      "table_size": "248 kB",
+      "total_size": "480 kB",
+      "idx_toast_size": "232 kB"
+    },
+    {
+      "bytes": 294912,
+      "relname": "exam_schedules",
+      "table_size": "96 kB",
+      "total_size": "288 kB",
+      "idx_toast_size": "192 kB"
+    },
+    {
+      "bytes": 147456,
+      "relname": "attendance_records",
+      "table_size": "48 kB",
+      "total_size": "144 kB",
+      "idx_toast_size": "96 kB"
+    },
+    {
+      "bytes": 122880,
+      "relname": "ng_words",
+      "table_size": "32 kB",
+      "total_size": "120 kB",
+      "idx_toast_size": "88 kB"
+    },
+    {
+      "bytes": 122880,
+      "relname": "email_auth",
+      "table_size": "56 kB",
+      "total_size": "120 kB",
+      "idx_toast_size": "64 kB"
+    },
+    {
+      "bytes": 114688,
+      "relname": "dm_conversations",
+      "table_size": "8192 bytes",
+      "total_size": "112 kB",
+      "idx_toast_size": "104 kB"
+    },
+    {
+      "bytes": 90112,
+      "relname": "user_tokens",
+      "table_size": "32 kB",
+      "total_size": "88 kB",
+      "idx_toast_size": "56 kB"
+    },
+    {
+      "bytes": 81920,
+      "relname": "matrix_scan_log",
+      "table_size": "16 kB",
+      "total_size": "80 kB",
+      "idx_toast_size": "64 kB"
+    },
+    {
+      "bytes": 81920,
+      "relname": "friendships",
+      "table_size": "8192 bytes",
+      "total_size": "80 kB",
+      "idx_toast_size": "72 kB"
+    },
+    {
+      "bytes": 81920,
+      "relname": "circle_members",
+      "table_size": "8192 bytes",
+      "total_size": "80 kB",
+      "idx_toast_size": "72 kB"
+    },
+    {
+      "bytes": 65536,
+      "relname": "bookmarks",
+      "table_size": "8192 bytes",
+      "total_size": "64 kB",
+      "idx_toast_size": "56 kB"
+    },
+    {
+      "bytes": 65536,
+      "relname": "email_verification",
+      "table_size": "8192 bytes",
+      "total_size": "64 kB",
+      "idx_toast_size": "56 kB"
+    },
+    {
+      "bytes": 65536,
+      "relname": "music_tracks",
+      "table_size": "8192 bytes",
+      "total_size": "64 kB",
+      "idx_toast_size": "56 kB"
+    },
+    {
+      "bytes": 65536,
+      "relname": "notifications",
+      "table_size": "8192 bytes",
+      "total_size": "64 kB",
+      "idx_toast_size": "56 kB"
+    }
+  ],
+  "unused": [
+    {
+      "size": "344 kB",
+      "relname": "course_grading",
+      "idx_scan": 0,
+      "indexrelname": "idx_grading_course"
+    },
+    {
+      "size": "320 kB",
+      "relname": "course_textbooks_raw",
+      "idx_scan": 0,
+      "indexrelname": "idx_textbooks_raw_course_year"
+    },
+    {
+      "size": "304 kB",
+      "relname": "syllabus_courses",
+      "idx_scan": 0,
+      "indexrelname": "idx_syllabus_day"
+    },
+    {
+      "size": "304 kB",
+      "relname": "syllabus_courses",
+      "idx_scan": 0,
+      "indexrelname": "idx_syllabus_building"
+    },
+    {
+      "size": "240 kB",
+      "relname": "syllabus_courses",
+      "idx_scan": 0,
+      "indexrelname": "idx_syllabus_dept_year"
+    },
+    {
+      "size": "184 kB",
+      "relname": "books",
+      "idx_scan": 0,
+      "indexrelname": "idx_books_title"
+    },
+    {
+      "size": "144 kB",
+      "relname": "med_sessions",
+      "idx_scan": 0,
+      "indexrelname": "idx_med_sessions_faculty"
+    },
+    {
+      "size": "136 kB",
+      "relname": "course_grading",
+      "idx_scan": 0,
+      "indexrelname": "idx_grading_year"
+    },
+    {
+      "size": "120 kB",
+      "relname": "course_books",
+      "idx_scan": 0,
+      "indexrelname": "idx_course_books_book_id"
+    },
+    {
+      "size": "120 kB",
+      "relname": "course_books",
+      "idx_scan": 0,
+      "indexrelname": "idx_course_books_status"
+    },
+    {
+      "size": "104 kB",
+      "relname": "med_sessions",
+      "idx_scan": 0,
+      "indexrelname": "idx_med_sessions_date"
+    },
+    {
+      "size": "88 kB",
+      "relname": "admin_audit_log",
+      "idx_scan": 0,
+      "indexrelname": "idx_audit_log_action"
+    },
+    {
+      "size": "88 kB",
+      "relname": "guest_sessions",
+      "idx_scan": 0,
+      "indexrelname": "idx_gs_mode"
+    },
+    {
+      "size": "88 kB",
+      "relname": "books",
+      "idx_scan": 0,
+      "indexrelname": "idx_books_isbn13"
+    },
+    {
+      "size": "72 kB",
+      "relname": "course_grading",
+      "idx_scan": 0,
+      "indexrelname": "idx_grading_has_breakdown"
+    },
+    {
+      "size": "72 kB",
+      "relname": "admin_audit_log",
+      "idx_scan": 0,
+      "indexrelname": "idx_audit_log_admin"
+    },
+    {
+      "size": "64 kB",
+      "relname": "guest_sessions",
+      "idx_scan": 0,
+      "indexrelname": "idx_gs_created"
+    },
+    {
+      "size": "56 kB",
+      "relname": "guest_sessions",
+      "idx_scan": 0,
+      "indexrelname": "idx_gs_session"
+    },
+    {
+      "size": "40 kB",
+      "relname": "exam_schedules",
+      "idx_scan": 0,
+      "indexrelname": "idx_exam_code"
+    },
+    {
+      "size": "16 kB",
+      "relname": "notifications",
+      "idx_scan": 0,
+      "indexrelname": "idx_notifications_unread"
+    },
+    {
+      "size": "16 kB",
+      "relname": "circle_messages",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_messages_channel"
+    },
+    {
+      "size": "16 kB",
+      "relname": "posts",
+      "idx_scan": 0,
+      "indexrelname": "idx_posts_course"
+    },
+    {
+      "size": "16 kB",
+      "relname": "bookmarks",
+      "idx_scan": 0,
+      "indexrelname": "idx_bookmarks_user"
+    },
+    {
+      "size": "16 kB",
+      "relname": "dm_conversations",
+      "idx_scan": 0,
+      "indexrelname": "idx_dm_conversations_user1"
+    },
+    {
+      "size": "16 kB",
+      "relname": "dm_conversations",
+      "idx_scan": 0,
+      "indexrelname": "idx_dm_conversations_user2"
+    },
+    {
+      "size": "16 kB",
+      "relname": "notifications",
+      "idx_scan": 0,
+      "indexrelname": "idx_notifications_user"
+    },
+    {
+      "size": "16 kB",
+      "relname": "messages",
+      "idx_scan": 0,
+      "indexrelname": "idx_messages_course"
+    },
+    {
+      "size": "16 kB",
+      "relname": "music_tracks",
+      "idx_scan": 0,
+      "indexrelname": "music_tracks_public_idx"
+    },
+    {
+      "size": "16 kB",
+      "relname": "moodle_capture",
+      "idx_scan": 0,
+      "indexrelname": "idx_moodle_capture_user"
+    },
+    {
+      "size": "16 kB",
+      "relname": "music_tracks",
+      "idx_scan": 0,
+      "indexrelname": "music_tracks_owner_idx"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "push_subscriptions",
+      "idx_scan": 0,
+      "indexrelname": "idx_push_subs_user"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "ng_word_logs",
+      "idx_scan": 0,
+      "indexrelname": "idx_ng_word_logs_user"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "ng_word_logs",
+      "idx_scan": 0,
+      "indexrelname": "idx_ng_word_logs_created"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "circle_fee_logs",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_fee_logs_circle"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "freshman_posts",
+      "idx_scan": 0,
+      "indexrelname": "idx_fp_pinned"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "circle_fee_assignments",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_fee_assignments_user"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "circle_join_applications",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_join_apps_user"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "reports",
+      "idx_scan": 0,
+      "indexrelname": "idx_reports_target"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "group_messages",
+      "idx_scan": 0,
+      "indexrelname": "idx_group_messages_group"
+    }
+  ],
+  "cache": [
+    {
+      "hit_pct": 99.33,
+      "heap_hit": 162223,
+      "heap_read": 1094
+    }
+  ],
+  "activityNow": [
+    {
+      "pid": 43222,
+      "dur_s": 34670.2,
+      "query": "START_REPLICATION SLOT supabase_realtime_messages_replication_slot_2_103_2_dc6dcf1 LOGICAL 0/0 (proto_version '2', publication_names 'supabase_realtime_messages_publication', binary 'true')",
+      "state": "active",
+      "usename": "supabase_admin",
+      "wait_event": "WalSenderWaitForWal",
+      "wait_event_type": "Client"
+    },
+    {
+      "pid": 104112,
+      "dur_s": 0,
+      "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"q\" FROM json_to_record(pgrst_payload.json_data) AS _(\"q\" text) LIMIT 1) pgrst_body , LATERAL (SELECT \"public\".\"diag_sql\"(\"q\" := pgrst_body.\"q\") pgrst_scalar) pgrst_call) SELECT null::bi",
+      "state": "active",
+      "usename": "authenticator",
+      "wait_event": null,
+      "wait_event_type": null
+    },
+    {
+      "pid": 1178,
+      "dur_s": null,
+      "query": "",
+      "state": null,
+      "usename": "supabase_admin",
+      "wait_event": "Extension",
+      "wait_event_type": "Extension"
+    },
+    {
+      "pid": 1179,
+      "dur_s": null,
+      "query": "",
+      "state": null,
+      "usename": "supabase_admin",
+      "wait_event": "Extension",
+      "wait_event_type": "Extension"
+    }
+  ]
+}

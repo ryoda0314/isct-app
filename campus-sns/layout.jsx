@@ -203,17 +203,21 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
       {id:"pocket",i:I.clip,l:"ポケット（端末間メモ）"},
       {id:"music",i:I.music,l:"ミュージック"},
     ]},
-    {title:"学習",items:[
+    {title:"成績・評価",items:[
       {id:"grades",i:I.grad,l:"成績"},
-      {id:"attendance",i:I.attend,l:"出欠管理"},
-      {id:"textbooks",i:I.book,l:"マイ教科書"},
       {id:"grading",i:I.bar,l:"成績割合"},
-      {id:"pdftools",i:I.file,l:"PDF結合"},
-      {id:"exams",i:I.clip,l:"期末試験"},
-      {id:"freeroom",i:I.pin,l:"空き教室"},
+      {id:"reviews",i:I.star,l:"授業レビュー"},
+    ]},
+    {title:"履修・授業",items:[
       {id:"reg",i:I.pen,l:"履修登録補助"},
       {id:"acadCal",i:I.cal,l:"学年暦"},
-      {id:"reviews",i:I.star,l:"授業レビュー"},
+      {id:"exams",i:I.clip,l:"期末試験"},
+      {id:"freeroom",i:I.pin,l:"空き教室"},
+      {id:"attendance",i:I.attend,l:"出欠管理"},
+    ]},
+    {title:"学習ツール",items:[
+      {id:"textbooks",i:I.book,l:"マイ教科書"},
+      {id:"pdftools",i:I.file,l:"PDF結合"},
       {id:"pomo",i:I.play,l:"ポモドーロタイマー"},
     ]},
     {title:"キャンパス",items:[
