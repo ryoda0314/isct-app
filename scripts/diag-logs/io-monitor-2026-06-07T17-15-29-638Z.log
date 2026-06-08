@@ -1,0 +1,7 @@
+# IO monitor 開始 2026-06-07T17:15:29.639Z  interval=4s hours=0.004
+# しきい値: latency>1500ms / blks_read>20000 / WAL>50MB → ALERT
+[17:15:29] lat=157ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:15:34] lat=140ms blks_read=+1 WAL=+0.0MB slotLag=0.0MB
+[17:15:38] lat=84ms blks_read=+9 WAL=+0.1MB slotLag=0.0MB
+[17:15:42] lat=98ms blks_read=+2 WAL=+0.0MB slotLag=0.0MB
+# IO monitor 終了 2026-06-07T17:15:47.215Z

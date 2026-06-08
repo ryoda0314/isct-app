@@ -1,0 +1,1424 @@
+{
+  "ver": [
+    {
+      "v": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit",
+      "db": "postgres"
+    }
+  ],
+  "cumTop": [
+    {
+      "io_blks": 2533,
+      "blks_read": 1,
+      "blks_written": 0,
+      "temp_read": 256,
+      "calls": 2,
+      "total_ms": 12887,
+      "mean_ms": 6443.32,
+      "query": "with f as (\n      \n-- CTE with sane arg_modes, arg_names, and arg_types.\n-- All three are always of the same length.\n-- All three include all args, including OUT and TABLE args.\nwith functions as (\n  select\n    *,\n    -- proargmodes is null when all arg modes are IN\n    coalesce(\n      p.proargmodes,\n      array_fill($1::text, array[cardinality(coalesce(p.proallargtypes, p.proargtypes))])\n    ) as"
+    },
+    {
+      "io_blks": 121,
+      "blks_read": 121,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 4,
+      "total_ms": 8905,
+      "mean_ms": 2226.16,
+      "query": "WITH\n-- Recursively get the base types of domains\nbase_types AS (\n  WITH RECURSIVE\n  recurse AS (\n    SELECT\n      oid,\n      typbasetype,\n      typnamespace AS base_namespace,\n      COALESCE(NULLIF(typbasetype, $2), oid) AS base_type\n    FROM pg_type\n    UNION\n    SELECT\n      t.oid,\n      b.typbasetype,\n      b.typnamespace AS base_namespace,\n      COALESCE(NULLIF(b.typbasetype, $3), b.oid) AS b"
+    },
+    {
+      "io_blks": 91,
+      "blks_read": 91,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 1,
+      "total_ms": 41,
+      "mean_ms": 41.5,
+      "query": "WITH pgrst_source AS ( SELECT \"public\".\"syllabus_courses\".\"code\", \"public\".\"syllabus_courses\".\"section\", \"public\".\"syllabus_courses\".\"day\", \"public\".\"syllabus_courses\".\"per\", \"public\".\"syllabus_courses\".\"period_start\", \"public\".\"syllabus_courses\".\"period_end\", \"public\".\"syllabus_courses\".\"room\", \"public\".\"syllabus_courses\".\"quarter\", \"public\".\"syllabus_courses\".\"building\", \"public\".\"syllabus_cours"
+    },
+    {
+      "io_blks": 80,
+      "blks_read": 80,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 4,
+      "total_ms": 1301,
+      "mean_ms": 325.2,
+      "query": "WITH\n-- Recursively get the base types of domains\nbase_types AS (\n  WITH RECURSIVE\n  recurse AS (\n    SELECT\n      oid,\n      typbasetype,\n      typnamespace AS base_namespace,\n      COALESCE(NULLIF(typbasetype, $3), oid) AS base_type\n    FROM pg_type\n    UNION\n    SELECT\n      t.oid,\n      b.typbasetype,\n      b.typnamespace AS base_namespace,\n      COALESCE(NULLIF(b.typbasetype, $4), b.oid) AS b"
+    },
+    {
+      "io_blks": 79,
+      "blks_read": 79,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 3,
+      "total_ms": 8720,
+      "mean_ms": 2906.76,
+      "query": "SELECT t.oid, t.typname, t.typsend, t.typreceive, t.typoutput, t.typinput,\n       coalesce(d.typelem, t.typelem), coalesce(r.rngsubtype, $1), ARRAY (\n  SELECT a.atttypid\n  FROM pg_attribute AS a\n  WHERE a.attrelid = t.typrelid AND a.attnum > $2 AND NOT a.attisdropped\n  ORDER BY a.attnum\n)\n\nFROM pg_type AS t\nLEFT JOIN pg_type AS d ON t.typbasetype = d.oid\nLEFT JOIN pg_range AS r ON r.rngtypid = t.o"
+    },
+    {
+      "io_blks": 38,
+      "blks_read": 38,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 270,
+      "total_ms": 61090,
+      "mean_ms": 226.26,
+      "query": "SELECT wal->>$5 as type,\n       wal->>$6 as schema,\n       wal->>$7 as table,\n       COALESCE(wal->>$8, $9) as columns,\n       COALESCE(wal->>$10, $11) as record,\n       COALESCE(wal->>$12, $13) as old_record,\n       wal->>$14 as commit_timestamp,\n       subscription_ids,\n       errors,\n       slot_changes_count\nFROM realtime.list_changes($1, $2, $3, $4)"
+    },
+    {
+      "io_blks": 37,
+      "blks_read": 37,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 1,
+      "total_ms": 6481,
+      "mean_ms": 6481.38,
+      "query": "SELECT schemaname, tablename\n  FROM pg_publication_tables\n  WHERE pubname = $1"
+    },
+    {
+      "io_blks": 26,
+      "blks_read": 26,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 2,
+      "total_ms": 2276,
+      "mean_ms": 1138.08,
+      "query": "SELECT\n    tbl.schemaname,\n    tbl.tablename,\n    tbl.quoted_name,\n    tbl.is_table,\n    json_agg(a) as columns\n  FROM\n    (\n      SELECT\n        n.nspname as schemaname,\n        c.relname as tablename,\n        (quote_ident(n.nspname) || $1 || quote_ident(c.relname)) as quoted_name,\n        $2 as is_table\n      FROM\n        pg_catalog.pg_class c\n        JOIN pg_catalog.pg_namespace n ON n.oid = c."
+    },
+    {
+      "io_blks": 23,
+      "blks_read": 23,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 4,
+      "total_ms": 3942,
+      "mean_ms": 985.6,
+      "query": "with sub_tables as (\n        select\n        rr.entity\n        from\n        pg_publication_tables pub,\n        lateral (\n        select\n        format($9, pub.schemaname, pub.tablename)::regclass entity\n        ) rr\n        where\n        pub.pubname = $1\n        and pub.schemaname like (case $2 when $10 then $11 else $2 end) escape $12\n        and pub.tablename like (case $3 when $13 then $14 else "
+    },
+    {
+      "io_blks": 21,
+      "blks_read": 21,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 1,
+      "total_ms": 596,
+      "mean_ms": 596.39,
+      "query": "create or replace function public.diag_sql(q text)\r\nreturns jsonb\r\nlanguage plpgsql\r\nsecurity definer\r\nset search_path = public, extensions, pg_catalog, pg_temp\r\nas $$\r\ndeclare\r\n  result jsonb;\r\n  norm   text := lower(ltrim(q));\r\nbegin\r\n  -- 読み取り専用ガード: SELECT または WITH で始まること\r\n  if norm !~ '^(select|with)\\s' then\r\n    raise exception 'diag_sql: only read-only SELECT/WITH queries are allowed';\r\n  en"
+    },
+    {
+      "io_blks": 11,
+      "blks_read": 11,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 8,
+      "total_ms": 41,
+      "mean_ms": 5.07,
+      "query": "WITH pgrst_source AS ( SELECT \"public\".\"profiles\".* FROM \"public\".\"profiles\" WHERE  \"public\".\"profiles\".\"moodle_id\" = ANY ($1)    LIMIT $2 OFFSET $3 )  SELECT $4::bigint AS total_result_set, pg_catalog.count(_postgrest_t) AS page_total, coalesce(json_agg(_postgrest_t), $5) AS body, nullif(current_setting($6, $7), $8) AS response_headers, nullif(current_setting($9, $10), $11) AS response_status, $1"
+    },
+    {
+      "io_blks": 9,
+      "blks_read": 9,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 4,
+      "total_ms": 262,
+      "mean_ms": 65.46,
+      "query": "with recursive\npks_fks as (\n  -- pk + fk referencing col\n  select\n    contype::text as contype,\n    conname,\n    array_length(conkey, $3) as ncol,\n    conrelid as resorigtbl,\n    col as resorigcol,\n    ord\n  from pg_constraint\n  left join lateral unnest(conkey) with ordinality as _(col, ord) on $4\n  where contype IN ($5, $6)\n  union\n  -- fk referenced col\n  select\n    concat(contype, $7) as contyp"
+    },
+    {
+      "io_blks": 8,
+      "blks_read": 8,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 14,
+      "total_ms": 28188,
+      "mean_ms": 2013.45,
+      "query": "SELECT * FROM pgbouncer.get_auth($1)"
+    },
+    {
+      "io_blks": 7,
+      "blks_read": 7,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 1,
+      "total_ms": 987,
+      "mean_ms": 986.7,
+      "query": "CREATE TABLE IF NOT EXISTS realtime.messages_2026_06_06\nPARTITION OF realtime.messages\nFOR VALUES FROM ('2026-06-06') TO ('2026-06-07')"
+    },
+    {
+      "io_blks": 7,
+      "blks_read": 7,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 1,
+      "total_ms": 2,
+      "mean_ms": 1.57,
+      "query": "WITH pgrst_source AS ( SELECT \"public\".\"course_enrollments\".\"course_moodle_id\" FROM \"public\".\"course_enrollments\" WHERE  \"public\".\"course_enrollments\".\"moodle_user_id\" = $1   LIMIT $2 OFFSET $3 )  SELECT $4::bigint AS total_result_set, pg_catalog.count(_postgrest_t) AS page_total, coalesce(json_agg(_postgrest_t), $5) AS body, nullif(current_setting($6, $7), $8) AS response_headers, nullif(current_"
+    },
+    {
+      "io_blks": 4,
+      "blks_read": 4,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 1,
+      "total_ms": 4,
+      "mean_ms": 3.7,
+      "query": "WITH pgrst_source AS (INSERT INTO \"public\".\"user_tokens\"(\"fullname\", \"login_id\", \"moodle_user_id\", \"updated_at\", \"wstoken\") SELECT \"pgrst_body\".\"fullname\", \"pgrst_body\".\"login_id\", \"pgrst_body\".\"moodle_user_id\", \"pgrst_body\".\"updated_at\", \"pgrst_body\".\"wstoken\" FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"fullname\", \"login_id\", \"moodle_user_id\", \"updated_at\", \"wstoken\" FROM json_t"
+    },
+    {
+      "io_blks": 3,
+      "blks_read": 3,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 4,
+      "total_ms": 258,
+      "mean_ms": 64.56,
+      "query": "WITH pgrst_source AS (UPDATE \"public\".\"profiles\" SET \"last_active_at\" = \"pgrst_body\".\"last_active_at\" FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"last_active_at\" FROM json_to_record(pgrst_payload.json_data) AS _(\"last_active_at\" timestamp with time zone) ) pgrst_body  WHERE  \"public\".\"profiles\".\"moodle_id\" = $2 AND  ( \"public\".\"profiles\".\"last_active_at\" IS NULL OR  \"public\".\"pro"
+    },
+    {
+      "io_blks": 3,
+      "blks_read": 3,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 8,
+      "total_ms": 130,
+      "mean_ms": 16.24,
+      "query": "WITH pgrst_source AS ( SELECT \"public\".\"user_tokens\".\"wstoken\", \"public\".\"user_tokens\".\"moodle_user_id\", \"public\".\"user_tokens\".\"fullname\" FROM \"public\".\"user_tokens\" WHERE  \"public\".\"user_tokens\".\"login_id\" = $1   LIMIT $2 OFFSET $3 )  SELECT $4::bigint AS total_result_set, pg_catalog.count(_postgrest_t) AS page_total, coalesce(json_agg(_postgrest_t)->$5, $6) AS body, nullif(current_setting($7, $"
+    },
+    {
+      "io_blks": 2,
+      "blks_read": 2,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 7,
+      "total_ms": 1719,
+      "mean_ms": 245.64,
+      "query": "with\nrole_setting as (\n  select r.rolname, unnest(r.rolconfig) as setting\n  from pg_auth_members m\n  join pg_roles r on r.oid = m.roleid\n  where member = current_user::regrole::oid\n),\nkv_settings AS (\n  SELECT\n    rolname,\n    substr(setting, $1, strpos(setting, $2) - $3) as key,\n    lower(substr(setting, strpos(setting, $4) + $5)) as value\n  FROM role_setting\n),\niso_setting AS (\n  SELECT rolname,"
+    },
+    {
+      "io_blks": 2,
+      "blks_read": 2,
+      "blks_written": 0,
+      "temp_read": 0,
+      "calls": 1,
+      "total_ms": 711,
+      "mean_ms": 711.42,
+      "query": "-- =============================================================\r\n-- 一時診断RPC: Disk IO 原因追求用（読み取り専用 / service_role 限定）\r\n-- Supabase Dashboard の SQL Editor で「1回だけ」実行する。\r\n-- 調査が終わったら必ず末尾の DROP（_diag-io-rpc-teardown.sql）を実行して削除すること。\r\n--\r\n-- 安全策:\r\n--  - SELECT / WITH で始まる読み取りクエリ以外は実行を拒否（書き込み・DDL不可）\r\n--  - EXECUTE 権限は service_role のみ。anon / authenticated からは剥奪。\r\n--  - SECURITY DEFINER だが search_path を固定"
+    }
+  ],
+  "stmtDiff": null,
+  "statio": [
+    {
+      "relname": "syllabus_courses",
+      "idx_blks_hit": 11,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 37,
+      "heap_blks_read": 61,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "profiles",
+      "idx_blks_hit": 37,
+      "heap_blks_hit": 49,
+      "idx_blks_read": 4,
+      "heap_blks_read": 7,
+      "toast_blks_read": 7
+    },
+    {
+      "relname": "course_enrollments",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 4,
+      "heap_blks_read": 5,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "user_tokens",
+      "idx_blks_hit": 16,
+      "heap_blks_hit": 12,
+      "idx_blks_read": 2,
+      "heap_blks_read": 6,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "dm_conversations",
+      "idx_blks_hit": 12,
+      "heap_blks_hit": 9,
+      "idx_blks_read": 4,
+      "heap_blks_read": 1,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "user_mutes",
+      "idx_blks_hit": 15,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 4,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "user_blocks",
+      "idx_blks_hit": 52,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 4,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "dm_messages",
+      "idx_blks_hit": 6,
+      "heap_blks_hit": 23,
+      "idx_blks_read": 2,
+      "heap_blks_read": 1,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "user_credentials",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 2,
+      "heap_blks_read": 1,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "site_settings",
+      "idx_blks_hit": 2,
+      "heap_blks_hit": 2,
+      "idx_blks_read": 2,
+      "heap_blks_read": 1,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "admin_users",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 2,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "circles",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 0,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "circle_recruits",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 0,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "circle_roles",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 0,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "circle_event_rsvps",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 0,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "messages",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 0,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "books",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 0,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "circle_events",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 0,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "circle_join_applications",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 0,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "circle_announcements",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 0,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "circle_fee_plans",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 0,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "circle_fiscal_periods",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 0,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "circle_fee_assignments",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 0,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "circle_fee_logs",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 0,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    },
+    {
+      "relname": "event_rsvps",
+      "idx_blks_hit": 0,
+      "heap_blks_hit": 0,
+      "idx_blks_read": 0,
+      "heap_blks_read": 0,
+      "toast_blks_read": 0
+    }
+  ],
+  "tablestat": [
+    {
+      "relname": "dm_messages",
+      "idx_scan": 0,
+      "seq_scan": 24,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 1224,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "dm_conversations",
+      "idx_scan": 0,
+      "seq_scan": 10,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 60,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "profiles",
+      "idx_scan": 25,
+      "seq_scan": 1,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 2,
+      "n_dead_tup": 2,
+      "n_live_tup": 0,
+      "seq_tup_read": 1,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "shared_materials",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "event_rsvps",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "friendships",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "comments",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "user_tokens",
+      "idx_scan": 11,
+      "seq_scan": 0,
+      "n_tup_del": 2,
+      "n_tup_ins": 1,
+      "n_tup_upd": 0,
+      "n_dead_tup": 2,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "announcements",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "bookmarks",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "circle_roles",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "user_credentials",
+      "idx_scan": 1,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "admin_users",
+      "idx_scan": 1,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "email_auth",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "ng_words",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "email_verification",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "ng_word_logs",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "reports",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "posts",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "admin_audit_log",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "site_settings",
+      "idx_scan": 3,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "circles",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "notifications",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "circle_members",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    },
+    {
+      "relname": "messages",
+      "idx_scan": 0,
+      "seq_scan": 0,
+      "n_tup_del": 0,
+      "n_tup_ins": 0,
+      "n_tup_upd": 0,
+      "n_dead_tup": 0,
+      "n_live_tup": 0,
+      "seq_tup_read": 0,
+      "n_tup_hot_upd": 0,
+      "last_autovacuum": null,
+      "autovacuum_count": 0
+    }
+  ],
+  "sizes": [
+    {
+      "bytes": 11984896,
+      "relname": "syllabus_courses",
+      "table_size": "5464 kB",
+      "total_size": "11 MB",
+      "idx_toast_size": "6240 kB"
+    },
+    {
+      "bytes": 6070272,
+      "relname": "course_grading",
+      "table_size": "4520 kB",
+      "total_size": "5928 kB",
+      "idx_toast_size": "1408 kB"
+    },
+    {
+      "bytes": 5373952,
+      "relname": "books",
+      "table_size": "3888 kB",
+      "total_size": "5248 kB",
+      "idx_toast_size": "1360 kB"
+    },
+    {
+      "bytes": 3063808,
+      "relname": "course_textbooks_raw",
+      "table_size": "1792 kB",
+      "total_size": "2992 kB",
+      "idx_toast_size": "1200 kB"
+    },
+    {
+      "bytes": 2981888,
+      "relname": "med_sessions",
+      "table_size": "2104 kB",
+      "total_size": "2912 kB",
+      "idx_toast_size": "808 kB"
+    },
+    {
+      "bytes": 2736128,
+      "relname": "course_books",
+      "table_size": "1336 kB",
+      "total_size": "2672 kB",
+      "idx_toast_size": "1336 kB"
+    },
+    {
+      "bytes": 2334720,
+      "relname": "moodle_capture",
+      "table_size": "48 kB",
+      "total_size": "2280 kB",
+      "idx_toast_size": "2232 kB"
+    },
+    {
+      "bytes": 1040384,
+      "relname": "course_enrollments",
+      "table_size": "464 kB",
+      "total_size": "1016 kB",
+      "idx_toast_size": "552 kB"
+    },
+    {
+      "bytes": 663552,
+      "relname": "guest_sessions",
+      "table_size": "360 kB",
+      "total_size": "648 kB",
+      "idx_toast_size": "288 kB"
+    },
+    {
+      "bytes": 606208,
+      "relname": "profiles",
+      "table_size": "56 kB",
+      "total_size": "592 kB",
+      "idx_toast_size": "536 kB"
+    },
+    {
+      "bytes": 516096,
+      "relname": "user_credentials",
+      "table_size": "448 kB",
+      "total_size": "504 kB",
+      "idx_toast_size": "56 kB"
+    },
+    {
+      "bytes": 491520,
+      "relname": "admin_audit_log",
+      "table_size": "248 kB",
+      "total_size": "480 kB",
+      "idx_toast_size": "232 kB"
+    },
+    {
+      "bytes": 294912,
+      "relname": "exam_schedules",
+      "table_size": "96 kB",
+      "total_size": "288 kB",
+      "idx_toast_size": "192 kB"
+    },
+    {
+      "bytes": 122880,
+      "relname": "ng_words",
+      "table_size": "32 kB",
+      "total_size": "120 kB",
+      "idx_toast_size": "88 kB"
+    },
+    {
+      "bytes": 122880,
+      "relname": "email_auth",
+      "table_size": "56 kB",
+      "total_size": "120 kB",
+      "idx_toast_size": "64 kB"
+    },
+    {
+      "bytes": 114688,
+      "relname": "dm_conversations",
+      "table_size": "8192 bytes",
+      "total_size": "112 kB",
+      "idx_toast_size": "104 kB"
+    },
+    {
+      "bytes": 90112,
+      "relname": "user_tokens",
+      "table_size": "32 kB",
+      "total_size": "88 kB",
+      "idx_toast_size": "56 kB"
+    },
+    {
+      "bytes": 81920,
+      "relname": "matrix_scan_log",
+      "table_size": "16 kB",
+      "total_size": "80 kB",
+      "idx_toast_size": "64 kB"
+    },
+    {
+      "bytes": 81920,
+      "relname": "friendships",
+      "table_size": "8192 bytes",
+      "total_size": "80 kB",
+      "idx_toast_size": "72 kB"
+    },
+    {
+      "bytes": 81920,
+      "relname": "circle_members",
+      "table_size": "8192 bytes",
+      "total_size": "80 kB",
+      "idx_toast_size": "72 kB"
+    },
+    {
+      "bytes": 65536,
+      "relname": "bookmarks",
+      "table_size": "8192 bytes",
+      "total_size": "64 kB",
+      "idx_toast_size": "56 kB"
+    },
+    {
+      "bytes": 65536,
+      "relname": "email_verification",
+      "table_size": "8192 bytes",
+      "total_size": "64 kB",
+      "idx_toast_size": "56 kB"
+    },
+    {
+      "bytes": 65536,
+      "relname": "music_tracks",
+      "table_size": "8192 bytes",
+      "total_size": "64 kB",
+      "idx_toast_size": "56 kB"
+    },
+    {
+      "bytes": 65536,
+      "relname": "notifications",
+      "table_size": "8192 bytes",
+      "total_size": "64 kB",
+      "idx_toast_size": "56 kB"
+    },
+    {
+      "bytes": 57344,
+      "relname": "freshman_posts",
+      "table_size": "8192 bytes",
+      "total_size": "56 kB",
+      "idx_toast_size": "48 kB"
+    }
+  ],
+  "unused": [
+    {
+      "size": "344 kB",
+      "relname": "course_grading",
+      "idx_scan": 0,
+      "indexrelname": "idx_grading_course"
+    },
+    {
+      "size": "320 kB",
+      "relname": "course_textbooks_raw",
+      "idx_scan": 0,
+      "indexrelname": "idx_textbooks_raw_course_year"
+    },
+    {
+      "size": "304 kB",
+      "relname": "syllabus_courses",
+      "idx_scan": 0,
+      "indexrelname": "idx_syllabus_building"
+    },
+    {
+      "size": "304 kB",
+      "relname": "syllabus_courses",
+      "idx_scan": 0,
+      "indexrelname": "idx_syllabus_day"
+    },
+    {
+      "size": "296 kB",
+      "relname": "syllabus_courses",
+      "idx_scan": 0,
+      "indexrelname": "idx_syllabus_quarter"
+    },
+    {
+      "size": "240 kB",
+      "relname": "syllabus_courses",
+      "idx_scan": 0,
+      "indexrelname": "idx_syllabus_dept_year"
+    },
+    {
+      "size": "200 kB",
+      "relname": "course_books",
+      "idx_scan": 0,
+      "indexrelname": "idx_course_books_course_year"
+    },
+    {
+      "size": "184 kB",
+      "relname": "books",
+      "idx_scan": 0,
+      "indexrelname": "idx_books_title"
+    },
+    {
+      "size": "160 kB",
+      "relname": "course_enrollments",
+      "idx_scan": 0,
+      "indexrelname": "idx_course_enrollments_course"
+    },
+    {
+      "size": "144 kB",
+      "relname": "med_sessions",
+      "idx_scan": 0,
+      "indexrelname": "idx_med_sessions_faculty"
+    },
+    {
+      "size": "144 kB",
+      "relname": "med_sessions",
+      "idx_scan": 0,
+      "indexrelname": "idx_med_sessions_lct"
+    },
+    {
+      "size": "136 kB",
+      "relname": "course_grading",
+      "idx_scan": 0,
+      "indexrelname": "idx_grading_year"
+    },
+    {
+      "size": "120 kB",
+      "relname": "course_books",
+      "idx_scan": 0,
+      "indexrelname": "idx_course_books_status"
+    },
+    {
+      "size": "120 kB",
+      "relname": "course_books",
+      "idx_scan": 0,
+      "indexrelname": "idx_course_books_book_id"
+    },
+    {
+      "size": "104 kB",
+      "relname": "med_sessions",
+      "idx_scan": 0,
+      "indexrelname": "idx_med_sessions_date"
+    },
+    {
+      "size": "88 kB",
+      "relname": "books",
+      "idx_scan": 0,
+      "indexrelname": "idx_books_isbn13"
+    },
+    {
+      "size": "88 kB",
+      "relname": "admin_audit_log",
+      "idx_scan": 0,
+      "indexrelname": "idx_audit_log_action"
+    },
+    {
+      "size": "88 kB",
+      "relname": "guest_sessions",
+      "idx_scan": 0,
+      "indexrelname": "idx_gs_mode"
+    },
+    {
+      "size": "72 kB",
+      "relname": "admin_audit_log",
+      "idx_scan": 0,
+      "indexrelname": "idx_audit_log_admin"
+    },
+    {
+      "size": "72 kB",
+      "relname": "course_grading",
+      "idx_scan": 0,
+      "indexrelname": "idx_grading_has_breakdown"
+    },
+    {
+      "size": "64 kB",
+      "relname": "guest_sessions",
+      "idx_scan": 0,
+      "indexrelname": "idx_gs_created"
+    },
+    {
+      "size": "56 kB",
+      "relname": "guest_sessions",
+      "idx_scan": 0,
+      "indexrelname": "idx_gs_session"
+    },
+    {
+      "size": "40 kB",
+      "relname": "moodle_capture",
+      "idx_scan": 0,
+      "indexrelname": "idx_moodle_capture_at"
+    },
+    {
+      "size": "40 kB",
+      "relname": "exam_schedules",
+      "idx_scan": 0,
+      "indexrelname": "idx_exam_code"
+    },
+    {
+      "size": "16 kB",
+      "relname": "circle_roles",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_roles_circle"
+    },
+    {
+      "size": "16 kB",
+      "relname": "pocket_items",
+      "idx_scan": 0,
+      "indexrelname": "pocket_items_owner_created_idx"
+    },
+    {
+      "size": "16 kB",
+      "relname": "music_tracks",
+      "idx_scan": 0,
+      "indexrelname": "music_tracks_owner_idx"
+    },
+    {
+      "size": "16 kB",
+      "relname": "music_tracks",
+      "idx_scan": 0,
+      "indexrelname": "music_tracks_public_idx"
+    },
+    {
+      "size": "16 kB",
+      "relname": "messages",
+      "idx_scan": 0,
+      "indexrelname": "idx_messages_course"
+    },
+    {
+      "size": "16 kB",
+      "relname": "dm_messages",
+      "idx_scan": 0,
+      "indexrelname": "idx_dm_messages_conv"
+    },
+    {
+      "size": "16 kB",
+      "relname": "notifications",
+      "idx_scan": 0,
+      "indexrelname": "idx_notifications_user"
+    },
+    {
+      "size": "16 kB",
+      "relname": "notifications",
+      "idx_scan": 0,
+      "indexrelname": "idx_notifications_unread"
+    },
+    {
+      "size": "16 kB",
+      "relname": "dm_conversations",
+      "idx_scan": 0,
+      "indexrelname": "idx_dm_conversations_user1"
+    },
+    {
+      "size": "16 kB",
+      "relname": "dm_conversations",
+      "idx_scan": 0,
+      "indexrelname": "idx_dm_conversations_user2"
+    },
+    {
+      "size": "16 kB",
+      "relname": "circle_events",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_events_circle"
+    },
+    {
+      "size": "16 kB",
+      "relname": "circle_recruits",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_recruits_circle"
+    },
+    {
+      "size": "16 kB",
+      "relname": "circle_members",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_members_circle"
+    },
+    {
+      "size": "16 kB",
+      "relname": "circle_members",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_members_user"
+    },
+    {
+      "size": "16 kB",
+      "relname": "circle_channels",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_channels_circle"
+    },
+    {
+      "size": "16 kB",
+      "relname": "circle_messages",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_messages_channel"
+    },
+    {
+      "size": "16 kB",
+      "relname": "circle_announcements",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_announcements_circle"
+    },
+    {
+      "size": "16 kB",
+      "relname": "shared_materials",
+      "idx_scan": 0,
+      "indexrelname": "idx_shared_materials_course"
+    },
+    {
+      "size": "16 kB",
+      "relname": "friendships",
+      "idx_scan": 0,
+      "indexrelname": "idx_friendships_requester"
+    },
+    {
+      "size": "16 kB",
+      "relname": "friendships",
+      "idx_scan": 0,
+      "indexrelname": "idx_friendships_addressee"
+    },
+    {
+      "size": "16 kB",
+      "relname": "posts",
+      "idx_scan": 0,
+      "indexrelname": "idx_posts_course"
+    },
+    {
+      "size": "16 kB",
+      "relname": "comments",
+      "idx_scan": 0,
+      "indexrelname": "idx_comments_post"
+    },
+    {
+      "size": "16 kB",
+      "relname": "bookmarks",
+      "idx_scan": 0,
+      "indexrelname": "idx_bookmarks_user"
+    },
+    {
+      "size": "16 kB",
+      "relname": "exam_schedules",
+      "idx_scan": 0,
+      "indexrelname": "idx_exam_date"
+    },
+    {
+      "size": "16 kB",
+      "relname": "exam_schedules",
+      "idx_scan": 0,
+      "indexrelname": "idx_exam_year_quarter"
+    },
+    {
+      "size": "16 kB",
+      "relname": "matrix_scan_log",
+      "idx_scan": 0,
+      "indexrelname": "idx_matrix_scan_log_user_time"
+    },
+    {
+      "size": "16 kB",
+      "relname": "attendance_records",
+      "idx_scan": 0,
+      "indexrelname": "idx_attendance_user"
+    },
+    {
+      "size": "16 kB",
+      "relname": "freshman_posts",
+      "idx_scan": 0,
+      "indexrelname": "idx_fp_category"
+    },
+    {
+      "size": "16 kB",
+      "relname": "moodle_capture",
+      "idx_scan": 0,
+      "indexrelname": "idx_moodle_capture_user"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "circle_categories",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_categories_circle"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "circle_fiscal_periods",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_fiscal_periods_circle"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "ng_word_logs",
+      "idx_scan": 0,
+      "indexrelname": "idx_ng_word_logs_user"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "circle_fee_plans",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_fee_plans_circle"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "ng_word_logs",
+      "idx_scan": 0,
+      "indexrelname": "idx_ng_word_logs_created"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "circle_fee_logs",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_fee_logs_circle"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "circle_fee_assignments",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_fee_assignments_user"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "circle_fee_assignments",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_fee_assignments_circle"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "circle_join_applications",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_join_apps_user"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "circle_join_applications",
+      "idx_scan": 0,
+      "indexrelname": "idx_circle_join_apps_circle"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "freshman_posts",
+      "idx_scan": 0,
+      "indexrelname": "idx_fp_pinned"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "freshman_comments",
+      "idx_scan": 0,
+      "indexrelname": "idx_fc_post"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "reports",
+      "idx_scan": 0,
+      "indexrelname": "idx_reports_target"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "reports",
+      "idx_scan": 0,
+      "indexrelname": "idx_reports_status"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "bookmarks",
+      "idx_scan": 0,
+      "indexrelname": "idx_bookmarks_user_time"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "push_subscriptions",
+      "idx_scan": 0,
+      "indexrelname": "idx_push_subs_user"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "group_members",
+      "idx_scan": 0,
+      "indexrelname": "idx_group_members_user"
+    },
+    {
+      "size": "8192 bytes",
+      "relname": "group_messages",
+      "idx_scan": 0,
+      "indexrelname": "idx_group_messages_group"
+    }
+  ],
+  "cache": [
+    {
+      "hit_pct": 68.62,
+      "heap_hit": 199,
+      "heap_read": 91
+    }
+  ],
+  "activityNow": [
+    {
+      "pid": 1268,
+      "dur_s": 310.9,
+      "query": "START_REPLICATION SLOT supabase_realtime_messages_replication_slot_2_103_2_dc6dcf1 LOGICAL 0/0 (proto_version '2', publication_names 'supabase_realtime_messages_publication', binary 'true')",
+      "state": "active",
+      "usename": "supabase_admin",
+      "wait_event": "WalSenderWaitForWal",
+      "wait_event_type": "Client"
+    },
+    {
+      "pid": 3013,
+      "dur_s": 0,
+      "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"q\" FROM json_to_record(pgrst_payload.json_data) AS _(\"q\" text) LIMIT 1) pgrst_body , LATERAL (SELECT \"public\".\"diag_sql\"(\"q\" := pgrst_body.\"q\") pgrst_scalar) pgrst_call) SELECT null::bi",
+      "state": "active",
+      "usename": "authenticator",
+      "wait_event": null,
+      "wait_event_type": null
+    },
+    {
+      "pid": 3366,
+      "dur_s": 0,
+      "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"q\" FROM json_to_record(pgrst_payload.json_data) AS _(\"q\" text) LIMIT 1) pgrst_body , LATERAL (SELECT \"public\".\"diag_sql\"(\"q\" := pgrst_body.\"q\") pgrst_scalar) pgrst_call) SELECT null::bi",
+      "state": "active",
+      "usename": "authenticator",
+      "wait_event": "ClientRead",
+      "wait_event_type": "Client"
+    },
+    {
+      "pid": 1178,
+      "dur_s": null,
+      "query": "",
+      "state": null,
+      "usename": "supabase_admin",
+      "wait_event": "Extension",
+      "wait_event_type": "Extension"
+    },
+    {
+      "pid": 1179,
+      "dur_s": null,
+      "query": "",
+      "state": null,
+      "usename": "supabase_admin",
+      "wait_event": "Extension",
+      "wait_event_type": "Extension"
+    }
+  ]
+}

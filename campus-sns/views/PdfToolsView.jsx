@@ -499,23 +499,26 @@ export function PdfToolsView({ mob = false }) {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", background: T.bg, color: T.tx, minHeight: 0, overflow: "hidden" }}>
       {inputs}
       {/* sub toolbar */}
-      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${T.bd}`, background: T.bg2 }}>
-        <button onClick={pickFiles} style={btnGhost}>{I.plus}<span style={{ marginLeft: 4 }}>追加</span></button>
-        <button onClick={pickCamera} style={btnGhost} title="カメラで撮影して追加">{camIcon}<span style={{ marginLeft: 4 }}>カメラ</span></button>
+      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: mob ? 6 : 8, padding: mob ? "10px 12px" : "10px 14px", borderBottom: `1px solid ${T.bd}`, background: T.bg2 }}>
+        <button onClick={pickFiles} style={btnGhost} title="PDFを追加">{I.plus}{!mob && <span style={{ marginLeft: 4 }}>追加</span>}</button>
+        <button onClick={pickCamera} style={btnGhost} title="カメラで撮影して追加">{camIcon}{!mob && <span style={{ marginLeft: 4 }}>カメラ</span>}</button>
         <button onClick={clearAll} style={{ ...btnGhost, color: T.txD }} title="すべてクリア">{I.trash}</button>
-        <div style={{ flex: 1, textAlign: "center", fontSize: 12, color: T.txD }}>
-          全 <b style={{ color: T.txH }}>{pages.length}</b> ページ
-        </div>
-        <button onClick={handleExport} disabled={busy} style={btnPrimary}>{I.dl}<span style={{ marginLeft: 5 }}>結合して保存</span></button>
+        <div style={{ flex: 1 }} />
+        {!mob && (
+          <div style={{ fontSize: 12, color: T.txD, whiteSpace: "nowrap", marginRight: 4 }}>
+            全 <b style={{ color: T.txH }}>{pages.length}</b> ページ
+          </div>
+        )}
+        <button onClick={handleExport} disabled={busy} style={btnPrimary}>{I.dl}<span style={{ marginLeft: 5 }}>{mob ? "保存" : "結合して保存"}</span></button>
       </div>
       {err && (
         <div style={{ flexShrink: 0, padding: "8px 14px", background: `${T.red}15`, color: T.red, fontSize: 12.5, fontWeight: 600, borderBottom: `1px solid ${T.red}30` }}>{err}</div>
       )}
-      {!mob && (
-        <div style={{ flexShrink: 0, padding: "6px 14px", fontSize: 11, color: T.txD }}>
-          カードをドラッグして並べ替え／◀▶で移動・🗑で削除・タップで拡大プレビュー
-        </div>
-      )}
+      <div style={{ flexShrink: 0, padding: "6px 14px", fontSize: 11, color: T.txD }}>
+        {mob
+          ? <>全 <b style={{ color: T.txH }}>{pages.length}</b> ページ・タップで拡大／◀▶で並べ替え・🗑で削除</>
+          : "カードをドラッグして並べ替え／◀▶で移動・🗑で削除・タップで拡大プレビュー"}
+      </div>
 
       {/* page grid */}
       <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>

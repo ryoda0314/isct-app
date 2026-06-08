@@ -1,0 +1,135 @@
+# IO monitor 開始 2026-06-07T17:16:10.588Z  interval=120s hours=12
+# しきい値: latency>1500ms / blks_read>20000 / WAL>50MB → ALERT
+[17:16:10] lat=146ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:18:10] lat=118ms blks_read=+18 WAL=+0.1MB slotLag=0.0MB
+[17:20:11] lat=102ms blks_read=+9 WAL=+0.0MB slotLag=0.0MB
+[17:22:11] lat=383ms blks_read=+0 WAL=+0.2MB slotLag=0.0MB
+[17:24:12] lat=143ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:26:12] lat=122ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:28:13] lat=97ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:30:13] lat=321ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:32:14] lat=146ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:34:14] lat=114ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:36:15] lat=130ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:38:15] lat=120ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:40:16] lat=293ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:42:16] lat=396ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:44:17] lat=141ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:46:17] lat=93ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:48:18] lat=114ms blks_read=+6 WAL=+0.1MB slotLag=0.0MB
+[17:50:18] lat=131ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:52:18] lat=131ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:54:19] lat=120ms blks_read=+2 WAL=+0.1MB slotLag=0.0MB
+[17:56:19] lat=157ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[17:58:20] lat=133ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:00:20] ⚠️ DB UNRESPONSIVE (probe Error) ← 枯渇ウィンドウの可能性
+[18:02:38] lat=153ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:04:38] lat=150ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:06:39] lat=335ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:08:40] lat=111ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:10:40] lat=455ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:12:41] lat=193ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:14:42] lat=159ms blks_read=+0 WAL=+0.1MB slotLag=0.0MB
+[18:16:42] lat=116ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:18:43] lat=156ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:20:43] lat=211ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:22:44] lat=562ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:24:47] lat=181ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:26:47] lat=146ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:28:48] lat=152ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:30:48] lat=88ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:32:49] lat=89ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:34:49] lat=132ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:36:49] lat=122ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:38:50] lat=94ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:40:50] lat=87ms blks_read=+0 WAL=+0.1MB slotLag=0.0MB
+[18:42:50] lat=104ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:44:51] lat=106ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:46:51] lat=94ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:48:51] lat=79ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:50:52] lat=113ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:52:52] lat=120ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[18:54:52] lat=107ms blks_read=+0 WAL=+0.0MB slotLag=16.0MB
+[18:56:53] lat=126ms blks_read=+0 WAL=+0.0MB slotLag=16.0MB
+[18:58:53] lat=178ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:00:54] lat=359ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:02:55] lat=234ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:04:56] lat=317ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:06:57] lat=243ms blks_read=+0 WAL=+0.1MB slotLag=0.0MB
+[19:08:58] lat=145ms blks_read=+1 WAL=+0.0MB slotLag=0.0MB
+[19:10:58] lat=147ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:12:59] lat=418ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:15:01] lat=236ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:17:01] lat=1317ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:19:03] lat=176ms blks_read=+0 WAL=+0.1MB slotLag=0.0MB
+[19:21:04] lat=219ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:23:05] lat=240ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:25:06] lat=174ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:27:06] lat=258ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:29:07] lat=217ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:31:08] lat=237ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:33:09] lat=139ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:35:09] lat=300ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:37:12] lat=234ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:39:12] lat=266ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:41:13] lat=509ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[19:43:14] lat=514ms blks_read=+37 WAL=+0.1MB slotLag=0.0MB
+[19:45:16] lat=242ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[20:14:49] lat=1179ms blks_read=+5 WAL=+0.0MB slotLag=0.0MB
+[22:09:36] ⚠️ DB UNRESPONSIVE (probe Error) ← 枯渇ウィンドウの可能性
+[23:34:00] ⚠️ DB UNRESPONSIVE (probe Error) ← 枯渇ウィンドウの可能性
+[23:36:00] lat=95ms blks_read=+198 WAL=+1.3MB slotLag=0.0MB
+[23:38:01] lat=214ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[23:40:01] lat=86ms blks_read=+2 WAL=+0.1MB slotLag=0.0MB
+[23:46:30] lat=388ms blks_read=+3 WAL=+0.1MB slotLag=0.0MB
+[23:48:31] lat=124ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[23:50:31] lat=431ms blks_read=+0 WAL=+0.1MB slotLag=0.0MB
+[23:52:32] lat=125ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[23:54:33] lat=170ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[23:56:33] lat=96ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[23:58:33] lat=111ms blks_read=+0 WAL=+0.1MB slotLag=0.0MB
+[00:00:34] lat=223ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[00:02:34] lat=1197ms blks_read=+1 WAL=+0.0MB slotLag=0.0MB
+[00:04:39] lat=106ms blks_read=+3 WAL=+0.0MB slotLag=0.0MB
+[00:06:39] lat=305ms blks_read=+0 WAL=+0.1MB slotLag=0.0MB
+[00:08:40] lat=111ms blks_read=+32 WAL=+0.4MB slotLag=0.0MB
+[00:10:40] lat=85ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[00:12:41] lat=185ms blks_read=+6 WAL=+0.1MB slotLag=0.0MB
+[00:14:41] lat=152ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[00:16:42] lat=130ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[00:18:42] lat=87ms blks_read=+1 WAL=+0.2MB slotLag=0.0MB
+[00:20:43] lat=64ms blks_read=+8 WAL=+0.1MB slotLag=0.0MB
+[00:22:43] lat=92ms blks_read=+19 WAL=+0.2MB slotLag=0.0MB
+
+========== ⚠️ ALERT [00:24:43] ==========
+[00:24:43] lat=4140ms blks_read=+1 WAL=+0.1MB slotLag=0.0MB
+-- IO増分が大きいクエリ:
+   io=1 read=1 calls=16 ms=119 :: WITH pgrst_source AS ( SELECT "public"."dm_conversations"."id", "public"."dm_conversations"."user1_id", "public"."dm_conversations"."user2_id", "public"."dm_conversations"."created_at", "public"."dm_conversations"."last_read", COALESCE( "dm_conversations_dm_messages_1"."dm_conversations_dm_messages_
+   io=0 read=0 calls=3 ms=18 :: WITH pgrst_source AS ( SELECT "public"."exam_schedules"."id", "public"."exam_schedules"."code", "public"."exam_schedules"."code_raw", "public"."exam_schedules"."name", "public"."exam_schedules"."date", "public"."exam_schedules"."day", "public"."exam_schedules"."period", "public"."exam_schedules"."ro
+   io=0 read=0 calls=4 ms=38 :: WITH pgrst_source AS ( SELECT "public"."syllabus_courses"."code", "public"."syllabus_courses"."section", "public"."syllabus_courses"."day", "public"."syllabus_courses"."per", "public"."syllabus_courses"."period_start", "public"."syllabus_courses"."period_end", "public"."syllabus_courses"."room", "pu
+   io=0 read=0 calls=1 ms=0 :: WITH pgrst_source AS ( SELECT "public"."user_blocks"."id", "public"."user_blocks"."blocked_id", "public"."user_blocks"."created_at" FROM "public"."user_blocks" WHERE "public"."user_blocks"."blocker_id" = $1 ORDER BY "public"."user_blocks"."created_at" DESC LIMIT $2 OFFSET $3 ) SELECT $4::bigint 
+   io=0 read=0 calls=3 ms=2 :: WITH pgrst_source AS ( SELECT "public"."profiles"."banned", "public"."profiles"."ban_reason", "public"."profiles"."dept", "public"."profiles"."year_group", "public"."profiles"."unit", "public"."profiles"."student_id", "public"."profiles"."avatar", "public"."profiles"."color" FROM "public"."profiles"
+   io=0 read=0 calls=2 ms=39 :: select schemaname, tablename, format($2, schemaname, tablename)::regclass as oid from pg_publication_tables where pubname = $1
+   io=0 read=0 calls=1 ms=1 :: WITH pgrst_source AS ( SELECT "public"."friendships".* FROM "public"."friendships" WHERE ( "public"."friendships"."requester_id" = $1 OR "public"."friendships"."addressee_id" = $2) AND "public"."friendships"."status" = $3 LIMIT $4 OFFSET $5 ) SELECT $6::bigint AS total_result_set, pg_catalog.c
+   io=0 read=0 calls=3 ms=-146 :: SET statement_timeout='58s'
+-- そのときのアクティブクエリ:
+   dur=3020.8s walsender/active wait=Client:WalSenderWaitForWal :: START_REPLICATION SLOT supabase_realtime_messages_replication_slot_2_103_2_dc6dcf1 LOGICAL 0/0 (proto_version '2', publication_names 'supabase_realtime_messages_publication', binary 'true')
+   dur=nulls pg_net 0.20.0 worker/null wait=Extension:Extension :: 
+   dur=nulls pg_cron launcher/null wait=Extension:Extension :: 
+=====================================
+
+[00:26:50] lat=90ms blks_read=+1 WAL=+0.1MB slotLag=0.0MB
+[00:28:50] lat=91ms blks_read=+0 WAL=+0.1MB slotLag=0.0MB
+[00:30:51] lat=79ms blks_read=+0 WAL=+0.1MB slotLag=0.0MB
+[00:32:51] lat=79ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[00:34:51] lat=80ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[00:36:51] lat=87ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[00:38:52] lat=68ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[00:40:52] lat=125ms blks_read=+0 WAL=+0.1MB slotLag=0.0MB
+[00:42:52] lat=81ms blks_read=+2 WAL=+0.1MB slotLag=0.0MB
+[00:44:53] lat=88ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[00:46:53] lat=124ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[00:48:53] lat=75ms blks_read=+0 WAL=+0.0MB slotLag=0.0MB
+[01:13:23] ⚠️ DB UNRESPONSIVE (probe Error) ← 枯渇ウィンドウの可能性
+[03:20:16] lat=295ms blks_read=+160 WAL=+5.0MB slotLag=0.0MB
+[03:22:16] lat=727ms blks_read=+0 WAL=+0.1MB slotLag=0.0MB
