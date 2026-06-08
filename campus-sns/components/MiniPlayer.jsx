@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { useMusicPlayer } from "../hooks/useMusicPlayer.js";
@@ -25,6 +25,19 @@ function hasBottomComposer(view, ch) {
 export function MiniPlayer({ mob = false, view, ch, onOpen }) {
   const { track, playing, currentTime, duration, toggle, next, prev, seek } = useMusicPlayer();
   const [expanded, setExpanded] = useState(false);
+  // 左右スワイプで端に最小化。最小化中は小さなピルだけ表示し、タップでミニプレイヤーに戻す。
+  const [minimized, setMinimized] = useState(false);
+  const [minSide, setMinSide] = useState("right"); // 最小化したときに寄せる端
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const startXRef = useRef(0);
+  const startYRef = useRef(0);
+  const movedRef = useRef(false);     // スワイプ判定。タップ系 onClick の誤発火を防ぐ
+  const SWIPE_THRESHOLD = 80;
+  const trackId = track?.id;
+  // 新しい曲を選んだら、隠れたままにならないよう最小化を解除
+  useEffect(() => { setMinimized(false); }, [trackId]);
+
   // 全画面プレイヤーを開いている間は被り問題が無いので、コンポーザービューでも隠さない
   if (!track) return null;
   if (!expanded && hasBottomComposer(view, ch)) return null;
@@ -35,13 +48,76 @@ export function MiniPlayer({ mob = false, view, ch, onOpen }) {
   // モバイル: 下部ナビ(高さ ~56) + セーフエリアの上に少し浮かせて配置
   const bottom = mob ? "calc(56px + env(safe-area-inset-bottom, 0px) + 6px)" : 10;
 
+  // 左右スワイプ検出（指に追従。閾値を超えて離すとその方向の端へ最小化）
+  const onPointerDown = (e) => {
+    startXRef.current = e.clientX;
+    startYRef.current = e.clientY;
+    movedRef.current = false;
+    setDragging(true);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+  };
+  const onPointerMove = (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startXRef.current;
+    const dy = e.clientY - startYRef.current;
+    // 横移動が縦移動より大きいときだけ横スワイプとして扱う
+    if (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) movedRef.current = true;
+    if (movedRef.current) setDragX(dx);
+  };
+  const endDrag = () => {
+    if (!dragging) return;
+    setDragging(false);
+    if (Math.abs(dragX) > SWIPE_THRESHOLD) {
+      setMinSide(dragX < 0 ? "left" : "right");
+      setMinimized(true);
+    }
+    setDragX(0);
+    // onClick ガードが movedRef を読んだ後にリセット
+    setTimeout(() => { movedRef.current = false; }, 0);
+  };
+
+  if (expanded) {
+    return <NowPlaying onClose={() => setExpanded(false)} onOpenLibrary={onOpen} />;
+  }
+
+  // 最小化中: 端に寄った小さなピル。タップでミニプレイヤーに戻す。
+  if (minimized) {
+    return (
+      <button
+        onClick={() => setMinimized(false)}
+        title="プレイヤーを開く"
+        style={{
+          position: "fixed", bottom, [minSide]: 8,
+          zIndex: 60,
+          width: 48, height: 48, borderRadius: 24, padding: 0,
+          background: T.bg2,
+          border: `1px solid ${playing ? T.accent : T.bd}`,
+          overflow: "hidden", cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          color: "#fff",
+          boxShadow: "0 6px 20px rgba(0,0,0,0.22)",
+        }}
+      >
+        {track.cover?.url
+          ? <img src={track.cover.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          : <span style={{ display: "flex", color: T.accent }}>{I.music}</span>}
+      </button>
+    );
+  }
+
   return (
-    <>
-    {expanded && <NowPlaying onClose={() => setExpanded(false)} onOpenLibrary={onOpen} />}
     <div
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
       style={{
         position: "fixed", bottom,
-        left: "50%", transform: "translateX(-50%)",
+        left: "50%",
+        transform: `translateX(calc(-50% + ${dragX}px))`,
+        transition: dragging ? "none" : "transform .25s ease",
+        opacity: 1 - Math.min(0.4, Math.abs(dragX) / 600),
+        touchAction: "pan-y",
         width: "min(960px, calc(100% - 16px))",
         zIndex: 60,
         background: T.bg2,
@@ -54,6 +130,7 @@ export function MiniPlayer({ mob = false, view, ch, onOpen }) {
       {/* シークバー（クリック/タップでその位置へ） */}
       <div
         onClick={(e) => {
+          if (movedRef.current) return;
           const r = e.currentTarget.getBoundingClientRect();
           if (dur > 0) seek(((e.clientX - r.left) / r.width) * dur);
         }}
@@ -65,7 +142,7 @@ export function MiniPlayer({ mob = false, view, ch, onOpen }) {
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", maxWidth: 920, margin: "0 auto" }}>
         {/* カバー + タイトル（タップで全画面プレイヤーへ） */}
         <button
-          onClick={() => setExpanded(true)}
+          onClick={() => { if (!movedRef.current) setExpanded(true); }}
           style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}
         >
           <div style={{ width: 40, height: 40, borderRadius: 8, flexShrink: 0, overflow: "hidden", background: `linear-gradient(145deg, ${T.accent}, ${T.accent}99)`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
@@ -83,15 +160,14 @@ export function MiniPlayer({ mob = false, view, ch, onOpen }) {
 
         {/* 操作 */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-          <button onClick={prev} title="前へ" style={btn}>{I.skipBack}</button>
-          <button onClick={toggle} title={playing ? "一時停止" : "再生"} style={{ ...btn, width: 40, height: 40, background: T.accent, color: "#fff", borderRadius: 20 }}>
+          <button onClick={() => { if (!movedRef.current) prev(); }} title="前へ" style={btn}>{I.skipBack}</button>
+          <button onClick={() => { if (!movedRef.current) toggle(); }} title={playing ? "一時停止" : "再生"} style={{ ...btn, width: 40, height: 40, background: T.accent, color: "#fff", borderRadius: 20 }}>
             {playing ? I.pause : I.play}
           </button>
-          <button onClick={next} title="次へ" style={btn}>{I.skipFwd}</button>
+          <button onClick={() => { if (!movedRef.current) next(); }} title="次へ" style={btn}>{I.skipFwd}</button>
         </div>
       </div>
     </div>
-    </>
   );
 }
 

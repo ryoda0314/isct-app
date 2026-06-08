@@ -106,7 +106,7 @@ export const TTView=(_p)=>{
     const hk=`${pi}-${di}`;const isHov=hover===hk;const isToday=di===todayIdx;
     if(!co)return <div style={{borderRadius:mob?8:10,background:isToday?`${T.accent}06`:`${T.bg2}80`,minHeight:80,border:`1px solid ${isToday?`${T.accent}15`:T.bd}`,...gs}}/>;
     return(
-      <div onClick={()=>{setCid(co.id);setCh("timeline");setView("course");}}
+      <div onClick={()=>{setCid(co.id);setCh("materials");setView("course");}}
         onMouseEnter={()=>setHover(hk)} onMouseLeave={()=>setHover(null)}
         style={{borderRadius:mob?8:10,minHeight:80,cursor:"pointer",position:"relative",overflow:"hidden",
           background:`linear-gradient(135deg, ${co.col}${isHov?"30":"18"}, ${co.col}${isHov?"15":"08"})`,
@@ -174,7 +174,7 @@ export const TTView=(_p)=>{
           {cellEntries.map(({di,pi,co,span})=>{const n=co?cnt(co.id):0;const isT=di===todayIdx;
             if(!co)return <div key={`${pi}-${di}`} style={{gridColumn:di+2,gridRow:`${pi+2}/span ${span}`,borderRadius:6,background:isT?`${T.accent}06`:`${T.bg2}50`,minHeight:68}}/>;
             return(
-              <div key={`${pi}-${di}`} onClick={()=>{setCid(co.id);setCh("timeline");setView("course");}}
+              <div key={`${pi}-${di}`} onClick={()=>{setCid(co.id);setCh("materials");setView("course");}}
                 style={{gridColumn:di+2,gridRow:`${pi+2}/span ${span}`,borderRadius:6,minHeight:68,cursor:"pointer",position:"relative",overflow:"hidden",
                   background:`linear-gradient(135deg, ${co.col}18, ${co.col}08)`,
                   border:`1.5px solid ${co.col}30`}}>
@@ -197,7 +197,7 @@ export const TTView=(_p)=>{
         <div style={{marginTop:14}}>
           <div style={{fontSize:13,fontWeight:700,color:T.txH,marginBottom:6}}>履修科目</div>
           {curC.map(co=>{const n=cnt(co.id);return(
-            <div key={co.id} onClick={()=>{setCid(co.id);setCh("timeline");setView("course");}}
+            <div key={co.id} onClick={()=>{setCid(co.id);setCh("materials");setView("course");}}
               style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:4,cursor:"pointer"}}>
               <div style={{width:6,height:6,borderRadius:3,background:co.col,flexShrink:0}}/>
               <div style={{flex:1,minWidth:0}}>
@@ -253,7 +253,7 @@ export const TTView=(_p)=>{
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
         {curC.map(co=>{const n=cnt(co.id);return(
-          <div key={co.id} onClick={()=>{setCid(co.id);setCh("timeline");setView("course");}}
+          <div key={co.id} onClick={()=>{setCid(co.id);setCh("materials");setView("course");}}
             onMouseEnter={e=>{e.currentTarget.style.background=`${co.col}12`;e.currentTarget.style.borderColor=`${co.col}40`;}}
             onMouseLeave={e=>{e.currentTarget.style.background=T.bg2;e.currentTarget.style.borderColor=T.bd;}}
             style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:12,background:T.bg2,border:`1.5px solid ${T.bd}`,cursor:"pointer",transition:"all .2s"}}>
@@ -305,7 +305,7 @@ export const CSelect=({setCid,setView,setCh,courses=[],depts=[],schools=[],setDi
         </div>
       </>}
       {(schools.length>0||depts.length>0||userUnit)&&<div style={{fontSize:12,fontWeight:700,color:T.txD,marginTop:8,marginBottom:6,letterSpacing:.3}}>コース</div>}
-      {courses.map(co=><div key={co.id} onClick={()=>{setCid(co.id);setCh("timeline");setView("course");}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:8,borderLeft:`3px solid ${co.col}`,cursor:"pointer"}}>
+      {courses.map(co=><div key={co.id} onClick={()=>{setCid(co.id);setCh("materials");setView("course");}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:8,borderLeft:`3px solid ${co.col}`,cursor:"pointer"}}>
         <div style={{width:38,height:38,borderRadius:10,background:co.col,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:13,flexShrink:0}}>{co.code.slice(0,3)}</div>
         <div style={{flex:1}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{co.name}</div><div style={{fontSize:12,color:T.txD}}>{co.code} · {co.per}</div></div>
         <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>

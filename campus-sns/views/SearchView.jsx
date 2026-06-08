@@ -15,7 +15,7 @@ export const SearchView=({searchQ,setSearchQ,setView,setCid,setCh,mob,courses=[]
         </div>
       </div>
       {!q&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>キーワードを入力してください</div>}
-      {q&&matchC.length>0&&<><div style={{fontSize:12,fontWeight:700,color:T.txD,marginBottom:4}}>コース</div>{matchC.map(c=><div key={c.id} onClick={()=>{setCid(c.id);setCh("timeline");setView("course");}} style={{display:"flex",alignItems:"center",gap:8,padding:10,borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:4,cursor:"pointer"}}><div style={{width:8,height:8,borderRadius:4,background:c.col}}/><span style={{fontWeight:600,color:T.txH,fontSize:13}}>{c.code}</span><span style={{fontSize:12,color:T.txD}}>{c.name}</span></div>)}</>}
+      {q&&matchC.length>0&&<><div style={{fontSize:12,fontWeight:700,color:T.txD,marginBottom:4}}>コース</div>{matchC.map(c=><div key={c.id} onClick={()=>{setCid(c.id);setCh("materials");setView("course");}} style={{display:"flex",alignItems:"center",gap:8,padding:10,borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:4,cursor:"pointer"}}><div style={{width:8,height:8,borderRadius:4,background:c.col}}/><span style={{fontWeight:600,color:T.txH,fontSize:13}}>{c.code}</span><span style={{fontSize:12,color:T.txD}}>{c.name}</span></div>)}</>}
       {q&&matchC.length===0&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>「{searchQ}」に一致する結果はありません</div>}
     </div>
   );

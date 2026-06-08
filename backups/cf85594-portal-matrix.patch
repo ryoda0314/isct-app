@@ -1,0 +1,302 @@
+commit cf855949a4799c667bab1f5db1ff4c4fd842f38d
+Author: ryoda0314 <edamamemochi2004@gmail.com>
+Date:   Mon Jun 8 16:46:42 2026 +0900
+
+    feat: Enhance portal login process with matrix authentication switch and debugging snapshots
+
+diff --git a/.gitignore b/.gitignore
+index aeb58ee..9a442ff 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -35,3 +35,8 @@ android/
+ ios/
+ www/
+ .vercel
++
++# Portal login debug snapshots (may contain student ID / matrix card)
++debug-portal/
++data/trace-portal-*
++data/trace-*.png
+diff --git a/app/api/data/timetable-past/route.js b/app/api/data/timetable-past/route.js
+index f7546fc..73192ab 100644
+--- a/app/api/data/timetable-past/route.js
++++ b/app/api/data/timetable-past/route.js
+@@ -91,6 +91,23 @@ async function acquireT2Token(loginId) {
+     ]);
+     console.log('[T2Token] After login submit:', page.url());
+ 
++    // 既定がOTP/Token等のアカウントはmatrix画面でなくIG認証選択画面に着地する。
++    // value=GridAuthOption(Matrix) を持つ <select> があれば選択して送信し matrix画面へ遷移する。
++    const matrixSwitchSelect = await page.evaluate(() => {
++      const input = document.querySelector('input[name="message3"]');
++      if (input && input.type === 'password') return null;
++      const opt = Array.from(document.querySelectorAll('option')).find((o) => o.value === 'GridAuthOption');
++      return opt ? (opt.closest('select')?.name || null) : null;
++    });
++    if (matrixSwitchSelect) {
++      console.log('[T2Token] Switching second factor to Matrix via', matrixSwitchSelect);
++      await page.select(`select[name="${matrixSwitchSelect}"]`, 'GridAuthOption');
++      await Promise.all([
++        page.waitForNavigation({ waitUntil: 'networkidle2' }),
++        page.click('input[name="OK"]'),
++      ]);
++    }
++
+     // Step 3: Matrix authentication
+     try {
+       await page.waitForSelector('input[name="message3"]', { visible: true });
+diff --git a/data/syllabus-cache.json b/data/syllabus-cache.json
+index 30a76c0..feddbf2 100644
+--- a/data/syllabus-cache.json
++++ b/data/syllabus-cache.json
+@@ -1,5 +1,5 @@
+ {
+-  "timestamp": 1780897067837,
++  "timestamp": 1780904761658,
+   "courses": {
+     "@202601913": [
+       {
+diff --git a/data/trace-portal-step1.png b/data/trace-portal-step1.png
+deleted file mode 100644
+index ce61040..0000000
+Binary files a/data/trace-portal-step1.png and /dev/null differ
+diff --git a/data/trace-portal-step2.png b/data/trace-portal-step2.png
+deleted file mode 100644
+index ea7fe2c..0000000
+Binary files a/data/trace-portal-step2.png and /dev/null differ
+diff --git a/data/trace-portal-step3.png b/data/trace-portal-step3.png
+deleted file mode 100644
+index 22c1d32..0000000
+Binary files a/data/trace-portal-step3.png and /dev/null differ
+diff --git a/lib/api/grades.js b/lib/api/grades.js
+index 2ecc49e..ddbdfb2 100644
+--- a/lib/api/grades.js
++++ b/lib/api/grades.js
+@@ -168,6 +168,22 @@ export async function fetchGrades({ userId, password, matrix }) {
+       page.click('input[name="OK"]'),
+     ]);
+ 
++    // 既定がOTP/Token等のアカウントはmatrix画面でなくIG認証選択画面に着地する。
++    // value=GridAuthOption(Matrix) を持つ <select> があれば選択して送信し matrix画面へ遷移する。
++    const matrixSwitchSelect = await page.evaluate(() => {
++      const input = document.querySelector('input[name="message3"]');
++      if (input && input.type === 'password') return null;
++      const opt = Array.from(document.querySelectorAll('option')).find((o) => o.value === 'GridAuthOption');
++      return opt ? (opt.closest('select')?.name || null) : null;
++    });
++    if (matrixSwitchSelect) {
++      await page.select(`select[name="${matrixSwitchSelect}"]`, 'GridAuthOption');
++      await Promise.all([
++        page.waitForNavigation({ waitUntil: 'networkidle2' }),
++        page.click('input[name="OK"]'),
++      ]);
++    }
++
+     // Matrix auth
+     try {
+       await page.waitForSelector('input[name="message3"]', { visible: true });
+diff --git a/lib/api/portal-session.js b/lib/api/portal-session.js
+index 02dda85..7c3cedb 100644
+--- a/lib/api/portal-session.js
++++ b/lib/api/portal-session.js
+@@ -87,6 +87,22 @@ async function loginAndExtract({ portalUserId, portalPassword, matrix }) {
+       page.click('input[name="OK"]'),
+     ]);
+ 
++    // 既定がOTP/Token等のアカウントはmatrix画面でなくIG認証選択画面に着地する。
++    // value=GridAuthOption(Matrix) を持つ <select> があれば選択して送信し matrix画面へ遷移する。
++    const matrixSwitchSelect = await page.evaluate(() => {
++      const input = document.querySelector('input[name="message3"]');
++      if (input && input.type === 'password') return null;
++      const opt = Array.from(document.querySelectorAll('option')).find((o) => o.value === 'GridAuthOption');
++      return opt ? (opt.closest('select')?.name || null) : null;
++    });
++    if (matrixSwitchSelect) {
++      await page.select(`select[name="${matrixSwitchSelect}"]`, 'GridAuthOption');
++      await Promise.all([
++        page.waitForNavigation({ waitUntil: 'networkidle2' }),
++        page.click('input[name="OK"]'),
++      ]);
++    }
++
+     try {
+       await page.waitForSelector('input[name="message3"]', { visible: true });
+     } catch (e) {
+diff --git a/lib/auth/portal-login.js b/lib/auth/portal-login.js
+index 64d2188..39934da 100644
+--- a/lib/auth/portal-login.js
++++ b/lib/auth/portal-login.js
+@@ -1,4 +1,6 @@
+ import puppeteer from 'puppeteer-core';
++import { mkdir, writeFile } from 'node:fs/promises';
++import path from 'node:path';
+ 
+ const PORTAL_LOGIN_URL =
+   'https://portal.nap.gsic.titech.ac.jp/GetAccess/Login?Template=userpass_key&AUTHMETHOD=UserPassword&GAREASONCODE=-1&GARESOURCEID=resourcelistID2&GAURI=https://portal.nap.gsic.titech.ac.jp/GetAccess/ResourceList&Reason=-1&APPID=resourcelistID2&URI=https://portal.nap.gsic.titech.ac.jp/GetAccess/ResourceList';
+@@ -6,6 +8,10 @@ const PORTAL_LOGIN_URL =
+ const NAV_TIMEOUT = 30_000;
+ const SEL_TIMEOUT = 15_000;
+ const DEBUG = process.env.PORTAL_DEBUG === '1';
++// 過程を視認するためのデバッグ用フラグ（本番では無効）
++const HEADFUL = process.env.PORTAL_HEADFUL === '1';      // ローカルでブラウザ画面を表示
++const SHOT = process.env.PORTAL_SHOT === '1' || DEBUG;   // 各ステップのスクショ+HTMLを保存
++const SHOT_DIR = process.env.PORTAL_SHOT_DIR || path.join(process.cwd(), 'debug-portal');
+ 
+ function log(...args) {
+   if (DEBUG) console.log('[Portal]', ...args);
+@@ -25,7 +31,8 @@ async function getBrowser() {
+   }
+   const { executablePath } = await import('puppeteer');
+   return puppeteer.launch({
+-    headless: 'new',
++    headless: HEADFUL ? false : 'new',
++    slowMo: HEADFUL ? 150 : 0,
+     executablePath: executablePath(),
+     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+   });
+@@ -64,6 +71,23 @@ export async function performPortalLogin({ userId, password, matrix }) {
+     page.setDefaultNavigationTimeout(NAV_TIMEOUT);
+     page.setDefaultTimeout(SEL_TIMEOUT);
+ 
++    // 過程を視認するためのスナップショット（PNG全画面 + HTML）を連番で保存する。
++    // SHOT が無効なら何もしない（本番では無効）。
++    let _seq = 0;
++    const runDir = path.join(SHOT_DIR, `run-${new Date().toISOString().replace(/[:.]/g, '-')}`);
++    const snap = async (name) => {
++      if (!SHOT) return;
++      try {
++        await mkdir(runDir, { recursive: true });
++        const base = path.join(runDir, `${String(++_seq).padStart(2, '0')}-${name}`);
++        await page.screenshot({ path: `${base}.png`, fullPage: true });
++        await writeFile(`${base}.html`, await page.content(), 'utf8');
++        console.log(`[Portal] snapshot ${base}.png (url=${page.url()})`);
++      } catch (e) {
++        console.error('[Portal] snapshot failed:', e.message);
++      }
++    };
++
+     await page.setUserAgent(
+       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+       '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+@@ -78,17 +102,20 @@ export async function performPortalLogin({ userId, password, matrix }) {
+       throw e;
+     }
+     log(`Landed on: ${page.url()}`);
++    await snap('login-page');
+ 
+     // Step 2: Fill Account + Password
+     try {
+       await page.waitForSelector('input[name="usr_name"]', { visible: true });
+     } catch (e) {
+       e.failedStep = 'connect';
++      await snap('connect-failed');
+       throw e;
+     }
+     await page.type('input[name="usr_name"]', userId, { delay: 30 });
+     await page.type('input[name="usr_password"]', password, { delay: 30 });
+     log('Filled account and password');
++    await snap('filled');
+ 
+     // Submit login form
+     await Promise.all([
+@@ -96,6 +123,35 @@ export async function performPortalLogin({ userId, password, matrix }) {
+       page.click('input[name="OK"]'),
+     ]);
+     log(`After login submit: ${page.url()}`);
++    await snap('after-login-submit');
++
++    // Step 2.5: Second-factor method switch.
++    // ワンタイムパスワード等を既定にしているアカウントは、パスワード送信後に
++    // matrix画面ではなくOTP/Token画面（Template=idg_key, AUTHMETHOD=IG）に着地する。
++    // その画面には「Move to Other Authentication」の <select> があり、value=GridAuthOption
++    // (text "Matrix") を選んでOK送信するとmatrix画面へ遷移できる。
++    // 判定: matrix画面の message3 は <input type=password>。OTP画面の message3 は <select>。
++    //       かつ GridAuthOption オプションは「まだmatrixに居ない時だけ」存在する。
++    const matrixSwitchSelect = await page.evaluate(() => {
++      // 既にmatrix画面ならスイッチ不要
++      const input = document.querySelector('input[name="message3"]');
++      if (input && input.type === 'password') return null;
++      // 「Matrixへ切り替え」オプションを持つ <select> を探す
++      const opt = Array.from(document.querySelectorAll('option'))
++        .find((o) => o.value === 'GridAuthOption');
++      return opt ? (opt.closest('select')?.name || null) : null;
++    });
++
++    if (matrixSwitchSelect) {
++      log(`Second factor defaulted to non-matrix; switching to Matrix via select[name=${matrixSwitchSelect}]`);
++      await page.select(`select[name="${matrixSwitchSelect}"]`, 'GridAuthOption');
++      await Promise.all([
++        page.waitForNavigation({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT }),
++        page.click('input[name="OK"]'),
++      ]);
++      log(`After switch-to-matrix: ${page.url()}`);
++      await snap('after-switch-to-matrix');
++    }
+ 
+     // Step 3: Matrix Authentication
+     // The matrix page has labels like [C,6], [J,2], [J,4] in td/th elements
+@@ -107,6 +163,8 @@ export async function performPortalLogin({ userId, password, matrix }) {
+       const url = page.url();
+       const stillOnLogin = url.includes('Login') || url.includes('userpass_key');
+       e.failedStep = stillOnLogin ? 'password' : 'network';
++      // この瞬間の画面を保存する（失敗原因の視認用）
++      await snap(`message3-timeout-${e.failedStep}`);
+       throw e;
+     }
+ 
+@@ -124,6 +182,7 @@ export async function performPortalLogin({ userId, password, matrix }) {
+     });
+ 
+     log('Matrix positions requested:', matrixLabels);
++    await snap('matrix-page');
+ 
+     if (matrixLabels.length < 3) {
+       const err = new Error(`Expected 3 matrix labels, found ${matrixLabels.length}`);
+@@ -145,6 +204,7 @@ export async function performPortalLogin({ userId, password, matrix }) {
+       page.click('input[name="OK"]'),
+     ]);
+     log(`After matrix submit: ${page.url()}`);
++    await snap('after-matrix-submit');
+ 
+     // Verify we reached the resource list
+     const finalUrl = page.url();
+diff --git a/lib/auth/trace-portal.js b/lib/auth/trace-portal.js
+index 92590c3..680aa19 100644
+--- a/lib/auth/trace-portal.js
++++ b/lib/auth/trace-portal.js
+@@ -10,6 +10,7 @@
+  * - リダイレクトチェーンを把握する
+  */
+ import puppeteer from 'puppeteer';
++import fs from 'node:fs';
+ 
+ const PORTAL_LOGIN_URL =
+   'https://portal.nap.gsic.titech.ac.jp/GetAccess/Login?Template=userpass_key&AUTHMETHOD=UserPassword&GAREASONCODE=-1&GARESOURCEID=resourcelistID2&GAURI=https://portal.nap.gsic.titech.ac.jp/GetAccess/ResourceList&Reason=-1&APPID=resourcelistID2&URI=https://portal.nap.gsic.titech.ac.jp/GetAccess/ResourceList';
+@@ -81,10 +82,27 @@ async function dumpPage(page, label) {
+   );
+   console.log(`\n[LABELS/TEXT]`, JSON.stringify(labels, null, 2));
+ 
++  // Dump anchor links — 認証方法の切り替え導線（onetime → matrix 等）はリンクの可能性が高い
++  const links = await page.$$eval('a', els =>
++    els
++      .map(el => ({
++        text: el.textContent?.trim().substring(0, 80),
++        href: el.href,
++        onclick: el.getAttribute('onclick'),
++      }))
++      .filter(l => l.text || l.href || l.onclick)
++  );
++  console.log(`\n[LINKS]`, JSON.stringify(links, null, 2));
++
+   // Take screenshot
+   const ssPath = `data/trace-portal-${prefix}.png`;
+   await page.screenshot({ path: ssPath, fullPage: true });
+   console.log(`\n[SCREENSHOT] ${ssPath} saved`);
++
++  // Save full HTML for offline inspection
++  const htmlPath = `data/trace-portal-${prefix}.html`;
++  await fs.promises.writeFile(htmlPath, await page.content(), 'utf8');
++  console.log(`[HTML] ${htmlPath} saved`);
+ }
+ 
+ async function trace() {

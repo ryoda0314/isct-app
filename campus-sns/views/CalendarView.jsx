@@ -6,7 +6,7 @@ import { Tag } from "../shared.jsx";
 import { getAcademicInfo, getCurrentQuarter } from "../academicCalendar.js";
 import { PERIOD_TIMES } from "../examData.js";
 import { buildTimetable } from "../../lib/transform/timetable-builder.js";
-const DAYS=["月","火","水","木","金","土","日"];
+const DAYS=["日","月","火","水","木","金","土"];
 const COLORS=["#6375f0","#e5534b","#3dae72","#a855c7","#d4843e","#c6a236","#2d9d8f","#c75d8e"];
 const dKey=d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 const isSameDay=(a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
@@ -28,12 +28,12 @@ const rangesOverlap=(s1h,s1m,e1h,e1m,s2h,s2m,e2h,e2m)=>{
   return a<d&&c<b;
 };
 
-const getMonday=d=>{const dt=new Date(d);const day=dt.getDay();const diff=day===0?-6:1-day;dt.setDate(dt.getDate()+diff);dt.setHours(0,0,0,0);return dt;};
+const getWeekStart=d=>{const dt=new Date(d);dt.setDate(dt.getDate()-dt.getDay());dt.setHours(0,0,0,0);return dt;};
 
 export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},mob,pastTTCache={},fetchPastTimetable,medSessions=[]})=>{
   const [viewMode,setViewMode]=useState("month");
   const [calMonth,setCalMonth]=useState(()=>({y:NOW.getFullYear(),m:NOW.getMonth()}));
-  const [weekStart,setWeekStart]=useState(()=>getMonday(NOW));
+  const [weekStart,setWeekStart]=useState(()=>getWeekStart(NOW));
   const [selDay,setSelDay]=useState(null);
   const [adding,setAdding]=useState(false);
   const [editing,setEditing]=useState(null);
@@ -213,12 +213,12 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
 
   // Build calendar data
   const first=new Date(calMonth.y,calMonth.m,1);
-  const startOff=(first.getDay()+6)%7;
+  const startOff=first.getDay();
   const daysInMonth=new Date(calMonth.y,calMonth.m+1,0).getDate();
   const weeks=Math.ceil((startOff+daysInMonth)/7);
   const prevM=()=>setCalMonth(p=>p.m===0?{y:p.y-1,m:11}:{y:p.y,m:p.m-1});
   const nextM=()=>setCalMonth(p=>p.m===11?{y:p.y+1,m:0}:{y:p.y,m:p.m+1});
-  const goToday=()=>{setCalMonth({y:NOW.getFullYear(),m:NOW.getMonth()});setWeekStart(getMonday(NOW));};
+  const goToday=()=>{setCalMonth({y:NOW.getFullYear(),m:NOW.getMonth()});setWeekStart(getWeekStart(NOW));};
   const prevW=()=>setWeekStart(p=>{const d=new Date(p);d.setDate(d.getDate()-7);return d;});
   const nextW=()=>setWeekStart(p=>{const d=new Date(p);d.setDate(d.getDate()+7);return d;});
 
@@ -376,7 +376,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
     const empty=cls.length===0&&evs.length===0&&asgns.length===0&&exs.length===0&&acadNonClass.length===0&&!acad?.period;
     return <div style={{marginTop:mob?12:0,borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",borderBottom:`1px solid ${T.bd}`}}>
-        <span style={{fontSize:14,fontWeight:700,color:T.txH}}>{selDay.getMonth()+1}/{selDay.getDate()} ({DAYS[(selDay.getDay()+6)%7]})</span>
+        <span style={{fontSize:14,fontWeight:700,color:T.txH}}>{selDay.getMonth()+1}/{selDay.getDate()} ({DAYS[selDay.getDay()]})</span>
         <div style={{display:"flex",gap:6}}>
           <button onClick={()=>openAdd(selDay)} style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txD,fontSize:11,cursor:"pointer"}}>追加</button>
           <button onClick={()=>setSelDay(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:2}}>{I.x}</button>
@@ -487,7 +487,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
               <div key={di} style={{marginTop:di?2:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,padding:mob?"5px 4px":"4px 6px",position:"sticky",top:0,zIndex:3,background:T.bg,flexWrap:"wrap"}}>
                   <span style={{fontSize:mob?13:14,fontWeight:700,color:isT?T.accent:T.txH}}>{d.getMonth()+1}/{d.getDate()}</span>
-                  <span style={{fontSize:mob?11:12,fontWeight:600,color:isT?T.accent:di>=5?T.orange:T.txD}}>{DAYS[di]}</span>
+                  <span style={{fontSize:mob?11:12,fontWeight:600,color:isT?T.accent:di===0?T.red:di===6?T.orange:T.txD}}>{DAYS[di]}</span>
                   {isT&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:4,background:`${T.accent}18`,color:T.accent,fontWeight:600}}>TODAY</span>}
                   {dayAcadNonCls.map((it,ai)=>{const cfg={holiday:{col:"#ef4444",l:it.label},event:{col:"#0ea5e9",l:it.label},cancel:{col:"#6b7280",l:"休講"},exam:{col:"#d97706",l:it.label}}[it.type];return cfg?<span key={`ac${ai}`} style={{fontSize:9,padding:"1px 6px",borderRadius:4,background:`${cfg.col}18`,color:cfg.col,fontWeight:600}}>{cfg.l}</span>:null;})}
                 </div>
@@ -541,7 +541,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
             {/* Day headers */}
             <div style={{borderBottom:`1px solid ${T.bd}`,background:T.bg2,position:"sticky",top:0,zIndex:2}}/>
             {wDays.map((d,i)=>{const isT=isSameDay(d,NOW);return <div key={i} onClick={()=>setSelDay(d)} style={{textAlign:"center",padding:"6px 0",borderBottom:`1px solid ${T.bd}`,background:T.bg2,position:"sticky",top:0,zIndex:2,cursor:"pointer",borderLeft:`1px solid ${T.bd}`}}>
-              <div style={{fontSize:mob?9:11,fontWeight:600,color:isT?T.accent:i>=5?T.orange:T.txD}}>{DAYS[i]}</div>
+              <div style={{fontSize:mob?9:11,fontWeight:600,color:isT?T.accent:i===0?T.red:i===6?T.orange:T.txD}}>{DAYS[i]}</div>
               <div style={{fontSize:mob?11:14,fontWeight:isT?700:500,color:isT?T.accent:T.txH}}>{d.getDate()}</div>
             </div>;})}
             {/* Time grid */}
@@ -576,7 +576,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
 
   // ── MONTH VIEW ──
   const calGrid=<div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:mob?1:2}}>
-    {DAYS.map((d,i)=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:600,color:i>=5?T.orange:T.txD,padding:"4px 0"}}>{d}</div>)}
+    {DAYS.map((d,i)=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:600,color:i===0?T.red:i===6?T.orange:T.txD,padding:"4px 0"}}>{d}</div>)}
     {Array.from({length:weeks*7},(_,i)=>{
       const day=i-startOff+1;
       const valid=day>=1&&day<=daysInMonth;

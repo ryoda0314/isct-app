@@ -501,7 +501,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                 // 出発地: 前の授業の建物、なければ大岡山駅
                 const prevClass=timeline.slice(0,idx).filter(t=>t.type==="class").pop();
                 const origId=prevClass?.co?.building||"eki";
-                return <div key={`c${idx}`} onClick={()=>{setCid(co.id);setView("course");setCh("timeline");}} style={{display:"flex",gap:8,padding:"6px 10px",borderRadius:8,background:act?`${co.col}12`:T.bg2,border:`1px solid ${act?co.col:T.bd}`,cursor:"pointer",opacity:done?.4:1}}>
+                return <div key={`c${idx}`} onClick={()=>{setCid(co.id);setView("course");setCh("materials");}} style={{display:"flex",gap:8,padding:"6px 10px",borderRadius:8,background:act?`${co.col}12`:T.bg2,border:`1px solid ${act?co.col:T.bd}`,cursor:"pointer",opacity:done?.4:1}}>
                   <div style={{width:38,flexShrink:0,textAlign:"center"}}>
                     <div style={{fontSize:10,fontWeight:700,color:done?T.txD:co.col}}>{pd.l}</div>
                     <div style={{fontSize:9,color:T.txD}}>{fPdTime(...pd.s)}</div>

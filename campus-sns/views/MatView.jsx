@@ -529,23 +529,21 @@ const Preview=({m,mob,onClose,onStale})=>{
   useEffect(()=>{setMediaErr(false);},[previewUrl]);
   const onMediaErr=()=>{setMediaErr(true);onStale?.();};
 
+  // In-app fullscreen (CSS overlay) instead of the native Fullscreen API:
+  // the OS adds a swipe-down-to-exit gesture to native fullscreen, which
+  // dismissed the material unexpectedly. A fixed overlay has no such gesture
+  // (exit only via the button / Esc) and also works on iOS, where
+  // requestFullscreen on a non-video element is unsupported.
+  const toggleFs=()=>setFs(v=>!v);
   useEffect(()=>{
-    const onChange=()=>setFs(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange",onChange);
-    return()=>document.removeEventListener("fullscreenchange",onChange);
-  },[]);
-
-  const toggleFs=()=>{
-    if(!wrapRef.current)return;
-    if(document.fullscreenElement){
-      document.exitFullscreen().catch(()=>{});
-    }else{
-      wrapRef.current.requestFullscreen().catch(()=>{});
-    }
-  };
+    if(!fs)return;
+    const onKey=e=>{if(e.key==="Escape")setFs(false);};
+    window.addEventListener("keydown",onKey);
+    return()=>window.removeEventListener("keydown",onKey);
+  },[fs]);
 
   return(
-    <div ref={wrapRef} style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",height:"100%",background:T.bg}}>
+    <div ref={wrapRef} style={{display:"flex",flexDirection:"column",overflow:"hidden",background:T.bg,...(fs?{position:"fixed",inset:0,zIndex:2000}:{flex:1,height:"100%"})}}>
       <div style={{display:"flex",alignItems:"center",gap:8,padding:mob?"10px 12px":"8px 14px",borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}>
         <button onClick={onClose} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",color:T.txD,fontSize:13,cursor:"pointer",padding:0}}>{I.back} 戻る</button>
         <div style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:13,fontWeight:600,color:T.txH}}>{m.filename||m.name}</div>

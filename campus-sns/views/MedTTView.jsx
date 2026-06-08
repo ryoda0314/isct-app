@@ -300,7 +300,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
     const mid = moodleIdMap[code];
     if (mid && setCid && setView) {
       setCid(`mc_${mid}`);
-      if (setCh) setCh("timeline");
+      if (setCh) setCh("materials");
       setView("course");
     }
   };
