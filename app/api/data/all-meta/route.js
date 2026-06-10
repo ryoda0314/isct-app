@@ -7,6 +7,7 @@ import { transformCourses, groupByQuarter } from '../../../../lib/transform/cour
 import { buildTimetable } from '../../../../lib/transform/timetable-builder.js';
 import { transformAssignments } from '../../../../lib/transform/assignment-transform.js';
 import { seedEnrollmentCache, syncEnrollments } from '../../../../lib/auth/course-enrollment.js';
+import { syncAssignmentDeadlines } from '../../../../lib/deadline-notify.js';
 
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -125,6 +126,11 @@ export async function POST(request) {
     const assignments = rawAssignments
       ? transformAssignments(rawAssignments, courseIdMap)
       : [];
+
+    // Cache upcoming deadlines server-side so the pg_cron job can fire reminders
+    // even while the app is closed (the LMS itself 403s server-side, so this is
+    // the only way the server learns about deadlines). Best-effort, non-blocking.
+    syncAssignmentDeadlines(userid, assignments).catch(() => {});
 
     const isAdmin = await checkAdmin(userid);
 

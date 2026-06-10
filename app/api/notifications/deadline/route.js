@@ -1,19 +1,16 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../../lib/auth/require-auth.js';
-import { createNotification } from '../../../../lib/notify.js';
+import { notifyDeadline } from '../../../../lib/deadline-notify.js';
 
 // Assignment data lives client-side (Moodle is fetched from the client), so the
 // client detects which of its assignments are due soon and POSTs candidates here.
-// The server re-validates the remaining time (clients can't fabricate reminders
-// for arbitrary times) and dedups per (assignment, threshold) so re-posting on
-// every app load / from multiple devices is a no-op.
+// notifyDeadline re-derives the threshold from the real due date (clients can't
+// fabricate reminders for arbitrary times) and dedups per (assignment, threshold)
+// so re-posting on every app load / from multiple devices is a no-op. The same
+// helper backs the server cron (/api/cron/deadline-reminders), so the two paths
+// share dedup keys and never double-fire.
 
-const THRESHOLDS = {
-  '24h': { ms: 24 * 60 * 60 * 1000, label: '24時間以内' },
-  '3h': { ms: 3 * 60 * 60 * 1000, label: 'まもなく（3時間以内）' },
-};
 const MAX_ITEMS = 50;
-const MAX_TITLE = 80;
 
 export async function POST(request) {
   try {
@@ -26,31 +23,12 @@ export async function POST(request) {
       return NextResponse.json({ error: 'items array required' }, { status: 400 });
     }
 
-    const now = Date.now();
     let created = 0;
-
     for (const it of items.slice(0, MAX_ITEMS)) {
-      const { assignmentId, title, courseId, due, threshold } = it || {};
-      const th = THRESHOLDS[threshold];
-      if (!assignmentId || !title || !th) continue;
-
+      const { assignmentId, title, courseId, due } = it || {};
       const dueMs = new Date(due).getTime();
       if (!Number.isFinite(dueMs)) continue;
-
-      // Server-side gate: only fire when the deadline is genuinely in the future
-      // and within the claimed threshold window.
-      const remaining = dueMs - now;
-      if (remaining <= 0 || remaining > th.ms) continue;
-
-      const safeTitle = String(title).slice(0, MAX_TITLE);
-      const r = await createNotification({
-        userId: userid,
-        type: 'deadline',
-        text: `「${safeTitle}」の提出期限が${th.label}です`,
-        courseId: courseId || null,
-        dedupKey: `deadline:${assignmentId}:${threshold}`,
-        pushTitle: '課題の締切',
-      });
+      const r = await notifyDeadline({ userId: userid, assignmentId, title, courseId, dueMs });
       if (r.created) created++;
     }
 

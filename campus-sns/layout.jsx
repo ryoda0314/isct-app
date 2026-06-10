@@ -2,6 +2,8 @@ import { useState } from "react";
 import { T } from "./theme.js";
 import { I } from "./icons.jsx";
 import { Av } from "./shared.jsx";
+import { isNative } from "./capacitor.js";
+import { openInSystemBrowser } from "./openMaterial.js";
 // ============================================================
 
 const SideItem=({icon,label,on,click,badge,compact})=>(
@@ -154,6 +156,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
           <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:"50%",background:course.col}}/><span style={{fontWeight:700,color:T.txH,fontSize:compact?12:14}}>{course.code}</span></div>
           <div style={{fontSize:compact?10:11,color:T.txD,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{course.name}</div>
           {!compact&&<div style={{fontSize:10,color:T.txD,marginTop:1}}>{course.per} · {course.room}</div>}
+          {course.moodleId&&<button onClick={()=>{const url=`https://lms.s.isct.ac.jp/2025/course/view.php?id=${course.moodleId}`;if(isNative())openInSystemBrowser(url);else window.open(url,"_blank","noopener");}} title="LMSで開く" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,width:"100%",marginTop:8,background:`${course.col}18`,border:`1px solid ${course.col}40`,borderRadius:8,color:course.col,cursor:"pointer",padding:compact?"5px 6px":"6px 8px",fontSize:compact?10:11,fontWeight:700}}>{I.book}<span>LMSで開く</span></button>}
         </>}
       </div>
       <div style={{padding:"5px 0",flex:1,overflowY:"auto"}}>

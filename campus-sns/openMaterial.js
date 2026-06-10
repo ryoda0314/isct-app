@@ -115,7 +115,7 @@ export async function openMaterial(m, onStale, opts = {}) {
 }
 
 /** Open a real http(s) URL in the in-app system browser (SafariVC / Custom Tab). */
-async function openInSystemBrowser(url) {
+export async function openInSystemBrowser(url) {
   try {
     const { Browser } = await import('@capacitor/browser');
     await Browser.open({ url });

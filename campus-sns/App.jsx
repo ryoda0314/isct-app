@@ -14,6 +14,7 @@ import { useDeptMembers } from "./hooks/useDeptMembers.js";
 import { resetCourseMaterialsCache } from "./hooks/useCourseMaterials.js";
 import { useMobile, useBreakpoint } from "./utils.jsx";
 import { isNative, clearNativeCookies } from "./capacitor.js";
+import { openInSystemBrowser } from "./openMaterial.js";
 import { Av, Loader } from "./shared.jsx";
 import { DSide, DChan, MNav, MoreMenu } from "./layout.jsx";
 import { HomeView } from "./views/HomeView.jsx";
@@ -780,6 +781,12 @@ export default function App(){
 
   // Course header (gradient banner + equal-width icon+label tabs)
   const cTabs=[{id:"materials",l:"教材",i:I.clip},{id:"assignments",l:"課題",i:I.tasks},{id:"timeline",l:"フィード",i:I.feed},{id:"chat",l:"チャット",i:I.chat},{id:"reviews",l:"レビュー",i:I.star}];
+  const openLms=()=>{
+    if(!cc?.moodleId) return;
+    const url=`https://lms.s.isct.ac.jp/2025/course/view.php?id=${cc.moodleId}`;
+    if(isNative()) openInSystemBrowser(url);
+    else window.open(url,"_blank","noopener");
+  };
   const CourseHdr=()=>{
     if(!cc) return null;
     const bk=goBack;
@@ -793,6 +800,7 @@ export default function App(){
               <div style={{fontSize:12,color:T.txD,marginTop:1}}>{cc.name}</div>
             </div>
             <button onClick={()=>setShowMembers(true)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.users}{members.length>0&&<span style={{position:"absolute",top:-4,right:-6,minWidth:14,height:14,borderRadius:7,background:cc.col,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{members.length}</span>}</button>
+            {cc.moodleId&&<button onClick={openLms} title="LMSで開く" style={{display:"flex",alignItems:"center",gap:4,background:`${cc.col}18`,border:`1px solid ${cc.col}40`,borderRadius:8,color:cc.col,cursor:"pointer",padding:"5px 9px",fontSize:11,fontWeight:700}}>{I.book}<span>LMS</span></button>}
             <button style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.more}</button>
           </div>
         </div>
