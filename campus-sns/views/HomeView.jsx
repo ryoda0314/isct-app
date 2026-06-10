@@ -54,6 +54,7 @@ const QA_ALL=[
   {id:"dm",icon:I.mail,labelKey:"common.dm"},
   {id:"notif",icon:I.bell,labelKey:"nav.notif"},
   {id:"navigation",icon:I.map,labelKey:"nav.map"},
+  {id:"library",icon:I.book,labelKey:"nav.library"},
   {id:"search",icon:I.search,labelKey:"nav.search"},
 ];
 const QA_DEFAULT=["portal","isctportal","calendar","events"];

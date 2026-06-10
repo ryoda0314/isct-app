@@ -42,6 +42,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
       <SideItem icon={I.circle} label={t("nav.circles")} on={view==="circles"} click={()=>setView("circles")} compact={cp}/>
       <SideItem icon={I.map} label={t("nav.navigation")} on={view==="navigation"} click={()=>setView("navigation")} compact={cp}/>
       <SideItem icon={I.clock} label="Taki Plaza" on={view==="takiplaza"} click={()=>setView("takiplaza")} compact={cp}/>
+      <SideItem icon={I.book} label={t("nav.library")} on={view==="library"} click={()=>setView("library")} compact={cp}/>
       <SideItem icon={I.grad} label={t("nav.freshman")} on={view==="freshman"} click={()=>setView("freshman")} compact={cp}/>
       <SideItem icon={I.more} label={t("nav.tools")} on={moreOpen||isExtra} click={()=>setMoreOpen(p=>!p)} compact={cp}/>
     </div>
@@ -181,7 +182,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
 // ============================================================
 
 const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false})=>{
-  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket","takiplaza","pdftools"];
+  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket","takiplaza","library","pdftools"];
   const ttId=hasMed?"med-tt":"timetable";
   const isMore=moreViews.includes(view)&&view!==ttId;
   return(
@@ -226,6 +227,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
     ]},
     {title:t("more.campus"),items:[
       {id:"takiplaza",i:I.clock,l:"Taki Plaza"},
+      {id:"library",i:I.book,l:t("nav.library")},
       {id:"freshman",i:I.grad,l:t("nav.freshman")},
     ]},
     {title:t("more.other"),items:otherItems},
