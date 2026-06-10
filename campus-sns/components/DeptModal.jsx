@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { t, locName } from "../i18n.js";
 import { T } from "../theme.js";
 import { SCHOOLS, DEPTS } from "../data.js";
 import { updateUserPref } from "../hooks/useCurrentUser.js";
@@ -155,7 +156,7 @@ export const DeptModal = ({ user, onClose }) => {
         body: JSON.stringify({ portalUserId: portalId, portalPassword: portalPw, matrix }),
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "認証に失敗しました");
+      if (!r.ok) throw new Error(d.error || t("deptmodal.errAuthFailed"));
       setPortalDone(true);
     } catch (e) { setError(e.message); }
     setPortalValidating(false);
@@ -184,8 +185,8 @@ export const DeptModal = ({ user, onClose }) => {
   };
 
   const handleSendCode = async () => {
-    if (!email || !emailPw) { setError("メールアドレスとパスワードを入力してください"); return; }
-    if (emailPw.length < 8) { setError("パスワードは8文字以上にしてください"); return; }
+    if (!email || !emailPw) { setError(t("deptmodal.errEmailPwRequired")); return; }
+    if (emailPw.length < 8) { setError(t("deptmodal.errPwTooShort")); return; }
     setSaving(true); setError(null);
     try {
       const r = await fetch("/api/auth/email/link", {
@@ -194,14 +195,14 @@ export const DeptModal = ({ user, onClose }) => {
         body: JSON.stringify({ email, password: emailPw }),
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "送信に失敗しました");
+      if (!r.ok) throw new Error(d.error || t("deptmodal.errSendFailed"));
       setCodeSent(true);
     } catch (e) { setError(e.message); }
     setSaving(false);
   };
 
   const handleVerifyCode = async () => {
-    if (code.length !== 6) { setError("6桁のコードを入力してください"); return; }
+    if (code.length !== 6) { setError(t("deptmodal.errCode6Digits")); return; }
     setSaving(true); setError(null);
     try {
       const r = await fetch("/api/auth/email/verify", {
@@ -210,7 +211,7 @@ export const DeptModal = ({ user, onClose }) => {
         body: JSON.stringify({ email, code }),
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "認証に失敗しました");
+      if (!r.ok) throw new Error(d.error || t("deptmodal.errAuthFailed"));
       setEmailVerified(true);
     } catch (e) { setError(e.message); }
     setSaving(false);
@@ -265,47 +266,47 @@ export const DeptModal = ({ user, onClose }) => {
   // メール認証セクション（共通）
   const emailAuthSection = (show) => {
     if (!show) return null;
-    if (hasEmail) return checkBadge("メール認証済み");
+    if (hasEmail) return checkBadge(t("deptmodal.emailVerified"));
     return (
       <div style={{ padding: 16, borderRadius: 12, marginBottom: 16, border: `1px solid ${T.bd}`, background: T.bg3 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 4 }}>メール認証が必要です</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 4 }}>{t("deptmodal.emailAuthRequired")}</div>
         <p style={{ fontSize: 12, color: T.txD, margin: "0 0 12px", lineHeight: 1.5 }}>
-          所属設定には本人確認のためメール連携が必要です
+          {t("deptmodal.emailAuthDesc")}
         </p>
         {errorBox(error)}
         {!codeSent ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: T.txD, marginBottom: 4, display: "block" }}>メールアドレス</label>
+              <label style={{ fontSize: 11, fontWeight: 600, color: T.txD, marginBottom: 4, display: "block" }}>{t("deptmodal.emailLabel")}</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="example@m.isct.ac.jp" style={inputStyle} />
             </div>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: T.txD, marginBottom: 4, display: "block" }}>ログイン用パスワード</label>
-              <input type="password" value={emailPw} onChange={e => setEmailPw(e.target.value)} placeholder="8文字以上" style={inputStyle} />
-              <div style={{ fontSize: 11, color: T.txD, marginTop: 4 }}>ISCTのパスワードとは別に、このアプリ用のパスワードを設定します</div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: T.txD, marginBottom: 4, display: "block" }}>{t("deptmodal.loginPwLabel")}</label>
+              <input type="password" value={emailPw} onChange={e => setEmailPw(e.target.value)} placeholder={t("deptmodal.pwPlaceholder")} style={inputStyle} />
+              <div style={{ fontSize: 11, color: T.txD, marginTop: 4 }}>{t("deptmodal.appPwNote")}</div>
             </div>
             <button onClick={handleSendCode} disabled={saving || !email || !emailPw} style={btnStyle(email && emailPw && !saving)}>
-              {saving ? "送信中..." : "確認コードを送信"}
+              {saving ? t("deptmodal.sending") : t("deptmodal.sendCode")}
             </button>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <p style={{ fontSize: 12, color: T.txD, lineHeight: 1.5 }}>
-              <strong style={{ color: T.txH }}>{email}</strong> に6桁の確認コードを送信しました
+              <strong style={{ color: T.txH }}>{email}</strong> {t("deptmodal.codeSentTo")}
             </p>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: T.txD, marginBottom: 4, display: "block" }}>確認コード</label>
+              <label style={{ fontSize: 11, fontWeight: 600, color: T.txD, marginBottom: 4, display: "block" }}>{t("deptmodal.codeLabel")}</label>
               <input type="text" inputMode="numeric" value={code}
                 onChange={e => setCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
                 placeholder="123456"
                 style={{ ...inputStyle, fontFamily: "monospace", letterSpacing: 4, textAlign: "center", fontSize: 18 }} />
             </div>
             <button onClick={handleVerifyCode} disabled={saving || code.length !== 6} style={btnStyle(code.length === 6 && !saving)}>
-              {saving ? "確認中..." : "認証する"}
+              {saving ? t("deptmodal.verifying") : t("deptmodal.verify")}
             </button>
             <button onClick={() => { setCodeSent(false); setCode(""); setError(null); }}
               style={{ background: "none", border: "none", color: T.txD, fontSize: 11, cursor: "pointer", padding: "2px 0" }}>
-              メールアドレスを変更する
+              {t("deptmodal.changeEmail")}
             </button>
           </div>
         )}
@@ -323,11 +324,11 @@ export const DeptModal = ({ user, onClose }) => {
       <div style={{ padding: 14, borderRadius: 12, marginBottom: 16, border: `1px solid ${T.bd}`, background: T.bg3 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <label style={{ fontSize: 12, fontWeight: 600, color: T.txD }}>
-            {isFirstYear ? "志望系" : "所属系"}
+            {isFirstYear ? t("deptmodal.desiredDept") : t("deptmodal.belongDept")}
           </label>
           {sd && !showSchoolPicker && (
             <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, background: `${sd.col}14`, color: sd.col }}>
-              {sd.name}
+              {locName(sd)}
             </span>
           )}
         </div>
@@ -335,17 +336,17 @@ export const DeptModal = ({ user, onClose }) => {
         {/* 転院モード or 学院未判定: 学院選択 */}
         {showSchoolPicker && (
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 11, fontWeight: 500, color: T.txD, marginBottom: 6 }}>学院</div>
+            <div style={{ fontSize: 11, fontWeight: 500, color: T.txD, marginBottom: 6 }}>{t("deptmodal.school")}</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {Object.entries(SCHOOLS).filter(([sk]) => sk !== "medicine" && sk !== "dentistry").map(([sk, sv]) => (
                 <button key={sk} onClick={() => { setSetupDeptSchool(sk); setSetupDept(null); }}
-                  style={chipStyle(setupDeptSchool === sk, sv.col)}>{sv.name}</button>
+                  style={chipStyle(setupDeptSchool === sk, sv.col)}>{locName(sv)}</button>
               ))}
             </div>
             {setupTransfer && (
               <button onClick={() => { setSetupTransfer(false); setSetupDeptSchool(sciSchool); setSetupDept(null); }}
                 style={{ background: "none", border: "none", color: T.txD, fontSize: 11, cursor: "pointer", padding: "6px 0 0" }}>
-                キャンセル
+                {t("common.cancel")}
               </button>
             )}
           </div>
@@ -354,7 +355,7 @@ export const DeptModal = ({ user, onClose }) => {
         {/* 学系ボタン */}
         {depts.length > 0 && (
           <div>
-            {showSchoolPicker && <div style={{ fontSize: 11, fontWeight: 500, color: T.txD, marginBottom: 6 }}>学系</div>}
+            {showSchoolPicker && <div style={{ fontSize: 11, fontWeight: 500, color: T.txD, marginBottom: 6 }}>{t("deptmodal.dept")}</div>}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {depts.map(([prefix, d]) => {
                 const sel = setupDept === prefix;
@@ -367,7 +368,7 @@ export const DeptModal = ({ user, onClose }) => {
                       color: sel ? d.col : T.txH,
                       fontSize: 13, fontWeight: sel ? 700 : 500, cursor: "pointer",
                       transition: "all .15s",
-                    }}>{d.name}</button>
+                    }}>{locName(d)}</button>
                 );
               })}
               {!isFirstYear && (
@@ -379,7 +380,7 @@ export const DeptModal = ({ user, onClose }) => {
                     color: T.txD,
                     fontSize: 13, fontWeight: setupDept === "none" ? 700 : 500, cursor: "pointer",
                     transition: "all .15s",
-                  }}>未所属</button>
+                  }}>{t("deptmodal.unaffiliated")}</button>
               )}
             </div>
           </div>
@@ -393,7 +394,7 @@ export const DeptModal = ({ user, onClose }) => {
               fontSize: 12, fontWeight: 500, cursor: "pointer",
               padding: "6px 0 0", textAlign: "left", display: "flex", alignItems: "center", gap: 4,
             }}>
-            転院した方はこちら
+            {t("deptmodal.transferHere")}
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         )}
@@ -414,27 +415,27 @@ export const DeptModal = ({ user, onClose }) => {
         padding: 24, boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
         maxHeight: "80dvh", overflowY: "auto",
       }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: T.txH, margin: "0 0 4px" }}>所属を設定</h2>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: T.txH, margin: "0 0 4px" }}>{t("deptmodal.title")}</h2>
         <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>
-          設定するとサイドバーに学部・学科のチャットやフィードが表示されます
+          {t("deptmodal.titleDesc")}
         </p>
 
         {/* モード選択 */}
         <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" }}>所属キャンパス</label>
+          <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" }}>{t("deptmodal.campus")}</label>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => { setMode("sci"); setSetupDept(null); setSetupTransfer(false); resetEmailState(); }}
               style={{ ...chipStyle(mode === "sci", "#6375f0"), flex: 1, padding: "10px 0", fontSize: 13 }}>
-              理工学系（大岡山）
+              {t("deptmodal.campusSci")}
             </button>
             <button onClick={() => { setMode("med"); setSetupDept(null); resetEmailState(); }}
               style={{ ...chipStyle(mode === "med", "#e04e6a"), flex: 1, padding: "10px 0", fontSize: 13 }}>
-              医歯学系（湯島）
+              {t("deptmodal.campusMed")}
             </button>
           </div>
         </div>
 
-        {statusLoading && <div style={{ fontSize: 13, color: T.txD, marginBottom: 12 }}>認証状態を確認中...</div>}
+        {statusLoading && <div style={{ fontSize: 13, color: T.txD, marginBottom: 12 }}>{t("deptmodal.checkingAuth")}</div>}
 
         {/* === 理工学系 === */}
         {mode === "sci" && authStatus && (
@@ -442,30 +443,30 @@ export const DeptModal = ({ user, onClose }) => {
             {/* Titech Portal 認証 */}
             {!hasPortal ? (
               <div style={{ padding: 16, borderRadius: 12, marginBottom: 16, border: `1px solid ${T.bd}`, background: T.bg3 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 4 }}>Titech Portal 認証</div>
-                <p style={{ fontSize: 12, color: T.txD, margin: "0 0 12px", lineHeight: 1.5 }}>ポータルアカウントを登録してください</p>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 4 }}>{t("deptmodal.portalAuth")}</div>
+                <p style={{ fontSize: 12, color: T.txD, margin: "0 0 12px", lineHeight: 1.5 }}>{t("deptmodal.portalAuthDesc")}</p>
                 {errorBox(error)}
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: T.txD, marginBottom: 4, display: "block" }}>ポータル アカウント</label>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: T.txD, marginBottom: 4, display: "block" }}>{t("deptmodal.portalAccount")}</label>
                     <input type="text" value={portalId} onChange={e => setPortalId(e.target.value)}
-                      placeholder="学籍番号" style={{ ...inputStyle, fontFamily: "monospace" }} />
+                      placeholder={t("deptmodal.studentIdPlaceholder")} style={{ ...inputStyle, fontFamily: "monospace" }} />
                   </div>
                   <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: T.txD, marginBottom: 4, display: "block" }}>ポータル パスワード</label>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: T.txD, marginBottom: 4, display: "block" }}>{t("deptmodal.portalPassword")}</label>
                     <input type="password" value={portalPw} onChange={e => setPortalPw(e.target.value)}
-                      placeholder="ポータルのパスワード" style={inputStyle} />
+                      placeholder={t("deptmodal.portalPwPlaceholder")} style={inputStyle} />
                   </div>
                   <MatrixInput matrix={matrix} setMatrix={setMatrix} />
                   <button onClick={handlePortalValidate}
                     disabled={portalValidating || !portalId || !portalPw || !matrixFilled}
                     style={btnStyle(portalId && portalPw && matrixFilled && !portalValidating)}>
-                    {portalValidating ? "認証中..." : "ポータル認証"}
+                    {portalValidating ? t("deptmodal.authenticating") : t("deptmodal.portalAuthBtn")}
                   </button>
                 </div>
               </div>
             ) : (
-              checkBadge("Titech Portal 認証済み")
+              checkBadge(t("deptmodal.portalAuthDone"))
             )}
 
             {/* 学系選択（Portal認証後） */}
@@ -480,11 +481,11 @@ export const DeptModal = ({ user, onClose }) => {
         {mode === "med" && authStatus && (
           <>
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" }}>学籍番号</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" }}>{t("deptmodal.studentIdLabel")}</label>
               <input type="text" value={medStudentId} onChange={e => setMedStudentId(e.target.value.trim())}
-                placeholder="例: 25B61001" style={inputStyle} />
+                placeholder={t("deptmodal.medStudentIdPlaceholder")} style={inputStyle} />
               {medStudentId && !medParsed && (
-                <div style={{ fontSize: 11, color: T.red, marginTop: 4 }}>医歯学系の学籍番号として認識できません</div>
+                <div style={{ fontSize: 11, color: T.red, marginTop: 4 }}>{t("deptmodal.medIdNotRecognized")}</div>
               )}
               {medParsed && (
                 <div style={{
@@ -493,11 +494,11 @@ export const DeptModal = ({ user, onClose }) => {
                   border: `1px solid ${SCHOOLS[medParsed.schoolKey]?.col || T.accent}30`,
                 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: SCHOOLS[medParsed.schoolKey]?.col || T.txH }}>
-                    {SCHOOLS[medParsed.schoolKey]?.name}
+                    {locName(SCHOOLS[medParsed.schoolKey])}
                   </span>
                   <span style={{ fontSize: 13, color: T.txD, margin: "0 6px" }}>/</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>
-                    {DEPTS[medParsed.deptKey]?.name}
+                    {locName(DEPTS[medParsed.deptKey])}
                   </span>
                 </div>
               )}
@@ -508,7 +509,7 @@ export const DeptModal = ({ user, onClose }) => {
 
         {/* ボタン */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <button onClick={handleSave} disabled={!canSave} style={btnStyle(canSave)}>設定する</button>
+          <button onClick={handleSave} disabled={!canSave} style={btnStyle(canSave)}>{t("deptmodal.saveBtn")}</button>
         </div>
       </div>
     </div>

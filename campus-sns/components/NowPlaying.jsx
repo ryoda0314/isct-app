@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { useMusicPlayer } from "../hooks/useMusicPlayer.js";
+import { t } from "../i18n.js";
 
 const fmt = (s) => {
   if (!Number.isFinite(s) || s < 0) s = 0;
@@ -110,7 +111,7 @@ export function NowPlaying({ onClose, onOpenLibrary }) {
       {/* 上部: ハンドル（下スワイプで閉じる / タップでも閉じる）。button だとドラッグ対象外になるので div で実装 */}
       <div
         onClick={() => { if (!movedRef.current) onClose?.(); }}
-        role="button" aria-label="閉じる"
+        role="button" aria-label={t("common.close")}
         style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "12px 0 8px", cursor: "grab" }}
       >
         <div style={{ width: 40, height: 5, borderRadius: 3, background: "rgba(255,255,255,0.55)" }} />
@@ -158,11 +159,11 @@ export function NowPlaying({ onClose, onOpenLibrary }) {
 
         {/* メイン操作 */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 36 }}>
-          <button onClick={prev} aria-label="前へ" style={ctrlBtn()}>{midIcon(I.skipBack)}</button>
-          <button onClick={toggle} aria-label={playing ? "一時停止" : "再生"} style={{ ...ctrlBtn(), width: 76, height: 76 }}>
+          <button onClick={prev} aria-label={t("nowplaying.prev")} style={ctrlBtn()}>{midIcon(I.skipBack)}</button>
+          <button onClick={toggle} aria-label={playing ? t("nowplaying.pause") : t("nowplaying.play")} style={{ ...ctrlBtn(), width: 76, height: 76 }}>
             {playing ? bigIcon(I.pause) : bigIcon(I.play)}
           </button>
-          <button onClick={next} aria-label="次へ" style={ctrlBtn()}>{midIcon(I.skipFwd)}</button>
+          <button onClick={next} aria-label={t("nowplaying.next")} style={ctrlBtn()}>{midIcon(I.skipFwd)}</button>
         </div>
 
         {/* 音量 */}
@@ -179,14 +180,14 @@ export function NowPlaying({ onClose, onOpenLibrary }) {
 
         {/* 下部: シャッフル / リピート / キュー */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", paddingTop: 4 }}>
-          <button onClick={toggleShuffle} aria-label="シャッフル" style={footBtn(shuffle)}>{I.shuffle}</button>
-          <button onClick={toggleRepeat} aria-label="リピート" style={footBtn(repeat !== "off")}>
+          <button onClick={toggleShuffle} aria-label={t("nowplaying.shuffle")} style={footBtn(shuffle)}>{I.shuffle}</button>
+          <button onClick={toggleRepeat} aria-label={t("nowplaying.repeat")} style={footBtn(repeat !== "off")}>
             <span style={{ position: "relative", display: "flex" }}>
               {I.repeat}
               {repeat === "one" && <span style={{ position: "absolute", right: -6, top: -5, fontSize: 9, fontWeight: 800 }}>1</span>}
             </span>
           </button>
-          {onOpenLibrary && <button onClick={() => { onOpenLibrary(); onClose?.(); }} aria-label="ライブラリ" style={footBtn(false)}>{I.queue}</button>}
+          {onOpenLibrary && <button onClick={() => { onOpenLibrary(); onClose?.(); }} aria-label={t("nowplaying.library")} style={footBtn(false)}>{I.queue}</button>}
         </div>
       </div>
 

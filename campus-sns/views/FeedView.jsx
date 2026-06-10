@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { tMap, fT } from "../utils.jsx";
 import { Av, Tag, Tx, Btn, Loader } from "../shared.jsx";
@@ -75,7 +76,7 @@ const CommentSection=({postId,user,onCountChange,members,onReport})=>{
 
   return(
     <div style={{paddingLeft:44,marginTop:8,borderTop:`1px solid ${T.bd}`,paddingTop:8}}>
-      {loading&&<div style={{fontSize:12,color:T.txD,padding:4}}>読み込み中...</div>}
+      {loading&&<div style={{fontSize:12,color:T.txD,padding:4}}>{t("common.loading")}</div>}
       {comments.map(c=>{
         const isOwn=c.uid===(user.moodleId||user.id);
         return(
@@ -88,12 +89,12 @@ const CommentSection=({postId,user,onCountChange,members,onReport})=>{
                 {isOwn&&<span onClick={()=>deleteComment(c.id)}
                   style={{cursor:"pointer",color:T.txD,fontSize:10,marginLeft:"auto",opacity:.6}}
                   onMouseEnter={e=>e.currentTarget.style.opacity=1}
-                  onMouseLeave={e=>e.currentTarget.style.opacity=.6}>削除</span>}
+                  onMouseLeave={e=>e.currentTarget.style.opacity=.6}>{t("common.delete")}</span>}
                 {!isOwn&&onReport&&<span onClick={()=>onReport({type:"comment",id:c.id,userId:c.uid})}
                   style={{cursor:"pointer",color:T.txD,fontSize:10,marginLeft:isOwn?0:"auto",opacity:.4,display:"flex",alignItems:"center"}}
                   onMouseEnter={e=>e.currentTarget.style.opacity=1}
                   onMouseLeave={e=>e.currentTarget.style.opacity=.4}
-                  title="通報">{I.flag}</span>}
+                  title={t("feed.report")}>{I.flag}</span>}
               </div>
               <div style={{margin:0,fontSize:13,color:T.tx,lineHeight:1.5}}><Tx>{c.text}</Tx></div>
             </div>
@@ -105,7 +106,7 @@ const CommentSection=({postId,user,onCountChange,members,onReport})=>{
         <input value={txt} onChange={e=>{setTxt(e.target.value);setCursor(e.target.selectionStart);}}
           onSelect={e=>setCursor(e.target.selectionStart)}
           onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
-          placeholder="コメントを入力..."
+          placeholder={t("feed.commentPlaceholder")}
           style={{flex:1,padding:"6px 10px",borderRadius:16,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
         <div onClick={send} style={{cursor:"pointer",color:txt.trim()?T.accent:T.txD,display:"flex",opacity:txt.trim()?1:.4}}>
           {I.send}
@@ -138,7 +139,7 @@ const PollView=({options,votes,userId,onVote})=>{
           </div>
         );
       })}
-      <div style={{fontSize:11,color:T.txD,textAlign:"right"}}>{total}票</div>
+      <div style={{fontSize:11,color:T.txD,textAlign:"right"}}>{t("feed.votes",{n:total})}</div>
     </div>
   );
 };
@@ -346,7 +347,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
   };
 
   const resolveUser=(p)=>{
-    if(p.type==="anon") return {name:"匿名",av:"?",col:T.txD};
+    if(p.type==="anon") return {name:t("feed.anonymous"),av:"?",col:T.txD};
     if(p.name) return {name:p.name,av:p.avatar,col:p.color};
     if(p.uid===userId) return {name:user.name,av:user.av,col:user.col};
     return {name:`User ${p.uid}`,av:"?",col:"#888"};
@@ -388,7 +389,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
         </div>}
         {/* Pin indicator */}
         {p.pinned&&!filterUser&&<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:6,paddingLeft:44,fontSize:11,color:T.accent,fontWeight:600}}>
-          <span style={{display:"flex"}}>{I.pin}</span>ピン留め
+          <span style={{display:"flex"}}>{I.pin}</span>{t("feed.pinned")}
         </div>}
         {/* Header */}
         <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:6}}>
@@ -401,7 +402,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
             </div>
             <div style={{display:"flex",alignItems:"center",gap:6}}>
               <span style={{fontSize:11,color:T.txD}}>{fT(p.ts)}</span>
-              {p.editedAt&&<span style={{fontSize:10,color:T.txD,fontStyle:"italic"}}>（編集済み）</span>}
+              {p.editedAt&&<span style={{fontSize:10,color:T.txD,fontStyle:"italic"}}>{t("feed.edited")}</span>}
             </div>
           </div>
           {/* More menu for own posts */}
@@ -419,19 +420,19 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
                 style={{padding:"8px 14px",fontSize:13,color:T.txH,cursor:"pointer",whiteSpace:"nowrap"}}
                 onMouseEnter={e=>e.currentTarget.style.background=T.bg3}
                 onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                編集
+                {t("feed.edit")}
               </div>
               <div onClick={()=>{pinPost(p.id);setMenuPost(null);}}
                 style={{padding:"8px 14px",fontSize:13,color:T.accent,cursor:"pointer",whiteSpace:"nowrap"}}
                 onMouseEnter={e=>e.currentTarget.style.background=T.bg3}
                 onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                {p.pinned?"ピン解除":"ピン留め"}
+                {p.pinned?t("feed.unpin"):t("feed.pin")}
               </div>
               <div onClick={()=>{deletePost(p.id);setMenuPost(null);}}
                 style={{padding:"8px 14px",fontSize:13,color:T.red,cursor:"pointer",whiteSpace:"nowrap"}}
                 onMouseEnter={e=>e.currentTarget.style.background=T.bg3}
                 onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                削除
+                {t("common.delete")}
               </div>
             </div>}
           </div>}
@@ -443,8 +444,8 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
               <textarea value={editText} onChange={e=>setEditText(e.target.value)}
                 style={{width:"100%",minHeight:48,padding:8,borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,resize:"vertical",outline:"none",fontFamily:"inherit"}}/>
               <div style={{display:"flex",gap:6,marginTop:4}}>
-                <Btn on onClick={()=>saveEdit(p.id)} style={{borderRadius:10,fontSize:12}}>保存</Btn>
-                <Btn onClick={()=>{setEditingPost(null);setEditText("");}} style={{borderRadius:10,fontSize:12}}>キャンセル</Btn>
+                <Btn on onClick={()=>saveEdit(p.id)} style={{borderRadius:10,fontSize:12}}>{t("common.save")}</Btn>
+                <Btn onClick={()=>{setEditingPost(null);setEditText("");}} style={{borderRadius:10,fontSize:12}}>{t("common.cancel")}</Btn>
               </div>
             </div>
           ):(
@@ -452,7 +453,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
           )}
           {p.queued&&<div style={{fontSize:11,color:T.txD,marginTop:4,display:"flex",alignItems:"center",gap:4}}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            オフライン — オンライン復帰時に送信されます
+            {t("feed.offlineQueued")}
           </div>}
           {/* Poll */}
           {p.type==="poll"&&p.pollOptions&&(
@@ -481,8 +482,8 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
           {/* Share */}
           <div onClick={async()=>{
             const text=`${u.name}: ${p.text.slice(0,100)}${p.text.length>100?"...":""}`;
-            if(navigator.share){try{await navigator.share({title:"投稿を共有",text});return;}catch{}}
-            try{await navigator.clipboard.writeText(p.text);showToast("テキストをコピーしました");}catch{showToast("コピーに失敗しました");}
+            if(navigator.share){try{await navigator.share({title:t("feed.sharePost"),text});return;}catch{}}
+            try{await navigator.clipboard.writeText(p.text);showToast(t("feed.copied"));}catch{showToast(t("feed.copyFailed"));}
           }} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",color:T.txD,fontSize:12,opacity:.7}}
             onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.7}>
             <span style={{display:"flex"}}>{I.send}</span>
@@ -506,24 +507,24 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
         <div style={{display:"flex",gap:8,alignItems:mob&&!composing?"center":"flex-start"}}>
           <Av u={user} sz={mob?32:36}/>
           {mob&&!composing?
-            <div onClick={()=>setComposing(true)} style={{flex:1,padding:"8px 12px",borderRadius:18,background:T.bg3,border:`1px solid ${T.bd}`,color:T.txD,fontSize:13,cursor:"pointer"}}>投稿する...</div>
+            <div onClick={()=>setComposing(true)} style={{flex:1,padding:"8px 12px",borderRadius:18,background:T.bg3,border:`1px solid ${T.bd}`,color:T.txD,fontSize:13,cursor:"pointer"}}>{t("feed.composePrompt")}</div>
           :
             <div style={{flex:1,position:"relative"}}>
               <MentionSuggest text={txt} cursorPos={cursor} members={members} onSelect={insertMention}/>
               <textarea value={txt} onChange={e=>{setTxt(e.target.value);setCursor(e.target.selectionStart);}}
                 onSelect={e=>setCursor(e.target.selectionStart)}
-                placeholder="みんなに共有しよう..." autoFocus={mob&&composing} style={{width:"100%",minHeight:mob?60:48,padding:10,borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,resize:"vertical",outline:"none",fontFamily:"inherit"}}/>
+                placeholder={t("feed.composePlaceholder")} autoFocus={mob&&composing} style={{width:"100%",minHeight:mob?60:48,padding:10,borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,resize:"vertical",outline:"none",fontFamily:"inherit"}}/>
               {/* Poll options when type=poll */}
               {type==="poll"&&(
                 <div style={{marginTop:6,display:"flex",flexDirection:"column",gap:4}}>
                   {pollOptions.map((o,i)=>(
                     <div key={i} style={{display:"flex",gap:4,alignItems:"center"}}>
-                      <input value={o} onChange={e=>setPollOpt(i,e.target.value)} placeholder={`選択肢 ${i+1}`}
+                      <input value={o} onChange={e=>setPollOpt(i,e.target.value)} placeholder={t("feed.pollOption",{n:i+1})}
                         style={{flex:1,padding:"6px 10px",borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
                       {pollOptions.length>2&&<span onClick={()=>rmPollOption(i)} style={{cursor:"pointer",color:T.txD,display:"flex"}}>{I.x}</span>}
                     </div>
                   ))}
-                  {pollOptions.length<6&&<div onClick={addPollOption} style={{fontSize:11,color:T.accent,cursor:"pointer",paddingLeft:4}}>+ 選択肢を追加</div>}
+                  {pollOptions.length<6&&<div onClick={addPollOption} style={{fontSize:11,color:T.accent,cursor:"pointer",paddingLeft:4}}>{t("feed.addPollOption")}</div>}
                 </div>
               )}
               {/* File previews */}
@@ -550,9 +551,9 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
                   <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.txt" style={{display:"none"}} onChange={handleFiles}/>
                 </div>
                 <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                  {user.yearGroup&&<span style={{fontSize:10,color:T.txD}}>{user.yearGroup}として投稿</span>}
-                  {mob&&<Btn onClick={()=>{setComposing(false);setTxt("");setFiles([]);setPollOptions(["",""]);}}>キャンセル</Btn>}
-                  <Btn on onClick={send} style={{borderRadius:14,opacity:txt.trim()?1:.4}}>投稿</Btn>
+                  {user.yearGroup&&<span style={{fontSize:10,color:T.txD}}>{t("feed.postAs",{group:user.yearGroup})}</span>}
+                  {mob&&<Btn onClick={()=>{setComposing(false);setTxt("");setFiles([]);setPollOptions(["",""]);}}>{t("common.cancel")}</Btn>}
+                  <Btn on onClick={send} style={{borderRadius:14,opacity:txt.trim()?1:.4}}>{t("feed.post")}</Btn>
                 </div>
               </div>
             </div>
@@ -564,7 +565,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
       {!filterUser&&<div style={{padding:"6px 16px",borderBottom:`1px solid ${T.bd}`,display:"flex",gap:6,alignItems:"center",flexShrink:0,flexWrap:"wrap"}}>
         <div style={{display:"flex",alignItems:"center",gap:4,flex:1,minWidth:120,padding:"4px 10px",borderRadius:8,background:T.bg3,border:`1px solid ${T.bd}`}}>
           <span style={{color:T.txD,display:"flex"}}>{I.search}</span>
-          <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="投稿を検索..."
+          <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder={t("feed.searchPlaceholder")}
             style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
           {searchQ&&<span onClick={()=>setSearchQ("")} style={{cursor:"pointer",color:T.txD,display:"flex"}}>{I.x}</span>}
         </div>
@@ -584,7 +585,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
           onMouseEnter={e=>e.currentTarget.style.background=T.bg3} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{I.back}</div>
         <div>
           <div style={{fontWeight:700,fontSize:15,color:T.txH,lineHeight:1.2}}>{filterUser.name}</div>
-          <div style={{fontSize:12,color:T.txD}}>{userPostCount}件の投稿</div>
+          <div style={{fontSize:12,color:T.txD}}>{t("feed.postCount",{n:userPostCount})}</div>
         </div>
       </div>}
 
@@ -598,10 +599,10 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
               <Av u={filterUser} sz={62}/>
             </div>
             <div style={{fontWeight:700,fontSize:17,color:T.txH}}>{filterUser.name}</div>
-            <div style={{fontSize:13,color:T.txD,marginTop:2}}>全{userPostCount}件の投稿</div>
+            <div style={{fontSize:13,color:T.txD,marginTop:2}}>{t("feed.totalPostCount",{n:userPostCount})}</div>
           </div>
           <div style={{display:"flex",borderTop:`1px solid ${T.bd}`,borderBottom:`1px solid ${T.bd}`}}>
-            {[["course","この科目"],["all","すべて"]].map(([k,l])=>{
+            {[["course",t("feed.tabThisCourse")],["all",t("feed.tabAll")]].map(([k,l])=>{
               const active=profileTab===k;
               return <div key={k} onClick={()=>setProfileTab(k)}
                 style={{flex:1,textAlign:"center",padding:"10px 0",fontSize:13,fontWeight:active?600:400,
@@ -612,8 +613,8 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
           </div>
         </div>}
 
-        {loading&&<Loader msg="投稿を読み込み中" size="sm"/>}
-        {!loading&&filtered.length===0&&filteredPinned.length===0&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{filterUser?`${filterUser.name}の投稿はありません`:searchQ||filterType?"該当する投稿がありません":"まだ投稿がありません"}</div>}
+        {loading&&<Loader msg={t("feed.loadingPosts")} size="sm"/>}
+        {!loading&&filtered.length===0&&filteredPinned.length===0&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{filterUser?t("feed.noUserPosts",{name:filterUser.name}):searchQ||filterType?t("feed.noMatchingPosts"):t("feed.noPosts")}</div>}
 
         {/* Pinned posts */}
         {filteredPinned.map(p=>renderPost(p,`pin_${p.id}`))}
@@ -623,7 +624,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
 
         {/* Infinite scroll sentinel */}
         {hasMore&&!searchQ&&!filterType&&<div ref={sentinelRef} style={{padding:16,textAlign:"center"}}>
-          {loadingMore?<Loader msg="読み込み中" size="sm"/>:<div style={{color:T.txD,fontSize:12}}>スクロールして続きを読み込む</div>}
+          {loadingMore?<Loader msg={t("common.loading")} size="sm"/>:<div style={{color:T.txD,fontSize:12}}>{t("feed.scrollToLoadMore")}</div>}
         </div>}
       </div>
       {reportTarget&&<ReportModal targetType={reportTarget.type} targetId={reportTarget.id} targetUserId={reportTarget.userId} onClose={()=>setReportTarget(null)}/>}

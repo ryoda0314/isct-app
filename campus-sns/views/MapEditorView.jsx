@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import { useLeaflet, Loader } from "../shared.jsx";
 import { SPOTS, CAMPUS_CENTER, CAMPUS_ZOOM, WAYPOINTS, EDGES, ENTRANCES, AREAS, CAMPUS_BOUNDARY } from "../hooks/useLocationSharing.js";
 
 const SPOT_TYPES=[
-  {id:"bench",label:"ベンチ",prefix:"B",col:"#8bc34a"},
-  {id:"park",label:"駐輪場",prefix:"P",col:"#78909c"},
-  {id:"vend_d",label:"自販機・飲料",prefix:"VD",col:"#42a5f5"},
-  {id:"vend_f",label:"自販機・食品",prefix:"VF",col:"#ff8a65"},
-  {id:"smoke",label:"喫煙所",prefix:"S",col:"#b0bec5"},
+  {id:"bench",label:"ベンチ",labelKey:"mapeditor.spotType.bench",prefix:"B",col:"#8bc34a"},
+  {id:"park",label:"駐輪場",labelKey:"mapeditor.spotType.park",prefix:"P",col:"#78909c"},
+  {id:"vend_d",label:"自販機・飲料",labelKey:"mapeditor.spotType.vendDrink",prefix:"VD",col:"#42a5f5"},
+  {id:"vend_f",label:"自販機・食品",labelKey:"mapeditor.spotType.vendFood",prefix:"VF",col:"#ff8a65"},
+  {id:"smoke",label:"喫煙所",labelKey:"mapeditor.spotType.smoke",prefix:"S",col:"#b0bec5"},
 ];
 
 export const MapEditorView=({mob})=>{
@@ -282,12 +283,12 @@ export const MapEditorView=({mob})=>{
         }).addTo(map);
         if(edgeEditMode){
           if(isNew){
-            line.bindTooltip("クリックで削除",{className:"spot-tip",direction:"top"});
+            line.bindTooltip(t("mapeditor.clickToDelete"),{className:"spot-tip",direction:"top"});
             const ri=ei-EDGES.length;
             line.on("click",(ev)=>{L.DomEvent.stopPropagation(ev);setNewEdges(prev=>prev.filter((_,i)=>i!==ri));});
           }else{
             line.setStyle({weight:3,opacity:0.7});
-            line.bindTooltip("クリックで削除",{className:"spot-tip",direction:"top"});
+            line.bindTooltip(t("mapeditor.clickToDelete"),{className:"spot-tip",direction:"top"});
             const ci=ei;
             line.on("click",(ev)=>{L.DomEvent.stopPropagation(ev);setDeletedEdges(prev=>{const s=new Set(prev);s.add(ci);return s;});});
           }
@@ -371,7 +372,7 @@ export const MapEditorView=({mob})=>{
             iconSize:[0,0],iconAnchor:[0,0],
           });
           const m=L.marker([ent.lat,ent.lng],{icon}).addTo(map);
-          m.bindTooltip(`${s?.short||"?"} 入口 (${nodeId})`,{className:"spot-tip",direction:"top",offset:[0,-4]});
+          m.bindTooltip(`${t("mapeditor.entranceOf",{name:s?.short||"?"})} (${nodeId})`,{className:"spot-tip",direction:"top",offset:[0,-4]});
           m.on("click",(ev)=>{L.DomEvent.stopPropagation(ev);edgeClick(nodeId);});
           markersRef.current.push(m);
         });
@@ -417,7 +418,7 @@ export const MapEditorView=({mob})=>{
             iconSize:[0,0],iconAnchor:[0,0],
           });
           const m=L.marker([pos.lat,pos.lng],{icon,draggable:true}).addTo(map);
-          m.bindTooltip(`${s.short} 入口`,{className:"spot-tip",direction:"top",offset:[0,-6]});
+          m.bindTooltip(t("mapeditor.entranceOf",{name:s.short}),{className:"spot-tip",direction:"top",offset:[0,-6]});
           const ci=idx;
           m.on("dragend",()=>{
             const ll=m.getLatLng();
@@ -431,7 +432,7 @@ export const MapEditorView=({mob})=>{
             iconSize:[0,0],iconAnchor:[0,0],
           });
           const m=L.marker([pos.lat,pos.lng],{icon:dot}).addTo(map);
-          m.bindTooltip(`${s.short} 入口`,{className:"spot-tip",direction:"top",offset:[0,-4]});
+          m.bindTooltip(t("mapeditor.entranceOf",{name:s.short}),{className:"spot-tip",direction:"top",offset:[0,-4]});
           markersRef.current.push(m);
         }
       });
@@ -454,14 +455,14 @@ export const MapEditorView=({mob})=>{
 
     // 仮登録スポットのマーカー
     spotRegs.forEach((r,i)=>{
-      const t=SPOT_TYPES.find(x=>x.id===r.type);
+      const st=SPOT_TYPES.find(x=>x.id===r.type);
       const dot=L.divIcon({
         className:"",
-        html:`<div style="width:18px;height:18px;border-radius:50%;background:${t?.col||"#888"};border:2px solid #fff;display:flex;align-items:center;justify-content:center;transform:translate(-50%,-50%);font-size:7px;font-weight:700;color:#fff;cursor:grab">${t?.prefix||"?"}${i+1}</div>`,
+        html:`<div style="width:18px;height:18px;border-radius:50%;background:${st?.col||"#888"};border:2px solid #fff;display:flex;align-items:center;justify-content:center;transform:translate(-50%,-50%);font-size:7px;font-weight:700;color:#fff;cursor:grab">${st?.prefix||"?"}${i+1}</div>`,
         iconSize:[0,0],iconAnchor:[0,0],
       });
       const m=L.marker([r.lat,r.lng],{icon:dot,draggable:true}).addTo(map);
-      m.bindTooltip(`${r.memo||t?.label||""}`,{className:"spot-tip",direction:"top",offset:[0,-10]});
+      m.bindTooltip(`${r.memo||(st?.labelKey?t(st.labelKey):"")}`,{className:"spot-tip",direction:"top",offset:[0,-10]});
       m.on("dragend",()=>{
         const pos=m.getLatLng();
         const updated=[...spotRegsRef.current];
@@ -476,10 +477,11 @@ export const MapEditorView=({mob})=>{
       const onSpotClick=(e)=>{
         const typeId=spotRegTypeRef.current;
         if(!typeId)return;
-        const t=SPOT_TYPES.find(x=>x.id===typeId);
-        const memo=prompt(`${t.label}のメモ（場所の説明）`,"");
+        const st=SPOT_TYPES.find(x=>x.id===typeId);
+        const stLabel=st?.labelKey?t(st.labelKey):st?.label||"";
+        const memo=prompt(t("mapeditor.spotMemoPrompt",{name:stLabel}),"");
         if(memo===null)return;
-        const reg={type:typeId,lat:parseFloat(e.latlng.lat.toFixed(5)),lng:parseFloat(e.latlng.lng.toFixed(5)),memo:memo||t.label,ts:Date.now()};
+        const reg={type:typeId,lat:parseFloat(e.latlng.lat.toFixed(5)),lng:parseFloat(e.latlng.lng.toFixed(5)),memo:memo||stLabel,ts:Date.now()};
         saveSpotRegs([...spotRegsRef.current,reg]);
       };
       map.on("click",onSpotClick);
@@ -539,7 +541,7 @@ export const MapEditorView=({mob})=>{
     setEntCopied(true);setTimeout(()=>setEntCopied(false),2000);
   };
 
-  if(!leafletReady)return <Loader msg="地図を読み込み中" size="sm"/>;
+  if(!leafletReady)return <Loader msg={t("mapeditor.loadingMap")} size="sm"/>;
 
   const editCount=Object.keys(edits).length;
   const existingIds=new Set(WAYPOINTS.map(w=>w.id));
@@ -566,7 +568,7 @@ export const MapEditorView=({mob})=>{
 
       {/* 地図オーバーレイ透明度スライダー */}
       <div style={{position:"absolute",bottom:30,left:10,zIndex:1000,display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:8,background:`${T.bg2}d0`,backdropFilter:"blur(8px)",border:`1px solid ${T.bd}`}}>
-        <span style={{fontSize:9,fontWeight:600,color:T.txD,whiteSpace:"nowrap"}}>地図</span>
+        <span style={{fontSize:9,fontWeight:600,color:T.txD,whiteSpace:"nowrap"}}>{t("mapeditor.mapOverlay")}</span>
         <input type="range" min="0" max="100" value={Math.round(overlayOp*100)} onChange={e=>setOverlayOp(e.target.value/100)} style={{width:80,height:3,accentColor:"#f0c040",cursor:"pointer"}}/>
         <span style={{fontSize:9,color:T.txD,fontFamily:"monospace",minWidth:28}}>{Math.round(overlayOp*100)}%</span>
       </div>
@@ -574,55 +576,55 @@ export const MapEditorView=({mob})=>{
       {/* 編集モードトグル */}
       <div style={{position:"absolute",top:10,right:10,zIndex:1000,display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end",maxWidth:mob?280:400}}>
         <button onClick={()=>{setShowPaths(e=>!e);if(showPaths){setWpEditMode(false);setEdgeEditMode(false);setEdgeFrom(null);}}} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:showPaths?"#f0c040":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${showPaths?"#f0c040":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
-          <span style={{fontSize:11,fontWeight:600,color:showPaths?"#000":T.txH}}>{showPaths?"道 ON":"道"}</span>
+          <span style={{fontSize:11,fontWeight:600,color:showPaths?"#000":T.txH}}>{showPaths?t("mapeditor.pathsOn"):t("mapeditor.paths")}</span>
         </button>
         {showPaths&&<button onClick={()=>{setWpEditMode(e=>!e);if(!wpEditMode)setEdgeEditMode(false);}} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:wpEditMode?"#f0c040":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${wpEditMode?"#f0c040":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
-          <span style={{fontSize:11,fontWeight:600,color:wpEditMode?"#000":T.txH}}>{wpEditMode?"WP編集中":"WP編集"}</span>
+          <span style={{fontSize:11,fontWeight:600,color:wpEditMode?"#000":T.txH}}>{wpEditMode?t("mapeditor.wpEditing"):t("mapeditor.wpEdit")}</span>
         </button>}
         {showPaths&&<button onClick={()=>{setEdgeEditMode(e=>!e);if(!edgeEditMode){setWpEditMode(false);setEdgeFrom(null);}}} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:edgeEditMode?"#ff8040":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${edgeEditMode?"#ff8040":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
-          <span style={{fontSize:11,fontWeight:600,color:edgeEditMode?"#000":T.txH}}>{edgeEditMode?"Edge編集中":"Edge編集"}</span>
+          <span style={{fontSize:11,fontWeight:600,color:edgeEditMode?"#000":T.txH}}>{edgeEditMode?t("mapeditor.edgeEditing"):t("mapeditor.edgeEdit")}</span>
         </button>}
         <button onClick={()=>{setShowEnts(e=>!e);if(showEnts)setEntEditMode(false);}} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:showEnts?"#4de8b0":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${showEnts?"#4de8b0":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
-          <span style={{fontSize:11,fontWeight:600,color:showEnts?"#000":T.txH}}>{showEnts?"入口 ON":"入口"}</span>
+          <span style={{fontSize:11,fontWeight:600,color:showEnts?"#000":T.txH}}>{showEnts?t("mapeditor.entrancesOn"):t("mapeditor.entrances")}</span>
         </button>
         {showEnts&&<button onClick={()=>setEntEditMode(e=>!e)} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:entEditMode?"#4de8b0":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${entEditMode?"#4de8b0":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
-          <span style={{fontSize:11,fontWeight:600,color:entEditMode?"#000":T.txH}}>{entEditMode?"入口編集中":"入口編集"}</span>
+          <span style={{fontSize:11,fontWeight:600,color:entEditMode?"#000":T.txH}}>{entEditMode?t("mapeditor.entEditing"):t("mapeditor.entEdit")}</span>
         </button>}
         <button onClick={()=>{setAreaEditMode(e=>!e);if(areaEditMode)setAreaSelSpot(null);}} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:areaEditMode?"#60a0ff":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${areaEditMode?"#60a0ff":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
-          <span style={{fontSize:11,fontWeight:600,color:areaEditMode?"#fff":T.txH}}>{areaEditMode?"範囲編集中":"範囲"}</span>
+          <span style={{fontSize:11,fontWeight:600,color:areaEditMode?"#fff":T.txH}}>{areaEditMode?t("mapeditor.areaEditing"):t("mapeditor.area")}</span>
         </button>
         <button onClick={()=>setCbEditMode(e=>!e)} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:cbEditMode?"#ff6090":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${cbEditMode?"#ff6090":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
-          <span style={{fontSize:11,fontWeight:600,color:cbEditMode?"#fff":T.txH}}>{cbEditMode?"学域編集中":"学域"}</span>
+          <span style={{fontSize:11,fontWeight:600,color:cbEditMode?"#fff":T.txH}}>{cbEditMode?t("mapeditor.boundaryEditing"):t("mapeditor.boundary")}</span>
         </button>
         <button onClick={()=>{setEditMode(e=>!e);}} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:editMode?"#e8b63a":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${editMode?"#e8b63a":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
-          <span style={{fontSize:11,fontWeight:600,color:editMode?"#000":T.txH}}>{editMode?"編集中":"座標を編集"}</span>
+          <span style={{fontSize:11,fontWeight:600,color:editMode?"#000":T.txH}}>{editMode?t("mapeditor.coordEditing"):t("mapeditor.editCoord")}</span>
         </button>
         <button onClick={()=>{setSpotRegMode(e=>!e);setSpotRegType(null);}} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:spotRegMode?"#8bc34a":`${T.bg2}e0`,backdropFilter:"blur(8px)",border:`1px solid ${spotRegMode?"#8bc34a":T.bd}`,cursor:"pointer",transition:"all .15s"}}>
-          <span style={{fontSize:11,fontWeight:600,color:spotRegMode?"#000":T.txH}}>{spotRegMode?`登録中(${spotRegs.length})`:"スポット登録"}</span>
+          <span style={{fontSize:11,fontWeight:600,color:spotRegMode?"#000":T.txH}}>{spotRegMode?t("mapeditor.registering",{count:spotRegs.length}):t("mapeditor.registerSpot")}</span>
         </button>
       </div>
 
       {/* スポット仮登録パネル */}
       {spotRegMode&&<div style={{position:"absolute",bottom:50,left:10,right:10,zIndex:1000,borderRadius:12,background:`${T.bg2}f0`,backdropFilter:"blur(8px)",border:`1px solid #8bc34a`,boxShadow:"0 4px 16px rgba(0,0,0,.4)",padding:12}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#8bc34a",marginBottom:8}}>屋外スポット仮登録</div>
+        <div style={{fontSize:11,fontWeight:700,color:"#8bc34a",marginBottom:8}}>{t("mapeditor.outdoorSpotReg")}</div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-          {SPOT_TYPES.map(t=>{
-            const active=spotRegType===t.id;
-            return <button key={t.id} onClick={()=>setSpotRegType(active?null:t.id)} style={{display:"flex",alignItems:"center",gap:5,padding:"7px 12px",borderRadius:8,border:`1.5px solid ${t.col}`,background:active?t.col:`${t.col}18`,cursor:"pointer"}}>
-              <div style={{width:14,height:14,borderRadius:"50%",background:active?"#fff":t.col}}/>
-              <span style={{fontSize:11,fontWeight:600,color:active?"#fff":t.col}}>{t.label}</span>
+          {SPOT_TYPES.map(st=>{
+            const active=spotRegType===st.id;
+            return <button key={st.id} onClick={()=>setSpotRegType(active?null:st.id)} style={{display:"flex",alignItems:"center",gap:5,padding:"7px 12px",borderRadius:8,border:`1.5px solid ${st.col}`,background:active?st.col:`${st.col}18`,cursor:"pointer"}}>
+              <div style={{width:14,height:14,borderRadius:"50%",background:active?"#fff":st.col}}/>
+              <span style={{fontSize:11,fontWeight:600,color:active?"#fff":st.col}}>{t(st.labelKey)}</span>
             </button>;
           })}
         </div>
         {spotRegType&&<div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",marginBottom:8,borderRadius:8,background:`#8bc34a15`}}>
-          <span style={{fontSize:11,color:"#8bc34a",fontWeight:500}}>マップをクリックしてスポットを配置</span>
+          <span style={{fontSize:11,color:"#8bc34a",fontWeight:500}}>{t("mapeditor.clickToPlace")}</span>
         </div>}
         {spotRegs.length>0&&<>
           <div style={{maxHeight:120,overflowY:"auto",marginBottom:8}}>
             {spotRegs.map((r,i)=>{
-              const t=SPOT_TYPES.find(x=>x.id===r.type);
+              const st=SPOT_TYPES.find(x=>x.id===r.type);
               return <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",borderBottom:`1px solid ${T.bd}`}}>
-                <div style={{width:14,height:14,borderRadius:"50%",background:t?.col||"#888",flexShrink:0}}/>
+                <div style={{width:14,height:14,borderRadius:"50%",background:st?.col||"#888",flexShrink:0}}/>
                 <span style={{fontSize:11,color:T.txH,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.memo}</span>
                 <span style={{fontSize:9,color:T.txD,flexShrink:0}}>{r.lat},{r.lng}</span>
                 <button onClick={()=>saveSpotRegs(spotRegs.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:T.red,fontSize:12,padding:"0 2px"}}>x</button>
@@ -632,21 +634,21 @@ export const MapEditorView=({mob})=>{
           <div style={{display:"flex",gap:6}}>
             <button onClick={()=>{
               const lines=spotRegs.map((r,i)=>{
-                const t=SPOT_TYPES.find(x=>x.id===r.type);
+                const st=SPOT_TYPES.find(x=>x.id===r.type);
                 const n=spotRegs.slice(0,i+1).filter(x=>x.type===r.type).length;
-                return `  { id: "${r.type}_${n}", label: "${t?.label||r.type}（${r.memo}）", short: "${t?.prefix||"?"}${n}", col: "${t?.col||"#888"}", cat: "outdoor", lat: ${r.lat}, lng: ${r.lng} },`;
+                return `  { id: "${r.type}_${n}", label: "${st?.label||r.type}（${r.memo}）", short: "${st?.prefix||"?"}${n}", col: "${st?.col||"#888"}", cat: "outdoor", lat: ${r.lat}, lng: ${r.lng} },`;
               }).join("\n");
               navigator.clipboard.writeText(lines);
               setSpotRegCopied(true);setTimeout(()=>setSpotRegCopied(false),2000);
-            }} style={{flex:1,padding:"7px 0",borderRadius:8,border:`1px solid #8bc34a`,background:"#8bc34a20",cursor:"pointer",fontSize:11,fontWeight:600,color:"#8bc34a"}}>{spotRegCopied?"Copied!":"コードをコピー"}</button>
-            <button onClick={()=>{if(confirm("全て削除しますか？"))saveSpotRegs([]);}} style={{padding:"7px 12px",borderRadius:8,border:`1px solid ${T.red}`,background:`${T.red}10`,cursor:"pointer",fontSize:11,fontWeight:600,color:T.red}}>全削除</button>
+            }} style={{flex:1,padding:"7px 0",borderRadius:8,border:`1px solid #8bc34a`,background:"#8bc34a20",cursor:"pointer",fontSize:11,fontWeight:600,color:"#8bc34a"}}>{spotRegCopied?t("mapeditor.copied"):t("mapeditor.copyCode")}</button>
+            <button onClick={()=>{if(confirm(t("mapeditor.confirmDeleteAll")))saveSpotRegs([]);}} style={{padding:"7px 12px",borderRadius:8,border:`1px solid ${T.red}`,background:`${T.red}10`,cursor:"pointer",fontSize:11,fontWeight:600,color:T.red}}>{t("mapeditor.deleteAll")}</button>
           </div>
         </>}
       </div>}
 
       {/* 入口編集パネル */}
       {entEditMode&&entEditCount>0&&<div style={{position:"absolute",top:46,right:10,zIndex:1000,width:mob?220:260,borderRadius:10,background:`${T.bg2}f0`,backdropFilter:"blur(8px)",border:`1px solid #4de8b0`,boxShadow:"0 4px 16px rgba(0,0,0,.4)",padding:10,maxHeight:300,overflowY:"auto"}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#4de8b0",marginBottom:6}}>入口 {entEditCount}件{newEnts.length>0&&` (新規${newEnts.length})`}</div>
+        <div style={{fontSize:11,fontWeight:700,color:"#4de8b0",marginBottom:6}}>{t("mapeditor.entranceCount",{count:entEditCount})}{newEnts.length>0&&` ${t("mapeditor.newCount",{count:newEnts.length})}`}</div>
         {allEntsForPanel.map((ent,idx)=>{
           const s=SPOTS.find(x=>x.id===ent.spot);
           const pos=entDragEdits[idx]||{lat:ent.lat,lng:ent.lng};
@@ -660,25 +662,25 @@ export const MapEditorView=({mob})=>{
           </div>;
         })}
         <button onClick={copyEntEdits} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4,width:"100%",padding:"7px",borderRadius:7,border:"none",background:entCopied?"#4db88a":"#4de8b0",cursor:"pointer",marginTop:8,transition:"background .15s"}}>
-          <span style={{fontSize:11,fontWeight:700,color:"#000"}}>{entCopied?"コピーしました":"入口座標をコピー"}</span>
+          <span style={{fontSize:11,fontWeight:700,color:"#000"}}>{entCopied?t("mapeditor.copiedDone"):t("mapeditor.copyEntCoord")}</span>
         </button>
         <button onClick={()=>{setNewEnts([]);setEntDragEdits({});}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"5px",borderRadius:7,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",marginTop:4}}>
-          <span style={{fontSize:10,fontWeight:500,color:T.txD}}>リセット</span>
+          <span style={{fontSize:10,fontWeight:500,color:T.txD}}>{t("mapeditor.reset")}</span>
         </button>
       </div>}
 
       {/* 範囲編集パネル */}
       {areaEditMode&&<div style={{position:"absolute",top:46,right:10,zIndex:1000,width:mob?220:270,borderRadius:10,background:`${T.bg2}f0`,backdropFilter:"blur(8px)",border:`1px solid #60a0ff`,boxShadow:"0 4px 16px rgba(0,0,0,.4)",padding:10,maxHeight:380,display:"flex",flexDirection:"column"}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#60a0ff",marginBottom:6}}>建物範囲（ポリゴン）{areaSelSpot?` — ${SPOTS.find(s=>s.id===areaSelSpot)?.label||areaSelSpot}`:""}</div>
+        <div style={{fontSize:11,fontWeight:700,color:"#60a0ff",marginBottom:6}}>{t("mapeditor.buildingPolygon")}{areaSelSpot?` — ${SPOTS.find(s=>s.id===areaSelSpot)?.label||areaSelSpot}`:""}</div>
         {areaSelSpot&&<div style={{marginBottom:8,padding:"6px 8px",borderRadius:8,background:"#60a0ff10",border:"1px solid #60a0ff30"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-            <span style={{fontSize:10,fontWeight:600,color:"#60a0ff"}}>{(areaEdits[areaSelSpot]||[]).length}頂点</span>
+            <span style={{fontSize:10,fontWeight:600,color:"#60a0ff"}}>{t("mapeditor.vertexCount",{count:(areaEdits[areaSelSpot]||[]).length})}</span>
             <div style={{display:"flex",gap:4}}>
-              {(areaEdits[areaSelSpot]||[]).length>0&&<button onClick={()=>setAreaEdits(prev=>{const nv=[...(prev[areaSelSpot]||[])];nv.pop();return{...prev,[areaSelSpot]:nv};})} style={{fontSize:9,fontWeight:600,color:"#ff6060",background:"#ff606014",border:"1px solid #ff606030",borderRadius:5,padding:"2px 6px",cursor:"pointer"}}>末尾削除</button>}
-              {(areaEdits[areaSelSpot]||[]).length>0&&<button onClick={()=>setAreaEdits(prev=>({...prev,[areaSelSpot]:[]})) } style={{fontSize:9,fontWeight:600,color:"#ff6060",background:"#ff606014",border:"1px solid #ff606030",borderRadius:5,padding:"2px 6px",cursor:"pointer"}}>全削除</button>}
+              {(areaEdits[areaSelSpot]||[]).length>0&&<button onClick={()=>setAreaEdits(prev=>{const nv=[...(prev[areaSelSpot]||[])];nv.pop();return{...prev,[areaSelSpot]:nv};})} style={{fontSize:9,fontWeight:600,color:"#ff6060",background:"#ff606014",border:"1px solid #ff606030",borderRadius:5,padding:"2px 6px",cursor:"pointer"}}>{t("mapeditor.removeLast")}</button>}
+              {(areaEdits[areaSelSpot]||[]).length>0&&<button onClick={()=>setAreaEdits(prev=>({...prev,[areaSelSpot]:[]})) } style={{fontSize:9,fontWeight:600,color:"#ff6060",background:"#ff606014",border:"1px solid #ff606030",borderRadius:5,padding:"2px 6px",cursor:"pointer"}}>{t("mapeditor.deleteAll")}</button>}
             </div>
           </div>
-          <div style={{fontSize:9,color:T.txD,lineHeight:1.4}}>マップクリックで頂点追加。ドラッグで移動。右クリックで削除。</div>
+          <div style={{fontSize:9,color:T.txD,lineHeight:1.4}}>{t("mapeditor.vertexHint")}</div>
         </div>}
         <div style={{flex:1,overflowY:"auto",maxHeight:200}}>
           {SPOTS.filter(s=>s.id&&s.lat!=null).map(s=>{
@@ -692,17 +694,17 @@ export const MapEditorView=({mob})=>{
           })}
         </div>
         {Object.values(areaEdits).some(v=>v.length>0)&&<button onClick={copyAreaEdits} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4,width:"100%",padding:"7px",borderRadius:7,border:"none",background:areaCopied?"#4db88a":"#60a0ff",cursor:"pointer",marginTop:8,transition:"background .15s"}}>
-          <span style={{fontSize:11,fontWeight:700,color:"#fff"}}>{areaCopied?"コピーしました":"ポリゴンデータをコピー"}</span>
+          <span style={{fontSize:11,fontWeight:700,color:"#fff"}}>{areaCopied?t("mapeditor.copiedDone"):t("mapeditor.copyPolygon")}</span>
         </button>}
         <button onClick={()=>{setAreaEdits({});setAreaSelSpot(null);}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"5px",borderRadius:7,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",marginTop:4}}>
-          <span style={{fontSize:10,fontWeight:500,color:T.txD}}>リセット</span>
+          <span style={{fontSize:10,fontWeight:500,color:T.txD}}>{t("mapeditor.reset")}</span>
         </button>
       </div>}
 
       {/* キャンパス範囲編集パネル */}
       {cbEditMode&&<div style={{position:"absolute",top:46,right:10,zIndex:1000,width:mob?220:260,borderRadius:10,background:`${T.bg2}f0`,backdropFilter:"blur(8px)",border:`1px solid #ff6090`,boxShadow:"0 4px 16px rgba(0,0,0,.4)",padding:10,maxHeight:340,display:"flex",flexDirection:"column"}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#ff6090",marginBottom:6}}>キャンパス範囲（{cbVerts.length}頂点）</div>
-        <div style={{fontSize:9,color:T.txD,lineHeight:1.4,marginBottom:8}}>マップクリックで頂点追加。ドラッグで移動。右クリックで削除。</div>
+        <div style={{fontSize:11,fontWeight:700,color:"#ff6090",marginBottom:6}}>{t("mapeditor.campusBoundaryTitle",{count:cbVerts.length})}</div>
+        <div style={{fontSize:9,color:T.txD,lineHeight:1.4,marginBottom:8}}>{t("mapeditor.vertexHint")}</div>
         <div style={{flex:1,overflowY:"auto",maxHeight:160,marginBottom:6}}>
           {cbVerts.map((v,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0",borderBottom:`1px solid ${T.bd}`}}>
             <span style={{fontSize:9,fontWeight:700,color:"#ff6090",width:16,textAlign:"right"}}>{i+1}</span>
@@ -711,46 +713,46 @@ export const MapEditorView=({mob})=>{
           </div>)}
         </div>
         <div style={{display:"flex",gap:4,marginBottom:4}}>
-          {cbVerts.length>0&&<button onClick={()=>setCbVerts(prev=>{const nv=[...prev];nv.pop();return nv;})} style={{flex:1,fontSize:9,fontWeight:600,color:"#ff6060",background:"#ff606014",border:"1px solid #ff606030",borderRadius:5,padding:"4px 6px",cursor:"pointer"}}>末尾削除</button>}
-          {cbVerts.length>0&&<button onClick={()=>{if(confirm("全頂点を削除しますか？"))setCbVerts([]);}} style={{flex:1,fontSize:9,fontWeight:600,color:"#ff6060",background:"#ff606014",border:"1px solid #ff606030",borderRadius:5,padding:"4px 6px",cursor:"pointer"}}>全削除</button>}
+          {cbVerts.length>0&&<button onClick={()=>setCbVerts(prev=>{const nv=[...prev];nv.pop();return nv;})} style={{flex:1,fontSize:9,fontWeight:600,color:"#ff6060",background:"#ff606014",border:"1px solid #ff606030",borderRadius:5,padding:"4px 6px",cursor:"pointer"}}>{t("mapeditor.removeLast")}</button>}
+          {cbVerts.length>0&&<button onClick={()=>{if(confirm(t("mapeditor.confirmDeleteAllVerts")))setCbVerts([]);}} style={{flex:1,fontSize:9,fontWeight:600,color:"#ff6060",background:"#ff606014",border:"1px solid #ff606030",borderRadius:5,padding:"4px 6px",cursor:"pointer"}}>{t("mapeditor.deleteAll")}</button>}
         </div>
         {cbVerts.length>=3&&<button onClick={copyCampusBoundary} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4,width:"100%",padding:"7px",borderRadius:7,border:"none",background:cbCopied?"#4db88a":"#ff6090",cursor:"pointer",transition:"background .15s"}}>
-          <span style={{fontSize:11,fontWeight:700,color:"#fff"}}>{cbCopied?"コピーしました":"コードをコピー"}</span>
+          <span style={{fontSize:11,fontWeight:700,color:"#fff"}}>{cbCopied?t("mapeditor.copiedDone"):t("mapeditor.copyCode")}</span>
         </button>}
         <button onClick={()=>setCbVerts(CAMPUS_BOUNDARY.map(v=>[...v]))} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"5px",borderRadius:7,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",marginTop:4}}>
-          <span style={{fontSize:10,fontWeight:500,color:T.txD}}>リセット（初期値に戻す）</span>
+          <span style={{fontSize:10,fontWeight:500,color:T.txD}}>{t("mapeditor.resetToDefault")}</span>
         </button>
       </div>}
 
       {/* Edge編集パネル */}
       {edgeEditMode&&<div style={{position:"absolute",top:46,right:10,zIndex:1000,width:mob?220:280,borderRadius:10,background:`${T.bg2}f0`,backdropFilter:"blur(8px)",border:`1px solid #ff8040`,boxShadow:"0 4px 16px rgba(0,0,0,.4)",padding:10,maxHeight:340,display:"flex",flexDirection:"column"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#ff8040"}}>Edge {EDGES.length-deletedEdges.size+newEdges.length}件{newEdges.length>0&&` (+${newEdges.length})`}{deletedEdges.size>0&&` (-${deletedEdges.size})`}</div>
-          {edgeFrom&&<div style={{fontSize:10,fontWeight:600,color:"#ff6060",background:"#ff606018",padding:"2px 8px",borderRadius:6}}>始点: {edgeFrom.replace("wp_","").slice(0,8)}</div>}
+          <div style={{fontSize:11,fontWeight:700,color:"#ff8040"}}>{t("mapeditor.edgeCount",{count:EDGES.length-deletedEdges.size+newEdges.length})}{newEdges.length>0&&` (+${newEdges.length})`}{deletedEdges.size>0&&` (-${deletedEdges.size})`}</div>
+          {edgeFrom&&<div style={{fontSize:10,fontWeight:600,color:"#ff6060",background:"#ff606018",padding:"2px 8px",borderRadius:6}}>{t("mapeditor.startNode",{name:edgeFrom.replace("wp_","").slice(0,8)})}</div>}
         </div>
         <div style={{display:"flex",gap:4,marginBottom:8}}>
           <button onClick={()=>setEdgeType("path")} style={{flex:1,padding:"5px",borderRadius:6,border:`1px solid ${edgeType==="path"?"#f0c040":T.bd}`,background:edgeType==="path"?"#f0c04020":"transparent",cursor:"pointer"}}>
-            <span style={{fontSize:10,fontWeight:600,color:edgeType==="path"?"#f0c040":T.txD}}>道</span>
+            <span style={{fontSize:10,fontWeight:600,color:edgeType==="path"?"#f0c040":T.txD}}>{t("mapeditor.paths")}</span>
           </button>
           <button onClick={()=>setEdgeType("stairs")} style={{flex:1,padding:"5px",borderRadius:6,border:`1px solid ${edgeType==="stairs"?"#e06050":T.bd}`,background:edgeType==="stairs"?"#e0605020":"transparent",cursor:"pointer"}}>
-            <span style={{fontSize:10,fontWeight:600,color:edgeType==="stairs"?"#e06050":T.txD}}>階段</span>
+            <span style={{fontSize:10,fontWeight:600,color:edgeType==="stairs"?"#e06050":T.txD}}>{t("mapeditor.stairs")}</span>
           </button>
         </div>
         {newEdges.length>0&&<div style={{overflowY:"auto",marginBottom:4,maxHeight:100}}>
-          <div style={{fontSize:9,fontWeight:600,color:"#f0c040",marginBottom:2}}>追加 ({newEdges.length})</div>
+          <div style={{fontSize:9,fontWeight:600,color:"#f0c040",marginBottom:2}}>{t("mapeditor.added",{count:newEdges.length})}</div>
           {newEdges.map((e,i)=>{
             const nameA=(SPOTS.find(s=>s.id===e[0])?.short)||e[0].replace("wp_","").slice(0,6);
             const nameB=(SPOTS.find(s=>s.id===e[1])?.short)||e[1].replace("wp_","").slice(0,6);
             const isStairs=e[2]==="stairs";
             return <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0",borderBottom:`1px solid ${T.bd}`}}>
               <div style={{width:8,height:8,borderRadius:"50%",background:isStairs?"#e06050":"#f0c040",flexShrink:0}}/>
-              <div style={{flex:1,fontSize:10,fontWeight:500,color:T.txH,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nameA} → {nameB}{isStairs?" (階段)":""}</div>
+              <div style={{flex:1,fontSize:10,fontWeight:500,color:T.txH,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nameA} → {nameB}{isStairs?` (${t("mapeditor.stairs")})`:""}</div>
               <button onClick={()=>setNewEdges(prev=>prev.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:T.txD,fontSize:12,padding:"0 2px",display:"flex"}}>×</button>
             </div>;
           })}
         </div>}
         {deletedEdges.size>0&&<div style={{overflowY:"auto",marginBottom:4,maxHeight:100}}>
-          <div style={{fontSize:9,fontWeight:600,color:"#e06050",marginBottom:2}}>削除 ({deletedEdges.size})</div>
+          <div style={{fontSize:9,fontWeight:600,color:"#e06050",marginBottom:2}}>{t("mapeditor.removed",{count:deletedEdges.size})}</div>
           {[...deletedEdges].map(idx=>{
             const e=EDGES[idx];
             if(!e)return null;
@@ -759,23 +761,23 @@ export const MapEditorView=({mob})=>{
             const isStairs=e[2]==="stairs";
             return <div key={idx} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0",borderBottom:`1px solid ${T.bd}`,opacity:0.7}}>
               <div style={{width:8,height:8,borderRadius:"50%",background:"#e06050",flexShrink:0}}/>
-              <div style={{flex:1,fontSize:10,fontWeight:500,color:T.txD,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:"line-through"}}>{nameA} → {nameB}{isStairs?" (階段)":""}</div>
+              <div style={{flex:1,fontSize:10,fontWeight:500,color:T.txD,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:"line-through"}}>{nameA} → {nameB}{isStairs?` (${t("mapeditor.stairs")})`:""}</div>
               <button onClick={()=>setDeletedEdges(prev=>{const s=new Set(prev);s.delete(idx);return s;})} style={{background:"none",border:"none",cursor:"pointer",color:"#4de8b0",fontSize:10,padding:"0 4px",display:"flex",fontWeight:700}}>↩</button>
             </div>;
           })}
         </div>}
         {(EDGES.length+newEdges.length)>0&&<button onClick={copyEdgeEdits} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4,width:"100%",padding:"7px",borderRadius:7,border:"none",background:edgeCopied?"#4db88a":"#ff8040",cursor:"pointer",transition:"background .15s"}}>
-          <span style={{fontSize:11,fontWeight:700,color:"#fff"}}>{edgeCopied?"コピーしました":"Edge配列をコピー"}</span>
+          <span style={{fontSize:11,fontWeight:700,color:"#fff"}}>{edgeCopied?t("mapeditor.copiedDone"):t("mapeditor.copyEdgeArray")}</span>
         </button>}
         <button onClick={()=>{setNewEdges([]);setEdgeFrom(null);setDeletedEdges(new Set());}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"5px",borderRadius:7,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",marginTop:4}}>
-          <span style={{fontSize:10,fontWeight:500,color:T.txD}}>リセット</span>
+          <span style={{fontSize:10,fontWeight:500,color:T.txD}}>{t("mapeditor.reset")}</span>
         </button>
-        <div style={{fontSize:9,color:T.txD,marginTop:6,lineHeight:1.4}}>ノード2つクリックで接続。エッジをクリックで削除。</div>
+        <div style={{fontSize:9,color:T.txD,marginTop:6,lineHeight:1.4}}>{t("mapeditor.edgeHint")}</div>
       </div>}
 
       {/* WP編集パネル */}
       {wpEditMode&&wpEditCount>0&&<div style={{position:"absolute",top:46,right:10,zIndex:1000,width:mob?220:260,borderRadius:10,background:`${T.bg2}f0`,backdropFilter:"blur(8px)",border:`1px solid #f0c040`,boxShadow:"0 4px 16px rgba(0,0,0,.4)",padding:10,maxHeight:300,overflowY:"auto"}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#f0c040",marginBottom:6}}>WP {allWpsForPanel.length}件{newWps.length>0&&` (新規${newWps.length})`}</div>
+        <div style={{fontSize:11,fontWeight:700,color:"#f0c040",marginBottom:6}}>{t("mapeditor.wpCount",{count:allWpsForPanel.length})}{newWps.length>0&&` ${t("mapeditor.newCount",{count:newWps.length})}`}</div>
         {allWpsForPanel.map(w=>{
           const pos=wpEdits[w.id]||{lat:w.lat,lng:w.lng};
           const isNew=!WAYPOINTS.find(x=>x.id===w.id);
@@ -788,16 +790,16 @@ export const MapEditorView=({mob})=>{
           </div>;
         })}
         <button onClick={copyWpEdits} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4,width:"100%",padding:"7px",borderRadius:7,border:"none",background:wpCopied?"#4db88a":"#f0c040",cursor:"pointer",marginTop:8,transition:"background .15s"}}>
-          <span style={{fontSize:11,fontWeight:700,color:"#000"}}>{wpCopied?"コピーしました":"WP座標をコピー"}</span>
+          <span style={{fontSize:11,fontWeight:700,color:"#000"}}>{wpCopied?t("mapeditor.copiedDone"):t("mapeditor.copyWpCoord")}</span>
         </button>
         <button onClick={()=>{setNewWps([]);setWpEdits({});}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"5px",borderRadius:7,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",marginTop:4}}>
-          <span style={{fontSize:10,fontWeight:500,color:T.txD}}>リセット</span>
+          <span style={{fontSize:10,fontWeight:500,color:T.txD}}>{t("mapeditor.reset")}</span>
         </button>
       </div>}
 
       {/* 座標編集パネル */}
       {editMode&&editCount>0&&<div style={{position:"absolute",top:46,right:10,zIndex:1000,width:mob?220:260,borderRadius:10,background:`${T.bg2}f0`,backdropFilter:"blur(8px)",border:`1px solid ${T.bdL}`,boxShadow:"0 4px 16px rgba(0,0,0,.4)",padding:10,maxHeight:300,overflowY:"auto"}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#e8b63a",marginBottom:6}}>{editCount}件の変更</div>
+        <div style={{fontSize:11,fontWeight:700,color:"#e8b63a",marginBottom:6}}>{t("mapeditor.changeCount",{count:editCount})}</div>
         {Object.entries(edits).map(([id,pos])=>{
           const s=SPOTS.find(x=>x.id===id);
           return <div key={id} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",borderBottom:`1px solid ${T.bd}`}}>
@@ -809,10 +811,10 @@ export const MapEditorView=({mob})=>{
           </div>;
         })}
         <button onClick={copyEdits} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4,width:"100%",padding:"7px",borderRadius:7,border:"none",background:copied?"#4db88a":"#e8b63a",cursor:"pointer",marginTop:8,transition:"background .15s"}}>
-          <span style={{fontSize:11,fontWeight:700,color:"#000"}}>{copied?"コピーしました":"座標をコピー"}</span>
+          <span style={{fontSize:11,fontWeight:700,color:"#000"}}>{copied?t("mapeditor.copiedDone"):t("mapeditor.copyCoord")}</span>
         </button>
         <button onClick={()=>setEdits({})} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"5px",borderRadius:7,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",marginTop:4}}>
-          <span style={{fontSize:10,fontWeight:500,color:T.txD}}>リセット</span>
+          <span style={{fontSize:10,fontWeight:500,color:T.txD}}>{t("mapeditor.reset")}</span>
         </button>
       </div>}
     </div>

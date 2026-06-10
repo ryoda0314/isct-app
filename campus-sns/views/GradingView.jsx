@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { T } from '../theme.js';
+import { t } from '../i18n.js';
 import { I } from '../icons.jsx';
 import { Loader } from '../shared.jsx';
 import { CATEGORY_LABELS, CATEGORY_COLORS } from '../../lib/api/grading-parser.js';
@@ -106,7 +107,7 @@ const GradingCard = ({ row, dense = false }) => {
         <div style={{
           fontSize: 13, fontWeight: 700, color: T.txH, flex: 1,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>{row.name || '(無題)'}</div>
+        }}>{row.name || t('grading.untitled')}</div>
         {row.quarter && (
           <span style={{
             padding: '1px 7px', borderRadius: 8,
@@ -125,7 +126,7 @@ const GradingCard = ({ row, dense = false }) => {
             background: '#8a9c5a22', color: '#6b7e3c',
             fontSize: 10, fontWeight: 800,
             border: '1px solid #8a9c5a55',
-          }}>合否科目</span>
+          }}>{t('grading.passFailBadge')}</span>
         )}
       </div>
 
@@ -138,7 +139,7 @@ const GradingCard = ({ row, dense = false }) => {
           display: 'flex', alignItems: 'center', gap: 8,
         }}>
           <span style={{ fontSize: 16 }}>✓</span>
-          <span>合格・不合格で評価される科目（%による配点なし）</span>
+          <span>{t('grading.passFailDesc')}</span>
         </div>
       ) : hasFullPct ? (
         <>
@@ -152,13 +153,13 @@ const GradingCard = ({ row, dense = false }) => {
             return (
               <div style={{ marginTop: 4, fontSize: 10, color: T.txD, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {hasInferred && (
-                  <span style={{ color: T.accent }}>※ 単一手段から推定（%表記なし）</span>
+                  <span style={{ color: T.accent }}>{t('grading.noteInferred')}</span>
                 )}
                 {hasRange && (
-                  <span>※ 斜線/破線の項目は範囲表記（描画は中央値、合計100%に正規化）</span>
+                  <span>{t('grading.noteRange')}</span>
                 )}
                 {!hasRange && !hasInferred && totalOff && (
-                  <span>合計 {totalPct}% (端数記載/100%に正規化)</span>
+                  <span>{t('grading.noteTotalOff', { total: totalPct })}</span>
                 )}
               </div>
             );
@@ -170,7 +171,7 @@ const GradingCard = ({ row, dense = false }) => {
           background: T.bg3, border: `1px dashed ${T.bd}`,
           fontSize: 11, color: T.txD,
         }}>
-          割合の明示なし — 下の本文を参照
+          {t('grading.noBreakdown')}
         </div>
       )}
 
@@ -182,7 +183,7 @@ const GradingCard = ({ row, dense = false }) => {
             fontSize: 10, color: T.accent, padding: 0,
             display: 'flex', alignItems: 'center', gap: 3,
           }}>
-          {expanded ? '本文を閉じる' : '本文を表示'}
+          {expanded ? t('grading.hideRaw') : t('grading.showRaw')}
         </button>
         {expanded && (
           <div style={{
@@ -198,7 +199,7 @@ const GradingCard = ({ row, dense = false }) => {
               display: 'inline-block', marginTop: 6,
               fontSize: 10, color: T.txD, textDecoration: 'none',
               border: `1px solid ${T.bd}`, padding: '1px 7px', borderRadius: 4,
-            }}>シラバスを開く</a>
+            }}>{t('grading.openSyllabus')}</a>
         )}
       </div>
     </div>
@@ -311,7 +312,7 @@ const MyGradingPanel = ({ courses = [] }) => {
       setData(j);
     } catch (e) {
       console.error('[GradingView/My]', e);
-      setErr(e.message || '読み込みに失敗しました');
+      setErr(e.message || t('grading.loadFailed'));
     }
     setLoading(false);
   }, [yearCourses, yearStr]);
@@ -344,33 +345,33 @@ const MyGradingPanel = ({ courses = [] }) => {
         borderBottom: `1px solid ${T.bd}`,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 12, color: T.txD, background: T.bg3, padding: '5px 10px', borderRadius: 6, border: `1px solid ${T.bd}` }}>{GRADING_YEAR}年度</div>
+          <div style={{ fontSize: 12, color: T.txD, background: T.bg3, padding: '5px 10px', borderRadius: 6, border: `1px solid ${T.bd}` }}>{t('grading.yearLabel', { year: GRADING_YEAR })}</div>
           <FilterSelect value={quarter} onChange={setQuarter} active={!!quarter}>
-            <option value="">全Q</option>
+            <option value="">{t('grading.allQuarters')}</option>
             <option value="1Q">1Q</option>
             <option value="2Q">2Q</option>
             <option value="3Q">3Q</option>
             <option value="4Q">4Q</option>
           </FilterSelect>
           <FilterSelect value={level} onChange={setLevel} active={!!level}>
-            <option value="">全レベル</option>
-            <option value="1">100番台</option>
-            <option value="2">200番台</option>
-            <option value="3">300番台</option>
-            <option value="4">400番台</option>
-            <option value="5">500番台</option>
-            <option value="6">600番台</option>
+            <option value="">{t('grading.allLevels')}</option>
+            <option value="1">{t('grading.level100')}</option>
+            <option value="2">{t('grading.level200')}</option>
+            <option value="3">{t('grading.level300')}</option>
+            <option value="4">{t('grading.level400')}</option>
+            <option value="5">{t('grading.level500')}</option>
+            <option value="6">{t('grading.level600')}</option>
           </FilterSelect>
           <div style={{ flex: 1 }} />
           {!loading && (
             <div style={{ fontSize: 11, color: T.txD, display: 'flex', gap: 8, alignItems: 'center' }}>
               <span>
                 <span style={{ color: T.accent, fontWeight: 700, fontSize: 14 }}>{parsedCount}</span>
-                <span style={{ marginLeft: 3 }}>/ {filtered.length} 件で割合解析</span>
+                <span style={{ marginLeft: 3 }}>{t('grading.parsedCount', { total: filtered.length })}</span>
               </span>
               {passFailCount > 0 && (
                 <span style={{ color: '#6b7e3c' }}>
-                  · <span style={{ fontWeight: 700, fontSize: 13 }}>{passFailCount}</span> 件は合否
+                  · <span style={{ fontWeight: 700, fontSize: 13 }}>{passFailCount}</span> {t('grading.passFailCount')}
                 </span>
               )}
             </div>
@@ -379,18 +380,18 @@ const MyGradingPanel = ({ courses = [] }) => {
       </div>
 
       <div style={{ padding: '12px 14px 16px' }}>
-        {loading && <div style={{ padding: 20 }}><Loader msg="成績割合を集計中" size="sm" /></div>}
-        {err && <div style={{ padding: 16, color: T.red, fontSize: 13 }}>エラー: {err}</div>}
+        {loading && <div style={{ padding: 20 }}><Loader msg={t('grading.loadingMy')} size="sm" /></div>}
+        {err && <div style={{ padding: 16, color: T.red, fontSize: 13 }}>{t('grading.errorLabel', { msg: err })}</div>}
         {!loading && !err && yearCourses.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: T.txD, fontSize: 13 }}>
-            {year}年度に履修中の講義はありません
+            {t('grading.emptyMy', { year })}
           </div>
         )}
         {!loading && !err && yearCourses.length > 0 && filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: T.txD, fontSize: 13 }}>
-            条件に合う成績割合データがありません
+            {t('grading.emptyFiltered')}
             <div style={{ fontSize: 11, marginTop: 6 }}>
-              (DBにシラバスデータが登録されていない可能性。管理画面から取得してください)
+              {t('grading.emptyFilteredHint')}
             </div>
           </div>
         )}
@@ -460,7 +461,7 @@ const SearchGradingPanel = () => {
       setData(j);
     } catch (e) {
       console.error('[GradingView/search]', e);
-      setErr(e.message || '読み込みに失敗しました');
+      setErr(e.message || t('grading.loadFailed'));
     }
     setLoading(false);
   }, [year, dept, quarter, level, searchDeferred, onlyParsed, category, page]);
@@ -500,19 +501,19 @@ const SearchGradingPanel = () => {
         borderBottom: `1px solid ${T.bd}`,
       }}>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 12, color: T.txD, background: T.bg3, padding: '5px 10px', borderRadius: 6, border: `1px solid ${T.bd}` }}>{GRADING_YEAR}年度</div>
+          <div style={{ fontSize: 12, color: T.txD, background: T.bg3, padding: '5px 10px', borderRadius: 6, border: `1px solid ${T.bd}` }}>{t('grading.yearLabel', { year: GRADING_YEAR })}</div>
           <SlideToggle
             value={deptCat}
             onChange={setDeptCat}
             options={[
-              { value: 'senmon', label: '専門' },
-              { value: 'kyoyo', label: '教養' },
+              { value: 'senmon', label: t('grading.senmon') },
+              { value: 'kyoyo', label: t('grading.kyoyo') },
             ]}
           />
           <FilterSelect value={dept} onChange={setDept} active={!!dept}>
-            <option value="">{deptCat === 'kyoyo' ? '全教養' : '全学系'}</option>
+            <option value="">{deptCat === 'kyoyo' ? t('grading.allKyoyo') : t('grading.allDepts')}</option>
             {Object.entries(deptsBySchool).map(([school, ds]) => (
-              <optgroup key={school} label={school}>
+              <optgroup key={school} label={school === 'その他' ? t('grading.otherSchool') : school}>
                 {ds.map(d => (
                   <option key={d.key} value={d.key}>
                     {d.label ? `${d.label} (${d.key})` : d.key}
@@ -522,30 +523,30 @@ const SearchGradingPanel = () => {
             ))}
           </FilterSelect>
           <FilterSelect value={quarter} onChange={setQuarter} active={!!quarter}>
-            <option value="">全Q</option>
+            <option value="">{t('grading.allQuarters')}</option>
             <option value="1Q">1Q</option>
             <option value="2Q">2Q</option>
             <option value="3Q">3Q</option>
             <option value="4Q">4Q</option>
           </FilterSelect>
           <FilterSelect value={level} onChange={setLevel} active={!!level}>
-            <option value="">全レベル</option>
-            <option value="1">100番台 (1年)</option>
-            <option value="2">200番台 (2年)</option>
-            <option value="3">300番台 (3年)</option>
-            <option value="4">400番台 (4年・院)</option>
-            <option value="5">500番台 (修士)</option>
-            <option value="6">600番台 (博士)</option>
+            <option value="">{t('grading.allLevels')}</option>
+            <option value="1">{t('grading.level100Year')}</option>
+            <option value="2">{t('grading.level200Year')}</option>
+            <option value="3">{t('grading.level300Year')}</option>
+            <option value="4">{t('grading.level400Year')}</option>
+            <option value="5">{t('grading.level500Year')}</option>
+            <option value="6">{t('grading.level600Year')}</option>
           </FilterSelect>
           <FilterSelect value={category} onChange={setCategory} active={!!category}
             activeColor={category ? CATEGORY_COLORS[category] : null}>
-            <option value="">全カテゴリ</option>
+            <option value="">{t('grading.allCategories')}</option>
             {CATEGORY_ORDER.map(c => (
               <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
             ))}
           </FilterSelect>
           <input
-            type="text" placeholder="科目コード/名/本文で検索"
+            type="text" placeholder={t('grading.searchPlaceholder')}
             value={search} onChange={e => setSearch(e.target.value)}
             style={{
               flex: 1, minWidth: 140, padding: '5px 10px', borderRadius: 6,
@@ -553,23 +554,23 @@ const SearchGradingPanel = () => {
             }}/>
           <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: T.txD, cursor: 'pointer', whiteSpace: 'nowrap' }}>
             <input type="checkbox" checked={onlyParsed} onChange={e => setOnlyParsed(e.target.checked)} />
-            割合解析済のみ
+            {t('grading.onlyParsed')}
           </label>
         </div>
       </div>
 
       <div style={{ padding: '12px 14px 16px' }}>
-        {metaLoading && <div style={{ padding: 20 }}><Loader msg="メタデータ取得中" size="sm" /></div>}
-        {loading && <div style={{ padding: 20 }}><Loader msg="検索中" size="sm" /></div>}
-        {err && <div style={{ padding: 16, color: T.red, fontSize: 13 }}>エラー: {err}</div>}
+        {metaLoading && <div style={{ padding: 20 }}><Loader msg={t('grading.loadingMeta')} size="sm" /></div>}
+        {loading && <div style={{ padding: 20 }}><Loader msg={t('grading.searching')} size="sm" /></div>}
+        {err && <div style={{ padding: 16, color: T.red, fontSize: 13 }}>{t('grading.errorLabel', { msg: err })}</div>}
 
         {!loading && !err && (
           <>
             <div style={{ fontSize: 11, color: T.txD, marginBottom: 8 }}>
-              {data.total}件ヒット {data.hasMore && '(続きあり)'}
+              {t('grading.hitCount', { total: data.total })} {data.hasMore && t('grading.hasMore')}
               {category && (
                 <span style={{ marginLeft: 8 }}>
-                  · {CATEGORY_LABELS[category]} の割合で絞り込み中
+                  {t('grading.categoryFilterNote', { category: CATEGORY_LABELS[category] })}
                 </span>
               )}
             </div>
@@ -590,9 +591,9 @@ const SearchGradingPanel = () => {
                     background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH,
                     cursor: page === 0 ? 'default' : 'pointer', fontSize: 12,
                     opacity: page === 0 ? 0.4 : 1,
-                  }}>← 前へ</button>
+                  }}>{t('grading.prevPage')}</button>
                 <span style={{ alignSelf: 'center', fontSize: 11, color: T.txD }}>
-                  ページ {page + 1}
+                  {t('grading.pageNum', { page: page + 1 })}
                 </span>
                 <button
                   onClick={() => setPage(p => p + 1)}
@@ -602,7 +603,7 @@ const SearchGradingPanel = () => {
                     background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH,
                     cursor: !data.hasMore ? 'default' : 'pointer', fontSize: 12,
                     opacity: !data.hasMore ? 0.4 : 1,
-                  }}>次へ →</button>
+                  }}>{t('grading.nextPage')}</button>
               </div>
             )}
           </>
@@ -626,22 +627,22 @@ export const GradingView = ({ courses = [] }) => {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
           <span style={{ color: T.accent, display: 'flex' }}>{I.bar}</span>
-          <span style={{ fontSize: 17, fontWeight: 800, color: T.txH, letterSpacing: 0.3 }}>成績割合</span>
+          <span style={{ fontSize: 17, fontWeight: 800, color: T.txH, letterSpacing: 0.3 }}>{t('nav.grading')}</span>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
           {[
-            { id: 'my', label: 'マイ履修' },
-            { id: 'search', label: '全科目検索' },
-          ].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
+            { id: 'my', labelKey: 'grading.tabMy' },
+            { id: 'search', labelKey: 'grading.tabSearch' },
+          ].map(tabItem => (
+            <button key={tabItem.id} onClick={() => setTab(tabItem.id)}
               style={{
                 padding: '8px 16px',
                 background: 'none', border: 'none', cursor: 'pointer',
-                borderBottom: tab === t.id ? `2px solid ${T.accent}` : '2px solid transparent',
-                color: tab === t.id ? T.txH : T.txD,
-                fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
+                borderBottom: tab === tabItem.id ? `2px solid ${T.accent}` : '2px solid transparent',
+                color: tab === tabItem.id ? T.txH : T.txD,
+                fontSize: 13, fontWeight: tab === tabItem.id ? 700 : 500,
                 transition: 'color .12s',
-              }}>{t.label}</button>
+              }}>{t(tabItem.labelKey)}</button>
           ))}
         </div>
       </div>

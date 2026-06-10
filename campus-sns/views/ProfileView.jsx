@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { T, ACCENT_PRESETS, THEME_MODES } from '../theme.js';
+import { t, LANGUAGES, locName } from '../i18n.js';
 import { I } from '../icons.jsx';
 import { Av } from '../shared.jsx';
 import { updateUserPref } from '../hooks/useCurrentUser.js';
@@ -26,10 +27,10 @@ const cropImg=(file)=>new Promise((res,rej)=>{
       c.getContext("2d").drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,AV_SZ,AV_SZ);
       res(c.toDataURL("image/jpeg",0.85));
     };
-    img.onerror=()=>rej("画像の読み込みに失敗");
+    img.onerror=()=>rej(t("profile.avImgLoadFail"));
     img.src=rd.result;
   };
-  rd.onerror=()=>rej("ファイルの読み込みに失敗");
+  rd.onerror=()=>rej(t("profile.avFileLoadFail"));
   rd.readAsDataURL(file);
 });
 
@@ -111,18 +112,18 @@ const PwInp=({label,hint,show,onTogShow,...props})=>(
 /* ─── 認証フォーム（共通化） ─── */
 const CredForm=({form,setForm,showPw,showTotp,setShowPw,setShowTotp,onSave,saving,btnLabel})=>(
   <div style={{display:"grid",gap:10,padding:"12px 14px"}}>
-    <Inp label="Science Tokyo ID" value={form.userId} onChange={e=>setForm(p=>({...p,userId:e.target.value}))} placeholder="例: 24B00000" autoComplete="username"/>
-    <PwInp label="パスワード" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} placeholder="ポータルのパスワード" autoComplete="current-password" show={showPw} onTogShow={()=>setShowPw(p=>!p)}/>
-    <PwInp label="TOTPシークレットキー" value={form.totpSecret} onChange={e=>setForm(p=>({...p,totpSecret:e.target.value.replace(/\s/g,"").toUpperCase()}))} placeholder="例: TT5SOVTA4BFN4IND" show={showTotp} onTogShow={()=>setShowTotp(p=>!p)} style={{fontFamily:"monospace"}} hint="アプリ認証設定時に表示されたシークレットキー"/>
+    <Inp label="Science Tokyo ID" value={form.userId} onChange={e=>setForm(p=>({...p,userId:e.target.value}))} placeholder={t("profile.idPlaceholder")} autoComplete="username"/>
+    <PwInp label={t("profile.password")} value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} placeholder={t("profile.portalPwPlaceholder")} autoComplete="current-password" show={showPw} onTogShow={()=>setShowPw(p=>!p)}/>
+    <PwInp label={t("profile.totpSecretKey")} value={form.totpSecret} onChange={e=>setForm(p=>({...p,totpSecret:e.target.value.replace(/\s/g,"").toUpperCase()}))} placeholder={t("profile.totpSecretPlaceholder")} show={showTotp} onTogShow={()=>setShowTotp(p=>!p)} style={{fontFamily:"monospace"}} hint={t("profile.totpSecretHint")}/>
     <button onClick={onSave} disabled={saving}
       style={{padding:"10px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:saving?"wait":"pointer",opacity:saving?.6:1,transition:"opacity .15s"}}>
-      {saving?"接続中...":btnLabel}
+      {saving?t("profile.connecting"):btnLabel}
     </button>
   </div>
 );
 
 /* ─── メイン ─── */
-export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accentPref="default",setAccentPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout,appLock,blocks=[],unblockUser,mutes=[],unmuteUser})=>{
+export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accentPref="default",setAccentPref,langPref="ja",setLangPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout,appLock,blocks=[],unblockUser,mutes=[],unmuteUser})=>{
   const done=asgn.filter(a=>a.st==="completed").length;
   const total=asgn.length;
 
@@ -149,7 +150,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   const handleFile=async(e)=>{
     const f=e.target.files?.[0];
     if(!f)return;
-    if(!f.type.startsWith("image/")){alert("画像ファイルを選択してください");return;}
+    if(!f.type.startsWith("image/")){alert(t("profile.selectImageFile"));return;}
     setUploading(true);
     try{
       const uri=await cropImg(f);
@@ -236,13 +237,13 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
 
   const handleCredSave=async()=>{
     const {userId,password,totpSecret}=credForm;
-    if(!userId||!password||!totpSecret){setCredMsg({type:"err",text:"全ての項目を入力してください"});return;}
+    if(!userId||!password||!totpSecret){setCredMsg({type:"err",text:t("profile.errAllFields")});return;}
     setCredSaving(true);setCredMsg(null);
     try{
       const r=await fetch("/api/auth/setup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId,password,totpSecret})});
       const d=await r.json();
-      if(!r.ok)throw new Error(d.detail||d.error||"保存に失敗しました");
-      setCredMsg({type:"ok",text:"認証情報を保存しました"});
+      if(!r.ok)throw new Error(d.detail||d.error||t("profile.errSaveFail"));
+      setCredMsg({type:"ok",text:t("profile.credSaved")});
       setCredStatus({hasCredentials:true,isAuthenticated:true});
       setCredForm({userId:"",password:"",totpSecret:""});
       setCredOpen(false);
@@ -251,26 +252,26 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   };
 
   const handleCredDelete=async()=>{
-    if(!confirm("認証情報を削除しますか？\n再度ログインが必要になります。"))return;
+    if(!confirm(t("profile.confirmDeleteCred")))return;
     setCredDeleting(true);setCredMsg(null);
     try{
       await fetch("/api/auth/credentials",{method:"DELETE"});
       setCredStatus({hasCredentials:false,isAuthenticated:false});
-      setCredMsg({type:"ok",text:"認証情報を削除しました"});
-    }catch{setCredMsg({type:"err",text:"削除に失敗しました"});}
+      setCredMsg({type:"ok",text:t("profile.credDeleted")});
+    }catch{setCredMsg({type:"err",text:t("profile.errDeleteFail")});}
     setCredDeleting(false);
   };
 
   const handlePortalSave=async()=>{
     const {userId,password,matrix}=portalForm;
     const hasMatrix=COLS.every(c=>ROWS.every(r=>matrix[c]?.[r]));
-    if(!userId||!password||!hasMatrix){setPortalMsg({type:"err",text:"全ての項目を入力してください"});return;}
+    if(!userId||!password||!hasMatrix){setPortalMsg({type:"err",text:t("profile.errAllFields")});return;}
     setPortalSaving(true);setPortalMsg(null);
     try{
       const r=await fetch("/api/auth/setup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({portalUserId:userId,portalPassword:password,matrix})});
       const d=await r.json();
-      if(!r.ok)throw new Error(d.detail||d.error||"保存に失敗しました");
-      setPortalMsg({type:"ok",text:"ポータル認証情報を保存しました"});
+      if(!r.ok)throw new Error(d.detail||d.error||t("profile.errSaveFail"));
+      setPortalMsg({type:"ok",text:t("profile.portalCredSaved")});
       setCredStatus(p=>({...p,hasPortal:true}));
       setPortalForm({userId:"",password:"",matrix:{}});
       setPortalOpen(false);
@@ -279,41 +280,41 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   };
 
   const handlePortalDelete=async()=>{
-    if(!confirm("ポータル認証情報を削除しますか？"))return;
+    if(!confirm(t("profile.confirmDeletePortal")))return;
     setPortalDeleting(true);setPortalMsg(null);
     try{
       await fetch("/api/auth/credentials",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"portal"})});
       setCredStatus(p=>({...p,hasPortal:false}));
-      setPortalMsg({type:"ok",text:"ポータル認証情報を削除しました"});
-    }catch{setPortalMsg({type:"err",text:"削除に失敗しました"});}
+      setPortalMsg({type:"ok",text:t("profile.portalCredDeleted")});
+    }catch{setPortalMsg({type:"err",text:t("profile.errDeleteFail")});}
     setPortalDeleting(false);
   };
 
   const handleEmailLink=async()=>{
     const {email,password}=emailForm;
-    if(!email||!password){setEmailMsg({type:"err",text:"メールアドレスとパスワードを入力してください"});return;}
-    if(password.length<8){setEmailMsg({type:"err",text:"パスワードは8文字以上にしてください"});return;}
+    if(!email||!password){setEmailMsg({type:"err",text:t("profile.errEmailPwRequired")});return;}
+    if(password.length<8){setEmailMsg({type:"err",text:t("profile.errPwMinLen")});return;}
     setEmailSaving(true);setEmailMsg(null);
     try{
       const r=await fetch("/api/auth/email/link",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
       const d=await r.json();
-      if(!r.ok)throw new Error(d.error||"送信に失敗しました");
+      if(!r.ok)throw new Error(d.error||t("profile.errSendFail"));
       setPendingEmail(email.toLowerCase());
       setVerifyCode("");
       setEmailVerifyStep(true);
-      setEmailMsg({type:"ok",text:`${email} に確認コードを送信しました`});
+      setEmailMsg({type:"ok",text:t("profile.codeSentTo",{email})});
     }catch(e){setEmailMsg({type:"err",text:e.message});}
     setEmailSaving(false);
   };
 
   const handleVerifyCode=async()=>{
-    if(!verifyCode||verifyCode.length!==6){setEmailMsg({type:"err",text:"6桁の確認コードを入力してください"});return;}
+    if(!verifyCode||verifyCode.length!==6){setEmailMsg({type:"err",text:t("profile.errCode6Digit")});return;}
     setVerifying(true);setEmailMsg(null);
     try{
       const r=await fetch("/api/auth/email/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:pendingEmail,code:verifyCode})});
       const d=await r.json();
-      if(!r.ok)throw new Error(d.error||"確認に失敗しました");
-      setEmailMsg({type:"ok",text:"メールアドレスを連携しました"});
+      if(!r.ok)throw new Error(d.error||t("profile.errVerifyFail"));
+      setEmailMsg({type:"ok",text:t("profile.emailLinked")});
       setCredStatus(p=>({...p,hasEmail:true}));
       setEmailForm({email:"",password:""});
       setEmailVerifyStep(false);
@@ -325,15 +326,15 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   };
 
   const handleEmailUnlink=async()=>{
-    if(!confirm("メールアドレス連携を解除しますか？\nメアド+パスワードでのログインができなくなります。"))return;
+    if(!confirm(t("profile.confirmUnlinkEmail")))return;
     setEmailDeleting(true);setEmailMsg(null);
     try{
       const r=await fetch("/api/auth/email/link",{method:"DELETE"});
       let d;try{d=await r.json();}catch{d={};}
-      if(!r.ok)throw new Error(d.error||`解除に失敗しました (${r.status})`);
+      if(!r.ok)throw new Error(d.error||t("profile.errUnlinkFailCode",{status:r.status}));
       setCredStatus(p=>({...p,hasEmail:false}));
-      setEmailMsg({type:"ok",text:"メール連携を解除しました"});
-    }catch(e){setEmailMsg({type:"err",text:e.message||"解除に失敗しました"});}
+      setEmailMsg({type:"ok",text:t("profile.emailUnlinked")});
+    }catch(e){setEmailMsg({type:"err",text:e.message||t("profile.errUnlinkFail")});}
     setEmailDeleting(false);
   };
 
@@ -361,7 +362,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               </div>
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:18,fontWeight:700,color:T.txH}}>{user.name||"ユーザー"}</div>
+              <div style={{fontSize:18,fontWeight:700,color:T.txH}}>{user.name||t("profile.defaultName")}</div>
               <div style={{fontSize:12,color:T.txD,marginTop:2}}>
                 {[user.dept,user.yr?`B${user.yr}`:null,user.moodleId].filter(Boolean).join(" · ")}
               </div>
@@ -376,23 +377,23 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
               <Av u={user} sz={72}/>
               <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:600,color:T.txH,marginBottom:6}}>アイコンを変更</div>
+                <div style={{fontSize:13,fontWeight:600,color:T.txH,marginBottom:6}}>{t("profile.changeIcon")}</div>
                 <div style={{display:"flex",gap:6}}>
                   <button onClick={()=>fileRef.current?.click()} disabled={uploading}
                     style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.accent}`,background:"transparent",color:T.accent,fontSize:12,fontWeight:600,cursor:uploading?"wait":"pointer",opacity:uploading?.5:1}}>
-                    {uploading?"処理中...":"画像をアップロード"}
+                    {uploading?t("profile.processing"):t("profile.uploadImage")}
                   </button>
                   {isImgAv&&<button onClick={()=>updateUserPref({av:""})}
                     style={{padding:"6px 10px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",color:T.txD,fontSize:12,cursor:"pointer"}}>
-                    削除
+                    {t("common.delete")}
                   </button>}
                 </div>
-                <div style={{fontSize:10,color:T.txD,marginTop:4}}>JPG・PNG・WebP 対応（円形にクロップされます）</div>
+                <div style={{fontSize:10,color:T.txD,marginTop:4}}>{t("profile.imageFormatHint")}</div>
               </div>
             </div>
 
             {/* プリセット画像 */}
-            <div style={{fontSize:11,fontWeight:600,color:T.txD,marginBottom:8}}>プリセットから選ぶ</div>
+            <div style={{fontSize:11,fontWeight:600,color:T.txD,marginBottom:8}}>{t("profile.chooseFromPreset")}</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(52px,1fr))",gap:6,marginBottom:14}}>
               {PRESETS.map((src,i)=>{
                 const sel=user.av===src;
@@ -407,7 +408,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
 
             {/* フォールバック色（画像なし時のイニシャル背景色） */}
             {!isImgAv&&<>
-              <div style={{fontSize:11,fontWeight:600,color:T.txD,marginBottom:6}}>カラー（イニシャルアイコン用）</div>
+              <div style={{fontSize:11,fontWeight:600,color:T.txD,marginBottom:6}}>{t("profile.colorForInitial")}</div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
                 {["#6375f0","#3dae72","#e5534b","#d4843e","#c6a236","#7c3aed","#0ea5e9","#ec4899","#14b8a6","#f97316","#6b7280"].map(c=>(
                   <div key={c} onClick={()=>updateUserPref({col:c})}
@@ -420,15 +421,15 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
 
             <button onClick={()=>setAvEdit(false)}
               style={{width:"100%",padding:"9px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
-              完了
+              {t("profile.done")}
             </button>
           </div>}
 
           {/* ミニ統計 */}
           {!avEdit&&<div style={{display:"flex",gap:0,marginTop:14,borderTop:`1px solid ${T.bd}`,paddingTop:12}}>
             {[
-              {v:`${done}/${total}`,l:"課題提出",c:T.green},
-              {v:courses.length,l:"履修科目",c:T.orange},
+              {v:`${done}/${total}`,l:t("profile.statAssignments"),c:T.green},
+              {v:courses.length,l:t("profile.statCourses"),c:T.orange},
             ].map((s,i,arr)=>(
               <div key={i} style={{flex:1,textAlign:"center",...(i<arr.length-1?{borderRight:`1px solid ${T.bd}`}:{})}}>
                 <div style={{fontSize:18,fontWeight:700,color:s.c}}>{s.v}</div>
@@ -439,20 +440,20 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
         </div>
 
         {/* ═══ 接続設定 ═══ */}
-        <GHead>接続設定</GHead>
+        <GHead>{t("profile.connSettings")}</GHead>
         <GCard>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>}
-            label="ISCT LMS" sub={credStatus?.hasCredentials?"ID・パスワード・TOTPキー 設定済み":"未設定 — タップして設定"}
+            label="ISCT LMS" sub={credStatus?.hasCredentials?t("profile.lmsConfigured"):t("profile.notSetTapToConfig")}
             onClick={()=>setCredOpen(p=>!p)}
-            right={credStatus&&<Badge ok={credStatus.hasCredentials} label={credStatus.hasCredentials?"接続中":"未接続"}/>}/>
+            right={credStatus&&<Badge ok={credStatus.hasCredentials} label={credStatus.hasCredentials?t("profile.connected"):t("profile.notConnected")}/>}/>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
-            label="Titech Portal" sub={credStatus?.hasPortal?"アカウント・パスワード・マトリクス 設定済み":"未設定 — タップして設定"}
+            label="Titech Portal" sub={credStatus?.hasPortal?t("profile.portalConfigured"):t("profile.notSetTapToConfig")}
             onClick={()=>setPortalOpen(p=>!p)}
-            right={credStatus&&<Badge ok={credStatus.hasPortal} label={credStatus.hasPortal?"接続中":"未接続"}/>}/>
+            right={credStatus&&<Badge ok={credStatus.hasPortal} label={credStatus.hasPortal?t("profile.connected"):t("profile.notConnected")}/>}/>
           <GRow last icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>}
-            label="メールアドレス連携" sub={credStatus?.hasEmail?"メアド+パスワードでログイン可能":"未設定 — タップして設定"}
+            label={t("profile.emailLink")} sub={credStatus?.hasEmail?t("profile.emailLoginAvailable"):t("profile.notSetTapToConfig")}
             onClick={()=>setEmailOpen(p=>!p)}
-            right={credStatus&&<Badge ok={credStatus.hasEmail} label={credStatus.hasEmail?"連携済":"未連携"}/>}/>
+            right={credStatus&&<Badge ok={credStatus.hasEmail} label={credStatus.hasEmail?t("profile.linked"):t("profile.notLinked")}/>}/>
         </GCard>
 
         {credOpen&&<div style={{marginTop:6,borderRadius:12,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
@@ -461,9 +462,9 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
           {credStatus?.hasCredentials&&!credStatus._editing?<div style={{padding:"14px"}}>
             <div style={{display:"flex",alignItems:"center",gap:8,padding:10,borderRadius:8,background:`${T.green}08`,border:`1px solid ${T.green}20`,marginBottom:10}}>
               <div style={{width:8,height:8,borderRadius:4,background:T.green,flexShrink:0}}/>
-              <span style={{fontSize:12,color:T.green,fontWeight:600}}>ISCT LMSに接続済み</span>
+              <span style={{fontSize:12,color:T.green,fontWeight:600}}>{t("profile.lmsConnected")}</span>
             </div>
-            <div style={{fontSize:12,color:T.txD,marginBottom:12,lineHeight:1.5}}>認証情報はAES-256-GCMで暗号化保存されています。</div>
+            <div style={{fontSize:12,color:T.txD,marginBottom:12,lineHeight:1.5}}>{t("profile.credEncrypted")}</div>
             {/* TOTPコードビューア */}
             <div style={{marginBottom:12,borderRadius:8,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
               <button onClick={()=>setTotpVisible(p=>!p)} style={{
@@ -472,7 +473,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               }}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                  <span style={{fontSize:12,fontWeight:600,color:T.txH}}>ワンタイムコード</span>
+                  <span style={{fontSize:12,fontWeight:600,color:T.txH}}>{t("profile.oneTimeCode")}</span>
                 </div>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{transform:totpVisible?"rotate(180deg)":"none",transition:"transform .2s"}}><polyline points="6 9 12 15 18 9"/></svg>
               </button>
@@ -487,27 +488,27 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
                     </div>
                     <span style={{fontSize:11,color:totpLeft<=5?T.red:T.txD,fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{totpLeft}s</span>
                   </div>
-                  <div style={{fontSize:10,color:T.txD,marginTop:8,lineHeight:1.4}}>PCでISCTにログインする際にこのコードを入力してください</div>
-                </>:<div style={{fontSize:12,color:T.txD}}>読み込み中...</div>}
+                  <div style={{fontSize:10,color:T.txD,marginTop:8,lineHeight:1.4}}>{t("profile.totpInstruction")}</div>
+                </>:<div style={{fontSize:12,color:T.txD}}>{t("common.loading")}</div>}
               </div>}
             </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setCredStatus(p=>({...p,_editing:true}))}
                 style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,fontWeight:600,cursor:"pointer"}}>
-                再設定
+                {t("profile.reconfigure")}
               </button>
               <button onClick={handleCredDelete} disabled={credDeleting}
                 style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${T.red}30`,background:`${T.red}08`,color:T.red,fontSize:13,fontWeight:600,cursor:credDeleting?"wait":"pointer",opacity:credDeleting?.5:1}}>
-                {credDeleting?"削除中...":"削除"}
+                {credDeleting?t("profile.deleting"):t("common.delete")}
               </button>
             </div>
           </div>:<>
             {credStatus?.hasCredentials&&<div style={{padding:"10px 14px 0"}}>
               <button onClick={()=>setCredStatus(p=>({...p,_editing:false}))}
-                style={{background:"none",border:"none",color:T.txD,fontSize:12,cursor:"pointer",padding:0}}>← 戻る</button>
+                style={{background:"none",border:"none",color:T.txD,fontSize:12,cursor:"pointer",padding:0}}>← {t("common.back")}</button>
             </div>}
-            <CredForm form={credForm} setForm={setCredForm} showPw={showPw} showTotp={showTotp} setShowPw={setShowPw} setShowTotp={setShowTotp} onSave={handleCredSave} saving={credSaving} btnLabel={credStatus?.hasCredentials?"認証情報を更新":"ログインして接続"}/>
-            {!credStatus?.hasCredentials&&<div style={{padding:"0 14px 12px",fontSize:10,color:T.txD,lineHeight:1.5}}>認証情報はこのPC内に暗号化して保存されます。外部には送信されません。</div>}
+            <CredForm form={credForm} setForm={setCredForm} showPw={showPw} showTotp={showTotp} setShowPw={setShowPw} setShowTotp={setShowTotp} onSave={handleCredSave} saving={credSaving} btnLabel={credStatus?.hasCredentials?t("profile.updateCred"):t("profile.loginConnect")}/>
+            {!credStatus?.hasCredentials&&<div style={{padding:"0 14px 12px",fontSize:10,color:T.txD,lineHeight:1.5}}>{t("profile.localEncryptNote")}</div>}
           </>}
         </div>}
 
@@ -517,34 +518,34 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
           {credStatus?.hasPortal&&!credStatus._portalEditing?<div style={{padding:"14px"}}>
             <div style={{display:"flex",alignItems:"center",gap:8,padding:10,borderRadius:8,background:`${T.green}08`,border:`1px solid ${T.green}20`,marginBottom:10}}>
               <div style={{width:8,height:8,borderRadius:4,background:T.green,flexShrink:0}}/>
-              <span style={{fontSize:12,color:T.green,fontWeight:600}}>Titech Portalに接続済み</span>
+              <span style={{fontSize:12,color:T.green,fontWeight:600}}>{t("profile.portalConnected")}</span>
             </div>
-            <div style={{fontSize:12,color:T.txD,marginBottom:12,lineHeight:1.5}}>認証情報はAES-256-GCMで暗号化保存されています。</div>
+            <div style={{fontSize:12,color:T.txD,marginBottom:12,lineHeight:1.5}}>{t("profile.credEncrypted")}</div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setCredStatus(p=>({...p,_portalEditing:true}))}
                 style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,fontWeight:600,cursor:"pointer"}}>
-                再設定
+                {t("profile.reconfigure")}
               </button>
               <button onClick={handlePortalDelete} disabled={portalDeleting}
                 style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${T.red}30`,background:`${T.red}08`,color:T.red,fontSize:13,fontWeight:600,cursor:portalDeleting?"wait":"pointer",opacity:portalDeleting?.5:1}}>
-                {portalDeleting?"削除中...":"削除"}
+                {portalDeleting?t("profile.deleting"):t("common.delete")}
               </button>
             </div>
           </div>:<>
             {credStatus?.hasPortal&&<div style={{padding:"10px 14px 0"}}>
               <button onClick={()=>setCredStatus(p=>({...p,_portalEditing:false}))}
-                style={{background:"none",border:"none",color:T.txD,fontSize:12,cursor:"pointer",padding:0}}>← 戻る</button>
+                style={{background:"none",border:"none",color:T.txD,fontSize:12,cursor:"pointer",padding:0}}>← {t("common.back")}</button>
             </div>}
             <div style={{display:"grid",gap:10,padding:"12px 14px"}}>
-              <Inp label="ポータル アカウント" value={portalForm.userId} onChange={e=>setPortalForm(p=>({...p,userId:e.target.value}))} placeholder="学籍番号"/>
-              <PwInp label="ポータル パスワード" value={portalForm.password} onChange={e=>setPortalForm(p=>({...p,password:e.target.value}))} placeholder="ポータルのパスワード" show={showPortalPw} onTogShow={()=>setShowPortalPw(p=>!p)}/>
+              <Inp label={t("profile.portalAccount")} value={portalForm.userId} onChange={e=>setPortalForm(p=>({...p,userId:e.target.value}))} placeholder={t("profile.studentId")}/>
+              <PwInp label={t("profile.portalPassword")} value={portalForm.password} onChange={e=>setPortalForm(p=>({...p,password:e.target.value}))} placeholder={t("profile.portalPwPlaceholder")} show={showPortalPw} onTogShow={()=>setShowPortalPw(p=>!p)}/>
               <MatrixInput matrix={portalForm.matrix} setMatrix={m=>setPortalForm(p=>({...p,matrix:typeof m==='function'?m(p.matrix):m}))}/>
               <button onClick={handlePortalSave} disabled={portalSaving}
                 style={{padding:"10px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:portalSaving?"wait":"pointer",opacity:portalSaving?.6:1,transition:"opacity .15s"}}>
-                {portalSaving?"接続中...":(credStatus?.hasPortal?"認証情報を更新":"ログインして接続")}
+                {portalSaving?t("profile.connecting"):(credStatus?.hasPortal?t("profile.updateCred"):t("profile.loginConnect"))}
               </button>
             </div>
-            {!credStatus?.hasPortal&&<div style={{padding:"0 14px 12px",fontSize:10,color:T.txD,lineHeight:1.5}}>認証情報はこのPC内に暗号化して保存されます。外部には送信されません。</div>}
+            {!credStatus?.hasPortal&&<div style={{padding:"0 14px 12px",fontSize:10,color:T.txD,lineHeight:1.5}}>{t("profile.localEncryptNote")}</div>}
           </>}
         </div>}
 
@@ -554,53 +555,53 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
           {credStatus?.hasEmail&&!credStatus?._emailEditing?<div style={{padding:"14px"}}>
             <div style={{display:"flex",alignItems:"center",gap:8,padding:10,borderRadius:8,background:`${T.green}08`,border:`1px solid ${T.green}20`,marginBottom:10}}>
               <div style={{width:8,height:8,borderRadius:4,background:T.green,flexShrink:0}}/>
-              <span style={{fontSize:12,color:T.green,fontWeight:600}}>メールアドレス連携済み</span>
+              <span style={{fontSize:12,color:T.green,fontWeight:600}}>{t("profile.emailLinkedStatus")}</span>
             </div>
-            <div style={{fontSize:12,color:T.txD,marginBottom:12,lineHeight:1.5}}>メールアドレスとパスワードでログインできます。再設定で上書き、解除で無効化できます。</div>
+            <div style={{fontSize:12,color:T.txD,marginBottom:12,lineHeight:1.5}}>{t("profile.emailLoginNote")}</div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>{setCredStatus(p=>({...p,_emailEditing:true}));setEmailVerifyStep(false);setEmailMsg(null);setEmailForm({email:"",password:""});}}
                 style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,fontWeight:600,cursor:"pointer"}}>
-                再設定
+                {t("profile.reconfigure")}
               </button>
               <button onClick={handleEmailUnlink} disabled={emailDeleting}
                 style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${T.red}30`,background:`${T.red}08`,color:T.red,fontSize:13,fontWeight:600,cursor:emailDeleting?"wait":"pointer",opacity:emailDeleting?.5:1}}>
-                {emailDeleting?"解除中...":"連携解除"}
+                {emailDeleting?t("profile.unlinking"):t("profile.unlink")}
               </button>
             </div>
           </div>:<>
             {credStatus?._emailEditing&&<div style={{padding:"10px 14px 0"}}>
               <button onClick={()=>{setCredStatus(p=>({...p,_emailEditing:false}));setEmailVerifyStep(false);setEmailMsg(null);}}
-                style={{background:"none",border:"none",color:T.txD,fontSize:12,cursor:"pointer",padding:0}}>← 戻る</button>
+                style={{background:"none",border:"none",color:T.txD,fontSize:12,cursor:"pointer",padding:0}}>← {t("common.back")}</button>
             </div>}
             {emailVerifyStep?<div style={{display:"grid",gap:10,padding:"12px 14px"}}>
-              <div style={{fontSize:12,color:T.txD,lineHeight:1.5}}><strong>{pendingEmail}</strong> に送信した6桁の確認コードを入力してください。</div>
-              <Inp label="確認コード" type="text" inputMode="numeric" maxLength={6} value={verifyCode}
+              <div style={{fontSize:12,color:T.txD,lineHeight:1.5}}><strong>{pendingEmail}</strong> {t("profile.enterCodeSentSuffix")}</div>
+              <Inp label={t("profile.verifyCode")} type="text" inputMode="numeric" maxLength={6} value={verifyCode}
                 onChange={e=>setVerifyCode(e.target.value.replace(/\D/g,"").slice(0,6))} placeholder="123456"
                 style={{letterSpacing:6,fontSize:20,textAlign:"center",fontWeight:700}}/>
               <button onClick={handleVerifyCode} disabled={verifying||verifyCode.length!==6}
                 style={{padding:"10px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:verifying?"wait":"pointer",opacity:(verifying||verifyCode.length!==6)?.6:1,transition:"opacity .15s"}}>
-                {verifying?"確認中...":"確認コードを送信"}
+                {verifying?t("profile.verifying"):t("profile.sendVerifyCode")}
               </button>
               <button onClick={()=>{setEmailVerifyStep(false);setEmailMsg(null);}}
-                style={{background:"none",border:"none",color:T.txD,fontSize:12,cursor:"pointer",padding:0}}>メールアドレスを変更する</button>
+                style={{background:"none",border:"none",color:T.txD,fontSize:12,cursor:"pointer",padding:0}}>{t("profile.changeEmail")}</button>
             </div>:<>
               <div style={{display:"grid",gap:10,padding:"12px 14px"}}>
-                <Inp label="メールアドレス" type="email" value={emailForm.email} onChange={e=>setEmailForm(p=>({...p,email:e.target.value}))} placeholder="example@m.isct.ac.jp"/>
-                <PwInp label="パスワード (8文字以上)" value={emailForm.password} onChange={e=>setEmailForm(p=>({...p,password:e.target.value}))} placeholder="ログイン用パスワードを設定" show={showEmailPw} onTogShow={()=>setShowEmailPw(p=>!p)}/>
+                <Inp label={t("profile.emailAddress")} type="email" value={emailForm.email} onChange={e=>setEmailForm(p=>({...p,email:e.target.value}))} placeholder="example@m.isct.ac.jp"/>
+                <PwInp label={t("profile.passwordMin8")} value={emailForm.password} onChange={e=>setEmailForm(p=>({...p,password:e.target.value}))} placeholder={t("profile.setLoginPwPlaceholder")} show={showEmailPw} onTogShow={()=>setShowEmailPw(p=>!p)}/>
                 <button onClick={handleEmailLink} disabled={emailSaving}
                   style={{padding:"10px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:emailSaving?"wait":"pointer",opacity:emailSaving?.6:1,transition:"opacity .15s"}}>
-                  {emailSaving?"送信中...":"確認コードを送信"}
+                  {emailSaving?t("profile.sending"):t("profile.sendVerifyCode")}
                 </button>
               </div>
-              <div style={{padding:"0 14px 12px",fontSize:10,color:T.txD,lineHeight:1.5}}>確認メールを送信します。メール内のコードで本人確認後に連携が完了します。</div>
+              <div style={{padding:"0 14px 12px",fontSize:10,color:T.txD,lineHeight:1.5}}>{t("profile.verifyEmailNote")}</div>
             </>}
           </>}
         </div>}
 
         {/* ═══ ホーム画面 ═══ */}
-        <GHead>ホーム画面</GHead>
+        <GHead>{t("profile.homeScreen")}</GHead>
         <GCard>
-          <GRow icon={I.home} label="クイックアクセス" sub={`${qaIds.length}個のショートカットを表示中`}
+          <GRow icon={I.home} label={t("profile.quickAccess")} sub={t("profile.shortcutsShown",{n:qaIds.length})}
             onClick={()=>setQaOpen(p=>!p)}/>
           {qaOpen&&<div style={{padding:"8px 14px 12px"}}>
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
@@ -615,22 +616,22 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
                       color:on?T.accent:full?T.txD:T.txH,fontSize:12,fontWeight:on?600:500,
                       cursor:full&&!on?"default":"pointer",opacity:full&&!on?.4:1}}>
                     <span style={{display:"flex",color:on?T.accent:T.txD}}>{q.icon||portalIcon}</span>
-                    {q.label}
+                    {t(q.labelKey)}
                   </button>
                 );
               })}
             </div>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:8}}>
-              <span style={{fontSize:10,color:T.txD}}>{qaIds.length}/4個選択中</span>
-              <button onClick={()=>saveQa(QA_DEFAULT)} style={{background:"none",border:"none",color:T.txD,fontSize:10,cursor:"pointer",padding:0}}>リセット</button>
+              <span style={{fontSize:10,color:T.txD}}>{t("profile.selectedCount",{n:qaIds.length})}</span>
+              <button onClick={()=>saveQa(QA_DEFAULT)} style={{background:"none",border:"none",color:T.txD,fontSize:10,cursor:"pointer",padding:0}}>{t("profile.reset")}</button>
             </div>
           </div>}
         </GCard>
 
         {/* ═══ マップ ═══ */}
-        <GHead>マップ</GHead>
+        <GHead>{t("profile.map")}</GHead>
         <GCard>
-          <GRow icon={I.map} label="よく使う場所" sub={`${navQIds.length}件登録中`}
+          <GRow icon={I.map} label={t("profile.favPlaces")} sub={t("profile.placesRegistered",{n:navQIds.length})}
             onClick={()=>setNavQOpen(p=>!p)}/>
           {navQOpen&&<div style={{padding:"8px 14px 12px"}}>
             {/* 登録済みタグ */}
@@ -655,7 +656,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               })}
             </div>}
             {/* カテゴリ追加 */}
-            <div style={{fontSize:10,fontWeight:600,color:T.txD,marginBottom:5}}>エリア・カテゴリ</div>
+            <div style={{fontSize:10,fontWeight:600,color:T.txD,marginBottom:5}}>{t("profile.areaCategory")}</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
               {SPOT_CATS.filter(c=>navSpots.some(s=>s.cat===c.id)).map(c=>{
                 const cid="cat:"+c.id;const on=navQIds.includes(cid);
@@ -667,7 +668,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               })}
             </div>
             {/* スポットグループ追加 */}
-            <div style={{fontSize:10,fontWeight:600,color:T.txD,marginBottom:5}}>スポット種別</div>
+            <div style={{fontSize:10,fontWeight:600,color:T.txD,marginBottom:5}}>{t("profile.spotType")}</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
               {SPOT_GROUPS.map(g=>{
                 const gid="grp:"+g.prefix;const on=navQIds.includes(gid);
@@ -681,7 +682,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               })}
             </div>
             {/* 個別スポット */}
-            <div style={{fontSize:10,fontWeight:600,color:T.txD,marginBottom:5}}>個別に追加</div>
+            <div style={{fontSize:10,fontWeight:600,color:T.txD,marginBottom:5}}>{t("profile.addIndividually")}</div>
             <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}>
               {SPOT_CATS.filter(c=>navSpots.some(s=>s.cat===c.id)).map(c=>{
                 const on=navQCat===c.id;
@@ -703,21 +704,21 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               })}
             </div>}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:8}}>
-              <span style={{fontSize:10,color:T.txD}}>{navQIds.filter(id=>!id.startsWith("grp:")).length}件 + {navQIds.filter(id=>id.startsWith("grp:")).length}グループ</span>
-              <button onClick={()=>saveNavQ(NAV_QUICK_DEFAULT)} style={{background:"none",border:"none",color:T.txD,fontSize:10,cursor:"pointer",padding:0}}>リセット</button>
+              <span style={{fontSize:10,color:T.txD}}>{t("profile.placesGroupsSummary",{places:navQIds.filter(id=>!id.startsWith("grp:")).length,groups:navQIds.filter(id=>id.startsWith("grp:")).length})}</span>
+              <button onClick={()=>saveNavQ(NAV_QUICK_DEFAULT)} style={{background:"none",border:"none",color:T.txD,fontSize:10,cursor:"pointer",padding:0}}>{t("profile.reset")}</button>
             </div>
           </div>}
         </GCard>
 
         {/* ═══ 一般 ═══ */}
-        <GHead>一般</GHead>
+        <GHead>{t("profile.general")}</GHead>
         <GCard>
-          <GRow icon={I.users} label="学年グループ" sub="タイムライン投稿に自動タグ付け"
+          <GRow icon={I.users} label={t("profile.yearGroup")} sub={t("profile.yearGroupSub")}
             onClick={()=>setYgOpen(p=>!p)}
-            right={<span style={{fontSize:13,fontWeight:600,color:user.yearGroup?T.accent:T.txD}}>{user.yearGroup||"未設定"}</span>}/>
+            right={<span style={{fontSize:13,fontWeight:600,color:user.yearGroup?T.accent:T.txD}}>{user.yearGroup||t("profile.notSet")}</span>}/>
           {ygOpen&&<div style={{padding:"8px 14px 12px",display:"flex",flexDirection:"column",gap:8}}>
             <div>
-              <div style={{fontSize:11,color:T.txD,marginBottom:6,fontWeight:500}}>入学年度</div>
+              <div style={{fontSize:11,color:T.txD,marginBottom:6,fontWeight:500}}>{t("profile.admissionYear")}</div>
               <div style={{display:"flex",gap:6}}>
                 {["22","23","24","25","26"].map(y=>{const sel=user.yearGroup&&user.yearGroup.slice(0,-1)===y;return(
                   <button key={y} onClick={e=>{e.stopPropagation();const t=user.yearGroup?user.yearGroup.slice(-1):"B";updateUserPref({yearGroup:sel?null:y+t});}}
@@ -728,9 +729,9 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               </div>
             </div>
             <div>
-              <div style={{fontSize:11,color:T.txD,marginBottom:6,fontWeight:500}}>課程</div>
+              <div style={{fontSize:11,color:T.txD,marginBottom:6,fontWeight:500}}>{t("profile.degreeType")}</div>
               <div style={{display:"flex",gap:6}}>
-                {[["B","学部"],["M","修士"],["D","博士"],["R","研究生"]].map(([k,l])=>{const sel=user.yearGroup&&user.yearGroup.endsWith(k);return(
+                {[["B",t("profile.degreeBachelor")],["M",t("profile.degreeMaster")],["D",t("profile.degreeDoctor")],["R",t("profile.degreeResearch")]].map(([k,l])=>{const sel=user.yearGroup&&user.yearGroup.endsWith(k);return(
                   <button key={k} onClick={e=>{e.stopPropagation();if(!user.yearGroup)return;updateUserPref({yearGroup:user.yearGroup.slice(0,-1)+k});}}
                     style={{flex:1,padding:"8px 0",borderRadius:8,border:`1px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}14`:"transparent",color:sel?T.accent:T.txD,fontSize:13,fontWeight:sel?700:500,cursor:user.yearGroup?"pointer":"default",opacity:user.yearGroup?1:.4,transition:"all .12s"}}>
                     {l}
@@ -754,13 +755,13 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             const isAutoDetected=!user.myDept&&courseDepts.length===1;
             return<>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v3"/></svg>}
-            label="所属学院" sub={isAutoDetected?"履修科目から自動検出 — タップで変更":"タップして変更"}
+            label={t("profile.mySchool")} sub={isAutoDetected?t("profile.autoDetectedTapChange"):t("profile.tapToChange")}
             onClick={()=>{setDeptOpen(p=>!p);if(!deptSchool){setDeptSchool(schoolKey||(courseSchools[0]?.key)||null);}}}
-            right={schoolInfo?<span style={{fontSize:13,fontWeight:600,color:schoolInfo.col}}>{schoolInfo.name}</span>:<span style={{fontSize:13,fontWeight:600,color:T.txD}}>未設定</span>}/>
+            right={schoolInfo?<span style={{fontSize:13,fontWeight:600,color:schoolInfo.col}}>{locName(schoolInfo)}</span>:<span style={{fontSize:13,fontWeight:600,color:T.txD}}>{t("profile.notSet")}</span>}/>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>}
-            label="所属学系" sub={isAutoDetected?"履修科目から自動検出 — タップで変更":"タップして変更"}
+            label={t("profile.myDept")} sub={isAutoDetected?t("profile.autoDetectedTapChange"):t("profile.tapToChange")}
             onClick={()=>{setDeptOpen(p=>!p);if(!deptSchool){setDeptSchool(schoolKey||(courseSchools[0]?.key)||null);}}}
-            right={deptInfo?<span style={{fontSize:13,fontWeight:600,color:deptInfo.col||T.accent}}>{deptInfo.name}</span>:<span style={{fontSize:13,fontWeight:600,color:T.txD}}>未設定</span>}/>
+            right={deptInfo?<span style={{fontSize:13,fontWeight:600,color:deptInfo.col||T.accent}}>{locName(deptInfo)}</span>:<span style={{fontSize:13,fontWeight:600,color:T.txD}}>{t("profile.notSet")}</span>}/>
           </>;})()}
           {deptOpen&&<div style={{padding:"8px 14px 12px"}}>
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
@@ -774,32 +775,32 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
                     style={{padding:"7px 14px",borderRadius:8,border:`1px solid ${on?sv.col:T.bd}`,background:on?sv.col:"transparent",color:on?"#fff":T.txH,fontSize:12,fontWeight:on?700:500,cursor:"pointer",
                       transition:"all .25s cubic-bezier(.4,0,.2,1)",
                       maxWidth:hidden?0:200,opacity:hidden?0:1,padding:hidden?"7px 0":"7px 14px",margin:hidden?"0 -2.5px":0,overflow:"hidden",whiteSpace:"nowrap"}}>
-                    {sv.name}{on?" ▾":""}
+                    {locName(sv)}{on?" ▾":""}
                   </button>
                   {ds.map(([prefix,d],i)=>{const sel=user.myDept===prefix;return(
                     <button key={prefix} onClick={e=>{e.stopPropagation();updateUserPref({myDept:prefix});}}
                       style={{padding:"7px 14px",borderRadius:8,border:`1px solid ${sel?d.col:T.bd}`,background:sel?`${d.col}20`:"transparent",color:sel?d.col:T.txH,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",
                         animation:"deptPop .28s cubic-bezier(.34,1.56,.64,1) both",animationDelay:`${i*50}ms`}}>
-                      {d.name}
+                      {locName(d)}
                     </button>
                   );})}
                 </div>
               );})}
             </div>
             <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",marginTop:8}}>
-              {user.myDept&&<button onClick={()=>{setDeptSchool(null);updateUserPref({myDept:null});}} style={{background:"none",border:"none",color:T.txD,fontSize:10,cursor:"pointer",padding:0}}>リセット（自動検出に戻す）</button>}
+              {user.myDept&&<button onClick={()=>{setDeptSchool(null);updateUserPref({myDept:null});}} style={{background:"none",border:"none",color:T.txD,fontSize:10,cursor:"pointer",padding:0}}>{t("profile.resetToAutoDetect")}</button>}
             </div>
             <style>{`@keyframes deptPop{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}`}</style>
           </div>}
           {/* ── ユニット設定 ── */}
           {(()=>{const autoYg=user.yearGroup||"";const effectiveYg=unitYg||autoYg;const hasUnit=!!user.myUnit;const unitParts=hasUnit?user.myUnit.split("-"):[];return<>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>}
-            label="ユニット" sub="1年生の学院横断グループ"
+            label={t("profile.unit")} sub={t("profile.unitSub")}
             onClick={()=>{setUnitOpen(p=>!p);if(!unitYg&&autoYg)setUnitYg(autoYg);}}
-            right={hasUnit?<span style={{fontSize:13,fontWeight:600,color:UNIT_COL}}>{unitParts[0]} / U{unitParts[1]}</span>:<span style={{fontSize:13,fontWeight:600,color:T.txD}}>未設定</span>}/>
+            right={hasUnit?<span style={{fontSize:13,fontWeight:600,color:UNIT_COL}}>{unitParts[0]} / U{unitParts[1]}</span>:<span style={{fontSize:13,fontWeight:600,color:T.txD}}>{t("profile.notSet")}</span>}/>
           {unitOpen&&<div style={{padding:"10px 14px 14px"}}>
             {!autoYg&&<>
-              <div style={{fontSize:11,color:T.txD,marginBottom:8,fontWeight:500}}>学年グループ</div>
+              <div style={{fontSize:11,color:T.txD,marginBottom:8,fontWeight:500}}>{t("profile.yearGroup")}</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
                 {["23B","24B","25B","26B"].map(yg=>{const sel=unitYg===yg;return(
                   <button key={yg} onClick={e=>{e.stopPropagation();setUnitYg(sel?"":yg);}}
@@ -813,26 +814,42 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               <div style={{padding:"9px 14px",borderRadius:8,background:`${UNIT_COL}10`,border:`1px solid ${UNIT_COL}30`,color:UNIT_COL,fontSize:14,fontWeight:700,flexShrink:0}}>{effectiveYg||"?"}</div>
               <span style={{fontSize:16,color:T.txD,fontWeight:300}}>/</span>
               <div style={{display:"flex",alignItems:"center",gap:6,flex:1}}>
-                <span style={{fontSize:13,color:T.txD,fontWeight:500,flexShrink:0}}>ユニット</span>
-                <input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="番号" value={unitInput} onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setUnitInput(v);}}
+                <span style={{fontSize:13,color:T.txD,fontWeight:500,flexShrink:0}}>{t("profile.unit")}</span>
+                <input type="text" inputMode="numeric" pattern="[0-9]*" placeholder={t("profile.number")} value={unitInput} onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setUnitInput(v);}}
                   onKeyDown={e=>{if(e.key==="Enter"&&effectiveYg&&unitInput){updateUserPref({myUnit:`${effectiveYg}-${unitInput}`});setUnitOpen(false);}}}
                   style={{width:56,padding:"9px 0",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:16,fontWeight:700,textAlign:"center",outline:"none"}}/>
               </div>
               <button onClick={()=>{if(effectiveYg&&unitInput){updateUserPref({myUnit:`${effectiveYg}-${unitInput}`});setUnitOpen(false);}}}
                 style={{padding:"9px 18px",borderRadius:8,border:"none",background:effectiveYg&&unitInput?UNIT_COL:T.bg4,color:effectiveYg&&unitInput?"#fff":T.txD,fontSize:13,fontWeight:600,cursor:effectiveYg&&unitInput?"pointer":"default",transition:"all .15s",flexShrink:0}}>
-                設定
+                {t("profile.set")}
               </button>
             </div>
             {hasUnit&&<div style={{marginTop:8,display:"flex",justifyContent:"flex-end"}}>
-              <button onClick={()=>{setUnitInput("");setUnitYg("");updateUserPref({myUnit:null});}} style={{background:"none",border:"none",color:T.txD,fontSize:11,cursor:"pointer"}}>リセット</button>
+              <button onClick={()=>{setUnitInput("");setUnitYg("");updateUserPref({myUnit:null});}} style={{background:"none",border:"none",color:T.txD,fontSize:11,cursor:"pointer"}}>{t("profile.reset")}</button>
             </div>}
           </div>}
           </>;})()}
+          {/* ── 言語設定セクション ── */}
+          <div style={{padding:"10px 14px",borderBottom:`1px solid ${T.bd}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+              <span style={{color:T.txD,display:"flex"}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
+              <span style={{fontSize:13,fontWeight:600,color:T.txH}}>{t("settings.language")}</span>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {LANGUAGES.map(l=>{
+                const sel=langPref===l.id;
+                return <button key={l.id} onClick={e=>{e.stopPropagation();setLangPref?.(l.id);}}
+                  style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}14`:"transparent",color:sel?T.accent:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
+                  <span style={{marginRight:5}}>{l.flag}</span>{l.name}
+                </button>;
+              })}
+            </div>
+          </div>
           {/* ── テーマ設定セクション ── */}
           <div style={{padding:"10px 14px",borderBottom:`1px solid ${T.bd}`}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
               <span style={{color:T.txD,display:"flex"}}>{dark?I.moon:I.sun}</span>
-              <span style={{fontSize:13,fontWeight:600,color:T.txH}}>テーマ</span>
+              <span style={{fontSize:13,fontWeight:600,color:T.txH}}>{t("profile.theme")}</span>
             </div>
             {/* ベーステーマ */}
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -840,7 +857,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
                 const sel=themePref===m.id;
                 return <button key={m.id} onClick={e=>{e.stopPropagation();setThemePref?.(m.id);}}
                   style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}14`:"transparent",color:sel?T.accent:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
-                  {m.name}
+                  {t(m.nameKey)}
                 </button>;
               })}
             </div>
@@ -853,46 +870,46 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
                 const sel=themePref===m.id;
                 return <button key={m.id} onClick={e=>{e.stopPropagation();setThemePref?.(m.id);}}
                   style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:"transparent",color:sel?m.col:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
-                  {m.name}
+                  {t(m.nameKey)}
                 </button>;
               })}
             </div>
             {/* ソフトテーマ */}
             <div style={{marginTop:12,marginBottom:4}}>
-              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>ソフト</span>
+              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>{t("profile.themeSoft")}</span>
             </div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
               {THEME_MODES.soft.map(m=>{
                 const sel=themePref===m.id;
                 return <button key={m.id} onClick={e=>{e.stopPropagation();setThemePref?.(m.id);}}
                   style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:"transparent",color:sel?m.col:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
-                  <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:m.col,marginRight:6,verticalAlign:"middle"}}/>{m.name}
+                  <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:m.col,marginRight:6,verticalAlign:"middle"}}/>{t(m.nameKey)}
                 </button>;
               })}
             </div>
             {/* 季節テーマ */}
             <div style={{marginTop:12,marginBottom:4}}>
-              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>季節</span>
+              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>{t("profile.themeSeason")}</span>
             </div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
               {THEME_MODES.season.map(m=>{
                 const sel=themePref===m.id;
                 return <button key={m.id} onClick={e=>{e.stopPropagation();setThemePref?.(m.id);}}
                   style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:"transparent",color:sel?m.col:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
-                  <span style={{marginRight:4}}>{m.emoji}</span>{m.name}
+                  <span style={{marginRight:4}}>{m.emoji}</span>{t(m.nameKey)}
                 </button>;
               })}
             </div>
             {/* おふざけテーマ */}
             <div style={{marginTop:12,marginBottom:4}}>
-              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>おふざけ</span>
+              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>{t("profile.themeFun")}</span>
             </div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
               {THEME_MODES.fun.map(m=>{
                 const sel=themePref===m.id;
                 return <button key={m.id} onClick={e=>{e.stopPropagation();setThemePref?.(m.id);}}
                   style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:"transparent",color:sel?m.col:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
-                  <span style={{marginRight:4}}>{m.emoji}</span>{m.name}
+                  <span style={{marginRight:4}}>{m.emoji}</span>{t(m.nameKey)}
                 </button>;
               })}
             </div>
@@ -901,9 +918,9 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
           <div style={{padding:"10px 14px",borderBottom:`1px solid ${T.bd}`}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
               <span style={{color:T.txD,display:"flex"}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12" r="2.5"/><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12a10 10 0 005.012 8.662"/></svg></span>
-              <span style={{fontSize:13,fontWeight:600,color:T.txH}}>テーマカラー</span>
+              <span style={{fontSize:13,fontWeight:600,color:T.txH}}>{t("profile.themeColor")}</span>
               {["titech","tmdu","scitokyo","sakura","shinryoku","koyo","yuki","lavender","mint","sky","peach","lemon","coral","mizukumori"].includes(themePref)&&
-                <span style={{fontSize:10,color:T.txD,fontStyle:"italic"}}>(ブランド・季節テーマでは固定)</span>}
+                <span style={{fontSize:10,color:T.txD,fontStyle:"italic"}}>{t("profile.fixedForBrandTheme")}</span>}
             </div>
             <div style={{display:"flex",flexWrap:"wrap",gap:8,opacity:["titech","tmdu","scitokyo","sakura","shinryoku","koyo","yuki","lavender","mint","sky","peach","lemon","coral","mizukumori"].includes(themePref)?0.4:1,pointerEvents:["titech","tmdu","scitokyo","sakura","shinryoku","koyo","yuki","lavender","mint","sky","peach","lemon","coral","mizukumori"].includes(themePref)?"none":"auto",transition:"opacity .15s"}}>
               {ACCENT_PRESETS.map(p=>{
@@ -911,19 +928,19 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
                 return <button key={p.id} onClick={e=>{e.stopPropagation();setAccentPref?.(p.id);}}
                   style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"8px 6px",borderRadius:10,border:sel?`2px solid ${p.col}`:`2px solid transparent`,background:sel?`${p.col}14`:"transparent",cursor:"pointer",minWidth:56,transition:"all .15s"}}>
                   <div style={{width:28,height:28,borderRadius:"50%",background:p.col,boxShadow:sel?`0 0 12px ${p.col}50`:"none",transition:"box-shadow .15s"}}/>
-                  <span style={{fontSize:10,fontWeight:sel?700:400,color:sel?p.col:T.txD,whiteSpace:"nowrap"}}>{p.name}</span>
+                  <span style={{fontSize:10,fontWeight:sel?700:400,color:sel?p.col:T.txD,whiteSpace:"nowrap"}}>{t(p.nameKey)}</span>
                 </button>;
               })}
             </div>
           </div>
-          <GRow icon={I.bell} label="通知" onClick={()=>setNotifOpen(p=>!p)}
+          <GRow icon={I.bell} label={t("profile.notifications")} onClick={()=>setNotifOpen(p=>!p)}
             right={<Toggle on={notifEnabled} onTog={()=>setNotifEnabled(p=>!p)}/>}/>
           {notifOpen&&notifEnabled&&<>
             {[
-              {k:"course",l:"授業・お知らせ"},
-              {k:"deadline",l:"締切リマインダー"},
-              {k:"dm",l:"DM"},
-              {k:"event",l:"イベント"},
+              {k:"course",l:t("profile.notifCourse")},
+              {k:"deadline",l:t("profile.notifDeadline")},
+              {k:"dm",l:t("common.dm")},
+              {k:"event",l:t("profile.notifEvent")},
             ].map((n,i,arr)=>(
               <div key={n.k} style={{display:"flex",alignItems:"center",padding:"9px 14px 9px 44px",...(i<arr.length-1?{borderBottom:`1px solid ${T.bd}`}:{})}}>
                 <span style={{flex:1,fontSize:13,color:T.tx}}>{n.l}</span>
@@ -933,18 +950,18 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             {typeof Notification!=="undefined"&&<div style={{padding:"8px 14px 10px 44px",borderTop:`1px solid ${T.bd}`}}>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <span style={{flex:1,fontSize:12,color:T.txD}}>
-                  {Notification.permission==="granted"?"デスクトップ通知: 許可済み":Notification.permission==="denied"?"デスクトップ通知: ブロック中":"デスクトップ通知を有効にする"}
+                  {Notification.permission==="granted"?t("profile.desktopNotifGranted"):Notification.permission==="denied"?t("profile.desktopNotifBlocked"):t("profile.desktopNotifEnable")}
                 </span>
                 {Notification.permission==="default"&&<button onClick={()=>Notification.requestPermission().then(()=>setNotifOpen(p=>p))}
-                  style={{padding:"4px 12px",borderRadius:6,border:`1px solid ${T.accent}`,background:`${T.accent}14`,color:T.accent,fontSize:11,fontWeight:600,cursor:"pointer"}}>許可</button>}
+                  style={{padding:"4px 12px",borderRadius:6,border:`1px solid ${T.accent}`,background:`${T.accent}14`,color:T.accent,fontSize:11,fontWeight:600,cursor:"pointer"}}>{t("profile.allow")}</button>}
                 {Notification.permission==="granted"&&<span style={{color:T.green,fontSize:11,fontWeight:600}}>✓</span>}
                 {Notification.permission==="denied"&&<span style={{color:T.red,fontSize:11,fontWeight:600}}>✕</span>}
               </div>
             </div>}
           </>}
-          <GRow last icon={I.eye} label="フォントサイズ"
+          <GRow last icon={I.eye} label={t("profile.fontSize")}
             right={<div style={{display:"flex",gap:4}}>
-              {[{id:"small",l:"小"},{id:"medium",l:"中"},{id:"large",l:"大"}].map(f=>(
+              {[{id:"small",l:t("profile.fontSmall")},{id:"medium",l:t("profile.fontMedium")},{id:"large",l:t("profile.fontLarge")}].map(f=>(
                 <button key={f.id} onClick={e=>{e.stopPropagation();saveFontSize(f.id);}}
                   style={{padding:"4px 12px",borderRadius:6,border:`1px solid ${fontSize===f.id?T.accent:T.bd}`,background:fontSize===f.id?`${T.accent}14`:"transparent",color:fontSize===f.id?T.accent:T.txD,fontSize:12,fontWeight:fontSize===f.id?700:500,cursor:"pointer",transition:"all .12s"}}>
                   {f.l}
@@ -954,11 +971,11 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
         </GCard>
 
         {/* ═══ セキュリティ ═══ */}
-        <GHead>セキュリティ</GHead>
+        <GHead>{t("profile.security")}</GHead>
         <GCard>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>}
-            label="アプリロック"
-            sub={appLock?.enabled?"バックグラウンド復帰時にロック":"オフ"}
+            label={t("profile.appLock")}
+            sub={appLock?.enabled?t("profile.appLockOnSub"):t("profile.off")}
             right={<Toggle on={!!appLock?.enabled} onTog={()=>{
               if(!appLock)return;
               if(!appLock.enabled){
@@ -968,31 +985,31 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             }}/>}/>
           {appLock?.enabled&&<>
             <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}
-              label="ロックまでの時間"
+              label={t("profile.lockTimeout")}
               right={<select value={appLock.timeout} onChange={e=>appLock.setLockTimeout(Number(e.target.value))}
                 style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:12,cursor:"pointer",outline:"none"}}>
-                {TIMEOUT_OPTIONS.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}
+                {TIMEOUT_OPTIONS.map(o=><option key={o.id} value={o.id}>{t(o.labelKey)}</option>)}
               </select>}/>
             <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>}
-              label="パスコードを変更"
+              label={t("profile.changePasscode")}
               onClick={()=>{setPinSetup({phase:"new"});setPinInput("");setPinError("");}}/>
             {appLock?.biometricAvailable&&<GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 11c0-1.1.9-2 2-2s2 .9 2 2v1"/><path d="M8 11V9a4 4 0 018 0"/><path d="M6 11V8a6 6 0 0112 0v3"/><path d="M12 14v3"/><rect x="4" y="11" width="16" height="10" rx="2"/></svg>}
-              label="Face ID / 指紋認証"
-              sub={appLock.biometricEnabled?"ロック解除時に使用":"オフ"}
+              label={t("profile.biometric")}
+              sub={appLock.biometricEnabled?t("profile.biometricOnSub"):t("profile.off")}
               right={<Toggle on={!!appLock.biometricEnabled} onTog={()=>appLock.setBiometricEnabled(!appLock.biometricEnabled)}/>}/>}
             <GRow last icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>}
-              label="今すぐロック"
+              label={t("profile.lockNow")}
               onClick={()=>appLock.lockNow()}/>
           </>}
           {!appLock?.enabled&&appLock?.pinSet&&<GRow last
             icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>}
-            label="パスコードを削除" danger
-            onClick={()=>{if(confirm("パスコードを削除しますか？"))appLock.removePin();}}/>}
+            label={t("profile.deletePasscode")} danger
+            onClick={()=>{if(confirm(t("profile.confirmDeletePasscode")))appLock.removePin();}}/>}
         </GCard>
         {/* PIN setup modal */}
         {pinSetup&&<div style={{position:"fixed",inset:0,zIndex:10002,background:T.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
-          <button onClick={()=>setPinSetup(null)} style={{position:"absolute",top:"calc(16px + env(safe-area-inset-top))",left:16,background:"none",border:"none",color:T.txD,cursor:"pointer",fontSize:14}}>キャンセル</button>
-          <div style={{fontSize:16,fontWeight:600,color:T.txH,marginBottom:4}}>{pinSetup.phase==="new"?"新しいパスコードを入力":"もう一度入力してください"}</div>
+          <button onClick={()=>setPinSetup(null)} style={{position:"absolute",top:"calc(16px + env(safe-area-inset-top))",left:16,background:"none",border:"none",color:T.txD,cursor:"pointer",fontSize:14}}>{t("common.cancel")}</button>
+          <div style={{fontSize:16,fontWeight:600,color:T.txH,marginBottom:4}}>{pinSetup.phase==="new"?t("profile.enterNewPasscode"):t("profile.reenterPasscode")}</div>
           {pinError&&<div style={{fontSize:12,color:T.red,marginTop:4}}>{pinError}</div>}
           <div style={{display:"flex",gap:14,margin:"24px 0 32px"}}>
             {[0,1,2,3].map(i=><div key={i} style={{width:14,height:14,borderRadius:7,border:`2px solid ${pinInput.length>i?T.accent:T.txD}`,background:pinInput.length>i?T.accent:"transparent",transition:"all .1s"}}/>)}
@@ -1014,7 +1031,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
                     if(next===pinSetup.first){
                       appLock.setPin(next).then(()=>{appLock.setEnabled(true);setPinSetup(null);});
                     }else{
-                      setPinError("パスコードが一致しません");setPinInput("");setPinSetup({phase:"new"});
+                      setPinError(t("profile.passcodeMismatch"));setPinInput("");setPinSetup({phase:"new"});
                     }
                   }
                 }
@@ -1025,89 +1042,89 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
         </div>}
 
         {/* ═══ データ管理 ═══ */}
-        <GHead>データ管理</GHead>
+        <GHead>{t("profile.dataManagement")}</GHead>
         <GCard>
-          <GRow icon={I.dl} label="データエクスポート"
-            sub="個人データをJSON形式でダウンロード（開示請求対応）"
+          <GRow icon={I.dl} label={t("profile.dataExport")}
+            sub={t("profile.dataExportSub")}
             onClick={()=>{
               const data={exportedAt:new Date().toISOString(),user:{name:user.name,dept:user.dept,yearGroup:user.yearGroup},assignments:asgn,courses:courses.map(c=>({id:c.id,code:c.code,name:c.name})),settings:{notifEnabled,notifSettings,fontSize}};
               const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
               const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`sciencetokyo-export-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(url);
             }}/>
-          <GRow icon={I.reset} label={cacheCleared?"キャッシュクリア完了":"キャッシュをクリア"}
-            sub="ローカル設定をリセット"
+          <GRow icon={I.reset} label={cacheCleared?t("profile.cacheCleared"):t("profile.clearCache")}
+            sub={t("profile.clearCacheSub")}
             onClick={handleClearCache}
             right={cacheCleared&&<span style={{color:T.green,display:"flex"}}>{I.chk}</span>}/>
           <GRow last danger
             icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>}
-            label="アカウント削除"
-            sub="サーバー上の全データを削除します"
+            label={t("profile.deleteAccount")}
+            sub={t("profile.deleteAccountSub")}
             onClick={()=>{
-              if(!confirm("本当にアカウントを削除しますか？\n\n・サーバー上のプロフィール、投稿、メッセージ等の全データが削除されます\n・この操作は取り消せません")) return;
-              if(!confirm("最終確認: アカウントを完全に削除してよろしいですか？")) return;
+              if(!confirm(t("profile.confirmDeleteAccount"))) return;
+              if(!confirm(t("profile.confirmDeleteAccountFinal"))) return;
               (async()=>{
                 try{
                   await fetch('/api/auth/credentials',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'all'})});
                   try{localStorage.removeItem("privacyAgreed");}catch{}
                   onLogout();
-                }catch{ alert("削除に失敗しました。もう一度お試しください。"); }
+                }catch{ alert(t("profile.deleteAccountFail")); }
               })();
             }}/>
         </GCard>
 
         {/* ═══ ブロックリスト ═══ */}
         {blocks.length>0&&<>
-          <GHead>ブロック中のユーザー ({blocks.length})</GHead>
+          <GHead>{t("profile.blockedUsers",{n:blocks.length})}</GHead>
           <GCard>
             {blocks.map((b,i)=><GRow key={b.id}
               last={i===blocks.length-1}
               icon={<Av u={{name:b.name,av:b.avatar,col:b.color}} sz={24}/>}
               label={b.name}
-              sub={b.dept||'ブロック中'}
+              sub={b.dept||t("profile.blocked")}
               onClick={()=>{
-                if(confirm(`${b.name}さんのブロックを解除しますか？`)){
+                if(confirm(t("profile.confirmUnblock",{name:b.name}))){
                   unblockUser&&unblockUser(b.blockedId);
                 }
               }}
-              right={<span style={{fontSize:11,fontWeight:500,color:T.txD,padding:"4px 10px",borderRadius:6,border:`1px solid ${T.bd}`}}>解除</span>}
+              right={<span style={{fontSize:11,fontWeight:500,color:T.txD,padding:"4px 10px",borderRadius:6,border:`1px solid ${T.bd}`}}>{t("profile.unblockBtn")}</span>}
             />)}
           </GCard>
         </>}
 
         {/* ═══ ミュートリスト ═══ */}
         {mutes.length>0&&<>
-          <GHead>ミュート中のユーザー ({mutes.length})</GHead>
+          <GHead>{t("profile.mutedUsers",{n:mutes.length})}</GHead>
           <GCard>
             {mutes.map((m,i)=>{const p=m.profiles||{};return <GRow key={m.muted_id}
               last={i===mutes.length-1}
               icon={<Av u={{name:p.name||`User ${m.muted_id}`,av:p.avatar_url,col:'#888'}} sz={24}/>}
               label={p.name||`User ${m.muted_id}`}
-              sub="ミュート中"
+              sub={t("profile.muted")}
               onClick={()=>{
-                if(confirm(`${p.name||'このユーザー'}のミュートを解除しますか？`)){
+                if(confirm(t("profile.confirmUnmute",{name:p.name||t("profile.thisUser")}))){
                   unmuteUser&&unmuteUser(m.muted_id);
                 }
               }}
-              right={<span style={{fontSize:11,fontWeight:500,color:T.txD,padding:"4px 10px",borderRadius:6,border:`1px solid ${T.bd}`}}>解除</span>}
+              right={<span style={{fontSize:11,fontWeight:500,color:T.txD,padding:"4px 10px",borderRadius:6,border:`1px solid ${T.bd}`}}>{t("profile.unmuteBtn")}</span>}
             />;})}
           </GCard>
         </>}
 
         {/* ═══ その他 ═══ */}
-        <GHead>その他</GHead>
+        <GHead>{t("profile.other")}</GHead>
         <GCard>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>}
-            label="利用規約"
-            sub="サービスの利用条件について"
+            label={t("profile.termsOfService")}
+            sub={t("profile.termsSub")}
             onClick={()=>setShowTerms(true)}/>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
-            label="プライバシーポリシー"
-            sub="個人情報の取り扱いについて"
+            label={t("profile.privacyPolicy")}
+            sub={t("profile.privacySub")}
             onClick={()=>setShowPrivacy(true)}/>
           <GRow
             icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>}
-            label="ログアウト" last danger
-            onClick={()=>{if(confirm("ログアウトしますか？")){onLogout();}}}/>
+            label={t("profile.logout")} last danger
+            onClick={()=>{if(confirm(t("profile.confirmLogout"))){onLogout();}}}/>
         </GCard>
 
         {/* フッター */}
@@ -1121,7 +1138,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
           <div style={{paddingTop:"env(safe-area-inset-top)",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>
             <div style={{height:46,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 12px"}}>
               <button onClick={()=>setShowTerms(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
-              <span style={{fontSize:16,fontWeight:700,color:T.txH}}>利用規約</span>
+              <span style={{fontSize:16,fontWeight:700,color:T.txH}}>{t("profile.termsOfService")}</span>
               <div style={{width:28}}/>
             </div>
           </div>
@@ -1132,7 +1149,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
           <div style={{paddingTop:"env(safe-area-inset-top)",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>
             <div style={{height:46,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 12px"}}>
               <button onClick={()=>setShowPrivacy(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
-              <span style={{fontSize:16,fontWeight:700,color:T.txH}}>プライバシーポリシー</span>
+              <span style={{fontSize:16,fontWeight:700,color:T.txH}}>{t("profile.privacyPolicy")}</span>
               <div style={{width:28}}/>
             </div>
           </div>

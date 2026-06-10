@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { T } from '../theme.js';
+import { t } from "../i18n.js";
 import { isDemoMode } from '../demoMode.js';
 import { DEMO_GRADES } from '../demoData.js';
 
@@ -27,9 +28,9 @@ function gradeColor(grade) {
 }
 
 function recLabel(rec) {
-  if (rec.includes('R') || rec.includes('◎')) return { text: '必修', bg: T.red };
-  if (rec.includes('A') || rec.includes('○')) return { text: '選必', bg: T.orange };
-  if (rec.includes('L') || rec === '*') return { text: '選択', bg: T.txD };
+  if (rec.includes('R') || rec.includes('◎')) return { text: t('grade.recRequired'), bg: T.red };
+  if (rec.includes('A') || rec.includes('○')) return { text: t('grade.recElectiveReq'), bg: T.orange };
+  if (rec.includes('L') || rec === '*') return { text: t('grade.recElective'), bg: T.txD };
   return null;
 }
 
@@ -168,7 +169,7 @@ function GPACalcView({ courses, mob, onBack }) {
           background: yearFilter === 'all' ? T.accent : T.bg3,
           color: yearFilter === 'all' ? '#fff' : T.txD, fontSize: 12, cursor: 'pointer',
           fontWeight: yearFilter === 'all' ? 600 : 400,
-        }}>全年度</button>
+        }}>{t('grade.allYears')}</button>
         {years.map(y => (
           <button key={y} onClick={() => setYearFilter(y)} style={{
             padding: '5px 14px', borderRadius: 20, border: 'none',
@@ -181,9 +182,9 @@ function GPACalcView({ courses, mob, onBack }) {
 
       {/* Main stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: mob ? 6 : 8, marginBottom: 16 }}>
-        {statCard(overall.gpa.toFixed(2), 'GPA', `${overall.credits}単位`, T.accent)}
-        {statCard(overall.gpt.toFixed(1), 'GPT', `${overall.count}科目`, T.green)}
-        {statCard(overall.credits, '修得単位', null, T.yellow)}
+        {statCard(overall.gpa.toFixed(2), 'GPA', t('grade.creditsCount', { n: overall.credits }), T.accent)}
+        {statCard(overall.gpt.toFixed(1), 'GPT', t('grade.coursesCount', { n: overall.count }), T.green)}
+        {statCard(overall.credits, t('grade.earnedCredits'), null, T.yellow)}
       </div>
 
       {/* 教養 / 専門 breakdown */}
@@ -191,16 +192,16 @@ function GPACalcView({ courses, mob, onBack }) {
         <div style={{
           padding: mob ? 12 : 14, borderRadius: 10, background: T.bg2, border: `1px solid ${T.bd}`,
         }}>
-          <div style={{ fontSize: 11, color: T.txD, marginBottom: 4 }}>教養科目</div>
+          <div style={{ fontSize: 11, color: T.txD, marginBottom: 4 }}>{t('grade.liberalArts')}</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: T.orange }}>{liberal.gpa.toFixed(2)}</div>
-          <div style={{ fontSize: 10, color: T.txD }}>{liberal.credits}単位 / GPT {liberal.gpt.toFixed(1)}</div>
+          <div style={{ fontSize: 10, color: T.txD }}>{t('grade.creditsGpt', { credits: liberal.credits, gpt: liberal.gpt.toFixed(1) })}</div>
         </div>
         <div style={{
           padding: mob ? 12 : 14, borderRadius: 10, background: T.bg2, border: `1px solid ${T.bd}`,
         }}>
-          <div style={{ fontSize: 11, color: T.txD, marginBottom: 4 }}>専門科目</div>
+          <div style={{ fontSize: 11, color: T.txD, marginBottom: 4 }}>{t('grade.majorSubjects')}</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: T.green }}>{major.gpa.toFixed(2)}</div>
-          <div style={{ fontSize: 10, color: T.txD }}>{major.credits}単位 / GPT {major.gpt.toFixed(1)}</div>
+          <div style={{ fontSize: 10, color: T.txD }}>{t('grade.creditsGpt', { credits: major.credits, gpt: major.gpt.toFixed(1) })}</div>
         </div>
       </div>
 
@@ -209,7 +210,7 @@ function GPACalcView({ courses, mob, onBack }) {
         padding: mob ? 12 : 16, borderRadius: 12, background: T.bg2,
         border: `1px solid ${T.bd}`, marginBottom: 16,
       }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 12 }}>成績分布（単位数）</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 12 }}>{t('grade.distribution')}</div>
         {[
           { rank: 'S', label: '90-100', gp: 3.5, color: T.green },
           { rank: 'A', label: '80-89', gp: 2.5, color: T.accent },
@@ -241,7 +242,7 @@ function GPACalcView({ courses, mob, onBack }) {
           padding: mob ? 12 : 16, borderRadius: 12, background: T.bg2,
           border: `1px solid ${T.bd}`, marginBottom: 16,
         }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 12 }}>年度別GPA</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 12 }}>{t('grade.gpaByYear')}</div>
           {years.map(y => {
             const s = byYear[y];
             if (!s || s.count === 0) return null;
@@ -250,9 +251,9 @@ function GPACalcView({ courses, mob, onBack }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '8px 0', borderBottom: `1px solid ${T.bd}`,
               }}>
-                <span style={{ fontSize: 13, color: T.txH, fontWeight: 500 }}>{y}年度</span>
+                <span style={{ fontSize: 13, color: T.txH, fontWeight: 500 }}>{t('grade.yearLabel', { y })}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 11, color: T.txD }}>{s.credits}単位</span>
+                  <span style={{ fontSize: 11, color: T.txD }}>{t('grade.creditsCount', { n: s.credits })}</span>
                   <span style={{ fontSize: 11, color: T.txD }}>GPT {s.gpt.toFixed(1)}</span>
                   <span style={{
                     fontSize: 16, fontWeight: 700,
@@ -271,7 +272,7 @@ function GPACalcView({ courses, mob, onBack }) {
         border: `1px solid ${T.bd}`, marginBottom: 16,
       }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>
-          科目別GP（{courseGPs.length}科目）
+          {t('grade.gpByCourse', { n: courseGPs.length })}
         </div>
         {courseGPs.map((c, i) => (
           <div key={`${c.code}-${i}`} style={{
@@ -287,7 +288,7 @@ function GPACalcView({ courses, mob, onBack }) {
                 fontSize: 12, color: T.txH, overflow: 'hidden',
                 textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{c.name}</div>
-              <div style={{ fontSize: 10, color: T.txD }}>{c.code} · {c.credits}単位 · {c.grade}点</div>
+              <div style={{ fontSize: 10, color: T.txD }}>{t('grade.courseGpMeta', { code: c.code, credits: c.credits, grade: c.grade })}</div>
             </div>
             <span style={{
               fontSize: 11, color: T.txD, flexShrink: 0,
@@ -302,13 +303,13 @@ function GPACalcView({ courses, mob, onBack }) {
         background: `${T.accent}06`, border: `1px solid ${T.accent}15`,
         fontSize: 11, color: T.txD, lineHeight: 1.7,
       }}>
-        <div style={{ fontWeight: 600, color: T.txH, marginBottom: 4 }}>計算方法（東工大式）</div>
-        GP = (点数 - 55) / 10<br />
-        GPT = Σ(GP × 単位数)<br />
-        GPA = GPT / 修得単位数<br />
+        <div style={{ fontWeight: 600, color: T.txH, marginBottom: 4 }}>{t('grade.calcMethod')}</div>
+        {t('grade.formulaGp')}<br />
+        {t('grade.formulaGpt')}<br />
+        {t('grade.formulaGpa')}<br />
         <span style={{ fontSize: 10, marginTop: 4, display: 'block' }}>
-          例: 90点×2単位 → GP=3.5, 寄与=7.0<br />
-          合格・未報告の科目はGPA計算から除外
+          {t('grade.calcExample')}<br />
+          {t('grade.calcExclude')}
         </span>
       </div>
     </div>
@@ -332,7 +333,7 @@ function CategorySection({ name, courses: items, mob }) {
       }}>
         <span style={{ fontWeight: 600, fontSize: mob ? 13 : 14 }}>{name} ({items.length})</span>
         <span style={{ fontSize: 12, color: T.txD }}>
-          {avg > 0 && `平均 ${avg.toFixed(1)}`}
+          {avg > 0 && t('grade.average', { v: avg.toFixed(1) })}
           <span style={{ marginLeft: 8 }}>{open ? '▲' : '▼'}</span>
         </span>
       </button>
@@ -415,10 +416,10 @@ export const GradeView = ({ mob }) => {
   if (error === 'portal') {
     return (
       <div style={{ flex: 1, overflowY: 'auto', padding: mob ? 12 : 20 }}>
-        <div style={{ fontWeight: 700, color: T.txH, fontSize: mob ? 16 : 18, marginBottom: 10 }}>成績</div>
+        <div style={{ fontWeight: 700, color: T.txH, fontSize: mob ? 16 : 18, marginBottom: 10 }}>{t('grade.title')}</div>
         <div style={{ textAlign: 'center', padding: 40, color: T.txD, fontSize: 13 }}>
-          ポータルのマトリクス認証が設定されていません。<br />
-          セットアップ画面からマトリクスカードを登録してください。
+          {t('grade.portalNotSet')}<br />
+          {t('grade.portalSetupHint')}
         </div>
       </div>
     );
@@ -427,13 +428,13 @@ export const GradeView = ({ mob }) => {
   if (error === 'maintenance') {
     return (
       <div style={{ flex: 1, overflowY: 'auto', padding: mob ? 12 : 20 }}>
-        <div style={{ fontWeight: 700, color: T.txH, fontSize: mob ? 16 : 18, marginBottom: 10 }}>成績</div>
+        <div style={{ fontWeight: 700, color: T.txH, fontSize: mob ? 16 : 18, marginBottom: 10 }}>{t('grade.title')}</div>
         <div style={{
           padding: mob ? 16 : 24, borderRadius: 12,
           background: `${T.yellow}08`, border: `1px solid ${T.yellow}20`, textAlign: 'center',
         }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: T.yellow, marginBottom: 8 }}>
-            教務Webシステム メンテナンス中
+            {t('grade.maintenance')}
           </div>
           {maintInfo?.schedules?.length > 0 && (
             <div style={{ marginBottom: 8 }}>
@@ -445,7 +446,7 @@ export const GradeView = ({ mob }) => {
           {maintInfo?.recurring && (
             <div style={{ fontSize: 11, color: T.txD, marginBottom: 8 }}>{maintInfo.recurring}</div>
           )}
-          <div style={{ fontSize: 11, color: T.txD }}>メンテナンス終了後に再度お試しください。</div>
+          <div style={{ fontSize: 11, color: T.txD }}>{t('grade.maintenanceRetry')}</div>
         </div>
       </div>
     );
@@ -454,7 +455,7 @@ export const GradeView = ({ mob }) => {
   if (loading) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: T.txD, fontSize: 13 }}>成績を取得中...</div>
+        <div style={{ color: T.txD, fontSize: 13 }}>{t('grade.loading')}</div>
       </div>
     );
   }
@@ -462,7 +463,7 @@ export const GradeView = ({ mob }) => {
   if (error || !data) {
     return (
       <div style={{ flex: 1, overflowY: 'auto', padding: mob ? 12 : 20 }}>
-        <div style={{ textAlign: 'center', padding: 40, color: T.red, fontSize: 13 }}>成績の取得に失敗しました</div>
+        <div style={{ textAlign: 'center', padding: 40, color: T.red, fontSize: 13 }}>{t('grade.fetchFailed')}</div>
       </div>
     );
   }
@@ -500,17 +501,17 @@ export const GradeView = ({ mob }) => {
   for (const c of filtered) {
     const prefix = c.code.substring(0, 3);
     const catName =
-      prefix === 'LAH' ? '文系教養科目' :
-      prefix === 'LAE' ? '英語科目' :
-      prefix === 'LAS' ? '理工系教養科目' :
-      prefix === 'LAL' ? '第二外国語科目' :
-      prefix === 'LAW' ? '広域教養科目' :
-      prefix === 'ENT' ? 'アントレプレナーシップ科目' :
-      prefix === 'DSA' ? 'データサイエンス・AI' :
-      prefix === 'MEC' ? '機械系専門科目' :
-      prefix === 'XEG' ? '工学院共通科目' :
-      prefix === 'TMD' ? '医歯学系科目' :
-      '専門科目';
+      prefix === 'LAH' ? t('grade.catLAH') :
+      prefix === 'LAE' ? t('grade.catLAE') :
+      prefix === 'LAS' ? t('grade.catLAS') :
+      prefix === 'LAL' ? t('grade.catLAL') :
+      prefix === 'LAW' ? t('grade.catLAW') :
+      prefix === 'ENT' ? t('grade.catENT') :
+      prefix === 'DSA' ? t('grade.catDSA') :
+      prefix === 'MEC' ? t('grade.catMEC') :
+      prefix === 'XEG' ? t('grade.catXEG') :
+      prefix === 'TMD' ? t('grade.catTMD') :
+      t('grade.catMajor');
     if (!grouped[catName]) grouped[catName] = [];
     grouped[catName].push(c);
   }
@@ -538,7 +539,7 @@ export const GradeView = ({ mob }) => {
     <div style={{ flex: 1, overflowY: 'auto', padding: mob ? 12 : 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div style={{ fontWeight: 700, color: T.txH, fontSize: mob ? 16 : 18 }}>
-          成績一覧
+          {t('grade.listTitle')}
           {summary?.name && <span style={{ fontSize: 12, fontWeight: 400, color: T.txD, marginLeft: 8 }}>{summary.name}</span>}
         </div>
         {allCourses?.length > 0 && (
@@ -554,10 +555,10 @@ export const GradeView = ({ mob }) => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: mob ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: mob ? 6 : 8, marginBottom: 16 }}>
-        {statBox(gpa.overall?.toFixed(1) || '--', '全体平均', T.accent)}
-        {statBox(gpa.major?.toFixed(1) || '--', '専門平均', T.green)}
-        {statBox(gpa.liberal?.toFixed(1) || '--', '教養平均', T.orange)}
-        {statBox(summary?.totalCredits || '--', '修得単位', T.yellow)}
+        {statBox(gpa.overall?.toFixed(1) || '--', t('grade.overallAvg'), T.accent)}
+        {statBox(gpa.major?.toFixed(1) || '--', t('grade.majorAvg'), T.green)}
+        {statBox(gpa.liberal?.toFixed(1) || '--', t('grade.liberalAvg'), T.orange)}
+        {statBox(summary?.totalCredits || '--', t('grade.earnedCredits'), T.yellow)}
       </div>
 
       {categories.length > 0 && (
@@ -575,28 +576,28 @@ export const GradeView = ({ mob }) => {
       )}
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-        {filterBtn('all', `全て (${allCourses?.length || 0})`)}
-        {filterBtn('passed', '合格')}
-        {filterBtn('failed', '不合格')}
-        {filterBtn('pending', '未報告')}
+        {filterBtn('all', t('grade.filterAll', { n: allCourses?.length || 0 }))}
+        {filterBtn('passed', t('grade.filterPassed'))}
+        {filterBtn('failed', t('grade.filterFailed'))}
+        {filterBtn('pending', t('grade.filterPending'))}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 11, color: T.txD, fontWeight: 500 }}>期間</span>
+        <span style={{ fontSize: 11, color: T.txD, fontWeight: 500 }}>{t('grade.period')}</span>
         <select value={year} onChange={e => setYear(e.target.value)} style={{
           padding: '4px 8px', borderRadius: 4, border: `1px solid ${T.bd}`,
           background: T.bg2, color: year !== 'all' ? T.txH : T.txD,
           fontSize: 12, cursor: 'pointer', outline: 'none',
         }}>
-          <option value="all">全年度</option>
-          {years.map(y => <option key={y} value={y}>{y}年度</option>)}
+          <option value="all">{t('grade.allYears')}</option>
+          {years.map(y => <option key={y} value={y}>{t('grade.yearLabel', { y })}</option>)}
         </select>
         <select value={qtr} onChange={e => setQtr(e.target.value)} style={{
           padding: '4px 8px', borderRadius: 4, border: `1px solid ${T.bd}`,
           background: T.bg2, color: qtr !== 'all' ? T.txH : T.txD,
           fontSize: 12, cursor: 'pointer', outline: 'none',
         }}>
-          <option value="all">全Q</option>
+          <option value="all">{t('grade.allQuarters')}</option>
           {quarters.map(q => <option key={q} value={q}>{q}Q</option>)}
         </select>
         {(year !== 'all' || qtr !== 'all') && (
@@ -614,12 +615,12 @@ export const GradeView = ({ mob }) => {
       {filtered.length === 0 && (
         <div style={{ textAlign: 'center', padding: 40, color: T.txD, fontSize: 13 }}>
           {allCourses?.length === 0
-            ? <>成績データを取得できませんでした。<br /><span style={{ fontSize: 11 }}>ポータル認証後のリダイレクトに失敗した可能性があります。</span>
+            ? <>{t('grade.noData')}<br /><span style={{ fontSize: 11 }}>{t('grade.noDataHint')}</span>
               {data?._debug && <pre style={{ textAlign: 'left', fontSize: 10, marginTop: 10, color: T.txD, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                 {`URL: ${data._debug.finalUrl}\nTitle: ${data._debug.pageTitle}\nTables: ${data._debug.tables?.length || 0}`}
               </pre>}
             </>
-            : '該当する科目はありません'}
+            : t('grade.noMatch')}
         </div>
       )}
     </div>

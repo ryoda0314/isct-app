@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { T } from '../theme.js';
+import { t } from "../i18n.js";
 import { I } from '../icons.jsx';
 import { Av, Tag, Tx } from '../shared.jsx';
 import { fDS } from '../utils.jsx';
@@ -16,20 +17,20 @@ export const ReviewView=({reviews,setReviews,course,mob,courses=[]})=>{
   return(
     <div style={{flex:1,overflowY:"auto",padding:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-        <span style={{fontWeight:700,color:T.txH,fontSize:14}}>授業レビュー{course?` — ${course.code}`:""}</span>
-        {course&&<button onClick={()=>setShowForm(!showForm)} style={{padding:"6px 12px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>レビューを書く</button>}
+        <span style={{fontWeight:700,color:T.txH,fontSize:14}}>{t("review.title")}{course?` — ${course.code}`:""}</span>
+        {course&&<button onClick={()=>setShowForm(!showForm)} style={{padding:"6px 12px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>{t("review.write")}</button>}
       </div>
-      {!course&&<div style={{padding:16,borderRadius:10,background:`${T.accent}08`,border:`1px solid ${T.accent}20`,textAlign:"center",marginBottom:12}}><div style={{fontSize:28,fontWeight:700,color:T.accent}}>{avg}</div><Stars v={Math.round(parseFloat(avg)||0)}/><div style={{fontSize:11,color:T.txD,marginTop:2}}>{items.length}件のレビュー</div></div>}
+      {!course&&<div style={{padding:16,borderRadius:10,background:`${T.accent}08`,border:`1px solid ${T.accent}20`,textAlign:"center",marginBottom:12}}><div style={{fontSize:28,fontWeight:700,color:T.accent}}>{avg}</div><Stars v={Math.round(parseFloat(avg)||0)}/><div style={{fontSize:11,color:T.txD,marginTop:2}}>{t("review.count",{n:items.length})}</div></div>}
       {showForm&&<div style={{padding:12,borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:10}}>
         <div style={{display:"flex",gap:16,marginBottom:8,flexWrap:"wrap",fontSize:12}}>
-          <div>総合<div><Stars v={nr.rating} set={v=>setNr(p=>({...p,rating:v}))}/></div></div>
-          <div>難易度<div><Stars v={nr.diff} set={v=>setNr(p=>({...p,diff:v}))}/></div></div>
-          <div>有用性<div><Stars v={nr.useful} set={v=>setNr(p=>({...p,useful:v}))}/></div></div>
+          <div>{t("review.overall")}<div><Stars v={nr.rating} set={v=>setNr(p=>({...p,rating:v}))}/></div></div>
+          <div>{t("review.difficulty")}<div><Stars v={nr.diff} set={v=>setNr(p=>({...p,diff:v}))}/></div></div>
+          <div>{t("review.usefulness")}<div><Stars v={nr.useful} set={v=>setNr(p=>({...p,useful:v}))}/></div></div>
         </div>
-        <textarea value={nr.text} onChange={e=>setNr(p=>({...p,text:e.target.value}))} placeholder="授業の感想を書いてください..." style={{width:"100%",minHeight:60,padding:8,borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,outline:"none",resize:"vertical",fontFamily:"inherit"}}/>
+        <textarea value={nr.text} onChange={e=>setNr(p=>({...p,text:e.target.value}))} placeholder={t("review.placeholder")} style={{width:"100%",minHeight:60,padding:8,borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,outline:"none",resize:"vertical",fontFamily:"inherit"}}/>
         <div style={{display:"flex",justifyContent:"flex-end",gap:6,marginTop:6}}>
-          <button onClick={()=>setShowForm(false)} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${T.bd}`,background:"transparent",color:T.txD,fontSize:12,cursor:"pointer"}}>Cancel</button>
-          <button onClick={submit} style={{padding:"6px 12px",borderRadius:6,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>投稿</button>
+          <button onClick={()=>setShowForm(false)} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${T.bd}`,background:"transparent",color:T.txD,fontSize:12,cursor:"pointer"}}>{t("common.cancel")}</button>
+          <button onClick={submit} style={{padding:"6px 12px",borderRadius:6,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>{t("review.post")}</button>
         </div>
       </div>}
       {items.map((r,i)=>{const co=courses.find(x=>x.id===r.cid);return(
@@ -40,10 +41,10 @@ export const ReviewView=({reviews,setReviews,course,mob,courses=[]})=>{
           </div>
           <Stars v={r.rating}/>
           <div style={{margin:"6px 0 0",fontSize:13,color:T.tx,lineHeight:1.5}}><Tx>{r.text}</Tx></div>
-          <div style={{display:"flex",gap:12,fontSize:11,color:T.txD,marginTop:4}}><span>難易度 {r.diff}/5</span><span>有用性 {r.useful}/5</span></div>
+          <div style={{display:"flex",gap:12,fontSize:11,color:T.txD,marginTop:4}}><span>{t("review.difficulty")} {r.diff}/5</span><span>{t("review.usefulness")} {r.useful}/5</span></div>
         </div>
       );})}
-      {items.length===0&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>レビューはまだありません</div>}
+      {items.length===0&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{t("review.empty")}</div>}
     </div>
   );
 };

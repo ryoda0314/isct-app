@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { Loader } from "../shared.jsx";
 import { usePocket } from "../hooks/usePocket.js";
@@ -21,11 +22,11 @@ const fmtSize = (n) => {
 const relTime = (iso) => {
   const d = new Date(iso);
   const diff = (Date.now() - d.getTime()) / 1000;
-  if (diff < 60) return "たった今";
-  if (diff < 3600) return `${Math.floor(diff / 60)}分前`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}時間前`;
+  if (diff < 60) return t("pocket.justNow");
+  if (diff < 3600) return t("pocket.minutesAgo", { n: Math.floor(diff / 60) });
+  if (diff < 86400) return t("pocket.hoursAgo", { n: Math.floor(diff / 3600) });
   const days = Math.floor(diff / 86400);
-  if (days < 7) return `${days}日前`;
+  if (days < 7) return t("pocket.daysAgo", { n: days });
   return `${d.getMonth() + 1}/${d.getDate()}`;
 };
 
@@ -47,7 +48,7 @@ const Linkified = ({ text }) => {
 const copyText = async (text) => {
   try {
     await navigator.clipboard.writeText(text);
-    showToast("コピーしました", "success");
+    showToast(t("pocket.copied"), "success");
   } catch {
     // フォールバック
     try {
@@ -56,8 +57,8 @@ const copyText = async (text) => {
       document.body.appendChild(ta); ta.select();
       document.execCommand("copy");
       document.body.removeChild(ta);
-      showToast("コピーしました", "success");
-    } catch { showToast("コピーに失敗しました", "error"); }
+      showToast(t("pocket.copied"), "success");
+    } catch { showToast(t("pocket.copyFailed"), "error"); }
   }
 };
 
@@ -120,11 +121,11 @@ const PocketCard = ({ item, onCopy, onDelete, onPin }) => {
           {item.pinned && <span style={{ color: T.accent, marginRight: 4 }}>📌</span>}
           {relTime(item.created_at)}
         </span>
-        {(isText || item.text) && <IconBtn title="コピー" onClick={() => onCopy(item.text)}>{CopyIcon}</IconBtn>}
-        {pureUrl && <IconBtn title="開く" onClick={() => window.open(item.text.trim(), "_blank", "noopener")} color={T.accent}>{I.arr}</IconBtn>}
-        {(isImg || isFile) && <IconBtn title="ダウンロード" onClick={() => download(a.url, a.name)}>{I.dl}</IconBtn>}
-        <IconBtn title={item.pinned ? "ピンを外す" : "ピン留め"} onClick={() => onPin(item.id)} color={item.pinned ? T.accent : undefined}>{I.pin}</IconBtn>
-        <IconBtn title="削除" onClick={() => onDelete(item.id)} color={T.red}>{I.trash}</IconBtn>
+        {(isText || item.text) && <IconBtn title={t("pocket.copy")} onClick={() => onCopy(item.text)}>{CopyIcon}</IconBtn>}
+        {pureUrl && <IconBtn title={t("pocket.open")} onClick={() => window.open(item.text.trim(), "_blank", "noopener")} color={T.accent}>{I.arr}</IconBtn>}
+        {(isImg || isFile) && <IconBtn title={t("pocket.download")} onClick={() => download(a.url, a.name)}>{I.dl}</IconBtn>}
+        <IconBtn title={item.pinned ? t("pocket.unpin") : t("pocket.pin")} onClick={() => onPin(item.id)} color={item.pinned ? T.accent : undefined}>{I.pin}</IconBtn>
+        <IconBtn title={t("common.delete")} onClick={() => onDelete(item.id)} color={T.red}>{I.trash}</IconBtn>
       </div>
     </div>
   );
@@ -152,9 +153,9 @@ export const PocketView = ({ mob }) => {
     try {
       await addFile(f, inp.trim() || undefined);
       setInp("");
-      showToast("保存しました", "success");
+      showToast(t("pocket.saved"), "success");
     } catch (err) {
-      showToast(err.message || "保存に失敗しました", "error");
+      showToast(err.message || t("pocket.saveFailed"), "error");
     } finally { setBusy(false); }
   };
 
@@ -168,8 +169,8 @@ export const PocketView = ({ mob }) => {
         if (f) {
           e.preventDefault();
           setBusy(true);
-          try { await addFile(f, inp.trim() || undefined); setInp(""); showToast("保存しました", "success"); }
-          catch (err) { showToast(err.message || "保存に失敗しました", "error"); }
+          try { await addFile(f, inp.trim() || undefined); setInp(""); showToast(t("pocket.saved"), "success"); }
+          catch (err) { showToast(err.message || t("pocket.saveFailed"), "error"); }
           finally { setBusy(false); }
           return;
         }
@@ -187,17 +188,17 @@ export const PocketView = ({ mob }) => {
       <div style={{ padding: "8px 14px", fontSize: 11.5, color: T.txD, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
         <div style={{ ...colStyle, display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ display: "flex", color: T.accent, flexShrink: 0 }}>{I.clip}</span>
-          自分専用。スマホ⇔PCで自動同期。テキスト・URL・画像・ファイルを置いておけます。
+          {t("pocket.description")}
         </div>
       </div>
 
       {/* 一覧 */}
       <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: mob ? 12 : "16px 16px 24px" }}>
         <div style={{ ...colStyle, display: "flex", flexDirection: "column", gap: 10 }}>
-          {loading && <Loader msg="読み込み中" size="sm" />}
+          {loading && <Loader msg={t("common.loading")} size="sm" />}
           {!loading && items.length === 0 && (
             <div style={{ textAlign: "center", color: T.txD, fontSize: 13, padding: "56px 20px" }}>
-              まだ何もありません。<br />下の入力欄からテキストやファイルを追加してください。
+              {t("pocket.emptyTitle")}<br />{t("pocket.emptyHint")}
             </div>
           )}
           {items.map(it => (
@@ -209,14 +210,14 @@ export const PocketView = ({ mob }) => {
       {/* 入力欄 */}
       <div style={{ padding: "8px 16px 12px", borderTop: `1px solid ${T.bd}`, background: T.bg2, flexShrink: 0 }}>
         <div style={{ ...colStyle, display: "flex", alignItems: "flex-end", gap: 6, padding: "4px 4px 4px 10px", borderRadius: mob ? 18 : 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
-          <IconBtn title="ファイル・画像を添付" onClick={() => fileRef.current?.click()}>{I.upload}</IconBtn>
+          <IconBtn title={t("pocket.attach")} onClick={() => fileRef.current?.click()}>{I.upload}</IconBtn>
           <input ref={fileRef} type="file" style={{ display: "none" }} onChange={onPickFile} />
           <textarea
             value={inp}
             onChange={e => setInp(e.target.value)}
             onPaste={onPaste}
             onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendText(); } }}
-            placeholder="テキスト・URLを貼り付け…（⌘/Ctrl+Enterで追加）"
+            placeholder={t("pocket.inputPlaceholder")}
             rows={1}
             style={{ flex: 1, resize: "none", maxHeight: 120, padding: "8px 0", border: "none", background: "transparent", color: T.txH, fontSize: 14, outline: "none", fontFamily: "inherit", lineHeight: 1.5 }}
           />

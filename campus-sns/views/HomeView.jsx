@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { T } from "../theme.js";
+import { t, locName } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { NOW, uDue, pDone } from "../utils.jsx";
 import { Tag } from "../shared.jsx";
@@ -38,21 +39,22 @@ const PD=[{s:[8,50],e:[10,30],l:"1限"},{s:[10,45],e:[12,25],l:"2限"},{s:[13,30
 const fPdTime=(h,m)=>`${h}:${String(m).padStart(2,"0")}`;
 const DAY_NAMES=["日","月","火","水","木","金","土"];
 
+// labelKey で保持し、表示時に t() で解決（言語切替に追従させるため）
 const QA_ALL=[
-  {id:"circles",icon:I.circle,label:"サークル"},
-  {id:"calendar",icon:I.cal,label:"カレンダー"},
-  {id:"events",icon:I.event,label:"イベント"},
-  {id:"portal",icon:null,label:"ポータル"},
-  {id:"isctportal",icon:null,label:"ISCTポータル"},
-  {id:"friends",icon:I.users,label:"友達"},
-  {id:"grades",icon:I.grad,label:"成績"},
-  {id:"reviews",icon:I.star,label:"レビュー"},
-  {id:"pomo",icon:I.play,label:"ポモドーロ"},
-  {id:"bmarks",icon:I.bmark,label:"ブックマーク"},
-  {id:"dm",icon:I.mail,label:"DM"},
-  {id:"notif",icon:I.bell,label:"通知"},
-  {id:"navigation",icon:I.map,label:"マップ"},
-  {id:"search",icon:I.search,label:"検索"},
+  {id:"circles",icon:I.circle,labelKey:"nav.circles"},
+  {id:"calendar",icon:I.cal,labelKey:"nav.calendar"},
+  {id:"events",icon:I.event,labelKey:"tool.events"},
+  {id:"portal",icon:null,labelKey:"home.portal"},
+  {id:"isctportal",icon:null,labelKey:"home.isctPortal"},
+  {id:"friends",icon:I.users,labelKey:"nav.friends"},
+  {id:"grades",icon:I.grad,labelKey:"tool.grades"},
+  {id:"reviews",icon:I.star,labelKey:"chan.reviews"},
+  {id:"pomo",icon:I.play,labelKey:"tool.pomo"},
+  {id:"bmarks",icon:I.bmark,labelKey:"tool.bmarks"},
+  {id:"dm",icon:I.mail,labelKey:"common.dm"},
+  {id:"notif",icon:I.bell,labelKey:"nav.notif"},
+  {id:"navigation",icon:I.map,labelKey:"nav.map"},
+  {id:"search",icon:I.search,labelKey:"nav.search"},
 ];
 const QA_DEFAULT=["portal","isctportal","calendar","events"];
 const getQA=()=>{try{const v=localStorage.getItem("quickAccess");return v?JSON.parse(v):QA_DEFAULT;}catch{return QA_DEFAULT;}};
@@ -244,7 +246,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
           {/* 日時 */}
           <div style={{flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center"}}>
             <span style={{fontSize:mob?26:32,fontWeight:800,color:T.txH,lineHeight:1,letterSpacing:-1}}>{now.getMonth()+1}/{now.getDate()}</span>
-            <span style={{fontSize:11,fontWeight:600,color:T.txD,marginTop:3}}>{DAY_NAMES[now.getDay()]}曜日</span>
+            <span style={{fontSize:11,fontWeight:600,color:T.txD,marginTop:3}}>{t("home.dayOfWeek",{d:DAY_NAMES[now.getDay()]})}</span>
             <span style={{fontSize:12,fontWeight:700,color:T.accent,marginTop:2}}>{now.getHours()}:{String(now.getMinutes()).padStart(2,"0")}</span>
           </div>
           {/* 天気 */}
@@ -259,7 +261,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                 <div style={{display:"flex",flexDirection:"column",gap:1}}>
                   <div style={{display:"flex",alignItems:"baseline",gap:6}}>
                     <span style={{fontSize:24,fontWeight:800,color:T.txH,lineHeight:1,letterSpacing:-.5}}>{wx.temp}°</span>
-                    <span style={{fontSize:12,fontWeight:600,color:tint,opacity:.9}}>{wxLabel}</span>
+                    <span style={{fontSize:12,fontWeight:600,color:tint,opacity:.9}}>{t("wx."+wxLabel)}</span>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:6,marginTop:1}}>
                     {wx.hi!=null&&<span style={{fontSize:11,fontWeight:600,color:T.txD}}><span style={{color:"#ef6b5e"}}>↑</span>{wx.hi}°</span>}
@@ -278,7 +280,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               {/* 時間別予報 */}
               {wx.hourly?.length>0&&<div style={{display:"flex",overflowX:"auto",scrollbarWidth:"none",msOverflowStyle:"none",padding:"0 6px 8px",gap:2}} onClick={e=>e.stopPropagation()}>
                 {wx.hourly.map((h,i)=>{const [,iconType]=wxInfo(h.code);
-                  const lbl=i===0?"Now":h.isNextDay?`翌${h.h}`:mob?`${h.h}:00`:`${h.h}時`;
+                  const lbl=i===0?t("home.wxNow"):h.isNextDay?t("home.wxNextDay",{h:h.h}):mob?`${h.h}:00`:t("home.wxHour",{h:h.h});
                   return(
                   <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:mob?"5px 8px":"4px 7px",minWidth:mob?38:34,flexShrink:0,borderRadius:8,background:i===0?`${tint}14`:"transparent"}}>
                     <span style={{fontSize:i===0?9:8,fontWeight:700,color:i===0?tint:T.txD,whiteSpace:"nowrap",marginBottom:2}}>{lbl}</span>
@@ -296,20 +298,20 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                 <div style={{padding:"8px 10px",borderBottom:`1px solid ${T.bd}`}}>
                   <div style={{position:"relative"}}>
                     <span style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",display:"flex",color:T.txD,pointerEvents:"none"}}>{I.search}</span>
-                    <input value={locQ} onChange={e=>setLocQ(e.target.value)} placeholder="都市名を検索..." autoFocus style={{width:"100%",padding:"6px 8px 6px 28px",borderRadius:7,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:12,outline:"none"}}/>
+                    <input value={locQ} onChange={e=>setLocQ(e.target.value)} placeholder={t("home.searchCity")} autoFocus style={{width:"100%",padding:"6px 8px 6px 28px",borderRadius:7,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:12,outline:"none"}}/>
                   </div>
                 </div>
                 <div style={{padding:"3px 5px",maxHeight:160,overflowY:"auto"}}>
-                  {locLoading&&<div style={{padding:"10px 0",fontSize:11,color:T.txD,textAlign:"center"}}>検索中...</div>}
+                  {locLoading&&<div style={{padding:"10px 0",fontSize:11,color:T.txD,textAlign:"center"}}>{t("home.searching")}</div>}
                   {!locLoading&&!locQ.trim()&&<div onClick={()=>{setLoc(DEF_LOC);setLocOpen(false);}} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 7px",borderRadius:7,cursor:"pointer",transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=T.bg3} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <span style={{display:"flex",color:T.accent}}>{I.pin}</span>
-                    <div><div style={{fontSize:11,fontWeight:600,color:T.txH}}>東京</div><div style={{fontSize:9,color:T.txD}}>デフォルト</div></div>
+                    <div><div style={{fontSize:11,fontWeight:600,color:T.txH}}>{t("home.tokyo")}</div><div style={{fontSize:9,color:T.txD}}>{t("home.default")}</div></div>
                   </div>}
                   {locRes.map(r=><div key={`${r.latitude}-${r.longitude}`} onClick={()=>{setLoc({name:r.name,lat:r.latitude,lon:r.longitude});setLocOpen(false);}} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 7px",borderRadius:7,cursor:"pointer",transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=T.bg3} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <span style={{display:"flex",color:T.txD,flexShrink:0}}>{I.pin}</span>
                     <div style={{minWidth:0}}><div style={{fontSize:11,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</div><div style={{fontSize:9,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{[r.admin1,r.country].filter(Boolean).join(", ")}</div></div>
                   </div>)}
-                  {!locLoading&&locQ.trim()&&locRes.length===0&&<div style={{padding:"10px 0",fontSize:10,color:T.txD,textAlign:"center"}}>「{locQ}」が見つかりません</div>}
+                  {!locLoading&&locQ.trim()&&locRes.length===0&&<div style={{padding:"10px 0",fontSize:10,color:T.txD,textAlign:"center"}}>{t("home.notFound",{q:locQ})}</div>}
                 </div>
               </div>
             </>}
@@ -346,10 +348,10 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
           badges.push({label:acal.period.l,col:pc,icon:acal.period.t==="break"?"break":acal.period.t==="exam"?"exam":"prep"});
         }
         acal.items.forEach(it=>{
-          if(it.type==="class") badges.push({label:`${it.q}Q ${it.dow}曜授業 第${it.n}回${it.sub?" (振替)":""}`,col:T.accent,icon:"class"});
-          else if(it.type==="holiday") badges.push({label:`祝日: ${it.label}`,col:"#ef4444",icon:"holiday"});
+          if(it.type==="class") badges.push({label:`${it.q}Q ${t("home.acalClass",{dow:it.dow,n:it.n})}${it.sub?` ${t("home.acalMakeup")}`:""}`,col:T.accent,icon:"class"});
+          else if(it.type==="holiday") badges.push({label:t("home.acalHoliday",{label:it.label}),col:"#ef4444",icon:"holiday"});
           else if(it.type==="event") badges.push({label:it.label,col:"#0ea5e9",icon:"event"});
-          else if(it.type==="cancel") badges.push({label:`${it.q}Q 休講: ${it.label}`,col:"#6b7280",icon:"cancel"});
+          else if(it.type==="cancel") badges.push({label:`${it.q}Q ${t("home.acalCancel",{label:it.label})}`,col:"#6b7280",icon:"cancel"});
           else if(it.type==="exam") badges.push({label:`${it.q}Q ${it.label}`,col:"#d97706",icon:"exam"});
         });
         if(badges.length===0) return null;
@@ -380,12 +382,12 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               try{
                 if(isNative()){
                   const r=await fetch("/api/auth/credentials",{headers:{"x-app-platform":"capacitor"}});
-                  if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||"ポータル認証情報の取得に失敗しました");}
+                  if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||t("home.errPortalCred"));}
                   const{portalUserId,portalPassword,matrix}=await r.json();
                   await openPortal({userId:portalUserId,password:portalPassword,matrix});
                 }else{
                   const r=await fetch("/api/portal/page",{cache:"no-store"});
-                  if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||(r.status===400?"ポータル認証情報が未設定です":"ポータルへの接続に失敗しました"));}
+                  if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||(r.status===400?t("home.errPortalUnset"):t("home.errPortalConnect")));}
                   const d=await r.json();
                   setPortalData(d);
                 }
@@ -393,7 +395,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               setPortalLoading(false);
             }} disabled={portalLoading} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:portalLoading?"wait":"pointer",opacity:portalLoading?.6:1}}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-              <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{portalLoading?"読込中...":"ポータル"}</span>
+              <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{portalLoading?t("home.loadingShort"):t("home.portal")}</span>
             </button>
           );
           if(qa.id==="isctportal") return (
@@ -402,7 +404,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               try{
                 if(isNative()){
                   const r=await fetch("/api/auth/credentials?type=isct",{headers:{"x-app-platform":"capacitor"}});
-                  if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||"ISCT認証情報の取得に失敗しました");}
+                  if(!r.ok){const b=await r.json().catch(()=>({}));throw new Error(b.error||t("home.errIsctCred"));}
                   const{userId,password,totpCode}=await r.json();
                   await openIsctPortal({userId,password,totpCode});
                 }else{
@@ -412,14 +414,14 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               setIsctLoading(false);
             }} disabled={isctLoading} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:isctLoading?"wait":"pointer",opacity:isctLoading?.6:1}}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
-              <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{isctLoading?"読込中...":"ISCTポータル"}</span>
+              <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{isctLoading?t("home.loadingShort"):t("home.isctPortal")}</span>
             </button>
           );
           const isFirst=i===0;
           return (
             <button key={qa.id} onClick={()=>setView(qa.id)} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"7px 0",borderRadius:10,border:`1px solid ${isFirst?T.accent+"30":T.bd}`,background:isFirst?`${T.accent}10`:T.bg2,cursor:"pointer"}}>
               <span style={{color:isFirst?T.accent:T.txD,display:"flex"}}>{qa.icon}</span>
-              <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{qa.label}</span>
+              <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{t(qa.labelKey)}</span>
             </button>
           );
         })}
@@ -428,8 +430,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
       {/* ── 学院学系チャット ── */}
       {(userSchools.length>0||userDepts.length>0||userUnit)&&<div style={{padding:"4px 16px 8px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <span style={{fontWeight:700,color:T.txH,fontSize:14}}>学院学系チャット</span>
-          <button onClick={()=>setView("courseSelect")} style={{background:"none",border:"none",color:T.accentSoft,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:2}}>すべて {I.arr}</button>
+          <span style={{fontWeight:700,color:T.txH,fontSize:14}}>{t("home.schoolChat")}</span>
+          <button onClick={()=>setView("courseSelect")} style={{background:"none",border:"none",color:T.accentSoft,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:2}}>{t("home.viewAll")} {I.arr}</button>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:4}}>
           {/* テスト広場 — 全ユーザー共通 */}
@@ -439,8 +441,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:12,fontWeight:600,color:T.txH}}>テスト広場</div>
-              <div style={{fontSize:10,color:T.txD}}>全員参加の書き込みテスト</div>
+              <div style={{fontSize:12,fontWeight:600,color:T.txH}}>{t("nav.testground")}</div>
+              <div style={{fontSize:10,color:T.txD}}>{t("home.testGroundDesc")}</div>
             </div>
             <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
           </div>
@@ -450,8 +452,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:12,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</div>
-              <div style={{fontSize:10,color:T.txD}}>学院チャット</div>
+              <div style={{fontSize:12,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{locName(s)}</div>
+              <div style={{fontSize:10,color:T.txD}}>{t("home.schoolChatLabel")}</div>
             </div>
             <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
           </div>)}
@@ -461,8 +463,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:12,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.prefix} {d.name}</div>
-              <div style={{fontSize:10,color:T.txD}}>学系チャット</div>
+              <div style={{fontSize:12,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.prefix} {locName(d)}</div>
+              <div style={{fontSize:10,color:T.txD}}>{t("home.deptChatLabel")}</div>
             </div>
             <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
           </div>)}
@@ -472,8 +474,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:12,fontWeight:600,color:T.txH}}>ユニット{userUnit.num}</div>
-              <div style={{fontSize:10,color:T.txD}}>{userUnit.yg} ユニットチャット</div>
+              <div style={{fontSize:12,fontWeight:600,color:T.txH}}>{t("sidebar.unit")}{userUnit.num}</div>
+              <div style={{fontSize:10,color:T.txD}}>{userUnit.yg} {t("home.unitChatSuffix")}</div>
             </div>
             <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
           </div>}
@@ -489,8 +491,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
         {/* 左: 今日のスケジュール (40%) */}
         <div style={{flex:mob?undefined:"0 0 40%",minWidth:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <span style={{fontWeight:700,color:T.txH,fontSize:14}}>今日のスケジュール</span>
-            <button onClick={()=>setView("calendar")} style={{background:"none",border:"none",color:T.accentSoft,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:2}}>カレンダー {I.arr}</button>
+            <span style={{fontWeight:700,color:T.txH,fontSize:14}}>{t("home.schedule")}</span>
+            <button onClick={()=>setView("calendar")} style={{background:"none",border:"none",color:T.accentSoft,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:2}}>{t("nav.calendar")} {I.arr}</button>
           </div>
           {timeline.length>0?<div style={{display:"flex",flexDirection:"column",gap:4}}>
             {timeline.map((item,idx)=>{
@@ -503,18 +505,18 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                 const origId=prevClass?.co?.building||"eki";
                 return <div key={`c${idx}`} onClick={()=>{setCid(co.id);setView("course");setCh("materials");}} style={{display:"flex",gap:8,padding:"6px 10px",borderRadius:8,background:act?`${co.col}12`:T.bg2,border:`1px solid ${act?co.col:T.bd}`,cursor:"pointer",opacity:done?.4:1}}>
                   <div style={{width:38,flexShrink:0,textAlign:"center"}}>
-                    <div style={{fontSize:10,fontWeight:700,color:done?T.txD:co.col}}>{pd.l}</div>
+                    <div style={{fontSize:10,fontWeight:700,color:done?T.txD:co.col}}>{t("home.periodLabel",{p:item.pi+1})}</div>
                     <div style={{fontSize:9,color:T.txD}}>{fPdTime(...pd.s)}</div>
                   </div>
                   <div style={{width:3,borderRadius:2,background:done?T.txD:co.col,flexShrink:0}}/>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:12,fontWeight:600,color:done?T.txD:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{co.name}{item.sub&&<span style={{fontSize:9,fontWeight:700,color:"#d97706",background:"#d9770615",padding:"1px 4px",borderRadius:3,marginLeft:4,verticalAlign:"middle"}}>振替</span>}{item.dow&&DAY_NAMES[now.getDay()]!==item.dow&&<span style={{fontSize:9,fontWeight:600,color:T.txD,background:T.bg3,padding:"1px 4px",borderRadius:3,marginLeft:4,verticalAlign:"middle"}}>{item.dow}曜</span>}</div>
+                    <div style={{fontSize:12,fontWeight:600,color:done?T.txD:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{co.name}{item.sub&&<span style={{fontSize:9,fontWeight:700,color:"#d97706",background:"#d9770615",padding:"1px 4px",borderRadius:3,marginLeft:4,verticalAlign:"middle"}}>{t("home.badgeMakeup")}</span>}{item.dow&&DAY_NAMES[now.getDay()]!==item.dow&&<span style={{fontSize:9,fontWeight:600,color:T.txD,background:T.bg3,padding:"1px 4px",borderRadius:3,marginLeft:4,verticalAlign:"middle"}}>{t("home.dowBadge",{dow:item.dow})}</span>}</div>
                     <div style={{display:"flex",gap:6,fontSize:10,color:T.txD,marginTop:1,alignItems:"center"}}>
                       <span>{fPdTime(...pd.s)}–{fPdTime(...pd.e)}</span>
                       {co.room&&<span>{co.room}{co.bldg?` (${co.bldg})`:""}</span>}
                       {co.building&&<span onClick={e=>{e.stopPropagation();goToBuilding?.(co.building,origId);}} style={{cursor:"pointer",color:T.accent,fontWeight:600,display:"inline-flex",alignItems:"center",gap:2,marginLeft:"auto",flexShrink:0}}>
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-                        行き方
+                        {t("home.directions")}
                       </span>}
                     </div>
                   </div>
@@ -543,7 +545,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                 const {ev}=item;const evCol=ev.color||T.orange;
                 return <div key={`e${idx}`} onClick={()=>setView("calendar")} style={{display:"flex",gap:8,padding:"6px 10px",borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,cursor:"pointer",opacity:done?.4:1}}>
                   <div style={{width:38,flexShrink:0,textAlign:"center"}}>
-                    <div style={{fontSize:10,fontWeight:600,color:evCol}}>予定</div>
+                    <div style={{fontSize:10,fontWeight:600,color:evCol}}>{t("home.itemEvent")}</div>
                     <div style={{fontSize:9,color:T.txD}}>{timeStr}</div>
                   </div>
                   <div style={{width:3,borderRadius:2,background:evCol,flexShrink:0}}/>
@@ -555,15 +557,15 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               }
               if(item.type==="exam"){
                 const {ex,co}=item;const ecol=co?.col||"#d97706";const pt=PERIOD_TIMES[ex.period];
-                const tStr=pt?`${pt.start}–${pt.end}`:`${ex.period}限`;
+                const tStr=pt?`${pt.start}–${pt.end}`:t("home.periodLabel",{p:ex.period});
                 return <div key={`x${idx}`} onClick={()=>setView("exams")} style={{display:"flex",gap:8,padding:"6px 10px",borderRadius:8,background:act?`${ecol}12`:`#d9770608`,border:`1px solid ${act?ecol:"#d9770620"}`,cursor:"pointer",opacity:done?.4:1}}>
                   <div style={{width:38,flexShrink:0,textAlign:"center"}}>
-                    <div style={{fontSize:10,fontWeight:700,color:"#d97706"}}>試験</div>
-                    <div style={{fontSize:9,color:T.txD}}>{ex.period}限</div>
+                    <div style={{fontSize:10,fontWeight:700,color:"#d97706"}}>{t("home.itemExam")}</div>
+                    <div style={{fontSize:9,color:T.txD}}>{t("home.periodLabel",{p:ex.period})}</div>
                   </div>
                   <div style={{width:3,borderRadius:2,background:"#d97706",flexShrink:0}}/>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:12,fontWeight:600,color:done?T.txD:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ex.name}<span style={{fontSize:9,fontWeight:700,color:"#d97706",background:"#d9770615",padding:"1px 4px",borderRadius:3,marginLeft:4,verticalAlign:"middle"}}>期末試験</span></div>
+                    <div style={{fontSize:12,fontWeight:600,color:done?T.txD:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ex.name}<span style={{fontSize:9,fontWeight:700,color:"#d97706",background:"#d9770615",padding:"1px 4px",borderRadius:3,marginLeft:4,verticalAlign:"middle"}}>{t("home.badgeFinal")}</span></div>
                     <div style={{display:"flex",gap:6,fontSize:10,color:T.txD,marginTop:1,alignItems:"center"}}>
                       <span>{tStr}</span>
                       {ex.room&&<span>{ex.room}</span>}
@@ -577,7 +579,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                 const {a,co}=item;const dl=uDue(a.due);
                 return <div key={`d${idx}`} onClick={()=>setView("tasks")} style={{display:"flex",gap:8,padding:"6px 10px",borderRadius:8,background:`${dl.c}08`,border:`1px solid ${dl.c}20`,cursor:"pointer"}}>
                   <div style={{width:38,flexShrink:0,textAlign:"center"}}>
-                    <div style={{fontSize:10,fontWeight:700,color:dl.c}}>締切</div>
+                    <div style={{fontSize:10,fontWeight:700,color:dl.c}}>{t("home.itemDeadline")}</div>
                     <div style={{fontSize:9,color:T.txD}}>{timeStr}</div>
                   </div>
                   <div style={{width:3,borderRadius:2,background:dl.c,flexShrink:0}}/>
@@ -592,14 +594,14 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               }
               return null;
             })}
-          </div>:<div style={{padding:"12px 0",textAlign:"center",color:T.txD,fontSize:12}}>今日の予定はありません</div>}
+          </div>:<div style={{padding:"12px 0",textAlign:"center",color:T.txD,fontSize:12}}>{t("home.noPlans")}</div>}
         </div>
 
         {/* 右: 直近の締切 (60%) */}
         {upcoming.length>0&&<div style={{flex:mob?undefined:"1 1 0",minWidth:0,marginTop:mob?12:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <span style={{fontWeight:700,color:T.txH,fontSize:14}}>直近の締切</span>
-            <button onClick={()=>setView("tasks")} style={{background:"none",border:"none",color:T.accentSoft,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:2}}>すべて {I.arr}</button>
+            <span style={{fontWeight:700,color:T.txH,fontSize:14}}>{t("home.upcoming")}</span>
+            <button onClick={()=>setView("tasks")} style={{background:"none",border:"none",color:T.accentSoft,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:2}}>{t("home.viewAll")} {I.arr}</button>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr",gap:6}}>
             {upcoming.map(a=>{const co=courses.find(x=>x.id===a.cid),dl=uDue(a.due),p=pDone(a.subs);return(
@@ -648,7 +650,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 2px 8px"}}>
                 {s.icon}
                 <span style={{fontSize:15,fontWeight:700,color:T.txH}}>{sec.title}</span>
-                <span style={{fontSize:11,color:T.txD,marginLeft:"auto"}}>{sec.links.length}件</span>
+                <span style={{fontSize:11,color:T.txD,marginLeft:"auto"}}>{t("home.itemCount",{n:sec.links.length})}</span>
               </div>
               <div style={{borderRadius:14,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
                 {sec.links.map((lnk,li)=><button key={li} onClick={()=>setPortalPage({url:"/api/portal/page?url="+encodeURIComponent(lnk.url),label:lnk.label})} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"14px 16px",textDecoration:"none",border:"none",borderTop:li>0?`1px solid ${T.bd}`:"none",cursor:"pointer",background:"transparent",textAlign:"left",color:"inherit"}}>
@@ -661,7 +663,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
               </div>
             </div>;
           })}
-          {(!portalData.sections||portalData.sections.length===0)&&<div style={{textAlign:"center",padding:"40px 0",color:T.txD,fontSize:13}}>サービス情報を取得できませんでした</div>}
+          {(!portalData.sections||portalData.sections.length===0)&&<div style={{textAlign:"center",padding:"40px 0",color:T.txD,fontSize:13}}>{t("home.fetchFailed")}</div>}
         </div>
         {portalPage&&<div style={{position:"absolute",inset:0,zIndex:1,background:"#fff",display:"flex",flexDirection:"column"}}>
           <header style={{display:"flex",alignItems:"center",gap:8,padding:"env(safe-area-inset-top) 14px 0",minHeight:54,borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}>

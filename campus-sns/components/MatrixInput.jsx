@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 
 const COLS = ['A','B','C','D','E','F','G','H','I','J'];
 const ROWS = ['1','2','3','4','5','6','7'];
@@ -40,7 +41,7 @@ export function MatrixInput({ matrix, setMatrix }) {
   const handleDecline = useCallback(() => {
     setConfirmOpen(false);
     setExpanded(true);
-    setScanMsg({ type: 'info', text: '下の表から手入力できます。' });
+    setScanMsg({ type: 'info', text: t("matrix.manualHint") });
   }, []);
 
   const handleAgree = useCallback(() => {
@@ -59,9 +60,9 @@ export function MatrixInput({ matrix, setMatrix }) {
       const letters = pasteText.match(/[A-Za-z]/g);
       if (letters) arr = letters;
     }
-    if (!arr) { setPasteError("JSON配列または文字列として解釈できません"); return; }
+    if (!arr) { setPasteError(t("matrix.parseError")); return; }
     if (arr.length !== COLS.length * ROWS.length) {
-      setPasteError(`70文字必要です（入力: ${arr.length}文字）`);
+      setPasteError(t("matrix.lengthError", { n: arr.length }));
       return;
     }
     const next = {};
@@ -78,7 +79,7 @@ export function MatrixInput({ matrix, setMatrix }) {
     setPasteOpen(false);
     setPasteText("");
     setExpanded(true);
-    setScanMsg({ type: 'ok', text: '70セルを一括入力しました。結果を確認してください。' });
+    setScanMsg({ type: 'ok', text: t("matrix.bulkApplied") });
   }, [pasteText, setMatrix]);
 
   const handleScan = useCallback(async (e) => {
@@ -91,7 +92,7 @@ export function MatrixInput({ matrix, setMatrix }) {
       form.append('image', file);
       const res = await fetch('/api/matrix/scan', { method: 'POST', body: form });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '読み取りに失敗しました');
+      if (!res.ok) throw new Error(data.error || t("matrix.scanFailed"));
       setMatrix(prev => {
         const next = { ...prev };
         for (const col of COLS) {
@@ -103,7 +104,7 @@ export function MatrixInput({ matrix, setMatrix }) {
         }
         return next;
       });
-      setScanMsg({ type: 'ok', text: `${data.cells}/70 セルを読み取りました。結果を確認してください。` });
+      setScanMsg({ type: 'ok', text: t("matrix.scanned", { n: data.cells }) });
       setExpanded(true);
     } catch (err) {
       setScanMsg({ type: 'err', text: err.message });
@@ -119,7 +120,7 @@ export function MatrixInput({ matrix, setMatrix }) {
         background: T.bg3, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center",
       }}>
         <span style={{ fontSize: 14, color: filled ? T.green : T.txD }}>
-          {filled ? "マトリクスカード登録済み" : "マトリクスカードを入力"}
+          {filled ? t("matrix.registered") : t("matrix.enterCard")}
         </span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform .15s" }}><polyline points="6 9 12 15 18 9" /></svg>
       </div>
@@ -135,14 +136,14 @@ export function MatrixInput({ matrix, setMatrix }) {
           opacity: scanning ? .6 : 1,
         }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-          {scanning ? "読み取り中..." : "カード写真から読み取り"}
+          {scanning ? t("matrix.scanning") : t("matrix.scanFromPhoto")}
         </button>
         <button onClick={() => { setPasteOpen(true); setPasteError(""); }} style={{
           width: "100%", marginTop: 6, padding: "8px 0",
           background: "none", border: "none", color: T.txD,
           fontSize: 11, cursor: "pointer", textDecoration: "underline",
         }}>
-          または、配列/文字列から一括入力
+          {t("matrix.bulkInputLink")}
         </button>
       </div>
 
@@ -155,9 +156,9 @@ export function MatrixInput({ matrix, setMatrix }) {
           border: `1px solid ${T.bd}`, boxShadow: "0 8px 32px rgba(0,0,0,.4)",
           padding: 20, zIndex: 1000,
         }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: T.txH, marginBottom: 8 }}>一括入力</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.txH, marginBottom: 8 }}>{t("matrix.bulkInputTitle")}</div>
           <p style={{ fontSize: 12, color: T.txD, lineHeight: 1.6, margin: "0 0 10px" }}>
-            A1→A7→B1→B7→...→J7 の順で70文字。JSON配列（<code style={{ fontFamily: "monospace" }}>{'["G","P",...]'}</code>）または連続文字列を貼り付けてください。
+            {t("matrix.bulkInputDescPre")}<code style={{ fontFamily: "monospace" }}>{'["G","P",...]'}</code>{t("matrix.bulkInputDescPost")}
           </p>
           <textarea
             value={pasteText}
@@ -179,13 +180,13 @@ export function MatrixInput({ matrix, setMatrix }) {
             <button onClick={() => { setPasteOpen(false); setPasteText(""); setPasteError(""); }} style={{
               flex: 1, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 600,
               border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, cursor: "pointer",
-            }}>キャンセル</button>
+            }}>{t("common.cancel")}</button>
             <button onClick={handlePasteApply} disabled={!pasteText.trim()} style={{
               flex: 1, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 700,
               border: "none", background: T.accent, color: "#fff",
               cursor: pasteText.trim() ? "pointer" : "not-allowed",
               opacity: pasteText.trim() ? 1 : 0.5,
-            }}>適用</button>
+            }}>{t("matrix.apply")}</button>
           </div>
         </div>
       </>}
@@ -204,25 +205,25 @@ export function MatrixInput({ matrix, setMatrix }) {
               <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
               <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
-            <span style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>外部AI送信の確認</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>{t("matrix.consentTitle")}</span>
           </div>
           <p style={{ fontSize: 13, color: T.tx, lineHeight: 1.7, margin: "0 0 6px" }}>
-            カード画像を<strong style={{ color: T.txH }}>外部AIサービス（OpenAI）</strong>に送信して文字を読み取ります。
+            {t("matrix.consentBodyPre")}<strong style={{ color: T.txH }}>{t("matrix.consentBodyStrong")}</strong>{t("matrix.consentBodyPost")}
           </p>
           <ul style={{ fontSize: 12, color: T.txD, lineHeight: 1.7, margin: "0 0 14px", paddingLeft: 18 }}>
-            <li>画像はOpenAIのサーバーに送信されます</li>
-            <li>API経由のデータはAIの学習には使用されません</li>
-            <li>送信に同意しない場合は手入力できます</li>
+            <li>{t("matrix.consentItem1")}</li>
+            <li>{t("matrix.consentItem2")}</li>
+            <li>{t("matrix.consentItem3")}</li>
           </ul>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={handleDecline} style={{
               flex: 1, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 600,
               border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, cursor: "pointer",
-            }}>手入力する</button>
+            }}>{t("matrix.manualInput")}</button>
             <button onClick={handleAgree} style={{
               flex: 1, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 600,
               border: "none", background: T.accent, color: "#fff", cursor: "pointer",
-            }}>同意して読み取り</button>
+            }}>{t("matrix.agreeAndScan")}</button>
           </div>
         </div>
       </>}
@@ -237,7 +238,7 @@ export function MatrixInput({ matrix, setMatrix }) {
 
       {expanded && (
         <div style={{ marginTop: 8, padding: 10, borderRadius: 10, border: `1px solid ${T.bd}`, background: T.bg3, overflowX: "auto" }}>
-          <p style={{ fontSize: 11, color: T.txD, marginBottom: 8 }}>マトリクスカードの各セルを入力（大文字・小文字は区別しません）</p>
+          <p style={{ fontSize: 11, color: T.txD, marginBottom: 8 }}>{t("matrix.cellInputHint")}</p>
           <table style={{ borderCollapse: "collapse", width: "100%" }}>
             <thead>
               <tr>

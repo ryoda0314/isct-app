@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { T } from "../theme.js";
+import { t, locName } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { updateUserPref } from "../hooks/useCurrentUser.js";
 import { MatrixInput, COLS, ROWS } from "../components/MatrixInput.jsx";
@@ -94,11 +95,12 @@ const ICN = {
   signup: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>,
 };
 
+// titleKey/descKey で保持し、表示時に t() で解決（言語切替に追従させるため）
 const FEATURES = [
-  { icon: ICN.cal, title: "時間割", desc: "自動取得", color: T.accent },
-  { icon: ICN.doc, title: "課題管理", desc: "締め切り追跡", color: T.green },
-  { icon: ICN.bar, title: "成績照会", desc: "教務Web連携", color: T.orange },
-  { icon: ICN.ppl, title: "キャンパスSNS", desc: "仲間とつながる", color: T.red },
+  { icon: ICN.cal, titleKey: "setup.featTimetable", descKey: "setup.featTimetableDesc", color: T.accent },
+  { icon: ICN.doc, titleKey: "setup.featAssign", descKey: "setup.featAssignDesc", color: T.green },
+  { icon: ICN.bar, titleKey: "setup.featGrades", descKey: "setup.featGradesDesc", color: T.orange },
+  { icon: ICN.ppl, titleKey: "setup.featSns", descKey: "setup.featSnsDesc", color: T.red },
 ];
 
 /* ─── Sub-components (outside to avoid re-mount) ─── */
@@ -185,7 +187,7 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
   const handleManualSubmit = () => {
     const cleaned = manualInput.replace(/\s/g, "").toUpperCase();
     if (!/^[A-Z2-7]+=*$/.test(cleaned) || cleaned.length < 16) {
-      setManualError("Base32形式（A-Z, 2-7）で16文字以上を入力してください");
+      setManualError(t("setup.totpManualError"));
       return;
     }
     setTotpSecret(cleaned);
@@ -195,15 +197,15 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
   };
 
   const guideSteps = [
-    { n: 1, text: "ISCTアカウントページにログインし、「多要素認証 (OTP)」タブを開く", img: "/guide/step1.png", top: 0, h: 109, zoom: "192%", ml: "-61%" },
-    { n: 2, text: "「アプリ認証」の横にある「設定」ボタンを押す", img: "/guide/step2.png", top: -2, h: 99, zoom: "185%", ml: "-50%" },
-    { n: 3, text: "表示されるQRコードをこのアプリでスキャン。表示された6桁コードをISCTの「トークン」欄に入力して完了", img: "/guide/step3.png", top: -43, h: 185, zoom: "180%", ml: "-40%" },
+    { n: 1, text: t("setup.totpGuideStep1"), img: "/guide/step1.png", top: 0, h: 109, zoom: "192%", ml: "-61%" },
+    { n: 2, text: t("setup.totpGuideStep2"), img: "/guide/step2.png", top: -2, h: 99, zoom: "185%", ml: "-50%" },
+    { n: 3, text: t("setup.totpGuideStep3"), img: "/guide/step3.png", top: -43, h: 185, zoom: "180%", ml: "-40%" },
   ];
 
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-        <label style={{ fontSize: 12, fontWeight: 600, color: T.txD }}>TOTP認証</label>
+        <label style={{ fontSize: 12, fontWeight: 600, color: T.txD }}>{t("setup.totpLabel")}</label>
         {!totpSecret && (
           <button onClick={() => setShowGuide(p => !p)} style={{
             background: "none", border: "none", color: T.accent,
@@ -211,7 +213,7 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
             display: "flex", alignItems: "center", gap: 3,
           }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            {showGuide ? "閉じる" : "やり方"}
+            {showGuide ? t("common.close") : t("setup.totpHow")}
           </button>
         )}
       </div>
@@ -221,7 +223,7 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
           marginBottom: 10, padding: 12, borderRadius: 10,
           border: `1px solid ${T.accent}20`, background: `${T.accent}06`,
         }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: T.txH, marginBottom: 8 }}>QRコードの取得方法</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: T.txH, marginBottom: 8 }}>{t("setup.totpGuideTitle")}</div>
           <div style={{
             display: "flex", alignItems: "center", gap: 8,
             padding: "8px 10px", borderRadius: 8, marginBottom: 10,
@@ -231,7 +233,7 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
               <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
             </svg>
             <span style={{ fontSize: 11, color: T.accent, fontWeight: 600, lineHeight: 1.5 }}>
-              PCでISCTアカウントページを開いて操作してください
+              {t("setup.totpUsePc")}
             </span>
           </div>
           {guideSteps.map(s => (
@@ -261,7 +263,7 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
                   fontSize: 9, display: "flex", alignItems: "center", gap: 3,
                 }}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
-                  拡大
+                  {t("setup.zoom")}
                 </div>
               </div>
             </div>
@@ -271,7 +273,7 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
             background: `${T.orange}12`, border: `1px solid ${T.orange}25`,
             fontSize: 11, color: T.orange, lineHeight: 1.5,
           }}>
-            ISCTの「トークン」欄には、スキャン後にこのアプリに表示される6桁のコードを入力してください
+            {t("setup.totpTokenHint")}
           </div>
         </div>
       )}
@@ -286,14 +288,14 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
             </svg>
-            QRコードをスキャンして設定
+            {t("setup.totpScanBtn")}
           </button>
           <button onClick={() => { setShowManual(true); setManualError(""); }} style={{
             width: "100%", marginTop: 6, padding: "8px 0",
             background: "none", border: "none", color: T.txD,
             fontSize: 11, cursor: "pointer", textDecoration: "underline",
           }}>
-            または、シークレットキーを手入力
+            {t("setup.totpManualLink")}
           </button>
         </>
       )}
@@ -303,13 +305,13 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
           border: `1px solid ${T.bd}`, background: T.bg3,
         }}>
           <label style={{ fontSize: 11, fontWeight: 600, color: T.txD, display: "block", marginBottom: 6 }}>
-            シークレットキー（Base32形式）
+            {t("setup.totpSecretLabel")}
           </label>
           <input
             type="text"
             value={manualInput}
             onChange={(e) => { setManualInput(e.target.value); setManualError(""); }}
-            placeholder="例: TT5SOVTA4BFN4IND"
+            placeholder={t("setup.totpSecretPlaceholder")}
             autoCapitalize="characters"
             autoCorrect="off"
             spellCheck={false}
@@ -325,21 +327,21 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
             <div style={{ fontSize: 11, color: T.red, marginTop: 6 }}>{manualError}</div>
           )}
           <div style={{ fontSize: 10, color: T.txD, marginTop: 6, lineHeight: 1.5 }}>
-            ISCTアカウントページのアプリ認証設定で、QRコードと一緒に表示されるシークレットキー文字列です
+            {t("setup.totpSecretHint")}
           </div>
           <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
             <button onClick={() => { setShowManual(false); setManualInput(""); setManualError(""); }} style={{
               flex: 1, padding: "9px 0", borderRadius: 6,
               border: `1px solid ${T.bd}`, background: T.bg2,
               color: T.txD, fontSize: 12, fontWeight: 600, cursor: "pointer",
-            }}>キャンセル</button>
+            }}>{t("common.cancel")}</button>
             <button onClick={handleManualSubmit} disabled={!manualInput.trim()} style={{
               flex: 1, padding: "9px 0", borderRadius: 6,
               border: "none", background: T.accent,
               color: "#fff", fontSize: 12, fontWeight: 700,
               cursor: manualInput.trim() ? "pointer" : "not-allowed",
               opacity: manualInput.trim() ? 1 : 0.5,
-            }}>登録</button>
+            }}>{t("setup.totpRegister")}</button>
           </div>
         </div>
       )}
@@ -357,7 +359,7 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
           <div>
-            <div style={{ fontSize: 11, color: T.green, fontWeight: 600, marginBottom: 4 }}>現在のTOTPコード</div>
+            <div style={{ fontSize: 11, color: T.green, fontWeight: 600, marginBottom: 4 }}>{t("setup.totpCurrentCode")}</div>
             <div style={{ fontSize: 24, fontWeight: 800, fontFamily: "monospace", letterSpacing: 4, color: T.txH }}>
               {totpCode.slice(0, 3)} {totpCode.slice(3)}
             </div>
@@ -375,7 +377,7 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
           width: "100%", marginTop: 6, padding: "6px 0",
           background: "none", border: "none", color: T.txD,
           fontSize: 11, cursor: "pointer",
-        }}>QRコードを再スキャン</button>
+        }}>{t("setup.totpRescan")}</button>
       )}
       {/* Lightbox */}
       {zoomImg && (
@@ -387,14 +389,14 @@ function TotpBlock({ totpSecret, setTotpSecret, showQR, setShowQR }) {
           cursor: "pointer", padding: 16,
           animation: "fadeIn .15s ease",
         }}>
-          <img src={zoomImg} alt="拡大表示" style={{
+          <img src={zoomImg} alt={t("setup.zoom")} style={{
             maxWidth: "100%", maxHeight: "85vh",
             borderRadius: 8, objectFit: "contain",
           }} />
           <div style={{
             marginTop: 12, color: "rgba(255,255,255,0.6)",
             fontSize: 12,
-          }}>タップして閉じる</div>
+          }}>{t("setup.tapToClose")}</div>
         </div>
       )}
     </div>
@@ -447,7 +449,7 @@ function DoneBanner() {
       display: "flex", alignItems: "center", gap: 8, marginTop: 12,
       padding: "10px 14px", borderRadius: 10, background: `${T.green}12`,
       color: T.green, fontSize: 13, fontWeight: 500,
-    }}>{ICN.chk} 入力完了</div>
+    }}>{ICN.chk} {t("setup.inputComplete")}</div>
   );
 }
 
@@ -590,7 +592,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
     // Step 0: validate ISCT credentials via SSO
     if (step === 0 && hasIsct) {
       setConnecting(true);
-      setConnectingMsg("ISCT SSO認証を確認中...\n初回は30秒ほどかかります");
+      setConnectingMsg(t("setup.connectingIsct"));
       try {
         const resp = await fetch(`${API}/api/auth/validate/isct`, {
           method: "POST",
@@ -598,7 +600,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
           body: JSON.stringify({ userId: isctId, password: isctPw, totpSecret }),
         });
         const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || "ISCT認証に失敗しました");
+        if (!resp.ok) throw new Error(data.error || t("setup.isctAuthFailed"));
         setIsctValidated(true);
       } catch (err) {
         setError(err.message);
@@ -613,7 +615,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
     // Step 1: validate Portal credentials
     if (step === 1 && hasPortal) {
       setConnecting(true);
-      setConnectingMsg("ポータル認証を確認中...\n30秒ほどかかります");
+      setConnectingMsg(t("setup.connectingPortal"));
       try {
         const resp = await fetch(`${API}/api/auth/validate/portal`, {
           method: "POST",
@@ -621,7 +623,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
           body: JSON.stringify({ portalUserId: portalId, portalPassword: portalPw, matrix }),
         });
         const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || "ポータル認証に失敗しました");
+        if (!resp.ok) throw new Error(data.error || t("setup.portalAuthFailed"));
       } catch (err) {
         setError(err.message);
         setConnecting(false);
@@ -637,11 +639,11 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
 
   const handleSubmit = async () => {
     if (!hasIsct && !hasPortal && !hasMedId) {
-      setError("いずれかの認証情報を入力してください");
+      setError(t("setup.errNoCredentials"));
       return;
     }
     setConnecting(true);
-    setConnectingMsg(isctValidated ? "設定を保存中..." : "");
+    setConnectingMsg(isctValidated ? t("setup.savingSettings") : "");
     setError(null);
     try {
       const body = {};
@@ -674,7 +676,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
   };
 
   const handleEmailLogin = async () => {
-    if (!emailLogin || !emailPw) { setError("メールアドレスとパスワードを入力してください"); return; }
+    if (!emailLogin || !emailPw) { setError(t("setup.errEmailPwRequired")); return; }
     setConnecting(true);
     setError(null);
     try {
@@ -684,7 +686,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
         body: JSON.stringify({ email: emailLogin, password: emailPw }),
       });
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || "ログインに失敗しました");
+      if (!resp.ok) throw new Error(data.error || t("setup.loginFailed"));
       await onComplete();
     } catch (err) {
       setError(err.message);
@@ -724,9 +726,9 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
             <div style={{ width: 48, height: 48, border: `3px solid ${T.bd}`, borderTop: `3px solid ${T.accent}`, borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-            <p style={{ color: T.txH, fontSize: 15, fontWeight: 600, margin: 0 }}>接続中...</p>
+            <p style={{ color: T.txH, fontSize: 15, fontWeight: 600, margin: 0 }}>{t("setup.connecting")}</p>
             <p style={{ color: T.txD, fontSize: 13, margin: 0, textAlign: "center", lineHeight: 1.6, whiteSpace: "pre-line" }}>
-              {connectingMsg || (loginTab === "email" ? "メールアドレスで認証中..." : hasIsct ? "ISCT SSO認証を実行しています\n初回は30秒ほどかかります" : "認証情報を保存しています")}
+              {connectingMsg || (loginTab === "email" ? t("setup.connectingEmail") : hasIsct ? t("setup.connectingIsctRun") : t("setup.connectingSaving"))}
             </p>
             {error && <div style={{ padding: "10px 14px", borderRadius: 10, background: `${T.red}18`, color: T.red, fontSize: 13, width: "100%", maxWidth: 300, textAlign: "center" }}>{error}</div>}
           </div>
@@ -753,13 +755,13 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
               margin: "0 auto 12px", boxShadow: `0 6px 20px ${T.accent}30`,
             }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: T.txH, margin: "0 0 4px" }}>ScienceTokyo App</h1>
-            <p style={{ fontSize: 13, color: T.txD, margin: "0 0 16px", lineHeight: 1.5 }}>LMS・教務Webと連携して<br />大学生活をもっと便利に</p>
+            <p style={{ fontSize: 13, color: T.txD, margin: "0 0 16px", lineHeight: 1.5 }}>{t("setup.tagline")}</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
               {FEATURES.map((f, i) => (
                 <div key={i} style={{ padding: "10px 8px", borderRadius: 10, border: `1px solid ${T.bd}`, background: T.bg2, textAlign: "center" }}>
                   <div style={{ color: f.color, marginBottom: 4, display: "flex", justifyContent: "center" }}>{f.icon}</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: T.txH }}>{f.title}</div>
-                  <div style={{ fontSize: 10, color: T.txD, marginTop: 1 }}>{f.desc}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.txH }}>{t(f.titleKey)}</div>
+                  <div style={{ fontSize: 10, color: T.txD, marginTop: 1 }}>{t(f.descKey)}</div>
                 </div>
               ))}
             </div>
@@ -780,16 +782,17 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                 {privacyAgreed && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
               </div>
               <div style={{ fontSize: 12, color: T.tx, lineHeight: 1.5 }}>
+                {t("setup.agreePrefix")}
                 <button onClick={e => { e.stopPropagation(); setShowTerms(true); }} style={{
                   background: "none", border: "none", color: T.accent, fontSize: 12,
                   fontWeight: 600, cursor: "pointer", padding: 0, textDecoration: "underline",
-                }}>利用規約</button>
-                ・
+                }}>{t("setup.terms")}</button>
+                {t("setup.agreeSep")}
                 <button onClick={e => { e.stopPropagation(); setShowPrivacyPolicy(true); }} style={{
                   background: "none", border: "none", color: T.accent, fontSize: 12,
                   fontWeight: 600, cursor: "pointer", padding: 0, textDecoration: "underline",
-                }}>プライバシーポリシー</button>
-                に同意します
+                }}>{t("setup.privacy")}</button>
+                {t("setup.agreeSuffix")}
               </div>
             </div>
 
@@ -801,7 +804,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
             }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.orange} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               <div style={{ fontSize: 11, color: T.txD, lineHeight: 1.5 }}>
-                現在<span style={{ fontWeight: 700, color: T.orange }}>テスト運用中</span>です。不具合が発生する可能性があります。
+                {t("setup.testingNoticePrefix")}<span style={{ fontWeight: 700, color: T.orange }}>{t("setup.testingNoticeWord")}</span>{t("setup.testingNoticeSuffix")}
               </div>
             </div>
 
@@ -813,7 +816,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
               }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.red} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                 <div style={{ fontSize: 12, color: T.txD, lineHeight: 1.5 }}>
-                  {regLimitMsg || "現在、新規登録の受付人数が上限に達しています。既存ユーザーのログインは可能です。"}
+                  {regLimitMsg || t("setup.regLimitDefault")}
                 </div>
               </div>
             )}
@@ -824,7 +827,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                 color: "#fff", fontSize: 15, fontWeight: 700,
                 cursor: privacyAgreed && !regLimited ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 transition: "background .15s", opacity: regLimited ? 0.5 : 1,
-              }}>{ICN.signup} 新規登録{regLimited ? "（受付停止中）" : ""}</button>
+              }}>{ICN.signup} {t("setup.signup")}{regLimited ? t("setup.signupClosed") : ""}</button>
               <button onClick={() => { if (!privacyAgreed) return; setMode("login"); setError(null); }} style={{
                 width: "100%", padding: "12px 0", borderRadius: 12,
                 border: `1px solid ${privacyAgreed ? T.bd : T.bd + "60"}`,
@@ -834,18 +837,18 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                 cursor: privacyAgreed ? "pointer" : "default",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 transition: "all .15s",
-              }}>{ICN.login} ログイン</button>
+              }}>{ICN.login} {t("setup.login")}</button>
               {onBackToBoard&&<button onClick={onBackToBoard} style={{
                 width: "100%", padding: "10px 0", borderRadius: 10,
                 border: `1px solid ${T.bd}`, background: T.bg2, color: T.txD,
                 fontSize: 12, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>{backLabel||"新入生掲示板に戻る"}</button>}
+              }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>{backLabel||t("setup.backToBoard")}</button>}
             </div>
-            {!privacyAgreed && <p style={{ fontSize: 11, color: T.txD, textAlign: "center", marginTop: 8 }}>利用するには利用規約・プライバシーポリシーへの同意が必要です</p>}
+            {!privacyAgreed && <p style={{ fontSize: 11, color: T.txD, textAlign: "center", marginTop: 8 }}>{t("setup.agreeRequired")}</p>}
             <button onClick={() => setShowPersonaPicker(true)} style={{
               background: "none", border: "none", color: T.txD, fontSize: 12,
               cursor: "pointer", marginTop: 8, textAlign: "center", padding: 4, width: "100%",
-            }}>スキップ（デモモードで表示）</button>
+            }}>{t("setup.skipDemo")}</button>
           </div>
         </div>
       )}
@@ -855,8 +858,8 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
         <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.5)", padding: 16 }} onClick={() => setShowPersonaPicker(false)}>
           <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 380, background: T.bg2, borderRadius: 16, border: `1px solid ${T.bd}`, overflow: "hidden", animation: "fadeIn .2s ease" }}>
             <div style={{ padding: "18px 20px 12px", borderBottom: `1px solid ${T.bd}` }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>テストユーザーを選択</div>
-              <div style={{ fontSize: 12, color: T.txD, marginTop: 4 }}>学部ごとの時間割・課題を体験できます</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("setup.personaTitle")}</div>
+              <div style={{ fontSize: 12, color: T.txD, marginTop: 4 }}>{t("setup.personaSubtitle")}</div>
             </div>
             <div style={{ padding: "8px 12px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
               {(personas || []).map(p => (
@@ -869,14 +872,14 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{p.name}</div>
                     <div style={{ fontSize: 12, color: p.schoolCol, fontWeight: 500, marginTop: 1 }}>{p.school} {p.dept}</div>
-                    <div style={{ fontSize: 11, color: T.txD, marginTop: 1 }}>{p.year} ・ {(p.q[2] || []).length}科目履修中</div>
+                    <div style={{ fontSize: 11, color: T.txD, marginTop: 1 }}>{p.year} ・ {t("setup.personaCourses", { n: (p.q[2] || []).length })}</div>
                   </div>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
               ))}
             </div>
             <div style={{ padding: "8px 12px 14px" }}>
-              <button onClick={() => setShowPersonaPicker(false)} style={{ width: "100%", padding: "10px 0", borderRadius: 10, border: `1px solid ${T.bd}`, background: "transparent", color: T.txD, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>キャンセル</button>
+              <button onClick={() => setShowPersonaPicker(false)} style={{ width: "100%", padding: "10px 0", borderRadius: 10, border: `1px solid ${T.bd}`, background: "transparent", color: T.txD, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>{t("common.cancel")}</button>
             </div>
           </div>
         </div>
@@ -886,12 +889,12 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
       {mode === "login" && (
         <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           <div style={bodyStyle}>
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>ログイン</h2>
-            <p style={{ fontSize: 13, color: T.txD, margin: "0 0 16px", lineHeight: 1.5 }}>アカウントにログインします</p>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>{t("setup.loginTitle")}</h2>
+            <p style={{ fontSize: 13, color: T.txD, margin: "0 0 16px", lineHeight: 1.5 }}>{t("setup.loginSubtitle")}</p>
 
             {/* ── タブ切り替え ── */}
             <div style={{ display: "flex", gap: 0, marginBottom: 18, borderRadius: 10, background: T.bg3, padding: 3 }}>
-              {[["isct","ISCT LMS"],["email","メールアドレス"]].map(([k,l])=>(
+              {[["isct","ISCT LMS"],["email",t("setup.tabEmail")]].map(([k,l])=>(
                 <button key={k} onClick={()=>{setLoginTab(k);setError(null);}}
                   style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none",
                     background: loginTab===k ? T.bg2 : "transparent",
@@ -909,36 +912,36 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
             {loginTab === "isct" && <>
               <div style={cardStyle}>
                 <InputField label="Science Tokyo ID" value={isctId} onChange={e => setIsctId(e.target.value)} placeholder="abcd1234" />
-                <InputField label="パスワード" value={isctPw} onChange={e => setIsctPw(e.target.value)} placeholder="ISCTのパスワード" type="password" showToggle />
+                <InputField label={t("setup.password")} value={isctPw} onChange={e => setIsctPw(e.target.value)} placeholder={t("setup.isctPwPlaceholder")} type="password" showToggle />
                 <TotpBlock totpSecret={totpSecret} setTotpSecret={setTotpSecret} showQR={showQR} setShowQR={setShowQR} />
               </div>
               <div style={{ marginTop: 24 }}>
-                <button onClick={handleSubmit} disabled={!hasIsct} style={primaryBtnStyle(hasIsct)}>ログイン</button>
+                <button onClick={handleSubmit} disabled={!hasIsct} style={primaryBtnStyle(hasIsct)}>{t("setup.login")}</button>
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 14 }}>
                 <span style={{ color: T.txD, display: "flex" }}>{ICN.lock}</span>
-                <p style={{ fontSize: 11, color: T.txD, lineHeight: 1.6 }}>認証情報はAES-256-GCMで暗号化して保存されます</p>
+                <p style={{ fontSize: 11, color: T.txD, lineHeight: 1.6 }}>{t("setup.encryptionNote")}</p>
               </div>
             </>}
 
             {/* ── メールアドレス ログイン ── */}
             {loginTab === "email" && <>
               <div style={cardStyle}>
-                <InputField label="メールアドレス" value={emailLogin} onChange={e => setEmailLogin(e.target.value)} placeholder="example@m.isct.ac.jp" type="email" />
-                <InputField label="パスワード" value={emailPw} onChange={e => setEmailPw(e.target.value)} placeholder="パスワード" type="password" showToggle />
+                <InputField label={t("setup.email")} value={emailLogin} onChange={e => setEmailLogin(e.target.value)} placeholder="example@m.isct.ac.jp" type="email" />
+                <InputField label={t("setup.password")} value={emailPw} onChange={e => setEmailPw(e.target.value)} placeholder={t("setup.password")} type="password" showToggle />
               </div>
               <div style={{ marginTop: 24 }}>
-                <button onClick={handleEmailLogin} disabled={!emailLogin||!emailPw} style={primaryBtnStyle(emailLogin&&emailPw)}>ログイン</button>
+                <button onClick={handleEmailLogin} disabled={!emailLogin||!emailPw} style={primaryBtnStyle(emailLogin&&emailPw)}>{t("setup.login")}</button>
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 14 }}>
                 <span style={{ color: T.txD, display: "flex" }}>{ICN.lock}</span>
-                <p style={{ fontSize: 11, color: T.txD, lineHeight: 1.6 }}>事前にISCTアカウントでメールアドレス連携が必要です</p>
+                <p style={{ fontSize: 11, color: T.txD, lineHeight: 1.6 }}>{t("setup.emailLinkRequired")}</p>
               </div>
             </>}
 
             <div style={{ textAlign: "center", marginTop: 20 }}>
-              <span style={{ fontSize: 13, color: T.txD }}>アカウントをお持ちでない方は</span>
-              <button onClick={() => { if (regLimited) return; setMode("signup"); setStep(0); setError(null); }} style={{ background: "none", border: "none", color: regLimited ? T.txD : T.accent, fontSize: 13, fontWeight: 600, cursor: regLimited ? "default" : "pointer", padding: "0 4px", opacity: regLimited ? 0.5 : 1 }}>{regLimited ? "新規登録（受付停止中）" : "新規登録"}</button>
+              <span style={{ fontSize: 13, color: T.txD }}>{t("setup.noAccount")}</span>
+              <button onClick={() => { if (regLimited) return; setMode("signup"); setStep(0); setError(null); }} style={{ background: "none", border: "none", color: regLimited ? T.txD : T.accent, fontSize: 13, fontWeight: 600, cursor: regLimited ? "default" : "pointer", padding: "0 4px", opacity: regLimited ? 0.5 : 1 }}>{regLimited ? t("setup.signupClosedFull") : t("setup.signup")}</button>
             </div>
           </div>
         </div>
@@ -950,16 +953,16 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
           <div style={bodyStyle}>
             <StepLabel n={1} total={5} />
             <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>ISCT LMS</h2>
-            <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>時間割・課題・教材の自動取得に必要です</p>
+            <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>{t("setup.isctDesc")}</p>
             <ErrorBanner error={error} />
             <div style={cardStyle}>
               <InputField label="Science Tokyo ID" value={isctId} onChange={e => setIsctId(e.target.value)} placeholder="abcd1234" />
-              <InputField label="パスワード" value={isctPw} onChange={e => setIsctPw(e.target.value)} placeholder="ISCTのパスワード" type="password" showToggle />
+              <InputField label={t("setup.password")} value={isctPw} onChange={e => setIsctPw(e.target.value)} placeholder={t("setup.isctPwPlaceholder")} type="password" showToggle />
               <TotpBlock totpSecret={totpSecret} setTotpSecret={setTotpSecret} showQR={showQR} setShowQR={setShowQR} />
             </div>
             {hasIsct && <DoneBanner />}
             <div style={{ marginTop: 24 }}>
-              <button onClick={nextStep} disabled={!hasIsct} style={primaryBtnStyle(hasIsct)}>次へ</button>
+              <button onClick={nextStep} disabled={!hasIsct} style={primaryBtnStyle(hasIsct)}>{t("setup.next")}</button>
             </div>
           </div>
         </div>
@@ -973,7 +976,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
 
             {/* ── ルート切り替えタブ ── */}
             <div style={{ display: "flex", gap: 0, marginBottom: 18, borderRadius: 10, background: T.bg3, padding: 3 }}>
-              {[["portal","理工学系（Portal）"],["med","医歯学系"]].map(([k,l])=>(
+              {[["portal",t("setup.routeSciEng")],["med",t("setup.routeMedDent")]].map(([k,l])=>(
                 <button key={k} onClick={()=>{setIsMedRoute(k==="med");setError(null);}}
                   style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none",
                     background: (isMedRoute ? "med" : "portal")===k ? T.bg2 : "transparent",
@@ -988,26 +991,26 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
             {/* ── 理工学系: Titech Portal ── */}
             {!isMedRoute && <>
               <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>Titech Portal</h2>
-              <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>成績情報の取得に必要です</p>
+              <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>{t("setup.portalDesc")}</p>
               <ErrorBanner error={error} />
               <div style={cardStyle}>
-                <InputField label="ポータル アカウント" value={portalId} onChange={e => setPortalId(e.target.value)} placeholder="学籍番号（例: 24B00001）" mono />
+                <InputField label={t("setup.portalAccount")} value={portalId} onChange={e => setPortalId(e.target.value)} placeholder={t("setup.studentIdPlaceholder")} mono />
                 {(() => {
                   const p = parseStudentId(portalId);
                   return p ? (
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {[`20${p.year}年入学`, DEGREE_MAP[p.degree], p.schoolLabel].filter(Boolean).map(t => (
-                        <span key={t} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: `${T.green}14`, color: T.green }}>{t}</span>
+                      {[t("setup.enrolledYear", { y: `20${p.year}` }), DEGREE_MAP[p.degree], p.schoolLabel].filter(Boolean).map(badge => (
+                        <span key={badge} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: `${T.green}14`, color: T.green }}>{badge}</span>
                       ))}
                     </div>
                   ) : null;
                 })()}
-                <InputField label="ポータル パスワード" value={portalPw} onChange={e => setPortalPw(e.target.value)} placeholder="ポータルのパスワード" type="password" showToggle />
+                <InputField label={t("setup.portalPassword")} value={portalPw} onChange={e => setPortalPw(e.target.value)} placeholder={t("setup.portalPwPlaceholder")} type="password" showToggle />
                 <MatrixInput matrix={matrix} setMatrix={setMatrix} />
               </div>
               {hasPortal && <DoneBanner />}
               <div style={{ marginTop: 24 }}>
-                <button onClick={nextStep} disabled={!hasPortal} style={primaryBtnStyle(hasPortal)}>次へ</button>
+                <button onClick={nextStep} disabled={!hasPortal} style={primaryBtnStyle(hasPortal)}>{t("setup.next")}</button>
               </div>
             </>}
 
@@ -1016,17 +1019,17 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
               const medParsed = parseStudentId(medStudentId);
               const autoDetected = medParsed && medParsed.deptKey;
               return <>
-              <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>医歯学系</h2>
-              <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>学籍番号を入力してください</p>
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>{t("setup.routeMedDent")}</h2>
+              <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>{t("setup.medIdPrompt")}</p>
               <ErrorBanner error={error} />
               <div style={cardStyle}>
-                <InputField label="学籍番号" value={medStudentId} onChange={e => setMedStudentId(e.target.value)} placeholder="例: 11220001 / 24B61001" mono />
+                <InputField label={t("setup.studentId")} value={medStudentId} onChange={e => setMedStudentId(e.target.value)} placeholder={t("setup.medIdPlaceholder")} mono />
 
                 {/* 自動検出バッジ */}
                 {autoDetected && (
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {[`20${medParsed.year}年入学`, DEGREE_MAP[medParsed.degree], SCHOOL_LABEL[medParsed.schoolKey], DEPTS[medParsed.deptKey]?.name].filter(Boolean).map(t => (
-                      <span key={t} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: `${T.green}14`, color: T.green }}>{t}</span>
+                    {[t("setup.enrolledYear", { y: `20${medParsed.year}` }), DEGREE_MAP[medParsed.degree], SCHOOL_LABEL[medParsed.schoolKey], locName(DEPTS[medParsed.deptKey])].filter(Boolean).map(badge => (
+                      <span key={badge} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: `${T.green}14`, color: T.green }}>{badge}</span>
                     ))}
                   </div>
                 )}
@@ -1035,9 +1038,9 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                 {!autoDetected && medParsed && !medParsed.isMedDental && <>
                   {/* 学部選択 */}
                   <div>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" }}>学部</label>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" }}>{t("setup.faculty")}</label>
                     <div style={{ display: "flex", gap: 6 }}>
-                      {[["medicine","医学部"],["dentistry","歯学部"]].map(([k,l])=>{
+                      {[["medicine",t("setup.facultyMed")],["dentistry",t("setup.facultyDent")]].map(([k,l])=>{
                         const s = SCHOOLS[k];
                         const on = medFaculty === k;
                         return (
@@ -1058,7 +1061,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                   {/* 学科・専攻選択 */}
                   {medFaculty && (
                     <div>
-                      <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" }}>学科・専攻</label>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" }}>{t("setup.deptMajor")}</label>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         {Object.entries(DEPTS).filter(([,d]) => d.school === medFaculty).map(([key, d]) => {
                           const on = medDept === key;
@@ -1071,7 +1074,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                                 color: on ? d.col : T.txH,
                                 fontSize: 13, fontWeight: on ? 700 : 500, cursor: "pointer",
                                 transition: "all .15s",
-                              }}>{d.name}</button>
+                              }}>{locName(d)}</button>
                           );
                         })}
                       </div>
@@ -1086,12 +1089,12 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
               }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                 <p style={{ fontSize: 11, color: T.txD, lineHeight: 1.6, margin: 0 }}>
-                  医歯学系にはTitech Portalが存在しないため、学籍番号のみで登録できます。成績照会機能は現在利用できません。
+                  {t("setup.medNoPortalNote")}
                 </p>
               </div>
               {hasMedId && <DoneBanner />}
               <div style={{ marginTop: 24 }}>
-                <button onClick={nextStep} disabled={!hasMedId} style={primaryBtnStyle(hasMedId)}>次へ</button>
+                <button onClick={nextStep} disabled={!hasMedId} style={primaryBtnStyle(hasMedId)}>{t("setup.next")}</button>
               </div>
             </>;
             })()}
@@ -1104,8 +1107,8 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
         <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           <div style={bodyStyle}>
             <StepLabel n={3} total={5} />
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>プロフィール</h2>
-            <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>学年情報を設定してください</p>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>{t("setup.profileTitle")}</h2>
+            <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>{t("setup.profileSubtitle")}</p>
             <ErrorBanner error={error} />
             {/* Year group — auto-detected or manual */}
             {(() => {
@@ -1114,13 +1117,13 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                 <div style={{ padding: 14, borderRadius: 12, border: `1px solid ${T.green}30`, background: `${T.green}06` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: T.green }}>学籍番号から自動検出</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: T.green }}>{t("setup.autoDetected")}</span>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     {[
-                      { label: "入学年度", value: `20${parsed.year}` },
-                      { label: "課程", value: DEGREE_MAP[parsed.degree] || parsed.degree },
-                      ...(parsed.schoolLabel ? [{ label: parsed.isMedDental ? "学部" : "学院", value: parsed.schoolLabel }] : []),
+                      { label: t("setup.enrollYear"), value: `20${parsed.year}` },
+                      { label: t("setup.degree"), value: DEGREE_MAP[parsed.degree] || parsed.degree },
+                      ...(parsed.schoolLabel ? [{ label: parsed.isMedDental ? t("setup.faculty") : t("setup.school"), value: parsed.schoolLabel }] : []),
                     ].map(item => (
                       <div key={item.label} style={{ flex: 1, padding: "10px 8px", borderRadius: 8, background: T.bg2, textAlign: "center" }}>
                         <div style={{ fontSize: 10, color: T.txD, marginBottom: 4, fontWeight: 500 }}>{item.label}</div>
@@ -1131,18 +1134,18 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                 </div>
               ) : (
                 <div style={{ padding: 14, borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg2 }}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 8, display: "block" }}>学年グループ</label>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 8, display: "block" }}>{t("setup.yearGroup")}</label>
                   <div onClick={() => setShowYG(p => !p)} style={{
                     padding: "12px 14px", borderRadius: 10, border: `1px solid ${T.bd}`,
                     background: T.bg3, cursor: "pointer", display: "flex",
                     justifyContent: "space-between", alignItems: "center",
                   }}>
-                    <span style={{ fontSize: 15, color: yearGroup ? T.txH : T.txD }}>{yearGroup || "選択してください"}</span>
+                    <span style={{ fontSize: 15, color: yearGroup ? T.txH : T.txD }}>{yearGroup || t("setup.pleaseSelect")}</span>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: showYG ? "rotate(180deg)" : "none", transition: "transform .15s" }}><polyline points="6 9 12 15 18 9" /></svg>
                   </div>
                   {showYG && (
                     <div style={{ marginTop: 10 }}>
-                      <div style={{ fontSize: 11, color: T.txD, marginBottom: 6, fontWeight: 500 }}>入学年度</div>
+                      <div style={{ fontSize: 11, color: T.txD, marginBottom: 6, fontWeight: 500 }}>{t("setup.enrollYear")}</div>
                       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
                         {["22", "23", "24", "25", "26"].map(y => {
                           const sel = yearGroup && yearGroup.slice(0, -1) === y;
@@ -1158,9 +1161,9 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                           );
                         })}
                       </div>
-                      <div style={{ fontSize: 11, color: T.txD, marginBottom: 6, fontWeight: 500 }}>課程</div>
+                      <div style={{ fontSize: 11, color: T.txD, marginBottom: 6, fontWeight: 500 }}>{t("setup.degree")}</div>
                       <div style={{ display: "flex", gap: 6 }}>
-                        {[["B", "学部"], ["M", "修士"], ["D", "博士"], ["R", "研究生"]].map(([k, l]) => {
+                        {[["B", t("setup.degreeB")], ["M", t("setup.degreeM")], ["D", t("setup.degreeD")], ["R", t("setup.degreeR")]].map(([k, l]) => {
                           const sel = yearGroup && yearGroup.endsWith(k);
                           return (
                             <button key={k} onClick={() => { if (!yearGroup) return; setYearGroup(yearGroup.slice(0, -1) + k); }} style={{
@@ -1182,34 +1185,34 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
             })()}
             {/* Connection summary */}
             <div style={{ marginTop: 16, padding: 14, borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg2 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 10 }}>接続設定</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 10 }}>{t("setup.connectionSettings")}</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 13, color: T.txH }}>ISCT LMS</span>
-                  <Badge ok={hasIsct} label={hasIsct ? "設定済み" : "未設定"} />
+                  <Badge ok={hasIsct} label={hasIsct ? t("setup.configured") : t("setup.notConfigured")} />
                 </div>
                 {!isMedRoute && (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 13, color: T.txH }}>Titech Portal</span>
-                    <Badge ok={hasPortal} label={hasPortal ? "設定済み" : "未設定"} />
+                    <Badge ok={hasPortal} label={hasPortal ? t("setup.configured") : t("setup.notConfigured")} />
                   </div>
                 )}
                 {isMedRoute && (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 13, color: T.txH }}>学籍番号</span>
-                    <Badge ok={hasMedId} label={hasMedId ? "設定済み" : "未設定"} />
+                    <span style={{ fontSize: 13, color: T.txH }}>{t("setup.studentId")}</span>
+                    <Badge ok={hasMedId} label={hasMedId ? t("setup.configured") : t("setup.notConfigured")} />
                   </div>
                 )}
               </div>
             </div>
             <div style={{ marginTop: 24 }}>
               <button onClick={handleSubmit} style={hasAny ? primaryBtnStyle(true) : mutedBtnStyle}>
-                {hasAny ? "登録して接続する" : "デモモードで始める"}
+                {hasAny ? t("setup.registerConnect") : t("setup.startDemo")}
               </button>
             </div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 12 }}>
               <span style={{ color: T.txD, display: "flex" }}>{ICN.lock}</span>
-              <p style={{ fontSize: 11, color: T.txD, lineHeight: 1.6 }}>認証情報はAES-256-GCMで暗号化して保存されます</p>
+              <p style={{ fontSize: 11, color: T.txD, lineHeight: 1.6 }}>{t("setup.encryptionNote")}</p>
             </div>
           </div>
         </div>
@@ -1235,17 +1238,17 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
             <div style={bodyStyle}>
               <StepLabel n={4} total={5} />
               <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>
-                {isMedSchool ? "所属学科" : isFirstYear ? "志望系・ユニット" : "所属系・ユニット"}
+                {isMedSchool ? t("setup.deptTitleMed") : isFirstYear ? t("setup.deptTitlePref") : t("setup.deptTitleAffil")}
               </h2>
               <p style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.5 }}>
-                {isMedSchool ? "所属する学科を選んでください" : isFirstYear ? "志望する系とユニットを設定してください" : "所属する系を選んでください"}
+                {isMedSchool ? t("setup.deptSubMed") : isFirstYear ? t("setup.deptSubPref") : t("setup.deptSubAffil")}
               </p>
 
               {/* 系選択 */}
               <div style={cardStyle}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <label style={{ fontSize: 12, fontWeight: 600, color: T.txD }}>
-                    {isMedSchool ? "学科・専攻" : isFirstYear ? "志望系" : "所属系"}
+                    {isMedSchool ? t("setup.deptMajor") : isFirstYear ? t("setup.prefDept") : t("setup.affilDept")}
                   </label>
                   {sd && !showSchoolPicker && (
                     <span style={{
@@ -1258,7 +1261,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                 {/* 転院モード: 学院選択 */}
                 {showSchoolPicker && (
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 500, color: T.txD, marginBottom: 6 }}>{isMedSchool ? "学部" : "学院"}</div>
+                    <div style={{ fontSize: 11, fontWeight: 500, color: T.txD, marginBottom: 6 }}>{isMedSchool ? t("setup.faculty") : t("setup.school")}</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {Object.entries(SCHOOLS).map(([sk, sv]) => {
                         const on = setupDeptSchool === sk;
@@ -1278,7 +1281,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                     {setupTransfer && (
                       <button onClick={() => { setSetupTransfer(false); setSetupDeptSchool(school); setSetupDept(null); }}
                         style={{ background: "none", border: "none", color: T.txD, fontSize: 11, cursor: "pointer", padding: "6px 0 0" }}>
-                        キャンセル
+                        {t("common.cancel")}
                       </button>
                     )}
                   </div>
@@ -1287,7 +1290,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                 {/* 学系ボタン */}
                 {depts.length > 0 && (
                   <div>
-                    {showSchoolPicker && <div style={{ fontSize: 11, fontWeight: 500, color: T.txD, marginBottom: 6 }}>{isMedSchool ? "学科・専攻" : "学系"}</div>}
+                    {showSchoolPicker && <div style={{ fontSize: 11, fontWeight: 500, color: T.txD, marginBottom: 6 }}>{isMedSchool ? t("setup.deptMajor") : t("setup.deptField")}</div>}
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {depts.map(([prefix, d]) => {
                         const sel = setupDept === prefix;
@@ -1312,7 +1315,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                             color: T.txD,
                             fontSize: 13, fontWeight: setupDept === "none" ? 700 : 500, cursor: "pointer",
                             transition: "all .15s",
-                          }}>未所属</button>
+                          }}>{t("setup.unaffiliated")}</button>
                       )}
                     </div>
                   </div>
@@ -1326,7 +1329,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                       fontSize: 12, fontWeight: 500, cursor: "pointer",
                       padding: "2px 0", textAlign: "left", display: "flex", alignItems: "center", gap: 4,
                     }}>
-                    転院した方はこちら
+                    {t("setup.transferHere")}
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                   </button>
                 )}
@@ -1335,7 +1338,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
               {/* ユニット */}
               <div style={{ ...cardStyle, marginTop: 12 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: T.txD }}>
-                  ユニット{isFirstYear ? "" : "（任意）"}
+                  {t("setup.unit")}{isFirstYear ? "" : t("setup.optionalSuffix")}
                 </label>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{
@@ -1346,7 +1349,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                   <span style={{ fontSize: 16, color: T.txD, fontWeight: 300 }}>/</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
                     <span style={{ fontSize: 13, color: T.txD, fontWeight: 500, flexShrink: 0 }}>U</span>
-                    <input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="番号"
+                    <input type="text" inputMode="numeric" pattern="[0-9]*" placeholder={t("setup.unitNumberPlaceholder")}
                       value={setupUnitNum} onChange={e => setSetupUnitNum(e.target.value.replace(/[^0-9]/g, ""))}
                       style={{
                         width: 56, padding: "9px 0", borderRadius: 8,
@@ -1363,10 +1366,10 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                   if (setupDept && setupDept !== "none") updateUserPref({ myDept: setupDept });
                   if (yearGroup && setupUnitNum) updateUserPref({ myUnit: `${yearGroup}-${setupUnitNum}` });
                   setStep(4);
-                }} style={primaryBtnStyle(true)}>次へ</button>
+                }} style={primaryBtnStyle(true)}>{t("setup.next")}</button>
                 <button onClick={() => setStep(4)}
                   style={{ background: "none", border: "none", color: T.txD, fontSize: 13, cursor: "pointer", padding: "8px 0" }}>
-                  スキップ
+                  {t("setup.skip")}
                 </button>
               </div>
             </div>
@@ -1379,13 +1382,13 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
         <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           <div style={bodyStyle}>
             <StepLabel n={5} total={5} />
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>メールアドレス連携</h2>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: T.txH, margin: "0 0 6px" }}>{t("setup.emailLinkTitle")}</h2>
             <div style={{ fontSize: 13, color: T.txD, margin: "0 0 20px", lineHeight: 1.6 }}>
-              <p style={{ margin: "0 0 10px" }}>メールアドレスを連携すると、次回以降のログインがもっと便利になります：</p>
+              <p style={{ margin: "0 0 10px" }}>{t("setup.emailLinkIntro")}</p>
               <ul style={{ margin: 0, paddingLeft: 20 }}>
-                <li>TOTPシークレットの入力が不要になります</li>
-                <li>メール＋パスワードだけでログインできます</li>
-                <li>どの端末からでもすぐにログイン可能</li>
+                <li>{t("setup.emailBenefit1")}</li>
+                <li>{t("setup.emailBenefit2")}</li>
+                <li>{t("setup.emailBenefit3")}</li>
               </ul>
             </div>
             <ErrorBanner error={error} />
@@ -1397,22 +1400,22 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
               }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: T.green }}>メール連携完了</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: T.green }}>{t("setup.emailLinkDone")}</div>
                   <div style={{ fontSize: 12, color: T.txD, marginTop: 2 }}>{setupEmail}</div>
                 </div>
               </div>
             ) : !emailPending ? (
               <div style={cardStyle}>
-                <InputField label="メールアドレス" value={setupEmail}
+                <InputField label={t("setup.email")} value={setupEmail}
                   onChange={e => setSetupEmail(e.target.value)}
                   placeholder="example@m.isct.ac.jp" type="email" />
-                <InputField label="ログイン用パスワード" value={setupEmailPw}
+                <InputField label={t("setup.loginPassword")} value={setupEmailPw}
                   onChange={e => setSetupEmailPw(e.target.value)}
-                  placeholder="8文字以上" type="password" showToggle
-                  note="ISCTのパスワードとは別に、このアプリ用のパスワードを設定します" />
+                  placeholder={t("setup.pwMin8")} type="password" showToggle
+                  note={t("setup.appPwNote")} />
                 <button onClick={async () => {
-                  if (!setupEmail || !setupEmailPw) { setError("メールアドレスとパスワードを入力してください"); return; }
-                  if (setupEmailPw.length < 8) { setError("パスワードは8文字以上にしてください"); return; }
+                  if (!setupEmail || !setupEmailPw) { setError(t("setup.errEmailPwRequired")); return; }
+                  if (setupEmailPw.length < 8) { setError(t("setup.errPwMin8")); return; }
                   setEmailSaving(true); setError(null);
                   try {
                     const r = await fetch(`${API}/api/auth/email/link`, {
@@ -1421,7 +1424,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                       body: JSON.stringify({ email: setupEmail, password: setupEmailPw }),
                     });
                     const d = await r.json();
-                    if (!r.ok) throw new Error(d.error || "送信に失敗しました");
+                    if (!r.ok) throw new Error(d.error || t("setup.errSendFailed"));
                     setEmailPending(true);
                   } catch (e) { setError(e.message); }
                   setEmailSaving(false);
@@ -1430,19 +1433,19 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                     ...primaryBtnStyle(setupEmail && setupEmailPw && !emailSaving),
                     padding: "12px 0", fontSize: 14,
                   }}>
-                  {emailSaving ? "送信中..." : "確認コードを送信"}
+                  {emailSaving ? t("setup.sending") : t("setup.sendCode")}
                 </button>
               </div>
             ) : (
               <div style={cardStyle}>
                 <p style={{ fontSize: 13, color: T.txD, lineHeight: 1.6 }}>
-                  <strong style={{ color: T.txH }}>{setupEmail}</strong> に6桁の確認コードを送信しました
+                  <strong style={{ color: T.txH }}>{setupEmail}</strong>{t("setup.codeSentSuffix")}
                 </p>
-                <InputField label="確認コード" value={emailCode}
+                <InputField label={t("setup.verifyCode")} value={emailCode}
                   onChange={e => setEmailCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
                   placeholder="123456" mono />
                 <button onClick={async () => {
-                  if (emailCode.length !== 6) { setError("6桁のコードを入力してください"); return; }
+                  if (emailCode.length !== 6) { setError(t("setup.errCode6")); return; }
                   setEmailSaving(true); setError(null);
                   try {
                     const r = await fetch(`${API}/api/auth/email/verify`, {
@@ -1451,7 +1454,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                       body: JSON.stringify({ email: setupEmail, code: emailCode }),
                     });
                     const d = await r.json();
-                    if (!r.ok) throw new Error(d.error || "認証に失敗しました");
+                    if (!r.ok) throw new Error(d.error || t("setup.errVerifyFailed"));
                     setEmailVerified(true);
                   } catch (e) { setError(e.message); }
                   setEmailSaving(false);
@@ -1460,22 +1463,22 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                     ...primaryBtnStyle(emailCode.length === 6 && !emailSaving),
                     padding: "12px 0", fontSize: 14,
                   }}>
-                  {emailSaving ? "確認中..." : "認証する"}
+                  {emailSaving ? t("setup.verifying") : t("setup.verify")}
                 </button>
                 <button onClick={() => { setEmailPending(false); setEmailCode(""); setError(null); }}
                   style={{ background: "none", border: "none", color: T.txD, fontSize: 12, cursor: "pointer", padding: "4px 0" }}>
-                  メールアドレスを変更する
+                  {t("setup.changeEmail")}
                 </button>
               </div>
             )}
 
             <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 8 }}>
               <button onClick={onComplete} style={primaryBtnStyle(true)}>
-                {emailVerified ? "アプリを始める" : "アプリを始める"}
+                {t("setup.startApp")}
               </button>
               {!emailVerified && (
                 <p style={{ fontSize: 11, color: T.txD, textAlign: "center", lineHeight: 1.6 }}>
-                  あとからプロフィール画面で設定することもできます
+                  {t("setup.laterInProfile")}
                 </p>
               )}
             </div>
@@ -1503,7 +1506,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                 background: "none", border: "none", color: T.txD,
                 cursor: "pointer", display: "flex", padding: 4,
               }}>{I.back}</button>
-              <span style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>プライバシーポリシー</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("setup.privacy")}</span>
               <div style={{ width: 28 }} />
             </div>
           </div>
@@ -1520,7 +1523,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
               width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
               background: T.accent, color: "#fff", fontSize: 15, fontWeight: 700,
               cursor: "pointer",
-            }}>同意して閉じる</button>
+            }}>{t("setup.agreeAndClose")}</button>
           </div>
         </div>
       )}
@@ -1543,7 +1546,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                 background: "none", border: "none", color: T.txD,
                 cursor: "pointer", display: "flex", padding: 4,
               }}>{I.back}</button>
-              <span style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>利用規約</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("setup.terms")}</span>
               <div style={{ width: 28 }} />
             </div>
           </div>
@@ -1560,7 +1563,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
               width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
               background: T.accent, color: "#fff", fontSize: 15, fontWeight: 700,
               cursor: "pointer",
-            }}>同意して閉じる</button>
+            }}>{t("setup.agreeAndClose")}</button>
           </div>
         </div>
       )}

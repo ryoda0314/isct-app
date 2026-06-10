@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { PERIOD_TIMES } from "../examData.js";
 import { isDemoMode } from "../demoMode.js";
@@ -16,18 +17,18 @@ const fmtDate = d => {
 const fmtDateFull = d => {
   const dt = new Date(d + "T00:00:00");
   const days = ["日", "月", "火", "水", "木", "金", "土"];
-  return `${dt.getMonth() + 1}月${dt.getDate()}日(${days[dt.getDay()]})`;
+  return t("exam.dateFull", { m: dt.getMonth() + 1, d: dt.getDate(), dow: t("dow.s." + days[dt.getDay()]) });
 };
 
 const countdownText = dateStr => {
   const now = new Date();
   const target = new Date(dateStr + "T00:00:00");
   const diff = target.getTime() - now.getTime();
-  if (diff < 0) return "終了";
+  if (diff < 0) return t("exam.ended");
   const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-  if (days === 0) return "今日";
-  if (days === 1) return "明日";
-  return `あと${days}日`;
+  if (days === 0) return t("exam.today");
+  if (days === 1) return t("exam.tomorrow");
+  return t("exam.daysLeft", { days });
 };
 
 // 期末試験の年度/クォーターと、履修コースの年度/クォーターを正規化して比較する
@@ -159,7 +160,7 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
     return myExams.find(e => e.date >= todayStr) || null;
   }, [myExams]);
 
-  const label = selYear && selQ ? `${selYear}年度 ${selQ} 期末試験` : "期末試験";
+  const label = selYear && selQ ? t("exam.titleYQ", { year: selYear, q: selQ }) : t("exam.title");
 
   const ExamCard = ({ exam }) => {
     const c = codeMap[exam.code];
@@ -176,7 +177,7 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
         transition: "all .15s"
       }}>
         <div style={{ flexShrink: 0, width: mob ? 56 : 64, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 }}>
-          <div style={{ fontSize: mob ? 11 : 12, fontWeight: 700, color: col }}>{exam.period}限</div>
+          <div style={{ fontSize: mob ? 11 : 12, fontWeight: 700, color: col }}>{t("exam.period", { n: exam.period })}</div>
           <div style={{ fontSize: 10, color: T.txD }}>{timeStr}</div>
         </div>
         <div style={{ width: 3, borderRadius: 2, background: col, flexShrink: 0 }} />
@@ -186,7 +187,7 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
             {isMyExam && <span style={{
               fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
               background: `${col}20`, color: col
-            }}>履修中</span>}
+            }}>{t("exam.enrolled")}</span>}
           </div>
           <div style={{
             fontSize: mob ? 13 : 14, fontWeight: 600, color: T.txH, marginTop: 2,
@@ -212,9 +213,9 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
         <div style={{ flex: 1, minWidth: 0 }}>
           <h2 style={{ margin: 0, fontSize: mob ? 18 : 20, fontWeight: 800, color: T.txH }}>{label}</h2>
           <div style={{ fontSize: 12, color: T.txD, marginTop: 2 }}>
-            {loading ? "読み込み中..." : myExams.length > 0
-              ? `${myExams.length}件の試験が見つかりました`
-              : "履修科目の試験はありません"}
+            {loading ? t("common.loading") : myExams.length > 0
+              ? t("exam.foundCount", { n: myExams.length })
+              : t("exam.noMyExams")}
           </div>
         </div>
         {/* クォーターセレクター */}
@@ -230,7 +231,7 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
           >
             {quarters.map(q => (
               <option key={`${q.year}_${q.quarter}`} value={`${q.year}_${q.quarter}`}>
-                {q.year}年度 {q.quarter}
+                {t("exam.yearQuarter", { year: q.year, q: q.quarter })}
               </option>
             ))}
           </select>
@@ -254,7 +255,7 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
               </svg>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, color: T.txD }}>次の試験</div>
+              <div style={{ fontSize: 11, color: T.txD }}>{t("exam.nextExam")}</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>{nextExam.name}</div>
             </div>
             <div style={{
@@ -279,34 +280,34 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
           background: !showAll ? `${T.accent}15` : T.bg2, color: !showAll ? T.accent : T.txD,
           fontSize: 12, fontWeight: 600, cursor: "pointer"
         }}>
-          マイ試験 ({myExams.length})
+          {t("exam.myExams", { n: myExams.length })}
         </button>
         <button onClick={() => setShowAll(true)} style={{
           padding: "6px 14px", borderRadius: 8, border: `1px solid ${showAll ? T.accent : T.bd}`,
           background: showAll ? `${T.accent}15` : T.bg2, color: showAll ? T.accent : T.txD,
           fontSize: 12, fontWeight: 600, cursor: "pointer"
         }}>
-          全試験一覧 ({allExams.length})
+          {t("exam.allExams", { n: allExams.length })}
         </button>
       </div>
 
       {/* 試験一覧 (日付グループ) */}
       {loading && (
-        <div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 14 }}>読み込み中...</div>
+        <div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 14 }}>{t("common.loading")}</div>
       )}
 
       {!loading && grouped.length === 0 && (
         <div style={{
           textAlign: "center", padding: 40, color: T.txD, fontSize: 14
         }}>
-          {showAll ? "試験データがありません" : "履修科目に該当する試験がありません"}
+          {showAll ? t("exam.noExamData") : t("exam.noMatchingExams")}
         </div>
       )}
 
       {!loading && grouped.map(([date, exams]) => {
         const dayCol = DAY_COLORS[exams[0]?.day] || T.accent;
         const cd = countdownText(date);
-        const isPast = cd === "終了";
+        const isPast = cd === t("exam.ended");
         return (
           <div key={date} style={{ marginBottom: 20, opacity: isPast ? 0.5 : 1 }}>
             <div style={{

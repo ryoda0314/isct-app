@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { T, updateT, ACCENT_PRESETS, isDarkMode, THEME_MODES } from "./theme.js";
+import { setLang, detectLang, t, locName } from "./i18n.js";
 import FogOverlay from "./components/FogOverlay.jsx";
 import { I } from "./icons.jsx";
 import { QData, ASGN0, MYTK0, EVENTS0, REVIEWS0, MYEVENTS0, SCHOOLS, DEPTS, UNIT_COL, evCat } from "./data.js";
@@ -148,6 +149,7 @@ export default function App(){
   const user=useCurrentUser(ready);
   const [themePref,setThemePref]=useState(()=>{try{const v=localStorage.getItem("themePref");if(v)return v;return "tsubame";}catch{return "tsubame";}});
   const [accentPref,setAccentPref]=useState(()=>{try{return localStorage.getItem("accentPref")||"default";}catch{return "default";}});
+  const [langPref,setLangPref]=useState(()=>{try{return localStorage.getItem("langPref")||detectLang();}catch{return "ja";}});
   const [sysDark,setSysDark]=useState(()=>typeof window!=="undefined"&&window.matchMedia?.("(prefers-color-scheme: dark)").matches);
   useEffect(()=>{
     const mq=window.matchMedia?.("(prefers-color-scheme: dark)");
@@ -158,9 +160,11 @@ export default function App(){
   },[]);
   useEffect(()=>{try{localStorage.setItem("themePref",themePref);}catch{}},[themePref]);
   useEffect(()=>{try{localStorage.setItem("accentPref",accentPref);}catch{}},[accentPref]);
+  useEffect(()=>{try{localStorage.setItem("langPref",langPref);}catch{}try{document.documentElement.lang=langPref;}catch{}},[langPref]);
   const themeMode=themePref==="auto"?(sysDark?"dark":"light"):themePref;
   const dark=isDarkMode(themeMode);
   updateT(themeMode,accentPref);
+  setLang(langPref);
   updateStatusBarTheme(T.bg2);
   useEffect(()=>{document.documentElement.style.background=T.bg;document.body.style.background=T.bg;},[themeMode,accentPref]);
   const [mockMode,setMockMode]=useState(false);
@@ -781,7 +785,7 @@ export default function App(){
   };
 
   // Course header (gradient banner + equal-width icon+label tabs)
-  const cTabs=[{id:"materials",l:"教材",i:I.clip},{id:"assignments",l:"課題",i:I.tasks},{id:"timeline",l:"フィード",i:I.feed},{id:"chat",l:"チャット",i:I.chat},{id:"reviews",l:"レビュー",i:I.star}];
+  const cTabs=[{id:"materials",l:t("chan.materials"),i:I.clip},{id:"assignments",l:t("chan.assignments"),i:I.tasks},{id:"timeline",l:t("chan.feed"),i:I.feed},{id:"chat",l:t("chan.chat"),i:I.chat},{id:"reviews",l:t("chan.reviews"),i:I.star}];
   const openLms=async()=>{
     if(!cc?.moodleId||lmsLoading) return;
     const url=`https://lms.s.isct.ac.jp/2025/course/view.php?id=${cc.moodleId}`;
@@ -811,13 +815,13 @@ export default function App(){
               <div style={{fontSize:12,color:T.txD,marginTop:1}}>{cc.name}</div>
             </div>
             <button onClick={()=>setShowMembers(true)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.users}{members.length>0&&<span style={{position:"absolute",top:-4,right:-6,minWidth:14,height:14,borderRadius:7,background:cc.col,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{members.length}</span>}</button>
-            {cc.moodleId&&<button onClick={openLms} disabled={lmsLoading} title="LMSで開く" style={{display:"flex",alignItems:"center",gap:4,background:`${cc.col}18`,border:`1px solid ${cc.col}40`,borderRadius:8,color:cc.col,cursor:lmsLoading?"wait":"pointer",padding:"5px 9px",fontSize:11,fontWeight:700,opacity:lmsLoading?.6:1}}>{I.book}<span>{lmsLoading?"...":"LMS"}</span></button>}
+            {cc.moodleId&&<button onClick={openLms} disabled={lmsLoading} title={t("chan.openLms")} style={{display:"flex",alignItems:"center",gap:4,background:`${cc.col}18`,border:`1px solid ${cc.col}40`,borderRadius:8,color:cc.col,cursor:lmsLoading?"wait":"pointer",padding:"5px 9px",fontSize:11,fontWeight:700,opacity:lmsLoading?.6:1}}>{I.book}<span>{lmsLoading?"...":"LMS"}</span></button>}
             <button style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.more}</button>
           </div>
         </div>
       </div>
       <div style={{display:"flex",background:T.bg2,borderBottom:`1px solid ${T.bd}`}}>
-        {cTabs.map(t=><button key={t.id} onClick={()=>setCh(t.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"8px 4px",border:"none",borderBottom:ch===t.id?`2px solid ${cc.col}`:"2px solid transparent",background:"transparent",color:ch===t.id?cc.col:T.txD,fontSize:10,fontWeight:ch===t.id?600:400,cursor:"pointer"}}><span style={{display:"flex",transform:ch===t.id?"scale(1.15)":"scale(1)",transition:"transform .15s"}}>{t.i}</span><span>{t.l}</span></button>)}
+        {cTabs.map(tab=><button key={tab.id} onClick={()=>setCh(tab.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"8px 4px",border:"none",borderBottom:ch===tab.id?`2px solid ${cc.col}`:"2px solid transparent",background:"transparent",color:ch===tab.id?cc.col:T.txD,fontSize:10,fontWeight:ch===tab.id?600:400,cursor:"pointer"}}><span style={{display:"flex",transform:ch===tab.id?"scale(1.15)":"scale(1)",transition:"transform .15s"}}>{tab.i}</span><span>{tab.l}</span></button>)}
       </div>
     </div>;
   };
@@ -940,7 +944,7 @@ export default function App(){
     const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",acadCal:"学年暦",exams:"期末試験",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",navigation:"キャンパスナビ",friends:"友達",circles:"サークル",admin:"管理者",freshman:"新入生掲示板",reg:"履修登録補助",freeroom:"空き教室",attendance:"出欠管理",music:"ミュージック",pdftools:"PDF結合"};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:"タイムライン",chat:"チャット",assignments:"課題",materials:"教材",reviews:"レビュー"}[ch]}</>;
-      if(view==="dept"&&cd){const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?cd.name:cd.prefix}</span> {nameOnly?"":`${cd.name} `}— {{timeline:"タイムライン",chat:"チャット"}[ch]||""}</>;}
+      if(view==="dept"&&cd){const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?locName(cd):cd.prefix}</span> {nameOnly?"":`${locName(cd)} `}— {{timeline:t("chan.timeline"),chat:t("chan.chat")}[ch]||""}</>;}
       return titles[view]||"";
     };
     return(
@@ -953,35 +957,35 @@ export default function App(){
           <DTop title={dTitle()} color={view==="course"&&cc?cc.col:view==="dept"&&cd?cd.col:undefined}/>
           {lmsDownBanner}
           {view==="home"&&<HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit} medSessions={medSessions} setPendingMat={setPendingMat}/>}
-  {view==="timetable"&&(L?<LockedView title="時間割"/>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob={false} quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
-          {view==="med-tt"&&(L?<LockedView title="医歯学時間割"/>:<MedTTView courses={medRawCourses} mob={false} setCid={setCid} setView={setView} setCh={setCh} demoKey={demoMedKey} asgn={asgn} hiddenSet={hiddenSet} onRefresh={fetchData}/>)}
-          {view==="tasks"&&(L?<LockedView title="課題管理"/>:<AsgnView asgn={asgn} setAsgn={setAsgn} mob={false} myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/>)}
-          {view==="course"&&(L?<LockedView title="コース"/>:cc&&courseContent())}
-          {view==="dept"&&(L?<LockedView title="学系"/>:cd&&deptContent())}
-          {view==="friends"&&(L?<LockedView title="友達"/>:<FriendsView mob={false} setView={setView} {...friendProps}/>)}
-          {view==="dm"&&(L?<LockedView title="DM"/>:TR?<TelecomBlockView title="DMは現在利用できません"/>:<DMView mob={false} setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/>)}
-          {view==="pocket"&&(L?<LockedView title="ポケット"/>:<PocketView mob={false}/>)}
-          {view==="music"&&(L?<LockedView title="ミュージック"/>:<MusicView mob={false}/>)}
-          {view==="pdftools"&&(L?<LockedView title="PDF結合"/>:<PdfToolsView mob={false}/>)}
-          {view==="notif"&&(L?<LockedView title="通知"/>:<NotifView mob={false}/>)}
-          {view==="grades"&&(L?<LockedView title="成績"/>:<GradeView mob={false}/>)}
+  {view==="timetable"&&(L?<LockedView title={t("nav.timetable")}/>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob={false} quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
+          {view==="med-tt"&&(L?<LockedView title={t("nav.medTimetable")}/>:<MedTTView courses={medRawCourses} mob={false} setCid={setCid} setView={setView} setCh={setCh} demoKey={demoMedKey} asgn={asgn} hiddenSet={hiddenSet} onRefresh={fetchData}/>)}
+          {view==="tasks"&&(L?<LockedView title={t("header.taskMgmt")}/>:<AsgnView asgn={asgn} setAsgn={setAsgn} mob={false} myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/>)}
+          {view==="course"&&(L?<LockedView title={t("header.course")}/>:cc&&courseContent())}
+          {view==="dept"&&(L?<LockedView title={t("sidebar.depts")}/>:cd&&deptContent())}
+          {view==="friends"&&(L?<LockedView title={t("nav.friends")}/>:<FriendsView mob={false} setView={setView} {...friendProps}/>)}
+          {view==="dm"&&(L?<LockedView title="DM"/>:TR?<TelecomBlockView title={t("telecom.dmUnavailable")}/>:<DMView mob={false} setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/>)}
+          {view==="pocket"&&(L?<LockedView title={t("nav.pocket")}/>:<PocketView mob={false}/>)}
+          {view==="music"&&(L?<LockedView title={t("tool.music")}/>:<MusicView mob={false}/>)}
+          {view==="pdftools"&&(L?<LockedView title={t("nav.pdftools")}/>:<PdfToolsView mob={false}/>)}
+          {view==="notif"&&(L?<LockedView title={t("nav.notif")}/>:<NotifView mob={false}/>)}
+          {view==="grades"&&(L?<LockedView title={t("tool.grades")}/>:<GradeView mob={false}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
-          {view==="calendar"&&(L?<LockedView title="カレンダー"/>:<CalendarView myEvents={myEvents} setMyEvents={setMyEvents} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob={false} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} medSessions={medSessions}/>)}
+          {view==="calendar"&&(L?<LockedView title={t("nav.calendar")}/>:<CalendarView myEvents={myEvents} setMyEvents={setMyEvents} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob={false} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} medSessions={medSessions}/>)}
           {view==="events"&&<EventView events={allEvents} mob={false} rsvps={rsvps} onRsvp={handleRsvp}/>}
-          {view==="reviews"&&(L?<LockedView title="授業レビュー"/>:<ReviewView reviews={reviews} setReviews={setReviews} mob={false} courses={allCourses}/>)}
-          {view==="bmarks"&&(L?<LockedView title="ブックマーク"/>:<BookmarkView bmarks={bmarks} mob={false} setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/>)}
-          {view==="attendance"&&(L?<LockedView title="出欠管理"/>:renderAttendance(false))}
-          {view==="search"&&(L?<LockedView title="検索"/>:<SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses}/>)}
-          {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/>}
+          {view==="reviews"&&(L?<LockedView title={t("tool.reviews")}/>:<ReviewView reviews={reviews} setReviews={setReviews} mob={false} courses={allCourses}/>)}
+          {view==="bmarks"&&(L?<LockedView title={t("tool.bmarks")}/>:<BookmarkView bmarks={bmarks} mob={false} setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/>)}
+          {view==="attendance"&&(L?<LockedView title={t("nav.attendance")}/>:renderAttendance(false))}
+          {view==="search"&&(L?<LockedView title={t("nav.search")}/>:<SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses}/>)}
+          {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/>}
           {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/>}
           {view==="takiplaza"&&(L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob={false} onNavigate={goToBuilding}/>)}
-          {view==="circles"&&(TR?<TelecomBlockView title="サークルは現在利用できません"/>:<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs}/>)}
+          {view==="circles"&&(TR?<TelecomBlockView title={t("telecom.circlesUnavailable")}/>:<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs}/>)}
           {view==="acadCal"&&<AcademicCalendarView mob={false}/>}
-          {view==="exams"&&(L?<LockedView title="期末試験"/>:<ExamView courses={allCourses} mob={false} goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/>)}
-          {view==="freeroom"&&(L?<LockedView title="空き教室"/>:<FreeRoomView mob={false} goToBuilding={goToBuilding}/>)}
+          {view==="exams"&&(L?<LockedView title={t("tool.exams")}/>:<ExamView courses={allCourses} mob={false} goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/>)}
+          {view==="freeroom"&&(L?<LockedView title={t("tool.freeroom")}/>:<FreeRoomView mob={false} goToBuilding={goToBuilding}/>)}
           {view==="reg"&&<RegView mob={false}/>}
-          {view==="textbooks"&&(L?<LockedView title="マイ教科書"/>:<TextbooksView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/>)}
-          {view==="grading"&&(L?<LockedView title="成績割合"/>:<GradingView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/>)}
+          {view==="textbooks"&&(L?<LockedView title={t("nav.textbooks")}/>:<TextbooksView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/>)}
+          {view==="grading"&&(L?<LockedView title={t("nav.grading")}/>:<GradingView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/>)}
           {view==="admin"&&<AdminView mob={false} courses={allCourses} depts={userDepts} schools={userSchools}/>}
           {view==="freshman"&&<FreshmanBoardView mob={false} loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/>}
         </div>
@@ -1003,39 +1007,39 @@ export default function App(){
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0,position:"relative"}}>
         {lmsDownBanner}
         {view==="home"&&<><MHdr title="ScienceTokyo App" right={<div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>setView("notif")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</button><button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button><button onClick={()=>setView("profile")} style={{background:"none",border:"none",cursor:"pointer",display:"flex",padding:0}}><Av u={user} sz={26}/></button></div>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} setPendingMat={setPendingMat} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit} medSessions={medSessions}/></>}
-        {view==="timetable"&&(L?<><MHdr title="時間割"/><LockedView title="時間割"/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
-        {view==="med-tt"&&(L?<><MHdr title="医歯学時間割"/><LockedView title="医歯学時間割"/></>:<><MHdr title="医歯学時間割"/><MedTTView courses={medRawCourses} mob setCid={setCid} setView={setView} setCh={setCh} demoKey={demoMedKey} asgn={asgn} hiddenSet={hiddenSet} onRefresh={fetchData}/></>)}
-        {view==="tasks"&&(L?<><MHdr title="課題管理"/><LockedView title="課題管理"/></>:<><MHdr title="課題管理"/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/></>)}
-        {view==="courseSelect"&&(L?<><MHdr title="コース・学院・学系"/><LockedView title="コース"/></>:<><MHdr title="コース・学院・学系"/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={allCourses} depts={userDepts} schools={userSchools} setDid={setDid} userUnit={userUnit} medSessions={medSessions}/></>)}
-        {view==="course"&&(L?<><MHdr title="コース" back={goBack}/><LockedView title="コース"/></>:cc&&<><CourseHdr/>{courseContent()}</>)}
-        {view==="dept"&&(L?<><MHdr title="学系" back={goBack}/><LockedView title="学系"/></>:cd&&<><MHdr title={<>{(()=>{const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?cd.name:cd.prefix}</span>{!nameOnly&&<span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{cd.name}</span>}</>;})()}</>} back={goBack} right={<button onClick={()=>setShowMembers(true)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.users}{deptMembers.length>0&&<span style={{position:"absolute",top:-4,right:-6,minWidth:14,height:14,borderRadius:7,background:cd.col||T.accent,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{deptMembers.length}</span>}</button>}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:"タイムライン",i:I.feed},{id:"chat",l:"チャット",i:I.chat}].map(t=><button key={t.id} onClick={()=>setCh(t.id)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===t.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===t.id?T.txH:T.txD,fontSize:13,fontWeight:ch===t.id?600:400,cursor:"pointer"}}>{t.i}<span>{t.l}</span></button>)}</div>{deptContent()}</>)}
-        {view==="moreMenu"&&<><MHdr title="その他"/><MoreMenu setView={setView} unreadN={unreadN} pendingFriendCount={pendingFriendCount} dmUnread={dmUnread} isAdmin={!!user.isAdmin}/></>}
-        {view==="friends"&&(L?<><MHdr title="友達" back={mBack}/><LockedView title="友達"/></>:<><MHdr title="友達" back={mBack}/><FriendsView mob setView={setView} {...friendProps}/></>)}
-        {view==="dm"&&(L?<><MHdr title="DM"/><LockedView title="DM"/></>:TR?<><MHdr title="DM"/><TelecomBlockView title="DMは現在利用できません" onBack={goBack}/></>:<><MHdr title="DM"/><DMView mob setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/></>)}
-        {view==="pocket"&&(L?<><MHdr title="ポケット" back={mBack}/><LockedView title="ポケット"/></>:<><MHdr title="ポケット" back={mBack}/><PocketView mob/></>)}
-        {view==="music"&&(L?<><MHdr title="ミュージック" back={mBack}/><LockedView title="ミュージック"/></>:<><MHdr title="ミュージック" back={mBack}/><MusicView mob/></>)}
-        {view==="pdftools"&&(L?<><MHdr title="PDF結合" back={mBack}/><LockedView title="PDF結合"/></>:<><MHdr title="PDF結合" back={mBack}/><PdfToolsView mob/></>)}
-        {view==="notif"&&(L?<><MHdr title="通知" back={mBack}/><LockedView title="通知"/></>:<><MHdr title="通知" back={mBack}/><NotifView mob/></>)}
-        {view==="grades"&&(L?<><MHdr title="成績" back={mBack}/><LockedView title="成績"/></>:<><MHdr title="成績" back={mBack}/><GradeView mob/></>)}
-        {view==="pomo"&&<><MHdr title="ポモドーロ" back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
-        {view==="calendar"&&(L?<><MHdr title="カレンダー" back={mBack}/><LockedView title="カレンダー"/></>:<><MHdr title="カレンダー" back={mBack}/><CalendarView myEvents={myEvents} setMyEvents={setMyEvents} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} medSessions={medSessions}/></>)}
-        {view==="events"&&<><MHdr title="イベント" back={mBack}/><EventView events={allEvents} mob rsvps={rsvps} onRsvp={handleRsvp}/></>}
-        {view==="reviews"&&(L?<><MHdr title="授業レビュー" back={mBack}/><LockedView title="授業レビュー"/></>:<><MHdr title="授業レビュー" back={mBack}/><ReviewView reviews={reviews} setReviews={setReviews} mob courses={allCourses}/></>)}
-        {view==="bmarks"&&(L?<><MHdr title="ブックマーク" back={mBack}/><LockedView title="ブックマーク"/></>:<><MHdr title="ブックマーク" back={mBack}/><BookmarkView bmarks={bmarks} mob setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/></>)}
-        {view==="attendance"&&(L?<><MHdr title="出欠管理" back={mBack}/><LockedView title="出欠管理"/></>:<><MHdr title="出欠管理" back={mBack}/>{renderAttendance(true)}</>)}
-        {view==="search"&&(L?<><MHdr title="検索" back={mBack}/><LockedView title="検索"/></>:<><MHdr title="検索" back={mBack}/><SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses}/></>)}
-        {view==="profile"&&<><MHdr title="プロフィール" back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/></>}
-        {view==="navigation"&&<><MHdr title="キャンパスナビ" back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
+        {view==="timetable"&&(L?<><MHdr title={t("nav.timetable")}/><LockedView title={t("nav.timetable")}/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
+        {view==="med-tt"&&(L?<><MHdr title={t("nav.medTimetable")}/><LockedView title={t("nav.medTimetable")}/></>:<><MHdr title={t("nav.medTimetable")}/><MedTTView courses={medRawCourses} mob setCid={setCid} setView={setView} setCh={setCh} demoKey={demoMedKey} asgn={asgn} hiddenSet={hiddenSet} onRefresh={fetchData}/></>)}
+        {view==="tasks"&&(L?<><MHdr title={t("header.taskMgmt")}/><LockedView title={t("header.taskMgmt")}/></>:<><MHdr title={t("header.taskMgmt")}/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/></>)}
+        {view==="courseSelect"&&(L?<><MHdr title={t("header.courseSelect")}/><LockedView title={t("header.course")}/></>:<><MHdr title={t("header.courseSelect")}/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={allCourses} depts={userDepts} schools={userSchools} setDid={setDid} userUnit={userUnit} medSessions={medSessions}/></>)}
+        {view==="course"&&(L?<><MHdr title={t("header.course")} back={goBack}/><LockedView title={t("header.course")}/></>:cc&&<><CourseHdr/>{courseContent()}</>)}
+        {view==="dept"&&(L?<><MHdr title={t("sidebar.depts")} back={goBack}/><LockedView title={t("sidebar.depts")}/></>:cd&&<><MHdr title={<>{(()=>{const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?locName(cd):cd.prefix}</span>{!nameOnly&&<span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{locName(cd)}</span>}</>;})()}</>} back={goBack} right={<button onClick={()=>setShowMembers(true)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.users}{deptMembers.length>0&&<span style={{position:"absolute",top:-4,right:-6,minWidth:14,height:14,borderRadius:7,background:cd.col||T.accent,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{deptMembers.length}</span>}</button>}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:t("chan.timeline"),i:I.feed},{id:"chat",l:t("chan.chat"),i:I.chat}].map(tab=><button key={tab.id} onClick={()=>setCh(tab.id)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===tab.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===tab.id?T.txH:T.txD,fontSize:13,fontWeight:ch===tab.id?600:400,cursor:"pointer"}}>{tab.i}<span>{tab.l}</span></button>)}</div>{deptContent()}</>)}
+        {view==="moreMenu"&&<><MHdr title={t("nav.more")}/><MoreMenu setView={setView} unreadN={unreadN} pendingFriendCount={pendingFriendCount} dmUnread={dmUnread} isAdmin={!!user.isAdmin}/></>}
+        {view==="friends"&&(L?<><MHdr title={t("nav.friends")} back={mBack}/><LockedView title={t("nav.friends")}/></>:<><MHdr title={t("nav.friends")} back={mBack}/><FriendsView mob setView={setView} {...friendProps}/></>)}
+        {view==="dm"&&(L?<><MHdr title="DM"/><LockedView title="DM"/></>:TR?<><MHdr title="DM"/><TelecomBlockView title={t("telecom.dmUnavailable")} onBack={goBack}/></>:<><MHdr title="DM"/><DMView mob setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup}/></>)}
+        {view==="pocket"&&(L?<><MHdr title={t("nav.pocket")} back={mBack}/><LockedView title={t("nav.pocket")}/></>:<><MHdr title={t("nav.pocket")} back={mBack}/><PocketView mob/></>)}
+        {view==="music"&&(L?<><MHdr title={t("tool.music")} back={mBack}/><LockedView title={t("tool.music")}/></>:<><MHdr title={t("tool.music")} back={mBack}/><MusicView mob/></>)}
+        {view==="pdftools"&&(L?<><MHdr title={t("nav.pdftools")} back={mBack}/><LockedView title={t("nav.pdftools")}/></>:<><MHdr title={t("nav.pdftools")} back={mBack}/><PdfToolsView mob/></>)}
+        {view==="notif"&&(L?<><MHdr title={t("nav.notif")} back={mBack}/><LockedView title={t("nav.notif")}/></>:<><MHdr title={t("nav.notif")} back={mBack}/><NotifView mob/></>)}
+        {view==="grades"&&(L?<><MHdr title={t("tool.grades")} back={mBack}/><LockedView title={t("tool.grades")}/></>:<><MHdr title={t("tool.grades")} back={mBack}/><GradeView mob/></>)}
+        {view==="pomo"&&<><MHdr title={t("tool.pomo")} back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
+        {view==="calendar"&&(L?<><MHdr title={t("nav.calendar")} back={mBack}/><LockedView title={t("nav.calendar")}/></>:<><MHdr title={t("nav.calendar")} back={mBack}/><CalendarView myEvents={myEvents} setMyEvents={setMyEvents} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} medSessions={medSessions}/></>)}
+        {view==="events"&&<><MHdr title={t("tool.events")} back={mBack}/><EventView events={allEvents} mob rsvps={rsvps} onRsvp={handleRsvp}/></>}
+        {view==="reviews"&&(L?<><MHdr title={t("tool.reviews")} back={mBack}/><LockedView title={t("tool.reviews")}/></>:<><MHdr title={t("tool.reviews")} back={mBack}/><ReviewView reviews={reviews} setReviews={setReviews} mob courses={allCourses}/></>)}
+        {view==="bmarks"&&(L?<><MHdr title={t("tool.bmarks")} back={mBack}/><LockedView title={t("tool.bmarks")}/></>:<><MHdr title={t("tool.bmarks")} back={mBack}/><BookmarkView bmarks={bmarks} mob setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/></>)}
+        {view==="attendance"&&(L?<><MHdr title={t("nav.attendance")} back={mBack}/><LockedView title={t("nav.attendance")}/></>:<><MHdr title={t("nav.attendance")} back={mBack}/>{renderAttendance(true)}</>)}
+        {view==="search"&&(L?<><MHdr title={t("nav.search")} back={mBack}/><LockedView title={t("nav.search")}/></>:<><MHdr title={t("nav.search")} back={mBack}/><SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses}/></>)}
+        {view==="profile"&&<><MHdr title={t("nav.profile")} back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/></>}
+        {view==="navigation"&&<><MHdr title={t("nav.navigation")} back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
         {view==="takiplaza"&&<><MHdr title="Taki Plaza" back={mBack}/>{L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob onNavigate={goToBuilding}/>}</>}
-        {view==="circles"&&(TR?<><MHdr title="サークル" back={mBack}/><TelecomBlockView title="サークルは現在利用できません" onBack={goBack}/></>:<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs} onBack={mBack}/>)}
+        {view==="circles"&&(TR?<><MHdr title={t("nav.circles")} back={mBack}/><TelecomBlockView title={t("telecom.circlesUnavailable")} onBack={goBack}/></>:<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs} onBack={mBack}/>)}
         {view==="acadCal"&&<AcademicCalendarView mob/>}
-        {view==="exams"&&(L?<><MHdr title="期末試験" back={mBack}/><LockedView title="期末試験"/></>:<><MHdr title="期末試験" back={mBack}/><ExamView courses={allCourses} mob goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/></>)}
-        {view==="freeroom"&&(L?<><MHdr title="空き教室" back={mBack}/><LockedView title="空き教室"/></>:<><MHdr title="空き教室" back={mBack}/><FreeRoomView mob goToBuilding={goToBuilding}/></>)}
-        {view==="reg"&&<><MHdr title="履修登録補助" back={mBack}/><RegView mob/></>}
-        {view==="textbooks"&&(L?<><MHdr title="マイ教科書" back={mBack}/><LockedView title="マイ教科書"/></>:<><MHdr title="マイ教科書" back={mBack}/><TextbooksView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/></>)}
-        {view==="grading"&&(L?<><MHdr title="成績割合" back={mBack}/><LockedView title="成績割合"/></>:<><MHdr title="成績割合" back={mBack}/><GradingView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/></>)}
-        {view==="admin"&&<><MHdr title="管理者" back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
-        {view==="freshman"&&<><MHdr title="新入生掲示板" back={mBack}/><FreshmanBoardView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/></>}
+        {view==="exams"&&(L?<><MHdr title={t("tool.exams")} back={mBack}/><LockedView title={t("tool.exams")}/></>:<><MHdr title={t("tool.exams")} back={mBack}/><ExamView courses={allCourses} mob goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/></>)}
+        {view==="freeroom"&&(L?<><MHdr title={t("tool.freeroom")} back={mBack}/><LockedView title={t("tool.freeroom")}/></>:<><MHdr title={t("tool.freeroom")} back={mBack}/><FreeRoomView mob goToBuilding={goToBuilding}/></>)}
+        {view==="reg"&&<><MHdr title={t("more.regAssist")} back={mBack}/><RegView mob/></>}
+        {view==="textbooks"&&(L?<><MHdr title={t("nav.textbooks")} back={mBack}/><LockedView title={t("nav.textbooks")}/></>:<><MHdr title={t("nav.textbooks")} back={mBack}/><TextbooksView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/></>)}
+        {view==="grading"&&(L?<><MHdr title={t("nav.grading")} back={mBack}/><LockedView title={t("nav.grading")}/></>:<><MHdr title={t("nav.grading")} back={mBack}/><GradingView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/></>)}
+        {view==="admin"&&<><MHdr title={t("nav.admin")} back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
+        {view==="freshman"&&<><MHdr title={t("nav.freshman")} back={mBack}/><FreshmanBoardView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/></>}
       </div>
       <MiniPlayer mob view={view} ch={ch} onOpen={()=>setView("music")}/>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread} hasMed={medPrimary}/>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { t } from "./i18n.js";
 import { T } from "./theme.js";
 import { I } from "./icons.jsx";
 
@@ -67,7 +68,7 @@ const useHighlight=()=>{
 const _esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const _codeBlock=(highlighted,lang,raw)=>{
   const langLabel=lang?`<span style="color:#888;font-size:11px;font-weight:500;user-select:none">${_esc(lang)}</span>`:"";
-  const copyBtn=`<button class="code-copy-btn" data-code="${_esc(raw)}" style="padding:5px 14px;border-radius:5px;border:1px solid #444;background:#2a2a3e;color:#aaa;font-size:12px;cursor:pointer;font-family:inherit;transition:background .15s;-webkit-tap-highlight-color:transparent">コピー</button>`;
+  const copyBtn=`<button class="code-copy-btn" data-code="${_esc(raw)}" style="padding:5px 14px;border-radius:5px;border:1px solid #444;background:#2a2a3e;color:#aaa;font-size:12px;cursor:pointer;font-family:inherit;transition:background .15s;-webkit-tap-highlight-color:transparent">${_esc(t("shared.copy"))}</button>`;
   const toolbar=`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#181825;border-radius:0 0 8px 8px;border-top:1px solid #2a2a3e">${langLabel}${copyBtn}</div>`;
   return `<div style="margin:4px 0;border-radius:8px;overflow:hidden;background:#1e1e2e"><pre style="margin:0;padding:10px 12px;overflow-x:auto;font-size:12.5px;line-height:1.5;background:transparent"><code${highlighted?' class="hljs"':' style="color:#cdd6f4"'}>${highlighted||_esc(raw)}</code></pre>${toolbar}</div>`;
 };
@@ -123,7 +124,7 @@ const Tx=({children,style:s})=>{
     const btn=e.target.closest(".code-copy-btn");
     if(!btn)return;
     const code=btn.getAttribute("data-code");
-    if(code)navigator.clipboard.writeText(code).then(()=>{btn.textContent="\u2713 コピーしました";setTimeout(()=>{btn.textContent="コピー"},1500)}).catch(()=>{});
+    if(code)navigator.clipboard.writeText(code).then(()=>{btn.textContent="\u2713 "+t("shared.copied");setTimeout(()=>{btn.textContent=t("shared.copy")},1500)}).catch(()=>{});
   },[]);
   if(!children)return null;
   if(html&&dp)return <div style={s} onClick={handleClick} dangerouslySetInnerHTML={{__html:_sanitize(html)}}/>;

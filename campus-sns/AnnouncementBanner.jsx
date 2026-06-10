@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { T } from "./theme.js";
 import { I } from "./icons.jsx";
+import { t } from "./i18n.js";
 
 const TYPE_STYLES = {
-  info: { color: T.accent, icon: I.bell, label: "お知らせ" },
-  maintenance: { color: T.orange, icon: I.alert, label: "メンテナンス" },
-  update: { color: T.green, icon: I.star, label: "アップデート" },
-  urgent: { color: T.red, icon: I.alert, label: "緊急" },
+  info: { color: T.accent, icon: I.bell, labelKey: "announce.typeInfo" },
+  maintenance: { color: T.orange, icon: I.alert, labelKey: "announce.typeMaintenance" },
+  update: { color: T.green, icon: I.star, labelKey: "announce.typeUpdate" },
+  urgent: { color: T.red, icon: I.alert, labelKey: "announce.typeUrgent" },
 };
 
 // 折りたたみ表示にする本文の長さ/行数のしきい値
@@ -63,7 +64,7 @@ export const AnnouncementBanner = () => {
             <span style={{ color: s.color, display: "flex", flexShrink: 0, marginTop: 2 }}>{s.icon}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: s.color }}>{s.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: s.color }}>{t(s.labelKey)}</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{a.title}</span>
               </div>
               <div style={{
@@ -75,7 +76,7 @@ export const AnnouncementBanner = () => {
                   marginTop: 6, background: "none", border: "none", color: s.color, fontSize: 12, fontWeight: 600,
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 4, padding: 0,
                 }}>
-                  {open ? "折りたたむ" : "続きを読む"}<Chevron open={open} color={s.color} />
+                  {open ? t("announce.collapse") : t("announce.readMore")}<Chevron open={open} color={s.color} />
                 </button>
               )}
             </div>

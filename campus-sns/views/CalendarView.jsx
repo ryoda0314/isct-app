@@ -6,7 +6,8 @@ import { Tag } from "../shared.jsx";
 import { getAcademicInfo, getCurrentQuarter } from "../academicCalendar.js";
 import { PERIOD_TIMES } from "../examData.js";
 import { buildTimetable } from "../../lib/transform/timetable-builder.js";
-const DAYS=["日","月","火","水","木","金","土"];
+import { t } from "../i18n.js";
+const DAY_KEYS=["cal.sun","cal.mon","cal.tue","cal.wed","cal.thu","cal.fri","cal.sat"];
 const COLORS=["#6375f0","#e5534b","#3dae72","#a855c7","#d4843e","#c6a236","#2d9d8f","#c75d8e"];
 const dKey=d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 const isSameDay=(a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
@@ -285,15 +286,15 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
     const canSaveFav=form.title.trim()&&!titleIsFav&&!titleIsBuiltin;
     return(
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:mob?14:20}}>
-        <button onClick={()=>{setAdding(false);resetForm();setEditing(null);}} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",color:T.txD,fontSize:13,cursor:"pointer",marginBottom:12,padding:0}}>{I.back} 戻る</button>
-        <h2 style={{color:T.txH,margin:"0 0 14px",fontSize:mob?18:20,fontWeight:700}}>{editing?"予定を編集":"予定を追加"}</h2>
+        <button onClick={()=>{setAdding(false);resetForm();setEditing(null);}} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",color:T.txD,fontSize:13,cursor:"pointer",marginBottom:12,padding:0}}>{I.back} {t("common.back")}</button>
+        <h2 style={{color:T.txH,margin:"0 0 14px",fontSize:mob?18:20,fontWeight:700}}>{editing?t("cal.editEvent"):t("cal.addEvent")}</h2>
         {!editing&&<>
-          <div style={{fontSize:12,color:T.txD,marginBottom:6}}>テンプレート</div>
+          <div style={{fontSize:12,color:T.txD,marginBottom:6}}>{t("cal.templates")}</div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
             {PRESETS.map(p=>{const a=form.title===p.label;return <button key={p.label} onClick={()=>applyPreset(p)} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 12px",borderRadius:8,border:a?`2px solid ${p.color}`:`1px solid ${T.bd}`,background:a?`${p.color}14`:T.bg3,color:a?T.txH:T.tx,fontSize:13,fontWeight:a?600:400,cursor:"pointer"}}><span style={{width:8,height:8,borderRadius:4,background:p.color,flexShrink:0}}/>{p.label}</button>;})}
           </div>
           {favPresets.length>0&&<>
-            <div style={{fontSize:11,color:T.txD,marginTop:6,marginBottom:4,display:"flex",alignItems:"center",gap:4}}><span style={{color:T.accent,display:"flex"}}>{I.star}</span>よく使うセット</div>
+            <div style={{fontSize:11,color:T.txD,marginTop:6,marginBottom:4,display:"flex",alignItems:"center",gap:4}}><span style={{color:T.accent,display:"flex"}}>{I.star}</span>{t("cal.favSets")}</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
               {favPresets.map(p=>{const a=form.title===p.label;return <div key={p.label} style={{display:"flex",gap:0}}>
                 <button onClick={()=>applyPreset(p)} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 12px",borderRadius:"8px 0 0 8px",border:a?`2px solid ${p.color}`:`1px solid ${T.bd}`,borderRight:a?`2px solid ${p.color}`:"none",background:a?`${p.color}14`:T.bg3,color:a?T.txH:T.tx,fontSize:13,fontWeight:a?600:400,cursor:"pointer"}}><span style={{width:8,height:8,borderRadius:4,background:p.color,flexShrink:0}}/>{p.label}</button>
@@ -305,32 +306,32 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
         </>}
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <div>
-            <label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>タイトル</label>
-            <input value={form.title} onChange={e=>setForm(p=>({...p,title:e.target.value}))} placeholder="予定のタイトル" style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+            <label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>{t("cal.title")}</label>
+            <input value={form.title} onChange={e=>setForm(p=>({...p,title:e.target.value}))} placeholder={t("cal.titlePlaceholder")} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
           </div>
           <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr 1fr",gap:8}}>
-            <div><label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>日付</label><input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/></div>
-            <div><label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>開始時刻</label><input type="time" value={form.time} onChange={e=>setForm(p=>({...p,time:e.target.value}))} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/></div>
-            <div><label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>終了時刻（任意）</label><input type="time" value={form.endTime} onChange={e=>setForm(p=>({...p,endTime:e.target.value}))} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/></div>
+            <div><label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>{t("cal.date")}</label><input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/></div>
+            <div><label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>{t("cal.startTime")}</label><input type="time" value={form.time} onChange={e=>setForm(p=>({...p,time:e.target.value}))} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/></div>
+            <div><label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>{t("cal.endTimeOpt")}</label><input type="time" value={form.endTime} onChange={e=>setForm(p=>({...p,endTime:e.target.value}))} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/></div>
           </div>
           {/* Repeat */}
           {!editing&&<div>
-            <label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>繰り返し</label>
+            <label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>{t("cal.repeat")}</label>
             <div style={{display:"flex",gap:6}}>
-              {[{id:"none",l:"なし"},{id:"weekly",l:"毎週"},{id:"biweekly",l:"隔週"}].map(r=><button key={r.id} onClick={()=>setForm(p=>({...p,repeat:r.id}))} style={{padding:"7px 14px",borderRadius:8,border:form.repeat===r.id?`2px solid ${T.accent}`:`1px solid ${T.bd}`,background:form.repeat===r.id?`${T.accent}14`:T.bg3,color:form.repeat===r.id?T.accent:T.txD,fontSize:13,fontWeight:form.repeat===r.id?600:400,cursor:"pointer"}}>{r.l}</button>)}
+              {[{id:"none",l:t("cal.repeatNone")},{id:"weekly",l:t("cal.repeatWeekly")},{id:"biweekly",l:t("cal.repeatBiweekly")}].map(r=><button key={r.id} onClick={()=>setForm(p=>({...p,repeat:r.id}))} style={{padding:"7px 14px",borderRadius:8,border:form.repeat===r.id?`2px solid ${T.accent}`:`1px solid ${T.bd}`,background:form.repeat===r.id?`${T.accent}14`:T.bg3,color:form.repeat===r.id?T.accent:T.txD,fontSize:13,fontWeight:form.repeat===r.id?600:400,cursor:"pointer"}}>{r.l}</button>)}
             </div>
-            {form.repeat!=="none"&&<div style={{fontSize:11,color:T.txD,marginTop:4}}>{form.repeat==="weekly"?"12週間分（約3ヶ月）の予定を一括作成します":"6回分（約3ヶ月）の予定を隔週で作成します"}</div>}
+            {form.repeat!=="none"&&<div style={{fontSize:11,color:T.txD,marginTop:4}}>{form.repeat==="weekly"?t("cal.repeatWeeklyHint"):t("cal.repeatBiweeklyHint")}</div>}
           </div>}
-          <div><label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>色</label><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{COLORS.map(c=><button key={c} onClick={()=>setForm(p=>({...p,color:c}))} style={{width:28,height:28,borderRadius:8,background:c,border:form.color===c?`2px solid ${T.txH}`:`2px solid transparent`,cursor:"pointer"}}/>)}</div></div>
-          <div><label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>メモ（任意）</label><textarea value={form.memo} onChange={e=>setForm(p=>({...p,memo:e.target.value}))} placeholder="メモを入力..." rows={3} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/></div>
+          <div><label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>{t("cal.color")}</label><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{COLORS.map(c=><button key={c} onClick={()=>setForm(p=>({...p,color:c}))} style={{width:28,height:28,borderRadius:8,background:c,border:form.color===c?`2px solid ${T.txH}`:`2px solid transparent`,cursor:"pointer"}}/>)}</div></div>
+          <div><label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>{t("cal.memoOpt")}</label><textarea value={form.memo} onChange={e=>setForm(p=>({...p,memo:e.target.value}))} placeholder={t("cal.memoPlaceholder")} rows={3} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/></div>
           {!editing&&<button onClick={()=>{if(canSaveFav)setSavAsFav(p=>!p);}} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:8,border:`1px solid ${savAsFav?T.accent:T.bd}`,background:savAsFav?`${T.accent}10`:T.bg3,cursor:canSaveFav?"pointer":"default",opacity:canSaveFav?1:.4}}>
             <div style={{width:20,height:20,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",background:savAsFav?T.accent:"transparent",border:savAsFav?"none":`2px solid ${T.bdL}`,color:"#fff",flexShrink:0}}>{savAsFav&&I.chk}</div>
-            <div style={{flex:1,textAlign:"left"}}><div style={{fontSize:13,color:T.txH,fontWeight:500}}>よく使うセットに保存</div><div style={{fontSize:11,color:T.txD}}>{titleIsBuiltin?"デフォルトテンプレートです":titleIsFav?"すでに保存済みです":"次回からワンタップで追加できます"}</div></div>
+            <div style={{flex:1,textAlign:"left"}}><div style={{fontSize:13,color:T.txH,fontWeight:500}}>{t("cal.saveAsFav")}</div><div style={{fontSize:11,color:T.txD}}>{titleIsBuiltin?t("cal.saveFavBuiltin"):titleIsFav?t("cal.saveFavExists"):t("cal.saveFavHint")}</div></div>
             <span style={{color:savAsFav?T.accent:T.txD,display:"flex"}}>{I.star}</span>
           </button>}
           <div style={{display:"flex",gap:8,marginTop:4}}>
-            <button onClick={saveEvent} disabled={!form.title.trim()||!form.date} style={{flex:1,padding:"10px 0",borderRadius:8,border:"none",background:form.title.trim()&&form.date?T.accent:T.bg3,color:form.title.trim()&&form.date?"#fff":T.txD,fontSize:14,fontWeight:600,cursor:form.title.trim()&&form.date?"pointer":"default"}}>{editing?"保存":"追加"}{form.repeat!=="none"&&!editing?` (${form.repeat==="weekly"?"12":"6"}件)`:""}</button>
-            {editing&&<button onClick={()=>deleteEvent(editing)} style={{padding:"10px 16px",borderRadius:8,border:`1px solid ${T.red}33`,background:`${T.red}10`,color:T.red,fontSize:14,fontWeight:600,cursor:"pointer"}}>削除</button>}
+            <button onClick={saveEvent} disabled={!form.title.trim()||!form.date} style={{flex:1,padding:"10px 0",borderRadius:8,border:"none",background:form.title.trim()&&form.date?T.accent:T.bg3,color:form.title.trim()&&form.date?"#fff":T.txD,fontSize:14,fontWeight:600,cursor:form.title.trim()&&form.date?"pointer":"default"}}>{editing?t("common.save"):t("cal.add")}{form.repeat!=="none"&&!editing?` ${t("cal.countSuffix",{n:form.repeat==="weekly"?"12":"6"})}`:""}</button>
+            {editing&&<button onClick={()=>deleteEvent(editing)} style={{padding:"10px 16px",borderRadius:8,border:`1px solid ${T.red}33`,background:`${T.red}10`,color:T.red,fontSize:14,fontWeight:600,cursor:"pointer"}}>{t("common.delete")}</button>}
           </div>
         </div>
       </div>
@@ -344,24 +345,24 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
         <div style={{display:"flex",alignItems:"center",gap:6}}>
           {viewMode==="month"?<>
             <button onClick={prevM} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
-            <span style={{fontSize:15,fontWeight:700,color:T.txH,minWidth:100,textAlign:"center"}}>{calMonth.y}年{calMonth.m+1}月</span>
+            <span style={{fontSize:15,fontWeight:700,color:T.txH,minWidth:100,textAlign:"center"}}>{t("cal.yearMonth",{y:calMonth.y,m:calMonth.m+1})}</span>
             <button onClick={nextM} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.arr}</button>
           </>:<>
             <button onClick={prevW} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
             <span style={{fontSize:14,fontWeight:700,color:T.txH,minWidth:120,textAlign:"center"}}>{weekStart.getMonth()+1}/{weekStart.getDate()}〜{(()=>{const e=new Date(weekStart);e.setDate(e.getDate()+6);return `${e.getMonth()+1}/${e.getDate()}`;})()}{viewMode==="timeline"?" TL":""}</span>
             <button onClick={nextW} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.arr}</button>
           </>}
-          <button onClick={goToday} style={{padding:"3px 8px",borderRadius:6,border:`1px solid ${T.bd}`,background:"transparent",color:T.txD,fontSize:11,cursor:"pointer",marginLeft:2}}>今日</button>
+          <button onClick={goToday} style={{padding:"3px 8px",borderRadius:6,border:`1px solid ${T.bd}`,background:"transparent",color:T.txD,fontSize:11,cursor:"pointer",marginLeft:2}}>{t("cal.today")}</button>
         </div>
         <div style={{display:"flex",gap:4,alignItems:"center"}}>
-          {[{id:"month",l:"月"},{id:"week",l:"週"},{id:"timeline",l:"TL"}].map(v=><button key={v.id} onClick={()=>setViewMode(v.id)} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${viewMode===v.id?T.accent:T.bd}`,background:viewMode===v.id?`${T.accent}16`:"transparent",color:viewMode===v.id?T.accent:T.txD,fontSize:11,fontWeight:viewMode===v.id?600:400,cursor:"pointer"}}>{v.l}</button>)}
+          {[{id:"month",l:t("cal.viewMonth")},{id:"week",l:t("cal.viewWeek")},{id:"timeline",l:"TL"}].map(v=><button key={v.id} onClick={()=>setViewMode(v.id)} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${viewMode===v.id?T.accent:T.bd}`,background:viewMode===v.id?`${T.accent}16`:"transparent",color:viewMode===v.id?T.accent:T.txD,fontSize:11,fontWeight:viewMode===v.id?600:400,cursor:"pointer"}}>{v.l}</button>)}
           <div style={{width:1,height:16,background:T.bd,margin:"0 2px"}}/>
           <button onClick={()=>openAdd(selDay)} style={{display:"flex",alignItems:"center",gap:3,padding:"4px 10px",borderRadius:6,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>{I.plus}</button>
         </div>
       </div>
       {/* Filter */}
       <div style={{display:"flex",gap:4,padding:"0 12px 8px"}}>
-        {[{k:"ev",l:"予定",c:T.accent},{k:"asgn",l:"課題",c:T.orange},{k:"cls",l:"授業",c:T.green},{k:"exam",l:"試験",c:"#d97706"}].map(f=><button key={f.k} onClick={()=>togFilter(f.k)} style={{padding:"3px 10px",borderRadius:6,border:`1px solid ${filter[f.k]?f.c:T.bd}`,background:filter[f.k]?`${f.c}14`:"transparent",color:filter[f.k]?f.c:T.txD,fontSize:11,fontWeight:filter[f.k]?600:400,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+        {[{k:"ev",l:t("cal.typeEvent"),c:T.accent},{k:"asgn",l:t("cal.typeAssign"),c:T.orange},{k:"cls",l:t("cal.typeClass"),c:T.green},{k:"exam",l:t("cal.typeExam"),c:"#d97706"}].map(f=><button key={f.k} onClick={()=>togFilter(f.k)} style={{padding:"3px 10px",borderRadius:6,border:`1px solid ${filter[f.k]?f.c:T.bd}`,background:filter[f.k]?`${f.c}14`:"transparent",color:filter[f.k]?f.c:T.txD,fontSize:11,fontWeight:filter[f.k]?600:400,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
           <span style={{width:6,height:6,borderRadius:3,background:filter[f.k]?f.c:T.txD}}/>{f.l}
         </button>)}
       </div>
@@ -376,15 +377,15 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
     const empty=cls.length===0&&evs.length===0&&asgns.length===0&&exs.length===0&&acadNonClass.length===0&&!acad?.period;
     return <div style={{marginTop:mob?12:0,borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",borderBottom:`1px solid ${T.bd}`}}>
-        <span style={{fontSize:14,fontWeight:700,color:T.txH}}>{selDay.getMonth()+1}/{selDay.getDate()} ({DAYS[selDay.getDay()]})</span>
+        <span style={{fontSize:14,fontWeight:700,color:T.txH}}>{selDay.getMonth()+1}/{selDay.getDate()} ({t(DAY_KEYS[selDay.getDay()])})</span>
         <div style={{display:"flex",gap:6}}>
-          <button onClick={()=>openAdd(selDay)} style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txD,fontSize:11,cursor:"pointer"}}>追加</button>
+          <button onClick={()=>openAdd(selDay)} style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txD,fontSize:11,cursor:"pointer"}}>{t("cal.add")}</button>
           <button onClick={()=>setSelDay(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:2}}>{I.x}</button>
         </div>
       </div>
       {selOverlaps.length>0&&<div style={{padding:"6px 12px",background:`${T.red}08`,borderBottom:`1px solid ${T.red}20`,display:"flex",alignItems:"center",gap:6}}>
         <svg width="12" height="12" viewBox="0 0 24 24" fill={T.red} style={{flexShrink:0}}><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
-        <div style={{fontSize:11,color:T.red}}>{selOverlaps.map(([a,b],i)=><span key={i}>{i>0?" / ":""}「{a.label}」×「{b.label}」</span>)}</div>
+        <div style={{fontSize:11,color:T.red}}>{selOverlaps.map(([a,b],i)=><span key={i}>{i>0?" / ":""}{t("cal.conflictPair",{a:a.label,b:b.label})}</span>)}</div>
       </div>}
       <div style={{padding:"8px 12px",borderBottom:`1px solid ${T.bd}`,display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
         {PRESETS.map(p=><button key={p.label} onClick={()=>quickAdd(selDay,p)} style={{display:"flex",alignItems:"center",gap:3,padding:"4px 8px",borderRadius:6,border:`1px solid ${p.color}25`,background:`${p.color}08`,color:T.txH,fontSize:11,cursor:"pointer"}}><span style={{width:6,height:6,borderRadius:3,background:p.color,flexShrink:0}}/>{p.label}</button>)}
@@ -395,7 +396,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
       </div>
       <div style={{padding:"8px 12px",display:"flex",flexDirection:"column",gap:6}}>
         {acadNonClass.length>0&&acadNonClass.map((it,i)=>{
-          const cfg={holiday:{col:"#ef4444",tag:"祝日"},event:{col:"#0ea5e9",tag:"行事"},cancel:{col:"#6b7280",tag:"休講"},exam:{col:"#d97706",tag:"試験"}}[it.type];
+          const cfg={holiday:{col:"#ef4444",tag:t("cal.tagHoliday")},event:{col:"#0ea5e9",tag:t("cal.tagEvent")},cancel:{col:"#6b7280",tag:t("cal.tagCancel")},exam:{col:"#d97706",tag:t("cal.tagExam")}}[it.type];
           if(!cfg)return null;
           const lbl=it.type==="cancel"?`${it.q}Q ${it.label}`:it.type==="exam"?`${it.q}Q ${it.label}`:it.label;
           return <div key={`ac${i}`} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:8,background:`${cfg.col}10`,borderLeft:`3px solid ${cfg.col}`}}>
@@ -407,36 +408,36 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
           <span style={{fontSize:11,fontWeight:600,color:{exam:"#d97706",break:"#10b981",prep:"#6366f1"}[acad.period.t]||T.accent}}>{acad.period.l}</span>
         </div>}
         {cls.length>0&&<>
-          <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>授業</div>
+          <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>{t("cal.typeClass")}</div>
           {cls.map((c,i)=><div key={`c${i}`} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:`${c.course.col}10`,borderLeft:`3px solid ${c.course.col}`}}>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:4}}>
                 <span style={{fontSize:13,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.course.name}</span>
-                {c.n!=null&&<span style={{fontSize:9,fontWeight:700,color:c.course.col,background:`${c.course.col}18`,padding:"1px 5px",borderRadius:4,flexShrink:0}}>第{c.n}回</span>}
-                {c.sub&&<span style={{fontSize:9,fontWeight:700,color:"#d97706",background:"#d9770618",padding:"1px 5px",borderRadius:4,flexShrink:0}}>振替</span>}
+                {c.n!=null&&<span style={{fontSize:9,fontWeight:700,color:c.course.col,background:`${c.course.col}18`,padding:"1px 5px",borderRadius:4,flexShrink:0}}>{t("cal.sessionN",{n:c.n})}</span>}
+                {c.sub&&<span style={{fontSize:9,fontWeight:700,color:"#d97706",background:"#d9770618",padding:"1px 5px",borderRadius:4,flexShrink:0}}>{t("cal.makeup")}</span>}
               </div>
-              <div style={{fontSize:11,color:T.txD}}>{c.pd.l} · {c.course.room}{c.sub?` (${c.dow}曜授業)`:""}</div>
+              <div style={{fontSize:11,color:T.txD}}>{c.pd.l} · {c.course.room}{c.sub?` ${t("cal.makeupOf",{d:t("dow.s."+c.dow)})}`:""}</div>
             </div>
             <div style={{fontSize:11,color:T.txD,flexShrink:0}}>{c.pd.s[0]}:{String(c.pd.s[1]).padStart(2,"0")}–{c.pd.e[0]}:{String(c.pd.e[1]).padStart(2,"0")}</div>
           </div>)}
         </>}
         {exs.length>0&&<>
-          <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4,marginTop:cls.length?4:0}}>期末試験</div>
+          <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4,marginTop:cls.length?4:0}}>{t("cal.finalExams")}</div>
           {exs.map((ex,i)=>{const pt=PERIOD_TIMES[ex.period];const co=courses.find(c=>c.code===ex.code);const col=co?.col||"#d97706";return(
             <div key={`ex${i}`} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:`${col}10`,borderLeft:`3px solid ${col}`}}>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:4}}>
-                  <span style={{fontSize:10,fontWeight:700,color:"#d97706",background:"#d9770618",padding:"1px 5px",borderRadius:4,flexShrink:0}}>試験</span>
+                  <span style={{fontSize:10,fontWeight:700,color:"#d97706",background:"#d9770618",padding:"1px 5px",borderRadius:4,flexShrink:0}}>{t("cal.typeExam")}</span>
                   <span style={{fontSize:11,fontWeight:700,color:col}}>{ex.code}</span>
                 </div>
                 <div style={{fontSize:13,fontWeight:600,color:T.txH,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ex.name}</div>
-                <div style={{fontSize:11,color:T.txD}}>{ex.period}限 · {ex.room}</div>
+                <div style={{fontSize:11,color:T.txD}}>{t("cal.periodN",{n:ex.period})} · {ex.room}</div>
               </div>
               <div style={{fontSize:11,color:T.txD,flexShrink:0}}>{pt?`${pt.start}–${pt.end}`:""}</div>
             </div>);})}
         </>}
         {evs.length>0&&<>
-          <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4,marginTop:(cls.length||exs.length)?4:0}}>予定</div>
+          <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4,marginTop:(cls.length||exs.length)?4:0}}>{t("cal.typeEvent")}</div>
           {evs.map(ev=>{const h=ev.date.getHours(),m=ev.date.getMinutes();const end=ev.end?`–${ev.end.getHours()}:${String(ev.end.getMinutes()).padStart(2,"0")}`:"";return(
             <div key={ev.id} onClick={()=>openEdit(ev)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:`${ev.color}10`,borderLeft:`3px solid ${ev.color}`,cursor:"pointer"}}>
               <div style={{width:8,height:8,borderRadius:"50%",background:ev.color,flexShrink:0}}/>
@@ -449,7 +450,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
           })}
         </>}
         {asgns.length>0&&<>
-          <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4,marginTop:(cls.length||evs.length)?4:0}}>課題締切</div>
+          <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4,marginTop:(cls.length||evs.length)?4:0}}>{t("cal.assignDeadline")}</div>
           {asgns.map(a=>{const co=courses.find(x=>x.id===a.cid);const dl=uDue(a.due);return(
             <div key={a.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:dl.u?`${T.red}08`:`${co?.col||T.accent}10`,borderLeft:`3px solid ${dl.u?T.red:co?.col||T.accent}`}}>
               <div style={{flex:1,minWidth:0}}>
@@ -460,7 +461,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
             </div>);
           })}
         </>}
-        {empty&&<div style={{padding:"8px 0",textAlign:"center",fontSize:12,color:T.txD}}>この日に予定はありません</div>}
+        {empty&&<div style={{padding:"8px 0",textAlign:"center",fontSize:12,color:T.txD}}>{t("cal.noPlansThisDay")}</div>}
       </div>
     </div>;
   };
@@ -476,10 +477,10 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
             const data=getDayData(d);
             const isT=isSameDay(d,NOW);
             const items=[];
-            data.classes.forEach((c,ci)=>{items.push({type:"cls",sh:c.pd.s[0],sm:c.pd.s[1],eh:c.pd.e[0],em:c.pd.e[1],label:c.course.name,sub:`${c.pd.l} · ${c.course.room}${c.n!=null?` · 第${c.n}回`:""}${c.sub?" (振替)":""}`,col:c.course.col,id:`cls${di}_${ci}`});});
+            data.classes.forEach((c,ci)=>{items.push({type:"cls",sh:c.pd.s[0],sm:c.pd.s[1],eh:c.pd.e[0],em:c.pd.e[1],label:c.course.name,sub:`${c.pd.l} · ${c.course.room}${c.n!=null?` · ${t("cal.sessionN",{n:c.n})}`:""}${c.sub?` (${t("cal.makeup")})`:""}`,col:c.course.col,id:`cls${di}_${ci}`});});
             data.events.forEach(ev=>{const sh=ev.date.getHours(),sm=ev.date.getMinutes();const eh=ev.end?ev.end.getHours():sh+1,em=ev.end?ev.end.getMinutes():sm;items.push({type:"ev",sh,sm,eh,em,label:ev.title,sub:ev.memo||"",col:ev.color,id:ev.id,ev});});
             data.asgns.forEach(a=>{const h=a.due.getHours(),m=a.due.getMinutes();const co=courses.find(x=>x.id===a.cid);items.push({type:"asgn",sh:h,sm:m,eh:h,em:m+30,label:a.title,sub:co?.code||"",col:co?.col||T.orange,id:`a${a.id}`});});
-            (data.exams||[]).forEach((ex,ei)=>{const pt=PERIOD_TIMES[ex.period];if(pt){const [sh,sm]=pt.start.split(":").map(Number);const [eh,em]=pt.end.split(":").map(Number);items.push({type:"exam",sh,sm,eh,em,label:ex.name,sub:`${ex.period}限 · ${ex.room}`,col:"#d97706",id:`ex${di}_${ei}`});}});
+            (data.exams||[]).forEach((ex,ei)=>{const pt=PERIOD_TIMES[ex.period];if(pt){const [sh,sm]=pt.start.split(":").map(Number);const [eh,em]=pt.end.split(":").map(Number);items.push({type:"exam",sh,sm,eh,em,label:ex.name,sub:`${t("cal.periodN",{n:ex.period})} · ${ex.room}`,col:"#d97706",id:`ex${di}_${ei}`});}});
             items.sort((a,b)=>a.sh*60+a.sm-b.sh*60-b.sm);
             const dayAcadNonCls=(data.acad?.items||[]).filter(it=>it.type!=="class");
             if(items.length===0&&!isT&&dayAcadNonCls.length===0)return null;
@@ -487,11 +488,11 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
               <div key={di} style={{marginTop:di?2:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,padding:mob?"5px 4px":"4px 6px",position:"sticky",top:0,zIndex:3,background:T.bg,flexWrap:"wrap"}}>
                   <span style={{fontSize:mob?13:14,fontWeight:700,color:isT?T.accent:T.txH}}>{d.getMonth()+1}/{d.getDate()}</span>
-                  <span style={{fontSize:mob?11:12,fontWeight:600,color:isT?T.accent:di===0?T.red:di===6?T.orange:T.txD}}>{DAYS[di]}</span>
+                  <span style={{fontSize:mob?11:12,fontWeight:600,color:isT?T.accent:di===0?T.red:di===6?T.orange:T.txD}}>{t(DAY_KEYS[di])}</span>
                   {isT&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:4,background:`${T.accent}18`,color:T.accent,fontWeight:600}}>TODAY</span>}
-                  {dayAcadNonCls.map((it,ai)=>{const cfg={holiday:{col:"#ef4444",l:it.label},event:{col:"#0ea5e9",l:it.label},cancel:{col:"#6b7280",l:"休講"},exam:{col:"#d97706",l:it.label}}[it.type];return cfg?<span key={`ac${ai}`} style={{fontSize:9,padding:"1px 6px",borderRadius:4,background:`${cfg.col}18`,color:cfg.col,fontWeight:600}}>{cfg.l}</span>:null;})}
+                  {dayAcadNonCls.map((it,ai)=>{const cfg={holiday:{col:"#ef4444",l:it.label},event:{col:"#0ea5e9",l:it.label},cancel:{col:"#6b7280",l:t("cal.tagCancel")},exam:{col:"#d97706",l:it.label}}[it.type];return cfg?<span key={`ac${ai}`} style={{fontSize:9,padding:"1px 6px",borderRadius:4,background:`${cfg.col}18`,color:cfg.col,fontWeight:600}}>{cfg.l}</span>:null;})}
                 </div>
-                {items.length===0&&<div style={{padding:"4px 8px",fontSize:11,color:T.txD}}>予定なし</div>}
+                {items.length===0&&<div style={{padding:"4px 8px",fontSize:11,color:T.txD}}>{t("cal.noPlans")}</div>}
                 <div style={{display:"flex",flexDirection:"column",gap:2}}>
                   {items.map(it=>{
                     const isEv=it.type==="ev";const isAsgn=it.type==="asgn";const isCls=it.type==="cls";
@@ -512,7 +513,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
                         </div>
                         {!mob&&<>
                           <span style={{fontSize:10,color:T.txD,flexShrink:0,padding:"2px 6px",borderRadius:4,background:T.bg3}}>{durStr}</span>
-                          <span style={{fontSize:10,color:T.txD,flexShrink:0,padding:"2px 6px",borderRadius:4,background:`${it.col}14`,color:it.col}}>{isCls?"授業":isAsgn?"課題":it.type==="exam"?"試験":"予定"}</span>
+                          <span style={{fontSize:10,color:T.txD,flexShrink:0,padding:"2px 6px",borderRadius:4,background:`${it.col}14`,color:it.col}}>{isCls?t("cal.typeClass"):isAsgn?t("cal.typeAssign"):it.type==="exam"?t("cal.typeExam"):t("cal.typeEvent")}</span>
                         </>}
                       </div>
                     </div>;
@@ -541,7 +542,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
             {/* Day headers */}
             <div style={{borderBottom:`1px solid ${T.bd}`,background:T.bg2,position:"sticky",top:0,zIndex:2}}/>
             {wDays.map((d,i)=>{const isT=isSameDay(d,NOW);return <div key={i} onClick={()=>setSelDay(d)} style={{textAlign:"center",padding:"6px 0",borderBottom:`1px solid ${T.bd}`,background:T.bg2,position:"sticky",top:0,zIndex:2,cursor:"pointer",borderLeft:`1px solid ${T.bd}`}}>
-              <div style={{fontSize:mob?9:11,fontWeight:600,color:isT?T.accent:i===0?T.red:i===6?T.orange:T.txD}}>{DAYS[i]}</div>
+              <div style={{fontSize:mob?9:11,fontWeight:600,color:isT?T.accent:i===0?T.red:i===6?T.orange:T.txD}}>{t(DAY_KEYS[i])}</div>
               <div style={{fontSize:mob?11:14,fontWeight:isT?700:500,color:isT?T.accent:T.txH}}>{d.getDate()}</div>
             </div>;})}
             {/* Time grid */}
@@ -558,8 +559,8 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
               const items=[];
               data.classes.forEach(c=>{items.push({y:toY(c.pd.s[0],c.pd.s[1]),h:toH(c.pd.s[0],c.pd.s[1],c.pd.e[0],c.pd.e[1]),label:mob?c.course.code.split(".")[1]:c.course.name,sub:`${c.pd.l}${c.n!=null?` #${c.n}`:""}`,col:c.course.col,type:"cls"});});
               data.events.forEach(ev=>{const sh=ev.date.getHours(),sm=ev.date.getMinutes();const eh=ev.end?ev.end.getHours():sh+1,em=ev.end?ev.end.getMinutes():sm;items.push({y:toY(sh,sm),h:toH(sh,sm,eh,em),label:ev.title,sub:`${fTs(ev.date)}`,col:ev.color,type:"ev"});});
-              data.asgns.forEach(a=>{const h=a.due.getHours(),m=a.due.getMinutes();items.push({y:toY(h,m),h:HH/2,label:mob?a.title.slice(0,4):a.title,sub:"締切",col:courses.find(x=>x.id===a.cid)?.col||T.orange,type:"asgn"});});
-              (data.exams||[]).forEach(ex=>{const pt=PERIOD_TIMES[ex.period];if(pt){const [sh,sm]=pt.start.split(":").map(Number);const [eh,em]=pt.end.split(":").map(Number);items.push({y:toY(sh,sm),h:toH(sh,sm,eh,em),label:mob?ex.code.split(".")[1]:ex.name,sub:`${ex.period}限`,col:"#d97706",type:"exam"});}});
+              data.asgns.forEach(a=>{const h=a.due.getHours(),m=a.due.getMinutes();items.push({y:toY(h,m),h:HH/2,label:mob?a.title.slice(0,4):a.title,sub:t("cal.deadline"),col:courses.find(x=>x.id===a.cid)?.col||T.orange,type:"asgn"});});
+              (data.exams||[]).forEach(ex=>{const pt=PERIOD_TIMES[ex.period];if(pt){const [sh,sm]=pt.start.split(":").map(Number);const [eh,em]=pt.end.split(":").map(Number);items.push({y:toY(sh,sm),h:toH(sh,sm,eh,em),label:mob?ex.code.split(".")[1]:ex.name,sub:t("cal.periodN",{n:ex.period}),col:"#d97706",type:"exam"});}});
               return <div key={di} style={{position:"relative",height:(EH-SH)*HH,borderLeft:`1px solid transparent`}}>
                 {items.map((it,ii)=><div key={ii} style={{position:"absolute",top:it.y,left:1,right:1,height:it.h,borderRadius:4,background:`${it.col}20`,borderLeft:`2px solid ${it.col}`,padding:"2px 3px",overflow:"hidden",cursor:"pointer",zIndex:1}} onClick={()=>setSelDay(d)}>
                   <div style={{fontSize:mob?7:9,fontWeight:600,color:it.col,lineHeight:"12px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.label}</div>
@@ -576,7 +577,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
 
   // ── MONTH VIEW ──
   const calGrid=<div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:mob?1:2}}>
-    {DAYS.map((d,i)=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:600,color:i===0?T.red:i===6?T.orange:T.txD,padding:"4px 0"}}>{d}</div>)}
+    {DAY_KEYS.map((dk,i)=><div key={dk} style={{textAlign:"center",fontSize:10,fontWeight:600,color:i===0?T.red:i===6?T.orange:T.txD,padding:"4px 0"}}>{t(dk)}</div>)}
     {Array.from({length:weeks*7},(_,i)=>{
       const day=i-startOff+1;
       const valid=day>=1&&day<=daysInMonth;
@@ -588,7 +589,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
       const asgnItems=dayData.asgns.map(a=>{const co=courses.find(x=>x.id===a.cid);const h=a.due.getHours(),m=a.due.getMinutes();const dl=uDue(a.due);return{type:"asgn",label:a.title,col:co?.col||T.accent,id:a.id,time:`${h}:${String(m).padStart(2,"0")}`,urgent:dl.u};});
       const examItems=(dayData.exams||[]).map((ex,idx)=>{const pt=PERIOD_TIMES[ex.period];return{type:"exam",label:ex.name,col:"#d97706",id:`ex${idx}`,time:pt?.start||"00:00"};});
       const acadItems=(dayData.acad?.items||[]).filter(it=>it.type!=="class").map((it,idx)=>{
-        const cfg={holiday:{col:"#ef4444",l:it.label},event:{col:"#0ea5e9",l:it.label},cancel:{col:"#6b7280",l:"休講"},exam:{col:"#d97706",l:it.label}}[it.type];
+        const cfg={holiday:{col:"#ef4444",l:it.label},event:{col:"#0ea5e9",l:it.label},cancel:{col:"#6b7280",l:t("cal.tagCancel")},exam:{col:"#d97706",l:it.label}}[it.type];
         return cfg?{type:"acad",label:cfg.l,col:cfg.col,id:`ac${idx}`,time:"00:00"}:null;
       }).filter(Boolean);
       const isHoliday=dayData.acad?.items.some(it=>it.type==="holiday");
@@ -607,7 +608,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
           </div>
           :it.type==="exam"
           ?<div key={it.id} style={{display:"flex",alignItems:"center",gap:mob?2:3,padding:mob?"1px 2px":"2px 3px",borderRadius:3,background:`${it.col}14`,borderLeft:`2px solid ${it.col}`,overflow:"hidden"}}>
-            {!mob&&<span style={{fontSize:7,fontWeight:700,color:it.col,flexShrink:0,lineHeight:"10px"}}>試験</span>}
+            {!mob&&<span style={{fontSize:7,fontWeight:700,color:it.col,flexShrink:0,lineHeight:"10px"}}>{t("cal.typeExam")}</span>}
             <span style={{fontSize:mob?7:8,fontWeight:600,color:it.col,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"12px"}}>{it.label}</span>
           </div>
           :it.type==="ev"
@@ -653,7 +654,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
         <div style={{width:320,flexShrink:0,borderLeft:`1px solid ${T.bd}`,overflowY:"auto",padding:12,WebkitOverflowScrolling:"touch"}}>
           {selDay?<>{DayDetail()}</>:<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",color:T.txD,fontSize:13,gap:8}}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-            <span>日付をクリック</span>
+            <span>{t("cal.clickDate")}</span>
           </div>}
         </div>
       </div>

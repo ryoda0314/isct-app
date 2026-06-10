@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { isDemoMode } from "../demoMode.js";
 
@@ -78,7 +79,7 @@ function RoomScheduleModal({ sel, occ, quarter, year, mob, nowDay, nowSlot, nowA
           <div style={{ minWidth: 34, height: 34, padding: "0 9px", borderRadius: 9, background: `${col}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: col }}>{building}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: mob ? 16 : 18, fontWeight: 800, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{room}</div>
-            <div style={{ fontSize: 11.5, color: T.txD }}>{year}年度 {quarter} ・ 週 {freeN}/25 コマ空き{fl !== "階不明" ? ` ・ ${fl}` : ""}</div>
+            <div style={{ fontSize: 11.5, color: T.txD }}>{t("freeroom.modalSubtitle", { year, quarter, free: freeN })}{fl !== "階不明" ? ` ・ ${fl}` : ""}</div>
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", flexShrink: 0 }}>{I.x}</button>
         </div>
@@ -89,13 +90,13 @@ function RoomScheduleModal({ sel, occ, quarter, year, mob, nowDay, nowSlot, nowA
             {/* 曜日ヘッダー行 */}
             <div />
             {DAYS.map((d, di) => (
-              <div key={d} style={{ textAlign: "center", fontSize: 12, fontWeight: 700, color: nowActive && di === nowDay ? T.accent : T.txD, padding: "2px 0" }}>{d}</div>
+              <div key={d} style={{ textAlign: "center", fontSize: 12, fontWeight: 700, color: nowActive && di === nowDay ? T.accent : T.txD, padding: "2px 0" }}>{t("dow.s." + d)}</div>
             ))}
             {/* 各時限行 */}
             {SLOT_LABEL.map((lbl, si) => (
               <React.Fragment key={lbl}>
                 <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", paddingRight: 6 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: T.txH }}>{lbl}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: T.txH }}>{t("period.range", { a: 2 * si + 1, b: 2 * si + 2 })}</span>
                   <span style={{ fontSize: 8.5, color: T.txD }}>{SLOT_TIMES[si]}</span>
                 </div>
                 {DAYS.map((d, di) => {
@@ -104,7 +105,7 @@ function RoomScheduleModal({ sel, occ, quarter, year, mob, nowDay, nowSlot, nowA
                   const isNowCell = nowActive && di === nowDay && si === nowSlot;
                   const c0 = entry?.classes?.[0];
                   return (
-                    <div key={d} title={busy ? entry.classes.map((c) => `${c.code} ${c.name}`).join(" / ") : "空き"} style={{
+                    <div key={d} title={busy ? entry.classes.map((c) => `${c.code} ${c.name}`).join(" / ") : t("freeroom.free")} style={{
                       minHeight: mob ? 44 : 48, borderRadius: 8, padding: "4px 5px",
                       border: `1px solid ${isNowCell ? T.accent : busy ? `${T.red}25` : `${T.green}30`}`,
                       background: busy ? `${T.red}0e` : `${T.green}12`,
@@ -113,11 +114,11 @@ function RoomScheduleModal({ sel, occ, quarter, year, mob, nowDay, nowSlot, nowA
                     }}>
                       {busy ? (
                         <>
-                          <span style={{ fontSize: 9.5, fontWeight: 700, color: T.red, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{c0?.code || "使用中"}</span>
+                          <span style={{ fontSize: 9.5, fontWeight: 700, color: T.red, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{c0?.code || t("freeroom.inUse")}</span>
                           {c0?.name && <span style={{ fontSize: 9, color: T.txD, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{c0.name}</span>}
                         </>
                       ) : (
-                        <span style={{ fontSize: 11, fontWeight: 700, color: T.green }}>空</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: T.green }}>{t("freeroom.freeShort")}</span>
                       )}
                     </div>
                   );
@@ -130,10 +131,10 @@ function RoomScheduleModal({ sel, occ, quarter, year, mob, nowDay, nowSlot, nowA
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
             {canNav && (
               <button onClick={() => { onClose(); goToBuilding(building); }} style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", borderRadius: 9, border: `1px solid ${T.accent}`, background: `${T.accent}15`, color: T.accent, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
-                {I.map}地図で{building}棟を見る
+                {I.map}{t("freeroom.viewBuildingOnMap", { building })}
               </button>
             )}
-            <span style={{ fontSize: 10, color: T.txD, flex: 1 }}>緑=空き / 赤=授業あり</span>
+            <span style={{ fontSize: 10, color: T.txD, flex: 1 }}>{t("freeroom.legend")}</span>
           </div>
         </div>
       </div>
@@ -253,7 +254,7 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
           setCampus((prev) => (d.campuses.includes(prev) ? prev : d.campuses[0]));
         }
       })
-      .catch((e) => setError(e.message || "取得に失敗しました"))
+      .catch((e) => setError(e.message || t("freeroom.fetchFailed")))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -347,7 +348,7 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
             ))}
             <Sep />
             <select value={year} onChange={(e) => setYear(e.target.value)} style={selStyle}>
-              {yearOpts.map((y) => <option key={y} value={y}>{y}年度</option>)}
+              {yearOpts.map((y) => <option key={y} value={y}>{t("freeroom.yearLabel", { year: y })}</option>)}
             </select>
             <select value={quarter} onChange={(e) => setQuarter(e.target.value)} style={selStyle}>
               {(data?.quarters || ["1Q", "2Q", "3Q", "4Q"]).map((q) => <option key={q} value={q}>{q}</option>)}
@@ -357,29 +358,29 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
           {/* 行2: 曜日 + 時限 + 今 */}
           <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
             {DAYS.map((d, i) => (
-              <Pill key={d} on={i === dayIdx} onClick={() => setDayIdx(i)} min={mob ? 30 : 34}>{d}</Pill>
+              <Pill key={d} on={i === dayIdx} onClick={() => setDayIdx(i)} min={mob ? 30 : 34}>{t("dow.s." + d)}</Pill>
             ))}
             <Sep />
             {SLOT_LABEL.map((lbl, i) => (
-              <Pill key={lbl} on={i === slot} onClick={() => setSlot(i)} col={T.accent}>{lbl.replace("限", "")}</Pill>
+              <Pill key={lbl} on={i === slot} onClick={() => setSlot(i)} col={T.accent}>{`${2 * i + 1}-${2 * i + 2}`}</Pill>
             ))}
-            <button onClick={resetToNow} disabled={isNow} title="現在の曜日・時限に合わせる" style={{
+            <button onClick={resetToNow} disabled={isNow} title={t("freeroom.nowTooltip")} style={{
               display: "flex", alignItems: "center", gap: 3, padding: mob ? "5px 8px" : "5px 10px", borderRadius: 7,
               border: `1px solid ${isNow ? T.bd : T.accent}`, background: isNow ? T.bg2 : `${T.accent}15`,
               color: isNow ? T.txD : T.accent, fontSize: mob ? 11.5 : 12.5, fontWeight: 700, cursor: isNow ? "default" : "pointer", opacity: isNow ? 0.6 : 1, whiteSpace: "nowrap",
-            }}>{I.clock}今</button>
+            }}>{I.clock}{t("freeroom.now")}</button>
             <span style={{ fontSize: 11, color: T.txD, marginLeft: 2 }}>{SLOT_TIMES[slot]}</span>
           </div>
 
           {/* 行3: 表示ステータス + 地域 */}
           {!loading && !error && (
             <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
-              <Pill on={status === "free"} col={T.green} onClick={() => setStatus("free")}>空き {freeTotal}</Pill>
-              <Pill on={status === "busy"} col={T.red} onClick={() => setStatus("busy")}>使用中 {busyTotal}</Pill>
-              <Pill on={status === "all"} col={T.txH} onClick={() => setStatus("all")}>すべて {roomTotal}</Pill>
+              <Pill on={status === "free"} col={T.green} onClick={() => setStatus("free")}>{t("freeroom.statusFree", { n: freeTotal })}</Pill>
+              <Pill on={status === "busy"} col={T.red} onClick={() => setStatus("busy")}>{t("freeroom.statusBusy", { n: busyTotal })}</Pill>
+              <Pill on={status === "all"} col={T.txH} onClick={() => setStatus("all")}>{t("freeroom.statusAll", { n: roomTotal })}</Pill>
               {campusAreas.length > 1 && <>
                 <Sep />
-                <Pill on={areaFilter === null} col={T.txH} onClick={() => setAreaFilter(null)}>全地域</Pill>
+                <Pill on={areaFilter === null} col={T.txH} onClick={() => setAreaFilter(null)}>{t("freeroom.allAreas")}</Pill>
                 {campusAreas.map((a) => (
                   <Pill key={a} on={a === areaFilter} onClick={() => setAreaFilter(a === areaFilter ? null : a)}>{a}</Pill>
                 ))}
@@ -388,7 +389,7 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
           )}
           {(nc.isWeekend || (nc.offHours && isNow)) && (
             <div style={{ fontSize: 10.5, color: T.txD }}>
-              {nc.isWeekend ? "※土日のため月曜を表示" : "※現在は授業時間外"}
+              {nc.isWeekend ? t("freeroom.weekendNote") : t("freeroom.offHoursNote")}
             </div>
           )}
         </div>
@@ -398,22 +399,22 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
       <div style={{ flex: 1, overflowY: "auto", padding: mob ? 12 : 20 }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
       {/* 本体 */}
-      {loading && <div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 14 }}>読み込み中...</div>}
+      {loading && <div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 14 }}>{t("common.loading")}</div>}
       {!loading && error && (
         <div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 14 }}>
-          データの取得に失敗しました<br /><span style={{ fontSize: 12 }}>{error}</span>
+          {t("freeroom.loadError")}<br /><span style={{ fontSize: 12 }}>{error}</span>
           <div style={{ marginTop: 12 }}>
-            <button onClick={() => load(year)} style={{ padding: "6px 16px", borderRadius: 8, border: "none", background: T.accent, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>再試行</button>
+            <button onClick={() => load(year)} style={{ padding: "6px 16px", borderRadius: 8, border: "none", background: T.accent, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{t("freeroom.retry")}</button>
           </div>
         </div>
       )}
       {!loading && !error && areaGroups.length === 0 && (
         <div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 14 }}>
           {roomTotal === 0
-            ? "教室データがありません"
-            : status === "free" ? "この時間に空いている教室はありません"
-            : status === "busy" ? "この時間に使用中の教室はありません"
-            : "該当する教室はありません"}
+            ? t("freeroom.emptyNoData")
+            : status === "free" ? t("freeroom.emptyNoFree")
+            : status === "busy" ? t("freeroom.emptyNoBusy")
+            : t("freeroom.emptyNoMatch")}
         </div>
       )}
 
@@ -423,7 +424,7 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
             <div style={{ width: 4, height: 18, borderRadius: 2, background: T.accent }} />
             <div style={{ flex: 1, fontSize: mob ? 15 : 16, fontWeight: 800, color: T.txH }}>{area}</div>
-            <span style={{ fontSize: 11, fontWeight: 600, color: T.txD }}>{count}室</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: T.txD }}>{t("freeroom.roomCount", { n: count })}</span>
           </div>
 
           {/* 建物ごと */}
@@ -434,20 +435,20 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
               <div key={building} style={{ marginBottom: 14, marginLeft: mob ? 0 : 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "3px 0", borderBottom: `2px solid ${col}30` }}>
                   <div style={{ minWidth: 28, height: 26, padding: "0 8px", borderRadius: 8, background: `${col}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: col }}>{building}</div>
-                  <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: T.txH }}>{building === "その他" ? "その他の教室" : `${building} 棟`}</div>
-                  {canNav && <button onClick={() => goToBuilding(building)} title={`${building} 棟を地図で見る`}
+                  <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: T.txH }}>{building === "その他" ? t("freeroom.otherRooms") : t("freeroom.buildingName", { building })}</div>
+                  {canNav && <button onClick={() => goToBuilding(building)} title={t("freeroom.buildingMapTooltip", { building })}
                     style={{ display: "flex", alignItems: "center", gap: 3, background: "none", border: "none", color: col, fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0 }}>
-                    {I.map}地図
+                    {I.map}{t("freeroom.map")}
                   </button>}
-                  <span style={{ fontSize: 11, fontWeight: 600, color: col, padding: "2px 10px", borderRadius: 6, background: `${col}15` }}>{list.length}室</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: col, padding: "2px 10px", borderRadius: 6, background: `${col}15` }}>{t("freeroom.roomCount", { n: list.length })}</span>
                 </div>
                 {groupByFloor(list).map(({ label, rooms: fRooms }) => (
                   <div key={label} style={{ marginBottom: 8 }}>
                     {/* 階(フロア)見出し */}
                     <div style={{ display: "flex", alignItems: "center", gap: 6, margin: "4px 0 6px 2px" }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: col, padding: "1px 8px", borderRadius: 5, background: `${col}12`, border: `1px solid ${col}25` }}>{label}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: col, padding: "1px 8px", borderRadius: 5, background: `${col}12`, border: `1px solid ${col}25` }}>{label === "階不明" ? t("freeroom.floorUnknown") : label}</span>
                       <div style={{ flex: 1, height: 1, background: `${col}15` }} />
-                      <span style={{ fontSize: 10, color: T.txD }}>{fRooms.length}室</span>
+                      <span style={{ fontSize: 10, color: T.txD }}>{t("freeroom.roomCount", { n: fRooms.length })}</span>
                     </div>
                     {(() => {
                       const hasBusy = fRooms.some((r) => r.busy);
@@ -455,7 +456,7 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
                       return (
                         <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${minW}px, 1fr))`, gap: 6, marginLeft: mob ? 0 : 6 }}>
                           {fRooms.map(({ room, busy, classes }) => busy ? (
-                            <div key={room} onClick={() => setSelRoom({ room, building })} title="クリックで週間の空き状況" style={{
+                            <div key={room} onClick={() => setSelRoom({ room, building })} title={t("freeroom.clickForWeek")} style={{
                               display: "flex", flexDirection: "column", gap: 2, padding: "6px 9px", borderRadius: 9, cursor: "pointer",
                               border: `1px solid ${T.red}25`, background: `${T.red}08`, minWidth: 0,
                             }}>
@@ -464,16 +465,16 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
                                 <span style={{ fontSize: mob ? 12.5 : 13.5, fontWeight: 700, color: T.txH }}>{room}</span>
                               </div>
                               {classes.length === 0
-                                ? <span style={{ fontSize: 11, color: T.txD }}>授業あり</span>
+                                ? <span style={{ fontSize: 11, color: T.txD }}>{t("freeroom.hasClass")}</span>
                                 : <div style={{ display: "flex", alignItems: "baseline", gap: 5, overflow: "hidden", paddingLeft: 2 }}>
                                     {classes[0].code && <span style={{ fontSize: 10.5, fontWeight: 700, color: T.red, flexShrink: 0 }}>{classes[0].code}</span>}
                                     <span style={{ fontSize: 11.5, color: T.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                      {classes[0].name || "（科目名なし）"}{classes.length > 1 ? ` 他${classes.length - 1}` : ""}
+                                      {classes[0].name || t("freeroom.noCourseName")}{classes.length > 1 ? t("freeroom.andMore", { n: classes.length - 1 }) : ""}
                                     </span>
                                   </div>}
                             </div>
                           ) : (
-                            <div key={room} onClick={() => setSelRoom({ room, building })} title="クリックで週間の空き状況" style={{
+                            <div key={room} onClick={() => setSelRoom({ room, building })} title={t("freeroom.clickForWeek")} style={{
                               display: "flex", alignItems: "center", gap: 5, padding: "7px 9px", borderRadius: 9, cursor: "pointer",
                               border: `1px solid ${T.green}30`, background: `${T.green}0c`, minWidth: 0,
                             }}>
@@ -493,8 +494,7 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
       ))}
 
       <div style={{ fontSize: 10, color: T.txD, marginTop: 16, lineHeight: 1.6 }}>
-        ※ シラバスの授業データから「その時限に授業が割り当てられていない教室」を表示しています。
-        補講・会議・予約等の利用は反映されないため、実際の空き状況とは異なる場合があります。
+        {t("freeroom.disclaimer")}
       </div>
       </div>
       </div>

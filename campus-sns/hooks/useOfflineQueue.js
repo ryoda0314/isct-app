@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { t } from "../i18n.js";
 import { showToast } from './useToast.js';
 
 const STORAGE_KEY = 'offline_post_queue';
@@ -25,7 +26,7 @@ export function useOfflineQueue() {
       saveQueue(next);
       return next;
     });
-    showToast('オフラインのため投稿をキューに保存しました');
+    showToast(t("toast.offlineQueued"));
     return entry;
   }, []);
 
@@ -59,8 +60,8 @@ export function useOfflineQueue() {
     processingRef.current = false;
 
     const sent = current.length - remaining.length;
-    if (sent > 0) showToast(`キューから${sent}件の投稿を送信しました`);
-    if (remaining.length > 0) showToast(`${remaining.length}件の投稿がまだ送信待ちです`);
+    if (sent > 0) showToast(t("toast.queueSent", { n: sent }));
+    if (remaining.length > 0) showToast(t("toast.queueRemaining", { n: remaining.length }));
   }, []);
 
   // Remove a queued item

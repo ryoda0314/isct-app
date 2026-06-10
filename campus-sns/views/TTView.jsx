@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 export const TTView=(_p)=>{
   const {setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefresh,courses=[],hiddenSet=new Set(),goToBuilding,pastTTCache={},fetchPastTimetable,pastTTLoading=false,pastTTError=null}=_p;
   const _yr=_p.tty,_setYr=_p.setTty;
   const days=["月","火","水","木","金"],daysFull=["Monday","Tuesday","Wednesday","Thursday","Friday"],dayJP=["月曜日","火曜日","水曜日","木曜日","金曜日"];
-  const pds=["1","2","3","4","5"],pdLabel=["1限","2限","3限","4限","5限"],pdTimes=["8:50–10:30","10:45–12:25","13:30–15:10","15:25–17:05","17:15–18:55"];
+  const pds=["1","2","3","4","5"],pdLabel=pds.map(p=>`${p}${t("tt.periodSuffix")}`),pdTimes=["8:50–10:30","10:45–12:25","13:30–15:10","15:25–17:05","17:15–18:55"];
   const _jd=new Date(Date.now()+9*3600000);
   const _cAY=_jd.getUTCMonth()>=3?_jd.getUTCFullYear():_jd.getUTCFullYear()-1;
   const _yrOpts=[_cAY-2,_cAY-1,_cAY];
@@ -41,7 +42,7 @@ export const TTView=(_p)=>{
         {merged?<><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/></>
           :<><rect x="3" y="3" width="18" height="8" rx="2"/><rect x="3" y="13" width="18" height="8" rx="2"/></>}
       </svg>
-      {merged?"結合":"分割"}
+      {merged?t("tt.merge"):t("tt.split")}
     </button>
   );
   const RefreshBtn=()=>onRefresh?(<>
@@ -53,7 +54,7 @@ export const TTView=(_p)=>{
         style={{animation:refreshing?"spin 1s linear infinite":"none"}}>
         <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
       </svg>
-      {refreshing?"更新中...":"更新"}
+      {refreshing?t("tt.refreshing"):t("tt.refresh")}
     </button>
   </>):null;
   const QDrop=()=>(
@@ -82,7 +83,7 @@ export const TTView=(_p)=>{
       <button onClick={()=>setYrOpen(p=>!p)}
         style={{background:T.bg3,border:`1px solid ${T.bd}`,borderRadius:6,padding:"3px 10px",cursor:"pointer",
           display:"flex",alignItems:"center",gap:4,fontSize:mob?12:13,fontWeight:700,color:T.txD}}>
-        {_yr}年度
+        {_yr}{t("tt.yearSuffix")}
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>
       </button>
       {yrOpen&&<><div onClick={()=>setYrOpen(false)} style={{position:"fixed",inset:0,zIndex:49}}/>
@@ -92,7 +93,7 @@ export const TTView=(_p)=>{
             <div key={y} onClick={()=>{_setYr(y);setYrOpen(false);try{localStorage.setItem("tty",String(y));}catch{}}}
               style={{padding:"8px 14px",cursor:"pointer",fontSize:13,fontWeight:y===_yr?700:400,
                 color:y===_yr?T.accent:T.txH,background:y===_yr?`${T.accent}10`:"transparent"}}>
-              {y}年度
+              {y}{t("tt.yearSuffix")}
             </div>
           ))}
         </div></>}
@@ -131,16 +132,16 @@ export const TTView=(_p)=>{
     if(!isPast)return null;
     if(pastTTLoading)return <div style={{padding:mob?10:14,borderRadius:10,background:`${T.accent}10`,border:`1px solid ${T.accent}30`,marginBottom:mob?8:14,display:"flex",alignItems:"center",gap:8}}>
       <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{animation:"spin 1s linear infinite",flexShrink:0}}><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
-      <span style={{fontSize:12,color:T.accent,fontWeight:600}}>{_yr}年度の時間割を取得中...</span>
+      <span style={{fontSize:12,color:T.accent,fontWeight:600}}>{t("tt.pastLoading",{year:_yr})}</span>
     </div>;
     if(pastTTError&&!pastData)return <div style={{padding:mob?10:14,borderRadius:10,background:`${T.red}10`,border:`1px solid ${T.red}30`,marginBottom:mob?8:14}}>
-      <div style={{fontSize:12,color:T.red,fontWeight:600}}>{_yr}年度の取得に失敗しました</div>
+      <div style={{fontSize:12,color:T.red,fontWeight:600}}>{t("tt.pastError",{year:_yr})}</div>
       <div style={{fontSize:11,color:T.txD,marginTop:4}}>{pastTTError}</div>
-      {fetchPastTimetable&&<button onClick={()=>fetchPastTimetable(_yr)} style={{marginTop:8,padding:"5px 14px",borderRadius:8,border:`1px solid ${T.accent}`,background:"transparent",color:T.accent,fontSize:12,fontWeight:600,cursor:"pointer"}}>再取得</button>}
+      {fetchPastTimetable&&<button onClick={()=>fetchPastTimetable(_yr)} style={{marginTop:8,padding:"5px 14px",borderRadius:8,border:`1px solid ${T.accent}`,background:"transparent",color:T.accent,fontSize:12,fontWeight:600,cursor:"pointer"}}>{t("tt.retry")}</button>}
     </div>;
     if(pastData?.stats)return <div style={{padding:mob?"6px 10px":"8px 14px",borderRadius:8,background:T.bg3,border:`1px solid ${T.bd}`,marginBottom:mob?8:14,fontSize:11,color:T.txD,display:"flex",alignItems:"center",gap:6}}>
       <span style={{background:`${T.accent}15`,color:T.accent,padding:"2px 8px",borderRadius:6,fontWeight:700,fontSize:10}}>T2SCHOLA</span>
-      {pastData.stats.withSchedule}/{pastData.stats.total}科目の時間割あり
+      {t("tt.pastStats",{withSchedule:pastData.stats.withSchedule,total:pastData.stats.total})}
     </div>;
     return null;
   };
@@ -149,7 +150,7 @@ export const TTView=(_p)=>{
     return(<>
       <header style={{display:"flex",alignItems:"center",gap:8,padding:"env(safe-area-inset-top) 12px 0",minHeight:46,borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}>
         <div style={{display:"flex",alignItems:"center",gap:8,width:"100%",height:46}}>
-          <h1 style={{flex:1,margin:0,fontSize:16,fontWeight:700,color:T.txH,display:"flex",alignItems:"center",gap:6}}>時間割 <QDrop/> <YrDrop/></h1>
+          <h1 style={{flex:1,margin:0,fontSize:16,fontWeight:700,color:T.txH,display:"flex",alignItems:"center",gap:6}}>{t("nav.timetable")} <QDrop/> <YrDrop/></h1>
           <MergeBtn/><RefreshBtn/>
         </div>
       </header>
@@ -160,7 +161,7 @@ export const TTView=(_p)=>{
           {days.map((d,i)=>{const isT=i===todayIdx;return(
             <div key={d} style={{display:"flex",alignItems:"center",justifyContent:"center",borderRadius:6,
               background:isT?T.accent:"transparent",padding:"4px 0"}}>
-              <span style={{fontWeight:800,fontSize:12,color:isT?"#fff":T.txH}}>{d}</span>
+              <span style={{fontWeight:800,fontSize:12,color:isT?"#fff":T.txH}}>{t("dow.s."+d)}</span>
             </div>);
           })}
           {pds.map((p,pi)=>
@@ -195,7 +196,7 @@ export const TTView=(_p)=>{
           })}
         </div>
         <div style={{marginTop:14}}>
-          <div style={{fontSize:13,fontWeight:700,color:T.txH,marginBottom:6}}>履修科目</div>
+          <div style={{fontSize:13,fontWeight:700,color:T.txH,marginBottom:6}}>{t("tt.enrolled")}</div>
           {curC.map(co=>{const n=cnt(co.id);return(
             <div key={co.id} onClick={()=>{setCid(co.id);setCh("materials");setView("course");}}
               style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:4,cursor:"pointer"}}>
@@ -204,7 +205,7 @@ export const TTView=(_p)=>{
                 <div style={{fontSize:12,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{co.name}</div>
                 <div style={{fontSize:10,color:T.txD}}>{co.code} · {co.per} · {co.room?.replace(/\s*\(.*?\)/g,"")}{co.bldg&&!co.building?` (${co.bldg})`:""} {co.bldg&&co.building&&<span onClick={e=>{e.stopPropagation();goToBuilding(co.building);}} style={{display:"inline-flex",alignItems:"center",gap:2,padding:"0px 4px",borderRadius:4,background:"#14b8a620",color:"#14b8a6",fontSize:10,fontWeight:700,cursor:"pointer",verticalAlign:"middle"}}><svg width="7" height="7" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>{co.bldg}</span>}</div>
               </div>
-              {n>0&&<span style={{fontSize:10,fontWeight:700,color:T.red}}>{n}件</span>}
+              {n>0&&<span style={{fontSize:10,fontWeight:700,color:T.red}}>{t("tt.countItems",{n})}</span>}
             </div>
           );})}
         </div>
@@ -218,11 +219,11 @@ export const TTView=(_p)=>{
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
         <div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <h2 style={{color:T.txH,margin:0,fontSize:22,fontWeight:800,letterSpacing:-.5}}>時間割</h2>
+            <h2 style={{color:T.txH,margin:0,fontSize:22,fontWeight:800,letterSpacing:-.5}}>{t("nav.timetable")}</h2>
             <QDrop/>
             <YrDrop/>
           </div>
-          <span style={{fontSize:12,color:T.txD}}>{curC.length}科目 · {curC.length*2}単位</span>
+          <span style={{fontSize:12,color:T.txD}}>{t("tt.coursesCredits",{courses:curC.length,credits:curC.length*2})}</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6}}><MergeBtn/><RefreshBtn/></div>
       </div>
@@ -232,7 +233,7 @@ export const TTView=(_p)=>{
         {days.map((d,i)=>{const isT=i===todayIdx;return(
           <div key={d} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",borderRadius:10,
             background:isT?T.accent:"transparent",padding:"6px 0"}}>
-            <span style={{fontWeight:700,color:isT?"#fff":T.txH,fontSize:14}}>{d}</span>
+            <span style={{fontWeight:700,color:isT?"#fff":T.txH,fontSize:14}}>{t("dow.s."+d)}</span>
             <span style={{fontSize:9,color:isT?"rgba(255,255,255,.7)":T.txD,marginTop:1}}>{daysFull[i].slice(0,3)}</span>
           </div>);
         })}
@@ -248,8 +249,8 @@ export const TTView=(_p)=>{
       </div>
       <div style={{marginTop:28}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-          <h3 style={{color:T.txH,margin:0,fontSize:16,fontWeight:700}}>履修科目一覧</h3>
-          <span style={{fontSize:11,color:T.txD,background:T.bg3,padding:"2px 10px",borderRadius:10}}>{curC.length}科目</span>
+          <h3 style={{color:T.txH,margin:0,fontSize:16,fontWeight:700}}>{t("tt.enrolledList")}</h3>
+          <span style={{fontSize:11,color:T.txD,background:T.bg3,padding:"2px 10px",borderRadius:10}}>{t("tt.countCourses",{n:curC.length})}</span>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
         {curC.map(co=>{const n=cnt(co.id);return(
@@ -267,7 +268,7 @@ export const TTView=(_p)=>{
                 <span>{co.per}</span><span>·</span><span>{co.room?.replace(/\s*\(.*?\)/g,"")}{co.bldg&&!co.building?` (${co.bldg})`:""}</span>{co.bldg&&co.building&&<span onClick={e=>{e.stopPropagation();goToBuilding(co.building);}} style={{display:"inline-flex",alignItems:"center",gap:2,padding:"1px 5px",borderRadius:4,background:"#14b8a620",color:"#14b8a6",fontSize:10,fontWeight:700,cursor:"pointer"}}><svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>{co.bldg}</span>}
               </div>
             </div>
-            {n>0&&<div style={{padding:"4px 10px",borderRadius:12,background:`${T.red}15`,color:T.red,fontSize:11,fontWeight:700,flexShrink:0,border:`1px solid ${T.red}30`}}>課題 {n}</div>}
+            {n>0&&<div style={{padding:"4px 10px",borderRadius:12,background:`${T.red}15`,color:T.red,fontSize:11,fontWeight:700,flexShrink:0,border:`1px solid ${T.red}30`}}>{t("tt.taskCount",{n})}</div>}
           </div>
         );})}
         </div>
@@ -281,7 +282,7 @@ export const CSelect=({setCid,setView,setCh,courses=[],depts=[],schools=[],setDi
   return(
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:12}}>
       {schools.length>0&&<>
-        <div style={{fontSize:12,fontWeight:700,color:T.txD,marginBottom:6,letterSpacing:.3}}>学院</div>
+        <div style={{fontSize:12,fontWeight:700,color:T.txD,marginBottom:6,letterSpacing:.3}}>{t("sidebar.schools")}</div>
         {schools.map(s=><div key={s.prefix} onClick={()=>{setDid?.(s.prefix);setCh("timeline");setView("dept");}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:8,borderLeft:`3px solid ${s.col}`,cursor:"pointer"}}>
           <div style={{width:38,height:38,borderRadius:10,background:s.col,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:12,flexShrink:0}}>{s.name.slice(0,2)}</div>
           <div style={{flex:1}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{s.name}</div></div>
@@ -289,7 +290,7 @@ export const CSelect=({setCid,setView,setCh,courses=[],depts=[],schools=[],setDi
         </div>)}
       </>}
       {depts.length>0&&<>
-        <div style={{fontSize:12,fontWeight:700,color:T.txD,marginTop:8,marginBottom:6,letterSpacing:.3}}>学系</div>
+        <div style={{fontSize:12,fontWeight:700,color:T.txD,marginTop:8,marginBottom:6,letterSpacing:.3}}>{t("sidebar.depts")}</div>
         {depts.map(d=><div key={d.prefix} onClick={()=>{setDid?.(d.prefix);setCh("timeline");setView("dept");}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:8,borderLeft:`3px solid ${d.col}`,cursor:"pointer"}}>
           <div style={{width:38,height:38,borderRadius:10,background:d.col,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:11,flexShrink:0}}>{d.prefix}</div>
           <div style={{flex:1}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{d.name}</div></div>
@@ -297,14 +298,14 @@ export const CSelect=({setCid,setView,setCh,courses=[],depts=[],schools=[],setDi
         </div>)}
       </>}
       {userUnit&&<>
-        <div style={{fontSize:12,fontWeight:700,color:T.txD,marginTop:8,marginBottom:6,letterSpacing:.3}}>ユニット — {userUnit.yg}</div>
+        <div style={{fontSize:12,fontWeight:700,color:T.txD,marginTop:8,marginBottom:6,letterSpacing:.3}}>{t("sidebar.unit")} — {userUnit.yg}</div>
         <div onClick={()=>{setDid?.(userUnit.prefix);setCh("timeline");setView("dept");}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:8,borderLeft:`3px solid ${userUnit.col}`,cursor:"pointer"}}>
           <div style={{width:38,height:38,borderRadius:10,background:userUnit.col,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:12,flexShrink:0}}>U{userUnit.num}</div>
-          <div style={{flex:1}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>ユニット{userUnit.num}</div><div style={{fontSize:12,color:T.txD}}>{userUnit.yg} 学院横断グループ</div></div>
+          <div style={{flex:1}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{t("tt.unitN",{n:userUnit.num})}</div><div style={{fontSize:12,color:T.txD}}>{t("tt.crossSchoolGroup",{yg:userUnit.yg})}</div></div>
           <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
         </div>
       </>}
-      {(schools.length>0||depts.length>0||userUnit)&&<div style={{fontSize:12,fontWeight:700,color:T.txD,marginTop:8,marginBottom:6,letterSpacing:.3}}>コース</div>}
+      {(schools.length>0||depts.length>0||userUnit)&&<div style={{fontSize:12,fontWeight:700,color:T.txD,marginTop:8,marginBottom:6,letterSpacing:.3}}>{t("tt.courses")}</div>}
       {courses.map(co=><div key={co.id} onClick={()=>{setCid(co.id);setCh("materials");setView("course");}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:8,borderLeft:`3px solid ${co.col}`,cursor:"pointer"}}>
         <div style={{width:38,height:38,borderRadius:10,background:co.col,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:13,flexShrink:0}}>{co.code.slice(0,3)}</div>
         <div style={{flex:1}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{co.name}</div><div style={{fontSize:12,color:T.txD}}>{co.code} · {co.per}</div></div>

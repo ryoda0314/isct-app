@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { useLeaflet, Loader } from "../shared.jsx";
 import { CAMPUS_CENTER, CAMPUS_ZOOM, SPOTS, SPOT_CATS, ENTRANCES, AREAS } from "../hooks/useLocationSharing.js";
@@ -64,12 +65,12 @@ const findNearestNavSpot=(lat,lng)=>{
 
 /* ── Spot group definitions ── */
 export const SPOT_GROUPS=[
-  {prefix:"bench",label:"ベンチ",col:"#8bc34a"},
-  {prefix:"park",label:"駐輪場",col:"#78909c"},
-  {prefix:"vend_d",label:"自販機・飲料",col:"#42a5f5"},
-  {prefix:"vend_f",label:"自販機・食品",col:"#ff8a65"},
-  {prefix:"smoke",label:"喫煙所",col:"#b0bec5"},
-  {prefix:"rest",label:"飲食店",col:"#e8843a"},
+  {prefix:"bench",labelKey:"navi.grpBench",col:"#8bc34a"},
+  {prefix:"park",labelKey:"navi.grpPark",col:"#78909c"},
+  {prefix:"vend_d",labelKey:"navi.grpVendDrink",col:"#42a5f5"},
+  {prefix:"vend_f",labelKey:"navi.grpVendFood",col:"#ff8a65"},
+  {prefix:"smoke",labelKey:"navi.grpSmoke",col:"#b0bec5"},
+  {prefix:"rest",labelKey:"navi.grpRest",col:"#e8843a"},
 ];
 const getGroupPrefix=(id)=>{const g=SPOT_GROUPS.find(g=>id.startsWith(g.prefix+"_"));return g?g.prefix:null;};
 const isGroupableSpot=(s)=>(s.cat==="outdoor"||s.cat==="restaurant")&&getGroupPrefix(s.id)!=null;
@@ -90,7 +91,7 @@ const SpotSelector=({value,onChange,onSelectGroup,placeholder,accent,onGps,gpsLo
   const [open,setOpen]=useState(!!initialOpen);
   const [q,setQ]=useState("");
   const [openCat,setOpenCat]=useState(null);
-  const sel=value==="__gps__"?{id:"__gps__",label:"現在地",col:"#4285f4",short:"GPS"}:NAV_SPOTS.find(s=>s.id===value);
+  const sel=value==="__gps__"?{id:"__gps__",label:t("navi.currentLocation"),col:"#4285f4",short:"GPS"}:NAV_SPOTS.find(s=>s.id===value);
 
   const searching=q.trim().length>0;
   const filtered=searching?NAV_SPOTS.filter(s=>s.label.includes(q)||s.short.includes(q)||s.id.includes(q.toLowerCase())):[];
@@ -101,7 +102,7 @@ const SpotSelector=({value,onChange,onSelectGroup,placeholder,accent,onGps,gpsLo
   // Build mixed list: spots + category entries + group entries
   const quickItems=rawQuick.map(id=>{
     if(id.startsWith("cat:")){const catId=id.slice(4);const cat=SPOT_CATS.find(c=>c.id===catId);return cat?{type:"cat",catId,label:cat.label,count:NAV_SPOTS.filter(s=>s.cat===catId).length}:null;}
-    if(id.startsWith("grp:")){const pfx=id.slice(4);const g=SPOT_GROUPS.find(x=>x.prefix===pfx);return g?{type:"grp",prefix:pfx,label:g.label,col:g.col,count:NAV_SPOTS.filter(s=>s.id.startsWith(pfx+"_")).length}:null;}
+    if(id.startsWith("grp:")){const pfx=id.slice(4);const g=SPOT_GROUPS.find(x=>x.prefix===pfx);return g?{type:"grp",prefix:pfx,label:t(g.labelKey),col:g.col,count:NAV_SPOTS.filter(s=>s.id.startsWith(pfx+"_")).length}:null;}
     const s=NAV_SPOTS.find(s=>s.id===id);return s?{type:"spot",...s}:null;
   }).filter(Boolean);
 
@@ -121,13 +122,13 @@ const SpotSelector=({value,onChange,onSelectGroup,placeholder,accent,onGps,gpsLo
         <div style={{padding:"10px 10px 6px"}}>
           <div style={{position:"relative"}}>
             <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",display:"flex",color:T.txD,pointerEvents:"none"}}>{I.search}</span>
-            <input value={q} onChange={e=>{setQ(e.target.value);setOpenCat(null);}} placeholder="建物名を検索..." autoFocus style={{width:"100%",padding:"9px 10px 9px 34px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,outline:"none",boxSizing:"border-box"}}/>
+            <input value={q} onChange={e=>{setQ(e.target.value);setOpenCat(null);}} placeholder={t("navi.searchBuilding")} autoFocus style={{width:"100%",padding:"9px 10px 9px 34px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,outline:"none",boxSizing:"border-box"}}/>
           </div>
         </div>
         <div style={{maxHeight:280,overflowY:"auto",padding:"0 6px 6px"}}>
           {value&&<button onClick={()=>{onChange(null);setOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,border:"none",background:`${T.red}10`,cursor:"pointer",textAlign:"left",marginBottom:4}}>
             <span style={{display:"flex",color:T.red}}>{I.x}</span>
-            <span style={{fontSize:12,fontWeight:500,color:T.red}}>選択を解除</span>
+            <span style={{fontSize:12,fontWeight:500,color:T.red}}>{t("navi.clearSelection")}</span>
           </button>}
           {searching?<>
             {/* Grouped outdoor spots */}
@@ -136,8 +137,8 @@ const SpotSelector=({value,onChange,onSelectGroup,placeholder,accent,onGps,gpsLo
                 <div style={{width:24,height:24,borderRadius:6,background:`${g.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill={g.col} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
                 </div>
-                <span style={{fontSize:13,fontWeight:600,color:T.txH,flex:1}}>{g.label}</span>
-                <span style={{fontSize:11,color:T.txD}}>{g.spots.length}件 ›</span>
+                <span style={{fontSize:13,fontWeight:600,color:T.txH,flex:1}}>{t(g.labelKey)}</span>
+                <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:g.spots.length})} ›</span>
               </button>
             ))}
             {/* Non-groupable spots */}
@@ -152,11 +153,11 @@ const SpotSelector=({value,onChange,onSelectGroup,placeholder,accent,onGps,gpsLo
                 </button>;
               })}
             </div>)}
-            {searchResults.groups.length===0&&searchGrouped.length===0&&<div style={{padding:"16px 0",fontSize:12,color:T.txD,textAlign:"center"}}>見つかりません</div>}
+            {searchResults.groups.length===0&&searchGrouped.length===0&&<div style={{padding:"16px 0",fontSize:12,color:T.txD,textAlign:"center"}}>{t("navi.notFound")}</div>}
           </>:openCat?<>
             <button onClick={()=>setOpenCat(null)} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",color:T.txD,fontSize:11,marginBottom:2}}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-              戻る
+              {t("common.back")}
             </button>
             {catSpots.map(s=>{
               const on=s.id===value;
@@ -169,20 +170,20 @@ const SpotSelector=({value,onChange,onSelectGroup,placeholder,accent,onGps,gpsLo
           </>:<>
             {onGps&&<button onClick={()=>{onGps();setOpen(false);}} disabled={gpsLoading} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"#4285f410",cursor:gpsLoading?"wait":"pointer",textAlign:"left",marginBottom:4}} onMouseEnter={e=>e.currentTarget.style.background="#4285f420"} onMouseLeave={e=>e.currentTarget.style.background="#4285f410"}>
               <div style={{width:20,height:20,borderRadius:5,background:"#4285f430",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{I.tgt}</div>
-              <span style={{fontSize:12,fontWeight:500,color:"#4285f4"}}>{gpsLoading?"取得中...":"現在地"}</span>
+              <span style={{fontSize:12,fontWeight:500,color:"#4285f4"}}>{gpsLoading?t("navi.locating"):t("navi.currentLocation")}</span>
             </button>}
-            <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5,padding:"6px 10px 3px"}}>よく使う</div>
+            <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5,padding:"6px 10px 3px"}}>{t("navi.frequentlyUsed")}</div>
             {quickItems.map((item,i)=>{
               if(item.type==="cat") return <button key={"cat:"+item.catId} onClick={()=>setOpenCat(item.catId)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                 <span style={{fontSize:12,fontWeight:500,color:T.txH}}>{item.label}</span>
-                <span style={{fontSize:11,color:T.txD}}>{item.count}件 ›</span>
+                <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:item.count})} ›</span>
               </button>;
               if(item.type==="grp") return <button key={"grp:"+item.prefix} onClick={()=>{if(onSelectGroup){onSelectGroup(item.prefix);setOpen(false);}}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                 <div style={{width:20,height:20,borderRadius:5,background:`${item.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                   <div style={{width:8,height:8,borderRadius:2,background:item.col}}/>
                 </div>
                 <span style={{fontSize:12,fontWeight:500,color:T.txH,flex:1}}>{item.label}</span>
-                <span style={{fontSize:11,color:T.txD}}>{item.count}件 ›</span>
+                <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:item.count})} ›</span>
               </button>;
               const on=item.id===value;
               return <button key={item.id} onClick={()=>{onChange(item.id);setOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:on?`${accent}18`:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>{if(!on)e.currentTarget.style.background=T.hover}} onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent"}}>
@@ -196,7 +197,7 @@ const SpotSelector=({value,onChange,onSelectGroup,placeholder,accent,onGps,gpsLo
               const count=NAV_SPOTS.filter(s=>s.cat===cat.id).length;
               return <button key={cat.id} onClick={()=>setOpenCat(cat.id)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"10px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                 <span style={{fontSize:13,fontWeight:500,color:T.txH}}>{cat.label}</span>
-                <span style={{fontSize:11,color:T.txD}}>{count}件 ›</span>
+                <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:count})} ›</span>
               </button>;
             })}
           </>}
@@ -564,7 +565,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     layersRef.current.forEach(l=>{try{map.removeLayer(l);}catch{}});
     layersRef.current=[];
 
-    const originSpot=origin==="__gps__"&&gpsOriginPos?{id:"__gps__",label:"現在地",lat:gpsOriginPos.lat,lng:gpsOriginPos.lng,col:"#4285f4"}:NAV_SPOTS.find(s=>s.id===origin);
+    const originSpot=origin==="__gps__"&&gpsOriginPos?{id:"__gps__",label:t("navi.currentLocation"),lat:gpsOriginPos.lat,lng:gpsOriginPos.lng,col:"#4285f4"}:NAV_SPOTS.find(s=>s.id===origin);
     const destSpot=NAV_SPOTS.find(s=>s.id===destination);
 
     // All building dots
@@ -681,7 +682,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     if(originPos){
       const icon=L.divIcon({className:"",html:`<div style="width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid #ccc;box-shadow:0 2px 6px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center"><div style="width:6px;height:6px;border-radius:50%;background:#aaa"></div></div>`,iconSize:[18,18],iconAnchor:[9,9]});
       const m=L.marker([originPos.lat,originPos.lng],{icon,zIndexOffset:1000}).addTo(map);
-      m.bindTooltip(`出発: ${originSpot?.label||"現在地"}`,{direction:"top",offset:[0,-12],className:"nav-tip"});
+      m.bindTooltip(t("navi.originLabel",{name:originSpot?.label||t("navi.currentLocation")}),{direction:"top",offset:[0,-12],className:"nav-tip"});
       layersRef.current.push(m);
     }
 
@@ -695,7 +696,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
           </div>
         </div>`,iconSize:[32,42],iconAnchor:[16,42]});
       const m=L.marker([destSpot.lat,destSpot.lng],{icon,zIndexOffset:1000}).addTo(map);
-      m.bindTooltip(`到着: ${destSpot.label}`,{direction:"top",offset:[0,-44],className:"nav-tip"});
+      m.bindTooltip(t("navi.destLabel",{name:destSpot.label}),{direction:"top",offset:[0,-44],className:"nav-tip"});
       layersRef.current.push(m);
     }
 
@@ -728,7 +729,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     }else{
       const gpsDot=L.divIcon({className:"gps-smooth",html:`<div style="position:relative"><div class="gps-arrow" style="display:none;position:absolute;top:-18px;left:50%;transform-origin:center 24px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:14px solid #4285f4;filter:drop-shadow(0 0 3px rgba(66,133,244,.6));z-index:2;transition:transform .15s ease-out"></div><div style="position:absolute;inset:-10px;border-radius:50%;background:#4285f420;border:1.5px solid #4285f440;animation:locPulse 2s ease-in-out infinite"></div><div style="width:12px;height:12px;border-radius:50%;background:#4285f4;border:2.5px solid #fff;box-shadow:0 0 6px rgba(66,133,244,.5)"></div></div>`,iconSize:[12,12],iconAnchor:[6,6]});
       const gm=L.marker([gpsPos.lat,gpsPos.lng],{icon:gpsDot,zIndexOffset:900}).addTo(map);
-      gm.bindTooltip(`<b>現在地</b>`,{direction:"top",offset:[0,-10],className:"nav-tip"});
+      gm.bindTooltip(`<b>${t("navi.currentLocation")}</b>`,{direction:"top",offset:[0,-10],className:"nav-tip"});
       gpsMarkerRef.current=gm;
     }
     if(gpsPos.accuracy&&gpsPos.accuracy<500){
@@ -748,7 +749,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const [openCatInline,setOpenCatInline]=useState(null);
   const [tipsOpen,setTipsOpen]=useState(false);
 
-  if(!leafletReady)return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><Loader msg="マップを読み込み中" size="md"/></div>;
+  if(!leafletReady)return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><Loader msg={t("navi.loadingMap")} size="md"/></div>;
 
   const tipStyle=`.nav-tip{background:${T.bg2}!important;color:${T.txH}!important;border:1px solid ${T.bdL}!important;border-radius:8px!important;font-size:11px!important;font-weight:600!important;padding:4px 10px!important;box-shadow:0 4px 16px rgba(0,0,0,.45)!important;font-family:inherit!important}.nav-tip::before{display:none!important}`;
 
@@ -770,7 +771,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const rawQuickInline=getNavQuickRaw();
   const quickItemsInline=rawQuickInline.map(id=>{
     if(id.startsWith("cat:")){const catId=id.slice(4);const cat=SPOT_CATS.find(c=>c.id===catId);return cat?{type:"cat",catId,label:cat.label,count:NAV_SPOTS.filter(s=>s.cat===catId).length}:null;}
-    if(id.startsWith("grp:")){const pfx=id.slice(4);const g=SPOT_GROUPS.find(x=>x.prefix===pfx);return g?{type:"grp",prefix:pfx,label:g.label,col:g.col,count:NAV_SPOTS.filter(s=>s.id.startsWith(pfx+"_")).length}:null;}
+    if(id.startsWith("grp:")){const pfx=id.slice(4);const g=SPOT_GROUPS.find(x=>x.prefix===pfx);return g?{type:"grp",prefix:pfx,label:t(g.labelKey),col:g.col,count:NAV_SPOTS.filter(s=>s.id.startsWith(pfx+"_")).length}:null;}
     const s=NAV_SPOTS.find(s=>s.id===id);return s?{type:"spot",...s}:null;
   }).filter(Boolean);
 
@@ -778,7 +779,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const searchCard=navPhase==="search"&&searchMin?
     <div onClick={()=>setSearchMin(false)} style={{position:"absolute",top:mob?10:14,left:mob?10:14,right:mob?10:"auto",width:cardW,zIndex:1000,display:"flex",alignItems:"center",gap:10,padding:"12px 16px",background:T.bg2,borderRadius:16,border:`1px solid ${T.bdL}`,boxShadow:"0 4px 24px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.2)",cursor:"pointer",transition:"box-shadow .15s"}}>
       <span style={{display:"flex",color:T.txD}}>{I.search}</span>
-      <span style={{fontSize:14,color:T.txD,flex:1}}>スポットを検索...</span>
+      <span style={{fontSize:14,color:T.txD,flex:1}}>{t("navi.searchSpot")}</span>
     </div>
   :navPhase==="search"?
     /* ── Phase 1: Search (直接入力可能) ── */
@@ -786,7 +787,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       <div style={{padding:"10px 10px 6px"}}>
         <div style={{position:"relative"}}>
           <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",display:"flex",color:T.txD,pointerEvents:"none"}}>{I.search}</span>
-          <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="スポットを検索..." autoFocus style={{width:"100%",padding:"11px 10px 11px 34px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
+          <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder={t("navi.searchSpot")} autoFocus style={{width:"100%",padding:"11px 10px 11px 34px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
         </div>
       </div>
       <div style={{maxHeight:320,overflowY:"auto",padding:"0 6px 6px"}}>
@@ -796,8 +797,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
               <div style={{width:24,height:24,borderRadius:6,background:`${g.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill={g.col} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
               </div>
-              <span style={{fontSize:13,fontWeight:600,color:T.txH,flex:1}}>{g.label}</span>
-              <span style={{fontSize:11,color:T.txD}}>{g.spots.length}件 ›</span>
+              <span style={{fontSize:13,fontWeight:600,color:T.txH,flex:1}}>{t(g.labelKey)}</span>
+              <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:g.spots.length})} ›</span>
             </button>
           ))}
           {searchInlineGrouped.map(g=><div key={g.id}>
@@ -809,18 +810,18 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
               </button>
             ))}
           </div>)}
-          {searchInlineResults.groups.length===0&&searchInlineGrouped.length===0&&<div style={{padding:"16px 0",fontSize:12,color:T.txD,textAlign:"center"}}>見つかりません</div>}
+          {searchInlineResults.groups.length===0&&searchInlineGrouped.length===0&&<div style={{padding:"16px 0",fontSize:12,color:T.txD,textAlign:"center"}}>{t("navi.notFound")}</div>}
         </>:<>
-          <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5,padding:"6px 10px 3px"}}>よく使う</div>
+          <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5,padding:"6px 10px 3px"}}>{t("navi.frequentlyUsed")}</div>
           {quickItemsInline.map((item,i)=>{
             if(item.type==="cat") return <button key={"cat:"+item.catId} onClick={()=>setOpenCatInline(item.catId)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
               <span style={{fontSize:12,fontWeight:500,color:T.txH}}>{item.label}</span>
-              <span style={{fontSize:11,color:T.txD}}>{item.count}件 ›</span>
+              <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:item.count})} ›</span>
             </button>;
             if(item.type==="grp") return <button key={"grp:"+item.prefix} onClick={()=>{setSpotGroup(item.prefix);setNavPhase("group");setSearchQ("");}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
               <div style={{width:20,height:20,borderRadius:5,background:`${item.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><div style={{width:8,height:8,borderRadius:2,background:item.col}}/></div>
               <span style={{fontSize:12,fontWeight:500,color:T.txH,flex:1}}>{item.label}</span>
-              <span style={{fontSize:11,color:T.txD}}>{item.count}件 ›</span>
+              <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:item.count})} ›</span>
             </button>;
             return <button key={item.id} onClick={()=>{setDestination(item.id);setSpotGroup(null);setNavPhase("detail");setSearchQ("");if(mapInst.current)mapInst.current.flyTo([item.lat,item.lng],18,{duration:.5});}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
               <div style={{width:20,height:20,borderRadius:5,background:`${item.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:item.col}}>{item.short}</span></div>
@@ -840,14 +841,14 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
                   <svg width="10" height="10" viewBox="0 0 24 24" fill={g.col} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
                 </div>
                 <span style={{fontSize:13,fontWeight:500,color:T.txH,flex:1}}>{cat.label}</span>
-                <span style={{fontSize:11,color:T.txD}}>{cnt}件 ›</span>
+                <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:cnt})} ›</span>
               </button>;
             }
             const isOpen=openCatInline===cat.id;
             return <div key={cat.id}>
               <button onClick={()=>setOpenCatInline(isOpen?null:cat.id)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"10px 10px",borderRadius:8,border:"none",background:isOpen?T.bg3:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>{if(!isOpen)e.currentTarget.style.background=T.hover}} onMouseLeave={e=>{if(!isOpen)e.currentTarget.style.background=isOpen?T.bg3:"transparent"}}>
                 <span style={{fontSize:13,fontWeight:500,color:T.txH}}>{cat.label}</span>
-                <span style={{fontSize:11,color:T.txD}}>{catSpots.length+catGroups.length}件 {isOpen?"▾":"›"}</span>
+                <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:catSpots.length+catGroups.length})} {isOpen?"▾":"›"}</span>
               </button>
               {isOpen&&<div style={{padding:"0 4px 4px"}}>
                 {catGroups.map(g=>{
@@ -856,8 +857,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
                     <div style={{width:20,height:20,borderRadius:6,background:`${g.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                       <svg width="10" height="10" viewBox="0 0 24 24" fill={g.col} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
                     </div>
-                    <span style={{fontSize:12,fontWeight:400,color:T.tx,flex:1}}>{g.label}</span>
-                    <span style={{fontSize:10,color:T.txD}}>{cnt}件 ›</span>
+                    <span style={{fontSize:12,fontWeight:400,color:T.tx,flex:1}}>{t(g.labelKey)}</span>
+                    <span style={{fontSize:10,color:T.txD}}>{t("navi.itemsCount",{n:cnt})} ›</span>
                   </button>;
                 })}
                 {catSpots.map(s=>(
@@ -881,12 +882,12 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
             <svg width="16" height="16" viewBox="0 0 24 24" fill={groupInfo?.col||T.txD} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
           </div>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:15,fontWeight:700,color:T.txH}}>{groupInfo?.label||""}</div>
-            <div style={{fontSize:11,color:T.txD,marginTop:1}}>{groupSpots.length}件のスポット</div>
+            <div style={{fontSize:15,fontWeight:700,color:T.txH}}>{groupInfo?t(groupInfo.labelKey):""}</div>
+            <div style={{fontSize:11,color:T.txD,marginTop:1}}>{t("navi.spotsCount",{n:groupSpots.length})}</div>
           </div>
           <button onClick={()=>{setSpotGroup(null);setNavPhase("search");}} style={{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",color:T.txD,flexShrink:0}}>{I.x}</button>
         </div>
-        <div style={{fontSize:11,color:T.txD}}>マップ上のピンをタップして選択</div>
+        <div style={{fontSize:11,color:T.txD}}>{t("navi.tapPinToSelect")}</div>
       </div>
     </div>
   :navPhase==="detail"?
@@ -922,12 +923,12 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
             </div>}
             {destSpotInfo.meta.closed&&<div style={{display:"flex",alignItems:"center",gap:8}}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.red||"#e5534b"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-              <span style={{fontSize:12,color:T.red||"#e5534b"}}>{destSpotInfo.meta.closed} 定休</span>
+              <span style={{fontSize:12,color:T.red||"#e5534b"}}>{t("navi.closedDay",{day:destSpotInfo.meta.closed})}</span>
             </div>}
             {destSpotInfo.meta.desc&&<div style={{fontSize:11,color:T.txD,marginTop:2,lineHeight:1.5}}>{destSpotInfo.meta.desc}</div>}
             {destSpotInfo.meta.tips&&<button onClick={()=>setTipsOpen(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,marginTop:8,padding:"8px 10px",borderRadius:8,border:`1px solid ${destSpotInfo.col}40`,background:`${destSpotInfo.col}10`,cursor:"pointer",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=`${destSpotInfo.col}20`} onMouseLeave={e=>e.currentTarget.style.background=`${destSpotInfo.col}10`}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={destSpotInfo.col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-              <span style={{fontSize:12,fontWeight:600,color:destSpotInfo.col,flex:1,textAlign:"left"}}>初めて行く人へ</span>
+              <span style={{fontSize:12,fontWeight:600,color:destSpotInfo.col,flex:1,textAlign:"left"}}>{t("navi.firstTimeGuide")}</span>
               <span style={{fontSize:11,color:`${destSpotInfo.col}90`}}>›</span>
             </button>}
             {destSpotInfo.meta.links&&<div style={{display:"flex",gap:6,marginTop:8}}>
@@ -956,7 +957,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
             }
           }} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"11px 0",borderRadius:12,border:"none",background:"linear-gradient(135deg,#4de8b0,#34a853)",cursor:"pointer",transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=".85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-            <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>ここへ案内</span>
+            <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{t("navi.navigateHere")}</span>
           </button>
         </>}
       </div>
@@ -972,15 +973,15 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         </div>
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
           <div style={{borderBottom:`1px solid ${T.bd}`}}>
-            <SpotSelector value={origin} onChange={v=>{setOrigin(v);setGpsOriginPos(null);setOriginFromGps(false);setSelectMode(null);}} placeholder="出発地を選択" accent="#34a853" onGps={getGpsOrigin} gpsLoading={gpsLoading}/>
+            <SpotSelector value={origin} onChange={v=>{setOrigin(v);setGpsOriginPos(null);setOriginFromGps(false);setSelectMode(null);}} placeholder={t("navi.selectOrigin")} accent="#34a853" onGps={getGpsOrigin} gpsLoading={gpsLoading}/>
           </div>
-          <SpotSelector value={destination} onChange={v=>{if(v){setDestination(v);}else{setDestination(null);setOrigin(null);setNavPhase("search");}}} placeholder="目的地を選択" accent={T.accent}/>
+          <SpotSelector value={destination} onChange={v=>{if(v){setDestination(v);}else{setDestination(null);setOrigin(null);setNavPhase("search");}}} placeholder={t("navi.selectDestination")} accent={T.accent}/>
         </div>
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,flexShrink:0,paddingLeft:4}}>
-          <button onClick={getGpsOrigin} disabled={gpsLoading} style={{display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:"50%",border:`1px solid ${gpsPos?"#4285f440":T.bd}`,background:gpsPos?"#4285f410":"transparent",cursor:gpsLoading?"wait":"pointer",color:gpsPos?"#4285f4":T.txD,transition:"all .15s",opacity:gpsLoading?0.5:1}} title="現在地を出発地に設定">
+          <button onClick={getGpsOrigin} disabled={gpsLoading} style={{display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:"50%",border:`1px solid ${gpsPos?"#4285f440":T.bd}`,background:gpsPos?"#4285f410":"transparent",cursor:gpsLoading?"wait":"pointer",color:gpsPos?"#4285f4":T.txD,transition:"all .15s",opacity:gpsLoading?0.5:1}} title={t("navi.setCurrentAsOrigin")}>
             {I.tgt}
           </button>
-          <button onClick={swap} style={{display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:"50%",border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",color:T.txD,transition:"all .15s"}} title="入れ替え">
+          <button onClick={swap} style={{display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:"50%",border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",color:T.txD,transition:"all .15s"}} title={t("navi.swap")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="7 3 7 21"/><polyline points="4 6 7 3 10 6"/><polyline points="17 21 17 3"/><polyline points="14 18 17 21 20 18"/></svg>
           </button>
         </div>
@@ -988,7 +989,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       {selectMode&&<div style={{padding:"6px 14px 10px",borderTop:`1px solid ${T.bd}`}}>
         <div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:8,background:`${T.accent}10`}}>
           <span style={{display:"flex",color:T.accent}}>{I.tgt}</span>
-          <span style={{fontSize:11,color:T.accent,fontWeight:500}}>マップ上の建物をタップして{selectMode==="origin"?"出発地":"目的地"}を選択</span>
+          <span style={{fontSize:11,color:T.accent,fontWeight:500}}>{t("navi.tapBuildingToSelect",{what:selectMode==="origin"?t("navi.origin"):t("navi.destination")})}</span>
         </div>
       </div>}
     </div>;
@@ -1012,38 +1013,38 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       {/* Time circle */}
       <div style={{width:56,height:56,borderRadius:"50%",background:"linear-gradient(135deg,#4de8b0,#34a853)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flexShrink:0}}>
         <span style={{fontSize:20,fontWeight:800,color:"#fff",lineHeight:1}}>{route.minutes}</span>
-        <span style={{fontSize:9,fontWeight:600,color:"rgba(255,255,255,.85)",marginTop:-1}}>分</span>
+        <span style={{fontSize:9,fontWeight:600,color:"rgba(255,255,255,.85)",marginTop:-1}}>{t("navi.min")}</span>
       </div>
 
       <div style={{flex:1,minWidth:0}}>
         <div style={{display:"flex",alignItems:"baseline",gap:6}}>
           <span style={{fontSize:16,fontWeight:700,color:T.txH}}>{route.distance}m</span>
-          <span style={{fontSize:12,color:T.txD}}>徒歩</span>
+          <span style={{fontSize:12,color:T.txD}}>{t("navi.walk")}</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,marginTop:5,flexWrap:"wrap"}}>
           <div style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:6,background:`${T.bg3}`}}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4de8b0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            <span style={{fontSize:11,fontWeight:600,color:T.txH}}>約{route.minutes}分</span>
+            <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{t("navi.aboutMin",{n:route.minutes})}</span>
           </div>
           {route.hasStairs&&<div style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:6,background:`${T.orange}12`}}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={T.orange} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 18h4v-4h4v-4h4v-4h4"/></svg>
-            <span style={{fontSize:11,fontWeight:600,color:T.orange}}>階段あり</span>
+            <span style={{fontSize:11,fontWeight:600,color:T.orange}}>{t("navi.hasStairs")}</span>
           </div>}
         </div>
       </div>
 
       {/* Close/minimize */}
-      <button onClick={()=>setPanelMin(true)} style={{position:"absolute",top:8,right:10,background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}} title="閉じる">
+      <button onClick={()=>setPanelMin(true)} style={{position:"absolute",top:8,right:10,background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}} title={t("common.close")}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
       </button>
     </div>
     {/* 案内を開始ボタン（出発地がGPS=現在地の時のみ） */}
     {!guiding&&originFromGps&&<button onClick={startGuiding} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"12px 0",marginTop:10,borderRadius:12,border:"none",background:"linear-gradient(135deg,#4de8b0,#34a853)",cursor:"pointer",transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=".85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-      <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>案内を開始</span>
+      <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{t("navi.startGuiding")}</span>
     </button>}
     {guiding&&<button onClick={stopGuiding} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"12px 0",marginTop:10,borderRadius:12,border:`1.5px solid ${T.red}40`,background:`${T.red}12`,cursor:"pointer",transition:"opacity .15s"}}>
-      <span style={{fontSize:14,fontWeight:700,color:T.red}}>案内を終了</span>
+      <span style={{fontSize:14,fontWeight:700,color:T.red}}>{t("navi.stopGuiding")}</span>
     </button>}
   </div>;
 
@@ -1063,7 +1064,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     animation:"navSlideUp .2s ease-out",
   }}>
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-    <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{route.minutes}分</span>
+    <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{t("navi.minCount",{n:route.minutes})}</span>
     <span style={{fontSize:12,fontWeight:500,color:"rgba(255,255,255,.8)"}}>{route.distance}m</span>
   </button>;
 
@@ -1087,8 +1088,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.red} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
     </div>
     <div>
-      <div style={{fontSize:13,fontWeight:600,color:T.txH}}>経路が見つかりません</div>
-      <div style={{fontSize:11,color:T.txD,marginTop:2}}>別のルートをお試しください</div>
+      <div style={{fontSize:13,fontWeight:600,color:T.txH}}>{t("navi.noRoute")}</div>
+      <div style={{fontSize:11,color:T.txD,marginTop:2}}>{t("navi.noRouteHint")}</div>
     </div>
   </div>;
 
@@ -1111,15 +1112,15 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     {guiding&&<div style={{position:"absolute",top:mob?10:14,left:mob?10:14,right:mob?10:"auto",width:cardW,zIndex:1000}}>
       <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:T.bg2,borderRadius:14,boxShadow:"0 4px 20px rgba(0,0,0,.4)",border:`1px solid #4de8b060`}}>
         <div style={{width:8,height:8,borderRadius:"50%",background:following?"#4de8b0":"#888",animation:following?"locPulse 1.5s infinite":"none",flexShrink:0}}/>
-        <span style={{fontSize:13,fontWeight:700,color:following?"#4de8b0":"#888",flex:1}}>{following?"案内中":"自由操作中"}</span>
-        {route&&<span style={{fontSize:12,fontWeight:600,color:T.txH}}>{route.distance}m / {route.minutes}分</span>}
-        <button onClick={stopGuiding} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${T.red}40`,background:`${T.red}10`,cursor:"pointer",fontSize:11,fontWeight:600,color:T.red}}>終了</button>
+        <span style={{fontSize:13,fontWeight:700,color:following?"#4de8b0":"#888",flex:1}}>{following?t("navi.guiding"):t("navi.freeControl")}</span>
+        {route&&<span style={{fontSize:12,fontWeight:600,color:T.txH}}>{t("navi.distMin",{dist:route.distance,min:route.minutes})}</span>}
+        <button onClick={stopGuiding} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${T.red}40`,background:`${T.red}10`,cursor:"pointer",fontSize:11,fontWeight:600,color:T.red}}>{t("navi.stop")}</button>
       </div>
     </div>}
     {/* 案内中 + 自由操作中: 現在地に戻るボタン */}
     {guiding&&!following&&<button onClick={reCenter} style={{position:"absolute",bottom:hasRoute&&!panelMin?(mob?180:195):(mob?70:80),right:mob?12:14,zIndex:1000,display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:28,background:T.bg2,border:`1px solid #4285f440`,boxShadow:"0 4px 16px rgba(0,0,0,.35)",cursor:"pointer",animation:"navSlideUp .2s ease-out",transition:"bottom .25s ease"}}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4285f4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m-10-10h4m12 0h4"/></svg>
-      <span style={{fontSize:13,fontWeight:700,color:"#4285f4"}}>現在地に戻る</span>
+      <span style={{fontSize:13,fontWeight:700,color:"#4285f4"}}>{t("navi.recenter")}</span>
     </button>}
     {/* ── Tips Modal ── */}
     {tipsOpen&&destSpotInfo?.meta?.tips&&(()=>{
@@ -1142,8 +1143,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
             </div>
             <div style={{flex:1}}>
-              <div style={{fontSize:16,fontWeight:700,color:T.txH}}>初めて行く人へ</div>
-              <div style={{fontSize:11,color:T.txD,marginTop:1}}>{destSpotInfo.label} — 来店マナー</div>
+              <div style={{fontSize:16,fontWeight:700,color:T.txH}}>{t("navi.firstTimeGuide")}</div>
+              <div style={{fontSize:11,color:T.txD,marginTop:1}}>{t("navi.visitManners",{name:destSpotInfo.label})}</div>
             </div>
             <button onClick={()=>setTipsOpen(false)} style={{width:32,height:32,borderRadius:"50%",border:`1px solid ${T.bd}`,background:T.bg3,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txD,flexShrink:0}}>{I.x}</button>
           </div>
@@ -1156,7 +1157,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                 <div style={{width:28,height:28,borderRadius:8,background:`${col}15`,display:"flex",alignItems:"center",justifyContent:"center",color:col,flexShrink:0}}>{secIcons[si]||secIcons[0]}</div>
                 <span style={{fontSize:13,fontWeight:700,color:T.txH}}>{sec.title}</span>
-                <span style={{fontSize:10,color:T.txD,background:T.bg3,padding:"2px 7px",borderRadius:10}}>{sec.items.length}件</span>
+                <span style={{fontSize:10,color:T.txD,background:T.bg3,padding:"2px 7px",borderRadius:10}}>{t("navi.itemsCount",{n:sec.items.length})}</span>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:1}}>
                 {sec.items.map((item,ii)=><div key={ii} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"6px 10px",borderRadius:8,background:ii%2===0?"transparent":T.bg3}}>

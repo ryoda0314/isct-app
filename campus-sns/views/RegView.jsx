@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { REQ_1Q, REQ_2Q, CAT_COLORS, UNIT_OPT, LAB_OPT, SCHOOLS, SHARED_DEPTS, DEPT_LABELS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
 
@@ -148,6 +149,9 @@ export const RegView=({mob})=>{
 
   // Color helper: strips "N00番台 " prefix for CAT_COLORS lookup
   const catCol=(name)=>CAT_COLORS[name]||CAT_COLORS[name.replace(/^\d00番台\s*/,'')]||'#6b7280';
+
+  // Localize DB requirement value (必修/選択必修/選択) for display only
+  const reqLabel=(r)=>r==='必修'?t("reg.reqRequired"):r==='選択必修'?t("reg.reqElectiveReq"):r==='選択'?t("reg.reqElective"):r;
 
   // ── Active courses ──
   const active=useMemo(()=>{
@@ -342,7 +346,7 @@ export const RegView=({mob})=>{
     return {...p,sci:{...p.sci,[cid]:!off},req:off?{...p.req,[cid]:[]}:p.req,reqSec:ns};
   });
 
-  const resetAll=()=>{if(confirm("このクオーターの選択をリセットしますか？")){up(()=>({req:{},reqSec:{},sci:{},opt:{},optInfo:{},unit:data.unit}));}};
+  const resetAll=()=>{if(confirm(t("reg.resetConfirm"))){up(()=>({req:{},reqSec:{},sci:{},opt:{},optInfo:{},unit:data.unit}));}};
 
   const fetchSyllabus=async(name)=>{
     setDetailCourse(name);setSyllabusLoading(true);setSyllabusData(null);
@@ -392,7 +396,7 @@ export const RegView=({mob})=>{
     const isConflict=!!c.conflict;
     return(
       <div onClick={()=>{ if(c.type==="opt") rmOpt(c.id); else fetchSyllabus(c.name); }}
-        title={isConflict?`衝突: ${c.name} / ${c.conflict}`:c.name}
+        title={isConflict?`${t("reg.conflict")}: ${c.name} / ${c.conflict}`:c.name}
         style={{...pos,width:cellW,height:h,background:isConflict?`${T.red}20`:`${c.col}18`,borderRadius:6,
           border:`1.5px solid ${isConflict?T.red:c.col}`,cursor:"pointer",padding:3,overflow:"hidden",
           boxSizing:"border-box",
@@ -402,7 +406,7 @@ export const RegView=({mob})=>{
           overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:span>1?span*2:2,WebkitBoxOrient:"vertical"}}>
           {c.name}
         </div>
-        {c.type==="opt"&&<div style={{fontSize:7,color:T.txD,marginTop:1}}>tap to remove</div>}
+        {c.type==="opt"&&<div style={{fontSize:7,color:T.txD,marginTop:1}}>{t("reg.tapToRemove")}</div>}
       </div>
     );
   };
@@ -436,9 +440,9 @@ export const RegView=({mob})=>{
           </button>}
           <div style={{width:6,height:6,borderRadius:3,background:c.col,flexShrink:0}}/>
           <span style={{fontSize:13,fontWeight:600,color:enabled?T.txH:T.txD,flex:1}}>{c.name}</span>
-          <span style={{fontSize:11,color:T.txD}}>{c.cr}単位</span>
+          <span style={{fontSize:11,color:T.txD}}>{c.cr}{t("reg.creditsSuffix")}</span>
           <button onClick={()=>fetchSyllabus(c.name)} style={{background:"none",border:"none",cursor:"pointer",color:T.txD,display:"flex",padding:2}}
-            title="シラバスを検索">
+            title={t("reg.searchSyllabus")}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </button>
         </div>
@@ -448,7 +452,7 @@ export const RegView=({mob})=>{
               {courseSections.map(sec=>{
                 const isSel=selSec===sec.section;
                 const conflict=!isSel&&otherOcc&&sec.slots.some(s=>toGridSlots(s).some(g=>otherOcc.has(slotKey(g))));
-                const slotsLabel=sec.slots.map(s=>`${s.day}${s.period_start}-${s.period_end}限`).join(' · ');
+                const slotsLabel=sec.slots.map(s=>`${t("dow.s."+s.day)}${t("period.range",{a:s.period_start,b:s.period_end})}`).join(' · ');
                 return(
                   <button key={sec.section||'_default'} onClick={()=>selectReqSec(c.id,c.name,sec.section)}
                     style={{padding:"5px 12px",borderRadius:8,fontSize:12,fontWeight:isSel?700:400,
@@ -464,7 +468,7 @@ export const RegView=({mob})=>{
             </div>
           </div>
         ):secLoading?(
-          <div style={{paddingLeft:isScience?28:14,fontSize:11,color:T.txD}}>セクション読込中...</div>
+          <div style={{paddingLeft:isScience?28:14,fontSize:11,color:T.txD}}>{t("reg.loadingSections")}</div>
         ):(
           <div style={{display:"flex",flexWrap:"wrap",gap:6,paddingLeft:isScience?28:14}}>
             {c.slots.map(s=>{
@@ -503,13 +507,13 @@ export const RegView=({mob})=>{
           </span>
           {course.requirement&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0,fontWeight:600,
             background:course.requirement==='必修'?'#ef444420':course.requirement==='選択必修'?'#f59e0b20':'#22c55e20',
-            color:course.requirement==='必修'?'#ef4444':course.requirement==='選択必修'?'#f59e0b':'#22c55e'}}>{course.requirement}</span>}
-          {course.credits&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0,fontWeight:600,background:`${T.accent}15`,color:T.accent}}>{course.credits}単位</span>}
+            color:course.requirement==='必修'?'#ef4444':course.requirement==='選択必修'?'#f59e0b':'#22c55e'}}>{reqLabel(course.requirement)}</span>}
+          {course.credits&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0,fontWeight:600,background:`${T.accent}15`,color:T.accent}}>{course.credits}{t("reg.creditsSuffix")}</span>}
           <span style={{fontSize:9,color:T.txD,background:T.bg3,padding:"1px 5px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{course.code}</span>
           {isAdded&&<button onClick={()=>rmOpt(code)}
             style={{padding:"3px 8px",borderRadius:6,border:`1px solid ${T.red}40`,
               background:`${T.red}10`,color:T.red,fontSize:10,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>
-            削除
+            {t("common.delete")}
           </button>}
           <button onClick={()=>fetchSyllabus(course.name)} style={{background:"none",border:"none",cursor:"pointer",color:T.txD,display:"flex",padding:2,flexShrink:0}}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -519,7 +523,7 @@ export const RegView=({mob})=>{
           {course.sections.map(sec=>{
             const isSel=selSec===sec.section;
             const conflict=!isSel&&sec.slots.some(s=>toGridSlots(s).some(g=>otherOcc.has(slotKey(g))));
-            const slotsLabel=sec.slots.map(s=>`${s.day}${s.period_start}-${s.period_end}限`).join(' · ');
+            const slotsLabel=sec.slots.map(s=>`${t("dow.s."+s.day)}${t("period.range",{a:s.period_start,b:s.period_end})}`).join(' · ');
             return(
               <button key={sec.section||'_default'} onClick={()=>selectOptSec(code,course.name,catName,course.credits||1,sec)}
                 style={{padding:"4px 10px",borderRadius:8,fontSize:11,fontWeight:isSel?700:400,
@@ -543,11 +547,11 @@ export const RegView=({mob})=>{
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <div>
-          <div style={{fontSize:mob?18:22,fontWeight:800,color:T.txH,letterSpacing:-.3}}>履修登録</div>
-          <div style={{fontSize:12,color:T.txD,marginTop:2}}>2026年度</div>
+          <div style={{fontSize:mob?18:22,fontWeight:800,color:T.txH,letterSpacing:-.3}}>{t("reg.title")}</div>
+          <div style={{fontSize:12,color:T.txD,marginTop:2}}>{t("reg.academicYear",{year:2026})}</div>
         </div>
         <button onClick={resetAll} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${T.bd}`,
-          background:T.bg3,color:T.txD,fontSize:11,cursor:"pointer"}}>リセット</button>
+          background:T.bg3,color:T.txD,fontSize:11,cursor:"pointer"}}>{t("reg.reset")}</button>
       </div>
 
       {/* Year level tabs (browse filter only) */}
@@ -558,7 +562,7 @@ export const RegView=({mob})=>{
               border:`2px solid ${yr===browseLevel?T.accent:T.bd}`,
               background:yr===browseLevel?`${T.accent}14`:T.bg2,
               color:yr===browseLevel?T.accent:T.txD,transition:"all .15s"}}>
-            {mob?`${yr}年`:`${yr}年生`}
+            {mob?t("reg.yearShort",{year:yr}):t("reg.yearLong",{year:yr})}
           </button>
         ))}
       </div>
@@ -579,7 +583,7 @@ export const RegView=({mob})=>{
       {/* School/dept filter (2+ year) */}
       {browseLevel>=2&&(
         <div style={{background:T.bg2,borderRadius:14,border:`1px solid ${T.bd}`,padding:mob?10:14,marginBottom:16}}>
-          <div style={{fontSize:12,fontWeight:700,color:T.txH,marginBottom:8}}>学院・学系で絞り込み</div>
+          <div style={{fontSize:12,fontWeight:700,color:T.txH,marginBottom:8}}>{t("reg.filterBySchoolDept")}</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
             {SCHOOLS.map(s=>{
               const isSel=selSchool===s.key;
@@ -598,19 +602,19 @@ export const RegView=({mob})=>{
                 border:`1.5px solid ${!selSchool?T.accent:T.bd}`,
                 background:!selSchool?`${T.accent}18`:T.bg3,
                 color:!selSchool?T.accent:T.txH,transition:"all .12s"}}>
-              すべて
+              {t("reg.all")}
             </button>
           </div>
           {curSchool&&(
             <div style={{marginTop:10,paddingTop:8,borderTop:`1px solid ${T.bd}30`}}>
-              <div style={{fontSize:11,fontWeight:600,color:T.txD,marginBottom:6}}>学系</div>
+              <div style={{fontSize:11,fontWeight:600,color:T.txD,marginBottom:6}}>{t("reg.dept")}</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
                 <button onClick={()=>setSelDept(null)}
                   style={{padding:"4px 10px",borderRadius:7,fontSize:mob?10:11,fontWeight:!selDept?700:400,cursor:"pointer",
                     border:`1.5px solid ${!selDept?T.accent:T.bd}`,
                     background:!selDept?`${T.accent}18`:T.bg3,
                     color:!selDept?T.accent:T.txD,transition:"all .12s"}}>
-                  全系
+                  {t("reg.allDepts")}
                 </button>
                 {curSchool.depts.map(dept=>{
                   const isSel=selDept===dept;
@@ -626,7 +630,7 @@ export const RegView=({mob})=>{
                   );
                 })}
               </div>
-              <div style={{fontSize:9,color:T.txD,marginTop:6,opacity:.7}}>※ 語学・教養などの共通科目は常に表示されます</div>
+              <div style={{fontSize:9,color:T.txD,marginTop:6,opacity:.7}}>{t("reg.commonCoursesNote")}</div>
             </div>
           )}
         </div>
@@ -635,10 +639,10 @@ export const RegView=({mob})=>{
       {/* Stats */}
       <div style={{display:"flex",gap:mob?6:12,marginBottom:16}}>
         {[
-          {label:"科目数",value:active.length,unit:"科目",col:T.accent},
-          {label:`単位(${quarter})`,value:credits,unit:"単位",col:T.green},
-          {label:"年間合計",value:totalCredits,unit:"単位",col:T.green},
-          {label:"コマ数",value:slotCount,unit:"コマ",col:T.orange},
+          {label:t("reg.statCourses"),value:active.length,unit:t("reg.unitCourse"),col:T.accent},
+          {label:t("reg.statCredits",{quarter}),value:credits,unit:t("reg.creditsSuffix"),col:T.green},
+          {label:t("reg.statYearTotal"),value:totalCredits,unit:t("reg.creditsSuffix"),col:T.green},
+          {label:t("reg.statSlots"),value:slotCount,unit:t("reg.unitSlot"),col:T.orange},
         ].map(s=>(
           <div key={s.label} style={{flex:1,padding:mob?"10px 6px":"12px 16px",borderRadius:12,
             background:`${s.col}08`,border:`1px solid ${s.col}20`}}>
@@ -655,13 +659,13 @@ export const RegView=({mob})=>{
           <div style={{gridColumn:1,gridRow:1,height:hdrH}}/>
           {DAYS.map((d,i)=>(
             <div key={d} style={{gridColumn:i+2,gridRow:1,height:hdrH,display:"flex",alignItems:"center",justifyContent:"center",
-              fontSize:mob?11:13,fontWeight:700,color:T.txH}}>{d}</div>
+              fontSize:mob?11:13,fontWeight:700,color:T.txH}}>{t("dow.s."+d)}</div>
           ))}
           {/* Period labels */}
           {PERIODS.map((p2,pi)=>(
             <div key={pi} style={{gridColumn:1,gridRow:pi+2,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
               fontSize:mob?8:9,color:T.txD,lineHeight:1.2,paddingRight:2}}>
-              <div style={{fontWeight:600}}>{p2}</div>
+              <div style={{fontWeight:600}}>{t("period.range",{a:pi*2+1,b:pi*2+2})}</div>
               <div style={{fontSize:mob?7:8,opacity:.6}}>{PER_TIMES[pi]?.split("–")[0]}</div>
             </div>
           ))}
@@ -676,27 +680,27 @@ export const RegView=({mob})=>{
       {/* Required courses (1年 browsing only) */}
       {browseLevel===1&&curReq&&(
         <div style={{background:T.bg2,borderRadius:14,border:`1px solid ${T.bd}`,padding:`4px ${mob?12:16}px`,marginBottom:16}}>
-          <SecHdr title="必修科目のクラス設定" open={reqOpen} toggle={()=>setReqOpen(p=>!p)}
-            badge={`${curReq.common.filter(c=>(req[c.id]||[]).length>0).length + curReq.science.filter(c=>sci[c.id]&&(req[c.id]||[]).length>0).length}科目設定済`}/>
+          <SecHdr title={t("reg.requiredClassSetup")} open={reqOpen} toggle={()=>setReqOpen(p=>!p)}
+            badge={t("reg.coursesConfigured",{count:curReq.common.filter(c=>(req[c.id]||[]).length>0).length + curReq.science.filter(c=>sci[c.id]&&(req[c.id]||[]).length>0).length})}/>
           {reqOpen&&<div>
             <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",borderBottom:`1px solid ${T.bd}08`}}>
-              <span style={{fontSize:12,fontWeight:600,color:T.txH,whiteSpace:"nowrap"}}>ユニット番号</span>
+              <span style={{fontSize:12,fontWeight:600,color:T.txH,whiteSpace:"nowrap"}}>{t("reg.unitNumber")}</span>
               <input type="number" min="1" max="80" value={unit||""} onChange={e=>up(p=>({...p,unit:e.target.value}))}
-                placeholder="例: 5" style={{width:60,padding:"5px 8px",borderRadius:6,border:`1px solid ${T.bd}`,
+                placeholder={t("reg.unitNumberPlaceholder")} style={{width:60,padding:"5px 8px",borderRadius:6,border:`1px solid ${T.bd}`,
                   background:T.bg3,color:T.txH,fontSize:12,outline:"none",textAlign:"center"}}/>
               <button onClick={()=>applyUnit(unit)} disabled={!unit||secLoading||!sectionData}
                 style={{padding:"5px 14px",borderRadius:6,border:`1px solid ${T.accent}40`,
                   background:`${T.accent}10`,color:T.accent,fontSize:11,fontWeight:600,cursor:!unit||secLoading?"default":"pointer",
                   opacity:!unit||secLoading?.5:1,whiteSpace:"nowrap"}}>
-                一括設定
+                {t("reg.bulkSet")}
               </button>
               {unit&&reqSec&&Object.keys(reqSec).length>0&&(
-                <span style={{fontSize:10,color:T.green}}>{Object.keys(reqSec).length}科目設定済</span>
+                <span style={{fontSize:10,color:T.green}}>{t("reg.coursesConfigured",{count:Object.keys(reqSec).length})}</span>
               )}
             </div>
-            <div style={{fontSize:10,fontWeight:700,color:T.txD,padding:"8px 0 4px",letterSpacing:.5}}>共通必修</div>
+            <div style={{fontSize:10,fontWeight:700,color:T.txD,padding:"8px 0 4px",letterSpacing:.5}}>{t("reg.commonRequired")}</div>
             {curReq.common.map(c=><ReqRow key={c.id} c={c}/>)}
-            <div style={{fontSize:10,fontWeight:700,color:T.txD,padding:"12px 0 4px",letterSpacing:.5}}>理工系基礎（該当科目をチェック）</div>
+            <div style={{fontSize:10,fontWeight:700,color:T.txD,padding:"12px 0 4px",letterSpacing:.5}}>{t("reg.scienceBasics")}</div>
             {curReq.science.map(c=><ReqRow key={c.id} c={c} isScience/>)}
           </div>}
         </div>
@@ -704,12 +708,12 @@ export const RegView=({mob})=>{
 
       {/* Courses — DB-driven categories */}
       <div style={{background:T.bg2,borderRadius:14,border:`1px solid ${T.bd}`,padding:`4px ${mob?12:16}px`,marginBottom:16}}>
-        <SecHdr title={browseLevel===1?"選択科目を追加":"科目を追加"} open={optOpen} toggle={()=>setOptOpen(p=>!p)}
-          badge={`${Object.keys(opt).filter(k=>(opt[k]||[]).length>0).length}科目追加済`}/>
+        <SecHdr title={browseLevel===1?t("reg.addElective"):t("reg.addCourse")} open={optOpen} toggle={()=>setOptOpen(p=>!p)}
+          badge={t("reg.coursesAdded",{count:Object.keys(opt).filter(k=>(opt[k]||[]).length>0).length})}/>
         {optOpen&&<div>
           <div style={{padding:"8px 0"}}>
             <div style={{position:"relative"}}>
-              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="科目名・コードで全学年検索..."
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t("reg.searchPlaceholder")}
                 style={{width:"100%",padding:"7px 10px 7px 30px",borderRadius:8,border:`1px solid ${T.bd}`,
                   background:T.bg3,color:T.txH,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
               <span style={{position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",color:T.txD,display:"flex"}}>
@@ -719,11 +723,11 @@ export const RegView=({mob})=>{
           </div>
 
           {(dbLoading||(search.length>=2&&searchLoading))?(
-            <div style={{padding:20,textAlign:"center",fontSize:12,color:T.txD}}>科目を読込中...</div>
+            <div style={{padding:20,textAlign:"center",fontSize:12,color:T.txD}}>{t("reg.loadingCourses")}</div>
           ):filteredCats.length===0?(
             <div style={{padding:16,textAlign:"center",fontSize:12,color:T.txD}}>
-              {search.length>=2?"該当する科目がありません（全学年対象）"
-                :browseLevel>=2&&!selSchool?"学院を選択するか、科目名で検索してください":"該当する科目がありません"}
+              {search.length>=2?t("reg.noCoursesAllYears")
+                :browseLevel>=2&&!selSchool?t("reg.selectSchoolOrSearch"):t("reg.noCourses")}
             </div>
           ):(
             filteredCats.map(cat=>{
@@ -742,7 +746,7 @@ export const RegView=({mob})=>{
                     <div style={{width:8,height:8,borderRadius:4,background:cc,flexShrink:0}}/>
                     <span style={{fontSize:13,fontWeight:700,color:T.txH,flex:1,textAlign:"left"}}>{cat.name}</span>
                     <span style={{fontSize:10,color:T.txD,marginRight:4}}>
-                      {cat.courses.length}科目{addedCount>0&&<span style={{color:T.accent,fontWeight:600,marginLeft:4}}>{addedCount}選択中</span>}
+                      {t("reg.courseCount",{count:cat.courses.length})}{addedCount>0&&<span style={{color:T.accent,fontWeight:600,marginLeft:4}}>{t("reg.selectedCount",{count:addedCount})}</span>}
                     </span>
                   </button>
                   {isOpen&&<div style={{paddingLeft:4}}>
@@ -765,8 +769,8 @@ export const RegView=({mob})=>{
             <span style={{fontWeight:700,color:T.txH,fontSize:15}}>{detailCourse}</span>
             <button onClick={()=>{setDetailCourse(null);setSyllabusData(null);}} style={{background:"none",border:"none",color:T.txD,cursor:"pointer"}}>{I.x}</button>
           </div>
-          {syllabusLoading&&<div style={{padding:20,textAlign:"center"}}><span style={{fontSize:12,color:T.txD}}>シラバス検索中...</span></div>}
-          {syllabusData&&syllabusData.length===0&&<div style={{padding:20,textAlign:"center",fontSize:12,color:T.txD}}>シラバスDBに該当データがありません</div>}
+          {syllabusLoading&&<div style={{padding:20,textAlign:"center"}}><span style={{fontSize:12,color:T.txD}}>{t("reg.searchingSyllabus")}</span></div>}
+          {syllabusData&&syllabusData.length===0&&<div style={{padding:20,textAlign:"center",fontSize:12,color:T.txD}}>{t("reg.noSyllabusData")}</div>}
           {syllabusData&&syllabusData.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
             {syllabusData.map((c,i)=>(
               <div key={i} style={{padding:10,borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3}}>
@@ -774,7 +778,7 @@ export const RegView=({mob})=>{
                   {c.name||detailCourse}
                   {c.requirement&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:4,fontWeight:600,
                     background:c.requirement==='必修'?'#ef444420':c.requirement==='選択必修'?'#f59e0b20':'#22c55e20',
-                    color:c.requirement==='必修'?'#ef4444':c.requirement==='選択必修'?'#f59e0b':'#22c55e'}}>{c.requirement}</span>}
+                    color:c.requirement==='必修'?'#ef4444':c.requirement==='選択必修'?'#f59e0b':'#22c55e'}}>{reqLabel(c.requirement)}</span>}
                 </div>
                 <div style={{fontSize:11,color:T.txD,marginTop:2}}>{c.code} · {c.teacher||"—"}</div>
                 {c.per&&<div style={{fontSize:11,color:T.tx,marginTop:2}}>{c.day}{c.per} · {c.room||"—"}</div>}
@@ -783,7 +787,7 @@ export const RegView=({mob})=>{
                   style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:6,padding:"4px 10px",borderRadius:6,
                     background:`${T.accent}14`,color:T.accent,fontSize:11,fontWeight:600,textDecoration:"none",border:`1px solid ${T.accent}30`}}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                  シラバスを開く
+                  {t("reg.openSyllabus")}
                 </a>}
               </div>
             ))}
@@ -793,8 +797,8 @@ export const RegView=({mob})=>{
 
       {/* Footer */}
       <div style={{fontSize:10,color:T.txD,textAlign:"center",padding:"8px 0 24px",lineHeight:1.6}}>
-        セクションを選択すると時間割が自動設定されます<br/>
-        時間割データは自動保存されます
+        {t("reg.footerAutoSet")}<br/>
+        {t("reg.footerAutoSave")}
       </div>
     </div>
   );

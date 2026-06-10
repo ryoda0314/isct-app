@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { t } from "../i18n.js";
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { showToast } from './useToast.js';
 
@@ -148,12 +149,12 @@ export function useFreshmanBoard(category) {
       } else {
         setPosts(prev => prev.filter(p => p.id !== tempId));
         idsRef.current.delete(tempId);
-        showToast('投稿に失敗しました');
+        showToast(t("toast.postFailed"));
       }
     } catch {
       setPosts(prev => prev.filter(p => p.id !== tempId));
       idsRef.current.delete(tempId);
-      showToast('投稿に失敗しました');
+      showToast(t("toast.postFailed"));
     }
   }, []);
 
@@ -171,8 +172,8 @@ export function useFreshmanBoard(category) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ post_id: postId, action: 'like' }),
       });
-      if (!r.ok) showToast('いいねに失敗しました');
-    } catch { showToast('いいねに失敗しました'); }
+      if (!r.ok) showToast(t("toast.likeFailed"));
+    } catch { showToast(t("toast.likeFailed")); }
   }, []);
 
   // Delete post (optimistic)
@@ -190,12 +191,12 @@ export function useFreshmanBoard(category) {
       if (!r.ok) {
         setPosts(backup);
         idsRef.current.add(postId);
-        showToast('削除に失敗しました');
+        showToast(t("toast.deleteFailed"));
       }
     } catch {
       setPosts(backup);
       idsRef.current.add(postId);
-      showToast('削除に失敗しました');
+      showToast(t("toast.deleteFailed"));
     }
   }, [posts]);
 

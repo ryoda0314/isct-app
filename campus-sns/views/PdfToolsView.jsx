@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { isNative } from "../capacitor.js";
 
@@ -155,10 +156,10 @@ function PreviewOverlay({ getPdf, pages, docs, startId, onClose }) {
         <span style={{ fontSize: 13, fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {docs[cur.docId]?.name} — {idx + 1} / {pages.length}
         </span>
-        <button onClick={() => setZoom(z => Math.max(0.5, +(z - 0.25).toFixed(2)))} style={{ ...navBtn, background: "rgba(255,255,255,.12)", color: "#fff" }} title="縮小">−</button>
+        <button onClick={() => setZoom(z => Math.max(0.5, +(z - 0.25).toFixed(2)))} style={{ ...navBtn, background: "rgba(255,255,255,.12)", color: "#fff" }} title={t("pdf.zoomOut")}>−</button>
         <span style={{ fontSize: 12, minWidth: 42, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{Math.round(zoom * 100)}%</span>
-        <button onClick={() => setZoom(z => Math.min(3, +(z + 0.25).toFixed(2)))} style={{ ...navBtn, background: "rgba(255,255,255,.12)", color: "#fff" }} title="拡大">＋</button>
-        <button onClick={onClose} style={{ ...navBtn, background: "rgba(255,255,255,.12)", color: "#fff" }} title="閉じる">{I.x}</button>
+        <button onClick={() => setZoom(z => Math.min(3, +(z + 0.25).toFixed(2)))} style={{ ...navBtn, background: "rgba(255,255,255,.12)", color: "#fff" }} title={t("pdf.zoomIn")}>＋</button>
+        <button onClick={onClose} style={{ ...navBtn, background: "rgba(255,255,255,.12)", color: "#fff" }} title={t("common.close")}>{I.x}</button>
       </div>
       {/* canvas */}
       <div onClick={e => e.stopPropagation()} style={{ flex: 1, overflow: "auto", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 16 }}>
@@ -239,17 +240,17 @@ export function PdfToolsView({ mob = false }) {
     if (!files.length) return;
     setErr("");
     setBusy(true);
-    setBusyMsg("PDFを読み込み中…");
+    setBusyMsg(t("pdf.loadingPdf"));
     try {
       const lib = await loadPdfjs();
       for (const file of files) {
-        if (file.size > MAX_SIZE) { setErr(`「${file.name}」は50MBを超えています`); continue; }
+        if (file.size > MAX_SIZE) { setErr(t("pdf.tooLarge", { name: file.name })); continue; }
         const buf = new Uint8Array(await file.arrayBuffer());
         await registerDocFromBytes(buf, file.name, lib);
       }
     } catch (e) {
       console.error("[pdftools] addFiles", e);
-      setErr("PDFを読み込めませんでした。破損またはパスワード保護の可能性があります。");
+      setErr(t("pdf.loadFailed"));
     } finally {
       setBusy(false);
       setBusyMsg("");
@@ -262,12 +263,12 @@ export function PdfToolsView({ mob = false }) {
     if (!files.length) return;
     setErr("");
     setBusy(true);
-    setBusyMsg("写真を変換中…");
+    setBusyMsg(t("pdf.convertingPhoto"));
     try {
       const PDFLib = await loadPdfLib();
       const lib = await loadPdfjs();
       for (const file of files) {
-        if (file.size > MAX_SIZE) { setErr(`「${file.name}」は50MBを超えています`); continue; }
+        if (file.size > MAX_SIZE) { setErr(t("pdf.tooLarge", { name: file.name })); continue; }
         try {
           const { bytes: jpg, w, h } = await imageFileToJpeg(file);
           const pdfDoc = await PDFLib.PDFDocument.create();
@@ -279,12 +280,12 @@ export function PdfToolsView({ mob = false }) {
           await registerDocFromBytes(bytes, `${base}.pdf`, lib);
         } catch (e) {
           console.error("[pdftools] image", file?.name, e?.message);
-          setErr(`「${file.name}」を変換できませんでした`);
+          setErr(t("pdf.convertFailed", { name: file.name }));
         }
       }
     } catch (e) {
       console.error("[pdftools] addImages", e);
-      setErr("写真を追加できませんでした。");
+      setErr(t("pdf.addPhotoFailed"));
     } finally {
       setBusy(false);
       setBusyMsg("");
@@ -327,7 +328,7 @@ export function PdfToolsView({ mob = false }) {
     if (!pages.length) return;
     setErr("");
     setBusy(true);
-    setBusyMsg("PDFを結合中…");
+    setBusyMsg(t("pdf.mergingPdf"));
     try {
       const PDFLib = await loadPdfLib();
       const out = await PDFLib.PDFDocument.create();
@@ -344,7 +345,7 @@ export function PdfToolsView({ mob = false }) {
       await saveBlob(blob, fname);
     } catch (e) {
       console.error("[pdftools] export", e);
-      setErr("結合に失敗しました。時間をおいて再度お試しください。");
+      setErr(t("pdf.mergeFailed"));
     } finally {
       setBusy(false);
       setBusyMsg("");
@@ -393,7 +394,7 @@ export function PdfToolsView({ mob = false }) {
         console.error("[pdftools] native save", msg);
         // 旧ビルド(プラグイン未実装)向けの保険: WebView内でPDFを開いて閲覧/共有させる
         try { window.open(URL.createObjectURL(blob), "_blank"); } catch {}
-        setErr("保存機能はアプリの最新ビルドで利用できます。更新後に再度お試しください。");
+        setErr(t("pdf.saveNeedsUpdate"));
       }
       return;
     }
@@ -473,18 +474,18 @@ export function PdfToolsView({ mob = false }) {
             }}
           >
             <div style={{ color: T.accent, display: "flex", justifyContent: "center", marginBottom: 14 }}>{I.upload}</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 6 }}>PDF・写真を追加して結合</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 6 }}>{t("pdf.emptyTitle")}</div>
             <div style={{ fontSize: 13, color: T.txD, lineHeight: 1.6 }}>
-              {mob ? "タップしてPDFを選択" : "クリックまたはPDF/画像をドラッグ＆ドロップ"}<br />
-              複数選択OK・並べ替え/不要ページ削除も可能
+              {mob ? t("pdf.tapToSelect") : t("pdf.clickOrDrop")}<br />
+              {t("pdf.multiHint")}
             </div>
           </div>
           <button onClick={pickCamera} style={{ ...btnGhost, marginTop: 16, padding: "10px 18px", fontSize: 13.5 }}>
-            {camIcon}<span style={{ marginLeft: 7 }}>カメラで撮影して追加</span>
+            {camIcon}<span style={{ marginLeft: 7 }}>{t("pdf.cameraAdd")}</span>
           </button>
           <div style={{ marginTop: 18, fontSize: 11.5, color: T.txD, display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: T.green }} />
-            すべて端末内で処理（ファイルはサーバーに送信されません）・1ファイル50MBまで
+            {t("pdf.privacyNote")}
           </div>
           {err && <div style={{ marginTop: 14, fontSize: 12.5, color: T.red, fontWeight: 600 }}>{err}</div>}
         </div>
@@ -500,24 +501,24 @@ export function PdfToolsView({ mob = false }) {
       {inputs}
       {/* sub toolbar */}
       <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: mob ? 6 : 8, padding: mob ? "10px 12px" : "10px 14px", borderBottom: `1px solid ${T.bd}`, background: T.bg2 }}>
-        <button onClick={pickFiles} style={btnGhost} title="PDFを追加">{I.plus}{!mob && <span style={{ marginLeft: 4 }}>追加</span>}</button>
-        <button onClick={pickCamera} style={btnGhost} title="カメラで撮影して追加">{camIcon}{!mob && <span style={{ marginLeft: 4 }}>カメラ</span>}</button>
-        <button onClick={clearAll} style={{ ...btnGhost, color: T.txD }} title="すべてクリア">{I.trash}</button>
+        <button onClick={pickFiles} style={btnGhost} title={t("pdf.addPdf")}>{I.plus}{!mob && <span style={{ marginLeft: 4 }}>{t("pdf.add")}</span>}</button>
+        <button onClick={pickCamera} style={btnGhost} title={t("pdf.cameraAdd")}>{camIcon}{!mob && <span style={{ marginLeft: 4 }}>{t("pdf.camera")}</span>}</button>
+        <button onClick={clearAll} style={{ ...btnGhost, color: T.txD }} title={t("pdf.clearAll")}>{I.trash}</button>
         <div style={{ flex: 1 }} />
         {!mob && (
           <div style={{ fontSize: 12, color: T.txD, whiteSpace: "nowrap", marginRight: 4 }}>
-            全 <b style={{ color: T.txH }}>{pages.length}</b> ページ
+            {t("pdf.pageCount", { n: pages.length })}
           </div>
         )}
-        <button onClick={handleExport} disabled={busy} style={btnPrimary}>{I.dl}<span style={{ marginLeft: 5 }}>{mob ? "保存" : "結合して保存"}</span></button>
+        <button onClick={handleExport} disabled={busy} style={btnPrimary}>{I.dl}<span style={{ marginLeft: 5 }}>{mob ? t("common.save") : t("pdf.mergeSave")}</span></button>
       </div>
       {err && (
         <div style={{ flexShrink: 0, padding: "8px 14px", background: `${T.red}15`, color: T.red, fontSize: 12.5, fontWeight: 600, borderBottom: `1px solid ${T.red}30` }}>{err}</div>
       )}
       <div style={{ flexShrink: 0, padding: "6px 14px", fontSize: 11, color: T.txD }}>
         {mob
-          ? <>全 <b style={{ color: T.txH }}>{pages.length}</b> ページ・タップで拡大／◀▶で並べ替え・🗑で削除</>
-          : "カードをドラッグして並べ替え／◀▶で移動・🗑で削除・タップで拡大プレビュー"}
+          ? <><b style={{ color: T.txH }}>{pages.length}</b> {t("pdf.hintMobile")}</>
+          : t("pdf.hintDesktop")}
       </div>
 
       {/* page grid */}
@@ -551,7 +552,7 @@ export function PdfToolsView({ mob = false }) {
                 {/* delete */}
                 <button
                   onClick={e => { e.stopPropagation(); deletePage(p.id); }}
-                  title="このページを削除"
+                  title={t("pdf.deletePage")}
                   style={{ position: "absolute", top: 5, right: 5, zIndex: 2, padding: 5, borderRadius: 6, border: "none", background: "rgba(0,0,0,.55)", color: "#fff", cursor: "pointer", display: "flex" }}
                 >{I.trash}</button>
                 {/* thumbnail */}
@@ -561,12 +562,12 @@ export function PdfToolsView({ mob = false }) {
                 {/* move controls */}
                 <div style={{ display: "flex", borderTop: `1px solid ${T.bd}` }}>
                   <button onClick={e => { e.stopPropagation(); movePage(p.id, -1); }} disabled={i === 0}
-                    style={{ ...moveBtn, opacity: i === 0 ? 0.3 : 1 }} title="前へ">
+                    style={{ ...moveBtn, opacity: i === 0 ? 0.3 : 1 }} title={t("pdf.movePrev")}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
                   </button>
                   <div style={{ width: 1, background: T.bd }} />
                   <button onClick={e => { e.stopPropagation(); movePage(p.id, 1); }} disabled={i === pages.length - 1}
-                    style={{ ...moveBtn, opacity: i === pages.length - 1 ? 0.3 : 1 }} title="次へ">
+                    style={{ ...moveBtn, opacity: i === pages.length - 1 ? 0.3 : 1 }} title={t("pdf.moveNext")}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
                   </button>
                 </div>
@@ -589,7 +590,7 @@ function BusyOverlay({ msg }) {
     <div style={{ position: "fixed", inset: 0, zIndex: 210, background: "rgba(0,0,0,.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ background: T.bg2, padding: "22px 30px", borderRadius: 14, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, boxShadow: "0 12px 40px rgba(0,0,0,.4)" }}>
         <span style={{ width: 28, height: 28, borderRadius: "50%", border: `3px solid ${T.accent}`, borderTopColor: "transparent", animation: "mnSpin .6s linear infinite", display: "block" }} />
-        <span style={{ fontSize: 13, color: T.txH, fontWeight: 600 }}>{msg || "処理中…"}</span>
+        <span style={{ fontSize: 13, color: T.txH, fontWeight: 600 }}>{msg || t("pdf.processing")}</span>
       </div>
     </div>
   );

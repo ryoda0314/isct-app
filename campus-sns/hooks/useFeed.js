@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { t } from "../i18n.js";
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { isDemoMode } from '../demoMode.js';
 import { DEMO_POSTS } from '../demoData.js';
@@ -175,7 +176,7 @@ export function useFeed(courseId) {
       likes: [],
       commentCount: 0,
       ts: new Date(),
-      name: type === 'anon' ? '匿名' : currentUser?.name,
+      name: type === 'anon' ? t("common.anonymous") : currentUser?.name,
       avatar: type === 'anon' ? '?' : currentUser?.av,
       color: type === 'anon' ? '#68687a' : currentUser?.col,
       editedAt: null,
@@ -241,7 +242,7 @@ export function useFeed(courseId) {
         console.error('[useFeed POST]', r.status, errBody);
         setPosts(prev => prev.filter(p => p.id !== tempId));
         idsRef.current.delete(tempId);
-        showToast('投稿に失敗しました');
+        showToast(t("toast.postFailed"));
       }
     } catch (e) {
       console.error('[useFeed POST error]', e.message, e.stack);
@@ -252,7 +253,7 @@ export function useFeed(courseId) {
       } else {
         setPosts(prev => prev.filter(p => p.id !== tempId));
         idsRef.current.delete(tempId);
-        showToast('投稿に失敗しました');
+        showToast(t("toast.postFailed"));
       }
     }
   }, [courseId]);
@@ -271,8 +272,8 @@ export function useFeed(courseId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ post_id: postId, action: 'like' }),
       });
-      if (!r.ok) showToast('いいねに失敗しました');
-    } catch { showToast('いいねに失敗しました'); }
+      if (!r.ok) showToast(t("toast.likeFailed"));
+    } catch { showToast(t("toast.likeFailed")); }
   }, []);
 
   // Delete post (optimistic)
@@ -291,12 +292,12 @@ export function useFeed(courseId) {
       if (!r.ok) {
         setPosts(backup);
         idsRef.current.add(postId);
-        showToast('削除に失敗しました');
+        showToast(t("toast.deleteFailed"));
       }
     } catch {
       setPosts(backup);
       idsRef.current.add(postId);
-      showToast('削除に失敗しました');
+      showToast(t("toast.deleteFailed"));
     }
   }, [posts]);
 
@@ -315,11 +316,11 @@ export function useFeed(courseId) {
       });
       if (!r.ok) {
         setPosts(backup);
-        showToast('編集に失敗しました');
+        showToast(t("toast.editFailed"));
       }
     } catch {
       setPosts(backup);
-      showToast('編集に失敗しました');
+      showToast(t("toast.editFailed"));
     }
   }, [posts]);
 
@@ -343,8 +344,8 @@ export function useFeed(courseId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ post_id: postId, action: 'vote', option }),
       });
-      if (!r.ok) showToast('投票に失敗しました');
-    } catch { showToast('投票に失敗しました'); }
+      if (!r.ok) showToast(t("toast.voteFailed"));
+    } catch { showToast(t("toast.voteFailed")); }
   }, []);
 
   // React with emoji (optimistic)
@@ -368,8 +369,8 @@ export function useFeed(courseId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ post_id: postId, action: 'react', emoji }),
       });
-      if (!r.ok) showToast('リアクションに失敗しました');
-    } catch { showToast('リアクションに失敗しました'); }
+      if (!r.ok) showToast(t("toast.reactionFailed"));
+    } catch { showToast(t("toast.reactionFailed")); }
   }, []);
 
   // Pin/unpin post (optimistic)
@@ -402,8 +403,8 @@ export function useFeed(courseId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ post_id: postId, action: 'pin' }),
       });
-      if (!r.ok) showToast('ピン留めに失敗しました');
-    } catch { showToast('ピン留めに失敗しました'); }
+      if (!r.ok) showToast(t("toast.pinFailed"));
+    } catch { showToast(t("toast.pinFailed")); }
   }, []);
 
   // Update comment count locally

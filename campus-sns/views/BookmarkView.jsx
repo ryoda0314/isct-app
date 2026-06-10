@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { T } from '../theme.js';
+import { t } from "../i18n.js";
 import { I } from '../icons.jsx';
 import { fT } from '../utils.jsx';
 import { Av, Tag, Tx, Loader } from '../shared.jsx';
@@ -44,9 +45,9 @@ export const BookmarkView=({bmarks=[],mob,setView,setCid,setCh,courses=[]})=>{
 
   return(
     <div style={{flex:1,overflowY:"auto",padding:12}}>
-      <div style={{fontWeight:700,color:T.txH,fontSize:14,marginBottom:10}}>ブックマーク ({bmarks.length})</div>
-      {loading&&<Loader msg="読み込み中" size="sm"/>}
-      {!loading&&posts.length===0&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>まだブックマークがありません</div>}
+      <div style={{fontWeight:700,color:T.txH,fontSize:14,marginBottom:10}}>{t("bmark.title",{count:bmarks.length})}</div>
+      {loading&&<Loader msg={t("common.loading")} size="sm"/>}
+      {!loading&&posts.length===0&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{t("bmark.empty")}</div>}
       {posts.map(p=>{
         const ti=tm[p.type];
         const course=findCourse(p.courseId);

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { t } from "../i18n.js";
 
 const Biometric = Capacitor.isNativePlatform() ? registerPlugin("Biometric") : null;
 
@@ -10,11 +11,12 @@ const SK = {
   biometric: "appLock_biometric",
 };
 
+// labelKey で保持し、描画時に t() で解決（言語切替に追従させるため）
 export const TIMEOUT_OPTIONS = [
-  { id: 0, label: "即時" },
-  { id: 60, label: "1分後" },
-  { id: 300, label: "5分後" },
-  { id: 900, label: "15分後" },
+  { id: 0, labelKey: "applock.immediate" },
+  { id: 60, labelKey: "applock.after1min" },
+  { id: 300, labelKey: "applock.after5min" },
+  { id: 900, labelKey: "applock.after15min" },
 ];
 
 const SALT = "isct_applock_v1_";
@@ -81,7 +83,7 @@ export function useAppLock() {
   const verifyBiometric = useCallback(async () => {
     if (!Biometric) return false;
     try {
-      await Biometric.verifyIdentity({ reason: "アプリのロックを解除" });
+      await Biometric.verifyIdentity({ reason: t("applock.biometricReason") });
       setLocked(false);
       return true;
     } catch {

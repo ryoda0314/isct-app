@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import { getSciSessions, defaultAbsenceLimit } from "../attendanceUtils.js";
 
 const STATUS = [
-  { k: "present", l: "出席", c: T.green },
-  { k: "absent", l: "欠席", c: T.red },
-  { k: "late", l: "遅刻", c: T.orange },
+  { k: "present", labelKey: "sciatt.present", c: T.green },
+  { k: "absent", labelKey: "sciatt.absent", c: T.red },
+  { k: "late", labelKey: "sciatt.late", c: T.orange },
 ];
 
 // 出席/欠席/遅刻 の3トグル（アクティブを再タップで未記録に戻す）
@@ -29,7 +30,7 @@ const Toggle = ({ value, onPick, mob }) => (
             transition: "all .12s",
           }}
         >
-          {s.l}
+          {t(s.labelKey)}
         </button>
       );
     })}
@@ -82,20 +83,20 @@ const CourseCard = ({ co, statuses, setStatus, year, mob }) => {
           <div style={{ fontWeight: 700, color: T.txH, fontSize: mob ? 13 : 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{co.name}</div>
           <div style={{ fontSize: 11, color: T.txD, marginTop: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <span style={{ background: T.bg3, padding: "1px 6px", borderRadius: 4 }}>{co.code}</span>
-            <span>全{total}回</span>
-            {recorded > 0 && <span style={{ color: T.green }}>出{present}</span>}
-            {absent > 0 && <span style={{ color: T.red }}>欠{absent}</span>}
-            {late > 0 && <span style={{ color: T.orange }}>遅{late}</span>}
-            {rate != null && <span>· 出席率{rate}%</span>}
+            <span>{t("sciatt.totalSessions", { n: total })}</span>
+            {recorded > 0 && <span style={{ color: T.green }}>{t("sciatt.countPresent", { n: present })}</span>}
+            {absent > 0 && <span style={{ color: T.red }}>{t("sciatt.countAbsent", { n: absent })}</span>}
+            {late > 0 && <span style={{ color: T.orange }}>{t("sciatt.countLate", { n: late })}</span>}
+            {rate != null && <span>{t("sciatt.rate", { n: rate })}</span>}
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
           {total > 0 && (
             <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, color: danger ? "#fff" : warn ? T.red : T.txD, background: danger ? T.red : warn ? `${T.red}18` : T.bg3, border: warn && !danger ? `1px solid ${T.red}40` : "none" }}>
-              {danger ? "欠席上限超過" : `あと${remaining}回欠席可`}
+              {danger ? t("sciatt.limitExceeded") : t("sciatt.remainingAbsences", { n: remaining })}
             </span>
           )}
-          <span style={{ color: T.txD, fontSize: 11 }}>{open ? "閉じる ▲" : "授業回 ▼"}</span>
+          <span style={{ color: T.txD, fontSize: 11 }}>{open ? t("sciatt.collapse") : t("sciatt.showSessions")}</span>
         </div>
       </div>
 
@@ -103,14 +104,14 @@ const CourseCard = ({ co, statuses, setStatus, year, mob }) => {
         <div style={{ borderTop: `1px solid ${T.bd}`, padding: mob ? "8px 12px 12px" : "10px 14px 14px" }}>
           {/* 欠席上限の調整 */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 12, color: T.txD }}>
-            <span>欠席可能上限</span>
+            <span>{t("sciatt.absenceLimitLabel")}</span>
             <button onClick={() => changeLimit(-1)} style={stepBtn}>−</button>
-            <span style={{ fontWeight: 700, color: T.txH, minWidth: 28, textAlign: "center" }}>{limit}回</span>
+            <span style={{ fontWeight: 700, color: T.txH, minWidth: 28, textAlign: "center" }}>{t("sciatt.timesUnit", { n: limit })}</span>
             <button onClick={() => changeLimit(1)} style={stepBtn}>＋</button>
-            <span style={{ fontSize: 11 }}>（初期値: 全{total}回の1/3＝{defLimit}回）</span>
+            <span style={{ fontSize: 11 }}>{t("sciatt.limitHint", { total: total, def: defLimit })}</span>
           </div>
           {total === 0 ? (
-            <div style={{ fontSize: 12, color: T.txD, padding: "8px 0" }}>この年度・クォーターの授業日が学年暦に見つかりませんでした。</div>
+            <div style={{ fontSize: 12, color: T.txD, padding: "8px 0" }}>{t("sciatt.noSessions")}</div>
           ) : (
             sessions.map((s) => {
               const st = statuses[s.sessionKey] || null;
@@ -169,13 +170,13 @@ export const SciAttendanceView = ({ courses = [], records = {}, setStatus, quart
   const YrDrop = () => (
     <div style={{ position: "relative", display: "inline-block" }}>
       <button onClick={() => setYrOpen((p) => !p)} style={{ background: T.bg3, border: `1px solid ${T.bd}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: mob ? 12 : 13, fontWeight: 700, color: T.txD }}>
-        {yr}年度
+        {t("sciatt.yearLabel", { y: yr })}
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {yrOpen && <><div onClick={() => setYrOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
         <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: T.bg2, border: `1px solid ${T.bd}`, borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,.4)", overflow: "hidden", zIndex: 50, minWidth: 90 }}>
           {yrOpts.map((y) => (
-            <div key={y} onClick={() => { setAcademicYear && setAcademicYear(y); setYrOpen(false); }} style={{ padding: "8px 14px", cursor: "pointer", fontSize: 13, fontWeight: y === yr ? 700 : 400, color: y === yr ? T.accent : T.txH, background: y === yr ? `${T.accent}10` : "transparent" }}>{y}年度</div>
+            <div key={y} onClick={() => { setAcademicYear && setAcademicYear(y); setYrOpen(false); }} style={{ padding: "8px 14px", cursor: "pointer", fontSize: 13, fontWeight: y === yr ? 700 : 400, color: y === yr ? T.accent : T.txH, background: y === yr ? `${T.accent}10` : "transparent" }}>{t("sciatt.yearLabel", { y: y })}</div>
           ))}
         </div></>}
     </div>
@@ -184,12 +185,12 @@ export const SciAttendanceView = ({ courses = [], records = {}, setStatus, quart
   return (
     <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: mob ? 12 : 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-        {!mob && <h2 style={{ color: T.txH, margin: 0, fontSize: 20, fontWeight: 800 }}>出欠管理</h2>}
+        {!mob && <h2 style={{ color: T.txH, margin: 0, fontSize: 20, fontWeight: 800 }}>{t("nav.attendance")}</h2>}
         <QDrop />
         <YrDrop />
       </div>
       {list.length === 0 ? (
-        <div style={{ textAlign: "center", color: T.txD, fontSize: 13, marginTop: 40 }}>{yr}年度 {quarter}Qの履修科目がありません</div>
+        <div style={{ textAlign: "center", color: T.txD, fontSize: 13, marginTop: 40 }}>{t("sciatt.emptyCourses", { y: yr, q: quarter })}</div>
       ) : (
         list.map((co) => (
           <CourseCard key={co.id} co={co} statuses={sciRecords[String(co.id)] || {}} setStatus={setStatus} year={yr} mob={mob} />

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 
 /* ── iOS-style app icon colors ── */
@@ -11,26 +12,26 @@ const C = {
 
 /* ── App definitions ── */
 const APPS = [
-  { id: "dm",         icon: I.mail,      label: "メッセージ",   color: C.green,  badge: "dmUnread" },
-  { id: "timetable",  icon: I.cal,       label: "時間割",       color: C.blue },
-  { id: "textbooks",  icon: I.book,      label: "教科書",       color: C.brown },
-  { id: "grading",    icon: I.bar,       label: "成績割合",     color: C.yellow },
-  { id: "tasks",      icon: I.tasks,     label: "課題",         color: C.red,    badge: "ac" },
-  { id: "calendar",   icon: I.event,     label: "カレンダー",   color: C.orange },
-  { id: "grades",     icon: I.grad,      label: "成績",         color: C.indigo },
-  { id: "notif",      icon: I.bell,      label: "通知",         color: C.pink,   badge: "unreadN" },
-  { id: "friends",    icon: I.users,     label: "友達",         color: C.teal,   badge: "pendingFriendCount" },
-  { id: "circles",    icon: I.circle,    label: "サークル",     color: C.purple },
-  { id: "events",     icon: I.event,     label: "イベント",     color: C.yellow },
-  { id: "location",   icon: I.pin,       label: "居場所",       color: C.mint },
-  { id: "navigation", icon: I.map,       label: "マップ",       color: C.blue },
-  { id: "reviews",    icon: I.star,      label: "レビュー",     color: C.orange },
-  { id: "pomo",       icon: I.play,      label: "ポモドーロ",   color: C.red },
-  { id: "music",      icon: I.music,     label: "ミュージック", color: C.pink },
-  { id: "bmarks",     icon: I.bmark,     label: "ブックマーク", color: C.indigo },
-  { id: "search",     icon: I.search,    label: "検索",         color: C.gray },
-  { id: "profile",    icon: I.user1,     label: "プロフィール", color: C.teal },
-  { id: "courseSelect", icon: I.clip,    label: "コース",       color: C.purple },
+  { id: "dm",         icon: I.mail,      labelKey: "common.dm",        color: C.green,  badge: "dmUnread" },
+  { id: "timetable",  icon: I.cal,       labelKey: "nav.timetable",    color: C.blue },
+  { id: "textbooks",  icon: I.book,      labelKey: "nav.textbooks",    color: C.brown },
+  { id: "grading",    icon: I.bar,       labelKey: "nav.grading",      color: C.yellow },
+  { id: "tasks",      icon: I.tasks,     labelKey: "nav.tasks",        color: C.red,    badge: "ac" },
+  { id: "calendar",   icon: I.event,     labelKey: "nav.calendar",     color: C.orange },
+  { id: "grades",     icon: I.grad,      labelKey: "tool.grades",      color: C.indigo },
+  { id: "notif",      icon: I.bell,      labelKey: "nav.notif",        color: C.pink,   badge: "unreadN" },
+  { id: "friends",    icon: I.users,     labelKey: "nav.friends",      color: C.teal,   badge: "pendingFriendCount" },
+  { id: "circles",    icon: I.circle,    labelKey: "nav.circles",      color: C.purple },
+  { id: "events",     icon: I.event,     labelKey: "tool.events",      color: C.yellow },
+  { id: "location",   icon: I.pin,       labelKey: "appgrid.location", color: C.mint },
+  { id: "navigation", icon: I.map,       labelKey: "nav.map",          color: C.blue },
+  { id: "reviews",    icon: I.star,      labelKey: "tool.reviews",     color: C.orange },
+  { id: "pomo",       icon: I.play,      labelKey: "tool.pomo",        color: C.red },
+  { id: "music",      icon: I.music,     labelKey: "tool.music",       color: C.pink },
+  { id: "bmarks",     icon: I.bmark,     labelKey: "tool.bmarks",      color: C.indigo },
+  { id: "search",     icon: I.search,    labelKey: "nav.search",       color: C.gray },
+  { id: "profile",    icon: I.user1,     labelKey: "nav.profile",      color: C.teal },
+  { id: "courseSelect", icon: I.clip,    labelKey: "appgrid.course",   color: C.purple },
 ];
 
 const COLS = 4;
@@ -82,7 +83,7 @@ function AppIcon({ app, onTap, badgeCount }) {
         fontSize: 11, color: T.txH, fontWeight: 500,
         maxWidth: 68, overflow: "hidden", textOverflow: "ellipsis",
         whiteSpace: "nowrap", textAlign: "center",
-      }}>{app.label}</span>
+      }}>{t(app.labelKey)}</span>
     </button>
   );
 }
@@ -122,7 +123,7 @@ function SearchBar({ onSearch }) {
         <span style={{ color: T.txD, display: "flex", flexShrink: 0 }}>{I.search}</span>
         <input
           value={q} onChange={e => setQ(e.target.value)}
-          placeholder="検索"
+          placeholder={t("nav.search")}
           style={{
             flex: 1, border: "none", background: "transparent",
             color: T.txH, fontSize: 15, outline: "none",

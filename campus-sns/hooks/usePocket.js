@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { t } from "../i18n.js";
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { isDemoMode } from '../demoMode.js';
 import { useCurrentUser } from './useCurrentUser.js';
@@ -103,7 +104,7 @@ export function usePocket() {
     });
     if (!signRes.ok) {
       const e = await signRes.json().catch(() => ({}));
-      throw new Error(e.error || '署名URLの取得に失敗しました');
+      throw new Error(e.error || t("toast.signedUrlFailed"));
     }
     const { path, token } = await signRes.json();
 
@@ -112,7 +113,7 @@ export function usePocket() {
     const { error: upErr } = await sb.storage
       .from('post-attachments')
       .uploadToSignedUrl(path, token, file, { contentType: file.type || undefined });
-    if (upErr) throw new Error(upErr.message || 'アップロードに失敗しました');
+    if (upErr) throw new Error(upErr.message || t("toast.uploadFailed"));
 
     // 3) DBに記録
     const recRes = await fetch('/api/pocket', {
@@ -122,7 +123,7 @@ export function usePocket() {
     });
     if (!recRes.ok) {
       const e = await recRes.json().catch(() => ({}));
-      throw new Error(e.error || '保存に失敗しました');
+      throw new Error(e.error || t("toast.saveFailed"));
     }
     const item = await recRes.json();
     setItems(prev => prev.some(p => p.id === item.id) ? prev : [item, ...prev]);

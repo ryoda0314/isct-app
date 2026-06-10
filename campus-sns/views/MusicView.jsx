@@ -1,5 +1,6 @@
 import React from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { Loader } from "../shared.jsx";
 import { useMusic } from "../hooks/useMusic.js";
@@ -49,7 +50,7 @@ export function MusicView({ mob = false }) {
     );
   };
 
-  if (loading) return <Loader msg="読み込み中..." />;
+  if (loading) return <Loader msg={t("common.loading")} />;
 
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: mob ? "12px 14px 120px" : "16px 20px 120px" }}>
@@ -58,10 +59,10 @@ export function MusicView({ mob = false }) {
         <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(145deg, ${T.accent}, ${T.accent}99)`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0 }}>{I.music}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 17, fontWeight: 800, color: T.txH }}>ScienceTokyo Music</div>
-          <div style={{ fontSize: 12, color: T.txD }}>{list.length} 曲</div>
+          <div style={{ fontSize: 12, color: T.txD }}>{t("music.songCount", { n: list.length })}</div>
         </div>
         {list.length > 0 && (
-          <button onClick={playAll} style={primaryBtn}>{I.play}<span style={{ marginLeft: 4 }}>全て再生</span></button>
+          <button onClick={playAll} style={primaryBtn}>{I.play}<span style={{ marginLeft: 4 }}>{t("music.playAll")}</span></button>
         )}
       </div>
 
@@ -69,8 +70,8 @@ export function MusicView({ mob = false }) {
       {list.length === 0 ? (
         <div style={{ textAlign: "center", padding: "48px 20px", color: T.txD }}>
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 12, opacity: 0.5 }}>{I.music}</div>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>まだ配信されている曲がありません</div>
-          <div style={{ fontSize: 12, marginTop: 6 }}>配信されると、ここに表示されます。</div>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>{t("music.emptyTitle")}</div>
+          <div style={{ fontSize: 12, marginTop: 6 }}>{t("music.emptyDesc")}</div>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>{list.map(renderRow)}</div>

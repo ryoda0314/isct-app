@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { t } from "../i18n.js";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { useMusicPlayer } from "../hooks/useMusicPlayer.js";
@@ -170,7 +171,7 @@ export function MiniPlayer({ mob = false, view, ch, onOpen }) {
       onPointerMove={minimized ? onPillMove : onPointerMove}
       onPointerUp={minimized ? onPillUp : endDrag}
       onPointerCancel={minimized ? onPillUp : endDrag}
-      title={minimized ? "ドラッグで移動 / タップで開く" : undefined}
+      title={minimized ? t("miniplayer.pillHint") : undefined}
       style={{
         position: "fixed",
         ...posStyle,
@@ -212,7 +213,7 @@ export function MiniPlayer({ mob = false, view, ch, onOpen }) {
                 : I.music}
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: T.txH, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title || "無題"}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.txH, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title || t("miniplayer.untitled")}</div>
               <div style={{ fontSize: 11, color: T.txD, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {track.artist || "ScienceTokyo Music"} · {fmtTime(currentTime)} / {fmtTime(dur)}
               </div>
@@ -221,11 +222,11 @@ export function MiniPlayer({ mob = false, view, ch, onOpen }) {
 
           {/* 操作 */}
           <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-            <button onClick={() => { if (!movedRef.current) prev(); }} title="前へ" style={btn}>{I.skipBack}</button>
-            <button onClick={() => { if (!movedRef.current) toggle(); }} title={playing ? "一時停止" : "再生"} style={{ ...btn, width: 40, height: 40, background: T.accent, color: "#fff", borderRadius: 20 }}>
+            <button onClick={() => { if (!movedRef.current) prev(); }} title={t("miniplayer.prev")} style={btn}>{I.skipBack}</button>
+            <button onClick={() => { if (!movedRef.current) toggle(); }} title={playing ? t("miniplayer.pause") : t("miniplayer.play")} style={{ ...btn, width: 40, height: 40, background: T.accent, color: "#fff", borderRadius: 20 }}>
               {playing ? I.pause : I.play}
             </button>
-            <button onClick={() => { if (!movedRef.current) next(); }} title="次へ" style={btn}>{I.skipFwd}</button>
+            <button onClick={() => { if (!movedRef.current) next(); }} title={t("miniplayer.next")} style={btn}>{I.skipFwd}</button>
           </div>
         </div>
       </div>

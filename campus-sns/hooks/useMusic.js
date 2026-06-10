@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { t } from "../i18n.js";
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { isDemoMode } from '../demoMode.js';
 import { useCurrentUser } from './useCurrentUser.js';
@@ -75,14 +76,14 @@ export function useMusic() {
     });
     if (!signRes.ok) {
       const e = await signRes.json().catch(() => ({}));
-      throw new Error(e.error || '署名URLの取得に失敗しました');
+      throw new Error(e.error || t("toast.signedUrlFailed"));
     }
     const { path, token } = await signRes.json();
     const sb = getSupabaseClient();
     const { error: upErr } = await sb.storage
       .from(BUCKET)
       .uploadToSignedUrl(path, token, file, { contentType: file.type || undefined });
-    if (upErr) throw new Error(upErr.message || 'アップロードに失敗しました');
+    if (upErr) throw new Error(upErr.message || t("toast.uploadFailed"));
     return { name: file.name, path, size: file.size, type: file.type };
   }, []);
 
@@ -120,7 +121,7 @@ export function useMusic() {
     });
     if (!recRes.ok) {
       const e = await recRes.json().catch(() => ({}));
-      throw new Error(e.error || '保存に失敗しました');
+      throw new Error(e.error || t("toast.saveFailed"));
     }
     const track = await recRes.json();
     setTracks((prev) => (prev.some((p) => p.id === track.id) ? prev : [...prev, track]));

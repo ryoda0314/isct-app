@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { Tag, Loader } from "../shared.jsx";
 import { useCourseMaterials } from "../hooks/useCourseMaterials.js";
@@ -8,7 +9,7 @@ import { useCurrentUser } from "../hooks/useCurrentUser.js";
 import { openMaterial } from "../openMaterial.js";
 
 const tCol={pdf:'#e5534b',slide:'#d4843e',document:'#6375f0',spreadsheet:'#3dae72',image:'#a855c7',video:'#2d9d8f',audio:'#c6a236',archive:'#68687a',code:'#3dae72',text:'#68687a',link:'#6375f0',file:'#68687a'};
-const tLbl={pdf:'PDF',slide:'スライド',document:'文書',spreadsheet:'表計算',image:'画像',video:'動画',audio:'音声',archive:'圧縮',code:'コード',text:'テキスト',link:'リンク',file:'ファイル'};
+const tLblKey={pdf:'mat.ft.pdf',slide:'mat.ft.slide',document:'mat.ft.document',spreadsheet:'mat.ft.spreadsheet',image:'mat.ft.image',video:'mat.ft.video',audio:'mat.ft.audio',archive:'mat.ft.archive',code:'mat.ft.code',text:'mat.ft.text',link:'mat.ft.link',file:'mat.ft.file'};
 const fmtD=ts=>{if(!ts)return'';const d=new Date(ts*1000);return`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;};
 const fmtDt=d=>{if(!d)return'';return`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;};
 const fmtSize=b=>{if(!b)return'';if(b<1024)return`${b} B`;if(b<1048576)return`${(b/1024).toFixed(1)} KB`;return`${(b/1048576).toFixed(1)} MB`;};
@@ -35,13 +36,13 @@ const detectType=mime=>{
 
 /* Category config */
 const CATS=[
-  {key:'all',label:'すべて',color:T.txD},
-  {key:'past_exam',label:'過去問',color:'#e5534b'},
-  {key:'notes',label:'ノート',color:'#3dae72'},
-  {key:'exercise',label:'演習',color:'#6375f0'},
-  {key:'other',label:'その他',color:'#68687a'},
+  {key:'all',labelKey:'mat.cat.all',color:T.txD},
+  {key:'past_exam',labelKey:'mat.cat.pastExam',color:'#e5534b'},
+  {key:'notes',labelKey:'mat.cat.notes',color:'#3dae72'},
+  {key:'exercise',labelKey:'mat.cat.exercise',color:'#6375f0'},
+  {key:'other',labelKey:'mat.cat.other',color:'#68687a'},
 ];
-const catLabel=k=>CATS.find(c=>c.key===k)?.label||k;
+const catLabel=k=>{const c=CATS.find(c=>c.key===k);return c?t(c.labelKey):k;};
 const catColor=k=>CATS.find(c=>c.key===k)?.color||T.txD;
 
 /* ──────────────────────────────────────────────
@@ -80,7 +81,7 @@ const PdfViewer=({url,dlUrl,mob,onStale,onOpen})=>{
   const [zoom,setZoom]=useState(0.75);
   const [curPage,setCurPage]=useState(1);
   const [err,setErr]=useState(null);
-  const [loadMsg,setLoadMsg]=useState("PDF.js を読み込み中...");
+  const [loadMsg,setLoadMsg]=useState(t("mat.loadingPdfjs"));
   const containerRef=useRef(null);
   const pagesWrapRef=useRef(null);
   const pageRefs=useRef({});
@@ -90,12 +91,12 @@ const PdfViewer=({url,dlUrl,mob,onStale,onOpen})=>{
   /* Load PDF: fetch as ArrayBuffer first, then pass data to PDF.js */
   useEffect(()=>{
     let cancelled=false;
-    setPdf(null);setPages([]);setCurPage(1);setErr(null);setLoadMsg("PDF.js を読み込み中...");
+    setPdf(null);setPages([]);setCurPage(1);setErr(null);setLoadMsg(t("mat.loadingPdfjs"));
     (async()=>{
       try{
         const lib=await loadPdfjs();
         if(cancelled)return;
-        setLoadMsg("PDF をダウンロード中...");
+        setLoadMsg(t("mat.downloadingPdf"));
         const resp=await fetch(url);
         const ct=(resp.headers.get("content-type")||"").toLowerCase();
         const buf=await resp.arrayBuffer();
@@ -108,17 +109,17 @@ const PdfViewer=({url,dlUrl,mob,onStale,onOpen})=>{
           try{code=JSON.parse(new TextDecoder().decode(buf)).errorcode;}catch{}
           if(code){
             onStale?.();
-            throw new Error("資料が見つかりませんでした。更新された可能性があります。一覧を更新します。");
+            throw new Error(t("mat.notFoundRefreshing"));
           }
           if(!resp.ok)throw new Error(`HTTP ${resp.status}`);
         }
         if(cancelled)return;
-        setLoadMsg("PDF を解析中...");
+        setLoadMsg(t("mat.parsingPdf"));
         const doc=await lib.getDocument({data:buf,cMapUrl:`${PDFJS_CDN}/cmaps/`,cMapPacked:true,standardFontDataUrl:`${PDFJS_CDN}/standard_fonts/`}).promise;
         if(cancelled)return;
         setPdf(doc);
         setPages(Array.from({length:doc.numPages},(_,i)=>i+1));
-      }catch(e){if(!cancelled)setErr(e.message||"PDF読み込み失敗");}
+      }catch(e){if(!cancelled)setErr(e.message||t("mat.pdfLoadFailed"));}
     })();
     return()=>{cancelled=true;};
   },[url,onStale]);
@@ -315,8 +316,8 @@ const PdfViewer=({url,dlUrl,mob,onStale,onOpen})=>{
   },[zoom,pdf]);
 
   if(err) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40}}><div>{err}</div>{onOpen
-    ?<button onClick={onOpen} style={{padding:"8px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>新しいタブで開く</button>
-    :dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" style={{padding:"8px 16px",borderRadius:8,background:T.accent,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none"}}>新しいタブで開く</a>}</div>;
+    ?<button onClick={onOpen} style={{padding:"8px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>{t("mat.openInNewTab")}</button>
+    :dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" style={{padding:"8px 16px",borderRadius:8,background:T.accent,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none"}}>{t("mat.openInNewTab")}</a>}</div>;
   if(!pdf) return <Loader msg={loadMsg} size="md"/>;
 
   return(
@@ -382,7 +383,7 @@ const DocxViewer=({url,mob,onStale,onOpen})=>{
   const scalerRef=useRef(null);   // natural-size box that gets CSS-scaled to fit
   const [err,setErr]=useState(null);
   const [loading,setLoading]=useState(true);
-  const [loadMsg,setLoadMsg]=useState("Word を読み込み中...");
+  const [loadMsg,setLoadMsg]=useState(t("mat.loadingWord"));
   // Absolute display scale. null = auto fit-to-width. Mobile defaults to ~40%
   // (a phone is too narrow to read full-fit comfortably); desktop fits the pane.
   const [scale,setScale]=useState(mob?0.4:null);
@@ -445,26 +446,26 @@ const DocxViewer=({url,mob,onStale,onOpen})=>{
 
   useEffect(()=>{
     let cancelled=false;
-    setErr(null);setLoading(true);setLoadMsg("Word を読み込み中...");
+    setErr(null);setLoading(true);setLoadMsg(t("mat.loadingWord"));
     (async()=>{
       try{
         const lib=await loadDocxPreview();
         if(cancelled)return;
-        setLoadMsg("ファイルをダウンロード中...");
+        setLoadMsg(t("mat.downloadingFile"));
         const resp=await fetch(url);
         const ct=(resp.headers.get("content-type")||"").toLowerCase();
         const buf=await resp.arrayBuffer();
         if(!resp.ok||ct.includes("application/json")||new Uint8Array(buf)[0]===0x7b){
           let code=null;
           try{code=JSON.parse(new TextDecoder().decode(buf)).errorcode;}catch{}
-          if(code){onStale?.();throw new Error("資料が見つかりませんでした。更新された可能性があります。一覧を更新します。");}
+          if(code){onStale?.();throw new Error(t("mat.notFoundRefreshing"));}
           if(!resp.ok)throw new Error(`HTTP ${resp.status}`);
         }
         if(cancelled)return;
         const sk=scalerRef.current;
         if(!sk)return;
         sk.innerHTML="";
-        setLoadMsg("Word を表示中...");
+        setLoadMsg(t("mat.renderingWord"));
         await lib.renderAsync(buf,sk,null,{
           className:"docx",inWrapper:true,breakPages:true,experimental:true,
           useBase64URL:true,renderHeaders:true,renderFooters:true,renderFootnotes:true,renderEndnotes:true,
@@ -474,7 +475,7 @@ const DocxViewer=({url,mob,onStale,onOpen})=>{
         setLoading(false);
         requestAnimationFrame(fit);
         setTimeout(()=>{if(!cancelled){collectBorders();fit();}},150); // re-collect/re-fit after late layout (embedded fonts/images)
-      }catch(e){if(!cancelled){setErr(e.message||"Word読み込み失敗");setLoading(false);}}
+      }catch(e){if(!cancelled){setErr(e.message||t("mat.wordLoadFailed"));setLoading(false);}}
     })();
     return()=>{cancelled=true;};
   },[url,onStale,fit,collectBorders]);
@@ -493,13 +494,13 @@ const DocxViewer=({url,mob,onStale,onOpen})=>{
       {/* Toolbar */}
       <div style={{display:"flex",alignItems:"center",gap:mob?4:8,padding:mob?"6px 8px":"6px 12px",background:T.bg2,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>
         <button onClick={zoomOut} disabled={loading||!!err} style={{background:"none",border:"none",color:loading||err?T.bd:T.txH,cursor:loading||err?"default":"pointer",display:"flex",padding:4,borderRadius:4,fontSize:16,fontWeight:700,lineHeight:1}}>−</button>
-        <button onClick={zoomReset} disabled={loading||!!err} title="幅に合わせる" style={{background:"none",border:"none",color:loading||err?T.bd:T.txH,cursor:loading||err?"default":"pointer",fontSize:12,fontWeight:600,minWidth:44,textAlign:"center",padding:"2px 4px",borderRadius:4,fontFamily:"inherit"}}>{pct}%</button>
+        <button onClick={zoomReset} disabled={loading||!!err} title={t("mat.fitToWidth")} style={{background:"none",border:"none",color:loading||err?T.bd:T.txH,cursor:loading||err?"default":"pointer",fontSize:12,fontWeight:600,minWidth:44,textAlign:"center",padding:"2px 4px",borderRadius:4,fontFamily:"inherit"}}>{pct}%</button>
         <button onClick={zoomIn} disabled={loading||!!err} style={{background:"none",border:"none",color:loading||err?T.bd:T.txH,cursor:loading||err?"default":"pointer",display:"flex",padding:4,borderRadius:4,fontSize:16,fontWeight:700,lineHeight:1}}>+</button>
       </div>
       {/* Pages */}
       <div ref={scrollRef} style={{flex:1,overflow:"auto",WebkitOverflowScrolling:"touch",background:"#5f6368",position:"relative"}}>
         {loading&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,zIndex:2}}><Loader msg={loadMsg} size="md"/></div>}
-        {err&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40,textAlign:"center",background:T.bg,zIndex:2}}><div>{err}</div>{onOpen&&<button onClick={onOpen} style={{padding:"8px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>新しいタブで開く</button>}</div>}
+        {err&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40,textAlign:"center",background:T.bg,zIndex:2}}><div>{err}</div>{onOpen&&<button onClick={onOpen} style={{padding:"8px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>{t("mat.openInNewTab")}</button>}</div>}
         <div ref={holderRef} style={{margin:"0 auto"}}><div ref={scalerRef}/></div>
       </div>
     </div>
@@ -545,19 +546,19 @@ const Preview=({m,mob,onClose,onStale})=>{
   return(
     <div ref={wrapRef} style={{display:"flex",flexDirection:"column",overflow:"hidden",background:T.bg,...(fs?{position:"fixed",inset:0,zIndex:2000}:{flex:1,height:"100%"})}}>
       <div style={{display:"flex",alignItems:"center",gap:8,padding:mob?"10px 12px":"8px 14px",borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}>
-        <button onClick={onClose} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",color:T.txD,fontSize:13,cursor:"pointer",padding:0}}>{I.back} 戻る</button>
+        <button onClick={onClose} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",color:T.txD,fontSize:13,cursor:"pointer",padding:0}}>{I.back} {t("common.back")}</button>
         <div style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:13,fontWeight:600,color:T.txH}}>{m.filename||m.name}</div>
-        <Tag color={c}>{tLbl[ft]||'ファイル'}</Tag>
-        <button onClick={toggleFs} title={fs?"全画面解除":"全画面"} style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,borderRadius:6,border:`1px solid ${T.bd}`,background:fs?`${T.accent}18`:T.bg3,color:fs?T.accent:T.txD,cursor:"pointer",flexShrink:0}}><FsIcon active={fs}/></button>
+        <Tag color={c}>{t(tLblKey[ft]||'mat.ft.file')}</Tag>
+        <button onClick={toggleFs} title={fs?t("mat.exitFullscreen"):t("mat.fullscreen")} style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,borderRadius:6,border:`1px solid ${T.bd}`,background:fs?`${T.accent}18`:T.bg3,color:fs?T.accent:T.txD,cursor:"pointer",flexShrink:0}}><FsIcon active={fs}/></button>
         {dlUrl&&(m.fileurl
           ?<button onClick={()=>openMaterial(m,onStale,{download:true,mob})} style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0}}>{I.dl} DL</button>
           :<a href={dlUrl} target="_blank" rel="noopener noreferrer" download style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,background:T.accent,color:"#fff",fontSize:12,fontWeight:600,textDecoration:"none",flexShrink:0}}>{I.dl} DL</a>)}
       </div>
       {ft==="pdf"&&<PdfViewer url={previewUrl} dlUrl={dlUrl} mob={mob} onStale={onStale} onOpen={m.fileurl?()=>openMaterial(m,onStale):null}/>}
       {ft==="document"&&isDocx(m)&&<DocxViewer url={previewUrl} mob={mob} onStale={onStale} onOpen={m.fileurl?()=>openMaterial(m,onStale):null}/>}
-      {ft!=="pdf"&&ft!=="document"&&mediaErr&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40,textAlign:"center"}}><div>資料が見つかりませんでした。更新された可能性があります。一覧を更新しました。</div>{m.fileurl
-        ?<button onClick={()=>openMaterial(m,onStale)} style={{padding:"8px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>新しいタブで開く</button>
-        :dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" style={{padding:"8px 16px",borderRadius:8,background:T.accent,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none"}}>新しいタブで開く</a>}</div>}
+      {ft!=="pdf"&&ft!=="document"&&mediaErr&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40,textAlign:"center"}}><div>{t("mat.notFoundRefreshed")}</div>{m.fileurl
+        ?<button onClick={()=>openMaterial(m,onStale)} style={{padding:"8px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>{t("mat.openInNewTab")}</button>
+        :dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" style={{padding:"8px 16px",borderRadius:8,background:T.accent,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none"}}>{t("mat.openInNewTab")}</a>}</div>}
       {ft==="image"&&!mediaErr&&<div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:16}}><img src={previewUrl} alt={m.filename||m.name} onError={onMediaErr} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",borderRadius:4,boxShadow:"0 2px 12px rgba(0,0,0,.3)"}}/></div>}
       {ft==="video"&&!mediaErr&&<div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:16}}><video src={previewUrl} controls onError={onMediaErr} style={{maxWidth:"100%",maxHeight:"100%",borderRadius:4}}/></div>}
       {ft==="audio"&&!mediaErr&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",background:T.bg,padding:40}}><div style={{textAlign:"center",width:"100%"}}><div style={{fontSize:14,color:T.txH,fontWeight:600,marginBottom:16}}>{m.filename||m.name}</div><audio src={previewUrl} controls onError={onMediaErr} style={{width:"100%",maxWidth:400}}/></div></div>}
@@ -585,7 +586,7 @@ const FileRow=({m,onClick,onStale})=>{
         <div style={{color:T.txH,fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.filename||m.name}</div>
         <div style={{fontSize:11,color:T.txD}}>{[m.filesizeFormatted,fmtD(m.timemodified)].filter(Boolean).join(" · ")}</div>
       </div>
-      <Tag color={c}>{tLbl[m.fileType]||'ファイル'}</Tag>
+      <Tag color={c}>{t(tLblKey[m.fileType]||'mat.ft.file')}</Tag>
       {m.fileType!=="link"&&<span style={{color:T.txD,display:"flex",flexShrink:0}}>{preview?I.arr:I.dl}</span>}
     </div>
   );
@@ -611,8 +612,8 @@ const SharedFileRow=({m,onClick,myId,onDelete})=>{
         </div>
       </div>
       <Tag color={catColor(m.category)}>{catLabel(m.category)}</Tag>
-      <Tag color={c}>{tLbl[ft]||'ファイル'}</Tag>
-      {isMine&&<button onClick={e=>{e.stopPropagation();if(confirm(`「${m.filename}」を削除しますか？`))onDelete(m.id);}} title="削除" style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1px solid ${T.bd}`,background:"transparent",color:T.red||'#e5534b',cursor:"pointer",flexShrink:0}}>{I.x}</button>}
+      <Tag color={c}>{t(tLblKey[ft]||'mat.ft.file')}</Tag>
+      {isMine&&<button onClick={e=>{e.stopPropagation();if(confirm(t("mat.confirmDeleteFile",{name:m.filename})))onDelete(m.id);}} title={t("common.delete")} style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1px solid ${T.bd}`,background:"transparent",color:T.red||'#e5534b',cursor:"pointer",flexShrink:0}}>{I.x}</button>}
       <span style={{color:T.txD,display:"flex",flexShrink:0}}>{previewable?I.arr:I.dl}</span>
     </div>
   );
@@ -632,18 +633,18 @@ const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect,onRefres
     ?sections.map(s=>({...s,materials:s.materials.filter(m=>(m.name||'').toLowerCase().includes(search.toLowerCase())||(m.filename||'').toLowerCase().includes(search.toLowerCase()))})).filter(s=>s.materials.length>0)
     :sections;
 
-  if(loading) return <Loader msg="教材を読み込み中"/>;
-  if(error==='LMS_UNAVAILABLE') return <div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>LMS に接続できません（学外ネットワークからはアクセスできない場合があります）</div>;
-  if(error) return <div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>教材の取得に失敗しました</div>;
+  if(loading) return <Loader msg={t("mat.loadingMaterials")}/>;
+  if(error==='LMS_UNAVAILABLE') return <div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{t("mat.lmsUnavailable")}</div>;
+  if(error) return <div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{t("mat.materialsFetchFailed")}</div>;
 
   return(
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:12}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-        <span style={{fontSize:12,color:T.txD,fontWeight:600}}>{totalFiles}件の教材</span>
-        {onRefresh&&<button onClick={onRefresh} title="最新の情報に更新" style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txD,cursor:"pointer",flexShrink:0}}>{I.reset}</button>}
+        <span style={{fontSize:12,color:T.txD,fontWeight:600}}>{t("mat.materialCount",{count:totalFiles})}</span>
+        {onRefresh&&<button onClick={onRefresh} title={t("mat.refresh")} style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txD,cursor:"pointer",flexShrink:0}}>{I.reset}</button>}
         <div style={{flex:1,display:"flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:6,background:T.bg3,border:`1px solid ${T.bd}`,minWidth:mob?"100%":140,maxWidth:240}}>
           <span style={{color:T.txD,display:"flex"}}>{I.search}</span>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="教材を検索..." style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t("mat.searchMaterials")} style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
           {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:0}}>{I.x}</button>}
         </div>
       </div>
@@ -659,7 +660,7 @@ const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect,onRefres
           {!collapsed[sec.id]&&sec.materials.map(m=><FileRow key={m.id} m={m} onClick={onSelect} onStale={onRefresh}/>)}
         </div>
       ))}
-      {filtered.length===0&&!loading&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{search?"検索結果がありません":"教材はまだありません"}</div>}
+      {filtered.length===0&&!loading&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{search?t("mat.noSearchResults"):t("mat.noMaterialsYet")}</div>}
     </div>
   );
 };
@@ -698,7 +699,7 @@ const SharedMaterials=({courseId,mob,onSelect})=>{
   const onDragOver=e=>e.preventDefault();
   const onDrop=e=>{e.preventDefault();dragCounter.current=0;setDrag(false);stageFiles(e.dataTransfer.files);};
 
-  if(loading) return <Loader msg="共有資料を読み込み中"/>;
+  if(loading) return <Loader msg={t("mat.loadingShared")}/>;
 
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",position:"relative"}}
@@ -707,28 +708,28 @@ const SharedMaterials=({courseId,mob,onSelect})=>{
 
       {/* Header: filter pills + upload button */}
       <div style={{display:"flex",alignItems:"center",gap:6,padding:"10px 12px",flexWrap:"wrap",flexShrink:0}}>
-        <span style={{fontSize:12,color:T.txD,fontWeight:600}}>{filtered.length}件</span>
+        <span style={{fontSize:12,color:T.txD,fontWeight:600}}>{t("mat.fileCount",{count:filtered.length})}</span>
         {CATS.map(c=>(
-          <button key={c.key} onClick={()=>setFilter(c.key)} style={{padding:"3px 10px",borderRadius:12,fontSize:11,fontWeight:600,border:`1px solid ${filter===c.key?(c.key==='all'?T.accent:c.color):T.bd}`,background:filter===c.key?`${c.key==='all'?T.accent:c.color}20`:'transparent',color:filter===c.key?(c.key==='all'?T.accent:c.color):T.txD,cursor:"pointer",transition:"all .12s"}}>{c.label}</button>
+          <button key={c.key} onClick={()=>setFilter(c.key)} style={{padding:"3px 10px",borderRadius:12,fontSize:11,fontWeight:600,border:`1px solid ${filter===c.key?(c.key==='all'?T.accent:c.color):T.bd}`,background:filter===c.key?`${c.key==='all'?T.accent:c.color}20`:'transparent',color:filter===c.key?(c.key==='all'?T.accent:c.color):T.txD,cursor:"pointer",transition:"all .12s"}}>{t(c.labelKey)}</button>
         ))}
         <div style={{flex:1}}/>
         <button onClick={()=>inputRef.current?.click()} disabled={uploading} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:8,border:`1px solid ${T.accent}50`,background:`${T.accent}12`,color:T.accent,fontSize:12,fontWeight:600,cursor:uploading?"wait":"pointer",flexShrink:0}}>
           {uploading?<span style={{display:"flex"}}>{I.reset}</span>:I.upload}
-          {uploading?"送信中...":"アップロード"}
+          {uploading?t("mat.uploading"):t("mat.upload")}
         </button>
       </div>
 
       {/* File list */}
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"0 12px 12px"}}>
         {filtered.map(m=><SharedFileRow key={m.id} m={m} onClick={onSelect} myId={me?.moodleId} onDelete={remove}/>)}
-        {filtered.length===0&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{files.length===0?"まだ共有資料はありません":"このカテゴリの資料はありません"}</div>}
+        {filtered.length===0&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{files.length===0?t("mat.noSharedYet"):t("mat.noSharedInCategory")}</div>}
       </div>
 
       {/* Drag overlay */}
       {drag&&(
         <div style={{position:"absolute",inset:0,background:`${T.accent}10`,border:`2px dashed ${T.accent}`,borderRadius:8,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,zIndex:10,pointerEvents:"none"}}>
           <span style={{color:T.accent,display:"flex",transform:"scale(1.5)"}}>{I.upload}</span>
-          <span style={{fontSize:15,color:T.accent,fontWeight:700}}>ここにドロップ</span>
+          <span style={{fontSize:15,color:T.accent,fontWeight:700}}>{t("mat.dropHere")}</span>
         </div>
       )}
 
@@ -736,21 +737,21 @@ const SharedMaterials=({courseId,mob,onSelect})=>{
       {pending&&(
         <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:20}} onClick={()=>setPending(null)}>
           <div onClick={e=>e.stopPropagation()} style={{background:T.bg2,borderRadius:12,border:`1px solid ${T.bd}`,padding:mob?"20px 16px":"24px 28px",maxWidth:360,width:"90%",boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
-            <div style={{fontSize:14,fontWeight:700,color:T.txH,marginBottom:4}}>カテゴリを選択</div>
+            <div style={{fontSize:14,fontWeight:700,color:T.txH,marginBottom:4}}>{t("mat.selectCategory")}</div>
             <div style={{fontSize:12,color:T.txD,marginBottom:14}}>
-              {pending.length}件のファイル: {pending.map(f=>f.name).join(', ')}
+              {t("mat.filesSelected",{count:pending.length})}: {pending.map(f=>f.name).join(', ')}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:18}}>
               {CATS.filter(c=>c.key!=='all').map(c=>(
                 <button key={c.key} onClick={()=>setPickCat(c.key)} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:8,border:`1px solid ${pickCat===c.key?c.color:T.bd}`,background:pickCat===c.key?`${c.color}14`:T.bg3,cursor:"pointer",transition:"all .12s"}}>
                   <div style={{width:10,height:10,borderRadius:"50%",background:c.color,flexShrink:0}}/>
-                  <span style={{fontSize:13,fontWeight:pickCat===c.key?700:500,color:pickCat===c.key?c.color:T.txH}}>{c.label}</span>
+                  <span style={{fontSize:13,fontWeight:pickCat===c.key?700:500,color:pickCat===c.key?c.color:T.txH}}>{t(c.labelKey)}</span>
                 </button>
               ))}
             </div>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-              <button onClick={()=>setPending(null)} style={{padding:"7px 16px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",color:T.txD,fontSize:13,fontWeight:600,cursor:"pointer"}}>キャンセル</button>
-              <button onClick={confirmUpload} style={{padding:"7px 20px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>アップロード</button>
+              <button onClick={()=>setPending(null)} style={{padding:"7px 16px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",color:T.txD,fontSize:13,fontWeight:600,cursor:"pointer"}}>{t("common.cancel")}</button>
+              <button onClick={confirmUpload} style={{padding:"7px 20px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>{t("mat.upload")}</button>
             </div>
           </div>
         </div>
@@ -794,7 +795,7 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed})=>{
         <div style={{width:280,flexShrink:0,borderRight:`1px solid ${T.bd}`,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:10}}>
           {isShared
             ? <div style={{padding:8}}>
-                <div style={{fontSize:11,fontWeight:700,color:T.txD,marginBottom:8}}>みんなの共有</div>
+                <div style={{fontSize:11,fontWeight:700,color:T.txD,marginBottom:8}}>{t("mat.tabShared")}</div>
                 <div style={{padding:"7px 8px",borderRadius:6,background:`${T.accent}14`,border:`1px solid ${T.accent}40`}}>
                   <div style={{color:T.accent,fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sel.filename}</div>
                 </div>
@@ -821,18 +822,18 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed})=>{
 
   /* Default: tabbed view */
   const tabs=[
-    {label:'講義資料',icon:I.clip},
-    {label:'みんなの共有',icon:I.upload},
+    {label:t("mat.tabLectures"),icon:I.clip},
+    {label:t("mat.tabShared"),icon:I.upload},
   ];
 
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       {/* Tab bar */}
       <div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}>
-        {tabs.map((t,i)=>(
+        {tabs.map((tb,i)=>(
           <button key={i} onClick={()=>setTab(i)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:mob?"10px 8px":"10px 16px",border:"none",borderBottom:`2px solid ${tab===i?T.accent:"transparent"}`,background:"transparent",color:tab===i?T.accent:T.txD,fontSize:13,fontWeight:tab===i?700:500,cursor:"pointer",transition:"all .15s"}}>
-            <span style={{display:"flex"}}>{t.icon}</span>
-            {t.label}
+            <span style={{display:"flex"}}>{tb.icon}</span>
+            {tb.label}
           </button>
         ))}
       </div>

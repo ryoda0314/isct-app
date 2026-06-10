@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { isDemoMode } from "../demoMode.js";
 import { buildDemoMedSessions } from "../demoData.js";
 
-const DAYS = ["月", "火", "水", "木", "金"];
+const DAY_KEYS = ["medtt.dayMon", "medtt.dayTue", "medtt.dayWed", "medtt.dayThu", "medtt.dayFri"];
+const DAY_KEYS_FULL = ["medtt.dayMon", "medtt.dayTue", "medtt.dayWed", "medtt.dayThu", "medtt.dayFri", "medtt.daySat", "medtt.daySun"];
 
 const EXAM_RE = /試験|テスト/;
 // instructor 欄の完全一致パターン: "試験"等の短い値のみ。文中に試験を含む長い教員記述は誤検知を防ぐため除外
@@ -17,7 +19,7 @@ const isExam = (s) =>
 const examLabel = (s) =>
   (s.sessionTitle && EXAM_RE.test(s.sessionTitle)) ? s.sessionTitle :
   (s.sessionContent && EXAM_RE.test(s.sessionContent)) ? s.sessionContent :
-  (s.instructor && EXAM_INSTRUCTOR_RE.test(s.instructor)) ? s.instructor : "試験";
+  (s.instructor && EXAM_INSTRUCTOR_RE.test(s.instructor)) ? s.instructor : t("medtt.examFallback");
 const COLORS = [
   "#6375f0", "#e5534b", "#3dae72", "#a855c7", "#d4843e", "#c6a236", "#2d9d8f", "#c75d8e",
   "#5b8def", "#d45d5d", "#46b87a", "#b06fd0", "#c08040", "#b8a830", "#35a898", "#c06090",
@@ -121,7 +123,7 @@ const _WeekGrid_unused = ({ weekDates, byDate, gridStart, gridHeight, colorMap, 
               background: isToday ? `${T.accent}08` : "transparent",
               borderBottom: `1px solid ${T.bd}20`,
             }}>
-              {DAYS[di]} {date.getDate()}
+              {t(DAY_KEYS[di])} {date.getDate()}
             </div>
             <div style={{ position: "relative", height: GRID_H }}>
               {HOUR_LABELS.map((h) => {
@@ -389,7 +391,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
   if (medCourses.length === 0) {
     return (
       <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 14 }}>
-        医歯学系の科目が見つかりません
+        {t("medtt.noCourses")}
       </div>
     );
   }
@@ -402,13 +404,13 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
       <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {/* モバイルでは上部の MHdr がタイトルを出すので内部タイトルは省略（重複回避） */}
-          {!mob && <div style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>医歯学時間割</div>}
+          {!mob && <div style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>{t("medtt.title")}</div>}
         </div>
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           {onRefresh && (
             <>
               <style>{`@keyframes medttSpin{to{transform:rotate(360deg)}}`}</style>
-              <button onClick={handleRefresh} disabled={refreshing} title="Moodleから再取得" style={{
+              <button onClick={handleRefresh} disabled={refreshing} title={t("medtt.refetchFromMoodle")} style={{
                 background: T.bg3, border: `1px solid ${T.bd}`, borderRadius: 8, padding: "4px 10px",
                 cursor: refreshing ? "default" : "pointer", display: "flex", alignItems: "center", gap: 4,
                 fontSize: 12, fontWeight: 600, color: refreshing ? T.txD : T.txH,
@@ -418,7 +420,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
                   style={{ animation: refreshing ? "medttSpin 1s linear infinite" : "none" }}>
                   <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
                 </svg>
-                {refreshing ? "更新中..." : "更新"}
+                {refreshing ? t("medtt.refreshing") : t("medtt.refresh")}
               </button>
             </>
           )}
@@ -426,7 +428,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
           <button onClick={goToday} style={{
             fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 8,
             border: `1px solid ${T.bd}`, background: T.bg3, color: T.txD, cursor: "pointer",
-          }}>{viewMode === "calendar" ? "今月" : "今週"}</button>
+          }}>{viewMode === "calendar" ? t("medtt.thisMonth") : t("medtt.thisWeek")}</button>
           {/* 週間/カレンダー スライドトグル */}
           <div style={{ position: "relative", display: "flex", background: T.bg3, border: `1px solid ${T.bd}`, borderRadius: 9, padding: 3 }}>
             <div style={{
@@ -440,13 +442,13 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
                 padding: "4px 0", background: "none", border: "none", cursor: "pointer",
                 fontSize: 12, fontWeight: 700, transition: "color .2s",
                 color: viewMode === m ? "#fff" : T.txD,
-              }}>{m === "week" ? "週間" : "カレンダー"}</button>
+              }}>{m === "week" ? t("medtt.weekView") : t("medtt.calendarView")}</button>
             ))}
           </div>
         </div>
       </div>
 
-      {loading && <div style={{ padding: 20, textAlign: "center", color: T.txD, fontSize: 13 }}>スケジュール取得中...</div>}
+      {loading && <div style={{ padding: 20, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("medtt.loadingSchedule")}</div>}
       {error && <div style={{ padding: 12, color: "#e5534b", fontSize: 12 }}>{error}</div>}
 
       {!loading && viewMode === "week" && (
@@ -455,7 +457,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "8px 14px", flexShrink: 0 }}>
             <button onClick={prevW} style={{ background: "none", border: "none", cursor: "pointer", color: T.txD, fontSize: 18 }}>‹</button>
             <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, minWidth: 160, textAlign: "center" }}>
-              {fmtDateShort(weekDates[0])}（月）〜 {fmtDateShort(weekDates[4])}（金）
+              {fmtDateShort(weekDates[0])}（{t("medtt.dayMon")}）〜 {fmtDateShort(weekDates[4])}（{t("medtt.dayFri")}）
             </div>
             <button onClick={nextW} style={{ background: "none", border: "none", cursor: "pointer", color: T.txD, fontSize: 18 }}>›</button>
           </div>
@@ -528,7 +530,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
                         background: isToday ? `${T.accent}06` : "transparent",
                         borderBottom: `1px solid ${T.bd}20`,
                       }}>
-                        {DAYS[di]} {date.getDate()}
+                        {t(DAY_KEYS[di])} {date.getDate()}
                       </div>
                       <div style={{ position: "relative", height: GRID_H }}>
                         {/* Hourly grid lines */}
@@ -596,8 +598,8 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
           {/* Course list */}
           <div style={{ padding: mob ? "14px 8px" : "28px 20px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: mob ? 6 : 12 }}>
-              <div style={{ fontSize: mob ? 13 : 16, fontWeight: 700, color: T.txH }}>履修科目一覧</div>
-              <span style={{ fontSize: 11, color: T.txD, background: T.bg3, padding: "2px 10px", borderRadius: 10 }}>{medCourses.length}科目</span>
+              <div style={{ fontSize: mob ? 13 : 16, fontWeight: 700, color: T.txH }}>{t("medtt.enrolledCourses")}</div>
+              <span style={{ fontSize: 11, color: T.txD, background: T.bg3, padding: "2px 10px", borderRadius: 10 }}>{t("medtt.courseCount", { n: medCourses.length })}</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: mob ? 4 : 8, overflow: "hidden" }}>
               {medCourses.map((c, i) => {
@@ -628,11 +630,11 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
                       <div style={{ fontSize: mob ? 10 : 11, color: T.txD, marginTop: 2, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
                         <span style={{ background: T.bg3, padding: "1px 6px", borderRadius: 4, fontSize: 10 }}>{c.code}</span>
                         {meta?.semester && <span>{meta.semester}</span>}
-                        {meta?.credits && <span>{meta.credits}単位</span>}
+                        {meta?.credits && <span>{t("medtt.credits", { n: meta.credits })}</span>}
                         {meta?.instructor && <span>· {meta.instructor}</span>}
                       </div>
                     </div>
-                    {n > 0 && <div style={{ padding: "4px 10px", borderRadius: 12, background: `${T.red}15`, color: T.red, fontSize: 11, fontWeight: 700, flexShrink: 0, border: `1px solid ${T.red}30` }}>課題 {n}</div>}
+                    {n > 0 && <div style={{ padding: "4px 10px", borderRadius: 12, background: `${T.red}15`, color: T.red, fontSize: 11, fontWeight: 700, flexShrink: 0, border: `1px solid ${T.red}30` }}>{t("medtt.tasksCount", { n })}</div>}
                   </div>
                 );
               })}
@@ -646,14 +648,14 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
           {/* Month nav */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 12 }}>
             <button onClick={prevM} style={{ background: "none", border: "none", cursor: "pointer", color: T.txD, fontSize: 18 }}>‹</button>
-            <div style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>{calMonth.y}年 {calMonth.m + 1}月</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>{t("medtt.yearMonth", { y: calMonth.y, m: calMonth.m + 1 })}</div>
             <button onClick={nextM} style={{ background: "none", border: "none", cursor: "pointer", color: T.txD, fontSize: 18 }}>›</button>
           </div>
 
           {/* Calendar grid */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1 }}>
-            {["月", "火", "水", "木", "金", "土", "日"].map(d => (
-              <div key={d} style={{ textAlign: "center", fontSize: 11, fontWeight: 600, color: T.txD, padding: 4 }}>{d}</div>
+            {DAY_KEYS_FULL.map(dk => (
+              <div key={dk} style={{ textAlign: "center", fontSize: 11, fontWeight: 600, color: T.txD, padding: 4 }}>{t(dk)}</div>
             ))}
             {Array.from({ length: calWeeks * 7 }, (_, i) => {
               const dayNum = i - calStartOff + 1;
@@ -677,7 +679,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
                     <>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
                         <div style={{ fontSize: 11, fontWeight: isToday ? 700 : 400, color: isToday ? T.accent : T.txH }}>{dayNum}</div>
-                        {hasExam && <div style={{ fontSize: 8, fontWeight: 700, color: EXAM_COLOR, background: `${EXAM_COLOR}18`, padding: "0px 3px", borderRadius: 3, lineHeight: "14px" }}>試</div>}
+                        {hasExam && <div style={{ fontSize: 8, fontWeight: 700, color: EXAM_COLOR, background: `${EXAM_COLOR}18`, padding: "0px 3px", borderRadius: 3, lineHeight: "14px" }}>{t("medtt.examBadge")}</div>}
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                         {uniqueCourses.slice(0, 3).map(code => (
@@ -705,12 +707,12 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
           {selDay && (
             <div style={{ marginTop: 16, padding: 12, borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}` }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: T.txH, marginBottom: 8 }}>
-                {selDay.getMonth() + 1}/{selDay.getDate()}（{DAYS[(selDay.getDay() + 6) % 7] || "日"}）
+                {selDay.getMonth() + 1}/{selDay.getDate()}（{t(DAY_KEYS_FULL[(selDay.getDay() + 6) % 7] || "medtt.daySun")}）
               </div>
               {(() => {
                 const dateStr = fmtDate(selDay);
                 const daySessions = byDate[dateStr] || [];
-                if (daySessions.length === 0) return <div style={{ fontSize: 12, color: T.txD }}>この日の授業はありません</div>;
+                if (daySessions.length === 0) return <div style={{ fontSize: 12, color: T.txD }}>{t("medtt.noClassesThisDay")}</div>;
                 // Merge consecutive
                 const merged = [];
                 for (const s of daySessions) {
@@ -739,7 +741,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
               })()}
               <button onClick={() => { setViewMode("week"); setWeekStart(getMonday(selDay)); }}
                 style={{ marginTop: 8, fontSize: 11, padding: "4px 12px", borderRadius: 6, border: `1px solid ${T.accent}40`, background: `${T.accent}10`, color: T.accent, cursor: "pointer" }}>
-                この週を表示
+                {t("medtt.showThisWeek")}
               </button>
             </div>
           )}
@@ -753,7 +755,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
         const col = colorMap[s.code] || COLORS[0];
         const meta = courseMeta[s.code];
         const n = cntByCode(s.code);
-        const dayLabel = date ? `${date.getMonth() + 1}/${date.getDate()}（${DAYS[(date.getDay() + 6) % 7] || "日"}）` : "";
+        const dayLabel = date ? `${date.getMonth() + 1}/${date.getDate()}（${t(DAY_KEYS_FULL[(date.getDay() + 6) % 7] || "medtt.daySun")}）` : "";
         const Ico = (name) => <span style={{ width: 20, display: "inline-flex", justifyContent: "center", color: T.txD, flexShrink: 0 }}>{React.cloneElement(I[name], { width: 17, height: 17 })}</span>;
         return (
           <div onClick={() => setPop(null)} style={{
@@ -790,7 +792,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
                 )}
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   {Ico("pin")}
-                  <span style={{ fontSize: 14, color: s.room ? T.txH : T.txD, fontWeight: s.room ? 700 : 400 }}>{s.room || "教室情報なし"}</span>
+                  <span style={{ fontSize: 14, color: s.room ? T.txH : T.txD, fontWeight: s.room ? 700 : 400 }}>{s.room || t("medtt.noRoomInfo")}</span>
                 </div>
                 {(s.instructor || meta?.instructor) && (
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -801,7 +803,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
                 {(meta?.semester || meta?.credits) && (
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     {Ico("grad")}
-                    <span style={{ fontSize: 14, color: T.txH }}>{[meta?.semester, meta?.credits ? `${meta.credits}単位` : null].filter(Boolean).join("　")}</span>
+                    <span style={{ fontSize: 14, color: T.txH }}>{[meta?.semester, meta?.credits ? t("medtt.credits", { n: meta.credits }) : null].filter(Boolean).join("　")}</span>
                   </div>
                 )}
               </div>
@@ -812,12 +814,12 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
                   background: col, color: "#fff", fontSize: 14, fontWeight: 700,
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                 }}>
-                  コースを開く{n > 0 && <span style={{ background: "rgba(255,255,255,.25)", borderRadius: 8, padding: "1px 8px", fontSize: 12 }}>課題 {n}</span>}
+                  {t("medtt.openCourse")}{n > 0 && <span style={{ background: "rgba(255,255,255,.25)", borderRadius: 8, padding: "1px 8px", fontSize: 12 }}>{t("medtt.tasksCount", { n })}</span>}
                 </button>
                 <button onClick={() => setPop(null)} style={{
                   padding: "11px 18px", borderRadius: 10, border: `1px solid ${T.bd}`, cursor: "pointer",
                   background: T.bg3, color: T.txD, fontSize: 14, fontWeight: 600,
-                }}>閉じる</button>
+                }}>{t("common.close")}</button>
               </div>
             </div>
           </div>

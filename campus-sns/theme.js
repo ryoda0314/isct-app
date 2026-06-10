@@ -194,32 +194,32 @@ const CORAL = {
 
 export const THEME_MODES = {
   base: [
-    { id:"dark",  name:"ダーク" },
-    { id:"light", name:"ライト" },
-    { id:"auto",  name:"自動"   },
+    { id:"dark",  name:"ダーク", nameKey:"theme.dark" },
+    { id:"light", name:"ライト", nameKey:"theme.light" },
+    { id:"auto",  name:"自動",   nameKey:"theme.auto" },
   ],
   brand: [
-    { id:"titech",   name:"東工大ブルー", col:"#1e7ac8" },
-    { id:"tmdu",     name:"医科歯科",     col:"#00897b" },
-    { id:"scitokyo", name:"Science Tokyo", col:"#5c3ec4" },
-    { id:"tsubame",  name:"ツバメ",        col:"#28c868" },
+    { id:"titech",   name:"東工大ブルー", nameKey:"theme.titech", col:"#1e7ac8" },
+    { id:"tmdu",     name:"医科歯科",     nameKey:"theme.tmdu", col:"#00897b" },
+    { id:"scitokyo", name:"Science Tokyo", nameKey:"theme.scitokyo", col:"#5c3ec4" },
+    { id:"tsubame",  name:"ツバメ",        nameKey:"theme.tsubame", col:"#28c868" },
   ],
   soft: [
-    { id:"sakura",   name:"桜",       col:"#d4507a" },
-    { id:"lavender", name:"ラベンダー", col:"#8b60c8" },
-    { id:"mint",     name:"ミント",    col:"#3a9878" },
-    { id:"sky",      name:"スカイ",    col:"#4a80c8" },
-    { id:"peach",    name:"ピーチ",    col:"#d07848" },
-    { id:"lemon",    name:"レモン",    col:"#a89030" },
-    { id:"coral",    name:"コーラル",  col:"#d0605a" },
+    { id:"sakura",   name:"桜",       nameKey:"theme.sakura", col:"#d4507a" },
+    { id:"lavender", name:"ラベンダー", nameKey:"theme.lavender", col:"#8b60c8" },
+    { id:"mint",     name:"ミント",    nameKey:"theme.mint", col:"#3a9878" },
+    { id:"sky",      name:"スカイ",    nameKey:"theme.sky", col:"#4a80c8" },
+    { id:"peach",    name:"ピーチ",    nameKey:"theme.peach", col:"#d07848" },
+    { id:"lemon",    name:"レモン",    nameKey:"theme.lemon", col:"#a89030" },
+    { id:"coral",    name:"コーラル",  nameKey:"theme.coral", col:"#d0605a" },
   ],
   season: [
-    { id:"shinryoku",name:"新緑", col:"#2e8b57", emoji:"🌿" },
-    { id:"koyo",     name:"紅葉", col:"#d4782a", emoji:"🍁" },
-    { id:"yuki",     name:"雪",   col:"#4a80b4", emoji:"❄️" },
+    { id:"shinryoku",name:"新緑", nameKey:"theme.shinryoku", col:"#2e8b57", emoji:"🌿" },
+    { id:"koyo",     name:"紅葉", nameKey:"theme.koyo", col:"#d4782a", emoji:"🍁" },
+    { id:"yuki",     name:"雪",   nameKey:"theme.yuki", col:"#4a80b4", emoji:"❄️" },
   ],
   fun: [
-    { id:"mizukumori", name:"水曇り", col:"#6a88a8", emoji:"💧" },
+    { id:"mizukumori", name:"水曇り", nameKey:"theme.mizukumori", col:"#6a88a8", emoji:"💧" },
   ],
 };
 
@@ -234,18 +234,18 @@ const BASES = {
 // ── テーマカラープリセット ─────────────────────────
 
 export const ACCENT_PRESETS = [
-  { id:"default",  name:"デフォルト",   dark:["#6375f0","#7b8bf5"], light:["#4f5bd5","#6b7bf0"], col:"#6375f0" },
-  { id:"ocean",    name:"オーシャン",   dark:["#3b82f6","#60a5fa"], light:["#2563eb","#3b82f6"], col:"#3b82f6" },
-  { id:"emerald",  name:"エメラルド",   dark:["#10b981","#34d399"], light:["#059669","#10b981"], col:"#10b981" },
-  { id:"sunset",   name:"サンセット",   dark:["#f97316","#fb923c"], light:["#ea580c","#f97316"], col:"#f97316" },
-  { id:"rose",     name:"ローズ",      dark:["#f43f5e","#fb7185"], light:["#e11d48","#f43f5e"], col:"#f43f5e" },
-  { id:"violet",   name:"バイオレット", dark:["#8b5cf6","#a78bfa"], light:["#7c3aed","#8b5cf6"], col:"#8b5cf6" },
-  { id:"amber",    name:"アンバー",     dark:["#f59e0b","#fbbf24"], light:["#d97706","#f59e0b"], col:"#f59e0b" },
-  { id:"cyan",     name:"シアン",       dark:["#06b6d4","#22d3ee"], light:["#0891b2","#06b6d4"], col:"#06b6d4" },
-  { id:"pink",     name:"ピンク",       dark:["#ec4899","#f472b6"], light:["#db2777","#ec4899"], col:"#ec4899" },
-  { id:"lime",     name:"ライム",       dark:["#84cc16","#a3e635"], light:["#65a30d","#84cc16"], col:"#84cc16" },
-  { id:"teal",     name:"ティール",     dark:["#14b8a6","#2dd4bf"], light:["#0d9488","#14b8a6"], col:"#14b8a6" },
-  { id:"red",      name:"レッド",       dark:["#ef4444","#f87171"], light:["#dc2626","#ef4444"], col:"#ef4444" },
+  { id:"default",  name:"デフォルト",   nameKey:"accent.default", dark:["#6375f0","#7b8bf5"], light:["#4f5bd5","#6b7bf0"], col:"#6375f0" },
+  { id:"ocean",    name:"オーシャン",   nameKey:"accent.ocean", dark:["#3b82f6","#60a5fa"], light:["#2563eb","#3b82f6"], col:"#3b82f6" },
+  { id:"emerald",  name:"エメラルド",   nameKey:"accent.emerald", dark:["#10b981","#34d399"], light:["#059669","#10b981"], col:"#10b981" },
+  { id:"sunset",   name:"サンセット",   nameKey:"accent.sunset", dark:["#f97316","#fb923c"], light:["#ea580c","#f97316"], col:"#f97316" },
+  { id:"rose",     name:"ローズ",      nameKey:"accent.rose", dark:["#f43f5e","#fb7185"], light:["#e11d48","#f43f5e"], col:"#f43f5e" },
+  { id:"violet",   name:"バイオレット", nameKey:"accent.violet", dark:["#8b5cf6","#a78bfa"], light:["#7c3aed","#8b5cf6"], col:"#8b5cf6" },
+  { id:"amber",    name:"アンバー",     nameKey:"accent.amber", dark:["#f59e0b","#fbbf24"], light:["#d97706","#f59e0b"], col:"#f59e0b" },
+  { id:"cyan",     name:"シアン",       nameKey:"accent.cyan", dark:["#06b6d4","#22d3ee"], light:["#0891b2","#06b6d4"], col:"#06b6d4" },
+  { id:"pink",     name:"ピンク",       nameKey:"accent.pink", dark:["#ec4899","#f472b6"], light:["#db2777","#ec4899"], col:"#ec4899" },
+  { id:"lime",     name:"ライム",       nameKey:"accent.lime", dark:["#84cc16","#a3e635"], light:["#65a30d","#84cc16"], col:"#84cc16" },
+  { id:"teal",     name:"ティール",     nameKey:"accent.teal", dark:["#14b8a6","#2dd4bf"], light:["#0d9488","#14b8a6"], col:"#14b8a6" },
+  { id:"red",      name:"レッド",       nameKey:"accent.red", dark:["#ef4444","#f87171"], light:["#dc2626","#ef4444"], col:"#ef4444" },
 ];
 
 // ── ランタイム ─────────────────────────────────

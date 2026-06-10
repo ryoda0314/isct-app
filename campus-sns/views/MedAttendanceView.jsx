@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import { getMedSessionsByCourse, defaultAbsenceLimit } from "../attendanceUtils.js";
 
 const STATUS = [
-  { k: "present", l: "出席", c: T.green },
-  { k: "absent", l: "欠席", c: T.red },
-  { k: "late", l: "遅刻", c: T.orange },
+  { k: "present", labelKey: "medatt.present", c: T.green },
+  { k: "absent", labelKey: "medatt.absent", c: T.red },
+  { k: "late", labelKey: "medatt.late", c: T.orange },
 ];
 
 const Toggle = ({ value, onPick, mob }) => (
@@ -15,7 +16,7 @@ const Toggle = ({ value, onPick, mob }) => (
       return (
         <button key={s.k} onClick={() => onPick(on ? null : s.k)}
           style={{ border: `1px solid ${on ? s.c : T.bd}`, background: on ? s.c : "transparent", color: on ? "#fff" : T.txD, borderRadius: 6, padding: mob ? "3px 8px" : "4px 10px", fontSize: mob ? 11 : 12, fontWeight: 700, cursor: "pointer", transition: "all .12s" }}>
-          {s.l}
+          {t(s.labelKey)}
         </button>
       );
     })}
@@ -75,20 +76,20 @@ const CourseCard = ({ course, statuses, setStatus, mob }) => {
           <div style={{ fontWeight: 700, color: T.txH, fontSize: mob ? 13 : 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{course.name}</div>
           <div style={{ fontSize: 11, color: T.txD, marginTop: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <span style={{ background: T.bg3, padding: "1px 6px", borderRadius: 4 }}>{course.code}</span>
-            <span>全{total}回</span>
-            {present > 0 && <span style={{ color: T.green }}>出{present}</span>}
-            {absent > 0 && <span style={{ color: T.red }}>欠{absent}</span>}
-            {late > 0 && <span style={{ color: T.orange }}>遅{late}</span>}
-            {rate != null && <span>· 出席率{rate}%</span>}
+            <span>{t("medatt.totalSessions", { count: total })}</span>
+            {present > 0 && <span style={{ color: T.green }}>{t("medatt.countPresent", { count: present })}</span>}
+            {absent > 0 && <span style={{ color: T.red }}>{t("medatt.countAbsent", { count: absent })}</span>}
+            {late > 0 && <span style={{ color: T.orange }}>{t("medatt.countLate", { count: late })}</span>}
+            {rate != null && <span>· {t("medatt.rate", { rate })}</span>}
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
           {total > 0 && (
             <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, color: danger ? "#fff" : warn ? T.red : T.txD, background: danger ? T.red : warn ? `${T.red}18` : T.bg3, border: warn && !danger ? `1px solid ${T.red}40` : "none" }}>
-              {danger ? "欠席上限超過" : `あと${remaining}回欠席可`}
+              {danger ? t("medatt.limitExceeded") : t("medatt.remainingAbsence", { count: remaining })}
             </span>
           )}
-          <span style={{ color: T.txD, fontSize: 11 }}>{open ? "閉じる ▲" : "日程 ▼"}</span>
+          <span style={{ color: T.txD, fontSize: 11 }}>{open ? `${t("common.close")} ▲` : `${t("medatt.schedule")} ▼`}</span>
         </div>
       </div>
 
@@ -96,11 +97,11 @@ const CourseCard = ({ course, statuses, setStatus, mob }) => {
         <div style={{ borderTop: `1px solid ${T.bd}`, padding: mob ? "8px 12px 12px" : "10px 14px 14px" }}>
           {/* 欠席上限の調整 */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 12, color: T.txD, flexWrap: "wrap" }}>
-            <span>欠席可能上限</span>
+            <span>{t("medatt.absenceLimit")}</span>
             <button onClick={() => changeLimit(-1)} style={stepBtn}>−</button>
-            <span style={{ fontWeight: 700, color: T.txH, minWidth: 28, textAlign: "center" }}>{limit}回</span>
+            <span style={{ fontWeight: 700, color: T.txH, minWidth: 28, textAlign: "center" }}>{t("medatt.timesCount", { count: limit })}</span>
             <button onClick={() => changeLimit(1)} style={stepBtn}>＋</button>
-            <span style={{ fontSize: 11 }}>（初期値: 全{total}回の1/3＝{defLimit}回）</span>
+            <span style={{ fontSize: 11 }}>{t("medatt.limitDefault", { total, def: defLimit })}</span>
           </div>
           {sessions.map((s) => {
             const st = statuses[s.sessionKey] || null;
@@ -131,11 +132,11 @@ export const MedAttendanceView = ({ medSessions = [], records = {}, setStatus, m
   return (
     <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: mob ? 12 : 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-        {!mob && <h2 style={{ color: T.txH, margin: 0, fontSize: 20, fontWeight: 800 }}>出欠管理</h2>}
-        <span style={{ fontSize: 11, background: `${MED_COL}18`, color: MED_COL, padding: "2px 8px", borderRadius: 10, fontWeight: 700 }}>医歯学系</span>
+        {!mob && <h2 style={{ color: T.txH, margin: 0, fontSize: 20, fontWeight: 800 }}>{t("nav.attendance")}</h2>}
+        <span style={{ fontSize: 11, background: `${MED_COL}18`, color: MED_COL, padding: "2px 8px", borderRadius: 10, fontWeight: 700 }}>{t("medatt.medDental")}</span>
       </div>
       {courses.length === 0 ? (
-        <div style={{ textAlign: "center", color: T.txD, fontSize: 13, marginTop: 40 }}>授業日程が見つかりませんでした</div>
+        <div style={{ textAlign: "center", color: T.txD, fontSize: 13, marginTop: 40 }}>{t("medatt.noSessions")}</div>
       ) : (
         courses.map((c) => (
           <CourseCard key={c.code} course={c} statuses={medRecords[c.code] || {}} setStatus={setStatus} mob={mob} />

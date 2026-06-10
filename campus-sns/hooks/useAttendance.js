@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { t } from "../i18n.js";
 import { isDemoMode } from '../demoMode.js';
 import { showToast } from './useToast.js';
 
@@ -51,7 +52,7 @@ export function useAttendance(enabled = true) {
         next[kind] = byKind;
         return next;
       });
-      showToast('出欠の更新に失敗しました');
+      showToast(t("toast.attendanceUpdateFailed"));
     };
 
     (async () => {

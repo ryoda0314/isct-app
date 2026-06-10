@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { T } from "../theme.js";
+import { t } from "../i18n.js";
 import jsQR from "jsqr";
 
 /**
@@ -54,7 +55,7 @@ export function QRScanner({ onSecret, onClose }) {
       stopCamera();
       onSecret(secret);
     } else {
-      setError("QRコードからシークレットを取得できませんでした");
+      setError(t("qr.errNoSecret"));
     }
   }, [onSecret, stopCamera]);
 
@@ -93,7 +94,7 @@ export function QRScanner({ onSecret, onClose }) {
       };
       rafRef.current = requestAnimationFrame(scan);
     } catch (e) {
-      setError("カメラを起動できませんでした: " + e.message);
+      setError(t("qr.errCamera", { msg: e.message }));
       setScanning(false);
       setMode(null);
     }
@@ -118,12 +119,12 @@ export function QRScanner({ onSecret, onClose }) {
       if (raw) {
         handleResult(raw);
       } else {
-        setError("QRコードが見つかりませんでした。画像を確認してください。");
+        setError(t("qr.errNotFound"));
       }
       setScanning(false);
     };
     img.onerror = () => {
-      setError("画像を読み込めませんでした");
+      setError(t("qr.errImageLoad"));
       setScanning(false);
     };
     img.src = URL.createObjectURL(file);
@@ -137,10 +138,10 @@ export function QRScanner({ onSecret, onClose }) {
     return (
       <div style={{ marginTop: 10, padding: 14, borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg3 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>
-          QRコードからシークレットを読み取る
+          {t("qr.title")}
         </div>
         <p style={{ fontSize: 11, color: T.txD, marginBottom: 12, lineHeight: 1.5 }}>
-          ISCTアカウント設定の「多要素認証(OTP)」ページに表示されるQRコードを読み取ります
+          {t("qr.desc")}
         </p>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={startCamera} style={{
@@ -150,7 +151,7 @@ export function QRScanner({ onSecret, onClose }) {
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            カメラ
+            {t("qr.camera")}
           </button>
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFile} />
           <button onClick={() => fileRef.current?.click()} style={{
@@ -160,14 +161,14 @@ export function QRScanner({ onSecret, onClose }) {
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            スクリーンショット
+            {t("qr.screenshot")}
           </button>
         </div>
         <button onClick={close} style={{
           width: "100%", marginTop: 8, padding: "6px 0",
           background: "none", border: "none", color: T.txD,
           fontSize: 11, cursor: "pointer",
-        }}>キャンセル</button>
+        }}>{t("common.cancel")}</button>
         {error && <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8, background: `${T.red}14`, color: T.red, fontSize: 12 }}>{error}</div>}
       </div>
     );
@@ -222,7 +223,7 @@ export function QRScanner({ onSecret, onClose }) {
               marginTop: 16, padding: "4px 12px", borderRadius: 12,
               background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
               fontSize: 11, color: "rgba(255,255,255,0.85)", fontWeight: 500,
-            }}>QRコードを枠内に合わせてください</div>
+            }}>{t("qr.alignFrame")}</div>
           </div>
         </div>
         <canvas ref={canvasRef} style={{ display: "none" }} />
@@ -230,7 +231,7 @@ export function QRScanner({ onSecret, onClose }) {
           width: "100%", marginTop: 10, padding: "10px 0", borderRadius: 8,
           border: `1px solid ${T.bd}`, background: T.bg2,
           color: T.txD, fontSize: 13, cursor: "pointer",
-        }}>閉じる</button>
+        }}>{t("common.close")}</button>
         {error && <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8, background: `${T.red}14`, color: T.red, fontSize: 12 }}>{error}</div>}
         <style>{`@keyframes scanLine{0%,100%{top:8px;opacity:0}10%{opacity:1}50%{top:calc(100% - 10px);opacity:1}60%{opacity:0}}`}</style>
       </div>
@@ -243,7 +244,7 @@ export function QRScanner({ onSecret, onClose }) {
       {scanning ? (
         <div style={{ display: "flex", alignItems: "center", gap: 8, color: T.txD, fontSize: 13 }}>
           <div style={{ width: 16, height: 16, border: `2px solid ${T.bd}`, borderTop: `2px solid ${T.accent}`, borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-          読み取り中...
+          {t("qr.scanning")}
         </div>
       ) : (
         <>
@@ -253,11 +254,11 @@ export function QRScanner({ onSecret, onClose }) {
             width: "100%", padding: "10px 0", borderRadius: 8,
             border: `1px solid ${T.accent}40`, background: `${T.accent}08`,
             color: T.accent, fontSize: 12, fontWeight: 600, cursor: "pointer",
-          }}>別の画像を選択</button>
+          }}>{t("qr.selectAnother")}</button>
           <button onClick={close} style={{
             width: "100%", marginTop: 6, padding: "6px 0",
             background: "none", border: "none", color: T.txD, fontSize: 11, cursor: "pointer",
-          }}>キャンセル</button>
+          }}>{t("common.cancel")}</button>
         </>
       )}
     </div>

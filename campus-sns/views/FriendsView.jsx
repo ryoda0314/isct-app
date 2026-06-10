@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { T } from '../theme.js';
+import { t } from "../i18n.js";
 import { I } from '../icons.jsx';
 import { Av, Loader, useQRCode } from '../shared.jsx';
 
@@ -125,7 +126,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
   };
 
   /* ── Shared modal wrapper ── */
-  const addTabs=[{id:'requests',label:'申請',cnt:pendingCount},{id:'search',label:'検索'},{id:'qr',label:'QR/ID'},{id:'blocked',label:'ブロック',cnt:blocks.length||0},{id:'muted',label:'ミュート',cnt:mutes.length||0}];
+  const addTabs=[{id:'requests',label:t("friends.tabRequests"),cnt:pendingCount},{id:'search',label:t("friends.tabSearch"),cnt:undefined},{id:'qr',label:t("friends.tabQrId")},{id:'blocked',label:t("friends.tabBlocked"),cnt:blocks.length||0},{id:'muted',label:t("friends.tabMuted"),cnt:mutes.length||0}];
 
   const ModalWrap=({children,onClose})=>(
     <>
@@ -143,7 +144,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
     <ModalWrap onClose={()=>{setAddOpen(false);stopScan();}}>
       <div style={{padding:"12px 16px 0",flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-          <span style={{fontSize:16,fontWeight:700,color:T.txH}}>友達を追加</span>
+          <span style={{fontSize:16,fontWeight:700,color:T.txH}}>{t("friends.addFriend")}</span>
           <button onClick={()=>{setAddOpen(false);stopScan();}} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
         </div>
         <div style={{display:"flex",gap:0,borderBottom:`1px solid ${T.bd}`}}>
@@ -155,82 +156,82 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
       </div>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
         {addTab==='requests'&&<div style={{padding:"8px 0"}}>
-          {pending.length>0&&<><div style={{padding:"4px 16px 4px",fontSize:11,fontWeight:600,color:T.txD,letterSpacing:.3}}>受信 {pending.length}</div>
+          {pending.length>0&&<><div style={{padding:"4px 16px 4px",fontSize:11,fontWeight:600,color:T.txD,letterSpacing:.3}}>{t("friends.received")} {pending.length}</div>
             {pending.map(p=>{const u={name:p.fromName,av:p.fromAvatar,col:p.fromColor};return <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
               <Av u={u} sz={40}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{p.fromName}</div>{p.fromDept&&<div style={{fontSize:11,color:T.txD}}>{p.fromDept}</div>}</div>
-              <div style={{display:"flex",gap:6}}><button onClick={()=>doAction(`accept_${p.id}`,()=>acceptRequest(p.id))} disabled={actionLoading===`accept_${p.id}`} style={{padding:"6px 14px",borderRadius:8,border:"none",background:T.green,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>承認</button>
-              <button onClick={()=>doAction(`reject_${p.id}`,()=>rejectRequest(p.id))} disabled={actionLoading===`reject_${p.id}`} style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:T.txD}}>拒否</button></div>
+              <div style={{display:"flex",gap:6}}><button onClick={()=>doAction(`accept_${p.id}`,()=>acceptRequest(p.id))} disabled={actionLoading===`accept_${p.id}`} style={{padding:"6px 14px",borderRadius:8,border:"none",background:T.green,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>{t("friends.accept")}</button>
+              <button onClick={()=>doAction(`reject_${p.id}`,()=>rejectRequest(p.id))} disabled={actionLoading===`reject_${p.id}`} style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:T.txD}}>{t("friends.reject")}</button></div>
             </div>;})}
           </>}
-          {sent.length>0&&<><div style={{padding:`${pending.length>0?12:4}px 16px 4px`,fontSize:11,fontWeight:600,color:T.txD,letterSpacing:.3}}>送信済 {sent.length}</div>
+          {sent.length>0&&<><div style={{padding:`${pending.length>0?12:4}px 16px 4px`,fontSize:11,fontWeight:600,color:T.txD,letterSpacing:.3}}>{t("friends.sent")} {sent.length}</div>
             {sent.map(s=>{const u={name:s.toName,av:s.toAvatar,col:s.toColor};return <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
               <Av u={u} sz={40}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{s.toName}</div>{s.toDept&&<div style={{fontSize:11,color:T.txD}}>{s.toDept}</div>}</div>
-              <span style={{fontSize:11,fontWeight:600,color:T.txD,padding:"4px 10px",borderRadius:6,background:T.bg3}}>申請中</span>
+              <span style={{fontSize:11,fontWeight:600,color:T.txD,padding:"4px 10px",borderRadius:6,background:T.bg3}}>{t("friends.requesting")}</span>
             </div>;})}
           </>}
-          {pending.length===0&&sent.length===0&&<div style={{textAlign:"center",padding:"32px 20px",color:T.txD,fontSize:13}}>申請はありません</div>}
+          {pending.length===0&&sent.length===0&&<div style={{textAlign:"center",padding:"32px 20px",color:T.txD,fontSize:13}}>{t("friends.noRequests")}</div>}
         </div>}
         {addTab==='search'&&<div style={{padding:"10px 16px 0"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,padding:"0 10px",borderRadius:10,background:T.bg3,border:`1.5px solid ${T.bd}`}}>
             <span style={{color:T.txD,display:"flex",flexShrink:0}}>{I.search}</span>
-            <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="名前で検索" autoFocus style={{flex:1,padding:"9px 0",border:"none",background:"transparent",color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
+            <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder={t("friends.searchByName")} autoFocus style={{flex:1,padding:"9px 0",border:"none",background:"transparent",color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
             {searchQ&&<button onClick={()=>{setSearchQ('');setResults([]);}} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>}
           </div>
           <div style={{padding:"8px 0"}}>
-            {searching&&<Loader msg="検索中" size="sm"/>}
-            {!searching&&searchQ&&results.length===0&&<div style={{textAlign:"center",padding:20,color:T.txD,fontSize:13}}>見つかりません</div>}
+            {searching&&<Loader msg={t("friends.searching")} size="sm"/>}
+            {!searching&&searchQ&&results.length===0&&<div style={{textAlign:"center",padding:20,color:T.txD,fontSize:13}}>{t("friends.notFound")}</div>}
             {results.map(r=>{const u={name:r.name,av:r.avatar,col:r.color};const st=friendStatus(r.friendship);return <div key={r.moodleId} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0"}}>
               <Av u={u} sz={40}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{r.name}</div>{r.dept&&<div style={{fontSize:11,color:T.txD}}>{r.dept}</div>}</div>
-              {st==='friend'&&<span style={{fontSize:11,fontWeight:600,color:T.green,padding:"4px 10px",borderRadius:6,background:`${T.green}12`}}>友達</span>}
-              {st==='sent'&&<span style={{fontSize:11,fontWeight:600,color:T.txD,padding:"4px 10px",borderRadius:6,background:T.bg3}}>申請中</span>}
-              {st==='received'&&<button onClick={()=>doAction(`ac_${r.moodleId}`,()=>acceptRequest(r.friendship.id))} disabled={actionLoading===`ac_${r.moodleId}`} style={{padding:"6px 14px",borderRadius:8,border:"none",background:T.green,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>承認</button>}
-              {!st&&<button onClick={()=>doAction(`send_${r.moodleId}`,()=>sendRequest(r.moodleId))} disabled={actionLoading===`send_${r.moodleId}`} style={{padding:"6px 14px",borderRadius:8,border:"none",background:T.accent,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>追加</button>}
+              {st==='friend'&&<span style={{fontSize:11,fontWeight:600,color:T.green,padding:"4px 10px",borderRadius:6,background:`${T.green}12`}}>{t("friends.friend")}</span>}
+              {st==='sent'&&<span style={{fontSize:11,fontWeight:600,color:T.txD,padding:"4px 10px",borderRadius:6,background:T.bg3}}>{t("friends.requesting")}</span>}
+              {st==='received'&&<button onClick={()=>doAction(`ac_${r.moodleId}`,()=>acceptRequest(r.friendship.id))} disabled={actionLoading===`ac_${r.moodleId}`} style={{padding:"6px 14px",borderRadius:8,border:"none",background:T.green,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>{t("friends.accept")}</button>}
+              {!st&&<button onClick={()=>doAction(`send_${r.moodleId}`,()=>sendRequest(r.moodleId))} disabled={actionLoading===`send_${r.moodleId}`} style={{padding:"6px 14px",borderRadius:8,border:"none",background:T.accent,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>{t("friends.add")}</button>}
             </div>;})}
-            {!searchQ&&<div style={{textAlign:"center",padding:"24px 20px",color:T.txD,fontSize:13}}>名前を入力して検索</div>}
+            {!searchQ&&<div style={{textAlign:"center",padding:"24px 20px",color:T.txD,fontSize:13}}>{t("friends.enterNameToSearch")}</div>}
           </div>
         </div>}
         {addTab==='qr'&&<div style={{padding:16}}><div style={{maxWidth:320,margin:"0 auto"}}>
           <div style={{textAlign:"center",padding:"16px 0",marginBottom:12}}>
-            <div style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:10}}>あなたのQRコード</div>
+            <div style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:10}}>{t("friends.yourQrCode")}</div>
             {qrDataUrl?<div style={{display:"inline-block",padding:10,background:"#fff",borderRadius:12}}><img src={qrDataUrl} alt="QR" style={{width:150,height:150,display:"block",imageRendering:"pixelated"}}/></div>
             :<div style={{width:170,height:170,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg3,borderRadius:12}}><Loader size="sm"/></div>}
             <div style={{marginTop:10,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
               <span style={{fontSize:13,color:T.txH,fontWeight:600,fontFamily:"monospace",background:T.bg3,padding:"4px 10px",borderRadius:6}}>{userId}</span>
-              <button onClick={copyId} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${copied?T.green:T.bd}`,background:copied?`${T.green}14`:"transparent",color:copied?T.green:T.txD,fontSize:11,fontWeight:600,cursor:"pointer"}}>{copied?"Copied":"コピー"}</button>
+              <button onClick={copyId} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${copied?T.green:T.bd}`,background:copied?`${T.green}14`:"transparent",color:copied?T.green:T.txD,fontSize:11,fontWeight:600,cursor:"pointer"}}>{copied?t("friends.copied"):t("friends.copy")}</button>
             </div>
           </div>
-          {scanning?<div style={{marginBottom:10}}><video ref={videoRef} style={{width:"100%",borderRadius:10,background:"#000"}} playsInline muted/><button onClick={stopScan} style={{width:"100%",marginTop:6,padding:"8px 0",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:12,fontWeight:600,cursor:"pointer"}}>停止</button></div>
-          :<button onClick={startScan} style={{width:"100%",marginBottom:10,padding:"10px 0",borderRadius:8,border:`1px solid ${T.accent}30`,background:`${T.accent}08`,color:T.accent,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{I.search}<span>QRスキャン</span></button>}
+          {scanning?<div style={{marginBottom:10}}><video ref={videoRef} style={{width:"100%",borderRadius:10,background:"#000"}} playsInline muted/><button onClick={stopScan} style={{width:"100%",marginTop:6,padding:"8px 0",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:12,fontWeight:600,cursor:"pointer"}}>{t("friends.stop")}</button></div>
+          :<button onClick={startScan} style={{width:"100%",marginBottom:10,padding:"10px 0",borderRadius:8,border:`1px solid ${T.accent}30`,background:`${T.accent}08`,color:T.accent,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{I.search}<span>{t("friends.scanQr")}</span></button>}
           <div style={{background:T.bg3,borderRadius:10,padding:12}}>
-            <div style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:6}}>IDで追加</div>
+            <div style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:6}}>{t("friends.addById")}</div>
             <div style={{display:"flex",gap:6}}>
-              <input value={lookupId} onChange={e=>setLookupId(e.target.value)} onKeyDown={e=>e.key==='Enter'&&doLookup()} placeholder="IDを入力" style={{flex:1,padding:"8px 10px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg2,color:T.txH,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-              <button onClick={()=>doLookup()} disabled={lookupLoading||!lookupId.trim()} style={{padding:"8px 14px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",opacity:lookupLoading||!lookupId.trim()?0.4:1}}>検索</button>
+              <input value={lookupId} onChange={e=>setLookupId(e.target.value)} onKeyDown={e=>e.key==='Enter'&&doLookup()} placeholder={t("friends.enterId")} style={{flex:1,padding:"8px 10px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg2,color:T.txH,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+              <button onClick={()=>doLookup()} disabled={lookupLoading||!lookupId.trim()} style={{padding:"8px 14px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",opacity:lookupLoading||!lookupId.trim()?0.4:1}}>{t("friends.searchBtn")}</button>
             </div>
-            {lookupLoading&&<div style={{marginTop:6}}><Loader msg="検索中" size="sm"/></div>}
+            {lookupLoading&&<div style={{marginTop:6}}><Loader msg={t("friends.searching")} size="sm"/></div>}
             {lookupResult&&lookupResult!=='not_found'&&<div style={{display:"flex",alignItems:"center",gap:10,paddingTop:10,marginTop:10,borderTop:`1px solid ${T.bd}`}}>
               <Av u={{name:lookupResult.name,av:lookupResult.avatar,col:lookupResult.color}} sz={38}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:T.txH}}>{lookupResult.name}</div>{lookupResult.dept&&<div style={{fontSize:11,color:T.txD}}>{lookupResult.dept}</div>}</div>
-              {lookupResult.friendship?.status==='accepted'&&<span style={{fontSize:11,fontWeight:600,color:T.green}}>友達</span>}
-              {lookupResult.friendship?.status==='pending'&&<span style={{fontSize:11,color:T.txD}}>申請中</span>}
-              {!lookupResult.friendship&&<button onClick={()=>doAction(`sq_${lookupResult.moodleId}`,()=>sendRequest(lookupResult.moodleId))} disabled={actionLoading===`sq_${lookupResult.moodleId}`} style={{padding:"5px 12px",borderRadius:7,border:"none",background:T.accent,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>追加</button>}
+              {lookupResult.friendship?.status==='accepted'&&<span style={{fontSize:11,fontWeight:600,color:T.green}}>{t("friends.friend")}</span>}
+              {lookupResult.friendship?.status==='pending'&&<span style={{fontSize:11,color:T.txD}}>{t("friends.requesting")}</span>}
+              {!lookupResult.friendship&&<button onClick={()=>doAction(`sq_${lookupResult.moodleId}`,()=>sendRequest(lookupResult.moodleId))} disabled={actionLoading===`sq_${lookupResult.moodleId}`} style={{padding:"5px 12px",borderRadius:7,border:"none",background:T.accent,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>{t("friends.add")}</button>}
             </div>}
-            {lookupResult==='not_found'&&<div style={{marginTop:8,fontSize:12,color:T.red,textAlign:"center"}}>見つかりません</div>}
+            {lookupResult==='not_found'&&<div style={{marginTop:8,fontSize:12,color:T.red,textAlign:"center"}}>{t("friends.notFound")}</div>}
           </div>
         </div></div>}
         {addTab==='blocked'&&<div style={{padding:"8px 0"}}>
-          {blocks.length===0&&<div style={{textAlign:"center",padding:"32px 20px",color:T.txD,fontSize:13}}>ブロック中のユーザーはいません</div>}
+          {blocks.length===0&&<div style={{textAlign:"center",padding:"32px 20px",color:T.txD,fontSize:13}}>{t("friends.noBlocked")}</div>}
           {blocks.map(b=>{const u={name:b.name,av:b.avatar,col:b.color};return <div key={b.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
             <Av u={u} sz={40}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{b.name}</div>{b.dept&&<div style={{fontSize:11,color:T.txD}}>{b.dept}</div>}</div>
             <button onClick={()=>doAction(`ub_${b.blockedId}`,()=>unblockUser(b.blockedId))} disabled={actionLoading===`ub_${b.blockedId}`}
-              style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:T.txD}}>解除</button>
+              style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:T.txD}}>{t("friends.unblock")}</button>
           </div>;})}
         </div>}
         {addTab==='muted'&&<div style={{padding:"8px 0"}}>
-          {mutes.length===0&&<div style={{textAlign:"center",padding:"32px 20px",color:T.txD,fontSize:13}}>ミュート中のユーザーはいません</div>}
-          {mutes.map(m=>{const p=m.profiles||{};const u={name:p.name||`User ${m.muted_id}`,av:p.avatar_url,col:'#888'};return <div key={m.muted_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
+          {mutes.length===0&&<div style={{textAlign:"center",padding:"32px 20px",color:T.txD,fontSize:13}}>{t("friends.noMuted")}</div>}
+          {mutes.map(m=>{const p=m.profiles||{};const u={name:p.name||t("friends.userFallback",{id:m.muted_id}),av:p.avatar_url,col:'#888'};return <div key={m.muted_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
             <Av u={u} sz={40}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{u.name}</div></div>
             <button onClick={()=>doAction(`um_${m.muted_id}`,()=>unmuteUser(m.muted_id))} disabled={actionLoading===`um_${m.muted_id}`}
-              style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:T.txD}}>解除</button>
+              style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:T.txD}}>{t("friends.unmute")}</button>
           </div>;})}
         </div>}
       </div>
@@ -242,16 +243,16 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
     <ModalWrap onClose={()=>setGrpOpen(false)}>
       <div style={{padding:"12px 16px 0",flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-          <span style={{fontSize:16,fontWeight:700,color:T.txH}}>グループ作成</span>
+          <span style={{fontSize:16,fontWeight:700,color:T.txH}}>{t("friends.createGroup")}</span>
           <button onClick={()=>setGrpOpen(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
         </div>
-        <input value={grpName} onChange={e=>setGrpName(e.target.value)} placeholder="グループ名" autoFocus
+        <input value={grpName} onChange={e=>setGrpName(e.target.value)} placeholder={t("friends.groupName")} autoFocus
           style={{width:"100%",padding:"10px 12px",borderRadius:10,border:`1.5px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",marginBottom:12,boxSizing:"border-box"}}/>
-        <div style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:.3,marginBottom:6}}>メンバーを選択 {grpSel.size>0&&<span style={{color:T.accent}}>({grpSel.size})</span>}</div>
+        <div style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:.3,marginBottom:6}}>{t("friends.selectMembers")} {grpSel.size>0&&<span style={{color:T.accent}}>({grpSel.size})</span>}</div>
         <div style={{borderTop:`1px solid ${T.bd}`}}/>
       </div>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"4px 0"}}>
-        {friends.length===0&&<div style={{textAlign:"center",padding:"32px 20px",color:T.txD,fontSize:13}}>友達がいません</div>}
+        {friends.length===0&&<div style={{textAlign:"center",padding:"32px 20px",color:T.txD,fontSize:13}}>{t("friends.noFriendsYet")}</div>}
         {friends.map(f=>{
           const u={name:f.name,av:f.avatar,col:f.color};
           const sel=grpSel.has(f.friendId);
@@ -270,7 +271,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
       <div style={{padding:"10px 16px",borderTop:`1px solid ${T.bd}`,flexShrink:0}}>
         <button onClick={handleCreateGroup} disabled={grpCreating||!grpName.trim()||grpSel.size===0}
           style={{width:"100%",padding:"10px 0",borderRadius:10,border:"none",background:T.accent,color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",opacity:grpCreating||!grpName.trim()||grpSel.size===0?.4:1,transition:"opacity .15s"}}>
-          {grpCreating?"作成中...":"グループを作成"}
+          {grpCreating?t("friends.creating"):t("friends.createGroupBtn")}
         </button>
       </div>
     </ModalWrap>
@@ -282,14 +283,14 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
       <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 12px",flexShrink:0,borderBottom:`1px solid ${T.bd}`,background:T.bg2}}>
         <div style={{flex:1,display:"flex",alignItems:"center",gap:6,padding:"0 10px",borderRadius:8,background:T.bg3,height:34}}>
           <span style={{color:T.txD,display:"flex",flexShrink:0}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
-          <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="検索" style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:13,outline:"none",fontFamily:"inherit",padding:"0"}}/>
+          <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder={t("friends.searchBtn")} style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:13,outline:"none",fontFamily:"inherit",padding:"0"}}/>
           {filter&&<button onClick={()=>setFilter('')} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:2}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
         </div>
         {createGroup&&<button onClick={()=>{setGrpOpen(true);setGrpName('');setGrpSel(new Set());}}
           style={{width:34,height:34,borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txH,flexShrink:0,transition:"all .15s"}}
           onMouseEnter={e=>{e.currentTarget.style.background=`${T.green}14`;e.currentTarget.style.borderColor=`${T.green}40`;e.currentTarget.style.color=T.green;}}
           onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.borderColor=T.bd;e.currentTarget.style.color=T.txH;}}
-          title="グループ作成">
+          title={t("friends.createGroup")}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 19v-1a4 4 0 00-4-4H5a4 4 0 00-4 4v1"/><circle cx="7.5" cy="7" r="3.5"/><path d="M22 19v-1a3 3 0 00-2.3-2.9"/><path d="M15.5 3.1a3.5 3.5 0 010 6.8"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
         </button>}
         <button onClick={()=>setAddOpen(true)}
@@ -303,21 +304,21 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
 
       {/* ── Content ── */}
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-        {loading&&<Loader msg="読み込み中" size="sm"/>}
+        {loading&&<Loader msg={t("common.loading")} size="sm"/>}
 
         {!loading&&friends.length===0&&groups.length===0&&(
           <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"64px 32px",textAlign:"center"}}>
             <div style={{width:72,height:72,borderRadius:20,background:`${T.accent}10`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
             </div>
-            <div style={{fontSize:16,fontWeight:700,color:T.txH,marginBottom:6}}>友達を追加しよう</div>
-            <div style={{fontSize:13,color:T.txD,lineHeight:1.6,maxWidth:240}}>右上のボタンから友達を追加したりグループを作成できます</div>
+            <div style={{fontSize:16,fontWeight:700,color:T.txH,marginBottom:6}}>{t("friends.emptyTitle")}</div>
+            <div style={{fontSize:13,color:T.txD,lineHeight:1.6,maxWidth:240}}>{t("friends.emptyDesc")}</div>
           </div>
         )}
 
         {/* Groups */}
         {filteredGroups.length>0&&<>
-          <div style={{padding:"10px 16px 4px"}}><span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:.5}}>グループ {filteredGroups.length}</span></div>
+          <div style={{padding:"10px 16px 4px"}}><span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:.5}}>{t("friends.groupsHeader",{n:filteredGroups.length})}</span></div>
           {filteredGroups.map((g,i)=>(
             <div key={g.id} onClick={()=>onOpenGroup&&onOpenGroup(g)}
               style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",cursor:"pointer",borderBottom:i<filteredGroups.length-1||filtered.length>0?`1px solid ${T.bd}`:"none",transition:"background .12s"}}
@@ -325,7 +326,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
               <GroupAv g={g} sz={44}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:14,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{g.name}</div>
-                <div style={{fontSize:12,color:T.txD,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{g.memberCount}人{g.lastMessage?` · ${g.lastMessage.senderName}: ${g.lastMessage.text}`:''}</div>
+                <div style={{fontSize:12,color:T.txD,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t("friends.memberCount",{n:g.memberCount})}{g.lastMessage?` · ${g.lastMessage.senderName}: ${g.lastMessage.text}`:''}</div>
               </div>
               <span style={{color:T.txD,display:"flex",flexShrink:0}}>{I.arr}</span>
             </div>
@@ -333,8 +334,8 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
         </>}
 
         {/* Friends */}
-        {filtered.length>0&&<div style={{padding:"10px 16px 4px"}}><span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:.5}}>友達 {filtered.length}</span></div>}
-        {!loading&&friends.length>0&&filtered.length===0&&filteredGroups.length===0&&filter&&<div style={{textAlign:"center",padding:"40px 20px",color:T.txD,fontSize:13}}>「{filter}」に一致する結果はありません</div>}
+        {filtered.length>0&&<div style={{padding:"10px 16px 4px"}}><span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:.5}}>{t("friends.friendsHeader",{n:filtered.length})}</span></div>}
+        {!loading&&friends.length>0&&filtered.length===0&&filteredGroups.length===0&&filter&&<div style={{textAlign:"center",padding:"40px 20px",color:T.txD,fontSize:13}}>{t("friends.noFilterMatch",{q:filter})}</div>}
 
         {filtered.map((f,i)=>{
           const u={name:f.name,av:f.avatar,col:f.color};
@@ -349,25 +350,25 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
             <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
               {onStartDM&&<button onClick={e=>{e.stopPropagation();onStartDM(f.friendId,f.name,f.avatar,f.color);}}
                 style={{width:32,height:32,borderRadius:8,border:"none",background:`${T.accent}10`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.accent,transition:"background .15s"}}
-                onMouseEnter={e=>{e.currentTarget.style.background=`${T.accent}20`;}} onMouseLeave={e=>{e.currentTarget.style.background=`${T.accent}10`;}} title="DM">
+                onMouseEnter={e=>{e.currentTarget.style.background=`${T.accent}20`;}} onMouseLeave={e=>{e.currentTarget.style.background=`${T.accent}10`;}} title={t("common.dm")}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
               </button>}
               <button onClick={e=>{e.stopPropagation();doAction(`uf_${f.id}`,()=>unfriend(f.friendId));}} disabled={actionLoading===`uf_${f.id}`}
                 style={{width:32,height:32,borderRadius:8,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txD,transition:"all .15s",opacity:.4}}
                 onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.background=`${T.red}12`;e.currentTarget.style.color=T.red;}}
-                onMouseLeave={e=>{e.currentTarget.style.opacity=".4";e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.txD;}} title="フレンド解除">
+                onMouseLeave={e=>{e.currentTarget.style.opacity=".4";e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.txD;}} title={t("friends.unfriend")}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
               {muteUser&&<button onClick={e=>{e.stopPropagation();if(isMuted&&isMuted(f.friendId)){doAction(`um_${f.friendId}`,()=>unmuteUser(f.friendId));}else{doAction(`mu_${f.friendId}`,()=>muteUser(f.friendId));}}} disabled={actionLoading===`mu_${f.friendId}`||actionLoading===`um_${f.friendId}`}
                 style={{width:32,height:32,borderRadius:8,border:"none",background:isMuted&&isMuted(f.friendId)?`${T.accent}18`:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:isMuted&&isMuted(f.friendId)?T.accent:T.txD,transition:"all .15s",opacity:isMuted&&isMuted(f.friendId)?1:.4}}
                 onMouseEnter={e=>{e.currentTarget.style.opacity="1";}}
-                onMouseLeave={e=>{if(!(isMuted&&isMuted(f.friendId)))e.currentTarget.style.opacity=".4";}} title={isMuted&&isMuted(f.friendId)?"ミュート解除":"ミュート"}>
+                onMouseLeave={e=>{if(!(isMuted&&isMuted(f.friendId)))e.currentTarget.style.opacity=".4";}} title={isMuted&&isMuted(f.friendId)?t("friends.unmute"):t("friends.mute")}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.12 1.5-.34 2.18"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
               </button>}
-              {blockUser&&<button onClick={e=>{e.stopPropagation();if(confirm(`${f.name}さんをブロックしますか？\n\n・フレンドから削除されます\n・投稿やDMが表示されなくなります`)){doAction(`bl_${f.friendId}`,()=>blockUser(f.friendId));}}} disabled={actionLoading===`bl_${f.friendId}`}
+              {blockUser&&<button onClick={e=>{e.stopPropagation();if(confirm(t("friends.blockConfirm",{name:f.name}))){doAction(`bl_${f.friendId}`,()=>blockUser(f.friendId));}}} disabled={actionLoading===`bl_${f.friendId}`}
                 style={{width:32,height:32,borderRadius:8,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txD,transition:"all .15s",opacity:.4}}
                 onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.background=`${T.red}12`;e.currentTarget.style.color=T.red;}}
-                onMouseLeave={e=>{e.currentTarget.style.opacity=".4";e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.txD;}} title="ブロック">
+                onMouseLeave={e=>{e.currentTarget.style.opacity=".4";e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.txD;}} title={t("friends.block")}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
               </button>}
             </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { t } from "../i18n.js";
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { showToast } from './useToast.js';
 
@@ -95,13 +96,13 @@ export function useFreshmanComments(postId) {
       } else {
         setComments(prev => prev.filter(c => c.id !== tempId));
         idsRef.current.delete(tempId);
-        showToast('コメントの送信に失敗しました');
+        showToast(t("toast.commentSendFailed"));
         return false;
       }
     } catch {
       setComments(prev => prev.filter(c => c.id !== tempId));
       idsRef.current.delete(tempId);
-      showToast('コメントの送信に失敗しました');
+      showToast(t("toast.commentSendFailed"));
       return false;
     }
   }, [postId]);
@@ -121,12 +122,12 @@ export function useFreshmanComments(postId) {
       if (!r.ok) {
         setComments(backup);
         idsRef.current.add(commentId);
-        showToast('コメントの削除に失敗しました');
+        showToast(t("toast.commentDeleteFailed"));
       }
     } catch {
       setComments(backup);
       idsRef.current.add(commentId);
-      showToast('コメントの削除に失敗しました');
+      showToast(t("toast.commentDeleteFailed"));
     }
   }, [comments]);
 

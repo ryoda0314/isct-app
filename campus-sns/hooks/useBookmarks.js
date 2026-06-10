@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { t } from "../i18n.js";
 import { isDemoMode } from '../demoMode.js';
 import { showToast } from './useToast.js';
 
@@ -39,11 +40,11 @@ export function useBookmarks(enabled = true) {
       if (!r.ok) {
         // Rollback
         setBmarks(prev => has ? [...prev, postId] : prev.filter(id => id !== postId));
-        showToast('ブックマークの更新に失敗しました');
+        showToast(t("toast.bookmarkUpdateFailed"));
       }
     } catch {
       setBmarks(prev => has ? [...prev, postId] : prev.filter(id => id !== postId));
-      showToast('ブックマークの更新に失敗しました');
+      showToast(t("toast.bookmarkUpdateFailed"));
     }
   }, [bmarks]);
 

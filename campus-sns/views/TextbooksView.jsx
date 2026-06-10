@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { T } from '../theme.js';
+import { t } from '../i18n.js';
 import { I } from '../icons.jsx';
 import { Loader, Tag } from '../shared.jsx';
 
@@ -97,7 +98,7 @@ const BookCard = ({ entry, kindAccent }) => {
             display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
             overflow: 'hidden', wordBreak: 'break-word', marginBottom: 4,
           }}>
-            {b.title || '(タイトル不明)'}
+            {b.title || t('textbook.unknownTitle')}
           </div>
           {b.author && (
             <div style={{
@@ -132,7 +133,7 @@ const BookCard = ({ entry, kindAccent }) => {
               if (c.syllabus_url) {
                 return (
                   <a key={i} href={c.syllabus_url} target="_blank" rel="noopener noreferrer"
-                    title={`シラバス: ${c.name}`} style={chipStyle}>
+                    title={t('textbook.syllabusOf', { name: c.name })} style={chipStyle}>
                     {label}
                     <span style={{ opacity: 0.6, fontSize: 8 }}>↗</span>
                   </a>
@@ -152,7 +153,7 @@ const BookCard = ({ entry, kindAccent }) => {
                 style={{
                   fontSize: 10, color: '#fff', textDecoration: 'none', fontWeight: 600,
                   background: '#ff9900', padding: '3px 8px', borderRadius: 4,
-                }}>Amazon で見る</a>
+                }}>{t('textbook.viewOnAmazon')}</a>
             )}
             {ndlUrl && (
               <a href={ndlUrl} target="_blank" rel="noopener noreferrer"
@@ -244,7 +245,7 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
       setData(j);
     } catch (e) {
       console.error('[TextbooksView]', e);
-      setErr(e.message || '読み込みに失敗しました');
+      setErr(e.message || t('textbook.loadFailed'));
     }
     setLoading(false);
   };
@@ -305,7 +306,7 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ color: T.accent, display: 'flex' }}>{I.book}</span>
-            <span style={{ fontSize: 17, fontWeight: 800, color: T.txH, letterSpacing: 0.3 }}>マイ教科書</span>
+            <span style={{ fontSize: 17, fontWeight: 800, color: T.txH, letterSpacing: 0.3 }}>{t('nav.textbooks')}</span>
           </div>
           {availableYears.length > 1 && setAcademicYear ? (
             <select value={year} onChange={(e) => setAcademicYear(Number(e.target.value))}
@@ -314,42 +315,42 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
                 border: `1px solid ${T.bd}`, borderRadius: 6, padding: '3px 8px',
                 cursor: 'pointer',
               }}>
-              {availableYears.map(y => <option key={y} value={y}>{y}年度</option>)}
+              {availableYears.map(y => <option key={y} value={y}>{t('textbook.yearLabel', { year: y })}</option>)}
             </select>
           ) : (
             <div style={{
               fontSize: 11, color: T.txD, background: T.bg3,
               padding: '3px 8px', borderRadius: 10,
-            }}>{year}年度</div>
+            }}>{t('textbook.yearLabel', { year })}</div>
           )}
           <div style={{ flex: 1 }} />
           {!loading && totalBooks > 0 && (
             <div style={{ display: 'flex', gap: 14, fontSize: 11 }}>
               <div>
                 <span style={{ color: T.accent, fontWeight: 700, fontSize: 14 }}>{textbooks.length}</span>
-                <span style={{ color: T.txD, marginLeft: 3 }}>必修</span>
+                <span style={{ color: T.txD, marginLeft: 3 }}>{t('textbook.required')}</span>
               </div>
               <div>
                 <span style={{ color: T.txH, fontWeight: 700, fontSize: 14 }}>{references.length}</span>
-                <span style={{ color: T.txD, marginLeft: 3 }}>参考</span>
+                <span style={{ color: T.txD, marginLeft: 3 }}>{t('textbook.reference')}</span>
               </div>
               <div>
                 <span style={{ color: T.txH, fontWeight: 700, fontSize: 14 }}>{yearCourses.length}</span>
-                <span style={{ color: T.txD, marginLeft: 3 }}>講義</span>
+                <span style={{ color: T.txD, marginLeft: 3 }}>{t('textbook.courses')}</span>
               </div>
             </div>
           )}
         </div>
 
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Pill value="" label="全Q" current={quarter} onClick={setQuarter} />
+          <Pill value="" label={t('textbook.allQuarters')} current={quarter} onClick={setQuarter} />
           {[1, 2, 3, 4].map(q => (
             <Pill key={q} value={String(q)} label={`${q}Q`} current={quarter} onClick={setQuarter} />
           ))}
           {!loading && textnextBooks.length > 0 && (
             <button
               onClick={openInTextnext}
-              title="履修教科書を textnext の出品から探す"
+              title={t('textbook.searchTextnextHint')}
               style={{
                 marginLeft: 'auto', padding: '5px 12px', borderRadius: 14,
                 border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700,
@@ -358,27 +359,27 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
                 transition: 'all .12s',
               }}>
               <span style={{ display: 'flex', transform: 'scale(0.8)' }}>{I.search}</span>
-              textnext で探す
+              {t('textbook.searchTextnext')}
             </button>
           )}
         </div>
       </div>
 
       <div style={{ padding: '0 14px 16px' }}>
-        {loading && <div style={{ padding: 20 }}><Loader msg="教科書を集計中" size="sm" /></div>}
-        {err && <div style={{ padding: 16, color: T.red, fontSize: 13 }}>エラー: {err}</div>}
+        {loading && <div style={{ padding: 20 }}><Loader msg={t('textbook.aggregating')} size="sm" /></div>}
+        {err && <div style={{ padding: 16, color: T.red, fontSize: 13 }}>{t('textbook.errorPrefix')}{err}</div>}
 
         {!loading && !err && (courses?.length || 0) === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: T.txD, fontSize: 13 }}>
             <div style={{ color: T.bd, display: 'flex', justifyContent: 'center', marginBottom: 10, transform: 'scale(2)' }}>{I.inbox}</div>
-            履修中の講義が読み込まれていません
+            {t('textbook.noCoursesLoaded')}
           </div>
         )}
 
         {!loading && !err && (courses?.length || 0) > 0 && yearCourses.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: T.txD, fontSize: 13 }}>
             <div style={{ color: T.bd, display: 'flex', justifyContent: 'center', marginBottom: 10, transform: 'scale(2)' }}>{I.cal}</div>
-            {year}年度に履修中の講義はありません
+            {t('textbook.noCoursesInYear', { year })}
           </div>
         )}
 
@@ -386,17 +387,17 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
           <div style={{ textAlign: 'center', padding: '60px 20px', color: T.txD, fontSize: 13 }}>
             <div style={{ color: T.bd, display: 'flex', justifyContent: 'center', marginBottom: 10, transform: 'scale(2)' }}>{I.book}</div>
             {year !== 2026 ? (
-              <>{year}年度の教科書データは現在登録されていません<br/>
-                <span style={{ fontSize: 11 }}>(2026年度シラバスのみ DB 整備済み)</span></>
+              <>{t('textbook.noDataForYear', { year })}<br/>
+                <span style={{ fontSize: 11 }}>{t('textbook.only2026Note')}</span></>
             ) : (
-              '条件に合う教科書はありません'
+              t('textbook.noMatchingBooks')
             )}
           </div>
         )}
 
         {!loading && textbooks.length > 0 && (
           <>
-            <SectionHeader title="教科書 (必修)" count={textbooks.length} color={T.accent} accent />
+            <SectionHeader title={t('textbook.sectionTextbooks')} count={textbooks.length} color={T.accent} accent />
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
@@ -415,7 +416,7 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
 
         {!loading && references.length > 0 && (
           <>
-            <SectionHeader title="参考書" count={references.length} color={T.txD} />
+            <SectionHeader title={t('textbook.sectionReferences')} count={references.length} color={T.txD} />
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
