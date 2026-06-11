@@ -85,6 +85,26 @@ npm run build && npx cap sync ios
 2. ホーム画面長押し → **+** → "ScienceTokyo" → 時間割ウィジェットを追加
 3. small=今日の授業リスト / medium=月〜金の4限まで / large=5限までのフルグリッド
 
+## ウィジェットのタップで時間割を開く（ディープリンク）
+
+ウィジェットをタップ → アプリ起動 → 時間割ビューへ遷移する。
+
+1. **URLスキーム登録**: `ios/App/App/Info.plist` に追加（手動。`ios/` は gitignore 対象）
+   ```xml
+   <key>CFBundleURLTypes</key>
+   <array>
+     <dict>
+       <key>CFBundleURLName</key>
+       <string>ac.isct.campus</string>
+       <key>CFBundleURLSchemes</key>
+       <array><string>scitokyo</string></array>
+     </dict>
+   </array>
+   ```
+2. **ウィジェット側**: `TimetableWidget.swift` で `.widgetURL(URL(string: "scitokyo://timetable"))`
+3. **JS側**: `campus-sns/App.jsx` の `useEffect` が `@capacitor/app` の `appUrlOpen` と起動URL（`getLaunchUrl`）を監視し、URL に `timetable` を含めば `setView("timetable")`
+4. デバッグ: シミュレータなら `xcrun simctl openurl booted "scitokyo://timetable"` で遷移確認できる
+
 ## データの流れ（デバッグ用）
 
 - JS: `campus-sns/App.jsx` の `useEffect`（`allCourses, pastTTCache, quarter, _selY` 依存）が

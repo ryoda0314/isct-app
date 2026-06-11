@@ -45,17 +45,35 @@ private let DAY_LABELS = ["月", "火", "水", "木", "金"]
 private let DAYS = 5
 private let ROWS = 5 // period blocks 1-2 .. 9-10
 
+/// A course block positioned in the grid, possibly spanning multiple rows
+/// (e.g. a periods 1-4 class spans the "1-2" and "3-4" blocks).
+private struct PlacedSlot: Identifiable {
+    let id: String
+    let slot: TimetableSlot
+    let day: Int
+    let startRow: Int
+    let span: Int
+}
+
 struct TimetableWidgetView: View {
     @Environment(\.widgetFamily) var family
     let entry: TimetableEntry
 
-    /// rows[r][d] -> slot at that grid cell (last writer wins on conflict).
-    private var grid: [[TimetableSlot?]] {
-        var g = Array(repeating: Array<TimetableSlot?>(repeating: nil, count: DAYS), count: ROWS)
-        for s in entry.data.slots where s.day >= 0 && s.day < DAYS && s.row < ROWS {
-            g[s.row][s.day] = s
+    /// Lay out every slot as a row-spanning block + the set of covered cells.
+    private func placement(rows: Int) -> (placed: [PlacedSlot], covered: Set<Int>) {
+        var placed: [PlacedSlot] = []
+        var covered = Set<Int>()
+        for s in entry.data.slots where s.day >= 0 && s.day < DAYS {
+            let startRow = s.row
+            if startRow >= rows { continue }
+            let endRow = min(rows - 1, max(startRow, (s.pe - 1) / 2))
+            placed.append(PlacedSlot(
+                id: "\(s.day)-\(startRow)-\(s.name)",
+                slot: s, day: s.day, startRow: startRow, span: endRow - startRow + 1
+            ))
+            for r in startRow...endRow { covered.insert(r * DAYS + s.day) }
         }
-        return g
+        return (placed, covered)
     }
 
     /// Index of today's weekday (0=Mon..4=Fri), or -1 on weekends.
@@ -65,11 +83,11 @@ struct TimetableWidgetView: View {
         return i < DAYS ? i : -1
     }
 
-    /// Last grid row that actually contains a class (so we can trim empty rows).
+    /// Last grid row a class reaches (uses period END so spanning classes aren't clipped).
     private var lastUsedRow: Int {
         entry.data.slots
-            .filter { $0.day >= 0 && $0.day < DAYS && $0.row < ROWS }
-            .map { $0.row }
+            .filter { $0.day >= 0 && $0.day < DAYS }
+            .map { min(ROWS - 1, ($0.pe - 1) / 2) }
             .max() ?? -1
     }
 
@@ -108,86 +126,121 @@ struct TimetableWidgetView: View {
         return entry.data.year > 0 ? "\(entry.data.year) \(q)" : q
     }
 
-    // Large/medium: weekly grid (empty trailing rows trimmed).
+    private let labelW: CGFloat = 16
+    private let colGap: CGFloat = 4
+    private let rowGap: CGFloat = 4
+
+    // Large/medium: weekly grid. Absolute layout so classes can span rows
+    // (e.g. a periods 1-4 class fills both the 1-2 and 3-4 blocks).
     private func weekGrid(rows: Int) -> some View {
-        let g = grid
         let today = todayIndex
+        let (placed, covered) = placement(rows: rows)
         return VStack(alignment: .leading, spacing: 5) {
             Text(headerText)
                 .font(.system(size: 13, weight: .bold))
                 .foregroundColor(.secondary)
 
-            // Day header row — today's column is highlighted.
-            HStack(spacing: 4) {
-                Color.clear.frame(width: 16, height: 1)
+            // Day header row — today's column is highlighted. Spacing/width match the grid below.
+            HStack(spacing: colGap) {
+                Color.clear.frame(width: labelW, height: 1)
                 ForEach(0..<DAYS, id: \.self) { d in
                     Text(DAY_LABELS[d])
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(d == today ? .primary : .secondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 1)
-                        .background(
-                            d == today
-                                ? Color.primary.opacity(0.10)
-                                : Color.clear
-                        )
+                        .background(d == today ? Color.primary.opacity(0.10) : Color.clear)
                         .clipShape(Capsule())
                 }
             }
 
-            ForEach(0..<rows, id: \.self) { r in
-                HStack(spacing: 4) {
-                    // Period block label: the two period numbers stacked.
-                    VStack(spacing: 0) {
-                        Text("\(r * 2 + 1)")
-                        Text("\(r * 2 + 2)")
-                    }
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .frame(width: 16)
+            GeometryReader { geo in
+                let colW = (geo.size.width - labelW - colGap * CGFloat(DAYS)) / CGFloat(DAYS)
+                let rowH = (geo.size.height - rowGap * CGFloat(max(0, rows - 1))) / CGFloat(rows)
+                let xLeft = { (d: Int) in labelW + colGap * CGFloat(d + 1) + colW * CGFloat(d) }
+                let yTop = { (r: Int) in (rowH + rowGap) * CGFloat(r) }
 
-                    ForEach(0..<DAYS, id: \.self) { d in
-                        cell(g[r][d], dimmed: today >= 0 && d != today)
+                ZStack(alignment: .topLeading) {
+                    // Period block labels (left gutter).
+                    ForEach(0..<rows, id: \.self) { r in
+                        VStack(spacing: 0) {
+                            Text("\(r * 2 + 1)")
+                            Text("\(r * 2 + 2)")
+                        }
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .frame(width: labelW, height: rowH)
+                        .offset(y: yTop(r))
+                    }
+
+                    // Empty cell backgrounds (only where no class covers the cell).
+                    ForEach(0..<rows, id: \.self) { r in
+                        ForEach(0..<DAYS, id: \.self) { d in
+                            if !covered.contains(r * DAYS + d) {
+                                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                    .fill(Color.white.opacity(0.06))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                                    )
+                                    .frame(width: colW, height: rowH)
+                                    .offset(x: xLeft(d), y: yTop(r))
+                            }
+                        }
+                    }
+
+                    // Course blocks, spanning their period range.
+                    ForEach(placed) { p in
+                        courseBlock(p.slot, dimmed: today >= 0 && p.day != today)
+                            .frame(
+                                width: colW,
+                                height: rowH * CGFloat(p.span) + rowGap * CGFloat(p.span - 1)
+                            )
+                            .offset(x: xLeft(p.day), y: yTop(p.startRow))
                     }
                 }
-                .frame(maxHeight: .infinity)
             }
         }
         .padding(10)
     }
 
-    private func cell(_ slot: TimetableSlot?, dimmed: Bool) -> some View {
-        Group {
-            if let s = slot {
-                VStack(spacing: 1) {
-                    Text(s.name)
-                        .font(.system(size: 10, weight: .semibold))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.6)
-                        .multilineTextAlignment(.center)
-                    if !s.room.isEmpty {
-                        Text(s.room)
-                            .font(.system(size: 8, weight: .medium))
-                            .opacity(0.9)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.horizontal, 3)
-                .padding(.vertical, 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(Color(hex: s.col))
-                )
-                .opacity(dimmed ? 0.45 : 1)
-            } else {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(Color.secondary.opacity(0.10))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    private func courseBlock(_ s: TimetableSlot, dimmed: Bool) -> some View {
+        let base = Color(hex: s.col)
+        return VStack(spacing: 1) {
+            Text(s.name)
+                .font(.system(size: 10, weight: .semibold))
+                .lineLimit(2)
+                .minimumScaleFactor(0.6)
+                .multilineTextAlignment(.center)
+            if !s.room.isEmpty {
+                Text(s.room)
+                    .font(.system(size: 8, weight: .medium))
+                    .opacity(0.92)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
         }
+        .foregroundColor(.white)
+        .shadow(color: .black.opacity(0.25), radius: 0.5, y: 0.5) // keep white text legible on light wallpaper
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 3)
+        .padding(.vertical, 2)
+        .background(
+            // Frosted glass: translucent color gradient over the widget's material background.
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [base.opacity(0.82), base.opacity(0.55)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.28), lineWidth: 0.7)
+                )
+        )
+        .opacity(dimmed ? 0.45 : 1)
     }
 
     // Small: just today's classes as a list.
@@ -248,7 +301,12 @@ struct TimetableWidget: Widget {
             provider: TimetableProvider()
         ) { entry in
             TimetableWidgetView(entry: entry)
-                .containerBackground(.background, for: .widget)
+                .containerBackground(for: .widget) {
+                    // Frosted backdrop: material lets the wallpaper tint through.
+                    Rectangle().fill(.ultraThinMaterial)
+                }
+                // Tap anywhere -> open the app on the timetable view.
+                .widgetURL(URL(string: "scitokyo://timetable"))
         }
         .configurationDisplayName("時間割")
         .description("年度とクォーターを選んで時間割を表示します。")

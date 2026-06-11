@@ -210,6 +210,22 @@ export default function App(){
     return()=>{cleanup?.remove?.();};
   },[goBack]);
 
+  // Deep link: widget tap (scitokyo://timetable) opens the timetable view (native).
+  useEffect(()=>{
+    if(!isNative())return;
+    let cleanup;
+    const route=(url)=>{if(url&&/timetable/i.test(url))setView("timetable");};
+    (async()=>{
+      try{
+        const {App:CapApp}=await import("@capacitor/app");
+        const launch=await CapApp.getLaunchUrl();
+        route(launch?.url);
+        cleanup=await CapApp.addListener("appUrlOpen",(e)=>route(e?.url));
+      }catch{}
+    })();
+    return()=>{cleanup?.remove?.();};
+  },[]);
+
   // Android back button (PWA standalone)
   useEffect(()=>{
     if(isNative())return;
