@@ -4,6 +4,8 @@ import SwiftUI
 /// One class slot in the weekly timetable.
 /// Mirrors the JSON written by campus-sns/plugins/timetableWidget.js.
 struct TimetableSlot: Codable, Identifiable {
+    let year: Int     // academic year, e.g. 2025
+    let quarter: Int  // 1..4
     let day: Int      // 0 = Mon ... 4 = Fri
     let ps: Int       // period start (1..10)
     let pe: Int       // period end (1..10)
@@ -11,13 +13,14 @@ struct TimetableSlot: Codable, Identifiable {
     let room: String
     let col: String   // hex color "#rrggbb"
 
-    var id: String { "\(day)-\(ps)-\(name)" }
+    var id: String { "\(year)-\(quarter)-\(day)-\(ps)-\(name)" }
 
     /// Grid row index: periods 1-2 -> 0, 3-4 -> 1, 5-6 -> 2, 7-8 -> 3, 9-10 -> 4
     var row: Int { max(0, (ps - 1) / 2) }
     var rowSpan: Int { max(1, (pe - 1) / 2 - (ps - 1) / 2 + 1) }
 }
 
+/// The resolved data a single widget renders (already filtered to one year+quarter).
 struct TimetableData {
     let quarter: Int
     let year: Int
@@ -26,20 +29,49 @@ struct TimetableData {
     static let empty = TimetableData(quarter: 0, year: 0, slots: [])
 }
 
+/// The full payload stored in the App Group (every year + quarter).
+struct TimetableStore {
+    let slots: [TimetableSlot]
+    let defaultYear: Int
+    let defaultQuarter: Int
+
+    static let empty = TimetableStore(slots: [], defaultYear: 0, defaultQuarter: 0)
+
+    /// Distinct years present, newest first (for the config picker).
+    var availableYears: [Int] {
+        Array(Set(slots.map { $0.year })).filter { $0 > 0 }.sorted(by: >)
+    }
+
+    /// Distinct quarters present for a given year, ascending.
+    func quarters(for year: Int) -> [Int] {
+        Array(Set(slots.filter { $0.year == year }.map { $0.quarter }))
+            .filter { $0 > 0 }.sorted()
+    }
+
+    /// Filter to a single year + quarter for rendering.
+    func data(year: Int, quarter: Int) -> TimetableData {
+        TimetableData(
+            quarter: quarter,
+            year: year,
+            slots: slots.filter { $0.year == year && $0.quarter == quarter }
+        )
+    }
+}
+
 enum SharedTimetableStore {
     /// Must match TimetablePlugin.appGroupId.
     static let appGroupId = "group.ac.isct.campus"
     static let storageKey = "timetable_v1"
 
-    static func load() -> TimetableData {
+    static func load() -> TimetableStore {
         guard
             let defaults = UserDefaults(suiteName: appGroupId),
             let data = defaults.data(forKey: storageKey),
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return .empty }
 
-        let quarter = obj["quarter"] as? Int ?? 0
-        let year = obj["year"] as? Int ?? 0
+        let defaultYear = obj["defaultYear"] as? Int ?? 0
+        let defaultQuarter = obj["defaultQuarter"] as? Int ?? 0
 
         var slots: [TimetableSlot] = []
         if let slotsStr = obj["slots"] as? String,
@@ -47,7 +79,7 @@ enum SharedTimetableStore {
            let decoded = try? JSONDecoder().decode([TimetableSlot].self, from: slotsData) {
             slots = decoded
         }
-        return TimetableData(quarter: quarter, year: year, slots: slots)
+        return TimetableStore(slots: slots, defaultYear: defaultYear, defaultQuarter: defaultQuarter)
     }
 }
 

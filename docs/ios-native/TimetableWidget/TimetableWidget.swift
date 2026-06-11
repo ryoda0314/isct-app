@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import AppIntents
 
 // MARK: - Timeline
 
@@ -8,21 +9,33 @@ struct TimetableEntry: TimelineEntry {
     let data: TimetableData
 }
 
-struct TimetableProvider: TimelineProvider {
+/// Resolves the widget's configuration (year + quarter) against the stored data.
+/// Unset fields fall back to whatever the app last showed.
+struct TimetableProvider: AppIntentTimelineProvider {
+    typealias Entry = TimetableEntry
+    typealias Intent = SelectTimetableIntent
+
     func placeholder(in context: Context) -> TimetableEntry {
         TimetableEntry(date: Date(), data: .empty)
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (TimetableEntry) -> Void) {
-        completion(TimetableEntry(date: Date(), data: SharedTimetableStore.load()))
+    func snapshot(for configuration: SelectTimetableIntent, in context: Context) async -> TimetableEntry {
+        resolve(configuration)
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<TimetableEntry>) -> Void) {
-        let entry = TimetableEntry(date: Date(), data: SharedTimetableStore.load())
-        // Data is push-refreshed from the app (reloadAllTimelines); a daily
+    func timeline(for configuration: SelectTimetableIntent, in context: Context) async -> Timeline<TimetableEntry> {
+        let entry = resolve(configuration)
+        // Data is push-refreshed from the app (reloadAllTimelines); a periodic
         // fallback refresh keeps things sane if the app never reopens.
-        let next = Calendar.current.date(byAdding: .hour, value: 6, to: Date()) ?? Date()
-        completion(Timeline(entries: [entry], policy: .after(next)))
+        let next = Calendar.current.date(byAdding: .hour, value: 6, to: entry.date) ?? entry.date
+        return Timeline(entries: [entry], policy: .after(next))
+    }
+
+    private func resolve(_ configuration: SelectTimetableIntent) -> TimetableEntry {
+        let store = SharedTimetableStore.load()
+        let year = configuration.year ?? store.defaultYear
+        let quarter = configuration.quarter?.rawValue ?? store.defaultQuarter
+        return TimetableEntry(date: Date(), data: store.data(year: year, quarter: quarter))
     }
 }
 
@@ -45,79 +58,134 @@ struct TimetableWidgetView: View {
         return g
     }
 
+    /// Index of today's weekday (0=Mon..4=Fri), or -1 on weekends.
+    private var todayIndex: Int {
+        let wd = Calendar.current.component(.weekday, from: entry.date)
+        let i = (wd + 5) % 7 // Sun(1)->6 ... Sat(7)->5
+        return i < DAYS ? i : -1
+    }
+
+    /// Last grid row that actually contains a class (so we can trim empty rows).
+    private var lastUsedRow: Int {
+        entry.data.slots
+            .filter { $0.day >= 0 && $0.day < DAYS && $0.row < ROWS }
+            .map { $0.row }
+            .max() ?? -1
+    }
+
     var body: some View {
-        switch family {
-        case .systemSmall:
-            todayColumn
-        default:
-            weekGrid(rows: family == .systemLarge ? ROWS : 4)
+        if family != .systemSmall && entry.data.slots.isEmpty {
+            emptyState
+        } else {
+            switch family {
+            case .systemSmall:
+                todayColumn
+            default:
+                // Trim trailing empty rows; medium caps tighter than large.
+                let cap = family == .systemLarge ? ROWS : 4
+                weekGrid(rows: min(cap, max(1, lastUsedRow + 1)))
+            }
         }
     }
 
-    private var headerText: String {
-        entry.data.quarter > 0 ? "\(entry.data.quarter)Q 時間割" : "時間割"
+    private var emptyState: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(headerText)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.secondary)
+            Spacer()
+            Text("この期の時間割はありません")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+            Spacer()
+        }
+        .padding(10)
     }
 
-    // Large/medium: full weekly grid.
+    private var headerText: String {
+        let q = entry.data.quarter > 0 ? "\(entry.data.quarter)Q" : "時間割"
+        return entry.data.year > 0 ? "\(entry.data.year) \(q)" : q
+    }
+
+    // Large/medium: weekly grid (empty trailing rows trimmed).
     private func weekGrid(rows: Int) -> some View {
         let g = grid
-        return VStack(alignment: .leading, spacing: 4) {
+        let today = todayIndex
+        return VStack(alignment: .leading, spacing: 5) {
             Text(headerText)
-                .font(.caption2).bold()
+                .font(.system(size: 13, weight: .bold))
                 .foregroundColor(.secondary)
 
-            // Day header row
-            HStack(spacing: 2) {
-                Text("").frame(width: 14)
+            // Day header row — today's column is highlighted.
+            HStack(spacing: 4) {
+                Color.clear.frame(width: 16, height: 1)
                 ForEach(0..<DAYS, id: \.self) { d in
                     Text(DAY_LABELS[d])
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(d == today ? .primary : .secondary)
                         .frame(maxWidth: .infinity)
-                        .foregroundColor(.secondary)
+                        .padding(.vertical, 1)
+                        .background(
+                            d == today
+                                ? Color.primary.opacity(0.10)
+                                : Color.clear
+                        )
+                        .clipShape(Capsule())
                 }
             }
 
             ForEach(0..<rows, id: \.self) { r in
-                HStack(spacing: 2) {
-                    Text("\(r * 2 + 1)")
-                        .font(.system(size: 8))
-                        .foregroundColor(.secondary)
-                        .frame(width: 14)
+                HStack(spacing: 4) {
+                    // Period block label: the two period numbers stacked.
+                    VStack(spacing: 0) {
+                        Text("\(r * 2 + 1)")
+                        Text("\(r * 2 + 2)")
+                    }
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .frame(width: 16)
+
                     ForEach(0..<DAYS, id: \.self) { d in
-                        cell(g[r][d])
+                        cell(g[r][d], dimmed: today >= 0 && d != today)
                     }
                 }
+                .frame(maxHeight: .infinity)
             }
-            Spacer(minLength: 0)
         }
-        .padding(8)
+        .padding(10)
     }
 
-    private func cell(_ slot: TimetableSlot?) -> some View {
+    private func cell(_ slot: TimetableSlot?, dimmed: Bool) -> some View {
         Group {
             if let s = slot {
-                VStack(spacing: 0) {
+                VStack(spacing: 1) {
                     Text(s.name)
-                        .font(.system(size: 8, weight: .medium))
+                        .font(.system(size: 10, weight: .semibold))
                         .lineLimit(2)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(0.6)
                         .multilineTextAlignment(.center)
                     if !s.room.isEmpty {
                         Text(s.room)
-                            .font(.system(size: 6))
-                            .opacity(0.85)
+                            .font(.system(size: 8, weight: .medium))
+                            .opacity(0.9)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                 }
                 .foregroundColor(.white)
-                .frame(maxWidth: .infinity, minHeight: 22)
-                .padding(1)
-                .background(Color(hex: s.col))
-                .cornerRadius(4)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 3)
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(Color(hex: s.col))
+                )
+                .opacity(dimmed ? 0.45 : 1)
             } else {
-                Color.secondary.opacity(0.08)
-                    .frame(maxWidth: .infinity, minHeight: 22)
-                    .cornerRadius(4)
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(Color.secondary.opacity(0.10))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
@@ -174,17 +242,16 @@ struct TimetableWidget: Widget {
     let kind = "TimetableWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: TimetableProvider()) { entry in
-            if #available(iOS 17.0, *) {
-                TimetableWidgetView(entry: entry)
-                    .containerBackground(.background, for: .widget)
-            } else {
-                TimetableWidgetView(entry: entry)
-                    .background(Color(.systemBackground))
-            }
+        AppIntentConfiguration(
+            kind: kind,
+            intent: SelectTimetableIntent.self,
+            provider: TimetableProvider()
+        ) { entry in
+            TimetableWidgetView(entry: entry)
+                .containerBackground(.background, for: .widget)
         }
         .configurationDisplayName("時間割")
-        .description("今週の時間割をホーム画面に表示します。")
+        .description("年度とクォーターを選んで時間割を表示します。")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
