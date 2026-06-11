@@ -6,7 +6,7 @@ import { Tag } from "../shared.jsx";
 import { getAcademicInfo, getCurrentQuarter } from "../academicCalendar.js";
 import { PERIOD_TIMES } from "../examData.js";
 import { buildTimetable } from "../../lib/transform/timetable-builder.js";
-import { t } from "../i18n.js";
+import { t, locCal } from "../i18n.js";
 const DAY_KEYS=["cal.sun","cal.mon","cal.tue","cal.wed","cal.thu","cal.fri","cal.sat"];
 const COLORS=["#6375f0","#e5534b","#3dae72","#a855c7","#d4843e","#c6a236","#2d9d8f","#c75d8e"];
 const dKey=d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -405,7 +405,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
           </div>;
         })}
         {acad?.period&&!acadNonClass.some(it=>it.type==="exam")&&<div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:8,background:`${{exam:"#d97706",break:"#10b981",prep:"#6366f1"}[acad.period.t]||T.accent}10`,borderLeft:`3px solid ${{exam:"#d97706",break:"#10b981",prep:"#6366f1"}[acad.period.t]||T.accent}`}}>
-          <span style={{fontSize:11,fontWeight:600,color:{exam:"#d97706",break:"#10b981",prep:"#6366f1"}[acad.period.t]||T.accent}}>{acad.period.l}</span>
+          <span style={{fontSize:11,fontWeight:600,color:{exam:"#d97706",break:"#10b981",prep:"#6366f1"}[acad.period.t]||T.accent}}>{locCal(acad.period.l)}</span>
         </div>}
         {cls.length>0&&<>
           <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>{t("cal.typeClass")}</div>

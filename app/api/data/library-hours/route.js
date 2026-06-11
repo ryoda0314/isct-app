@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { fetchLibraryCalendar } from '../../../../lib/api/library-hours.js';
 
-export const maxDuration = 30;
+// TMDU(お茶の水・国府台)の月グリッドは Puppeteer で取得するため、キャッシュ未命中時は時間がかかる
+export const maxDuration = 60;
 
 /**
- * 附属図書館（大岡山 / すずかけ台）の開館カレンダー。
- * 公式の印刷用カレンダーをスクレイピングして返す公開データ（認証不要）。
+ * 附属図書館（大岡山 / すずかけ台 / お茶の水 / 国府台）の開館カレンダー。
+ * 理工=公式印刷カレンダーfetch、医歯学系=Puppeteerで月グリッド取得。12hキャッシュ。
  */
 export async function GET(request) {
   const { searchParams } = new URL(request.url);

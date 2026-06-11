@@ -7,34 +7,35 @@ import { usePresence } from "../hooks/usePresence.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
 import { useMusic } from "../hooks/useMusic.js";
 import { showToast } from "../hooks/useToast.js";
+import { t } from "../i18n.js";
 
 const OnlineContext = createContext(new Set());
 
 const API = "";
 
 const tabs = [
-  { id: "stats", label: "ダッシュボード", icon: I.bar },
-  { id: "reports", label: "通報", icon: I.flag },
-  { id: "users", label: "ユーザー", icon: I.users },
-  { id: "posts", label: "投稿", icon: I.feed },
-  { id: "comments", label: "コメント", icon: I.chat },
-  { id: "messages", label: "メッセージ", icon: I.chat },
-  { id: "dms", label: "DM", icon: I.mail },
-  { id: "circles", label: "サークル", icon: I.circle },
-  { id: "announce", label: "お知らせ", icon: I.mega },
-  { id: "music", label: "ミュージック配信", icon: I.music },
-  { id: "audit", label: "操作ログ", icon: I.clock },
-  { id: "map", label: "地図編集", icon: I.pin },
-  { id: "syllabus", label: "時間割データ", icon: I.cal },
-  { id: "syllabus_fetch", label: "時間割取得", icon: I.cal },
-  { id: "exams", label: "期末試験", icon: I.clip },
-  { id: "t2schola", label: "T2SCHOLA", icon: I.search },
-  { id: "user_analytics", label: "ユーザー分析", icon: I.bar },
-  { id: "guests", label: "ゲスト分析", icon: I.eye },
-  { id: "med_syllabus", label: "医歯学データ", icon: I.cal },
-  { id: "med_fetch", label: "医歯学取得", icon: I.cal },
-  { id: "moodle_capture", label: "Moodle取得", icon: I.search },
-  { id: "settings", label: "設定", icon: I.shield },
+  { id: "stats", labelKey: "admin.tab.stats", icon: I.bar },
+  { id: "reports", labelKey: "admin.tab.reports", icon: I.flag },
+  { id: "users", labelKey: "admin.tab.users", icon: I.users },
+  { id: "posts", labelKey: "admin.tab.posts", icon: I.feed },
+  { id: "comments", labelKey: "admin.tab.comments", icon: I.chat },
+  { id: "messages", labelKey: "admin.tab.messages", icon: I.chat },
+  { id: "dms", labelKey: "admin.tab.dms", icon: I.mail },
+  { id: "circles", labelKey: "admin.tab.circles", icon: I.circle },
+  { id: "announce", labelKey: "admin.tab.announce", icon: I.mega },
+  { id: "music", labelKey: "admin.tab.music", icon: I.music },
+  { id: "audit", labelKey: "admin.tab.audit", icon: I.clock },
+  { id: "map", labelKey: "admin.tab.map", icon: I.pin },
+  { id: "syllabus", labelKey: "admin.tab.syllabus", icon: I.cal },
+  { id: "syllabus_fetch", labelKey: "admin.tab.syllabusFetch", icon: I.cal },
+  { id: "exams", labelKey: "admin.tab.exams", icon: I.clip },
+  { id: "t2schola", labelKey: "admin.tab.t2schola", icon: I.search },
+  { id: "user_analytics", labelKey: "admin.tab.userAnalytics", icon: I.bar },
+  { id: "guests", labelKey: "admin.tab.guests", icon: I.eye },
+  { id: "med_syllabus", labelKey: "admin.tab.medSyllabus", icon: I.cal },
+  { id: "med_fetch", labelKey: "admin.tab.medFetch", icon: I.cal },
+  { id: "moodle_capture", labelKey: "admin.tab.moodleCapture", icon: I.search },
+  { id: "settings", labelKey: "admin.tab.settings", icon: I.shield },
 ];
 
 const Card = ({ label, value, color }) => (
@@ -49,9 +50,9 @@ const Pager = ({ page, total, limit, onPage }) => {
   if (pages <= 1) return null;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center", padding: "12px 0" }}>
-      <button disabled={page <= 0} onClick={() => onPage(page - 1)} style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, cursor: page > 0 ? "pointer" : "default", opacity: page > 0 ? 1 : 0.4, fontSize: 13 }}>前へ</button>
+      <button disabled={page <= 0} onClick={() => onPage(page - 1)} style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, cursor: page > 0 ? "pointer" : "default", opacity: page > 0 ? 1 : 0.4, fontSize: 13 }}>{t("admin.prev")}</button>
       <span style={{ fontSize: 13, color: T.txD }}>{page + 1} / {pages}</span>
-      <button disabled={page >= pages - 1} onClick={() => onPage(page + 1)} style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, cursor: page < pages - 1 ? "pointer" : "default", opacity: page < pages - 1 ? 1 : 0.4, fontSize: 13 }}>次へ</button>
+      <button disabled={page >= pages - 1} onClick={() => onPage(page + 1)} style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, cursor: page < pages - 1 ? "pointer" : "default", opacity: page < pages - 1 ? 1 : 0.4, fontSize: 13 }}>{t("admin.next")}</button>
     </div>
   );
 };
@@ -70,7 +71,7 @@ const Badge = ({ text, color }) => (
   <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: `${color}20`, color, fontWeight: 500 }}>{text}</span>
 );
 
-const SearchBar = ({ value, onChange, onSearch, placeholder = "検索...", width = 200 }) => (
+const SearchBar = ({ value, onChange, onSearch, placeholder = t("admin.searchPh"), width = 200 }) => (
   <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, width }}>
     <span style={{ color: T.txD, display: "flex" }}>{I.search}</span>
     <input value={value} onChange={e => onChange(e.target.value)} onKeyDown={e => { if (e.key === "Enter") onSearch(); }} placeholder={placeholder} style={{ flex: 1, border: "none", background: "transparent", color: T.txH, fontSize: 13, outline: "none" }} />
@@ -80,7 +81,7 @@ const SearchBar = ({ value, onChange, onSearch, placeholder = "検索...", width
 // ---- Mini bar chart for trends ----
 const MiniChart = ({ data, color, height = 60 }) => {
   const entries = Object.entries(data).sort((a, b) => a[0].localeCompare(b[0]));
-  if (!entries.length) return <div style={{ fontSize: 12, color: T.txD }}>データなし</div>;
+  if (!entries.length) return <div style={{ fontSize: 12, color: T.txD }}>{t("admin.noData")}</div>;
   const max = Math.max(...entries.map(([, v]) => typeof v === "number" ? v : v.total || 0), 1);
   return (
     <div>
@@ -119,34 +120,34 @@ const UserDetailModal = ({ userId, onClose }) => {
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
       <div style={{ background: T.bg2, borderRadius: 16, border: `1px solid ${T.bd}`, maxWidth: 600, width: "100%", maxHeight: "80vh", overflow: "auto", padding: 20 }} onClick={e => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>ユーザー詳細</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.userDetail.title")}</div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex" }}>{I.x}</button>
         </div>
-        {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+        {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
         {data && (
           <>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
               <Av u={{ name: data.profile?.name, col: data.profile?.color, avatar: data.profile?.avatar }} sz={48} />
               <div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: T.txH }}>{data.profile?.name || "不明"}</div>
-                <div style={{ fontSize: 12, color: T.txD, fontFamily: "monospace" }}>ID: {data.profile?.moodle_id} | 学科: {data.profile?.dept || "-"}</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: T.txH }}>{data.profile?.name || t("admin.unknown")}</div>
+                <div style={{ fontSize: 12, color: T.txD, fontFamily: "monospace" }}>ID: {data.profile?.moodle_id} | {t("admin.dept")}: {data.profile?.dept || "-"}</div>
                 <div style={{ fontSize: 11, color: T.txD }}>
-                  登録: {data.profile?.created_at ? new Date(data.profile.created_at).toLocaleDateString("ja-JP") : "-"}
-                  {data.profile?.last_active_at && ` | 最終: ${new Date(data.profile.last_active_at).toLocaleString("ja-JP")}`}
+                  {t("admin.registered")}: {data.profile?.created_at ? new Date(data.profile.created_at).toLocaleDateString("ja-JP") : "-"}
+                  {data.profile?.last_active_at && ` | ${t("admin.lastActive")}: ${new Date(data.profile.last_active_at).toLocaleString("ja-JP")}`}
                 </div>
-                {data.profile?.banned && <Badge text="BAN中" color={T.red} />}
+                {data.profile?.banned && <Badge text={t("admin.banned")} color={T.red} />}
               </div>
             </div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-              <Card label="投稿数" value={data.postsTotal} color={T.accent} />
-              <Card label="コメント数" value={data.commentsTotal} color={T.green} />
-              <Card label="DM送信数" value={data.dmsSent} color={T.orange} />
-              <Card label="通報した数" value={data.reportsMadeTotal} color={T.yellow} />
-              <Card label="被通報数" value={data.reportsReceivedTotal} color={T.red} />
+              <Card label={t("admin.stat.posts")} value={data.postsTotal} color={T.accent} />
+              <Card label={t("admin.stat.comments")} value={data.commentsTotal} color={T.green} />
+              <Card label={t("admin.stat.dmsSent")} value={data.dmsSent} color={T.orange} />
+              <Card label={t("admin.stat.reportsMade")} value={data.reportsMadeTotal} color={T.yellow} />
+              <Card label={t("admin.stat.reportsReceived")} value={data.reportsReceivedTotal} color={T.red} />
             </div>
             {data.posts.length > 0 && (
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>最近の投稿</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>{t("admin.recentPosts")}</div>
                 {data.posts.slice(0, 5).map(p => (
                   <div key={p.id} style={{ fontSize: 12, color: T.tx, padding: "6px 10px", borderRadius: 6, background: T.bg3, marginBottom: 4, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 60, overflow: "hidden" }}>
                     <span style={{ fontSize: 10, color: T.txD }}>[{p.type}] {new Date(p.created_at).toLocaleDateString("ja-JP")}</span> {p.text?.slice(0, 200)}
@@ -156,7 +157,7 @@ const UserDetailModal = ({ userId, onClose }) => {
             )}
             {data.reportsReceived.length > 0 && (
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>被通報履歴</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>{t("admin.reportHistory")}</div>
                 {data.reportsReceived.map(r => (
                   <div key={r.id} style={{ fontSize: 12, color: T.tx, padding: "6px 10px", borderRadius: 6, background: T.bg3, marginBottom: 4, display: "flex", gap: 8, alignItems: "center" }}>
                     <Badge text={r.reason} color={T.orange} />
@@ -189,51 +190,51 @@ const StatsTab = () => {
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>概要</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>{t("admin.stats.overview")}</div>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <Card label="ユーザー数" value={stats?.users} color={T.accent} />
-        <Card label="投稿数" value={stats?.posts} color={T.green} />
-        <Card label="チャットメッセージ" value={stats?.messages} color={T.orange} />
+        <Card label={t("admin.stat.users")} value={stats?.users} color={T.accent} />
+        <Card label={t("admin.stat.posts")} value={stats?.posts} color={T.green} />
+        <Card label={t("admin.stat.chatMessages")} value={stats?.messages} color={T.orange} />
         <Card label="DM" value={stats?.dms} color="#c6a236" />
       </div>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
-        <Card label="未対応の通報" value={stats?.reportsPending} color={T.red} />
-        <Card label="通報合計" value={stats?.reportsTotal} color={T.orange} />
-        <Card label="BAN中ユーザー" value={stats?.bannedUsers} color={T.red} />
+        <Card label={t("admin.stat.reportsPending")} value={stats?.reportsPending} color={T.red} />
+        <Card label={t("admin.stat.reportsTotal")} value={stats?.reportsTotal} color={T.orange} />
+        <Card label={t("admin.stat.bannedUsers")} value={stats?.bannedUsers} color={T.red} />
       </div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "20px 0 12px" }}>アクティブユーザー</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "20px 0 12px" }}>{t("admin.stats.activeUsers")}</div>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <Card label="DAU (24h)" value={stats?.dau} color={T.green} />
-        <Card label="WAU (7日)" value={stats?.wau} color={T.accent} />
-        <Card label="MAU (30日)" value={stats?.mau} color={T.orange} />
-        <Card label="サークル数" value={stats?.circles} color={T.accentSoft || T.accent} />
+        <Card label={t("admin.stat.dau")} value={stats?.dau} color={T.green} />
+        <Card label={t("admin.stat.wau")} value={stats?.wau} color={T.accent} />
+        <Card label={t("admin.stat.mau")} value={stats?.mau} color={T.orange} />
+        <Card label={t("admin.stat.circles")} value={stats?.circles} color={T.accentSoft || T.accent} />
       </div>
 
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>トレンド</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>{t("admin.stats.trends")}</div>
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 200, padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>通報推移 (30日)</div>
-          {reportTrends ? <MiniChart data={reportTrends} color={T.red} /> : <div style={{ fontSize: 12, color: T.txD }}>読み込み中...</div>}
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.stats.reportTrend")}</div>
+          {reportTrends ? <MiniChart data={reportTrends} color={T.red} /> : <div style={{ fontSize: 12, color: T.txD }}>{t("common.loading")}</div>}
         </div>
         <div style={{ flex: 1, minWidth: 200, padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>新規登録推移 (90日)</div>
-          {regStats ? <MiniChart data={regStats} color={T.green} /> : <div style={{ fontSize: 12, color: T.txD }}>読み込み中...</div>}
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.stats.regTrend")}</div>
+          {regStats ? <MiniChart data={regStats} color={T.green} /> : <div style={{ fontSize: 12, color: T.txD }}>{t("common.loading")}</div>}
         </div>
       </div>
 
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>機能利用率 (直近7日)</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>{t("admin.stats.featureUsage")}</div>
       {featureStats ? (
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <Card label="投稿" value={featureStats.week?.posts} color={T.accent} />
-          <Card label="コメント" value={featureStats.week?.comments} color={T.green} />
-          <Card label="チャット" value={featureStats.week?.messages} color={T.orange} />
+          <Card label={t("admin.stat.postsShort")} value={featureStats.week?.posts} color={T.accent} />
+          <Card label={t("admin.stat.commentsShort")} value={featureStats.week?.comments} color={T.green} />
+          <Card label={t("admin.stat.chat")} value={featureStats.week?.messages} color={T.orange} />
           <Card label="DM" value={featureStats.week?.dms} color="#c6a236" />
-          <Card label="サークルチャット" value={featureStats.week?.circleMessages} color={T.accentSoft || T.accent} />
+          <Card label={t("admin.stat.circleChat")} value={featureStats.week?.circleMessages} color={T.accentSoft || T.accent} />
         </div>
-      ) : <div style={{ fontSize: 12, color: T.txD }}>読み込み中...</div>}
+      ) : <div style={{ fontSize: 12, color: T.txD }}>{t("common.loading")}</div>}
       {featureStats?.week?.postTypes && (
         <div style={{ marginTop: 12, padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: T.txH, marginBottom: 8 }}>投稿タイプ別内訳 (7日)</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: T.txH, marginBottom: 8 }}>{t("admin.stats.postTypeBreakdown")}</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {Object.entries(featureStats.week.postTypes).map(([type, count]) => (
               <Badge key={type} text={`${type}: ${count}`} color={T.accent} />
@@ -246,8 +247,8 @@ const StatsTab = () => {
 };
 
 // ---- Reports Tab ----
-const REPORT_REASONS = { spam: "スパム", harassment: "嫌がらせ", inappropriate: "不適切", copyright: "著作権", other: "その他" };
-const REPORT_STATUSES = { pending: "未対応", reviewed: "確認中", resolved: "対応済", dismissed: "却下" };
+const REPORT_REASON_KEYS = { spam: "admin.reason.spam", harassment: "admin.reason.harassment", inappropriate: "admin.reason.inappropriate", copyright: "admin.reason.copyright", other: "admin.reason.other" };
+const REPORT_STATUS_KEYS = { pending: "admin.status.pending", reviewed: "admin.status.reviewed", resolved: "admin.status.resolved", dismissed: "admin.status.dismissed" };
 const REPORT_STATUS_COLORS = { pending: T.orange, reviewed: T.accent, resolved: T.green, dismissed: T.txD };
 
 const ReportsTab = () => {
@@ -271,7 +272,7 @@ const ReportsTab = () => {
   useEffect(() => { load(0, filter); }, [load, filter]);
 
   const handleResolve = async (id, status) => {
-    const note = status === 'dismissed' ? prompt("却下理由（任意）:") : prompt("対応メモ（任意）:");
+    const note = status === 'dismissed' ? prompt(t("admin.report.dismissReasonPrompt")) : prompt(t("admin.report.notePrompt"));
     const r = await fetch(`${API}/api/admin`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "resolve_report", reportId: id, status, adminNote: note || "" }),
@@ -282,48 +283,48 @@ const ReportsTab = () => {
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>通報管理 ({total})</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.report.manage")} ({total})</div>
         <div style={{ flex: 1 }} />
         <select value={filter} onChange={e => setFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none" }}>
-          <option value="">すべて</option>
-          <option value="pending">未対応</option>
-          <option value="reviewed">確認中</option>
-          <option value="resolved">対応済</option>
-          <option value="dismissed">却下</option>
+          <option value="">{t("admin.all")}</option>
+          <option value="pending">{t("admin.status.pending")}</option>
+          <option value="reviewed">{t("admin.status.reviewed")}</option>
+          <option value="resolved">{t("admin.status.resolved")}</option>
+          <option value="dismissed">{t("admin.status.dismissed")}</option>
         </select>
       </div>
-      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {reports.map(r => (
           <div key={r.id} style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-              <Badge text={REPORT_STATUSES[r.status] || r.status} color={REPORT_STATUS_COLORS[r.status] || T.txD} />
-              <Badge text={REPORT_REASONS[r.reason] || r.reason} color={T.orange} />
+              <Badge text={REPORT_STATUS_KEYS[r.status] ? t(REPORT_STATUS_KEYS[r.status]) : r.status} color={REPORT_STATUS_COLORS[r.status] || T.txD} />
+              <Badge text={REPORT_REASON_KEYS[r.reason] ? t(REPORT_REASON_KEYS[r.reason]) : r.reason} color={T.orange} />
               <Badge text={r.target_type} color={T.accent} />
               <span style={{ fontSize: 11, color: T.txD, marginLeft: "auto" }}>{r.created_at ? new Date(r.created_at).toLocaleString("ja-JP") : ""}</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: T.txD }}>通報者:</span>
+              <span style={{ fontSize: 12, color: T.txD }}>{t("admin.report.reporter")}:</span>
               <Av u={{ name: r.reporter?.name, col: r.reporter?.color, avatar: r.reporter?.avatar }} sz={20} />
-              <span style={{ fontSize: 13, color: T.txH }}>{r.reporter?.name || "不明"}</span>
+              <span style={{ fontSize: 13, color: T.txH }}>{r.reporter?.name || t("admin.unknown")}</span>
               {r.target_user && <>
-                <span style={{ fontSize: 12, color: T.txD, marginLeft: 12 }}>対象:</span>
+                <span style={{ fontSize: 12, color: T.txD, marginLeft: 12 }}>{t("admin.report.target")}:</span>
                 <Av u={{ name: r.target_user?.name, col: r.target_user?.color, avatar: r.target_user?.avatar }} sz={20} />
-                <span style={{ fontSize: 13, color: T.txH }}>{r.target_user?.name || "不明"}</span>
+                <span style={{ fontSize: 13, color: T.txH }}>{r.target_user?.name || t("admin.unknown")}</span>
               </>}
             </div>
             {r.detail && <div style={{ fontSize: 13, color: T.tx, marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: T.bg2, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{r.detail}</div>}
-            {r.admin_note && <div style={{ fontSize: 12, color: T.txD, marginBottom: 8 }}>管理者メモ: {r.admin_note}</div>}
-            <div style={{ fontSize: 11, color: T.txD, marginBottom: 8 }}>対象ID: {r.target_id}</div>
+            {r.admin_note && <div style={{ fontSize: 12, color: T.txD, marginBottom: 8 }}>{t("admin.report.adminNote")}: {r.admin_note}</div>}
+            <div style={{ fontSize: 11, color: T.txD, marginBottom: 8 }}>{t("admin.report.targetId")}: {r.target_id}</div>
             {r.status === 'pending' && (
               <div style={{ display: "flex", gap: 8 }}>
-                <Btn onClick={() => handleResolve(r.id, 'resolved')} color={T.green}>対応済みにする</Btn>
-                <Btn onClick={() => handleResolve(r.id, 'dismissed')} color={T.txD}>却下</Btn>
+                <Btn onClick={() => handleResolve(r.id, 'resolved')} color={T.green}>{t("admin.report.markResolved")}</Btn>
+                <Btn onClick={() => handleResolve(r.id, 'dismissed')} color={T.txD}>{t("admin.status.dismissed")}</Btn>
               </div>
             )}
           </div>
         ))}
-        {!loading && reports.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>通報がありません</div>}
+        {!loading && reports.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.report.empty")}</div>}
       </div>
       <Pager page={page} total={total} limit={30} onPage={p => load(p, filter)} />
     </div>
@@ -356,7 +357,7 @@ const UsersTab = () => {
   useEffect(() => { load(0, "", ""); }, [load]);
 
   const handleBan = async (userId, name) => {
-    const reason = prompt(`${name || "このユーザー"}をBANする理由を入力:`);
+    const reason = prompt(t("admin.user.banReasonPrompt", { name: name || t("admin.user.thisUser") }));
     if (reason === null) return;
     const r = await fetch(`${API}/api/admin`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -366,7 +367,7 @@ const UsersTab = () => {
   };
 
   const handleEditName = async (userId, currentName) => {
-    const newName = prompt("新しい表示名を入力:", currentName || "");
+    const newName = prompt(t("admin.user.editNamePrompt"), currentName || "");
     if (!newName || newName === currentName) return;
     const r = await fetch(`${API}/api/admin`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -376,7 +377,7 @@ const UsersTab = () => {
   };
 
   const handleUnban = async (userId) => {
-    if (!confirm("このユーザーのBANを解除しますか？")) return;
+    if (!confirm(t("admin.user.confirmUnban"))) return;
     const r = await fetch(`${API}/api/admin`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "unban_user", moodleUserId: userId }),
@@ -388,30 +389,30 @@ const UsersTab = () => {
     <div style={{ padding: 16 }}>
       {detailUser && <UserDetailModal userId={detailUser} onClose={() => setDetailUser(null)} />}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>ユーザー管理 ({total})</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.user.manage")} ({total})</div>
         <div style={{ flex: 1 }} />
         <select value={filter} onChange={e => { setFilter(e.target.value); load(0, search, e.target.value); }} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none" }}>
-          <option value="">すべて</option>
-          <option value="online">オンラインのみ</option>
-          <option value="offline">オフラインのみ</option>
-          <option value="banned">BAN中のみ</option>
+          <option value="">{t("admin.all")}</option>
+          <option value="online">{t("admin.user.onlineOnly")}</option>
+          <option value="offline">{t("admin.user.offlineOnly")}</option>
+          <option value="banned">{t("admin.user.bannedOnly")}</option>
         </select>
-        <SearchBar value={search} onChange={setSearch} onSearch={() => load(0, search, filter)} placeholder="名前で検索..." />
+        <SearchBar value={search} onChange={setSearch} onSearch={() => load(0, search, filter)} placeholder={t("admin.user.searchByName")} />
       </div>
-      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
       <div style={{ borderRadius: 12, border: `1px solid ${T.bd}`, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ background: T.bg3, borderBottom: `1px solid ${T.bd}` }}>
-              <th style={{ padding: "10px 12px", textAlign: "center", color: T.txD, fontWeight: 600, width: 40 }}>状態</th>
-              <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>ユーザー</th>
+              <th style={{ padding: "10px 12px", textAlign: "center", color: T.txD, fontWeight: 600, width: 40 }}>{t("admin.col.state")}</th>
+              <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>{t("admin.col.user")}</th>
               <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>ID</th>
-              <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>学科</th>
-              <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>学年</th>
-              <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>ISCT認証</th>
-              <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>TiTech認証</th>
-              <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>登録日</th>
-              <th style={{ padding: "10px 12px", textAlign: "right", color: T.txD, fontWeight: 600 }}>操作</th>
+              <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>{t("admin.dept")}</th>
+              <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>{t("admin.col.year")}</th>
+              <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>{t("admin.col.isctAuth")}</th>
+              <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>{t("admin.col.titechAuth")}</th>
+              <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>{t("admin.col.regDate")}</th>
+              <th style={{ padding: "10px 12px", textAlign: "right", color: T.txD, fontWeight: 600 }}>{t("admin.col.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -424,22 +425,22 @@ const UsersTab = () => {
               return (
               <tr key={u.moodle_id || u.id} style={{ borderBottom: `1px solid ${T.bd}` }}>
                 <td style={{ padding: "8px 12px", textAlign: "center" }}>
-                  <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: isOn ? T.green : T.txD, opacity: isOn ? 1 : 0.35 }} title={isOn ? "オンライン" : "オフライン"} />
+                  <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: isOn ? T.green : T.txD, opacity: isOn ? 1 : 0.35 }} title={isOn ? t("admin.online") : t("admin.offline")} />
                 </td>
                 <td style={{ padding: "8px 12px", color: T.txH }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <Av u={{ name: u.name, col: u.color, avatar: u.avatar }} sz={28} />
-                    <span style={{ fontWeight: 500, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${T.accent}40` }} onClick={() => setDetailUser(u.moodle_id)}>{u.name || "不明"}</span>
+                    <span style={{ fontWeight: 500, cursor: "pointer", textDecoration: "underline", textDecorationColor: `${T.accent}40` }} onClick={() => setDetailUser(u.moodle_id)}>{u.name || t("admin.unknown")}</span>
                   </div>
                 </td>
                 <td style={{ padding: "8px 12px", color: T.txD, fontFamily: "monospace", fontSize: 12 }}>{u.moodle_id || u.moodle_user_id || u.id}</td>
                 <td style={{ padding: "8px 12px", color: T.txD }}>{u.dept || "-"}</td>
                 <td style={{ padding: "8px 12px", color: T.txD }}>{u.year_group || "-"}</td>
                 <td style={{ padding: "8px 12px" }}>
-                  {u.isct_verified ? <Badge text="認証済" color={T.green} /> : <Badge text="未認証" color={T.txD} />}
+                  {u.isct_verified ? <Badge text={t("admin.verified")} color={T.green} /> : <Badge text={t("admin.unverified")} color={T.txD} />}
                 </td>
                 <td style={{ padding: "8px 12px" }}>
-                  {u.portal_verified ? <Badge text="認証済" color={T.green} /> : <Badge text="未認証" color={T.txD} />}
+                  {u.portal_verified ? <Badge text={t("admin.verified")} color={T.green} /> : <Badge text={t("admin.unverified")} color={T.txD} />}
                 </td>
                 <td style={{ padding: "8px 12px", color: T.txD, fontSize: 12 }}>{u.created_at ? new Date(u.created_at).toLocaleDateString("ja-JP") : "-"}</td>
                 <td style={{ padding: "8px 12px", textAlign: "right" }}>
@@ -447,7 +448,7 @@ const UsersTab = () => {
                     <Btn onClick={() => setDetailUser(u.moodle_id)} color={T.accent} small>{I.eye}</Btn>
                     <Btn onClick={() => handleEditName(u.moodle_id, u.name)} color={T.accent} small>{I.pen}</Btn>
                     {u.banned ? (
-                      <Btn onClick={() => handleUnban(u.moodle_id)} color={T.green} small>BAN解除</Btn>
+                      <Btn onClick={() => handleUnban(u.moodle_id)} color={T.green} small>{t("admin.user.unban")}</Btn>
                     ) : (
                       <Btn onClick={() => handleBan(u.moodle_id, u.name)} color={T.red} small>{I.ban} BAN</Btn>
                     )}
@@ -466,10 +467,10 @@ const UsersTab = () => {
 // ---- Room Select ----
 const RoomSelect = ({ courses, schools = [], depts = [], value, onChange }) => (
   <select value={value} onChange={e => onChange(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none", maxWidth: 240 }}>
-    <option value="">すべての部屋</option>
-    {schools.length > 0 && <optgroup label="学院">{schools.map(s => <option key={s.prefix} value={`dept:${s.prefix}`}>{s.name}</option>)}</optgroup>}
-    {depts.length > 0 && <optgroup label="学系">{depts.map(d => <option key={d.prefix} value={`dept:${d.prefix}`}>{d.prefix} {d.name}</option>)}</optgroup>}
-    {courses.length > 0 && <optgroup label="コース">{courses.map(c => <option key={c.id} value={c.id}>{c.code} {c.name}</option>)}</optgroup>}
+    <option value="">{t("admin.allRooms")}</option>
+    {schools.length > 0 && <optgroup label={t("sidebar.schools")}>{schools.map(s => <option key={s.prefix} value={`dept:${s.prefix}`}>{s.name}</option>)}</optgroup>}
+    {depts.length > 0 && <optgroup label={t("sidebar.depts")}>{depts.map(d => <option key={d.prefix} value={`dept:${d.prefix}`}>{d.prefix} {d.name}</option>)}</optgroup>}
+    {courses.length > 0 && <optgroup label={t("admin.courses")}>{courses.map(c => <option key={c.id} value={c.id}>{c.code} {c.name}</option>)}</optgroup>}
   </select>
 );
 
@@ -494,15 +495,15 @@ const PostsTab = ({ courses, schools, depts }) => {
 
   const handleCourse = (cid) => { setCourseId(cid); load(0, search, cid); };
   const handleDelete = async (id) => {
-    if (!confirm("この投稿を削除しますか？")) return;
+    if (!confirm(t("admin.post.confirmDelete"))) return;
     const r = await fetch(`${API}/api/admin`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "post", id }) });
     if (r.ok) load(page, search, courseId);
   };
   const handleIdentify = async (postId) => {
     const r = await fetch(`${API}/api/admin?action=anon_author&post_id=${postId}`);
-    if (!r.ok) { alert("取得に失敗しました"); return; }
+    if (!r.ok) { alert(t("admin.fetchFailed")); return; }
     const d = await r.json();
-    alert(`投稿者情報:\n名前: ${d.name || "不明"}\nMoodle ID: ${d.moodleUserId}\n匿名投稿: ${d.isAnon ? "はい" : "いいえ"}`);
+    alert(`${t("admin.post.authorInfo")}:\n${t("admin.name")}: ${d.name || t("admin.unknown")}\nMoodle ID: ${d.moodleUserId}\n${t("admin.post.anonPost")}: ${d.isAnon ? t("admin.yes") : t("admin.no")}`);
   };
 
   const roomMap = Object.fromEntries([
@@ -514,18 +515,18 @@ const PostsTab = ({ courses, schools, depts }) => {
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>投稿管理 ({total})</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.post.manage")} ({total})</div>
         <div style={{ flex: 1 }} />
         <RoomSelect courses={courses} schools={schools} depts={depts} value={courseId} onChange={handleCourse} />
         <SearchBar value={search} onChange={setSearch} onSearch={() => load(0, search, courseId)} />
       </div>
-      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {posts.map(p => { const cc = roomMap[p.course_id]; return (
           <div key={p.id} style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <Av u={{ name: p.profiles?.name, col: p.profiles?.color, avatar: p.profiles?.avatar }} sz={24} />
-              <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{p.profiles?.name || "匿名"}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{p.profiles?.name || t("common.anonymous")}</span>
               <span style={{ fontSize: 11, padding: "1px 6px", borderRadius: 4, background: cc ? `${cc.col}18` : `${T.txD}18`, color: cc?.col || T.txD }}>{cc?.code || p.course_id}</span>
               <span style={{ fontSize: 11, color: T.txD, marginLeft: "auto" }}>{p.created_at ? new Date(p.created_at).toLocaleString("ja-JP") : ""}</span>
               <Badge text={p.type || "post"} color={T.accent} />
@@ -536,12 +537,12 @@ const PostsTab = ({ courses, schools, depts }) => {
               <span style={{ fontSize: 11, color: T.txD }}>{I.chat} {p.comment_count || 0}</span>
               <span style={{ fontSize: 11, color: T.txD, fontFamily: "monospace" }}>UID: {p.moodle_user_id}</span>
               <div style={{ flex: 1 }} />
-              {p.type === "anon" && <Btn onClick={() => handleIdentify(p.id)} color={T.orange} small>{I.eye} 投稿者特定</Btn>}
-              <Btn onClick={() => handleDelete(p.id)} color={T.red}>{I.trash} 削除</Btn>
+              {p.type === "anon" && <Btn onClick={() => handleIdentify(p.id)} color={T.orange} small>{I.eye} {t("admin.post.identify")}</Btn>}
+              <Btn onClick={() => handleDelete(p.id)} color={T.red}>{I.trash} {t("common.delete")}</Btn>
             </div>
           </div>
         ); })}
-        {!loading && posts.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>投稿がありません</div>}
+        {!loading && posts.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.post.empty")}</div>}
       </div>
       <Pager page={page} total={total} limit={30} onPage={p => load(p, search, courseId)} />
     </div>
@@ -563,35 +564,35 @@ const CommentsTab = () => {
   }, []);
   useEffect(() => { load(0, ""); }, [load]);
   const handleDelete = async (id) => {
-    if (!confirm("このコメントを削除しますか？")) return;
+    if (!confirm(t("admin.comment.confirmDelete"))) return;
     const r = await fetch(`${API}/api/admin`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "comment", id }) });
     if (r.ok) load(page, search);
   };
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>コメント管理 ({total})</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.comment.manage")} ({total})</div>
         <div style={{ flex: 1 }} />
         <SearchBar value={search} onChange={setSearch} onSearch={() => load(0, search)} />
       </div>
-      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {comments.map(c => (
           <div key={c.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: 12, borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}` }}>
             <Av u={{ name: c.profiles?.name, col: c.profiles?.color, avatar: c.profiles?.avatar }} sz={28} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{c.profiles?.name || "不明"}</span>
-                <span style={{ fontSize: 11, color: T.txD }}>投稿#{c.post_id}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{c.profiles?.name || t("admin.unknown")}</span>
+                <span style={{ fontSize: 11, color: T.txD }}>{t("admin.comment.postRef", { id: c.post_id })}</span>
                 <span style={{ fontSize: 11, color: T.txD, marginLeft: "auto" }}>{c.created_at ? new Date(c.created_at).toLocaleString("ja-JP") : ""}</span>
               </div>
               <div style={{ fontSize: 13, color: T.tx, marginTop: 4, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 80, overflow: "hidden" }}>{c.text}</div>
-              {c.posts?.text && <div style={{ fontSize: 11, color: T.txD, marginTop: 4, fontStyle: "italic", maxHeight: 40, overflow: "hidden" }}>元投稿: {c.posts.text.slice(0, 100)}</div>}
+              {c.posts?.text && <div style={{ fontSize: 11, color: T.txD, marginTop: 4, fontStyle: "italic", maxHeight: 40, overflow: "hidden" }}>{t("admin.comment.origPost")}: {c.posts.text.slice(0, 100)}</div>}
             </div>
             <Btn onClick={() => handleDelete(c.id)} color={T.red} small>{I.trash}</Btn>
           </div>
         ))}
-        {!loading && comments.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>コメントがありません</div>}
+        {!loading && comments.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.comment.empty")}</div>}
       </div>
       <Pager page={page} total={total} limit={50} onPage={p => load(p, search)} />
     </div>
@@ -616,7 +617,7 @@ const MessagesTab = ({ courses, schools, depts }) => {
   useEffect(() => { load(0, "", ""); }, [load]);
   const handleCourse = (cid) => { setCourseId(cid); load(0, search, cid); };
   const handleDelete = async (id) => {
-    if (!confirm("このメッセージを削除しますか？")) return;
+    if (!confirm(t("admin.message.confirmDelete"))) return;
     const r = await fetch(`${API}/api/admin`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "message", id }) });
     if (r.ok) load(page, search, courseId);
   };
@@ -628,19 +629,19 @@ const MessagesTab = ({ courses, schools, depts }) => {
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>メッセージ管理 ({total})</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.message.manage")} ({total})</div>
         <div style={{ flex: 1 }} />
         <RoomSelect courses={courses} schools={schools} depts={depts} value={courseId} onChange={handleCourse} />
         <SearchBar value={search} onChange={setSearch} onSearch={() => load(0, search, courseId)} />
       </div>
-      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {messages.map(m => { const cc = roomMap[m.course_id]; return (
           <div key={m.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: 12, borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}` }}>
             <Av u={{ name: m.profiles?.name, col: m.profiles?.color, avatar: m.profiles?.avatar }} sz={28} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{m.profiles?.name || "不明"}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{m.profiles?.name || t("admin.unknown")}</span>
                 <span style={{ fontSize: 11, padding: "1px 6px", borderRadius: 4, background: cc ? `${cc.col}18` : `${T.txD}18`, color: cc?.col || T.txD }}>{cc?.code || m.course_id}</span>
                 <span style={{ fontSize: 11, color: T.txD, marginLeft: "auto" }}>{m.created_at ? new Date(m.created_at).toLocaleString("ja-JP") : ""}</span>
               </div>
@@ -649,7 +650,7 @@ const MessagesTab = ({ courses, schools, depts }) => {
             <Btn onClick={() => handleDelete(m.id)} color={T.red} small>{I.trash}</Btn>
           </div>
         ); })}
-        {!loading && messages.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>メッセージがありません</div>}
+        {!loading && messages.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.message.empty")}</div>}
       </div>
       <Pager page={page} total={total} limit={50} onPage={p => load(p, search, courseId)} />
     </div>
@@ -673,28 +674,28 @@ const DMsTab = () => {
   }, []);
   useEffect(() => { load(0, "", ""); }, [load]);
   const handleDelete = async (id) => {
-    if (!confirm("このDMを削除しますか？")) return;
+    if (!confirm(t("admin.dm.confirmDelete"))) return;
     const r = await fetch(`${API}/api/admin`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "dm", id }) });
     if (r.ok) load(page, search, userId);
   };
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>DM監視 ({total})</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.dm.monitor")} ({total})</div>
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, width: 140 }}>
-          <input value={userId} onChange={e => setUserId(e.target.value)} onKeyDown={e => { if (e.key === "Enter") load(0, search, userId); }} placeholder="ユーザーID" style={{ flex: 1, border: "none", background: "transparent", color: T.txH, fontSize: 12, outline: "none", fontFamily: "monospace" }} />
+          <input value={userId} onChange={e => setUserId(e.target.value)} onKeyDown={e => { if (e.key === "Enter") load(0, search, userId); }} placeholder={t("admin.userId")} style={{ flex: 1, border: "none", background: "transparent", color: T.txH, fontSize: 12, outline: "none", fontFamily: "monospace" }} />
         </div>
-        <SearchBar value={search} onChange={setSearch} onSearch={() => load(0, search, userId)} placeholder="テキスト検索..." />
+        <SearchBar value={search} onChange={setSearch} onSearch={() => load(0, search, userId)} placeholder={t("admin.dm.textSearch")} />
       </div>
-      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {dms.map(m => (
           <div key={m.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: 12, borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}` }}>
             <Av u={{ name: m.profiles?.name, col: m.profiles?.color, avatar: m.profiles?.avatar }} sz={28} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{m.profiles?.name || "不明"}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{m.profiles?.name || t("admin.unknown")}</span>
                 <span style={{ fontSize: 11, color: T.txD, fontFamily: "monospace" }}>UID:{m.sender_id} | Conv:{m.conversation_id}</span>
                 <span style={{ fontSize: 11, color: T.txD, marginLeft: "auto" }}>{m.created_at ? new Date(m.created_at).toLocaleString("ja-JP") : ""}</span>
               </div>
@@ -703,7 +704,7 @@ const DMsTab = () => {
             <Btn onClick={() => handleDelete(m.id)} color={T.red} small>{I.trash}</Btn>
           </div>
         ))}
-        {!loading && dms.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>DMがありません</div>}
+        {!loading && dms.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.dm.empty")}</div>}
       </div>
       <Pager page={page} total={total} limit={50} onPage={p => load(p, search, userId)} />
     </div>
@@ -739,21 +740,21 @@ const CirclesTab = () => {
   }, []);
 
   const handleDelete = async (id, name) => {
-    if (!confirm(`サークル「${name}」を削除しますか？メンバー・チャンネル・メッセージも全て削除されます。`)) return;
+    if (!confirm(t("admin.circle.confirmDelete", { name }))) return;
     const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_circle", circleId: id }) });
     if (r.ok) load(page, search);
   };
 
   const handleTransferOwner = async (circleId) => {
-    const newOwnerId = prompt("新しいオーナーのMoodle IDを入力:");
+    const newOwnerId = prompt(t("admin.circle.newOwnerPrompt"));
     if (!newOwnerId) return;
     const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "transfer_circle_owner", circleId, newOwnerId: parseInt(newOwnerId) }) });
     const d = await r.json();
-    if (r.ok) { alert("オーナーを変更しました"); load(page, search); } else alert(d.error || "変更に失敗しました");
+    if (r.ok) { alert(t("admin.circle.ownerChanged")); load(page, search); } else alert(d.error || t("admin.changeFailed"));
   };
 
   const handleDeleteCircleMessage = async (id) => {
-    if (!confirm("このメッセージを削除しますか？")) return;
+    if (!confirm(t("admin.message.confirmDelete"))) return;
     const r = await fetch(`${API}/api/admin`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "circle_message", id }) });
     if (r.ok && viewMessages) loadCircleMessages(viewMessages, cmPage);
   };
@@ -763,17 +764,17 @@ const CirclesTab = () => {
     return (
       <div style={{ padding: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-          <Btn onClick={() => setViewMessages(null)} color={T.txD}>{I.back} 戻る</Btn>
-          <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>サークルメッセージ: {circle?.name || viewMessages} ({cmTotal})</div>
+          <Btn onClick={() => setViewMessages(null)} color={T.txD}>{I.back} {t("common.back")}</Btn>
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.circle.messages")}: {circle?.name || viewMessages} ({cmTotal})</div>
         </div>
-        {cmLoading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+        {cmLoading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {circleMessages.map(m => (
             <div key={m.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: 12, borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}` }}>
               <Av u={{ name: m.profiles?.name, col: m.profiles?.color, avatar: m.profiles?.avatar }} sz={28} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{m.profiles?.name || "不明"}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{m.profiles?.name || t("admin.unknown")}</span>
                   <Badge text={m.circle_channels?.name || "ch"} color={T.accent} />
                   <span style={{ fontSize: 11, color: T.txD, marginLeft: "auto" }}>{m.created_at ? new Date(m.created_at).toLocaleString("ja-JP") : ""}</span>
                 </div>
@@ -782,7 +783,7 @@ const CirclesTab = () => {
               <Btn onClick={() => handleDeleteCircleMessage(m.id)} color={T.red} small>{I.trash}</Btn>
             </div>
           ))}
-          {!cmLoading && circleMessages.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>メッセージがありません</div>}
+          {!cmLoading && circleMessages.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.message.empty")}</div>}
         </div>
         <Pager page={cmPage} total={cmTotal} limit={50} onPage={p => loadCircleMessages(viewMessages, p)} />
       </div>
@@ -792,11 +793,11 @@ const CirclesTab = () => {
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>サークル管理 ({total})</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.circle.manage")} ({total})</div>
         <div style={{ flex: 1 }} />
-        <SearchBar value={search} onChange={setSearch} onSearch={() => load(0, search)} placeholder="サークル名で検索..." />
+        <SearchBar value={search} onChange={setSearch} onSearch={() => load(0, search)} placeholder={t("admin.circle.searchByName")} />
       </div>
-      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {circles.map(c => (
           <div key={c.id} style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
@@ -805,9 +806,9 @@ const CirclesTab = () => {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{c.name}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: T.txD, marginTop: 2 }}>
-                  <span>{I.users} {c.member_count}人</span>
-                  <Badge text={c.is_public ? "公開" : "非公開"} color={c.is_public ? T.green : T.txD} />
-                  <Badge text={c.join_mode === "open" ? "自由参加" : c.join_mode === "approval" ? "承認制" : "招待のみ"} color={T.accent} />
+                  <span>{I.users} {t("admin.circle.memberCount", { n: c.member_count })}</span>
+                  <Badge text={c.is_public ? t("admin.public") : t("admin.private")} color={c.is_public ? T.green : T.txD} />
+                  <Badge text={c.join_mode === "open" ? t("admin.circle.joinOpen") : c.join_mode === "approval" ? t("admin.circle.joinApproval") : t("admin.circle.joinInvite")} color={T.accent} />
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, flexWrap: "wrap" }}>
@@ -816,15 +817,15 @@ const CirclesTab = () => {
                   {c.owner?.name}
                 </div>}
                 <Btn onClick={() => { setViewMessages(c.id); loadCircleMessages(c.id, 0); }} color={T.accent} small>{I.chat} MSG</Btn>
-                <Btn onClick={() => handleTransferOwner(c.id)} color={T.orange} small>{I.users} 移譲</Btn>
+                <Btn onClick={() => handleTransferOwner(c.id)} color={T.orange} small>{I.users} {t("admin.circle.transfer")}</Btn>
                 <Btn onClick={() => handleDelete(c.id, c.name)} color={T.red} small>{I.trash}</Btn>
               </div>
             </div>
             {c.description && <div style={{ fontSize: 12, color: T.txD, maxHeight: 40, overflow: "hidden" }}>{c.description}</div>}
-            <div style={{ fontSize: 10, color: T.txD, marginTop: 4 }}>ID: {c.id} | 作成: {c.created_at ? new Date(c.created_at).toLocaleDateString("ja-JP") : "-"}</div>
+            <div style={{ fontSize: 10, color: T.txD, marginTop: 4 }}>ID: {c.id} | {t("admin.created")}: {c.created_at ? new Date(c.created_at).toLocaleDateString("ja-JP") : "-"}</div>
           </div>
         ))}
-        {!loading && circles.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>サークルがありません</div>}
+        {!loading && circles.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.circle.empty")}</div>}
       </div>
       <Pager page={page} total={total} limit={30} onPage={p => load(p, search)} />
     </div>
@@ -833,10 +834,10 @@ const CirclesTab = () => {
 
 // ---- Announcements Tab ----
 const ANNOUNCE_TYPES = [
-  { id: "info", label: "お知らせ", color: T.accent },
-  { id: "maintenance", label: "メンテナンス", color: T.orange },
-  { id: "update", label: "アップデート", color: T.green },
-  { id: "urgent", label: "緊急", color: T.red },
+  { id: "info", labelKey: "admin.annType.info", color: T.accent },
+  { id: "maintenance", labelKey: "admin.annType.maintenance", color: T.orange },
+  { id: "update", labelKey: "admin.annType.update", color: T.green },
+  { id: "urgent", labelKey: "admin.annType.urgent", color: T.red },
 ];
 
 const AnnouncementsTab = () => {
@@ -866,50 +867,50 @@ const AnnouncementsTab = () => {
     load(page);
   };
   const handleDeleteAnnouncement = async (id) => {
-    if (!confirm("このお知らせを削除しますか？")) return;
+    if (!confirm(t("admin.announce.confirmDelete"))) return;
     await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_announcement", announcementId: id }) });
     load(page);
   };
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>お知らせ管理 ({total})</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.announce.title")} ({total})</div>
         <div style={{ flex: 1 }} />
-        <Btn onClick={() => setShowForm(!showForm)} color={T.accent}>{I.plus} 新規作成</Btn>
+        <Btn onClick={() => setShowForm(!showForm)} color={T.accent}>{I.plus} {t("admin.announce.new")}</Btn>
       </div>
       {showForm && (
         <div style={{ padding: 16, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
           <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="タイトル" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" }} />
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t("admin.announce.titlePh")} style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" }} />
             <select value={type} onChange={e => setType(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" }}>
-              {ANNOUNCE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+              {ANNOUNCE_TYPES.map(at => <option key={at.id} value={at.id}>{t(at.labelKey)}</option>)}
             </select>
           </div>
-          <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="本文..." rows={4} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+          <textarea value={body} onChange={e => setBody(e.target.value)} placeholder={t("admin.announce.bodyPh")} rows={4} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
           <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
-            <Btn onClick={() => setShowForm(false)} color={T.txD}>キャンセル</Btn>
-            <Btn onClick={handleCreate} color={T.accent} disabled={saving || !title.trim() || !body.trim()}>{saving ? "送信中..." : "公開"}</Btn>
+            <Btn onClick={() => setShowForm(false)} color={T.txD}>{t("common.cancel")}</Btn>
+            <Btn onClick={handleCreate} color={T.accent} disabled={saving || !title.trim() || !body.trim()}>{saving ? t("admin.sending") : t("admin.announce.publish")}</Btn>
           </div>
         </div>
       )}
-      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {items.map(a => { const typeInfo = ANNOUNCE_TYPES.find(t => t.id === a.type) || ANNOUNCE_TYPES[0]; return (
+        {items.map(a => { const typeInfo = ANNOUNCE_TYPES.find(at => at.id === a.type) || ANNOUNCE_TYPES[0]; return (
           <div key={a.id} style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}`, opacity: a.active ? 1 : 0.5 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <Badge text={typeInfo.label} color={typeInfo.color} />
-              {!a.active && <Badge text="非公開" color={T.txD} />}
+              <Badge text={t(typeInfo.labelKey)} color={typeInfo.color} />
+              {!a.active && <Badge text={t("admin.unpublished")} color={T.txD} />}
               <span style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{a.title}</span>
               <span style={{ fontSize: 11, color: T.txD, marginLeft: "auto" }}>{a.created_at ? new Date(a.created_at).toLocaleString("ja-JP") : ""}</span>
             </div>
             <div style={{ fontSize: 13, color: T.tx, lineHeight: 1.6, marginBottom: 8, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{a.body}</div>
             <div style={{ display: "flex", gap: 8 }}>
-              <Btn onClick={() => handleToggle(a.id, a.active)} color={a.active ? T.orange : T.green} small>{a.active ? "非公開にする" : "公開にする"}</Btn>
-              <Btn onClick={() => handleDeleteAnnouncement(a.id)} color={T.red} small>{I.trash} 削除</Btn>
+              <Btn onClick={() => handleToggle(a.id, a.active)} color={a.active ? T.orange : T.green} small>{a.active ? t("admin.announce.makeUnpublished") : t("admin.announce.makePublished")}</Btn>
+              <Btn onClick={() => handleDeleteAnnouncement(a.id)} color={T.red} small>{I.trash} {t("common.delete")}</Btn>
             </div>
           </div>
         ); })}
-        {!loading && items.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>お知らせがありません</div>}
+        {!loading && items.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.announce.empty")}</div>}
       </div>
       <Pager page={page} total={total} limit={30} onPage={load} />
     </div>
@@ -929,7 +930,7 @@ const MusicTab = () => {
   const [saving, setSaving] = useState(false);
   const audioRef = useRef(null);
   const coverRef = useRef(null);
-  const published = tracks.filter(t => t.is_public);
+  const published = tracks.filter(tr => tr.is_public);
 
   const reset = () => {
     setShowForm(false); setTitle(""); setArtist(""); setAudioFile(null); setCoverFile(null);
@@ -937,20 +938,20 @@ const MusicTab = () => {
     if (coverRef.current) coverRef.current.value = "";
   };
   const submit = async () => {
-    if (!audioFile) { showToast("音声ファイルを選択してください", "error"); return; }
+    if (!audioFile) { showToast(t("admin.music.selectAudio"), "error"); return; }
     setSaving(true);
     try {
       await addTrack({ audioFile, coverFile, title: title.trim(), artist: artist.trim(), isPublic: true });
-      showToast("配信しました", "success");
+      showToast(t("admin.music.published"), "success");
       reset();
     } catch (e) {
-      showToast(e.message || "アップロードに失敗しました", "error");
+      showToast(e.message || t("admin.music.uploadFailed"), "error");
     } finally { setSaving(false); }
   };
-  const del = async (t) => {
-    if (!confirm(`「${t.title}」を配信停止（削除）しますか？`)) return;
-    await removeTrack(t.id);
-    showToast("削除しました", "success");
+  const del = async (tr) => {
+    if (!confirm(t("admin.music.confirmStop", { title: tr.title }))) return;
+    await removeTrack(tr.id);
+    showToast(t("admin.deleted"), "success");
   };
 
   const fileInput = { flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" };
@@ -958,66 +959,66 @@ const MusicTab = () => {
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>ミュージック配信 ({published.length})</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.music.title")} ({published.length})</div>
         <div style={{ flex: 1 }} />
-        <Btn onClick={() => setShowForm(!showForm)} color={T.accent}>{I.plus} 曲を配信</Btn>
+        <Btn onClick={() => setShowForm(!showForm)} color={T.accent}>{I.plus} {t("admin.music.distribute")}</Btn>
       </div>
-      <div style={{ fontSize: 12, color: T.txD, marginBottom: 12 }}>アップロードした曲は全ユーザーの「ミュージック」画面に表示されます。</div>
+      <div style={{ fontSize: 12, color: T.txD, marginBottom: 12 }}>{t("admin.music.desc")}</div>
 
       {showForm && (
         <div style={{ padding: 16, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <label style={{ fontSize: 12, color: T.txD }}>音声ファイル（mp3 / m4a / wav など）
+            <label style={{ fontSize: 12, color: T.txD }}>{t("admin.music.audioFile")}
               <input ref={audioRef} type="file" accept="audio/*" onChange={e => { const f = e.target.files?.[0]; if (f) { setAudioFile(f); if (!title) setTitle(f.name.replace(/\.[^.]+$/, "")); } }} style={{ ...fileInput, width: "100%", marginTop: 4, boxSizing: "border-box" }} />
             </label>
-            <label style={{ fontSize: 12, color: T.txD }}>カバー画像（任意）
+            <label style={{ fontSize: 12, color: T.txD }}>{t("admin.music.coverImage")}
               <input ref={coverRef} type="file" accept="image/*" onChange={e => setCoverFile(e.target.files?.[0] || null)} style={{ ...fileInput, width: "100%", marginTop: 4, boxSizing: "border-box" }} />
             </label>
-            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="曲名" style={fileInput} />
-            <input value={artist} onChange={e => setArtist(e.target.value)} placeholder="アーティスト名（任意・例: Suno AI）" style={fileInput} />
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t("admin.music.songName")} style={fileInput} />
+            <input value={artist} onChange={e => setArtist(e.target.value)} placeholder={t("admin.music.artistName")} style={fileInput} />
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
-            <Btn onClick={reset} color={T.txD} disabled={saving}>キャンセル</Btn>
-            <Btn onClick={submit} color={T.accent} disabled={saving || !audioFile}>{saving ? "アップロード中..." : "配信"}</Btn>
+            <Btn onClick={reset} color={T.txD} disabled={saving}>{t("common.cancel")}</Btn>
+            <Btn onClick={submit} color={T.accent} disabled={saving || !audioFile}>{saving ? t("admin.music.uploading") : t("admin.music.distributeShort")}</Btn>
           </div>
         </div>
       )}
 
-      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {published.map(t => (
-          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
+        {published.map(tr => (
+          <div key={tr.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
             <div style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, overflow: "hidden", background: `linear-gradient(145deg, ${T.accent}, ${T.accent}99)`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-              {t.cover?.url ? <img src={t.cover.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : I.music}
+              {tr.cover?.url ? <img src={tr.cover.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : I.music}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
-              <div style={{ fontSize: 12, color: T.txD, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.artist || "ScienceTokyo Music"}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tr.title}</div>
+              <div style={{ fontSize: 12, color: T.txD, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tr.artist || "ScienceTokyo Music"}</div>
             </div>
-            <Btn onClick={() => del(t)} color={T.red} small>{I.trash} 削除</Btn>
+            <Btn onClick={() => del(tr)} color={T.red} small>{I.trash} {t("common.delete")}</Btn>
           </div>
         ))}
-        {!loading && published.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>配信中の曲がありません</div>}
+        {!loading && published.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.music.empty")}</div>}
       </div>
     </div>
   );
 };
 
 // ---- Audit Log Tab ----
-const ACTION_LABELS = {
-  ban_user: "ユーザーBAN", unban_user: "BAN解除", delete_post: "投稿削除",
-  delete_comment: "コメント削除", delete_message: "メッセージ削除", delete_dm: "DM削除",
-  delete_circle_message: "サークルMSG削除",
-  resolve_report: "通報対応", create_announcement: "お知らせ作成",
-  update_announcement: "お知らせ更新", delete_announcement: "お知らせ削除",
-  add_admin: "管理者追加", remove_admin: "管理者削除",
-  edit_profile: "プロフィール変更", identify_anon: "匿名投稿者特定",
-  delete_circle: "サークル削除", transfer_circle_owner: "オーナー移譲",
-  update_site_setting: "設定変更",
-  add_ng_word: "NGワード追加", delete_ng_word: "NGワード削除",
-  enable_maintenance: "メンテON", disable_maintenance: "メンテOFF",
-  enable_registration_limit: "登録制限ON", disable_registration_limit: "登録制限OFF",
-  toggle_feature: "機能フラグ", bulk_update_profiles: "一括更新",
+const ACTION_LABEL_KEYS = {
+  ban_user: "admin.act.banUser", unban_user: "admin.act.unbanUser", delete_post: "admin.act.deletePost",
+  delete_comment: "admin.act.deleteComment", delete_message: "admin.act.deleteMessage", delete_dm: "admin.act.deleteDm",
+  delete_circle_message: "admin.act.deleteCircleMsg",
+  resolve_report: "admin.act.resolveReport", create_announcement: "admin.act.createAnnounce",
+  update_announcement: "admin.act.updateAnnounce", delete_announcement: "admin.act.deleteAnnounce",
+  add_admin: "admin.act.addAdmin", remove_admin: "admin.act.removeAdmin",
+  edit_profile: "admin.act.editProfile", identify_anon: "admin.act.identifyAnon",
+  delete_circle: "admin.act.deleteCircle", transfer_circle_owner: "admin.act.transferOwner",
+  update_site_setting: "admin.act.updateSetting",
+  add_ng_word: "admin.act.addNgWord", delete_ng_word: "admin.act.deleteNgWord",
+  enable_maintenance: "admin.act.maintOn", disable_maintenance: "admin.act.maintOff",
+  enable_registration_limit: "admin.act.regLimitOn", disable_registration_limit: "admin.act.regLimitOff",
+  toggle_feature: "admin.act.toggleFeature", bulk_update_profiles: "admin.act.bulkUpdate",
 };
 
 const AuditLogTab = () => {
@@ -1032,20 +1033,20 @@ const AuditLogTab = () => {
   useEffect(() => { load(0); }, [load]);
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 12 }}>管理者操作ログ ({total})</div>
-      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 12 }}>{t("admin.audit.title")} ({total})</div>
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {logs.map(l => (
           <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, fontSize: 13 }}>
             <Av u={{ name: l.profiles?.name, col: l.profiles?.color, avatar: l.profiles?.avatar }} sz={22} />
-            <span style={{ color: T.txH, fontWeight: 500 }}>{l.profiles?.name || "不明"}</span>
-            <Badge text={ACTION_LABELS[l.action] || l.action} color={T.accent} />
+            <span style={{ color: T.txH, fontWeight: 500 }}>{l.profiles?.name || t("admin.unknown")}</span>
+            <Badge text={ACTION_LABEL_KEYS[l.action] ? t(ACTION_LABEL_KEYS[l.action]) : l.action} color={T.accent} />
             {l.target_type && <span style={{ fontSize: 11, color: T.txD }}>{l.target_type}#{l.target_id}</span>}
-            {l.detail && typeof l.detail === 'object' && l.detail.reason && <span style={{ fontSize: 11, color: T.txD }}>理由: {l.detail.reason}</span>}
+            {l.detail && typeof l.detail === 'object' && l.detail.reason && <span style={{ fontSize: 11, color: T.txD }}>{t("admin.reason")}: {l.detail.reason}</span>}
             <span style={{ fontSize: 11, color: T.txD, marginLeft: "auto" }}>{l.created_at ? new Date(l.created_at).toLocaleString("ja-JP") : ""}</span>
           </div>
         ))}
-        {!loading && logs.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>ログがありません</div>}
+        {!loading && logs.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.audit.empty")}</div>}
       </div>
       <Pager page={page} total={total} limit={50} onPage={load} />
     </div>
@@ -1053,8 +1054,8 @@ const AuditLogTab = () => {
 };
 
 // ---- NG Words Section ----
-const NG_MATCH_TYPES = [{ id: "contains", label: "部分一致" }, { id: "exact", label: "完全一致" }, { id: "regex", label: "正規表現" }];
-const NG_ACTIONS = [{ id: "block", label: "ブロック" }, { id: "warn", label: "警告のみ" }];
+const NG_MATCH_TYPES = [{ id: "contains", labelKey: "admin.ng.matchContains" }, { id: "exact", labelKey: "admin.ng.matchExact" }, { id: "regex", labelKey: "admin.ng.matchRegex" }];
+const NG_ACTIONS = [{ id: "block", labelKey: "admin.ng.actBlock" }, { id: "warn", labelKey: "admin.ng.actWarn" }];
 const NG_CATEGORIES = ["general", "spam", "slur", "ad", "other"];
 
 const NgWordsSection = () => {
@@ -1074,46 +1075,46 @@ const NgWordsSection = () => {
     if (!word.trim()) return;
     setSaving(true);
     const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "add_ng_word", word, matchType, wordAction, category }) });
-    if (r.ok) { setWord(""); loadWords(); } else { const d = await r.json(); alert(d.error || "追加に失敗しました"); }
+    if (r.ok) { setWord(""); loadWords(); } else { const d = await r.json(); alert(d.error || t("admin.addFailed")); }
     setSaving(false);
   };
   const handleDelete = async (id) => {
-    if (!confirm("このNGワードを削除しますか？")) return;
+    if (!confirm(t("admin.ng.confirmDelete"))) return;
     await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_ng_word", wordId: id }) });
     loadWords();
   };
   return (
     <div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>NGワード管理</div>
-      <div style={{ fontSize: 12, color: T.txD, marginBottom: 12 }}>投稿・コメント・メッセージ・DMに含まれる禁止ワードを管理します。ブロック設定のワードは投稿が拒否されます。</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>{t("admin.ng.title")}</div>
+      <div style={{ fontSize: 12, color: T.txD, marginBottom: 12 }}>{t("admin.ng.desc")}</div>
       <div style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <input value={word} onChange={e => setWord(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleAdd(); }} placeholder="NGワード" style={{ flex: 1, minWidth: 120, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" }} />
+          <input value={word} onChange={e => setWord(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleAdd(); }} placeholder={t("admin.ng.wordPh")} style={{ flex: 1, minWidth: 120, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" }} />
           <select value={matchType} onChange={e => setMatchType(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 12, outline: "none" }}>
-            {NG_MATCH_TYPES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+            {NG_MATCH_TYPES.map(m => <option key={m.id} value={m.id}>{t(m.labelKey)}</option>)}
           </select>
           <select value={wordAction} onChange={e => setWordAction(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 12, outline: "none" }}>
-            {NG_ACTIONS.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+            {NG_ACTIONS.map(a => <option key={a.id} value={a.id}>{t(a.labelKey)}</option>)}
           </select>
           <select value={category} onChange={e => setCategory(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 12, outline: "none" }}>
             {NG_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <Btn onClick={handleAdd} color={T.accent} disabled={saving || !word.trim()}>{saving ? "追加中..." : "追加"}</Btn>
+          <Btn onClick={handleAdd} color={T.accent} disabled={saving || !word.trim()}>{saving ? t("admin.adding") : t("admin.add")}</Btn>
         </div>
       </div>
-      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {words.map(w => (
           <div key={w.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, fontSize: 13 }}>
             <span style={{ fontWeight: 600, color: T.txH, fontFamily: "monospace" }}>{w.word}</span>
-            <Badge text={NG_MATCH_TYPES.find(m => m.id === w.match_type)?.label || w.match_type} color={T.accent} />
-            <Badge text={w.action === "block" ? "ブロック" : "警告"} color={w.action === "block" ? T.red : T.orange} />
+            <Badge text={(() => { const m = NG_MATCH_TYPES.find(m => m.id === w.match_type); return m ? t(m.labelKey) : w.match_type; })()} color={T.accent} />
+            <Badge text={w.action === "block" ? t("admin.ng.actBlock") : t("admin.ng.warn")} color={w.action === "block" ? T.red : T.orange} />
             <Badge text={w.category || "general"} color={T.txD} />
             <span style={{ fontSize: 10, color: T.txD, marginLeft: "auto" }}>{w.created_at ? new Date(w.created_at).toLocaleDateString("ja-JP") : ""}</span>
             <Btn onClick={() => handleDelete(w.id)} color={T.red} small>{I.trash}</Btn>
           </div>
         ))}
-        {!loading && words.length === 0 && <div style={{ padding: 16, textAlign: "center", color: T.txD, fontSize: 13 }}>NGワードが登録されていません</div>}
+        {!loading && words.length === 0 && <div style={{ padding: 16, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.ng.empty")}</div>}
       </div>
     </div>
   );
@@ -1121,10 +1122,10 @@ const NgWordsSection = () => {
 
 // ---- Settings Tab ----
 const FEATURE_FLAGS = [
-  { id: "feed", label: "タイムライン" }, { id: "chat", label: "チャット" },
-  { id: "dm", label: "DM" }, { id: "circles", label: "サークル" },
-  { id: "map", label: "マップ" }, { id: "anonymous_posts", label: "匿名投稿" },
-  { id: "polls", label: "投票" }, { id: "file_upload", label: "ファイルアップロード" },
+  { id: "feed", labelKey: "chan.timeline" }, { id: "chat", labelKey: "chan.chat" },
+  { id: "dm", labelKey: "common.dm" }, { id: "circles", labelKey: "nav.circles" },
+  { id: "map", labelKey: "nav.map" }, { id: "anonymous_posts", labelKey: "admin.flag.anonPosts" },
+  { id: "polls", labelKey: "admin.flag.polls" }, { id: "file_upload", labelKey: "admin.flag.fileUpload" },
 ];
 
 // ---- Syllabus / Timetable Tab ----
@@ -1145,8 +1146,8 @@ const SyllabusTab = () => {
 
   // Debounce search input
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 400);
-    return () => clearTimeout(t);
+    const tm = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(tm);
   }, [search]);
 
   const load = useCallback(() => {
@@ -1205,10 +1206,10 @@ const SyllabusTab = () => {
     <div style={{ padding: 16 }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>時間割データ</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.syllabus.title")}</div>
         {courses.length > 0 && (
           <Btn onClick={() => setViewMode(viewMode === "table" ? "grid" : "table")} color={T.accent} small>
-            {viewMode === "table" ? "時間割表示" : "一覧表示"}
+            {viewMode === "table" ? t("admin.syllabus.gridView") : t("admin.syllabus.listView")}
           </Btn>
         )}
       </div>
@@ -1216,7 +1217,7 @@ const SyllabusTab = () => {
       {/* Stats */}
       {courses.length > 0 && (
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-          <Card label="総授業数" value={courses.length} color={T.accent} />
+          <Card label={t("admin.syllabus.totalCourses")} value={courses.length} color={T.accent} />
           {uniqueQuarters.map(q => (
             <Card key={q} label={q} value={quarterCounts[q] || 0} color={T.green} />
           ))}
@@ -1225,31 +1226,31 @@ const SyllabusTab = () => {
 
       {/* Filters */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
-        <SearchBar value={search} onChange={setSearch} onSearch={() => {}} placeholder="科目コード・名前・教室..." width={240} />
+        <SearchBar value={search} onChange={setSearch} onSearch={() => {}} placeholder={t("admin.syllabus.searchPh")} width={240} />
         <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-          <option value="">全年度</option>
-          {years.map(y => <option key={y} value={y}>{y}年度</option>)}
+          <option value="">{t("admin.allYears")}</option>
+          {years.map(y => <option key={y} value={y}>{t("admin.yearLabel", { y })}</option>)}
         </select>
         <select value={filterDept} onChange={e => setFilterDept(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-          <option value="">全学科</option>
+          <option value="">{t("admin.allDepts")}</option>
           {departments.map(d => (
             <option key={d.key} value={d.key}>{d.key} ({d.label})</option>
           ))}
         </select>
         <select value={filterQuarter} onChange={e => setFilterQuarter(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-          <option value="">全クォーター</option>
+          <option value="">{t("admin.allQuarters")}</option>
           {["1", "2", "3", "4"].map(q => <option key={q} value={q}>{q}Q</option>)}
         </select>
         <select value={filterDay} onChange={e => setFilterDay(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-          <option value="">全曜日</option>
-          {DAY_LABELS.map(d => <option key={d} value={d}>{d}曜</option>)}
+          <option value="">{t("admin.allDays")}</option>
+          {DAY_LABELS.map(d => <option key={d} value={d}>{t("dow.s." + d)}</option>)}
         </select>
         {(search || filterDept || filterQuarter || filterDay || filterYear) && (
-          <span style={{ fontSize: 12, color: T.txD }}>{filtered.length}件</span>
+          <span style={{ fontSize: 12, color: T.txD }}>{t("admin.countItems", { n: filtered.length })}</span>
         )}
       </div>
 
-      {loading && <div style={{ color: T.txD, fontSize: 13, padding: 20 }}>読み込み中...</div>}
+      {loading && <div style={{ color: T.txD, fontSize: 13, padding: 20 }}>{t("common.loading")}</div>}
 
       {/* Grid View */}
       {!loading && courses.length > 0 && viewMode === "grid" && (() => {
@@ -1259,9 +1260,9 @@ const SyllabusTab = () => {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
                 <tr>
-                  <th style={{ padding: "8px 4px", borderBottom: `1px solid ${T.bd}`, color: T.txD, fontWeight: 500, width: 60, textAlign: "left" }}>時限</th>
+                  <th style={{ padding: "8px 4px", borderBottom: `1px solid ${T.bd}`, color: T.txD, fontWeight: 500, width: 60, textAlign: "left" }}>{t("admin.period")}</th>
                   {DAY_LABELS.map(d => (
-                    <th key={d} style={{ padding: "8px 4px", borderBottom: `1px solid ${T.bd}`, color: T.txH, fontWeight: 600, textAlign: "center", width: "19%" }}>{d}</th>
+                    <th key={d} style={{ padding: "8px 4px", borderBottom: `1px solid ${T.bd}`, color: T.txH, fontWeight: 600, textAlign: "center", width: "19%" }}>{t("dow.s." + d)}</th>
                   ))}
                 </tr>
               </thead>
@@ -1297,8 +1298,8 @@ const SyllabusTab = () => {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: `2px solid ${T.bd}` }}>
-                {["科目コード", "科目名", "区分", "単位", "セクション", "教員", "学科", "年度", "曜日", "時限", "教室", "建物", "Q"].map(h => (
-                  <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: T.txD, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
+                {["admin.col.code", "admin.col.name", "admin.col.req", "admin.col.credits", "admin.col.section", "admin.col.teacher", "admin.dept", "admin.col.yearShort", "admin.col.day", "admin.period", "admin.col.room", "admin.col.building", "Q"].map(h => (
+                  <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: T.txD, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap" }}>{h === "Q" ? "Q" : t(h)}</th>
                 ))}
               </tr>
             </thead>
@@ -1324,7 +1325,7 @@ const SyllabusTab = () => {
           </table>
           {filtered.length === 0 && (
             <div style={{ padding: 20, textAlign: "center", color: T.txD, fontSize: 13 }}>
-              条件に一致する授業がありません
+              {t("admin.syllabus.noMatch")}
             </div>
           )}
         </div>
@@ -1332,7 +1333,7 @@ const SyllabusTab = () => {
 
       {courses.length === 0 && !loading && (
         <div style={{ padding: 20, textAlign: "center", color: T.txD, fontSize: 13 }}>
-          データがありません。「時間割取得」タブからスクレイピングしてください。
+          {t("admin.syllabus.noDataHint")}
         </div>
       )}
     </div>
@@ -1373,14 +1374,14 @@ const CurriculumInput = ({ years }) => {
 
   return (
     <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
-      <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 4 }}>必修/選択必修の登録</div>
-      <div style={{ fontSize: 11, color: T.txD, marginBottom: 12 }}>学修案内から科目一覧をコピペしてください（◎=必修, ○=選択必修, 無印=選択）</div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 4 }}>{t("admin.curr.title")}</div>
+      <div style={{ fontSize: 11, color: T.txD, marginBottom: 12 }}>{t("admin.curr.desc")}</div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
         <select value={year} onChange={e => setYear(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-          {(years || ["2026"]).map(y => <option key={y} value={y}>{y}年度</option>)}
+          {(years || ["2026"]).map(y => <option key={y} value={y}>{t("admin.yearLabel", { y })}</option>)}
         </select>
-        {detectedDepts.length > 0 && <span style={{ fontSize: 11, color: T.txD }}>検出: {detectedDepts.map(d => <Badge key={d} text={d} color={T.accent} />)}</span>}
+        {detectedDepts.length > 0 && <span style={{ fontSize: 11, color: T.txD }}>{t("admin.detected")}: {detectedDepts.map(d => <Badge key={d} text={d} color={T.accent} />)}</span>}
       </div>
 
       <textarea value={text} onChange={e => setText(e.target.value)} placeholder={"MTH.A201.R ◎ 代数学概論第一 1-1-0 1 (a)\nMTH.A203.A ○ 代数学概論第三 1-1-0 1 (a)\nMTH.T201.L 解析力学（講義） 2-0-0 1 5 (b)"} rows={8}
@@ -1388,7 +1389,7 @@ const CurriculumInput = ({ years }) => {
 
       {parsed.length > 0 && (
         <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: T.bg2, border: `1px solid ${T.bd}`, maxHeight: 200, overflowY: "auto" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: T.txD, marginBottom: 6 }}>プレビュー: {parsed.length} 科目</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: T.txD, marginBottom: 6 }}>{t("admin.preview")}: {t("admin.curr.nCourses", { n: parsed.length })}</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
             {['必修', '選択必修', '選択'].map(r => {
               const cnt = parsed.filter(p => p.req === r).length;
@@ -1407,7 +1408,7 @@ const CurriculumInput = ({ years }) => {
 
       <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
         <Btn onClick={submit} color={T.green} disabled={submitting || parsed.length === 0}>
-          {submitting ? "更新中..." : `${parsed.length}科目の区分を更新`}
+          {submitting ? t("admin.updating") : t("admin.curr.updateBtn", { n: parsed.length })}
         </Btn>
       </div>
 
@@ -1417,14 +1418,14 @@ const CurriculumInput = ({ years }) => {
           {result.ok ? (
             <>
               <div style={{ fontSize: 12, fontWeight: 600, color: T.txH, marginBottom: 6 }}>
-                更新完了
+                {t("admin.updateDone")}
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-                <Badge text={`パース ${result.parsed}`} color={T.accent} />
-                <Badge text={`DB一致 ${result.matched}`} color={T.green} />
-                {result.notFound > 0 && <Badge text={`未登録 ${result.notFound}`} color="#f59e0b" />}
-                {result.errors > 0 && <Badge text={`エラー ${result.errors}`} color="#ef4444" />}
-                <Badge text={`更新行数 ${result.updated}`} color={T.green} />
+                <Badge text={t("admin.curr.parsed", { n: result.parsed })} color={T.accent} />
+                <Badge text={t("admin.curr.dbMatched", { n: result.matched })} color={T.green} />
+                {result.notFound > 0 && <Badge text={t("admin.curr.notRegistered", { n: result.notFound })} color="#f59e0b" />}
+                {result.errors > 0 && <Badge text={t("admin.curr.errors", { n: result.errors })} color="#ef4444" />}
+                <Badge text={t("admin.curr.rowsUpdated", { n: result.updated })} color={T.green} />
               </div>
               {result.logs && (
                 <div style={{ maxHeight: 200, overflowY: "auto", fontSize: 11 }}>
@@ -1436,7 +1437,7 @@ const CurriculumInput = ({ years }) => {
                       <span style={{ fontFamily: "monospace", width: 80, flexShrink: 0 }}>{l.code}</span>
                       <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, fontWeight: 600, background: `${reqColor(l.requirement)}20`, color: reqColor(l.requirement), flexShrink: 0 }}>{l.requirement}</span>
                       <span style={{ color: T.txD }}>
-                        {l.status === 'ok' ? `${l.rows}行更新` : l.detail}
+                        {l.status === 'ok' ? t("admin.curr.rowsUpdatedShort", { n: l.rows }) : l.detail}
                       </span>
                     </div>
                   ))}
@@ -1444,7 +1445,7 @@ const CurriculumInput = ({ years }) => {
               )}
             </>
           ) : (
-            <div style={{ fontSize: 12, color: T.red }}>{result.error || "エラー"}</div>
+            <div style={{ fontSize: 12, color: T.red }}>{result.error || t("admin.error")}</div>
           )}
         </div>
       )}
@@ -1523,7 +1524,7 @@ const SyllabusFetchTab = () => {
           : (d.added || 0);
         return { dept, year, ok: true, count, extra: action === "scrape_grading" ? d.withBreakdown : null };
       }
-      return { dept, year, ok: false, error: d.error || "不明なエラー" };
+      return { dept, year, ok: false, error: d.error || t("admin.unknownError") };
     } catch (e) {
       console.error(`[scrape] ${dept} fetch error:`, e);
       return { dept, year, ok: false, error: e.message };
@@ -1546,17 +1547,17 @@ const SyllabusFetchTab = () => {
     load();
     const ok = results.filter(r => r.ok);
     const fail = results.filter(r => !r.ok);
-    const label = action === "scrape_textbooks" ? "教科書取得"
-      : action === "scrape_grading" ? "成績割合取得"
-      : "取得";
-    let msg = `${label}完了: ${ok.length}/${results.length} 学科成功`;
+    const label = action === "scrape_textbooks" ? t("admin.fetch.textbookFetch")
+      : action === "scrape_grading" ? t("admin.fetch.gradingFetch")
+      : t("admin.fetch.fetch");
+    let msg = t("admin.fetch.batchDone", { label, ok: ok.length, total: results.length });
     if (ok.length > 0) {
-      msg += `\n合計 ${ok.reduce((s, r) => s + r.count, 0)} 件`;
+      msg += "\n" + t("admin.fetch.totalCount", { n: ok.reduce((s, r) => s + r.count, 0) });
       if (action === "scrape_grading") {
-        msg += ` (うち割合解析成功 ${ok.reduce((s, r) => s + (r.extra || 0), 0)} 件)`;
+        msg += " " + t("admin.fetch.parsedRatio", { n: ok.reduce((s, r) => s + (r.extra || 0), 0) });
       }
     }
-    if (fail.length > 0) msg += `\n\n失敗: ${fail.map(r => `${r.dept} (${r.error})`).join(", ")}`;
+    if (fail.length > 0) msg += "\n\n" + t("admin.fetch.failed", { list: fail.map(r => `${r.dept} (${r.error})`).join(", ") });
     alert(msg);
   };
 
@@ -1565,11 +1566,11 @@ const SyllabusFetchTab = () => {
     const result = await scrapeSingle(dept, year, action);
     setBatchResults([result]);
     load();
-    const label = action === "scrape_textbooks" ? "教科書"
-      : action === "scrape_grading" ? "成績割合"
+    const label = action === "scrape_textbooks" ? t("admin.fetch.textbook")
+      : action === "scrape_grading" ? t("admin.fetch.grading")
       : "";
-    if (result.ok) alert(`${dept} ${year}: ${label}${result.count}件取得完了`);
-    else alert(`取得失敗: ${result.error}`);
+    if (result.ok) alert(t("admin.fetch.singleDone", { dept, year, label, n: result.count }));
+    else alert(t("admin.fetch.fetchFailed", { error: result.error }));
   };
 
   const departments = data?.departments || [];
@@ -1612,45 +1613,45 @@ const SyllabusFetchTab = () => {
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>時間割取得</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>{t("admin.tab.syllabusFetch")}</div>
 
-      {loading && <div style={{ color: T.txD, fontSize: 13, padding: 20 }}>読み込み中...</div>}
+      {loading && <div style={{ color: T.txD, fontSize: 13, padding: 20 }}>{t("common.loading")}</div>}
 
       {!loading && (
         <>
           {/* Scrape controls */}
           <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>シラバスから取得</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>{t("admin.fetch.fromSyllabus")}</div>
 
             {/* Year + action buttons */}
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
               <select value={scrapeYear} onChange={e => setScrapeYear(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-                <option value="">年度を選択</option>
-                {years.map(y => <option key={y} value={y}>{y}年度</option>)}
+                <option value="">{t("admin.selectYear")}</option>
+                {years.map(y => <option key={y} value={y}>{t("admin.yearLabel", { y })}</option>)}
               </select>
               <Btn onClick={selectAll} color={T.txD} small>
-                {selectedDepts.size === departments.length ? "全解除" : "全選択"}
+                {selectedDepts.size === departments.length ? t("admin.deselectAll") : t("admin.selectAll")}
               </Btn>
               <Btn
                 onClick={() => handleBatchScrape([...selectedDepts], scrapeYear)}
                 color={T.green}
                 disabled={!scrapeYear || selectedDepts.size === 0 || isBusy}
               >
-                {isBusy ? "取得中..." : `選択した${selectedDepts.size}学科を取得`}
+                {isBusy ? t("admin.fetching") : t("admin.fetch.fetchSelectedDepts", { n: selectedDepts.size })}
               </Btn>
               <Btn
                 onClick={() => handleBatchScrape([...selectedDepts], scrapeYear, "scrape_textbooks")}
                 color={T.accent}
                 disabled={!scrapeYear || selectedDepts.size === 0 || isBusy}
               >
-                {isBusy ? "取得中..." : `教科書を取得`}
+                {isBusy ? t("admin.fetching") : t("admin.fetch.fetchTextbooks")}
               </Btn>
               <Btn
                 onClick={() => handleBatchScrape([...selectedDepts], scrapeYear, "scrape_grading")}
                 color={T.purple || "#a855c7"}
                 disabled={!scrapeYear || selectedDepts.size === 0 || isBusy}
               >
-                {isBusy ? "取得中..." : `成績割合を取得`}
+                {isBusy ? t("admin.fetching") : t("admin.fetch.fetchGrading")}
               </Btn>
             </div>
 
@@ -1697,8 +1698,8 @@ const SyllabusFetchTab = () => {
               <div style={{ padding: "10px 14px", borderRadius: 10, background: T.bg2, border: `1px solid ${T.accent}40` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: T.txH }}>
-                    {scraping.replace("_", " ")} — {progress.phase === "listing" ? "一覧取得中..." : progress.phase === "saving" ? "DB保存中..." : `詳細取得中 ${progress.done}/${progress.total}`}
-                    {queue.length > 0 && <span style={{ color: T.txD, fontWeight: 400 }}> (残り {queue.length} 学科)</span>}
+                    {scraping.replace("_", " ")} — {progress.phase === "listing" ? t("admin.fetch.phaseListing") : progress.phase === "saving" ? t("admin.fetch.phaseSaving") : t("admin.fetch.phaseDetail", { done: progress.done, total: progress.total })}
+                    {queue.length > 0 && <span style={{ color: T.txD, fontWeight: 400 }}> {t("admin.fetch.remainingDepts", { n: queue.length })}</span>}
                   </span>
                   {progress.current && <span style={{ fontSize: 11, color: T.accent, fontFamily: "monospace" }}>{progress.current}</span>}
                 </div>
@@ -1714,12 +1715,12 @@ const SyllabusFetchTab = () => {
           {/* Per-dept × year status table */}
           {departments.length > 0 && (
             <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>取得状況</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>{t("admin.fetch.status")}</div>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                   <thead>
                     <tr>
-                      <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>学科</th>
+                      <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>{t("admin.dept")}</th>
                       {years.map(y => <th key={y} style={{ padding: "6px 8px", textAlign: "center", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>{y}</th>)}
                     </tr>
                   </thead>
@@ -1738,10 +1739,10 @@ const SyllabusFetchTab = () => {
                                   {s ? (
                                     <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
                                       <span style={{ color: T.green, fontWeight: 600 }}>{s.count}</span>
-                                      <button onClick={() => handleScrape(d.key, y)} disabled={isBusy} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", padding: 0, fontSize: 10 }} title="再取得">{isScraping ? "..." : "↻"}</button>
+                                      <button onClick={() => handleScrape(d.key, y)} disabled={isBusy} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", padding: 0, fontSize: 10 }} title={t("admin.refetch")}>{isScraping ? "..." : "↻"}</button>
                                     </span>
                                   ) : (
-                                    <button onClick={() => handleScrape(d.key, y)} disabled={isBusy} style={{ background: "none", border: `1px solid ${T.bd}`, borderRadius: 6, padding: "2px 8px", color: T.txD, cursor: "pointer", fontSize: 10 }}>{isScraping ? "..." : "取得"}</button>
+                                    <button onClick={() => handleScrape(d.key, y)} disabled={isBusy} style={{ background: "none", border: `1px solid ${T.bd}`, borderRadius: 6, padding: "2px 8px", color: T.txD, cursor: "pointer", fontSize: 10 }}>{isScraping ? "..." : t("admin.fetch.fetch")}</button>
                                   )}
                                 </td>
                               );
@@ -1760,12 +1761,12 @@ const SyllabusFetchTab = () => {
           {departments.length > 0 && (
             <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>成績割合 取得状況</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{t("admin.grading.status")}</div>
                 {gradingTableExists && (
                   <div style={{ fontSize: 11, color: T.txD }}>
-                    合計 <span style={{ color: T.txH, fontWeight: 700 }}>{gradingTotals.total}</span> 件
-                    {" / うち割合解析済 "}
-                    <span style={{ color: T.accent, fontWeight: 700 }}>{gradingTotals.parsed}</span> 件
+                    {t("admin.total")} <span style={{ color: T.txH, fontWeight: 700 }}>{gradingTotals.total}</span> {t("admin.items")}
+                    {" / " + t("admin.grading.ofWhichParsed") + " "}
+                    <span style={{ color: T.accent, fontWeight: 700 }}>{gradingTotals.parsed}</span> {t("admin.items")}
                     {gradingTotals.total > 0 && (
                       <span> ({Math.round(gradingTotals.parsed / gradingTotals.total * 100)}%)</span>
                     )}
@@ -1779,9 +1780,9 @@ const SyllabusFetchTab = () => {
                   background: `${T.red}15`, border: `1px solid ${T.red}60`,
                   color: T.red, fontSize: 12, marginBottom: 12,
                 }}>
-                  ⚠ <strong>course_grading テーブルが未作成です。</strong><br/>
+                  ⚠ <strong>{t("admin.grading.tableMissing")}</strong><br/>
                   <span style={{ color: T.txH }}>
-                    Supabase Dashboard の SQL Editor で <code style={{ background: T.bg2, padding: "1px 5px", borderRadius: 3 }}>supabase/course-grading.sql</code> を実行してください。
+                    {t("admin.grading.runSqlPre")} <code style={{ background: T.bg2, padding: "1px 5px", borderRadius: 3 }}>supabase/course-grading.sql</code> {t("admin.grading.runSqlPost")}
                   </span>
                   {gradingTableError && (
                     <div style={{ marginTop: 6, fontSize: 10, color: T.txD, fontFamily: "monospace" }}>
@@ -1796,10 +1797,10 @@ const SyllabusFetchTab = () => {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                     <thead>
                       <tr>
-                        <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>学科</th>
+                        <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>{t("admin.dept")}</th>
                         {years.map(y => (
                           <th key={y} style={{ padding: "6px 8px", textAlign: "center", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>
-                            {y} <span style={{ fontWeight: 400, fontSize: 10 }}>(件/解析済)</span>
+                            {y} <span style={{ fontWeight: 400, fontSize: 10 }}>{t("admin.grading.itemsParsedHdr")}</span>
                           </th>
                         ))}
                       </tr>
@@ -1821,10 +1822,10 @@ const SyllabusFetchTab = () => {
                                         <span style={{ color: T.txH, fontWeight: 600 }}>{s.total}</span>
                                         <span style={{ color: T.txD }}>/</span>
                                         <span style={{ color: s.parsed > 0 ? T.accent : T.txD, fontWeight: 600 }}>{s.parsed}</span>
-                                        <button onClick={() => handleScrape(d.key, y, "scrape_grading")} disabled={isBusy} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", padding: 0, fontSize: 10 }} title="再取得">{isScraping ? "..." : "↻"}</button>
+                                        <button onClick={() => handleScrape(d.key, y, "scrape_grading")} disabled={isBusy} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", padding: 0, fontSize: 10 }} title={t("admin.refetch")}>{isScraping ? "..." : "↻"}</button>
                                       </span>
                                     ) : (
-                                      <button onClick={() => handleScrape(d.key, y, "scrape_grading")} disabled={isBusy} style={{ background: "none", border: `1px solid ${T.bd}`, borderRadius: 6, padding: "2px 8px", color: T.txD, cursor: "pointer", fontSize: 10 }}>{isScraping ? "..." : "取得"}</button>
+                                      <button onClick={() => handleScrape(d.key, y, "scrape_grading")} disabled={isBusy} style={{ background: "none", border: `1px solid ${T.bd}`, borderRadius: 6, padding: "2px 8px", color: T.txD, cursor: "pointer", fontSize: 10 }}>{isScraping ? "..." : t("admin.fetch.fetch")}</button>
                                     )}
                                   </td>
                                 );
@@ -1842,11 +1843,11 @@ const SyllabusFetchTab = () => {
 
           {/* DB lookup toggle */}
           <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>設定</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>{t("admin.settings")}</div>
             <div style={{ padding: "10px 14px", borderRadius: 10, background: T.bg2, border: `1px solid ${T.bd}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>DB優先ルックアップ</div>
-                <div style={{ fontSize: 11, color: T.txD, marginTop: 2 }}>ONにすると時間割取得時にDBを先に検索し、なければスクレイピング</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{t("admin.fetch.dbLookup")}</div>
+                <div style={{ fontSize: 11, color: T.txD, marginTop: 2 }}>{t("admin.fetch.dbLookupDesc")}</div>
               </div>
               <button
                 onClick={() => toggleDbLookup(!dbLookup)}
@@ -1905,77 +1906,77 @@ const TextbooksViewer = ({ years, departments }) => {
     }
   }, [year, dept, kind, search]);
 
-  const kindLabel = (k) => k === "textbook" ? "教科書" : k === "reference" ? "参考書" : k;
+  const kindLabel = (k) => k === "textbook" ? t("admin.tb.textbook") : k === "reference" ? t("admin.tb.reference") : k;
   const lineKindStyle = (k) => {
-    if (k === "book") return { color: T.green, bg: `${T.green}15`, label: "📚 候補" };
-    if (k === "noise") return { color: T.txD, bg: T.bg2, label: "✕ 無視" };
-    if (k === "annotation") return { color: T.accent, bg: `${T.accent}15`, label: "注釈" };
+    if (k === "book") return { color: T.green, bg: `${T.green}15`, label: "📚 " + t("admin.tb.candidate") };
+    if (k === "noise") return { color: T.txD, bg: T.bg2, label: "✕ " + t("admin.tb.ignore") };
+    if (k === "annotation") return { color: T.accent, bg: `${T.accent}15`, label: t("admin.tb.annotation") };
     return { color: T.txD, bg: T.bg2, label: k };
   };
 
   return (
     <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, marginTop: 16 }}>
       <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 4 }}>
-        教科書一覧 ({rows.length})
+        {t("admin.tb.listTitle")} ({rows.length})
       </div>
       {loaded && (
         <div style={{ fontSize: 11, color: T.txD, marginBottom: 12 }}>
-          分割行: <span style={{ color: T.green, fontWeight: 600 }}>📚 候補 {lineTotals.book}</span>
-          <span style={{ color: T.accent }}>注釈 {lineTotals.annotation}</span>
-          <span>✕ 無視 {lineTotals.noise}</span>
+          {t("admin.tb.splitLines")}: <span style={{ color: T.green, fontWeight: 600 }}>📚 {t("admin.tb.candidate")} {lineTotals.book}</span>
+          <span style={{ color: T.accent }}>{t("admin.tb.annotation")} {lineTotals.annotation}</span>
+          <span>✕ {t("admin.tb.ignore")} {lineTotals.noise}</span>
         </div>
       )}
 
       {/* Filters */}
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
         <select value={year} onChange={e => setYear(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-          <option value="">年度（すべて）</option>
+          <option value="">{t("admin.yearAll")}</option>
           {years.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
         <select value={dept} onChange={e => setDept(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-          <option value="">学院（すべて）</option>
+          <option value="">{t("admin.schoolAll")}</option>
           {departments.map(d => <option key={d.key} value={d.key}>{d.key} {d.label}</option>)}
         </select>
         <select value={kind} onChange={e => setKind(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-          <option value="">種別（すべて）</option>
-          <option value="textbook">教科書</option>
-          <option value="reference">参考書</option>
+          <option value="">{t("admin.tb.kindAll")}</option>
+          <option value="textbook">{t("admin.tb.textbook")}</option>
+          <option value="reference">{t("admin.tb.reference")}</option>
         </select>
         <input
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter") load(); }}
-          placeholder="科目コード/本文検索"
+          placeholder={t("admin.tb.searchPh")}
           style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13, minWidth: 180 }}
         />
         <Btn onClick={load} color={T.accent} small disabled={loading}>
-          {loading ? "読込中..." : "検索"}
+          {loading ? t("admin.loadingShort") : t("admin.search")}
         </Btn>
         <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: T.txD, cursor: "pointer" }}>
           <input type="checkbox" checked={showPreview} onChange={e => setShowPreview(e.target.checked)} />
-          分割プレビュー
+          {t("admin.tb.splitPreview")}
         </label>
         <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: T.txD, cursor: "pointer" }}>
           <input type="checkbox" checked={hideNoise} onChange={e => setHideNoise(e.target.checked)} />
-          無視行を隠す
+          {t("admin.tb.hideNoise")}
         </label>
       </div>
 
       {/* Table */}
       {loaded && rows.length === 0 && (
-        <div style={{ color: T.txD, fontSize: 13, padding: 12 }}>該当データなし</div>
+        <div style={{ color: T.txD, fontSize: 13, padding: 12 }}>{t("admin.noMatchData")}</div>
       )}
       {rows.length > 0 && (
         <div style={{ overflowX: "auto", maxHeight: 600, overflowY: "auto", border: `1px solid ${T.bd}`, borderRadius: 8 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead style={{ position: "sticky", top: 0, background: T.bg2, zIndex: 1 }}>
               <tr>
-                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>科目</th>
-                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>年度</th>
-                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>種別</th>
-                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>{showPreview ? "分割プレビュー" : "内容"}</th>
-                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>シラバス</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>{t("admin.col.course")}</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>{t("admin.col.yearShort")}</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>{t("admin.col.kind")}</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>{showPreview ? t("admin.tb.splitPreview") : t("admin.col.content")}</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>{t("admin.col.syllabus")}</th>
               </tr>
             </thead>
             <tbody>
@@ -2005,7 +2006,7 @@ const TextbooksViewer = ({ years, departments }) => {
                     )}
                   </td>
                   <td style={{ padding: "6px 8px", whiteSpace: "nowrap", verticalAlign: "top" }}>
-                    {r.source_url && <a href={r.source_url} target="_blank" rel="noopener noreferrer" style={{ color: T.accent, fontSize: 11 }}>開く</a>}
+                    {r.source_url && <a href={r.source_url} target="_blank" rel="noopener noreferrer" style={{ color: T.accent, fontSize: 11 }}>{t("admin.open")}</a>}
                   </td>
                 </tr>
               ))}
@@ -3261,7 +3262,7 @@ const MedSyllabusTab = () => {
   const [filterSemester, setFilterSemester] = useState("");
   const [expandedCourse, setExpandedCourse] = useState(null);
 
-  useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t); }, [search]);
+  useEffect(() => { const tm = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(tm); }, [search]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -3643,7 +3644,7 @@ const MoodleCaptureTab = () => {
     setNewId("");
   };
 
-  const removeTarget = (id) => { if (targetsLoaded) saveTargets(targets.filter(t => t !== id)); };
+  const removeTarget = (id) => { if (targetsLoaded) saveTargets(targets.filter(x => x !== id)); };
 
   const deleteCapture = async (id, all) => {
     if (all && !confirm("全キャプチャデータを削除しますか？")) return;
@@ -3982,15 +3983,15 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
     <OnlineContext.Provider value={onlineIds}>
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div style={{ display: "flex", borderBottom: `1px solid ${T.bd}`, background: T.bg2, flexShrink: 0, overflowX: "auto" }}>
-        {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
+        {tabs.map(tb => (
+          <button key={tb.id} onClick={() => setTab(tb.id)} style={{
             display: "flex", alignItems: "center", gap: 6, padding: mob ? "10px 10px" : "10px 14px",
-            border: "none", borderBottom: tab === t.id ? `2px solid ${T.accent}` : "2px solid transparent",
-            background: "transparent", color: tab === t.id ? T.txH : T.txD,
-            fontSize: 12, fontWeight: tab === t.id ? 600 : 400, cursor: "pointer", whiteSpace: "nowrap",
+            border: "none", borderBottom: tab === tb.id ? `2px solid ${T.accent}` : "2px solid transparent",
+            background: "transparent", color: tab === tb.id ? T.txH : T.txD,
+            fontSize: 12, fontWeight: tab === tb.id ? 600 : 400, cursor: "pointer", whiteSpace: "nowrap",
           }}>
-            <span style={{ display: "flex" }}>{t.icon}</span>
-            {!mob && <span>{t.label}</span>}
+            <span style={{ display: "flex" }}>{tb.icon}</span>
+            {!mob && <span>{t(tb.labelKey)}</span>}
           </button>
         ))}
       </div>

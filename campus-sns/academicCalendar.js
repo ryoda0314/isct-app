@@ -6,6 +6,7 @@
 // ["E", label]                                     — 行事
 // ["X", quarter, reason]                           — 休講
 // ["T", quarter, note]                             — 試験注記
+import { locCal } from "./i18n.js";
 
 const D = {
   // ══════════════════════════════════════
@@ -556,10 +557,10 @@ export function getAcademicInfo(date) {
   const raw = D[key] || [];
   const items = raw.map(r => {
     if (r[0] === "C") return { type:"class", q:r[1], dow:r[2], n:r[3], sub:!!r[4] };
-    if (r[0] === "H") return { type:"holiday", label:r[1] };
-    if (r[0] === "E") return { type:"event", label:r[1] };
-    if (r[0] === "X") return { type:"cancel", q:r[1], label:r[2] };
-    if (r[0] === "T") return { type:"exam", q:r[1], label:r[2] };
+    if (r[0] === "H") return { type:"holiday", label:locCal(r[1]) };
+    if (r[0] === "E") return { type:"event", label:locCal(r[1]) };
+    if (r[0] === "X") return { type:"cancel", q:r[1], label:locCal(r[2]) };
+    if (r[0] === "T") return { type:"exam", q:r[1], label:locCal(r[2]) };
     return null;
   }).filter(Boolean);
   const period = P.find(p => key >= p.s && key <= p.e) || null;

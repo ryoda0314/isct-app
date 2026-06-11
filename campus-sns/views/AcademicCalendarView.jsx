@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { T } from "../theme.js";
-import { t } from "../i18n.js";
+import { t, locCal } from "../i18n.js";
 import { getAcademicInfo } from "../academicCalendar.js";
 
 const DOW=["日","月","火","水","木","金","土"];
@@ -8,7 +8,7 @@ const DOW_KEY=["acadcal.dowSun","acadcal.dowMon","acadcal.dowTue","acadcal.dowWe
 const dowCol=d=>d===0?"#ef4444":d===6?"#3b82f6":T.txH;
 
 const typeCfg={
-  class:{col:()=>T.accent,fmt:it=>t("acadcal.classItem",{q:it.q,dow:it.dow,n:it.n})+(it.sub?" "+t("acadcal.substitute"):"")},
+  class:{col:()=>T.accent,fmt:it=>t("acadcal.classItem",{q:it.q,dow:t("dow.s."+it.dow),n:it.n})+(it.sub?" "+t("acadcal.substitute"):"")},
   holiday:{col:()=>"#ef4444",fmt:it=>t("acadcal.holidayItem",{label:it.label})},
   event:{col:()=>"#0ea5e9",fmt:it=>it.label},
   cancel:{col:()=>"#6b7280",fmt:it=>t("acadcal.cancelItem",{q:it.q,label:it.label})},
@@ -107,7 +107,7 @@ export const AcademicCalendarView=({mob})=>{
                     {/* Period banner */}
                     {showPBanner&&<div style={{margin:"8px 0 4px",padding:"5px 10px",borderRadius:6,fontSize:11,fontWeight:700,background:`${periodCol[info.period.t]||T.accent}15`,color:periodCol[info.period.t]||T.accent,display:"flex",alignItems:"center",gap:6}}>
                       <span style={{width:4,height:4,borderRadius:2,background:"currentColor",flexShrink:0}}/>
-                      {info.period.l}
+                      {locCal(info.period.l)}
                     </div>}
 
                     {/* Day row */}
@@ -125,7 +125,7 @@ export const AcademicCalendarView=({mob})=>{
                           const c=cfg.col();
                           return <span key={i} style={{fontSize:11,fontWeight:600,color:c,background:`${c}12`,padding:"2px 7px",borderRadius:5,lineHeight:1.4}}>{cfg.fmt(it)}</span>;
                         })}
-                        {info.items.length===0&&info.period&&<span style={{fontSize:11,color:periodCol[info.period.t]||T.txD,fontWeight:500}}>{info.period.l}</span>}
+                        {info.items.length===0&&info.period&&<span style={{fontSize:11,color:periodCol[info.period.t]||T.txD,fontWeight:500}}>{locCal(info.period.l)}</span>}
                       </div>
                     </div>
                   </div>

@@ -41,7 +41,12 @@ const HOURS_LIBS = [
   { id: "kohnodai", labelKey: "library.kohnodai" },
 ];
 const TMDU_CAL_URL = "https://www01s.ufinity.jp/tmdu_lib/?page_id=16&lang=japanese";
-const FORMAT_OPTS = [
+const isTmduCampus = (id) => id === "ochanomizu" || id === "kohnodai";
+const campusLabelKey = (id) => (HOURS_LIBS.find((l) => l.id === id)?.labelKey) || "library.ookayama";
+const officialCalUrl = (id) => (isTmduCampus(id) ? TMDU_CAL_URL : OFFICIAL_URL);
+// 結果ページ上部のスライドトグル（資料種別・単一選択）
+const TYPE_TOGGLE = [
+  { id: "", labelKey: "library.typeAll" },
   { id: "Book", labelKey: "library.typeBook" },
   { id: "eBook", labelKey: "library.typeEbook" },
   { id: "Journal", labelKey: "library.typeJournal" },
@@ -87,6 +92,21 @@ const CAMPUS = {
 };
 // topics.libra の所蔵 location 文字列からキャンパスを判定
 const campusFromLocation = (loc) => /大岡山/.test(loc || "") ? "ookayama" : /すずかけ/.test(loc || "") ? "suzukakedai" : null;
+// 場所から冗長な館名を除いて読みやすく（「大岡山図書館B1F-一般図書」→「B1F・一般図書」）
+const cleanLoc = (loc) => {
+  if (!loc) return "";
+  const s = loc.replace(/^(大岡山|すずかけ台|お茶の水|国府台|御茶ノ水|湯島)図書館/, "").replace(/^[\s\-・:：]+/, "").replace(/-/g, "・");
+  return s || loc;
+};
+// 資料種別の判定（取得済み結果のクライアント側フィルタ用）
+const matchesType = (type, tf) => {
+  if (!tf) return true;
+  const t = type || "";
+  if (tf === "Book") return /図書/.test(t) && !/電子/.test(t);
+  if (tf === "eBook") return /電子/.test(t);
+  if (tf === "Journal") return /雑誌|ジャーナル/.test(t) && !/電子/.test(t);
+  return true;
+};
 const CampusChip = ({ id }) => {
   const c = CAMPUS[id]; if (!c) return null;
   return <span style={{ fontSize: 10.5, fontWeight: 800, color: "#fff", background: c.color, padding: "2px 8px", borderRadius: 5 }}>{t(c.labelKey)}</span>;
@@ -107,6 +127,7 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
   const [yearTo, setYearTo] = useState("");
 
   const [records, setRecords] = useState([]);
+  const [typeFilter, setTypeFilter] = useState(""); // 資料種別の即時フィルタ（クライアント側）
   const [total, setTotal] = useState(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -165,8 +186,8 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
   }, [dq, filterKey]);
 
   useEffect(() => {
-    // 検索条件が変わったら医歯学系の結果はリセット（再度ボタンで取得）
-    setMedRecords(null); setMedError(false); setMedLoading(false);
+    // 検索条件が変わったら医歯学系の結果と種別フィルタはリセット
+    setMedRecords(null); setMedError(false); setMedLoading(false); setTypeFilter("");
     if (!hasQuery) { setRecords([]); setTotal(null); setHasMore(false); setSearched(false); return; }
     search(0, false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -230,7 +251,6 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
 
       {adv && (
         <div style={{ marginBottom: 16, padding: "14px 16px", borderRadius: 13, background: T.bg2, border: `1px solid ${T.bd}`, display: "flex", flexDirection: "column", gap: 13 }}>
-          <FilterGroup label={t("library.filterType")}>{FORMAT_OPTS.map((o) => <Pill key={o.id} on={formats.includes(o.id)} onClick={toggle(formats, setFormats, o.id)}>{t(o.labelKey)}</Pill>)}</FilterGroup>
           <FilterGroup label={t("library.filterLib")}>{LIBS.map((o) => <Pill key={o.id} on={locations.includes(o.id)} onClick={toggle(locations, setLocations, o.id)}>{t(o.labelKey)}</Pill>)}</FilterGroup>
           <FilterGroup label={t("library.filterLang")}>{JW_OPTS.map((o) => <Pill key={o.id} on={jw.includes(o.id)} onClick={toggle(jw, setJw, o.id)}>{t(o.labelKey)}</Pill>)}</FilterGroup>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -250,12 +270,27 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
         </div>
       ) : (
         <>
+          {/* 資料種別スライドトグル（控えめ・即時フィルタ） */}
+          <div style={{ display: "inline-flex", gap: 2, padding: 2, borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, marginBottom: 12 }}>
+            {TYPE_TOGGLE.map((o) => {
+              const on = typeFilter === o.id;
+              return (
+                <button key={o.id || "all"} onClick={() => setTypeFilter(o.id)} style={{ padding: "3px 11px", borderRadius: 6, border: "none", background: on ? `${T.accent}1f` : "transparent", color: on ? T.accent : T.txD, fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all .12s" }}>{t(o.labelKey)}</button>
+              );
+            })}
+          </div>
+
           {searched && total != null && <div style={{ fontSize: 12.5, color: T.txD, marginBottom: 10, fontWeight: 600 }}>{t("library.hits", { n: total.toLocaleString() })}</div>}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {records.map((rec) => {
+            {records.filter((r) => matchesType(r.type, typeFilter)).map((rec) => {
               const h = rec.holdings;
-              const avail = h && h.status;
+              const stat = (h && h.status) || "";
+              const onLoan = /貸出中|不可|館外/.test(stat);
+              const inLib = /可/.test(stat) && !/不可/.test(stat);
+              const hasHold = !!(h && h.location);
+              const stCol = onLoan ? T.orange : inLib ? T.green : T.txD;
+              const campus = h && campusFromLocation(h.location);
               const tc = typeColor(rec.type);
               return (
                 <div key={rec.bibid} onClick={() => openLink(rec.detailUrl)} role="button" style={{ borderRadius: 14, border: `1px solid ${T.bd}`, background: T.bg2, padding: 13, cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,.05)", transition: "border-color .12s" }}>
@@ -269,15 +304,29 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
                     </div>
                     <span style={{ display: "flex", color: T.txD, alignSelf: "center" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg></span>
                   </div>
-                  {/* 所蔵バー */}
-                  <div style={{ marginTop: 11, padding: "8px 11px", borderRadius: 9, background: avail ? `${T.green}14` : T.bg3, border: `1px solid ${avail ? `${T.green}33` : T.bd}`, display: "flex", alignItems: "center", flexWrap: "wrap", gap: "3px 12px" }}>
-                    {h && campusFromLocation(h.location) && <CampusChip id={campusFromLocation(h.location)} />}
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 800, color: avail ? T.green : T.txD }}>
-                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: avail ? T.green : T.txD, flexShrink: 0 }} />
-                      {avail ? h.status : t("library.statusUnavailable")}
-                    </span>
-                    {h && h.location && <span style={{ fontSize: 11.5, color: T.tx }}>{h.location}</span>}
-                    {h && h.callNumber && <span style={{ fontSize: 11, color: T.txD, fontFamily: "ui-monospace, monospace", marginLeft: "auto" }}>{h.callNumber}</span>}
+                  {/* 所蔵バー（館・状態・場所・請求記号を整理） */}
+                  <div style={{ marginTop: 11, padding: "9px 11px", borderRadius: 9, background: inLib ? `${T.green}14` : onLoan ? `${T.orange}12` : T.bg3, border: `1px solid ${inLib ? `${T.green}33` : onLoan ? `${T.orange}30` : T.bd}` }}>
+                    {/* 1段目: 館 + 状態 + 巻号 */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      {campus && <CampusChip id={campus} />}
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 800, color: stCol }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: stCol, flexShrink: 0 }} />
+                        {hasHold ? (stat || t("library.statusAvailable")) : t("library.statusUnavailable")}
+                      </span>
+                      {h && h.volume && <span style={{ fontSize: 10.5, fontWeight: 700, color: T.txD, background: T.bg3, borderRadius: 5, padding: "1px 6px" }}>{h.volume}</span>}
+                    </div>
+                    {/* 2段目: 場所（伸縮・省略） + 請求記号（右・固定幅で見切れ防止） */}
+                    {hasHold && (h.location || h.callNumber) && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5 }}>
+                        {h.location && (
+                          <span style={{ flex: 1, minWidth: 0, display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.tx }}>
+                            <span style={{ display: "flex", color: stCol, flexShrink: 0 }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg></span>
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cleanLoc(h.location)}</span>
+                          </span>
+                        )}
+                        {h.callNumber && <span style={{ flexShrink: 0, fontSize: 11, color: T.txH, fontFamily: "ui-monospace, monospace", background: T.bg3, border: `1px solid ${T.bd}`, borderRadius: 5, padding: "1px 7px", whiteSpace: "nowrap" }}>{h.callNumber}</span>}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -291,6 +340,10 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
               <div style={{ fontSize: 30, marginBottom: 8, opacity: .5 }}>🔍</div>
               <div style={{ fontSize: 13 }}>{t("library.noResults")}</div>
             </div>
+          )}
+
+          {!loading && searched && records.length > 0 && typeFilter && records.filter((r) => matchesType(r.type, typeFilter)).length === 0 && (
+            <div style={{ textAlign: "center", padding: 24, color: T.txD, fontSize: 12.5 }}>{t("library.noTypeLoaded")}</div>
           )}
 
           {!loading && !searched && (
@@ -332,8 +385,9 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       {medRecords.map((rec) => {
-                        const h = rec.holdings; // undefined=未取得, null=なし, {campus,callNumber,electronic}
-                        const has = h && h.campus;
+                        const h = rec.holdings; // undefined=未取得, null=なし, {campuses,location,callNumber,electronic}
+                        const has = h && h.campuses && h.campuses.length;
+                        const primary = has ? h.campuses[0] : null;
                         return (
                           <div key={rec.bibid} onClick={() => openLink(rec.detailUrl)} role="button" style={{ borderRadius: 14, border: `1px solid ${T.bd}`, background: T.bg2, padding: 13, cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,.05)" }}>
                             <div style={{ display: "flex", gap: 13 }}>
@@ -345,13 +399,26 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
                               </div>
                               <span style={{ display: "flex", color: T.txD, alignSelf: "center" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg></span>
                             </div>
-                            <div style={{ marginTop: 11, padding: "8px 11px", borderRadius: 9, background: has ? `${CAMPUS[h.campus].color}12` : T.bg3, border: `1px solid ${has ? `${CAMPUS[h.campus].color}33` : T.bd}`, display: "flex", alignItems: "center", flexWrap: "wrap", gap: "3px 10px" }}>
+                            <div style={{ marginTop: 11, padding: "9px 11px", borderRadius: 9, background: has ? `${CAMPUS[primary].color}12` : T.bg3, border: `1px solid ${has ? `${CAMPUS[primary].color}33` : T.bd}` }}>
                               {has ? (
                                 <>
-                                  <CampusChip id={h.campus} />
-                                  {h.electronic
-                                    ? <span style={{ fontSize: 11.5, fontWeight: 700, color: CAMPUS.ochanomizu.color }}>{t("library.electronic")}</span>
-                                    : h.callNumber && <span style={{ fontSize: 11, color: T.txD, fontFamily: "ui-monospace, monospace" }}>{h.callNumber}</span>}
+                                  {/* 1段目: 館 + 電子 */}
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                    {h.campuses.map((c) => <CampusChip key={c} id={c} />)}
+                                    {h.electronic && <span style={{ fontSize: 11.5, fontWeight: 800, color: CAMPUS.ochanomizu.color }}>{t("library.electronic")}</span>}
+                                  </div>
+                                  {/* 2段目: 場所（伸縮） + 請求記号（右・固定） */}
+                                  {(h.location || h.callNumber) && (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5 }}>
+                                      {h.location && (
+                                        <span style={{ flex: 1, minWidth: 0, display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.tx }}>
+                                          <span style={{ display: "flex", color: CAMPUS[primary].color, flexShrink: 0 }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg></span>
+                                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.location}</span>
+                                        </span>
+                                      )}
+                                      {h.callNumber && <span style={{ flexShrink: 0, fontSize: 11, color: T.txH, fontFamily: "ui-monospace, monospace", background: T.bg3, border: `1px solid ${T.bd}`, borderRadius: 5, padding: "1px 7px", whiteSpace: "nowrap" }}>{h.callNumber}</span>}
+                                    </div>
+                                  )}
                                 </>
                               ) : (
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.accent, fontWeight: 700 }}>{t("library.viewDetail")} <ExtIcon sz={10} /></span>
@@ -385,75 +452,97 @@ const LibSwitch = ({ value, onChange }) => (
   </div>
 );
 
-// 月間カレンダーモーダル（ボタンで開く）
+const WD = ["日", "月", "火", "水", "木", "金", "土"];
+
+// 月間カレンダー（7列グリッド・月切替）。ボタンで開くボトムシート。
 const CalendarModal = ({ days, todayISO, lib, onClose, openLink }) => {
-  const [openMonths, setOpenMonths] = useState({});
-  const upcomingClosures = useMemo(() => days.filter((d) => d.date >= todayISO && d.closed).slice(0, 8), [days, todayISO]);
-  const months = useMemo(() => {
-    const fwd = days.filter((d) => d.date >= todayISO);
-    const map = new Map();
-    for (const d of fwd) { const key = d.date.slice(0, 7); if (!map.has(key)) map.set(key, []); map.get(key).push(d); }
-    return [...map.entries()].map(([ym, list]) => { const [y, m] = ym.split("-"); return { ym, label: t("facility.yearMonth", { year: Number(y), month: Number(m) }), list }; });
-  }, [days, todayISO]);
-  const isOpen = (ym, idx) => (ym in openMonths ? openMonths[ym] : idx === 0);
+  const byDate = useMemo(() => new Map(days.map((d) => [d.date, d])), [days]);
+  // データに存在する月（YYYY-MM）の昇順リスト
+  const monthsList = useMemo(() => [...new Set(days.map((d) => d.date.slice(0, 7)))].sort(), [days]);
+  const [mi, setMi] = useState(() => {
+    const cur = todayISO.slice(0, 7);
+    const i = monthsList.indexOf(cur);
+    return i >= 0 ? i : 0;
+  });
+  const ym = monthsList[mi] || todayISO.slice(0, 7);
+  const [yy, mm] = ym.split("-").map(Number);
+
+  // グリッド（日曜始まり）。先頭空白＋1..末日＋末尾空白で7の倍数に
+  const cells = useMemo(() => {
+    const firstDow = new Date(yy, mm - 1, 1).getDay();
+    const dim = new Date(yy, mm, 0).getDate();
+    const arr = [];
+    for (let i = 0; i < firstDow; i++) arr.push(null);
+    for (let d = 1; d <= dim; d++) arr.push(d);
+    while (arr.length % 7 !== 0) arr.push(null);
+    return arr;
+  }, [yy, mm]);
+
+  const cell = (d) => {
+    if (!d) return <div key={Math.random()} style={{ minHeight: 50 }} />;
+    const date = `${ym}-${pad(d)}`;
+    const rec = byDate.get(date);
+    const dow = new Date(yy, mm - 1, d).getDay();
+    const isToday = date === todayISO;
+    const past = date < todayISO;
+    const closed = rec?.closed;
+    const numColor = isToday ? "#fff" : dow === 0 ? "#ef4444" : dow === 6 ? "#3b82f6" : T.txH;
+    return (
+      <div key={date} style={{
+        minHeight: 50, borderRadius: 9, padding: "5px 2px 4px", textAlign: "center",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
+        background: isToday ? T.accent : closed ? `${T.red}14` : T.bg2,
+        border: `1px solid ${isToday ? T.accent : closed ? `${T.red}33` : T.bd}`,
+        opacity: past && !isToday ? .55 : 1,
+      }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: numColor, lineHeight: 1 }}>{d}</span>
+        {!rec ? (
+          <span style={{ fontSize: 9, color: T.txD }}>–</span>
+        ) : closed ? (
+          <span style={{ fontSize: 11, fontWeight: 800, color: isToday ? "#fff" : T.red, marginTop: 3 }}>{t("library.closedDay")}</span>
+        ) : (
+          <div style={{ fontSize: 9, fontWeight: 700, lineHeight: 1.25, color: isToday ? "rgba(255,255,255,.95)" : T.txD }}>
+            <div>{rec.open}</div>
+            <div>{rec.close}</div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return createPortal(
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 560, maxHeight: "85vh", background: T.bg, borderRadius: "18px 18px 0 0", border: `1px solid ${T.bd}`, display: "flex", flexDirection: "column", boxShadow: "0 -8px 40px rgba(0,0,0,.4)" }}>
-        {/* ハンドル＋ヘッダ */}
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", animation: "libCalFade .2s ease" }}>
+      <style>{`@keyframes libCalFade{from{opacity:0}to{opacity:1}}@keyframes libCalSheet{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 560, maxHeight: "88vh", background: T.bg, borderRadius: "18px 18px 0 0", border: `1px solid ${T.bd}`, display: "flex", flexDirection: "column", boxShadow: "0 -8px 40px rgba(0,0,0,.4)", animation: "libCalSheet .3s cubic-bezier(.16,1,.3,1)" }}>
         <div style={{ padding: "10px 0 6px", display: "flex", justifyContent: "center" }}><div style={{ width: 38, height: 4, borderRadius: 2, background: T.bd }} /></div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 18px 12px", borderBottom: `1px solid ${T.bd}` }}>
           <span style={{ fontSize: 16, fontWeight: 800, color: T.txH }}>{t("library.calendar")}</span>
-          <span style={{ fontSize: 11.5, color: T.txD, fontWeight: 600 }}>{t(lib === "ookayama" ? "library.ookayama" : "library.suzukakedai")}</span>
+          <span style={{ fontSize: 11.5, color: T.txD, fontWeight: 600 }}>{t(campusLabelKey(lib))}</span>
           <button onClick={onClose} style={{ marginLeft: "auto", width: 30, height: 30, borderRadius: 8, border: "none", background: T.bg3, color: T.txD, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{I.x}</button>
         </div>
 
-        <div style={{ overflowY: "auto", padding: "14px 18px 22px", WebkitOverflowScrolling: "touch" }}>
-          {upcomingClosures.length > 0 && (
-            <div style={{ marginBottom: 14, padding: "10px 13px", borderRadius: 12, background: `${T.red}10`, border: `1px solid ${T.red}30` }}>
-              <div style={{ fontSize: 10.5, fontWeight: 800, color: T.red, letterSpacing: .4, marginBottom: 7, textTransform: "uppercase" }}>{t("library.notices")}</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-                {upcomingClosures.map((d) => { const [, m, day] = d.date.split("-"); return (
-                  <span key={d.date} style={{ fontSize: 12, fontWeight: 700, color: T.red, background: T.bg2, border: `1px solid ${T.red}40`, borderRadius: 7, padding: "4px 9px" }}>{Number(m)}/{Number(day)}（{d.dow}）</span>
-                ); })}
-              </div>
-            </div>
-          )}
+        <div style={{ overflowY: "auto", padding: "12px 16px 20px", WebkitOverflowScrolling: "touch" }}>
+          {/* 月切替 */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginBottom: 12 }}>
+            <button onClick={() => setMi((i) => Math.max(0, i - 1))} disabled={mi <= 0} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${T.bd}`, background: T.bg2, color: mi <= 0 ? T.bd : T.txH, cursor: mi <= 0 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+            </button>
+            <span style={{ fontSize: 16, fontWeight: 800, color: T.txH, minWidth: 120, textAlign: "center" }}>{t("facility.yearMonth", { year: yy, month: mm })}</span>
+            <button onClick={() => setMi((i) => Math.min(monthsList.length - 1, i + 1))} disabled={mi >= monthsList.length - 1} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${T.bd}`, background: T.bg2, color: mi >= monthsList.length - 1 ? T.bd : T.txH, cursor: mi >= monthsList.length - 1 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+            </button>
+          </div>
 
-          {months.map((mo, idx) => {
-            const open = isOpen(mo.ym, idx);
-            return (
-              <div key={mo.ym} style={{ marginBottom: 8, borderRadius: 12, border: `1px solid ${T.bd}`, overflow: "hidden", background: T.bg2 }}>
-                <button onClick={() => setOpenMonths((s) => ({ ...s, [mo.ym]: !open }))} style={{ width: "100%", display: "flex", alignItems: "center", padding: "11px 14px", border: "none", background: "transparent", color: T.txH, fontSize: 13.5, fontWeight: 800, cursor: "pointer" }}>
-                  {mo.label}
-                  <span style={{ marginLeft: "auto", fontSize: 11, color: T.txD, fontWeight: 600, marginRight: 8 }}>{mo.list.length}{t("library.daysSuffix")}</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }}><polyline points="6 9 12 15 18 9" /></svg>
-                </button>
-                {open && (
-                  <div style={{ padding: "0 14px 6px" }}>
-                    {mo.list.map((d) => {
-                      const isToday = d.date === todayISO;
-                      const day = Number(d.date.split("-")[2]);
-                      return (
-                        <div key={d.date} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 8px", borderTop: `1px solid ${T.bd}`, borderRadius: isToday ? 8 : 0, background: isToday ? `${T.accent}14` : "transparent" }}>
-                          <span style={{ width: 22, textAlign: "right", fontSize: 14, fontWeight: 700, color: dowColor(d.dow) }}>{day}</span>
-                          <span style={{ width: 16, fontSize: 12, color: dowColor(d.dow) }}>{d.dow}</span>
-                          {isToday && <span style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: T.accent, borderRadius: 5, padding: "1px 6px" }}>{t("facility.todayPrefix")}</span>}
-                          {d.closed ? (
-                            <span style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 700, color: T.red, padding: "2px 9px", borderRadius: 6, background: `${T.red}1a` }}>{t("library.closedDay")}</span>
-                          ) : (
-                            <span style={{ marginLeft: "auto", fontSize: 14, fontWeight: 700, color: T.txH }}>{d.open} – {d.close}</span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {/* 曜日見出し */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4, marginBottom: 4 }}>
+            {WD.map((w, i) => <div key={w} style={{ textAlign: "center", fontSize: 11, fontWeight: 800, color: i === 0 ? "#ef4444" : i === 6 ? "#3b82f6" : T.txD }}>{w}</div>)}
+          </div>
+          {/* 日付グリッド */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4 }}>
+            {cells.map((d, i) => <div key={i}>{cell(d)}</div>)}
+          </div>
 
-          <button onClick={() => openLink(OFFICIAL_URL)} style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 6, padding: 0, border: "none", background: "transparent", color: T.accent, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{t("library.officialLink")} <ExtIcon /></button>
+          <button onClick={() => openLink(officialCalUrl(lib))} style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 16, padding: 0, border: "none", background: "transparent", color: T.accent, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{t("library.officialLink")} <ExtIcon /></button>
         </div>
       </div>
     </div>,
@@ -585,7 +674,7 @@ const HoursPanel = ({ days, now, todayISO, openLink, lib, setLib, mob, onRefresh
 
       {/* 公式リンク */}
       <div style={{ marginTop: 16, textAlign: "center" }}>
-        <button onClick={() => openLink(isTmdu ? TMDU_CAL_URL : OFFICIAL_URL)} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: 0, border: "none", background: "transparent", color: T.txD, fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>{t("library.officialLink")} <ExtIcon sz={10} /></button>
+        <button onClick={() => openLink(officialCalUrl(lib))} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: 0, border: "none", background: "transparent", color: T.txD, fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>{t("library.officialLink")} <ExtIcon sz={10} /></button>
       </div>
 
       {calOpen && !isTmdu && <CalendarModal days={days} todayISO={todayISO} lib={lib} openLink={openLink} onClose={() => setCalOpen(false)} />}

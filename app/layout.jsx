@@ -34,6 +34,14 @@ export default function RootLayout({ children }) {
         <link rel="icon" href="/icons/icon-192x192.png" sizes="192x192" type="image/png" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <meta name="mobile-web-app-capable" content="yes" />
+        {/* sitelen pona (toki pona の表語文字)。lang=tp + 設定オン時のみ body に .sitelen-pona が付く。
+            otf は font-family が実際に適用されるまで遅延ダウンロードされる(font-src 'self' で許可済み)。
+            インライン font-family(monospace 等)は class より優先されるためコード/ID 表示は保持。
+            フォント: nasin-nanpa (jan Itan, MIT) — public/fonts/nasin-nanpa-LICENSE.txt */}
+        <style dangerouslySetInnerHTML={{ __html: `
+@font-face{font-family:'nasin-nanpa';src:url('/fonts/nasin-nanpa.otf') format('opentype');font-display:swap;}
+.sitelen-pona,.sitelen-pona button,.sitelen-pona input,.sitelen-pona textarea,.sitelen-pona select{font-family:'nasin-nanpa','Inter',-apple-system,sans-serif;}
+` }} />
       </head>
       <body style={{ margin: 0 }}>{children}</body>
     </html>

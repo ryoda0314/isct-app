@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { T, updateT, ACCENT_PRESETS, isDarkMode, THEME_MODES } from "./theme.js";
-import { setLang, detectLang, t, locName } from "./i18n.js";
+import { setLang, detectLang, t, locName, locCal } from "./i18n.js";
 import FogOverlay from "./components/FogOverlay.jsx";
 import { I } from "./icons.jsx";
 import { QData, ASGN0, MYTK0, EVENTS0, REVIEWS0, MYEVENTS0, SCHOOLS, DEPTS, UNIT_COL, evCat } from "./data.js";
@@ -135,7 +135,7 @@ const LockScreen=({appLock,onLogout})=>{
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 11c0-1.1.9-2 2-2s2 .9 2 2v1"/><path d="M8 11V9a4 4 0 018 0"/><path d="M6 11V8a6 6 0 0112 0v3"/><path d="M12 14v3"/><rect x="4" y="11" width="16" height="10" rx="2"/></svg>
       生体認証で解除
     </button>}
-    {fails>=5&&<button onClick={()=>{if(confirm("ログアウトしますか？パスコードはリセットされます。")){appLock.removePin();onLogout();}}} style={{marginTop:24,padding:"10px 24px",borderRadius:10,border:"none",background:T.red,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>ログアウト</button>}
+    {fails>=5&&<button onClick={()=>{if(confirm(t("app.logoutConfirm"))){appLock.removePin();onLogout();}}} style={{marginTop:24,padding:"10px 24px",borderRadius:10,border:"none",background:T.red,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>{t("app.logout")}</button>}
     <style>{`@keyframes appLockShake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-6px)}40%,60%{transform:translateX(6px)}}`}</style>
   </div>;
 };
@@ -151,6 +151,7 @@ export default function App(){
   const [themePref,setThemePref]=useState(()=>{try{const v=localStorage.getItem("themePref");if(v)return v;return "tsubame";}catch{return "tsubame";}});
   const [accentPref,setAccentPref]=useState(()=>{try{return localStorage.getItem("accentPref")||"default";}catch{return "default";}});
   const [langPref,setLangPref]=useState(()=>{try{return localStorage.getItem("langPref")||detectLang();}catch{return "ja";}});
+  const [sitelenPref,setSitelenPref]=useState(()=>{try{return localStorage.getItem("sitelenPona")==="1";}catch{return false;}});
   const [sysDark,setSysDark]=useState(()=>typeof window!=="undefined"&&window.matchMedia?.("(prefers-color-scheme: dark)").matches);
   useEffect(()=>{
     const mq=window.matchMedia?.("(prefers-color-scheme: dark)");
@@ -162,6 +163,8 @@ export default function App(){
   useEffect(()=>{try{localStorage.setItem("themePref",themePref);}catch{}},[themePref]);
   useEffect(()=>{try{localStorage.setItem("accentPref",accentPref);}catch{}},[accentPref]);
   useEffect(()=>{try{localStorage.setItem("langPref",langPref);}catch{}try{document.documentElement.lang=langPref;}catch{}},[langPref]);
+  useEffect(()=>{try{localStorage.setItem("sitelenPona",sitelenPref?"1":"0");}catch{}},[sitelenPref]);
+  useEffect(()=>{try{document.body.classList.toggle("sitelen-pona",langPref==="tp"&&sitelenPref);}catch{}},[langPref,sitelenPref]);
   const themeMode=themePref==="auto"?(sysDark?"dark":"light"):themePref;
   const dark=isDarkMode(themeMode);
   updateT(themeMode,accentPref);
@@ -237,7 +240,7 @@ export default function App(){
   const {records:attRecords,setStatus:setAttStatus}=useAttendance(ready);
   const [attSys,setAttSys]=useState(null); // 出欠管理: 'sci'|'med' 手動切替（両方持つユーザー用）
   const [events,setEvents]=useState(EVENTS0);
-  const allEvents=useMemo(()=>[...events,...ACADEMIC_EVENTS],[events]);
+  const allEvents=useMemo(()=>[...events,...ACADEMIC_EVENTS.map(e=>({...e,title:locCal(e.title),desc:locCal(e.desc),loc:locCal(e.loc)}))],[events,langPref]);
   // grades are now fetched inside GradeView directly
   const [reviews,setReviews]=useState(REVIEWS0);
   const [myEvents,setMyEvents]=useState(MYEVENTS0);
@@ -674,9 +677,9 @@ export default function App(){
     const parts=user.myUnit.split("-");
     const yg=parts[0]||"";
     const num=parts[1]||user.myUnit;
-    return {id:user.myUnit,yg,num,name:`ユニット${num}`,col:UNIT_COL,prefix:`unit:${user.myUnit}`};
+    return {id:user.myUnit,yg,num,name:`${t("sidebar.unit")}${num}`,col:UNIT_COL,prefix:`unit:${user.myUnit}`};
   },[user.myUnit]);
-  const SANDBOX={id:"sandbox",name:"テスト広場",col:"#6366f1",prefix:"global:sandbox"};
+  const SANDBOX={id:"sandbox",name:t("nav.testground"),col:"#6366f1",prefix:"global:sandbox"};
   const [deptModalDone,setDeptModalDone]=useState(false);
   const showDeptModal=!deptModalDone&&!user.myDept;
   const cd=did===SANDBOX.prefix?SANDBOX:userDepts.find(d=>d.prefix===did)||userSchools.find(s=>s.prefix===did)||(userUnit&&did===userUnit.prefix?userUnit:null);
@@ -712,22 +715,22 @@ export default function App(){
     <div style={{width:64,height:64,borderRadius:20,background:`${T.orange}15`,border:`1px solid ${T.orange}30`,display:"flex",alignItems:"center",justifyContent:"center"}}>
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.orange} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     </div>
-    <div style={{fontSize:16,fontWeight:700,color:T.txH,textAlign:"center"}}>{title||"この機能は現在利用できません"}</div>
+    <div style={{fontSize:16,fontWeight:700,color:T.txH,textAlign:"center"}}>{title||t("app.featUnavailable")}</div>
     <div style={{fontSize:13,color:T.txD,textAlign:"center",lineHeight:1.8,maxWidth:340}}>
       {telecomMsg||"メッセージング機能（DM・チャット・サークルメッセージ等）は現在一時的に制限されています。"}
     </div>
     <div style={{fontSize:12,color:T.txD,textAlign:"center",lineHeight:1.6,marginTop:4,padding:"10px 16px",borderRadius:10,background:T.bg3,border:`1px solid ${T.bd}`}}>
       投稿・コメント・フレンド機能など<br/>掲示板型の機能は引き続きご利用いただけます。
     </div>
-    {onBack&&<button onClick={onBack} style={{marginTop:8,padding:"10px 28px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,color:T.txH,fontSize:14,fontWeight:600,cursor:"pointer"}}>戻る</button>}
+    {onBack&&<button onClick={onBack} style={{marginTop:8,padding:"10px 28px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,color:T.txH,fontSize:14,fontWeight:600,cursor:"pointer"}}>{t("common.back")}</button>}
   </div>;
 
   // Lock screen for mock mode
   const LockedView=({title})=><div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,gap:12}}>
     <div style={{width:56,height:56,borderRadius:16,background:T.bg3,border:`1px solid ${T.bd}`,display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
-    <div style={{fontSize:15,fontWeight:700,color:T.txH}}>{title||"ログインが必要です"}</div>
-    <div style={{fontSize:13,color:T.txD,textAlign:"center",lineHeight:1.6}}>この機能を使うにはLMSに<br/>ログインしてください</div>
-    <button onClick={()=>{setMockMode(false);setAppState("setup");}} style={{marginTop:8,padding:"10px 28px",borderRadius:10,border:"none",background:T.accent,color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer"}}>ログイン</button>
+    <div style={{fontSize:15,fontWeight:700,color:T.txH}}>{title||t("app.loginRequired")}</div>
+    <div style={{fontSize:13,color:T.txD,textAlign:"center",lineHeight:1.6}}>{t("app.loginRequiredDesc")}</div>
+    <button onClick={()=>{setMockMode(false);setAppState("setup");}} style={{marginTop:8,padding:"10px 28px",borderRadius:10,border:"none",background:T.accent,color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer"}}>{t("setup.login")}</button>
   </div>;
   const L=mockMode;
 
@@ -737,7 +740,7 @@ export default function App(){
   const DemoBanner=()=>(!demoReady||isScreenshotMode())?null:(
     <div style={{position:"fixed",bottom:mob?68:0,left:0,right:0,zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"10px 16px",background:`linear-gradient(135deg,${T.accent}18,${T.accentSoft||T.accent}22)`,borderTop:`1px solid ${T.accent}30`,backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)"}}>
       <span style={{fontSize:13,color:T.txH,fontWeight:500}}>デモモードで表示中</span>
-      <button onClick={exitDemo} style={{padding:"7px 20px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>ログイン / 新規登録</button>
+      <button onClick={exitDemo} style={{padding:"7px 20px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>{t("app.loginSignup")}</button>
     </div>
   );
 
@@ -747,7 +750,7 @@ export default function App(){
   const MHdr=({title,back,color,right})=><header style={{display:"flex",alignItems:"center",gap:8,padding:"env(safe-area-inset-top) 14px 0",minHeight:54,borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}><div style={{display:"flex",alignItems:"center",gap:8,width:"100%",height:54}}>{back&&<button onClick={back} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>}<h1 style={{flex:1,margin:0,fontSize:17,fontWeight:700,color:color||T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title}</h1>{right}</div></header>;
 
   // Desktop top bar
-  const DTop=({title,color})=><div style={{display:"flex",alignItems:"center",gap:10,padding:"0 16px",height:44,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}><h3 style={{margin:0,color:color||T.txH,fontSize:15,fontWeight:700,flex:1}}>{title}</h3><div style={{display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:6,background:T.bg3,border:`1px solid ${T.bd}`,width:180}}><span style={{color:T.txD,display:"flex"}}>{I.search}</span><input placeholder="検索..." style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:12,outline:"none"}}/></div><div style={{position:"relative",cursor:"pointer",color:T.txD,display:"flex"}} onClick={()=>setView("notif")}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</div><Av u={user} sz={28} st/></div>;
+  const DTop=({title,color})=><div style={{display:"flex",alignItems:"center",gap:10,padding:"0 16px",height:44,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}><h3 style={{margin:0,color:color||T.txH,fontSize:15,fontWeight:700,flex:1}}>{title}</h3><div style={{display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:6,background:T.bg3,border:`1px solid ${T.bd}`,width:180}}><span style={{color:T.txD,display:"flex"}}>{I.search}</span><input placeholder={t("app.searchPlaceholder")} style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:12,outline:"none"}}/></div><div style={{position:"relative",cursor:"pointer",color:T.txD,display:"flex"}} onClick={()=>setView("notif")}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</div><Av u={user} sz={28} st/></div>;
 
   // Mobile member panel
   const MemberPanel=({mList,onlineList,col,onClose})=>{
@@ -772,14 +775,14 @@ export default function App(){
         </div>
         <div style={{flex:1,overflowY:"auto"}}>
           {onl.length>0&&<>
-            <div style={{padding:"8px 16px 4px",fontSize:11,fontWeight:700,color:T.green,letterSpacing:.3}}>オンライン — {onl.length}</div>
+            <div style={{padding:"8px 16px 4px",fontSize:11,fontWeight:700,color:T.green,letterSpacing:.3}}>{t("app.online")} — {onl.length}</div>
             {onl.map(u=><Row key={u.id} u={u} isOn/>)}
           </>}
           {off.length>0&&<>
-            <div style={{padding:"8px 16px 4px",fontSize:11,fontWeight:700,color:T.txD,letterSpacing:.3}}>オフライン — {off.length}</div>
+            <div style={{padding:"8px 16px 4px",fontSize:11,fontWeight:700,color:T.txD,letterSpacing:.3}}>{t("app.offline")} — {off.length}</div>
             {off.map(u=><Row key={u.id} u={u} isOn={false}/>)}
           </>}
-          {mList.length===0&&<div style={{padding:"24px 16px",textAlign:"center",color:T.txD,fontSize:13}}>メンバーがいません</div>}
+          {mList.length===0&&<div style={{padding:"24px 16px",textAlign:"center",color:T.txD,fontSize:13}}>{t("app.noMembers")}</div>}
         </div>
       </div>
     </>;
@@ -794,7 +797,7 @@ export default function App(){
     try{
       if(isNative()){
         const r=await fetch("/api/auth/credentials?type=isct",{headers:{"x-app-platform":"capacitor"}});
-        if(!r.ok)throw new Error("認証情報の取得に失敗");
+        if(!r.ok)throw new Error(t("app.credFetchFailed"));
         const{userId,password,totpCode}=await r.json();
         await openLmsPage(url,{userId,password,totpCode});
       }else{
@@ -838,7 +841,7 @@ export default function App(){
   const lmsDownBanner=(lmsDown&&!isMedDentalUser&&!isFreshman26B)?<div style={{padding:"8px 16px",background:"#fef3cd",color:"#856404",fontSize:13,fontWeight:500,textAlign:"center",borderBottom:"1px solid #ffc107",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
     <span style={{fontSize:16}}>!</span>
     <span>T2SCHOLAに接続できないため、前回のデータを表示しています</span>
-    <button onClick={async()=>{const r=await fetchData();if(r)setLmsDown(false);}} style={{marginLeft:8,padding:"3px 10px",borderRadius:6,border:"1px solid #856404",background:"transparent",color:"#856404",fontSize:12,cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}}>再試行</button>
+    <button onClick={async()=>{const r=await fetchData();if(r)setLmsDown(false);}} style={{marginLeft:8,padding:"3px 10px",borderRadius:6,border:"1px solid #856404",background:"transparent",color:"#856404",fontSize:12,cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}}>{t("app.retry")}</button>
   </div>:null;
   const TR=telecomRestricted;
   const courseContent=()=>{
@@ -875,7 +878,7 @@ export default function App(){
     return(
       <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0,minHeight:0}}>
         {both&&<div style={{display:"flex",gap:6,padding:m?"8px 12px 0":"12px 20px 0",flexShrink:0}}>
-          {[["sci","理工学系"],["med","医歯学系"]].map(([k,l])=>(
+          {[["sci",t("app.campusSci")],["med",t("app.campusMed")]].map(([k,l])=>(
             <button key={k} onClick={()=>setAttSys(k)}
               style={{flex:m?1:"none",border:`1px solid ${eff===k?T.accent:T.bd}`,background:eff===k?`${T.accent}15`:"transparent",color:eff===k?T.accent:T.txD,borderRadius:8,padding:"6px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>{l}</button>
           ))}
@@ -906,7 +909,7 @@ export default function App(){
           <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
         </div>
         <div style={{marginTop:24,fontSize:24,fontWeight:700,color:T.txH,letterSpacing:"-0.02em",animation:"spFadeUp .6s .12s cubic-bezier(.16,1,.3,1) both"}}>Science<span style={{color:T.accent}}>Tokyo</span> App</div>
-        <div style={{marginTop:8,fontSize:13,color:T.txD,letterSpacing:"0.02em",animation:"spFadeUp .6s .22s cubic-bezier(.16,1,.3,1) both"}}>東京科学大学キャンパスSNS</div>
+        <div style={{marginTop:8,fontSize:13,color:T.txD,letterSpacing:"0.02em",animation:"spFadeUp .6s .22s cubic-bezier(.16,1,.3,1) both"}}>{t("app.tagline")}</div>
       </div>
       <div style={{position:"absolute",bottom:`calc(72px + env(safe-area-inset-bottom))`,display:"flex",flexDirection:"column",alignItems:"center",gap:10,animation:"spFadeUp .5s .32s cubic-bezier(.16,1,.3,1) both"}}>
         {reconnecting&&<div style={{fontSize:12,color:T.txD,marginBottom:2}}>再接続中...</div>}
@@ -923,15 +926,15 @@ export default function App(){
     setFromGuest(guestMode);setGuestMode(null);window.location.hash="";setMockMode(false);setAppState("setup");};
   const backToGuest=()=>{const mode=fromGuest||"freshman";setFromGuest(null);setGuestMode(mode);window.location.hash=mode==="navi"?"navi":mode==="reg"?"reg":"freshman";setAppState("ready");setViewRaw(mode==="navi"?"navigation":mode==="reg"?"reg":"freshman");};
 
-  if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={onDemo} personas={DEMO_PERSONAS} mob={mob} dark={dark} onBackToBoard={fromGuest?backToGuest:null} backLabel={fromGuest==="navi"?"キャンパスナビに戻る":fromGuest==="reg"?"履修登録に戻る":undefined}/>;
+  if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={onDemo} personas={DEMO_PERSONAS} mob={mob} dark={dark} onBackToBoard={fromGuest?backToGuest:null} backLabel={fromGuest==="navi"?t("app.backToNavi"):fromGuest==="reg"?t("app.backToReg"):undefined}/>;
 
   if(guestMode){
     return(
       <div style={{display:"flex",flexDirection:"column",height:"100dvh",maxHeight:"100vh",background:T.bg,color:T.tx,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
         {/* Guest header */}
         <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:10,padding:"0 16px",height:48,borderBottom:`1px solid ${T.bd}`,background:T.bg2}}>
-          <div style={{fontWeight:700,fontSize:15,color:T.txH,flex:1}}>{guestMode==="navi"?"キャンパスナビ":guestMode==="reg"?"履修登録補助":"新入生掲示板"}</div>
-          <button onClick={guestLogin} style={{padding:"6px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>ログイン / 新規登録</button>
+          <div style={{fontWeight:700,fontSize:15,color:T.txH,flex:1}}>{guestMode==="navi"?t("nav.navigation"):guestMode==="reg"?t("more.regAssist"):t("nav.freshman")}</div>
+          <button onClick={guestLogin} style={{padding:"6px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>{t("app.loginSignup")}</button>
         </div>
         {guestMode==="freshman"&&<FreshmanBoardView mob={mob} loggedIn={false} onLogin={guestLogin}/>}
         {guestMode==="navi"&&<NavigationView mob={mob} initialDest={null} initialOrig={null} onDestUsed={()=>{}}/>}
@@ -942,9 +945,9 @@ export default function App(){
 
   // --- DESKTOP ---
   if(!mob){
-    const titles={home:"ホーム",timetable:"時間割",tasks:"課題管理",calendar:"カレンダー",acadCal:"学年暦",exams:"期末試験",dm:"ダイレクトメッセージ",notif:"通知",grades:"成績",pomo:"ポモドーロ",events:"イベント",reviews:"授業レビュー",bmarks:"ブックマーク",search:"検索",profile:"プロフィール",navigation:"キャンパスナビ",friends:"友達",circles:"サークル",admin:"管理者",freshman:"新入生掲示板",reg:"履修登録補助",freeroom:"空き教室",attendance:"出欠管理",music:"ミュージック",pdftools:"PDF結合"};
+    const titles={home:t("nav.home"),timetable:t("nav.timetable"),tasks:t("header.taskMgmt"),calendar:t("nav.calendar"),acadCal:t("tool.acadCal"),exams:t("tool.exams"),dm:t("common.dm"),notif:t("nav.notif"),grades:t("tool.grades"),pomo:t("tool.pomo"),events:t("tool.events"),reviews:t("tool.reviews"),bmarks:t("tool.bmarks"),search:t("nav.search"),profile:t("nav.profile"),navigation:t("nav.navigation"),friends:t("nav.friends"),circles:t("nav.circles"),admin:t("nav.admin"),freshman:t("nav.freshman"),reg:t("more.regAssist"),freeroom:t("tool.freeroom"),attendance:t("nav.attendance"),music:t("tool.music"),pdftools:t("nav.pdftools")};
     const dTitle=()=>{
-      if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:"タイムライン",chat:"チャット",assignments:"課題",materials:"教材",reviews:"レビュー"}[ch]}</>;
+      if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:t("chan.timeline"),chat:t("chan.chat"),assignments:t("chan.assignments"),materials:t("chan.materials"),reviews:t("chan.reviews")}[ch]}</>;
       if(view==="dept"&&cd){const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?locName(cd):cd.prefix}</span> {nameOnly?"":`${locName(cd)} `}— {{timeline:t("chan.timeline"),chat:t("chan.chat")}[ch]||""}</>;}
       return titles[view]||"";
     };
@@ -977,7 +980,7 @@ export default function App(){
           {view==="bmarks"&&(L?<LockedView title={t("tool.bmarks")}/>:<BookmarkView bmarks={bmarks} mob={false} setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/>)}
           {view==="attendance"&&(L?<LockedView title={t("nav.attendance")}/>:renderAttendance(false))}
           {view==="search"&&(L?<LockedView title={t("nav.search")}/>:<SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses}/>)}
-          {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/>}
+          {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} sitelenPref={sitelenPref} setSitelenPref={setSitelenPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/>}
           {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/>}
           {view==="takiplaza"&&(L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob={false} onNavigate={goToBuilding}/>)}
           {view==="library"&&<LibraryView mob={false}/>}
@@ -1030,7 +1033,7 @@ export default function App(){
         {view==="bmarks"&&(L?<><MHdr title={t("tool.bmarks")} back={mBack}/><LockedView title={t("tool.bmarks")}/></>:<><MHdr title={t("tool.bmarks")} back={mBack}/><BookmarkView bmarks={bmarks} mob setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/></>)}
         {view==="attendance"&&(L?<><MHdr title={t("nav.attendance")} back={mBack}/><LockedView title={t("nav.attendance")}/></>:<><MHdr title={t("nav.attendance")} back={mBack}/>{renderAttendance(true)}</>)}
         {view==="search"&&(L?<><MHdr title={t("nav.search")} back={mBack}/><LockedView title={t("nav.search")}/></>:<><MHdr title={t("nav.search")} back={mBack}/><SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses}/></>)}
-        {view==="profile"&&<><MHdr title={t("nav.profile")} back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/></>}
+        {view==="profile"&&<><MHdr title={t("nav.profile")} back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} sitelenPref={sitelenPref} setSitelenPref={setSitelenPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/></>}
         {view==="navigation"&&<><MHdr title={t("nav.navigation")} back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
         {view==="takiplaza"&&<><MHdr title="Taki Plaza" back={mBack}/>{L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob onNavigate={goToBuilding}/>}</>}
         {view==="library"&&<><MHdr title={t("nav.library")} back={mBack}/><LibraryView mob/></>}

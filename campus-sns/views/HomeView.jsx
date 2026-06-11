@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { T } from "../theme.js";
-import { t, locName } from "../i18n.js";
+import { t, locName, locCal } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { NOW, uDue, pDone } from "../utils.jsx";
 import { Tag } from "../shared.jsx";
@@ -247,7 +247,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
           {/* 日時 */}
           <div style={{flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center"}}>
             <span style={{fontSize:mob?26:32,fontWeight:800,color:T.txH,lineHeight:1,letterSpacing:-1}}>{now.getMonth()+1}/{now.getDate()}</span>
-            <span style={{fontSize:11,fontWeight:600,color:T.txD,marginTop:3}}>{t("home.dayOfWeek",{d:DAY_NAMES[now.getDay()]})}</span>
+            <span style={{fontSize:11,fontWeight:600,color:T.txD,marginTop:3}}>{t("home.dayOfWeek",{d:t("dow.s."+DAY_NAMES[now.getDay()])})}</span>
             <span style={{fontSize:12,fontWeight:700,color:T.accent,marginTop:2}}>{now.getHours()}:{String(now.getMinutes()).padStart(2,"0")}</span>
           </div>
           {/* 天気 */}
@@ -346,10 +346,10 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
         const badges=[];
         if(acal.period){
           const pc={exam:"#d97706",break:"#10b981",prep:"#6366f1"}[acal.period.t]||T.accent;
-          badges.push({label:acal.period.l,col:pc,icon:acal.period.t==="break"?"break":acal.period.t==="exam"?"exam":"prep"});
+          badges.push({label:locCal(acal.period.l),col:pc,icon:acal.period.t==="break"?"break":acal.period.t==="exam"?"exam":"prep"});
         }
         acal.items.forEach(it=>{
-          if(it.type==="class") badges.push({label:`${it.q}Q ${t("home.acalClass",{dow:it.dow,n:it.n})}${it.sub?` ${t("home.acalMakeup")}`:""}`,col:T.accent,icon:"class"});
+          if(it.type==="class") badges.push({label:`${it.q}Q ${t("home.acalClass",{dow:t("dow.s."+it.dow),n:it.n})}${it.sub?` ${t("home.acalMakeup")}`:""}`,col:T.accent,icon:"class"});
           else if(it.type==="holiday") badges.push({label:t("home.acalHoliday",{label:it.label}),col:"#ef4444",icon:"holiday"});
           else if(it.type==="event") badges.push({label:it.label,col:"#0ea5e9",icon:"event"});
           else if(it.type==="cancel") badges.push({label:`${it.q}Q ${t("home.acalCancel",{label:it.label})}`,col:"#6b7280",icon:"cancel"});
@@ -511,7 +511,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                   </div>
                   <div style={{width:3,borderRadius:2,background:done?T.txD:co.col,flexShrink:0}}/>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:12,fontWeight:600,color:done?T.txD:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{co.name}{item.sub&&<span style={{fontSize:9,fontWeight:700,color:"#d97706",background:"#d9770615",padding:"1px 4px",borderRadius:3,marginLeft:4,verticalAlign:"middle"}}>{t("home.badgeMakeup")}</span>}{item.dow&&DAY_NAMES[now.getDay()]!==item.dow&&<span style={{fontSize:9,fontWeight:600,color:T.txD,background:T.bg3,padding:"1px 4px",borderRadius:3,marginLeft:4,verticalAlign:"middle"}}>{t("home.dowBadge",{dow:item.dow})}</span>}</div>
+                    <div style={{fontSize:12,fontWeight:600,color:done?T.txD:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{co.name}{item.sub&&<span style={{fontSize:9,fontWeight:700,color:"#d97706",background:"#d9770615",padding:"1px 4px",borderRadius:3,marginLeft:4,verticalAlign:"middle"}}>{t("home.badgeMakeup")}</span>}{item.dow&&DAY_NAMES[now.getDay()]!==item.dow&&<span style={{fontSize:9,fontWeight:600,color:T.txD,background:T.bg3,padding:"1px 4px",borderRadius:3,marginLeft:4,verticalAlign:"middle"}}>{t("home.dowBadge",{dow:t("dow.s."+item.dow)})}</span>}</div>
                     <div style={{display:"flex",gap:6,fontSize:10,color:T.txD,marginTop:1,alignItems:"center"}}>
                       <span>{fPdTime(...pd.s)}–{fPdTime(...pd.e)}</span>
                       {co.room&&<span>{co.room}{co.bldg?` (${co.bldg})`:""}</span>}

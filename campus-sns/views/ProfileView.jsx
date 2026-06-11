@@ -123,7 +123,7 @@ const CredForm=({form,setForm,showPw,showTotp,setShowPw,setShowTotp,onSave,savin
 );
 
 /* ─── メイン ─── */
-export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accentPref="default",setAccentPref,langPref="ja",setLangPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout,appLock,blocks=[],unblockUser,mutes=[],unmuteUser})=>{
+export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accentPref="default",setAccentPref,langPref="ja",setLangPref,sitelenPref=false,setSitelenPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout,appLock,blocks=[],unblockUser,mutes=[],unmuteUser})=>{
   const done=asgn.filter(a=>a.st==="completed").length;
   const total=asgn.length;
 
@@ -844,6 +844,16 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
                 </button>;
               })}
             </div>
+            {/* toki pona のとき: sitelen pona(表語文字)表示トグル */}
+            {langPref==="tp"&&(
+              <div onClick={e=>{e.stopPropagation();setSitelenPref?.(!sitelenPref);}}
+                style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:10,padding:"8px 2px",cursor:"pointer"}}>
+                <span style={{fontSize:13,color:T.txH}}>{t("settings.sitelenPona")}</span>
+                <span style={{width:40,height:24,borderRadius:12,background:sitelenPref?T.accent:T.bd,position:"relative",transition:"background .15s",flexShrink:0}}>
+                  <span style={{position:"absolute",top:2,left:sitelenPref?18:2,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
+                </span>
+              </div>
+            )}
           </div>
           {/* ── テーマ設定セクション ── */}
           <div style={{padding:"10px 14px",borderBottom:`1px solid ${T.bd}`}}>
