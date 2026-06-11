@@ -136,9 +136,9 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         // 画面幅からサイドバー幅を算出（JS から渡す必要なし）
         sidebarWidth = PortalPlugin.calcSidebarWidth(viewWidth: rootView.bounds.width)
         let hasSidebar = sidebarWidth > 0
-        // MNav(50px) + sa-bottom(safe area) + border(1px)
-        let safeBottom = viewController.view.safeAreaInsets.bottom
-        let bottomNavHeight: CGFloat = hasSidebar ? 0 : (51 + safeBottom)
+        // MNav の高さ(50px) + border(1px) = 51px
+        // safe area は safeAreaLayoutGuide で自動対応
+        let mnavHeight: CGFloat = hasSidebar ? 0 : 51
 
         // Container
         let container = UIView()
@@ -147,7 +147,9 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         rootView.addSubview(container)
         container.translatesAutoresizingMaskIntoConstraints = false
         let leading = container.leadingAnchor.constraint(equalTo: rootView.leadingAnchor, constant: sidebarWidth)
-        let bottom = container.bottomAnchor.constraint(equalTo: rootView.bottomAnchor, constant: -bottomNavHeight)
+        let bottom = hasSidebar
+            ? container.bottomAnchor.constraint(equalTo: rootView.bottomAnchor)
+            : container.bottomAnchor.constraint(equalTo: rootView.safeAreaLayoutGuide.bottomAnchor, constant: -mnavHeight)
         NSLayoutConstraint.activate([
             container.topAnchor.constraint(equalTo: rootView.topAnchor),
             leading,
@@ -303,7 +305,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
                 navInterceptor.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
                 navInterceptor.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
                 navInterceptor.bottomAnchor.constraint(equalTo: rootView.bottomAnchor),
-                navInterceptor.heightAnchor.constraint(equalToConstant: bottomNavHeight),
+                navInterceptor.topAnchor.constraint(equalTo: rootView.safeAreaLayoutGuide.bottomAnchor, constant: -mnavHeight),
             ])
             let tap = UITapGestureRecognizer(target: self, action: #selector(bottomNavTapped(_:)))
             navInterceptor.addGestureRecognizer(tap)
@@ -492,15 +494,23 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc private func handleSizeChange(_ notification: Notification) {
-        guard overlayView != nil else { return }
-        let viewWidth = (notification.userInfo?["width"] as? CGFloat) ?? overlayView!.superview!.bounds.width
+        guard let rootView = overlayView?.superview else { return }
+        let viewWidth = (notification.userInfo?["width"] as? CGFloat) ?? rootView.bounds.width
         let newWidth = PortalPlugin.calcSidebarWidth(viewWidth: viewWidth)
         sidebarWidth = newWidth
         let hasSidebar = newWidth > 0
-        let safeBottom = bridge?.viewController?.view.safeAreaInsets.bottom ?? 0
         leadingConstraint?.constant = newWidth
-        bottomConstraint?.constant = hasSidebar ? 0 : -(51 + safeBottom)
-        overlayView?.superview?.layoutIfNeeded()
+
+        // bottom 制約を差し替え（safe area 基準 ↔ rootView 基準の切り替え）
+        if let old = bottomConstraint {
+            old.isActive = false
+        }
+        let newBottom = hasSidebar
+            ? overlayView!.bottomAnchor.constraint(equalTo: rootView.bottomAnchor)
+            : overlayView!.bottomAnchor.constraint(equalTo: rootView.safeAreaLayoutGuide.bottomAnchor, constant: -51)
+        newBottom.isActive = true
+        bottomConstraint = newBottom
+        rootView.layoutIfNeeded()
     }
 
     private func hideLoading() {
