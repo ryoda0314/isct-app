@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { checkNgWords } from '../../../../lib/ng-filter.js';
+import { broadcast, groupTopic } from '../../../../lib/realtime.js';
 
 // GET: get messages for a group
 export async function GET(request) {
@@ -109,6 +110,9 @@ export async function POST(request) {
       .select()
       .single();
     if (error) throw error;
+
+    // Realtime ping (content-free) — members with the chat open re-fetch.
+    await broadcast(groupTopic(group_id));
 
     return NextResponse.json(data);
   } catch (err) {

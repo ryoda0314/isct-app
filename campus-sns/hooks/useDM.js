@@ -27,23 +27,23 @@ export function useDMList(userId) {
 
   useEffect(() => { fetchConvos(); }, [fetchConvos]);
 
-  // Realtime: listen for new DM messages
+  // Realtime: server emits a content-free broadcast ping on `dm_list:<userId>`
+  // after any DM involving this user is inserted (see lib/realtime.js). We
+  // re-fetch the authorized /api/dm endpoint rather than reading row data off
+  // the channel. NOTE: we use Broadcast, not postgres_changes, because the anon
+  // key cannot SELECT dm_messages under RLS so postgres_changes never fires.
+  // This refetch also drives the open conversation: DMView re-inits its message
+  // list from `conversations` whenever it changes.
   useEffect(() => {
-    if (isDemoMode()) return;
+    if (isDemoMode() || !userId) return;
     const sb = getSupabaseClient();
     const channel = sb
-      .channel('dm_messages_list')
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'dm_messages',
-      }, () => {
-        fetchConvos();
-      })
+      .channel(`dm_list:${userId}`)
+      .on('broadcast', { event: 'new' }, () => { fetchConvos(); })
       .subscribe();
 
     return () => { sb.removeChannel(channel); };
-  }, [fetchConvos]);
+  }, [userId, fetchConvos]);
 
   return { conversations, loading };
 }
@@ -61,33 +61,11 @@ export function useDMMessages(conversationId) {
     // to double-add the same message.
   }, [conversationId]);
 
-  // Realtime subscription for specific conversation
-  useEffect(() => {
-    if (!conversationId) return;
-    const sb = getSupabaseClient();
-    const channel = sb
-      .channel(`dm:${conversationId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'dm_messages',
-        filter: `conversation_id=eq.${conversationId}`,
-      }, (payload) => {
-        const m = payload.new;
-        if (idsRef.current.has(m.id)) return;
-        idsRef.current.add(m.id);
-        setMessages(prev => [...prev, {
-          id: m.id,
-          uid: m.sender_id,
-          text: m.text,
-          stamp_id: m.stamp_id || null,
-          ts: new Date(m.created_at),
-        }]);
-      })
-      .subscribe();
-
-    return () => { sb.removeChannel(channel); };
-  }, [conversationId]);
+  // No per-conversation realtime subscription here: incoming messages arrive via
+  // useDMList's broadcast-driven refetch (DMView re-inits this list from the
+  // refreshed `conversations`). Doing it in one place avoids a duplicate /api/dm
+  // fetch per incoming message. (postgres_changes can't be used anyway — anon
+  // RLS denies SELECT on dm_messages; see lib/realtime.js.)
 
   // Initialize messages from conversation data
   const initMessages = useCallback((msgs) => {

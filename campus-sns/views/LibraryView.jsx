@@ -28,10 +28,19 @@ function libStatus(today, now) {
   return { col: T.green, label: t("facility.openNow"), detail: t("facility.until", { time: today.close }), dot: T.green };
 }
 
+// 蔵書検索の所蔵館フィルタ（topics.libra は理工2館のみ対応）
 const LIBS = [
   { id: "ookayama", labelKey: "library.ookayama" },
   { id: "suzukakedai", labelKey: "library.suzukakedai" },
 ];
+// 開館カレンダーの館切替（4キャンパス）。医歯学系は ufinity から今日/明日のみ取得
+const HOURS_LIBS = [
+  { id: "ookayama", labelKey: "library.ookayama" },
+  { id: "suzukakedai", labelKey: "library.suzukakedai" },
+  { id: "ochanomizu", labelKey: "library.ochanomizu" },
+  { id: "kohnodai", labelKey: "library.kohnodai" },
+];
+const TMDU_CAL_URL = "https://www01s.ufinity.jp/tmdu_lib/?page_id=16&lang=japanese";
 const FORMAT_OPTS = [
   { id: "Book", labelKey: "library.typeBook" },
   { id: "eBook", labelKey: "library.typeEbook" },
@@ -69,11 +78,26 @@ const BookCover = ({ rec, w = 54, h = 76 }) => {
 // 資料種別バッジの色
 const typeColor = (type) => /電子|eBook|eJournal/i.test(type || "") ? "#8b5cf6" : /雑誌|Journal/i.test(type || "") ? "#0ea5e9" : T.accent;
 
+// 4キャンパスのバッジ（色分け）
+const CAMPUS = {
+  ookayama: { labelKey: "library.ookayama", color: "#3b82f6" },
+  suzukakedai: { labelKey: "library.suzukakedai", color: "#10b981" },
+  ochanomizu: { labelKey: "library.ochanomizu", color: "#8b5cf6" },
+  kohnodai: { labelKey: "library.kohnodai", color: "#f59e0b" },
+};
+// topics.libra の所蔵 location 文字列からキャンパスを判定
+const campusFromLocation = (loc) => /大岡山/.test(loc || "") ? "ookayama" : /すずかけ/.test(loc || "") ? "suzukakedai" : null;
+const CampusChip = ({ id }) => {
+  const c = CAMPUS[id]; if (!c) return null;
+  return <span style={{ fontSize: 10.5, fontWeight: 800, color: "#fff", background: c.color, padding: "2px 8px", borderRadius: 5 }}>{t(c.labelKey)}</span>;
+};
+
 // ── 図書館ホーム：本日の開館時間（hoursSlot）＋ 簡易検索＋詳細検索 ──
 const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
   const [q, setQ] = useState("");
   const [dq, setDq] = useState("");
   const [adv, setAdv] = useState(false);
+  const [focused, setFocused] = useState(false); // 検索モード（タップで連続モーフ）
   const [formats, setFormats] = useState([]);
   const [locations, setLocations] = useState([]);
   const [jw, setJw] = useState([]);
@@ -90,14 +114,24 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
   const [error, setError] = useState(false);
   const [searched, setSearched] = useState(false);
 
+  // 医歯学系（お茶の水・国府台）= Puppeteer。ボタンで必要時のみ取得
+  const [medRecords, setMedRecords] = useState(null);
+  const [medTotal, setMedTotal] = useState(null);
+  const [medLoading, setMedLoading] = useState(false);
+  const [medError, setMedError] = useState(false);
+
   useEffect(() => { const id = setTimeout(() => setDq(q), 250); return () => clearTimeout(id); }, [q]);
 
   const toggle = (arr, setArr, id) => () => setArr(arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
   const activeFilters = formats.length + locations.length + jw.length + (author ? 1 : 0) + (isbn ? 1 : 0) + (yearFrom ? 1 : 0) + (yearTo ? 1 : 0);
   const filterKey = JSON.stringify({ formats, locations, jw, author, isbn, yearFrom, yearTo });
   const hasQuery = dq.trim() || author.trim() || isbn.trim();
-  // 検索中（=ホームの開館時間を隠して結果に集中する）か
-  const searchActive = !!(q.trim() || dq.trim() || author.trim() || isbn.trim() || activeFilters || adv);
+  // 検索モード：タップ（フォーカス）or 入力/絞り込みで、ホームを畳んで検索バーだけに
+  const searchMode = focused || !!(q.trim() || activeFilters || adv);
+  const exitSearch = () => {
+    setFocused(false); setQ(""); setDq(""); setAuthor(""); setIsbn("");
+    setYearFrom(""); setYearTo(""); setFormats([]); setLocations([]); setJw([]); setAdv(false);
+  };
 
   const buildParams = (pg) => {
     const sp = new URLSearchParams();
@@ -131,10 +165,28 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
   }, [dq, filterKey]);
 
   useEffect(() => {
+    // 検索条件が変わったら医歯学系の結果はリセット（再度ボタンで取得）
+    setMedRecords(null); setMedError(false); setMedLoading(false);
     if (!hasQuery) { setRecords([]); setTotal(null); setHasMore(false); setSearched(false); return; }
     search(0, false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dq, filterKey]);
+
+  // 医歯学系（お茶の水・国府台）をボタンで検索（Puppeteer・時間がかかる）
+  const searchMed = useCallback(async () => {
+    const term = dq.trim() || author.trim() || isbn.trim();
+    if (!term) return;
+    setMedLoading(true); setMedError(false);
+    try {
+      const r = await fetch(`/api/data/book-search-med?q=${encodeURIComponent(dq.trim() || author.trim() || isbn.trim())}`, { credentials: "include" });
+      if (!r.ok) { setMedError(true); setMedLoading(false); return; }
+      const d = await r.json();
+      if (d?.error) { setMedError(true); setMedLoading(false); return; }
+      setMedRecords(d.records || []); setMedTotal(d.total ?? null);
+    } catch { setMedError(true); }
+    setMedLoading(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dq, author, isbn]);
 
   const advField = { width: "100%", boxSizing: "border-box", padding: "8px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 12.5, outline: "none" };
   const Pill = ({ on, onClick, children }) => (
@@ -149,22 +201,31 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
 
   return (
     <div>
-      {/* 検索していない時はホーム（本日の開館時間など）を表示 */}
-      {!searchActive && hoursSlot}
-      {!searchActive && <div style={{ fontSize: 10.5, fontWeight: 800, color: T.txD, letterSpacing: .4, margin: "20px 0 8px", textTransform: "uppercase" }}>{t("library.tabSearch")}</div>}
+      {/* ホーム（本日の開館時間など）：検索モードで上方向へ連続的に畳む */}
+      <div style={{ overflow: "hidden", maxHeight: searchMode ? 0 : 1600, opacity: searchMode ? 0 : 1, transform: searchMode ? "translateY(-6px)" : "none", transition: "max-height .42s cubic-bezier(.4,0,.2,1), opacity .22s ease, transform .42s cubic-bezier(.4,0,.2,1)", pointerEvents: searchMode ? "none" : "auto" }}>
+        {hoursSlot}
+        <div style={{ fontSize: 10.5, fontWeight: 800, color: T.txD, letterSpacing: .4, margin: "20px 0 8px", textTransform: "uppercase" }}>{t("library.tabSearch")}</div>
+      </div>
 
-      {/* 簡易検索欄 ＋ 詳細検索ボタン */}
-      <div style={{ display: "flex", gap: 8, marginBottom: adv ? 12 : (searchActive ? 14 : 4) }}>
-        <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 9, padding: "11px 14px", borderRadius: 13, background: T.bg2, border: `1px solid ${T.bd}`, boxShadow: "0 1px 3px rgba(0,0,0,.06)" }}>
-          <span style={{ color: T.txD, display: "flex" }}>{I.search}</span>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("library.searchPlaceholder")} style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", color: T.txH, fontSize: 15 }} />
-          {q && <button onClick={() => setQ("")} style={{ border: "none", background: T.bg3, borderRadius: "50%", width: 22, height: 22, color: T.txD, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{I.x}</button>}
+      {/* 検索バー：同一要素のまま sticky で上部へ。図書館は MHdr 配下なので top:0 でノッチに被らない */}
+      <div style={{ position: "sticky", top: 0, zIndex: 20, background: T.bg, paddingTop: searchMode ? 8 : 0, paddingBottom: searchMode ? 10 : 0, transition: "padding .35s cubic-bezier(.4,0,.2,1)" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {searchMode && (
+            <button onClick={exitSearch} title={t("common.cancel")} style={{ flexShrink: 0, width: 34, height: 44, border: "none", background: "transparent", color: T.txD, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+            </button>
+          )}
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 9, padding: "11px 14px", borderRadius: 13, background: T.bg2, border: `1px solid ${searchMode ? T.accent : T.bd}`, boxShadow: "0 1px 3px rgba(0,0,0,.06)", transition: "border-color .2s ease" }}>
+            <span style={{ color: searchMode ? T.accent : T.txD, display: "flex" }}>{I.search}</span>
+            <input value={q} onFocus={() => setFocused(true)} onChange={(e) => setQ(e.target.value)} placeholder={t("library.searchPlaceholder")} style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", color: T.txH, fontSize: 15 }} />
+            {q && <button onClick={() => setQ("")} style={{ border: "none", background: T.bg3, borderRadius: "50%", width: 22, height: 22, color: T.txD, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{I.x}</button>}
+          </div>
+          <button onClick={() => setAdv((v) => !v)} title={t("library.advanced")} style={{ flexShrink: 0, position: "relative", display: "inline-flex", alignItems: "center", gap: 6, padding: mob ? "0 13px" : "0 16px", height: 44, borderRadius: 13, border: `1px solid ${adv || activeFilters ? T.accent : T.bd}`, background: adv || activeFilters ? `${T.accent}1f` : T.bg2, color: adv || activeFilters ? T.accent : T.txD, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
+            {!mob && t("library.advanced")}
+            {activeFilters > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: T.accent, borderRadius: 9, minWidth: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{activeFilters}</span>}
+          </button>
         </div>
-        <button onClick={() => setAdv((v) => !v)} title={t("library.advanced")} style={{ flexShrink: 0, position: "relative", display: "inline-flex", alignItems: "center", gap: 6, padding: mob ? "0 13px" : "0 16px", borderRadius: 13, border: `1px solid ${adv || activeFilters ? T.accent : T.bd}`, background: adv || activeFilters ? `${T.accent}1f` : T.bg2, color: adv || activeFilters ? T.accent : T.txD, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
-          {!mob && t("library.advanced")}
-          {activeFilters > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: T.accent, borderRadius: 9, minWidth: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{activeFilters}</span>}
-        </button>
       </div>
 
       {adv && (
@@ -181,8 +242,8 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
         </div>
       )}
 
-      {/* 検索結果（検索中のみ表示） */}
-      {searchActive && (error ? (
+      {/* 検索結果（検索モードのみ表示） */}
+      {searchMode && (error ? (
         <div style={{ textAlign: "center", padding: 36, color: T.txD, fontSize: 13, lineHeight: 1.8 }}>
           {t("library.searchError")}
           <div style={{ marginTop: 14 }}><button onClick={() => openLink(OPAC_URL)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 9, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{t("library.openOpac")} <ExtIcon /></button></div>
@@ -210,6 +271,7 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
                   </div>
                   {/* 所蔵バー */}
                   <div style={{ marginTop: 11, padding: "8px 11px", borderRadius: 9, background: avail ? `${T.green}14` : T.bg3, border: `1px solid ${avail ? `${T.green}33` : T.bd}`, display: "flex", alignItems: "center", flexWrap: "wrap", gap: "3px 12px" }}>
+                    {h && campusFromLocation(h.location) && <CampusChip id={campusFromLocation(h.location)} />}
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 800, color: avail ? T.green : T.txD }}>
                       <span style={{ width: 8, height: 8, borderRadius: "50%", background: avail ? T.green : T.txD, flexShrink: 0 }} />
                       {avail ? h.status : t("library.statusUnavailable")}
@@ -243,19 +305,81 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
               <button onClick={() => search(page + 1, true)} style={{ padding: "10px 28px", borderRadius: 10, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{t("library.loadMore")}</button>
             </div>
           )}
+
+          {/* ── 医歯学系（お茶の水・国府台）: ボタンで取得 ── */}
+          {!loading && searched && hasQuery && (
+            <div style={{ marginTop: 22 }}>
+              {medRecords == null && !medLoading && (
+                <button onClick={searchMed} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 13, border: `1px dashed ${CAMPUS.ochanomizu.color}`, background: `${CAMPUS.ochanomizu.color}10`, color: CAMPUS.ochanomizu.color, fontSize: 13.5, fontWeight: 700, cursor: "pointer" }}>
+                  {I.search}{t("library.searchMed")}
+                </button>
+              )}
+              {medLoading && <Spinner label={t("library.medSearching")} />}
+              {medError && (
+                <div style={{ textAlign: "center", padding: 20, color: T.txD, fontSize: 12.5 }}>
+                  {t("library.medError")}
+                  <div style={{ marginTop: 10 }}><button onClick={searchMed} style={{ padding: "7px 16px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>{t("facility.retry")}</button></div>
+                </div>
+              )}
+              {medRecords != null && !medLoading && (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "4px 0 10px" }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: T.txD, letterSpacing: .4, textTransform: "uppercase" }}>{t("library.medSection")}</span>
+                    {medTotal != null && <span style={{ fontSize: 11.5, color: T.txD }}>{t("library.hits", { n: medTotal.toLocaleString() })}</span>}
+                  </div>
+                  {medRecords.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: 24, color: T.txD, fontSize: 13 }}>{t("library.noResults")}</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {medRecords.map((rec) => {
+                        const h = rec.holdings; // undefined=未取得, null=なし, {campus,callNumber,electronic}
+                        const has = h && h.campus;
+                        return (
+                          <div key={rec.bibid} onClick={() => openLink(rec.detailUrl)} role="button" style={{ borderRadius: 14, border: `1px solid ${T.bd}`, background: T.bg2, padding: 13, cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,.05)" }}>
+                            <div style={{ display: "flex", gap: 13 }}>
+                              <BookCover rec={rec} />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 14.5, fontWeight: 700, color: T.txH, lineHeight: 1.32, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{rec.title}</div>
+                                {rec.author && <div style={{ fontSize: 12, color: T.tx, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rec.author}</div>}
+                                {rec.published && <div style={{ fontSize: 11, color: T.txD, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rec.published}</div>}
+                              </div>
+                              <span style={{ display: "flex", color: T.txD, alignSelf: "center" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg></span>
+                            </div>
+                            <div style={{ marginTop: 11, padding: "8px 11px", borderRadius: 9, background: has ? `${CAMPUS[h.campus].color}12` : T.bg3, border: `1px solid ${has ? `${CAMPUS[h.campus].color}33` : T.bd}`, display: "flex", alignItems: "center", flexWrap: "wrap", gap: "3px 10px" }}>
+                              {has ? (
+                                <>
+                                  <CampusChip id={h.campus} />
+                                  {h.electronic
+                                    ? <span style={{ fontSize: 11.5, fontWeight: 700, color: CAMPUS.ochanomizu.color }}>{t("library.electronic")}</span>
+                                    : h.callNumber && <span style={{ fontSize: 11, color: T.txD, fontFamily: "ui-monospace, monospace" }}>{h.callNumber}</span>}
+                                </>
+                              ) : (
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.accent, fontWeight: 700 }}>{t("library.viewDetail")} <ExtIcon sz={10} /></span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 10.5, color: T.txD, opacity: .85, marginTop: 10 }}>{t("library.medNote")}</div>
+                </>
+              )}
+            </div>
+          )}
         </>
       ))}
     </div>
   );
 };
 
-// 小さなインライン館切替
+// 小さなインライン館切替（4キャンパス・折返し可）
 const LibSwitch = ({ value, onChange }) => (
-  <div style={{ display: "inline-flex", gap: 2, padding: 3, borderRadius: 999, background: T.bg2, border: `1px solid ${T.bd}` }}>
-    {LIBS.map((l) => {
+  <div style={{ display: "inline-flex", flexWrap: "wrap", justifyContent: "center", gap: 4, padding: 3, borderRadius: 16, background: T.bg2, border: `1px solid ${T.bd}` }}>
+    {HOURS_LIBS.map((l) => {
       const on = value === l.id;
       return (
-        <button key={l.id} onClick={() => onChange(l.id)} style={{ padding: "5px 14px", borderRadius: 999, border: "none", background: on ? T.accent : "transparent", color: on ? "#fff" : T.txD, fontSize: 12.5, fontWeight: 700, cursor: "pointer", transition: "all .15s" }}>{t(l.labelKey)}</button>
+        <button key={l.id} onClick={() => onChange(l.id)} style={{ padding: "5px 13px", borderRadius: 999, border: "none", background: on ? T.accent : "transparent", color: on ? "#fff" : T.txD, fontSize: 12.5, fontWeight: 700, cursor: "pointer", transition: "all .15s", whiteSpace: "nowrap" }}>{t(l.labelKey)}</button>
       );
     })}
   </div>
@@ -337,10 +461,16 @@ const CalendarModal = ({ days, todayISO, lib, onClose, openLink }) => {
   );
 };
 
-// ── 開館パネル（既定は本日＋今週。月間はモーダル）───────────────
+// ── 開館パネル（理工=本日＋今週＋月間。医歯学系=本日＋明日のみ）─────
 const HoursPanel = ({ days, now, todayISO, openLink, lib, setLib, mob, onRefresh }) => {
   const [calOpen, setCalOpen] = useState(false);
-  const today = useMemo(() => days.find((d) => d.date === todayISO), [days, todayISO]);
+  // 理工(大岡山/すずかけ台)=配列、医歯学系(お茶の水/国府台)={today,tomorrow}
+  const isTmdu = days && !Array.isArray(days);
+  const today = useMemo(
+    () => (Array.isArray(days) ? days.find((d) => d.date === todayISO) : (days?.today || null)),
+    [days, todayISO],
+  );
+  const tomorrow = isTmdu ? (days?.tomorrow || null) : null;
   const status = libStatus(today, now);
   const dateLabel = `${now.getMonth() + 1}/${now.getDate()}（${"日月火水木金土"[now.getDay()]}）`;
 
@@ -350,8 +480,9 @@ const HoursPanel = ({ days, now, todayISO, openLink, lib, setLib, mob, onRefresh
     ? Math.max(0, Math.min(1, (nowMin - toMin(today.open)) / Math.max(1, toMin(today.close) - toMin(today.open))))
     : null;
 
-  // 今週（月曜始まり）
+  // 今週（月曜始まり）— 理工のみ（医歯学系は日次データなし）
   const week = useMemo(() => {
+    if (!Array.isArray(days)) return [];
     const base = new Date(now); base.setHours(0, 0, 0, 0);
     const offset = (base.getDay() + 6) % 7;
     const mon = new Date(base); mon.setDate(base.getDate() - offset);
@@ -403,36 +534,61 @@ const HoursPanel = ({ days, now, todayISO, openLink, lib, setLib, mob, onRefresh
         )}
       </div>
 
-      {/* 今週 */}
-      <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
-        {week.map((w) => {
-          const isToday = w.iso === todayISO;
-          const closed = w.rec?.closed;
-          return (
-            <div key={w.iso} style={{ flex: 1, textAlign: "center", padding: "9px 2px", borderRadius: 12, background: isToday ? T.accent : T.bg2, border: `1px solid ${isToday ? T.accent : T.bd}`, boxShadow: isToday ? `0 2px 8px ${T.accent}44` : "none" }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: isToday ? "rgba(255,255,255,.92)" : dowColor(w.dow) }}>{w.dow}</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: isToday ? "#fff" : T.txH, margin: "2px 0 4px" }}>{w.day}</div>
-              <div style={{ fontSize: 9.5, fontWeight: 700, lineHeight: 1.15, color: isToday ? "rgba(255,255,255,.92)" : closed ? T.red : T.txD }}>
-                {w.rec ? (closed ? t("library.closedDay") : w.rec.close) : "–"}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {/* 理工: 今週 + 月間カレンダー */}
+      {!isTmdu && (
+        <>
+          <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
+            {week.map((w) => {
+              const isToday = w.iso === todayISO;
+              const closed = w.rec?.closed;
+              return (
+                <div key={w.iso} style={{ flex: 1, textAlign: "center", padding: "9px 2px", borderRadius: 12, background: isToday ? T.accent : T.bg2, border: `1px solid ${isToday ? T.accent : T.bd}`, boxShadow: isToday ? `0 2px 8px ${T.accent}44` : "none" }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: isToday ? "rgba(255,255,255,.92)" : dowColor(w.dow) }}>{w.dow}</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: isToday ? "#fff" : T.txH, margin: "2px 0 4px" }}>{w.day}</div>
+                  <div style={{ fontSize: 9.5, fontWeight: 700, lineHeight: 1.15, color: isToday ? "rgba(255,255,255,.92)" : closed ? T.red : T.txD }}>
+                    {w.rec ? (closed ? t("library.closedDay") : w.rec.close) : "–"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <button onClick={() => setCalOpen(true)} style={{ width: "100%", marginTop: 14, display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderRadius: 13, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+            <span style={{ display: "flex", color: T.accent }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg></span>
+            {t("library.calendar")}
+            <span style={{ marginLeft: "auto", display: "flex", color: T.txD }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg></span>
+          </button>
+        </>
+      )}
 
-      {/* 月間カレンダーを開く */}
-      <button onClick={() => setCalOpen(true)} style={{ width: "100%", marginTop: 14, display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderRadius: 13, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-        <span style={{ display: "flex", color: T.accent }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg></span>
-        {t("library.calendar")}
-        <span style={{ marginLeft: "auto", display: "flex", color: T.txD }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg></span>
-      </button>
+      {/* 医歯学系: 本日・明日（実データ）＋ 公式の月間カレンダー */}
+      {isTmdu && (
+        <>
+          <div style={{ marginTop: 14, borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg2, overflow: "hidden" }}>
+            {[{ k: "library.today", rec: today }, { k: "library.tomorrow", rec: tomorrow }].map((row, i) => (
+              <div key={row.k} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderTop: i ? `1px solid ${T.bd}` : "none" }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: T.txD }}>{t(row.k)}</span>
+                {row.rec && row.rec.date && <span style={{ fontSize: 11, color: T.txD }}>{Number(row.rec.date.split("-")[1])}/{Number(row.rec.date.split("-")[2])}</span>}
+                <span style={{ marginLeft: "auto", fontSize: 14, fontWeight: 700, color: !row.rec ? T.txD : row.rec.closed ? T.red : T.txH }}>
+                  {!row.rec ? "—" : row.rec.closed ? t("library.closedDay") : `${row.rec.open} – ${row.rec.close}`}
+                </span>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => openLink(TMDU_CAL_URL)} style={{ width: "100%", marginTop: 12, display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderRadius: 13, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+            <span style={{ display: "flex", color: T.accent }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg></span>
+            {t("library.openCalendarOfficial")}
+            <span style={{ marginLeft: "auto", display: "flex", color: T.txD }}><ExtIcon sz={13} /></span>
+          </button>
+          <div style={{ fontSize: 10.5, color: T.txD, opacity: .9, marginTop: 8, lineHeight: 1.5 }}>{t("library.medMonthNote")}</div>
+        </>
+      )}
 
       {/* 公式リンク */}
       <div style={{ marginTop: 16, textAlign: "center" }}>
-        <button onClick={() => openLink(OFFICIAL_URL)} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: 0, border: "none", background: "transparent", color: T.txD, fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>{t("library.officialLink")} <ExtIcon sz={10} /></button>
+        <button onClick={() => openLink(isTmdu ? TMDU_CAL_URL : OFFICIAL_URL)} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: 0, border: "none", background: "transparent", color: T.txD, fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>{t("library.officialLink")} <ExtIcon sz={10} /></button>
       </div>
 
-      {calOpen && <CalendarModal days={days} todayISO={todayISO} lib={lib} openLink={openLink} onClose={() => setCalOpen(false)} />}
+      {calOpen && !isTmdu && <CalendarModal days={days} todayISO={todayISO} lib={lib} openLink={openLink} onClose={() => setCalOpen(false)} />}
     </div>
   );
 };

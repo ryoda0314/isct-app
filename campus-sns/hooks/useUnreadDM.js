@@ -31,20 +31,19 @@ export function useUnreadDM(userId) {
   // Initial fetch
   useEffect(() => { refetch(); }, [refetch]);
 
-  // Realtime: refetch unread count on every dm_messages INSERT.
-  // We deliberately do NOT read payload.new here — count is recomputed via the
-  // server endpoint which applies block/mute filters and (via RLS) limits rows
-  // to the current user's conversations.
+  // Realtime: server emits a content-free broadcast ping on `dm_unread:<userId>`
+  // after any DM involving this user is inserted (see lib/realtime.js). On ping
+  // we recompute the count via the server endpoint, which applies block/mute
+  // filters and only returns this user's conversations.
+  // NOTE: Broadcast, not postgres_changes — anon cannot SELECT dm_messages under
+  // RLS, so postgres_changes never fires and the badge would only update on the
+  // 60s poll below.
   useEffect(() => {
     if (!userId || isDemoMode()) return;
     const sb = getSupabaseClient();
     const channel = sb
-      .channel(`dm_unread:${userId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'dm_messages',
-      }, () => { refetch(); })
+      .channel(`dm_user:${userId}`)
+      .on('broadcast', { event: 'new' }, () => { refetch(); })
       .subscribe();
     return () => { sb.removeChannel(channel); };
   }, [userId, refetch]);

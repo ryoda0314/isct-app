@@ -6,6 +6,7 @@ import { getBlockedIds } from '../../../lib/blocks.js';
 import { getMutedIds } from '../../../lib/mutes.js';
 import { requireTelecomAllowed } from '../../../lib/telecom-restriction.js';
 import { createNotification } from '../../../lib/notify.js';
+import { broadcast, dmListTopic, dmUnreadTopic } from '../../../lib/realtime.js';
 
 // Server-side allowlist for stamp IDs. Must match public/stamps/manifest.json.
 // Stored as plain text in dm_messages.stamp_id; client maps id -> /stamps/<id>.webp.
@@ -234,6 +235,16 @@ export async function POST(request) {
       .single();
 
     if (error) throw error;
+
+    // Realtime ping (content-free). Wakes the recipient's + sender's DM list
+    // (which also drives the open conversation view) and unread badge to
+    // re-fetch via the authorized /api/dm endpoint.
+    await broadcast([
+      dmListTopic(userid),
+      dmUnreadTopic(userid),
+      targetUserId ? dmListTopic(targetUserId) : null,
+      targetUserId ? dmUnreadTopic(targetUserId) : null,
+    ]);
 
     // Notify the recipient (best-effort). Awaited so the row is written before
     // the serverless function freezes; skip if the recipient muted the sender.

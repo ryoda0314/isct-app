@@ -6,57 +6,39 @@ export function useGroupMessages(groupId) {
   const [loading, setLoading] = useState(false);
   const idsRef = useRef(new Set());
 
-  // Fetch initial messages
-  useEffect(() => {
-    if (!groupId) { setMessages([]); setLoading(false); return; }
-    setLoading(true);
-    idsRef.current = new Set();
-    (async () => {
-      try {
-        const r = await fetch(`/api/groups/messages?group_id=${groupId}`);
-        if (r.ok) {
-          const data = await r.json();
-          const msgs = data.map(m => ({ ...m, ts: new Date(m.ts) }));
-          idsRef.current = new Set(msgs.map(m => m.id));
-          setMessages(msgs);
-        }
-      } catch {}
-      setLoading(false);
-    })();
+  const fetchMessages = useCallback(async () => {
+    if (!groupId) return;
+    try {
+      const r = await fetch(`/api/groups/messages?group_id=${groupId}`);
+      if (r.ok) {
+        const data = await r.json();
+        const msgs = data.map(m => ({ ...m, ts: new Date(m.ts) }));
+        idsRef.current = new Set(msgs.map(m => m.id));
+        setMessages(msgs);
+      }
+    } catch {}
   }, [groupId]);
 
-  // Realtime subscription
+  // Fetch initial messages
+  useEffect(() => {
+    if (!groupId) { setMessages([]); setLoading(false); idsRef.current = new Set(); return; }
+    setLoading(true);
+    fetchMessages().finally(() => setLoading(false));
+  }, [groupId, fetchMessages]);
+
+  // Realtime: server emits a content-free broadcast ping on `group_msg:<groupId>`
+  // after a group message is inserted (see lib/realtime.js). We re-fetch the
+  // authorized endpoint. NOTE: Broadcast, not postgres_changes — anon cannot
+  // SELECT group_messages under RLS, so postgres_changes never fires.
   useEffect(() => {
     if (!groupId) return;
     const sb = getSupabaseClient();
     const channel = sb
       .channel(`group_msg:${groupId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'group_messages',
-        filter: `group_id=eq.${groupId}`,
-      }, async (payload) => {
-        const m = payload.new;
-        if (idsRef.current.has(m.id)) return;
-        idsRef.current.add(m.id);
-        // Fetch profile for sender
-        let name = '?', avatar = '?', color = '#888';
-        try {
-          const { data } = await getSupabaseClient().from('profiles').select('*').eq('moodle_id', m.sender_id).single();
-          if (data) { name = data.name; avatar = data.avatar; color = data.color; }
-        } catch {}
-        setMessages(prev => [...prev, {
-          id: m.id,
-          uid: m.sender_id,
-          text: m.text,
-          ts: new Date(m.created_at),
-          name, avatar, color,
-        }]);
-      })
+      .on('broadcast', { event: 'new' }, () => { fetchMessages(); })
       .subscribe();
     return () => { sb.removeChannel(channel); };
-  }, [groupId]);
+  }, [groupId, fetchMessages]);
 
   const appendMessage = useCallback((m) => {
     if (m?.id == null) return;
