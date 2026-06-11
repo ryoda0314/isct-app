@@ -2073,17 +2073,17 @@ const BooksViewer = ({ years, departments }) => {
         setRows(prev => prev.map(x => x.id === rowId ? { ...x, status: newStatus } : x));
       } else {
         const d = await r.json();
-        alert(`失敗: ${d.error}`);
+        alert(`${t("admin.failed")}: ${d.error}`);
       }
     } catch (e) {
-      alert(`エラー: ${e.message}`);
+      alert(`${t("admin.error")}: ${e.message}`);
     } finally {
       setActionLoading(prev => ({ ...prev, [rowId]: false }));
     }
   };
 
   const manualLinkIsbn = async (rowId) => {
-    const isbn = prompt("ISBN を入力してください (10 または 13 桁、ハイフン可)");
+    const isbn = prompt(t("admin.books.isbnPrompt"));
     if (!isbn) return;
     setActionLoading(prev => ({ ...prev, [rowId]: true }));
     try {
@@ -2094,21 +2094,21 @@ const BooksViewer = ({ years, departments }) => {
       });
       const d = await r.json();
       if (r.ok) {
-        alert(`紐付け成功: ${d.title || d.book_id} (${d.source})`);
+        alert(`${t("admin.books.linkSuccess")}: ${d.title || d.book_id} (${d.source})`);
         await load();
       } else {
-        alert(`失敗: ${d.error}`);
+        alert(`${t("admin.failed")}: ${d.error}`);
       }
     } catch (e) {
-      alert(`エラー: ${e.message}`);
+      alert(`${t("admin.error")}: ${e.message}`);
     } finally {
       setActionLoading(prev => ({ ...prev, [rowId]: false }));
     }
   };
 
   const runNormalize = async () => {
-    if (!year) { alert("年度を選択してください"); return; }
-    if (!confirm(`${dept || "全学院"} ${year} を正規化します。よろしいですか？`)) return;
+    if (!year) { alert(t("admin.selectYearAlert")); return; }
+    if (!confirm(t("admin.books.confirmNormalize", { dept: dept || t("admin.allSchools"), year }))) return;
     setNormalizing(true);
     setNormResult(null);
     setNormProgress({ phase: "loading" });
@@ -2123,10 +2123,10 @@ const BooksViewer = ({ years, departments }) => {
         setNormResult(d);
         await load();
       } else {
-        alert(`正規化失敗: ${d.error}`);
+        alert(`${t("admin.books.normalizeFailed")}: ${d.error}`);
       }
     } catch (e) {
-      alert(`エラー: ${e.message}`);
+      alert(`${t("admin.error")}: ${e.message}`);
     } finally {
       setNormalizing(false);
       setNormProgress(null);
@@ -2134,8 +2134,8 @@ const BooksViewer = ({ years, departments }) => {
   };
 
   const runRecleanup = async () => {
-    if (!year) { alert("年度を選択してください"); return; }
-    if (!confirm(`${dept || "全学院"} ${year} の course_books に対して新しいノイズフィルタを適用し、ノイズ行を削除します。マッチ済みデータは保持されます。よろしいですか？`)) return;
+    if (!year) { alert(t("admin.selectYearAlert")); return; }
+    if (!confirm(t("admin.books.confirmRecleanup", { dept: dept || t("admin.allSchools"), year }))) return;
     try {
       const r = await fetch(`${API}/api/admin`, {
         method: "POST",
@@ -2144,19 +2144,19 @@ const BooksViewer = ({ years, departments }) => {
       });
       const d = await r.json();
       if (r.ok) {
-        alert(`再クリーンアップ完了\n対象 ${d.scanned}件、ノイズ削除 ${d.deleted}件`);
+        alert(t("admin.books.recleanupDone", { scanned: d.scanned, deleted: d.deleted }));
         await load();
       } else {
-        alert(`失敗: ${d.error}`);
+        alert(`${t("admin.failed")}: ${d.error}`);
       }
     } catch (e) {
-      alert(`エラー: ${e.message}`);
+      alert(`${t("admin.error")}: ${e.message}`);
     }
   };
 
   const runEnrich = async () => {
-    if (!year) { alert("年度を選択してください"); return; }
-    if (!confirm(`${dept || "全学院"} ${year} のISBN未マッチ書籍を名前検索（NDL）で補完します。時間がかかります。よろしいですか？`)) return;
+    if (!year) { alert(t("admin.selectYearAlert")); return; }
+    if (!confirm(t("admin.books.confirmEnrich", { dept: dept || t("admin.allSchools"), year }))) return;
     setEnriching(true);
     setEnrichResult(null);
     setEnrichProgress({ phase: "loading", done: 0, total: 0, matched: 0 });
@@ -2171,10 +2171,10 @@ const BooksViewer = ({ years, departments }) => {
         setEnrichResult(d);
         await load();
       } else {
-        alert(`補完失敗: ${d.error}`);
+        alert(`${t("admin.books.enrichFailed")}: ${d.error}`);
       }
     } catch (e) {
-      alert(`エラー: ${e.message}`);
+      alert(`${t("admin.error")}: ${e.message}`);
     } finally {
       setEnriching(false);
       setEnrichProgress(null);
@@ -2210,76 +2210,76 @@ const BooksViewer = ({ years, departments }) => {
   }, [normalizing, dept, year]);
 
   const confidenceStyle = (c) => {
-    if (c === "high") return { color: T.green, bg: `${T.green}15`, label: "高" };
-    if (c === "medium") return { color: T.accent, bg: `${T.accent}15`, label: "中" };
-    if (c === "low") return { color: "#e58c25", bg: "#e58c2515", label: "低" };
+    if (c === "high") return { color: T.green, bg: `${T.green}15`, label: t("admin.books.high") };
+    if (c === "medium") return { color: T.accent, bg: `${T.accent}15`, label: t("admin.books.medium") };
+    if (c === "low") return { color: "#e58c25", bg: "#e58c2515", label: t("admin.books.low") };
     return { color: T.txD, bg: T.bg2, label: "—" };
   };
 
   const statusStyle = (s) => {
-    if (s === "confirmed") return { color: T.green, bg: `${T.green}20`, label: "✓ 確定" };
-    if (s === "rejected") return { color: T.red, bg: `${T.red}20`, label: "✗ 違う" };
-    if (s === "not_a_book") return { color: T.txD, bg: T.bg2, label: "⊘ 本でない" };
-    return { color: T.txD, bg: "transparent", label: "未確定" };
+    if (s === "confirmed") return { color: T.green, bg: `${T.green}20`, label: "✓ " + t("admin.books.confirmed") };
+    if (s === "rejected") return { color: T.red, bg: `${T.red}20`, label: "✗ " + t("admin.books.rejected") };
+    if (s === "not_a_book") return { color: T.txD, bg: T.bg2, label: "⊘ " + t("admin.books.notABook") };
+    return { color: T.txD, bg: "transparent", label: t("admin.books.unconfirmed") };
   };
 
   return (
     <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, marginTop: 16 }}>
       <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 4 }}>
-        正規化済み書籍 ({rows.length})
+        {t("admin.books.title")} ({rows.length})
       </div>
       <div style={{ fontSize: 11, color: T.txD, marginBottom: 12 }}>
-        信頼度: <span style={{ color: T.green, fontWeight: 600 }}>高 {counts.high}</span>{" / "}
-        <span style={{ color: T.accent }}>中 {counts.medium}</span>{" / "}
-        <span style={{ color: "#e58c25" }}>低 {counts.low}</span>{" / "}
-        <span>未マッチ {counts.none}</span>
+        {t("admin.books.confidence")}: <span style={{ color: T.green, fontWeight: 600 }}>{t("admin.books.high")} {counts.high}</span>{" / "}
+        <span style={{ color: T.accent }}>{t("admin.books.medium")} {counts.medium}</span>{" / "}
+        <span style={{ color: "#e58c25" }}>{t("admin.books.low")} {counts.low}</span>{" / "}
+        <span>{t("admin.books.unmatched")} {counts.none}</span>
       </div>
 
       {/* Filters + run */}
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
         <select value={year} onChange={e => setYear(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-          <option value="">年度（選択）</option>
+          <option value="">{t("admin.yearSelect")}</option>
           {years.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
         <select value={dept} onChange={e => setDept(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-          <option value="">学院（すべて）</option>
+          <option value="">{t("admin.schoolAll")}</option>
           {departments.map(d => <option key={d.key} value={d.key}>{d.key} {d.label}</option>)}
         </select>
         <select value={confidence} onChange={e => setConfidence(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-          <option value="">信頼度（すべて）</option>
-          <option value="high">高</option>
-          <option value="medium">中</option>
-          <option value="low">低</option>
-          <option value="none">未マッチ</option>
+          <option value="">{t("admin.books.confidenceAll")}</option>
+          <option value="high">{t("admin.books.high")}</option>
+          <option value="medium">{t("admin.books.medium")}</option>
+          <option value="low">{t("admin.books.low")}</option>
+          <option value="none">{t("admin.books.unmatched")}</option>
         </select>
         <select value={status} onChange={e => setStatus(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-          <option value="">レビュー状態（すべて）</option>
-          <option value="pending">未確定</option>
-          <option value="confirmed">確定</option>
-          <option value="rejected">違う</option>
-          <option value="not_a_book">本でない</option>
+          <option value="">{t("admin.books.reviewStateAll")}</option>
+          <option value="pending">{t("admin.books.unconfirmed")}</option>
+          <option value="confirmed">{t("admin.books.confirmed")}</option>
+          <option value="rejected">{t("admin.books.rejected")}</option>
+          <option value="not_a_book">{t("admin.books.notABook")}</option>
         </select>
         <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: T.txD, cursor: "pointer" }}>
           <input type="checkbox" checked={onlyOrphan} onChange={e => setOnlyOrphan(e.target.checked)} />
-          未マッチのみ
+          {t("admin.books.unmatchedOnly")}
         </label>
         <input
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter") load(); }}
-          placeholder="コード/本文"
+          placeholder={t("admin.books.codeTextPh")}
           style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13, minWidth: 140 }}
         />
-        <Btn onClick={load} color={T.accent} small disabled={loading}>{loading ? "読込中..." : "検索"}</Btn>
+        <Btn onClick={load} color={T.accent} small disabled={loading}>{loading ? t("admin.loadingShort") : t("admin.search")}</Btn>
         <Btn onClick={runNormalize} color={T.green} disabled={normalizing || enriching || !year}>
-          {normalizing ? "正規化中..." : `B: 正規化${dept ? ` (${dept})` : ""}`}
+          {normalizing ? t("admin.books.normalizing") : t("admin.books.btnNormalize") + (dept ? ` (${dept})` : "")}
         </Btn>
         <Btn onClick={runEnrich} color={T.accent} disabled={normalizing || enriching || !year}>
-          {enriching ? "検索中..." : `C: 名前検索で補完`}
+          {enriching ? t("admin.books.searching") : t("admin.books.btnEnrich")}
         </Btn>
         <Btn onClick={runRecleanup} color={T.txD} disabled={normalizing || enriching || !year}>
-          再ノイズ除去
+          {t("admin.books.btnRecleanup")}
         </Btn>
       </div>
 
@@ -2287,7 +2287,7 @@ const BooksViewer = ({ years, departments }) => {
       {normalizing && normProgress && (
         <div style={{ padding: "10px 14px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.green}40`, marginBottom: 8 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, fontSize: 12, color: T.txH }}>
-            <span><b>B 正規化中</b> — フェーズ: {normProgress.phase || "—"}</span>
+            <span><b>{t("admin.books.normalizingLabel")}</b> — {t("admin.phase")}: {normProgress.phase || "—"}</span>
             {normProgress.total > 0 && <span>{normProgress.done || 0} / {normProgress.total}</span>}
           </div>
           {normProgress.total > 0 && (
@@ -2295,7 +2295,7 @@ const BooksViewer = ({ years, departments }) => {
               <div style={{ height: "100%", borderRadius: 3, background: T.green, width: `${Math.min(100, Math.round(((normProgress.done || 0) / normProgress.total) * 100))}%`, transition: "width 0.3s" }} />
             </div>
           )}
-          {normProgress.rawRows && <div style={{ fontSize: 11, color: T.txD, marginTop: 4 }}>raw {normProgress.rawRows}件, 書籍候補 {normProgress.bookLines || "?"}, books up {normProgress.booksUpserted || 0}</div>}
+          {normProgress.rawRows && <div style={{ fontSize: 11, color: T.txD, marginTop: 4 }}>raw {normProgress.rawRows}{t("admin.items")}, {t("admin.books.bookCandidates")} {normProgress.bookLines || "?"}, books up {normProgress.booksUpserted || 0}</div>}
         </div>
       )}
 
@@ -2303,7 +2303,7 @@ const BooksViewer = ({ years, departments }) => {
       {enriching && enrichProgress && (
         <div style={{ padding: "10px 14px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.accent}40`, marginBottom: 8 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, fontSize: 12, color: T.txH }}>
-            <span><b>C 名前検索中</b> — {enrichProgress.phase || "—"}</span>
+            <span><b>{t("admin.books.searchingLabel")}</b> — {enrichProgress.phase || "—"}</span>
             {enrichProgress.total > 0 && (
               <span>
                 {enrichProgress.done || 0} / {enrichProgress.total}
@@ -2317,10 +2317,10 @@ const BooksViewer = ({ years, departments }) => {
             </div>
           )}
           <div style={{ fontSize: 11, color: T.txD, marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <span>マッチ {enrichProgress.matched || 0}件</span>
+            <span>{t("admin.books.matched")} {enrichProgress.matched || 0}{t("admin.items")}</span>
             <span style={{ color: T.green }}>NDL {enrichProgress.ndlHits || 0}</span>
             <span style={{ color: enrichProgress.useGoogleBooks === false ? T.red : T.accent }}>
-              Google {enrichProgress.googleHits || 0}{enrichProgress.useGoogleBooks === false && " (停止中)"}
+              Google {enrichProgress.googleHits || 0}{enrichProgress.useGoogleBooks === false && " " + t("admin.books.stopped")}
             </span>
             {enrichProgress.currentText && (
               <span style={{ fontFamily: "monospace", color: T.txD, fontSize: 10, marginLeft: "auto", maxWidth: 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{enrichProgress.currentText}</span>
@@ -2331,21 +2331,21 @@ const BooksViewer = ({ years, departments }) => {
 
       {normResult && (
         <div style={{ padding: "8px 12px", borderRadius: 8, background: `${T.green}15`, border: `1px solid ${T.green}40`, color: T.txH, fontSize: 12, marginBottom: 8 }}>
-          B完了: raw {normResult.rawRows}件 → 書籍候補 {normResult.bookLines}行
-          (ISBN有 {normResult.isbnLines}, openBD HIT {normResult.openbdHits} / MISS {normResult.openbdMisses}, ISBN無 {normResult.noIsbn})、
-          books に {normResult.booksUpserted}件、course_books に {normResult.linksUpserted}件
+          {t("admin.books.normDoneLabel")}: raw {normResult.rawRows}{t("admin.items")} → {t("admin.books.bookCandidates")} {normResult.bookLines}{t("admin.lines")}
+          ({t("admin.books.withIsbn")} {normResult.isbnLines}, openBD HIT {normResult.openbdHits} / MISS {normResult.openbdMisses}, {t("admin.books.noIsbn")} {normResult.noIsbn}){t("admin.comma")}
+          books {t("admin.books.toN", { n: normResult.booksUpserted })}{t("admin.comma")}course_books {t("admin.books.toN", { n: normResult.linksUpserted })}
         </div>
       )}
       {enrichResult && (
         <div style={{ padding: "8px 12px", borderRadius: 8, background: `${T.accent}15`, border: `1px solid ${T.accent}40`, color: T.txH, fontSize: 12, marginBottom: 12 }}>
-          C完了: 未マッチ {enrichResult.candidates}件 → マッチ {enrichResult.matched}件
-          (NDL {enrichResult.ndlHits} / Google {enrichResult.googleHits}, 中信頼 {enrichResult.medium} / 低信頼 {enrichResult.low})、
-          books 新規 {enrichResult.booksUpserted}件
+          {t("admin.books.enrichDoneLabel")}: {t("admin.books.unmatched")} {enrichResult.candidates}{t("admin.items")} → {t("admin.books.matched")} {enrichResult.matched}{t("admin.items")}
+          (NDL {enrichResult.ndlHits} / Google {enrichResult.googleHits}, {t("admin.books.medium")} {enrichResult.medium} / {t("admin.books.low")} {enrichResult.low}){t("admin.comma")}
+          books {t("admin.books.newN", { n: enrichResult.booksUpserted })}
         </div>
       )}
 
       {loaded && rows.length === 0 && (
-        <div style={{ color: T.txD, fontSize: 13, padding: 12 }}>該当データなし（先に正規化を実行してください）</div>
+        <div style={{ color: T.txD, fontSize: 13, padding: 12 }}>{t("admin.books.emptyHint")}</div>
       )}
 
       {rows.length > 0 && (
@@ -2353,12 +2353,12 @@ const BooksViewer = ({ years, departments }) => {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead style={{ position: "sticky", top: 0, background: T.bg2, zIndex: 1 }}>
               <tr>
-                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>科目</th>
-                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>種別</th>
-                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>信頼</th>
-                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>マッチした書籍 / 元テキスト</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>{t("admin.col.course")}</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>{t("admin.col.kind")}</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>{t("admin.col.confidenceShort")}</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>{t("admin.books.matchedOrText")}</th>
                 <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>ISBN</th>
-                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>操作</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>{t("admin.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -2379,7 +2379,7 @@ const BooksViewer = ({ years, departments }) => {
                       <div style={{ fontSize: 10, color: T.txD }}>{r.syllabus_year}</div>
                     </td>
                     <td style={{ padding: "6px 8px", color: r.kind === "textbook" ? T.accent : T.txD, whiteSpace: "nowrap", verticalAlign: "top" }}>
-                      {r.kind === "textbook" ? "教科書" : "参考書"}
+                      {r.kind === "textbook" ? t("admin.tb.textbook") : t("admin.tb.reference")}
                     </td>
                     <td style={{ padding: "6px 8px", verticalAlign: "top", display: "flex", flexDirection: "column", gap: 3 }}>
                       <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: cs.bg, color: cs.color, fontWeight: 600, textAlign: "center" }}>{cs.label}</span>
@@ -2411,13 +2411,13 @@ const BooksViewer = ({ years, departments }) => {
                     <td style={{ padding: "6px 8px", whiteSpace: "nowrap", verticalAlign: "top" }}>
                       <div style={{ display: "flex", gap: 3, flexDirection: "column" }}>
                         {b && (
-                          <button disabled={busy} onClick={() => updateRowStatus(r.id, "confirmed")} style={btnStyle(T.green, r.status !== "confirmed")} title="この本でOK">✓ 確定</button>
+                          <button disabled={busy} onClick={() => updateRowStatus(r.id, "confirmed")} style={btnStyle(T.green, r.status !== "confirmed")} title={t("admin.books.titleConfirm")}>✓ {t("admin.books.confirmed")}</button>
                         )}
                         {b && (
-                          <button disabled={busy} onClick={() => updateRowStatus(r.id, "rejected")} style={btnStyle(T.red, r.status !== "rejected")} title="マッチが間違い">✗ 違う</button>
+                          <button disabled={busy} onClick={() => updateRowStatus(r.id, "rejected")} style={btnStyle(T.red, r.status !== "rejected")} title={t("admin.books.titleReject")}>✗ {t("admin.books.rejected")}</button>
                         )}
-                        <button disabled={busy} onClick={() => updateRowStatus(r.id, "not_a_book")} style={btnStyle(T.txD, r.status !== "not_a_book")} title="そもそも本じゃない">⊘ 本でない</button>
-                        <button disabled={busy} onClick={() => manualLinkIsbn(r.id)} style={btnStyle(T.accent, true)} title="手動でISBNを指定">🔍 ISBN</button>
+                        <button disabled={busy} onClick={() => updateRowStatus(r.id, "not_a_book")} style={btnStyle(T.txD, r.status !== "not_a_book")} title={t("admin.books.titleNotABook")}>⊘ {t("admin.books.notABook")}</button>
+                        <button disabled={busy} onClick={() => manualLinkIsbn(r.id)} style={btnStyle(T.accent, true)} title={t("admin.books.titleManualIsbn")}>🔍 ISBN</button>
                       </div>
                     </td>
                   </tr>
@@ -2485,7 +2485,7 @@ const ExamTab = () => {
   };
 
   const deleteExam = async (id) => {
-    if (!confirm("この試験を削除しますか？")) return;
+    if (!confirm(t("admin.exam.confirmDelete"))) return;
     try {
       await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_exam", id }) });
       load();
@@ -2517,7 +2517,7 @@ const ExamTab = () => {
         const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
         return { date, day: dayNames[dt.getDay()] || "", period, code: code.replace(/-\d+$/, ""), codeRaw: code, name: name || "", instructor: instructor || "", room: room || "" };
       });
-      if (entries.length === 0) { alert("有効な行がありません"); return; }
+      if (entries.length === 0) { alert(t("admin.exam.noValidLines")); return; }
       await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "bulk_import_exams", entries }) });
       setBulkText("");
       setBulkMode(false);
@@ -2531,24 +2531,24 @@ const ExamTab = () => {
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>期末試験データ</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.exam.title")}</div>
         <div style={{ display: "flex", gap: 6 }}>
-          <Btn onClick={() => { setAddMode(!addMode); setBulkMode(false); }} color={T.green} small>{I.plus} 追加</Btn>
-          <Btn onClick={() => { setBulkMode(!bulkMode); setAddMode(false); }} color={T.accent} small>{I.upload} 一括登録</Btn>
-          <Btn onClick={load} color={T.txD} small>{I.reset} 更新</Btn>
+          <Btn onClick={() => { setAddMode(!addMode); setBulkMode(false); }} color={T.green} small>{I.plus} {t("admin.add")}</Btn>
+          <Btn onClick={() => { setBulkMode(!bulkMode); setAddMode(false); }} color={T.accent} small>{I.upload} {t("admin.exam.bulkImport")}</Btn>
+          <Btn onClick={load} color={T.txD} small>{I.reset} {t("admin.refresh")}</Btn>
         </div>
       </div>
 
       {/* 一括登録モード */}
       {bulkMode && (
         <div style={{ marginBottom: 16, padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>一括登録（CSV/TSV）</div>
-          <div style={{ fontSize: 11, color: T.txD, marginBottom: 8 }}>形式: 日付, 時限, 科目コード, 科目名, 教員, 講義室（1行1件）</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>{t("admin.exam.bulkImportCsv")}</div>
+          <div style={{ fontSize: 11, color: T.txD, marginBottom: 8 }}>{t("admin.exam.bulkFormat")}</div>
           <div style={{ fontSize: 11, color: T.txD, marginBottom: 8 }}>例: 2026-01-28, 1-2, CSC.T263, 関数型プログラミング基礎, 渡部 卓雄, M-278(H121)</div>
-          <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={6} placeholder="ここに貼り付け..." style={{ ...inputSt, width: "100%", resize: "vertical", fontFamily: "monospace", fontSize: 12 }} />
+          <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={6} placeholder={t("admin.exam.pastePh")} style={{ ...inputSt, width: "100%", resize: "vertical", fontFamily: "monospace", fontSize: 12 }} />
           <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <Btn onClick={bulkImport} color={T.accent}>登録</Btn>
-            <Btn onClick={() => setBulkMode(false)} color={T.txD}>キャンセル</Btn>
+            <Btn onClick={bulkImport} color={T.accent}>{t("admin.register")}</Btn>
+            <Btn onClick={() => setBulkMode(false)} color={T.txD}>{t("common.cancel")}</Btn>
           </div>
         </div>
       )}
@@ -2556,44 +2556,44 @@ const ExamTab = () => {
       {/* 個別追加モード */}
       {addMode && (
         <div style={{ marginBottom: 16, padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>試験追加</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>{t("admin.exam.addExam")}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
             <input type="date" value={addForm.date} onChange={e => setAddForm(f => ({ ...f, date: e.target.value }))} style={{ ...inputSt, width: 150 }} />
             <select value={addForm.period} onChange={e => setAddForm(f => ({ ...f, period: e.target.value }))} style={selectSt}>
-              <option value="">時限</option>
+              <option value="">{t("admin.period")}</option>
               {["1-2", "3-4", "5-6", "7-8", "9-10", "1-4", "3-8", "5-8"].map(p => <option key={p} value={p}>{p}</option>)}
             </select>
-            <input value={addForm.code} onChange={e => setAddForm(f => ({ ...f, code: e.target.value }))} placeholder="科目コード" style={{ ...inputSt, width: 130 }} />
-            <input value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))} placeholder="科目名" style={{ ...inputSt, width: 200 }} />
-            <input value={addForm.instructor} onChange={e => setAddForm(f => ({ ...f, instructor: e.target.value }))} placeholder="教員" style={{ ...inputSt, width: 150 }} />
-            <input value={addForm.room} onChange={e => setAddForm(f => ({ ...f, room: e.target.value }))} placeholder="講義室" style={{ ...inputSt, width: 150 }} />
+            <input value={addForm.code} onChange={e => setAddForm(f => ({ ...f, code: e.target.value }))} placeholder={t("admin.col.code")} style={{ ...inputSt, width: 130 }} />
+            <input value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))} placeholder={t("admin.col.name")} style={{ ...inputSt, width: 200 }} />
+            <input value={addForm.instructor} onChange={e => setAddForm(f => ({ ...f, instructor: e.target.value }))} placeholder={t("admin.col.teacher")} style={{ ...inputSt, width: 150 }} />
+            <input value={addForm.room} onChange={e => setAddForm(f => ({ ...f, room: e.target.value }))} placeholder={t("admin.col.lectureRoom")} style={{ ...inputSt, width: 150 }} />
           </div>
           <div style={{ display: "flex", gap: 6 }}>
-            <Btn onClick={addExam} color={T.green}>追加</Btn>
-            <Btn onClick={() => setAddMode(false)} color={T.txD}>キャンセル</Btn>
+            <Btn onClick={addExam} color={T.green}>{t("admin.add")}</Btn>
+            <Btn onClick={() => setAddMode(false)} color={T.txD}>{t("common.cancel")}</Btn>
           </div>
         </div>
       )}
 
       {/* フィルター */}
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
-        <SearchBar value={search} onChange={setSearch} onSearch={() => {}} placeholder="科目コード・名前で検索..." width={200} />
+        <SearchBar value={search} onChange={setSearch} onSearch={() => {}} placeholder={t("admin.exam.searchPh")} width={200} />
         <select value={filterDate} onChange={e => setFilterDate(e.target.value)} style={selectSt}>
-          <option value="">全日程</option>
+          <option value="">{t("admin.exam.allDates")}</option>
           {dates.map(d => <option key={d} value={d}>{fmtDate(d)}</option>)}
         </select>
         <select value={filterPeriod} onChange={e => setFilterPeriod(e.target.value)} style={selectSt}>
-          <option value="">全時限</option>
-          {periods.map(p => <option key={p} value={p}>{p}限</option>)}
+          <option value="">{t("admin.allPeriods")}</option>
+          {periods.map(p => <option key={p} value={p}>{t("period.single", { n: p })}</option>)}
         </select>
-        <span style={{ fontSize: 12, color: T.txD }}>{filtered.length} / {total} 件</span>
+        <span style={{ fontSize: 12, color: T.txD }}>{filtered.length} / {total} {t("admin.items")}</span>
       </div>
 
-      {loading && <div style={{ textAlign: "center", padding: 40, color: T.txD }}>読み込み中...</div>}
+      {loading && <div style={{ textAlign: "center", padding: 40, color: T.txD }}>{t("common.loading")}</div>}
 
       {!loading && filtered.length === 0 && (
         <div style={{ textAlign: "center", padding: 40, color: T.txD }}>
-          {exams.length === 0 ? "試験データがありません。一括登録または個別追加で登録してください。" : "条件に一致する試験がありません"}
+          {exams.length === 0 ? t("admin.exam.emptyHint") : t("admin.exam.noMatch")}
         </div>
       )}
 
@@ -2603,8 +2603,8 @@ const ExamTab = () => {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: `2px solid ${T.bd}` }}>
-                {["日付", "時限", "科目コード", "科目名", "教員", "講義室", "操作"].map(h => (
-                  <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: T.txD, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
+                {["admin.col.date", "admin.period", "admin.col.code", "admin.col.name", "admin.col.teacher", "admin.col.lectureRoom", "admin.col.actions"].map(h => (
+                  <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: T.txD, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap" }}>{t(h)}</th>
                 ))}
               </tr>
             </thead>
@@ -2661,13 +2661,13 @@ const ExamTab = () => {
 
 // ---- User Analytics Tab ----
 const CAMPUS_COLORS = { science_eng: "#6375f0", med_dental: "#e04e6a", unknown: "#888" };
-const CAMPUS_LABELS = { science_eng: "理工学系", med_dental: "医歯学系", unknown: "不明" };
+const CAMPUS_LABEL_KEYS = { science_eng: "admin.campus.sciEng", med_dental: "admin.campus.medDental", unknown: "admin.unknown" };
 const SCHOOL_COLORS = {
   science:"#6375f0", engineering:"#e5534b", matsci:"#3dae72",
   computing:"#a855c7", lifesci:"#2d9d8f", envsoc:"#d4843e",
   medicine:"#e04e6a", dentistry:"#4ea8e0",
 };
-const DEGREE_LABELS = { B: "学士(B)", M: "修士(M)", D: "博士(D)", R: "その他(R)" };
+const DEGREE_LABEL_KEYS = { B: "admin.degree.b", M: "admin.degree.m", D: "admin.degree.d", R: "admin.degree.r" };
 const DEGREE_COLORS = { B: "#6375f0", M: "#e5534b", D: "#3dae72", R: "#d4843e" };
 
 const HBar = ({ label, value, max, color, total }) => {
@@ -2697,14 +2697,14 @@ const UserAnalyticsTab = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div style={{ padding: 20, color: T.txD, fontSize: 13 }}>読み込み中...</div>;
-  if (!data) return <div style={{ padding: 20, color: T.txD, fontSize: 13 }}>データを取得できませんでした</div>;
+  if (loading) return <div style={{ padding: 20, color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>;
+  if (!data) return <div style={{ padding: 20, color: T.txD, fontSize: 13 }}>{t("admin.fetchDataFailed")}</div>;
 
   const viewBtns = [
-    { id: "campus", label: "キャンパス" },
-    { id: "school", label: "学院・学部" },
-    { id: "dept", label: "学系・学科" },
-    { id: "grade", label: "学年" },
+    { id: "campus", label: t("admin.ua.campus") },
+    { id: "school", label: t("admin.ua.school") },
+    { id: "dept", label: t("admin.ua.dept") },
+    { id: "grade", label: t("admin.ua.grade") },
   ];
 
   // school entries sorted by count
@@ -2739,32 +2739,32 @@ const UserAnalyticsTab = () => {
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>ユーザー数分析</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>{t("admin.ua.title")}</div>
 
       {/* Summary cards */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
-        <Card label="総ユーザー数" value={data.total} color={T.accent} />
-        <Card label="理工学系" value={data.byCampus.science_eng} color="#6375f0" />
-        <Card label="医歯学系" value={data.byCampus.med_dental} color="#e04e6a" />
-        <Card label="所属不明" value={data.byCampus.unknown} color={T.txD} />
+        <Card label={t("admin.ua.totalUsers")} value={data.total} color={T.accent} />
+        <Card label={t("admin.campus.sciEng")} value={data.byCampus.science_eng} color="#6375f0" />
+        <Card label={t("admin.campus.medDental")} value={data.byCampus.med_dental} color="#e04e6a" />
+        <Card label={t("admin.ua.affiliationUnknown")} value={data.byCampus.unknown} color={T.txD} />
       </div>
 
       {/* Coverage info */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
-        <Card label="学科設定済み" value={data.withDept} color={T.green} />
-        <Card label="学籍番号あり" value={data.withStudentId} color={T.orange} />
+        <Card label={t("admin.ua.withDept")} value={data.withDept} color={T.green} />
+        <Card label={t("admin.ua.withStudentId")} value={data.withStudentId} color={T.orange} />
       </div>
 
       {/* Degree type breakdown */}
       {data.byDegree && Object.keys(data.byDegree).length > 0 && (
         <div style={{ marginBottom: 20, padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>課程別</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.ua.byDegree")}</div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             {Object.entries(data.byDegree).sort((a, b) => b[1] - a[1]).map(([d, count]) => (
               <div key={d} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <div style={{ width: 10, height: 10, borderRadius: 3, background: DEGREE_COLORS[d] || T.txD }} />
-                <span style={{ fontSize: 13, color: T.txH, fontWeight: 600 }}>{DEGREE_LABELS[d] || d}</span>
-                <span style={{ fontSize: 13, color: T.txD }}>{count}人</span>
+                <span style={{ fontSize: 13, color: T.txH, fontWeight: 600 }}>{DEGREE_LABEL_KEYS[d] ? t(DEGREE_LABEL_KEYS[d]) : d}</span>
+                <span style={{ fontSize: 13, color: T.txD }}>{t("admin.peopleCount", { n: count })}</span>
               </div>
             ))}
           </div>
@@ -2787,7 +2787,7 @@ const UserAnalyticsTab = () => {
       {/* Campus view */}
       {view === "campus" && (
         <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 14 }}>キャンパス別（理工 vs 医歯学）</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 14 }}>{t("admin.ua.byCampus")}</div>
           {/* Stacked bar */}
           <div style={{ height: 32, borderRadius: 8, overflow: "hidden", display: "flex", marginBottom: 14 }}>
             {campusTotal > 0 && ["science_eng", "med_dental", "unknown"].map(k => {
@@ -2801,8 +2801,8 @@ const UserAnalyticsTab = () => {
           {["science_eng", "med_dental", "unknown"].map(k => (
             <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <div style={{ width: 10, height: 10, borderRadius: 3, background: CAMPUS_COLORS[k] }} />
-              <span style={{ fontSize: 13, color: T.txH }}>{CAMPUS_LABELS[k]}</span>
-              <span style={{ fontSize: 13, color: T.txD, fontFamily: "monospace" }}>{data.byCampus[k]}人 ({campusTotal > 0 ? ((data.byCampus[k] / campusTotal) * 100).toFixed(1) : 0}%)</span>
+              <span style={{ fontSize: 13, color: T.txH }}>{t(CAMPUS_LABEL_KEYS[k])}</span>
+              <span style={{ fontSize: 13, color: T.txD, fontFamily: "monospace" }}>{t("admin.peopleCount", { n: data.byCampus[k] })} ({campusTotal > 0 ? ((data.byCampus[k] / campusTotal) * 100).toFixed(1) : 0}%)</span>
             </div>
           ))}
         </div>
@@ -2811,11 +2811,11 @@ const UserAnalyticsTab = () => {
       {/* School view */}
       {view === "school" && (
         <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 14 }}>学院・学部別</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 14 }}>{t("admin.ua.bySchool")}</div>
           {schoolEntries.map(([sk, count]) => (
             <HBar key={sk} label={data.schoolNames?.[sk] || sk} value={count} max={schoolMax} total={data.total} color={SCHOOL_COLORS[sk] || T.accent} />
           ))}
-          {schoolEntries.length === 0 && <div style={{ fontSize: 12, color: T.txD }}>データなし</div>}
+          {schoolEntries.length === 0 && <div style={{ fontSize: 12, color: T.txD }}>{t("admin.noData")}</div>}
         </div>
       )}
 
@@ -2836,19 +2836,19 @@ const UserAnalyticsTab = () => {
               ))}
             </div>
           ))}
-          {deptEntries.length === 0 && <div style={{ padding: 16, fontSize: 12, color: T.txD }}>学科データなし（学科未設定のユーザーが多い可能性があります）</div>}
+          {deptEntries.length === 0 && <div style={{ padding: 16, fontSize: 12, color: T.txD }}>{t("admin.ua.noDeptData")}</div>}
         </div>
       )}
 
       {/* Year group view */}
       {view === "grade" && (
         <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 14 }}>学年別（入学年度・課程）</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 14 }}>{t("admin.ua.byGrade")}</div>
           {ygEntries.map(([yg, count]) => {
             const degree = yg.match(/[BMDR]/i)?.[0]?.toUpperCase();
             return <HBar key={yg} label={yg} value={count} max={ygMax} total={data.total} color={DEGREE_COLORS[degree] || T.txD} />;
           })}
-          {ygEntries.length === 0 && <div style={{ fontSize: 12, color: T.txD }}>データなし</div>}
+          {ygEntries.length === 0 && <div style={{ fontSize: 12, color: T.txD }}>{t("admin.noData")}</div>}
         </div>
       )}
     </div>
@@ -2856,7 +2856,7 @@ const UserAnalyticsTab = () => {
 };
 
 // ---- Guest Analytics Tab ----
-const MODE_LABELS = { freshman: "新入生掲示板", navi: "キャンパスナビ", reg: "履修登録" };
+const MODE_LABEL_KEYS = { freshman: "nav.freshman", navi: "nav.navigation", reg: "tool.reg" };
 const MODE_COLORS = { freshman: "#4fc3f7", navi: "#81c784", reg: "#ffb74d" };
 
 const GuestAnalyticsTab = () => {
@@ -2908,76 +2908,76 @@ const GuestAnalyticsTab = () => {
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>ゲストアクセス概要</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>{t("admin.guest.overview")}</div>
 
       {/* Summary cards */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <Card label="総セッション数" value={stats?.total} color={T.accent} />
-        <Card label="今日" value={stats?.today} color={T.green} />
-        <Card label="直近7日" value={stats?.week} color={T.orange} />
-        <Card label="直近30日" value={stats?.month} color="#c6a236" />
+        <Card label={t("admin.guest.totalSessions")} value={stats?.total} color={T.accent} />
+        <Card label={t("admin.guest.today")} value={stats?.today} color={T.green} />
+        <Card label={t("admin.guest.last7d")} value={stats?.week} color={T.orange} />
+        <Card label={t("admin.guest.last30d")} value={stats?.month} color="#c6a236" />
       </div>
 
       {/* Mode breakdown */}
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "20px 0 12px" }}>モード別アクセス</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "20px 0 12px" }}>{t("admin.guest.byMode")}</div>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        {Object.entries(MODE_LABELS).map(([mode, label]) => (
+        {Object.keys(MODE_LABEL_KEYS).map((mode) => (
           <div key={mode} style={{ flex: 1, minWidth: 140, padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
-            <div style={{ fontSize: 12, color: T.txD, marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 12, color: T.txD, marginBottom: 4 }}>{t(MODE_LABEL_KEYS[mode])}</div>
             <div style={{ fontSize: 24, fontWeight: 700, color: MODE_COLORS[mode] }}>{stats?.byMode?.[mode] ?? "..."}</div>
-            <div style={{ fontSize: 11, color: T.txD, marginTop: 4 }}>今日: {stats?.todayByMode?.[mode] ?? "-"}</div>
+            <div style={{ fontSize: 11, color: T.txD, marginTop: 4 }}>{t("admin.guest.today")}: {stats?.todayByMode?.[mode] ?? "-"}</div>
           </div>
         ))}
       </div>
 
       {/* Conversion */}
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "20px 0 12px" }}>コンバージョン（ログインへ遷移）</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "20px 0 12px" }}>{t("admin.guest.conversion")}</div>
       <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, display: "flex", alignItems: "center", gap: 16 }}>
           <DonutChart rate={stats?.conversionRate} />
           <div>
-            <div style={{ fontSize: 13, color: T.txD }}>ログイン遷移数</div>
+            <div style={{ fontSize: 13, color: T.txD }}>{t("admin.guest.loginTransitions")}</div>
             <div style={{ fontSize: 22, fontWeight: 700, color: T.green }}>{stats?.converted ?? "..."}</div>
-            <div style={{ fontSize: 11, color: T.txD }}>全 {stats?.total ?? "..."} セッション中</div>
+            <div style={{ fontSize: 11, color: T.txD }}>{t("admin.guest.outOfSessions", { n: stats?.total ?? "..." })}</div>
           </div>
         </div>
       </div>
 
       {/* Trends chart */}
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>トレンド（30日）</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>{t("admin.guest.trends30d")}</div>
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 200, padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>全体アクセス推移</div>
-          {trends ? <MiniChart data={trends} color={T.accent} /> : <div style={{ fontSize: 12, color: T.txD }}>読み込み中...</div>}
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.guest.overallTrend")}</div>
+          {trends ? <MiniChart data={trends} color={T.accent} /> : <div style={{ fontSize: 12, color: T.txD }}>{t("common.loading")}</div>}
         </div>
-        {Object.entries(MODE_LABELS).map(([mode, label]) => (
+        {Object.keys(MODE_LABEL_KEYS).map((mode) => (
           <div key={mode} style={{ flex: 1, minWidth: 200, padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: MODE_COLORS[mode], marginBottom: 10 }}>{label}</div>
-            {trendsByMode?.[mode] ? <MiniChart data={trendsByMode[mode]} color={MODE_COLORS[mode]} /> : <div style={{ fontSize: 12, color: T.txD }}>読み込み中...</div>}
+            <div style={{ fontSize: 13, fontWeight: 600, color: MODE_COLORS[mode], marginBottom: 10 }}>{t(MODE_LABEL_KEYS[mode])}</div>
+            {trendsByMode?.[mode] ? <MiniChart data={trendsByMode[mode]} color={MODE_COLORS[mode]} /> : <div style={{ fontSize: 12, color: T.txD }}>{t("common.loading")}</div>}
           </div>
         ))}
       </div>
 
       {/* Session list */}
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>セッション一覧</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>{t("admin.guest.sessionList")}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 13, color: T.txD }}>{sessTotal} 件</div>
+        <div style={{ fontSize: 13, color: T.txD }}>{t("admin.countItems", { n: sessTotal })}</div>
         <div style={{ flex: 1 }} />
         <select value={modeFilter} onChange={e => setModeFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none" }}>
-          <option value="">すべてのモード</option>
-          <option value="freshman">新入生掲示板</option>
-          <option value="navi">キャンパスナビ</option>
-          <option value="reg">履修登録</option>
+          <option value="">{t("admin.guest.allModes")}</option>
+          <option value="freshman">{t("nav.freshman")}</option>
+          <option value="navi">{t("nav.navigation")}</option>
+          <option value="reg">{t("tool.reg")}</option>
         </select>
       </div>
-      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {sessions.map(s => {
           const uaParsed = s.user_agent || "";
           const isMobile = /mobile|android|iphone/i.test(uaParsed);
           return (
             <div key={s.id} style={{ padding: 12, borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}`, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <Badge text={MODE_LABELS[s.mode] || s.mode} color={MODE_COLORS[s.mode] || T.accent} />
+              <Badge text={MODE_LABEL_KEYS[s.mode] ? t(MODE_LABEL_KEYS[s.mode]) : s.mode} color={MODE_COLORS[s.mode] || T.accent} />
               {s.converted && <Badge text="CV" color={T.green} />}
               <Badge text={isMobile ? "Mobile" : "Desktop"} color={T.txD} />
               <span style={{ fontSize: 12, color: T.txD, fontFamily: "monospace" }}>PV: {s.page_views || 1}</span>
@@ -3044,22 +3044,22 @@ const SettingsTab = () => {
 
   const handleAdd = async () => {
     const id = parseInt(newId);
-    if (!id) { setError("有効なMoodle IDを入力してください"); return; }
+    if (!id) { setError(t("admin.settings.validMoodleId")); return; }
     setSaving(true); setError("");
     try {
       const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "add_admin", moodleUserId: id }) });
       const d = await r.json();
-      if (!r.ok) { setError(d.error || "追加に失敗しました"); return; }
+      if (!r.ok) { setError(d.error || t("admin.addFailed")); return; }
       setNewId(""); loadAdmins();
-    } catch { setError("通信エラー"); }
+    } catch { setError(t("admin.commError")); }
     finally { setSaving(false); }
   };
 
   const handleRemove = async (moodleId) => {
-    if (!confirm("この管理者を削除しますか？")) return;
+    if (!confirm(t("admin.settings.confirmRemoveAdmin"))) return;
     const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "remove_admin", moodleUserId: moodleId }) });
     const d = await r.json();
-    if (!r.ok) { alert(d.error || "削除に失敗しました"); return; }
+    if (!r.ok) { alert(d.error || t("admin.deleteFailed")); return; }
     loadAdmins();
   };
 
@@ -3083,7 +3083,7 @@ const SettingsTab = () => {
 
   const handleSaveRegLimit = async () => {
     const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "toggle_registration_limit", enabled: regLimitEnabled, maxUsers: parseInt(regLimitMax) || 0, message: regLimitMsg }) });
-    if (r.ok) alert("保存しました");
+    if (r.ok) alert(t("admin.saved"));
   };
 
   const handleToggleFeature = async (feature) => {
@@ -3094,107 +3094,106 @@ const SettingsTab = () => {
 
   const handleBulkUpdate = async () => {
     if (!bulkNew.trim()) return;
-    if (!confirm(`「${bulkOld || "(すべて)"}」→「${bulkNew}」に一括変更しますか？`)) return;
+    if (!confirm(t("admin.bulk.confirm", { old: bulkOld || t("admin.bulk.allParen"), new: bulkNew }))) return;
     setBulkSaving(true);
     const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "bulk_update_profiles", field: bulkField, oldValue: bulkOld || null, newValue: bulkNew }) });
     const d = await r.json();
     setBulkSaving(false);
-    if (r.ok) alert(`${d.count || 0}件を更新しました`); else alert(d.error || "更新に失敗しました");
+    if (r.ok) alert(t("admin.bulk.done", { n: d.count || 0 })); else alert(d.error || t("admin.updateFailed"));
   };
 
   return (
     <div style={{ padding: 16, maxWidth: 700 }}>
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>管理者設定</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>{t("admin.settings.title")}</div>
       <div style={{ padding: 16, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>管理者を追加</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.settings.addAdmin")}</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input value={newId} onChange={e => setNewId(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleAdd(); }} placeholder="Moodle ユーザーID" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", fontFamily: "monospace" }} />
-          <button onClick={handleAdd} disabled={saving || !newId.trim()} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 600, cursor: saving ? "default" : "pointer", opacity: saving || !newId.trim() ? 0.5 : 1 }}>{saving ? "追加中..." : "追加"}</button>
+          <input value={newId} onChange={e => setNewId(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleAdd(); }} placeholder={t("admin.settings.moodleUserId")} style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", fontFamily: "monospace" }} />
+          <button onClick={handleAdd} disabled={saving || !newId.trim()} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 600, cursor: saving ? "default" : "pointer", opacity: saving || !newId.trim() ? 0.5 : 1 }}>{saving ? t("admin.adding") : t("admin.add")}</button>
         </div>
         {error && <div style={{ fontSize: 12, color: T.red, marginTop: 8 }}>{error}</div>}
       </div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>管理者一覧</div>
-      {loading && <div style={{ color: T.txD, fontSize: 13 }}>読み込み中...</div>}
+      <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.settings.adminList")}</div>
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {admins.map(a => (
           <div key={a.moodleId} style={{ display: "flex", alignItems: "center", gap: 10, padding: 12, borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}` }}>
             <Av u={{ name: a.name, col: a.color, avatar: a.avatar }} sz={32} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{a.name || "不明"}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{a.name || t("admin.unknown")}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
                 <span style={{ fontSize: 11, color: T.txD, fontFamily: "monospace" }}>ID: {a.moodleId}</span>
-                <Badge text={a.source === "env" ? "環境変数" : "DB"} color={a.source === "env" ? T.orange : T.accent} />
+                <Badge text={a.source === "env" ? t("admin.settings.envVar") : "DB"} color={a.source === "env" ? T.orange : T.accent} />
               </div>
             </div>
-            {a.source === "db" ? <Btn onClick={() => handleRemove(a.moodleId)} color={T.red} small>{I.trash} 削除</Btn> : <span style={{ fontSize: 11, color: T.txD }}>削除不可</span>}
+            {a.source === "db" ? <Btn onClick={() => handleRemove(a.moodleId)} color={T.red} small>{I.trash} {t("common.delete")}</Btn> : <span style={{ fontSize: 11, color: T.txD }}>{t("admin.settings.cannotDelete")}</span>}
           </div>
         ))}
       </div>
 
       {/* Registration limit (新規登録人数制限) */}
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>新規登録人数制限</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>{t("admin.regLimit.title")}</div>
       <div style={{ fontSize: 12, color: T.txD, marginBottom: 12, lineHeight: 1.6 }}>
-        新規登録を受け入れる人数を制限します。上限に達すると、既存ユーザーのログインは可能ですが新規登録はブロックされます。
+        {t("admin.regLimit.desc")}
       </div>
       {settingsLoaded && (
         <div style={{ padding: 14, borderRadius: 12, background: regLimitEnabled ? `${T.orange}12` : T.bg3, border: `1px solid ${regLimitEnabled ? T.orange + "40" : T.bd}`, marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>状態:</span>
-            <Badge text={regLimitEnabled ? "制限中" : "無制限"} color={regLimitEnabled ? T.orange : T.green} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{t("admin.state")}:</span>
+            <Badge text={regLimitEnabled ? t("admin.regLimit.limited") : t("admin.regLimit.unlimited")} color={regLimitEnabled ? T.orange : T.green} />
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
-            <span style={{ fontSize: 13, color: T.txH, whiteSpace: "nowrap" }}>上限人数:</span>
-            <input type="number" min="0" value={regLimitMax} onChange={e => setRegLimitMax(e.target.value)} placeholder="例: 100" style={{ width: 120, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", fontFamily: "monospace" }} />
-            <span style={{ fontSize: 12, color: T.txD }}>人（0 = 新規登録を完全停止）</span>
+            <span style={{ fontSize: 13, color: T.txH, whiteSpace: "nowrap" }}>{t("admin.regLimit.maxUsers")}:</span>
+            <input type="number" min="0" value={regLimitMax} onChange={e => setRegLimitMax(e.target.value)} placeholder={t("admin.regLimit.examplePh")} style={{ width: 120, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", fontFamily: "monospace" }} />
+            <span style={{ fontSize: 12, color: T.txD }}>{t("admin.regLimit.peopleZero")}</span>
           </div>
-          <input value={regLimitMsg} onChange={e => setRegLimitMsg(e.target.value)} placeholder="ユーザーへの表示メッセージ（例: 現在新規登録を一時停止しています）" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 10 }} />
+          <input value={regLimitMsg} onChange={e => setRegLimitMsg(e.target.value)} placeholder={t("admin.regLimit.msgPh")} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 10 }} />
           <div style={{ display: "flex", gap: 8 }}>
-            <Btn onClick={handleToggleRegLimit} color={regLimitEnabled ? T.green : T.orange}>{regLimitEnabled ? "制限を解除" : "新規登録を制限"}</Btn>
-            {regLimitEnabled && <Btn onClick={handleSaveRegLimit} color={T.accent}>設定を保存</Btn>}
+            <Btn onClick={handleToggleRegLimit} color={regLimitEnabled ? T.green : T.orange}>{regLimitEnabled ? t("admin.regLimit.lift") : t("admin.regLimit.enable")}</Btn>
+            {regLimitEnabled && <Btn onClick={handleSaveRegLimit} color={T.accent}>{t("admin.saveSettings")}</Btn>}
           </div>
         </div>
       )}
 
       {/* Communication features kill switch (originally added for pre-registration period; kept as emergency toggle) */}
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>通信機能 一括制限</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>{t("admin.telecom.title")}</div>
       <div style={{ fontSize: 12, color: T.txD, marginBottom: 12, lineHeight: 1.6 }}>
-        緊急時やメンテナンス時に、通信媒介機能（DM・チャット・サークルメッセージ等）を一括で無効化します。
-        投稿・コメントなど掲示板型の機能は影響を受けません。
+        {t("admin.telecom.desc")}
       </div>
       {settingsLoaded && (
         <div style={{ padding: 14, borderRadius: 12, background: telecomRestricted ? `${T.orange}12` : T.bg3, border: `1px solid ${telecomRestricted ? T.orange + "40" : T.bd}`, marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>状態:</span>
-            <Badge text={telecomRestricted ? "通信機能を制限中" : "全機能有効"} color={telecomRestricted ? T.orange : T.green} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{t("admin.state")}:</span>
+            <Badge text={telecomRestricted ? t("admin.telecom.restricted") : t("admin.telecom.allEnabled")} color={telecomRestricted ? T.orange : T.green} />
           </div>
-          <div style={{ fontSize: 12, color: T.txD, marginBottom: 8 }}>制限対象: DM / コースチャット / サークルメッセージ / グループチャット</div>
-          <input value={telecomMsg} onChange={e => setTelecomMsg(e.target.value)} placeholder="ユーザーへの表示メッセージ（例: 緊急メンテナンスのため一時制限中）" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 10 }} />
-          <Btn onClick={handleToggleTelecom} color={telecomRestricted ? T.green : T.orange}>{telecomRestricted ? "制限を解除" : "通信機能を一括制限"}</Btn>
+          <div style={{ fontSize: 12, color: T.txD, marginBottom: 8 }}>{t("admin.telecom.scope")}</div>
+          <input value={telecomMsg} onChange={e => setTelecomMsg(e.target.value)} placeholder={t("admin.telecom.msgPh")} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 10 }} />
+          <Btn onClick={handleToggleTelecom} color={telecomRestricted ? T.green : T.orange}>{telecomRestricted ? t("admin.regLimit.lift") : t("admin.telecom.enable")}</Btn>
         </div>
       )}
 
       {/* Maintenance mode */}
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>メンテナンスモード</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>{t("admin.maint.title")}</div>
       {settingsLoaded && (
         <div style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>状態:</span>
-            <Badge text={maintenanceEnabled ? "メンテナンス中" : "通常運用"} color={maintenanceEnabled ? T.red : T.green} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{t("admin.state")}:</span>
+            <Badge text={maintenanceEnabled ? t("admin.maint.inMaintenance") : t("admin.maint.normal")} color={maintenanceEnabled ? T.red : T.green} />
           </div>
-          <input value={maintenanceMsg} onChange={e => setMaintenanceMsg(e.target.value)} placeholder="メンテナンスメッセージ" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 10 }} />
-          <Btn onClick={handleToggleMaintenance} color={maintenanceEnabled ? T.green : T.red}>{maintenanceEnabled ? "メンテナンスを終了" : "メンテナンスを開始"}</Btn>
+          <input value={maintenanceMsg} onChange={e => setMaintenanceMsg(e.target.value)} placeholder={t("admin.maint.msgPh")} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 10 }} />
+          <Btn onClick={handleToggleMaintenance} color={maintenanceEnabled ? T.green : T.red}>{maintenanceEnabled ? t("admin.maint.end") : t("admin.maint.start")}</Btn>
         </div>
       )}
 
       {/* Feature flags */}
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>機能フラグ</div>
-      <div style={{ fontSize: 12, color: T.txD, marginBottom: 12 }}>各機能の有効/無効を切り替えます。</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>{t("admin.flag.title")}</div>
+      <div style={{ fontSize: 12, color: T.txD, marginBottom: 12 }}>{t("admin.flag.desc")}</div>
       {settingsLoaded && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {FEATURE_FLAGS.map(f => (
             <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: T.bg3, border: `1px solid ${T.bd}` }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: T.txH, flex: 1 }}>{f.label}</span>
-              <Badge text={featureFlags[f.id] === false ? "無効" : "有効"} color={featureFlags[f.id] === false ? T.red : T.green} />
+              <span style={{ fontSize: 13, fontWeight: 500, color: T.txH, flex: 1 }}>{t(f.labelKey)}</span>
+              <Badge text={featureFlags[f.id] === false ? t("admin.flag.disabled") : t("admin.flag.enabled")} color={featureFlags[f.id] === false ? T.red : T.green} />
               <button onClick={() => handleToggleFeature(f.id)} style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", position: "relative", background: featureFlags[f.id] === false ? T.bg4 : T.green, transition: "background .2s" }}>
                 <div style={{ width: 18, height: 18, borderRadius: 9, background: "#fff", position: "absolute", top: 3, left: featureFlags[f.id] === false ? 3 : 23, transition: "left .2s" }} />
               </button>
@@ -3204,32 +3203,32 @@ const SettingsTab = () => {
       )}
 
       {/* Bulk update */}
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>一括更新</div>
-      <div style={{ fontSize: 12, color: T.txD, marginBottom: 12 }}>学科の一括変更（年度切替時など）。変更元を空にすると全ユーザーが対象。</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>{t("admin.bulk.title")}</div>
+      <div style={{ fontSize: 12, color: T.txD, marginBottom: 12 }}>{t("admin.bulk.desc")}</div>
       <div style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <select value={bulkField} onChange={e => setBulkField(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" }}>
-            <option value="dept">学科 (dept)</option>
+            <option value="dept">{t("admin.dept")} (dept)</option>
           </select>
-          <input value={bulkOld} onChange={e => setBulkOld(e.target.value)} placeholder="変更元（空=全て）" style={{ flex: 1, minWidth: 100, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" }} />
+          <input value={bulkOld} onChange={e => setBulkOld(e.target.value)} placeholder={t("admin.bulk.fromPh")} style={{ flex: 1, minWidth: 100, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" }} />
           <span style={{ color: T.txD }}>→</span>
-          <input value={bulkNew} onChange={e => setBulkNew(e.target.value)} placeholder="変更先" style={{ flex: 1, minWidth: 100, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" }} />
-          <Btn onClick={handleBulkUpdate} color={T.orange} disabled={bulkSaving || !bulkNew.trim()}>{bulkSaving ? "更新中..." : "一括更新"}</Btn>
+          <input value={bulkNew} onChange={e => setBulkNew(e.target.value)} placeholder={t("admin.bulk.toPh")} style={{ flex: 1, minWidth: 100, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" }} />
+          <Btn onClick={handleBulkUpdate} color={T.orange} disabled={bulkSaving || !bulkNew.trim()}>{bulkSaving ? t("admin.updating") : t("admin.bulk.btn")}</Btn>
         </div>
       </div>
 
       {/* ToS / Privacy */}
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>利用規約・プライバシーポリシー補足</div>
-      <div style={{ fontSize: 12, color: T.txD, marginBottom: 12 }}>規約本文はコードで管理。追加の補足事項をここで設定できます。</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "24px 0 12px" }}>{t("admin.legal.title")}</div>
+      <div style={{ fontSize: 12, color: T.txD, marginBottom: 12 }}>{t("admin.legal.desc")}</div>
       {settingsLoaded && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>利用規約の補足事項</div>
-            <textarea value={tosNotice} onChange={e => setTosNotice(e.target.value)} placeholder="例: 2026年4月1日付で第5条を改定しました" rows={3} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>{t("admin.legal.tosNotice")}</div>
+            <textarea value={tosNotice} onChange={e => setTosNotice(e.target.value)} placeholder={t("admin.legal.tosPh")} rows={3} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
           </div>
           <div style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>プライバシーポリシーの補足事項</div>
-            <textarea value={ppNotice} onChange={e => setPpNotice(e.target.value)} placeholder="例: 位置情報の取り扱いについて更新しました" rows={3} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>{t("admin.legal.ppNotice")}</div>
+            <textarea value={ppNotice} onChange={e => setPpNotice(e.target.value)} placeholder={t("admin.legal.ppPh")} rows={3} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <Btn onClick={async () => {
@@ -3239,8 +3238,8 @@ const SettingsTab = () => {
                 fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_site_setting", key: "pp_notice", value: { text: ppNotice, updatedAt: new Date().toISOString() } }) }),
               ]);
               setSettingsSaving(false);
-              alert("保存しました");
-            }} color={T.accent} disabled={settingsSaving}>{settingsSaving ? "保存中..." : "補足事項を保存"}</Btn>
+              alert(t("admin.saved"));
+            }} color={T.accent} disabled={settingsSaving}>{settingsSaving ? t("admin.saving") : t("admin.legal.saveBtn")}</Btn>
           </div>
         </div>
       )}
@@ -3296,34 +3295,34 @@ const MedSyllabusTab = () => {
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>医歯学セッションデータ</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>{t("admin.med.sessionData")}</div>
 
       {/* Stats */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-        <Card label="総セッション数" value={stats.total || 0} color={T.accent} />
-        <Card label="科目数" value={stats.courses || 0} color={T.green} />
-        <Card label="歯学部" value={stats.fac?.DEN || 0} color="#a855c7" />
-        <Card label="医学部" value={stats.fac?.MED || 0} color="#3dae72" />
-        <Card label="教養部" value={stats.fac?.LIB || 0} color="#d4843e" />
+        <Card label={t("admin.guest.totalSessions")} value={stats.total || 0} color={T.accent} />
+        <Card label={t("admin.med.courseCount")} value={stats.courses || 0} color={T.green} />
+        <Card label={t("admin.med.dentistry")} value={stats.fac?.DEN || 0} color="#a855c7" />
+        <Card label={t("admin.med.medicine")} value={stats.fac?.MED || 0} color="#3dae72" />
+        <Card label={t("admin.med.liberalArts")} value={stats.fac?.LIB || 0} color="#d4843e" />
       </div>
 
       {/* Filters */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="科目コード・名前..." style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13, width: 200 }} />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("admin.med.searchPh")} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13, width: 200 }} />
         <select value={filterFac} onChange={e => setFilterFac(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-          <option value="">全学部</option>
-          <option value="MED">医学部</option>
-          <option value="DEN">歯学部</option>
-          <option value="LIB">教養部</option>
+          <option value="">{t("admin.med.allFaculties")}</option>
+          <option value="MED">{t("admin.med.medicine")}</option>
+          <option value="DEN">{t("admin.med.dentistry")}</option>
+          <option value="LIB">{t("admin.med.liberalArts")}</option>
         </select>
         <select value={filterSemester} onChange={e => setFilterSemester(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-          <option value="">全学期</option>
+          <option value="">{t("admin.med.allSemesters")}</option>
           {semesters.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <span style={{ fontSize: 12, color: T.txD }}>{filtered.length}科目</span>
+        <span style={{ fontSize: 12, color: T.txD }}>{t("admin.med.nCourses", { n: filtered.length })}</span>
       </div>
 
-      {loading && <div style={{ color: T.txD, fontSize: 13, padding: 20 }}>読み込み中...</div>}
+      {loading && <div style={{ color: T.txD, fontSize: 13, padding: 20 }}>{t("common.loading")}</div>}
 
       {!loading && filtered.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -3338,8 +3337,8 @@ const MedSyllabusTab = () => {
                   <span style={{ fontSize: 13, fontWeight: 600, color: T.txH, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
                   <span style={{ fontSize: 10, color: T.txD, padding: "1px 6px", borderRadius: 4, background: T.bg2 }}>{c.faculty}</span>
                   <span style={{ fontSize: 10, color: T.txD }}>{c.semester || "-"}</span>
-                  <span style={{ fontSize: 10, color: T.txD }}>{c.credits ? c.credits + "単位" : ""}</span>
-                  <span style={{ fontSize: 10, color: T.txD }}>{c.sessions.length}回</span>
+                  <span style={{ fontSize: 10, color: T.txD }}>{c.credits ? t("admin.med.credits", { n: c.credits }) : ""}</span>
+                  <span style={{ fontSize: 10, color: T.txD }}>{t("admin.med.sessions", { n: c.sessions.length })}</span>
                   <span style={{ fontSize: 12, color: T.txD }}>{isOpen ? "▲" : "▼"}</span>
                 </div>
 
@@ -3349,8 +3348,8 @@ const MedSyllabusTab = () => {
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                       <thead>
                         <tr style={{ background: T.bg2 }}>
-                          {["回", "日付", "曜日", "時刻", "教室", "教員"].map(h => (
-                            <th key={h} style={{ padding: "4px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>{h}</th>
+                          {["admin.med.colSeq", "admin.col.date", "admin.col.day", "admin.med.colTime", "admin.col.room", "admin.col.teacher"].map(h => (
+                            <th key={h} style={{ padding: "4px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, whiteSpace: "nowrap" }}>{t(h)}</th>
                           ))}
                         </tr>
                       </thead>
@@ -3370,16 +3369,16 @@ const MedSyllabusTab = () => {
                   </div>
                 )}
                 {isOpen && c.sessions.length === 0 && (
-                  <div style={{ padding: "8px 12px", fontSize: 11, color: T.txD, borderTop: `1px solid ${T.bd}` }}>スケジュールなし</div>
+                  <div style={{ padding: "8px 12px", fontSize: 11, color: T.txD, borderTop: `1px solid ${T.bd}` }}>{t("admin.med.noSchedule")}</div>
                 )}
               </div>
             );
           })}
-          {filtered.length > 100 && <div style={{ fontSize: 11, color: T.txD, padding: 8 }}>...他 {filtered.length - 100} 科目</div>}
+          {filtered.length > 100 && <div style={{ fontSize: 11, color: T.txD, padding: 8 }}>{t("admin.med.moreNCourses", { n: filtered.length - 100 })}</div>}
         </div>
       )}
 
-      {!loading && filtered.length === 0 && <div style={{ color: T.txD, fontSize: 13, padding: 20 }}>データがありません。「医歯学取得」タブからスクレイピングしてください。</div>}
+      {!loading && filtered.length === 0 && <div style={{ color: T.txD, fontSize: 13, padding: 20 }}>{t("admin.med.emptyHint")}</div>}
     </div>
   );
 };
@@ -3438,7 +3437,7 @@ const MedSyllabusFetchTab = () => {
       const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "scrape_med_syllabus", faculty, year }) });
       const d = await r.json();
       if (r.ok) return { faculty, year, ok: true, count: d.added || 0 };
-      return { faculty, year, ok: false, error: d.error || "不明なエラー" };
+      return { faculty, year, ok: false, error: d.error || t("admin.unknownError") };
     } catch (e) {
       return { faculty, year, ok: false, error: e.message };
     } finally {
@@ -3460,9 +3459,9 @@ const MedSyllabusFetchTab = () => {
     load();
     const ok = results.filter(r => r.ok);
     const fail = results.filter(r => !r.ok);
-    let msg = `取得完了: ${ok.length}/${results.length} 学部成功`;
-    if (ok.length > 0) msg += `\n合計 ${ok.reduce((s, r) => s + r.count, 0)} 件`;
-    if (fail.length > 0) msg += `\n\n失敗: ${fail.map(r => `${r.faculty} (${r.error})`).join(", ")}`;
+    let msg = t("admin.medFetch.batchDone", { ok: ok.length, total: results.length });
+    if (ok.length > 0) msg += "\n" + t("admin.fetch.totalCount", { n: ok.reduce((s, r) => s + r.count, 0) });
+    if (fail.length > 0) msg += "\n\n" + t("admin.fetch.failed", { list: fail.map(r => `${r.faculty} (${r.error})`).join(", ") });
     alert(msg);
   };
 
@@ -3471,8 +3470,8 @@ const MedSyllabusFetchTab = () => {
     const result = await scrapeSingle(faculty, year);
     setBatchResults([result]);
     load();
-    if (result.ok) alert(`${faculty} ${year}: ${result.count}件取得完了`);
-    else alert(`取得失敗: ${result.error}`);
+    if (result.ok) alert(t("admin.medFetch.singleDone", { faculty, year, n: result.count }));
+    else alert(t("admin.fetch.fetchFailed", { error: result.error }));
   };
 
   const isBusy = !!scraping || queue.length > 0;
@@ -3488,30 +3487,30 @@ const MedSyllabusFetchTab = () => {
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>医歯学時間割取得</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 16 }}>{t("admin.tab.medFetch")}</div>
 
-      {loading && <div style={{ color: T.txD, fontSize: 13, padding: 20 }}>読み込み中...</div>}
+      {loading && <div style={{ color: T.txD, fontSize: 13, padding: 20 }}>{t("common.loading")}</div>}
 
       {!loading && (
         <>
           {/* Scrape controls */}
           <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>医歯学シラバスから取得</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>{t("admin.medFetch.fromSyllabus")}</div>
             <div style={{ fontSize: 11, color: T.txD, marginBottom: 12, lineHeight: 1.6 }}>
-              yushima2.tmd.ac.jp のシラバスシステムからコード列挙で取得します。<br />
-              歯学部は約100科目、医学部は約200科目。取得には数分かかります。
+              {t("admin.medFetch.descLine1")}<br />
+              {t("admin.medFetch.descLine2")}
             </div>
 
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
               <select value={scrapeYear} onChange={e => setScrapeYear(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 13 }}>
-                <option value="">年度を選択</option>
-                {years.map(y => <option key={y} value={y}>{y}年度</option>)}
+                <option value="">{t("admin.selectYear")}</option>
+                {years.map(y => <option key={y} value={y}>{t("admin.yearLabel", { y })}</option>)}
               </select>
               <Btn onClick={selectAll} color={T.txD} small>
-                {selectedFacs.size === faculties.length ? "全解除" : "全選択"}
+                {selectedFacs.size === faculties.length ? t("admin.deselectAll") : t("admin.selectAll")}
               </Btn>
               <Btn onClick={() => handleBatchScrape([...selectedFacs], scrapeYear)} color={T.green} disabled={!scrapeYear || selectedFacs.size === 0 || isBusy}>
-                {isBusy ? "取得中..." : `選択した${selectedFacs.size}学部を取得`}
+                {isBusy ? t("admin.fetching") : t("admin.medFetch.fetchSelectedFacs", { n: selectedFacs.size })}
               </Btn>
             </div>
 
@@ -3545,8 +3544,8 @@ const MedSyllabusFetchTab = () => {
               <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 10, background: T.bg2, border: `1px solid ${T.accent}40` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: T.txH }}>
-                    {scraping.replace(/med_/, "").replace("_", " ")} — {progress.phase === "search" ? "検索中..." : progress.phase === "saving" ? "DB保存中..." : `詳細取得中 ${progress.done}/${progress.total}`}
-                    {queue.length > 0 && <span style={{ color: T.txD, fontWeight: 400 }}> (残り {queue.length})</span>}
+                    {scraping.replace(/med_/, "").replace("_", " ")} — {progress.phase === "search" ? t("admin.medFetch.phaseSearch") : progress.phase === "saving" ? t("admin.fetch.phaseSaving") : t("admin.fetch.phaseDetail", { done: progress.done, total: progress.total })}
+                    {queue.length > 0 && <span style={{ color: T.txD, fontWeight: 400 }}> {t("admin.medFetch.remaining", { n: queue.length })}</span>}
                   </span>
                 </div>
                 {progress.total > 0 && (
@@ -3561,11 +3560,11 @@ const MedSyllabusFetchTab = () => {
           {/* Status table */}
           {faculties.length > 0 && (
             <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}` }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>取得状況</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, marginBottom: 12 }}>{t("admin.fetch.status")}</div>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                 <thead>
                   <tr>
-                    <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>学部</th>
+                    <th style={{ padding: "6px 8px", textAlign: "left", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>{t("admin.med.faculty")}</th>
                     {years.map(y => <th key={y} style={{ padding: "6px 8px", textAlign: "center", color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}` }}>{y}</th>)}
                   </tr>
                 </thead>
@@ -3581,10 +3580,10 @@ const MedSyllabusFetchTab = () => {
                             {s ? (
                               <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
                                 <span style={{ color: T.green, fontWeight: 600 }}>{s.count}</span>
-                                <button onClick={() => handleScrape(f.key, y)} disabled={isBusy} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", padding: 0, fontSize: 10 }} title="再取得">{isScraping ? "..." : "↻"}</button>
+                                <button onClick={() => handleScrape(f.key, y)} disabled={isBusy} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", padding: 0, fontSize: 10 }} title={t("admin.refetch")}>{isScraping ? "..." : "↻"}</button>
                               </span>
                             ) : (
-                              <button onClick={() => handleScrape(f.key, y)} disabled={isBusy} style={{ background: "none", border: `1px solid ${T.bd}`, borderRadius: 6, padding: "2px 8px", color: T.txD, cursor: "pointer", fontSize: 10 }}>{isScraping ? "..." : "取得"}</button>
+                              <button onClick={() => handleScrape(f.key, y)} disabled={isBusy} style={{ background: "none", border: `1px solid ${T.bd}`, borderRadius: 6, padding: "2px 8px", color: T.txD, cursor: "pointer", fontSize: 10 }}>{isScraping ? "..." : t("admin.fetch.fetch")}</button>
                             )}
                           </td>
                         );
@@ -3647,7 +3646,7 @@ const MoodleCaptureTab = () => {
   const removeTarget = (id) => { if (targetsLoaded) saveTargets(targets.filter(x => x !== id)); };
 
   const deleteCapture = async (id, all) => {
-    if (all && !confirm("全キャプチャデータを削除しますか？")) return;
+    if (all && !confirm(t("admin.moodle.confirmDeleteAll"))) return;
     await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_captured_moodle", ...(all ? { all: true } : { id }) }) });
     loadCaptures();
   };
@@ -3656,21 +3655,21 @@ const MoodleCaptureTab = () => {
 
   return (
     <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>Moodleデータ取得</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>{t("admin.moodle.title")}</div>
       <div style={{ fontSize: 12, color: T.txD, lineHeight: 1.6 }}>
-        指定したMoodleユーザーIDの履修科目データを、次回ログイン時に自動でキャプチャします。<br />
-        医歯学系のMoodleコース形式を確認するための一時的な機能です。
+        {t("admin.moodle.descLine1")}<br />
+        {t("admin.moodle.descLine2")}
       </div>
 
       {/* Target user IDs */}
       <div style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>キャプチャ対象ユーザーID</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.moodle.targetIds")}</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
           <input value={newId} onChange={e => setNewId(e.target.value)} placeholder="Moodle User ID" style={{ ...inputStyle, width: 160 }} onKeyDown={e => { if (e.key === "Enter") addTarget(); }} />
-          <Btn onClick={addTarget} color={T.accent} disabled={!newId.trim()}>追加</Btn>
+          <Btn onClick={addTarget} color={T.accent} disabled={!newId.trim()}>{t("admin.add")}</Btn>
         </div>
         {targets.length === 0 ? (
-          <div style={{ fontSize: 12, color: T.txD }}>対象なし（IDを追加するとそのユーザーのログイン時にデータを取得します）</div>
+          <div style={{ fontSize: 12, color: T.txD }}>{t("admin.moodle.noTarget")}</div>
         ) : (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {targets.map(id => (
@@ -3685,24 +3684,24 @@ const MoodleCaptureTab = () => {
 
       {/* Captured data */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>取得済みデータ ({captures.length}件)</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{t("admin.moodle.capturedData", { n: captures.length })}</div>
         <div style={{ display: "flex", gap: 6 }}>
-          <Btn onClick={loadCaptures} color={T.accent} small>{loading ? "読込中..." : "更新"}</Btn>
-          {captures.length > 0 && <Btn onClick={() => deleteCapture(null, true)} color="#e5534b" small>全削除</Btn>}
+          <Btn onClick={loadCaptures} color={T.accent} small>{loading ? t("admin.loadingShort") : t("admin.refresh")}</Btn>
+          {captures.length > 0 && <Btn onClick={() => deleteCapture(null, true)} color="#e5534b" small>{t("admin.moodle.deleteAll")}</Btn>}
         </div>
       </div>
 
       {captures.length === 0 ? (
         <div style={{ fontSize: 12, color: T.txD, padding: 20, textAlign: "center" }}>
-          まだデータがありません。対象ユーザーがアプリにログインすると、ここにデータが表示されます。
+          {t("admin.moodle.emptyHint")}
         </div>
       ) : captures.map(cap => (
         <div key={cap.id} style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <div>
-              <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{cap.user_name || "不明"}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{cap.user_name || t("admin.unknown")}</span>
               <span style={{ fontSize: 11, color: T.txD, marginLeft: 8 }}>ID: {cap.moodle_user_id}</span>
-              <span style={{ fontSize: 11, color: T.txD, marginLeft: 8 }}>{cap.course_count}科目</span>
+              <span style={{ fontSize: 11, color: T.txD, marginLeft: 8 }}>{t("admin.med.nCourses", { n: cap.course_count })}</span>
               <span style={{ fontSize: 11, color: T.txD, marginLeft: 8 }}>{new Date(cap.captured_at).toLocaleString("ja-JP")}</span>
             </div>
             <div style={{ display: "flex", gap: 4 }}>
@@ -3715,9 +3714,9 @@ const MoodleCaptureTab = () => {
                 a.download = `moodle_${cap.moodle_user_id}_${new Date(cap.captured_at).toISOString().slice(0,10)}.json`;
                 a.click();
                 URL.revokeObjectURL(url);
-              }} color="#4CAF50" small>JSON保存</Btn>
-              <Btn onClick={() => setExpanded(expanded === cap.id ? null : cap.id)} color={T.accent} small>{expanded === cap.id ? "閉じる" : "詳細"}</Btn>
-              <Btn onClick={() => deleteCapture(cap.id)} color="#e5534b" small>削除</Btn>
+              }} color="#4CAF50" small>{t("admin.moodle.saveJson")}</Btn>
+              <Btn onClick={() => setExpanded(expanded === cap.id ? null : cap.id)} color={T.accent} small>{expanded === cap.id ? t("common.close") : t("admin.detail")}</Btn>
+              <Btn onClick={() => deleteCapture(cap.id)} color="#e5534b" small>{t("common.delete")}</Btn>
             </div>
           </div>
 
@@ -3737,7 +3736,7 @@ const MoodleCaptureTab = () => {
               {/* All keys from first course as columns */}
               {(() => {
                 const courses = cap.raw_courses || [];
-                if (courses.length === 0) return <div style={{ fontSize: 12, color: T.txD }}>データなし</div>;
+                if (courses.length === 0) return <div style={{ fontSize: 12, color: T.txD }}>{t("admin.noData")}</div>;
                 const allKeys = [...new Set(courses.flatMap(c => Object.keys(c)))];
                 // Priority keys first, then rest
                 const priority = ["id", "shortname", "idnumber", "fullname", "visible", "format"];
@@ -3819,7 +3818,7 @@ const T2ScholaTab = () => {
       });
       const tokData = await tokResp.json();
       if (!tokData.ok || !tokData.token) {
-        setError(tokData.error || tokData.errorcode || "トークン取得失敗");
+        setError(tokData.error || tokData.errorcode || t("admin.t2.tokenFailed"));
         return;
       }
       setPassword("");
@@ -3838,21 +3837,21 @@ const T2ScholaTab = () => {
 
   return (
     <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>T2SCHOLA 2024年度 時間割取得</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>{t("admin.t2.title")}</div>
       <div style={{ fontSize: 12, color: T.txD, lineHeight: 1.6 }}>
-        Science Tokyo パスワードを入力すると、T2SCHOLAからトークンを自動取得し、2024年度の履修時間割までまとめて生成します。
+        {t("admin.t2.desc")}
       </div>
 
       {/* Single input: password → token → siteInfo → timetable */}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <input
           type="password" value={password} onChange={e => setPassword(e.target.value)}
-          placeholder="Science Tokyo パスワード"
+          placeholder={t("admin.t2.passwordPh")}
           style={{ ...inputStyle, flex: 1, minWidth: 200 }}
           onKeyDown={e => { if (e.key === "Enter") runAll(); }}
         />
         <Btn onClick={runAll} color="#4CAF50" disabled={loading || !password.trim()}>
-          {loading ? "取得中..." : "時間割を取得"}
+          {loading ? t("admin.fetching") : t("admin.t2.fetchBtn")}
         </Btn>
       </div>
 
@@ -3860,7 +3859,7 @@ const T2ScholaTab = () => {
       {siteInfo && (
         <div style={{ padding: 12, borderRadius: 10, background: `${T.accent}10`, border: `1px solid ${T.accent}30` }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: T.accent }}>
-            接続済: {siteInfo.fullname} (userid: {siteInfo.userid})
+            {t("admin.t2.connected")}: {siteInfo.fullname} (userid: {siteInfo.userid})
           </div>
           <div style={{ fontSize: 11, color: T.txD, marginTop: 4 }}>
             {siteInfo.sitename} — {siteInfo.siteurl}
@@ -3878,10 +3877,10 @@ const T2ScholaTab = () => {
       {/* Timetable */}
       {timetable && (
         <div style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: T.txH, marginBottom: 12 }}>2024年度 時間割</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.txH, marginBottom: 12 }}>{t("admin.t2.ttTitle")}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
             <div style={{ fontSize: 11, color: T.txD }}>
-              {timetable.stats.total}科目中 {timetable.stats.withSchedule}科目の時間割あり (DB: {timetable.stats.dbRows}行)
+              {t("admin.t2.ttStats", { total: timetable.stats.total, withSchedule: timetable.stats.withSchedule, dbRows: timetable.stats.dbRows })}
             </div>
           </div>
 
@@ -3900,7 +3899,7 @@ const T2ScholaTab = () => {
           {/* Timetable grid */}
           {(() => {
             const qd = timetable.qData[ttQuarter];
-            if (!qd || !qd.TT) return <div style={{ fontSize: 12, color: T.txD }}>この学期のデータなし</div>;
+            if (!qd || !qd.TT) return <div style={{ fontSize: 12, color: T.txD }}>{t("admin.t2.noQuarterData")}</div>;
             const days = ["月", "火", "水", "木", "金"];
             const times = ["1-2\n8:50", "3-4\n10:45", "5-6\n13:20", "7-8\n15:15", "9-10\n17:10"];
             return (
@@ -3910,7 +3909,7 @@ const T2ScholaTab = () => {
                     <tr>
                       <th style={{ width: 44, padding: 4, color: T.txD, borderBottom: `1px solid ${T.bd}` }}></th>
                       {days.map(d => (
-                        <th key={d} style={{ padding: 4, color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, textAlign: "center" }}>{d}</th>
+                        <th key={d} style={{ padding: 4, color: T.txD, fontWeight: 600, borderBottom: `1px solid ${T.bd}`, textAlign: "center" }}>{t("dow.s." + d)}</th>
                       ))}
                     </tr>
                   </thead>
@@ -3946,7 +3945,7 @@ const T2ScholaTab = () => {
               <div key={i} style={{ padding: "3px 0", display: "flex", gap: 8 }}>
                 <span style={{ color: c.col || T.accent, fontFamily: "monospace", minWidth: 80 }}>{c.code}</span>
                 <span style={{ color: T.txH }}>{c.name}</span>
-                <span style={{ color: T.txD }}>{c.per || "時間不明"}</span>
+                <span style={{ color: T.txD }}>{c.per || t("admin.t2.timeUnknown")}</span>
                 <span style={{ color: T.txD }}>{c.room || ""}</span>
               </div>
             ))}
@@ -3973,8 +3972,8 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
     return (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, gap: 12 }}>
         <div style={{ width: 56, height: 56, borderRadius: 16, background: T.bg3, border: `1px solid ${T.bd}`, display: "flex", alignItems: "center", justifyContent: "center" }}>{I.shield}</div>
-        <div style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>アクセス権限がありません</div>
-        <div style={{ fontSize: 13, color: T.txD, textAlign: "center", lineHeight: 1.6 }}>管理者のみアクセスできます</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>{t("admin.forbidden.title")}</div>
+        <div style={{ fontSize: 13, color: T.txD, textAlign: "center", lineHeight: 1.6 }}>{t("admin.forbidden.desc")}</div>
       </div>
     );
   }
