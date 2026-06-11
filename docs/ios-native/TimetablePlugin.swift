@@ -24,10 +24,11 @@ public class TimetablePlugin: CAPPlugin, CAPBridgedPlugin {
     static let storageKey = "timetable_v1"
 
     @objc func save(_ call: CAPPluginCall) {
-        let quarter = call.getInt("quarter") ?? 0
-        let year = call.getInt("year") ?? 0
-        // `slots` arrives as a JSON string (array of {day,ps,pe,name,room,col}).
+        // `slots` is a JSON string: array of {year,quarter,day,ps,pe,name,room,col}.
         let slotsJson = call.getString("slots") ?? "[]"
+        // Selection an unconfigured widget falls back to.
+        let defaultYear = call.getInt("defaultYear") ?? 0
+        let defaultQuarter = call.getInt("defaultQuarter") ?? 0
 
         guard let defaults = UserDefaults(suiteName: TimetablePlugin.appGroupId) else {
             call.reject("App Group \(TimetablePlugin.appGroupId) is not configured")
@@ -35,9 +36,9 @@ public class TimetablePlugin: CAPPlugin, CAPBridgedPlugin {
         }
 
         let payload: [String: Any] = [
-            "quarter": quarter,
-            "year": year,
             "slots": slotsJson,
+            "defaultYear": defaultYear,
+            "defaultQuarter": defaultQuarter,
         ]
 
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else {

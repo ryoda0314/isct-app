@@ -19,8 +19,11 @@
 | ファイル | 役割 | 配置先 |
 |---|---|---|
 | `TimetablePlugin.swift` | JS→App Group 保存＋ウィジェット更新プラグイン | `ios/App/App/` |
-| `TimetableWidget/SharedTimetable.swift` | 共有データモデル／読み込み | Widget Extension ターゲット |
+| `TimetableWidget/SharedTimetable.swift` | 共有データモデル／読み込み／年度・期フィルタ | Widget Extension ターゲット |
+| `TimetableWidget/TimetableConfigIntent.swift` | 設定画面（年度・クォーター選択）の AppIntent | Widget Extension ターゲット |
 | `TimetableWidget/TimetableWidget.swift` | ウィジェット UI（small/medium/large） | Widget Extension ターゲット |
+
+> ウィジェットは **全年度・全クォーターのデータ**を受け取り、各ウィジェットの設定（長押し →「ウィジェットを編集」）で選んだ年度・クォーターだけを表示する。設定未変更の場合はアプリが最後に表示していた年度・期（defaultYear/defaultQuarter）にフォールバック。
 
 ## 手順
 
@@ -82,9 +85,34 @@ npm run build && npx cap sync ios
 2. ホーム画面長押し → **+** → "ScienceTokyo" → 時間割ウィジェットを追加
 3. small=今日の授業リスト / medium=月〜金の4限まで / large=5限までのフルグリッド
 
+## ウィジェットのタップで時間割を開く（ディープリンク）
+
+ウィジェットをタップ → アプリ起動 → 時間割ビューへ遷移する。
+
+1. **URLスキーム登録**: `ios/App/App/Info.plist` に追加（手動。`ios/` は gitignore 対象）
+   ```xml
+   <key>CFBundleURLTypes</key>
+   <array>
+     <dict>
+       <key>CFBundleURLName</key>
+       <string>ac.isct.campus</string>
+       <key>CFBundleURLSchemes</key>
+       <array><string>scitokyo</string></array>
+     </dict>
+   </array>
+   ```
+2. **ウィジェット側**: `TimetableWidget.swift` で `.widgetURL(URL(string: "scitokyo://timetable"))`
+3. **JS側**: `campus-sns/App.jsx` の `useEffect` が `@capacitor/app` の `appUrlOpen` と起動URL（`getLaunchUrl`）を監視し、URL に `timetable` を含めば `setView("timetable")`
+4. デバッグ: シミュレータなら `xcrun simctl openurl booted "scitokyo://timetable"` で遷移確認できる
+
 ## データの流れ（デバッグ用）
 
-- JS: `campus-sns/App.jsx` の `useEffect`（`qd, quarter, _selY` 依存）が `saveTimetableToWidget(qd, quarter, _selY)` を呼ぶ
-- 送信ペイロード: `{ quarter, year, slots: JSON文字列 }`、slots 要素 = `{day(0-4), ps, pe, name, room, col}`
-- ウィジェットが空のまま → ① App Group ID 不一致 ② アプリ側で一度も時間割データが読み込まれていない ③ プラグイン未登録、のいずれか
+- JS: `campus-sns/App.jsx` の `useEffect`（`allCourses, pastTTCache, quarter, _selY` 依存）が
+  `saveTimetableToWidget({allCourses, pastTTCache, defaultYear:_selY, defaultQuarter:quarter})` を呼ぶ
+- 送信ペイロード: `{ slots: JSON文字列, defaultYear, defaultQuarter }`
+  - slots 要素 = `{year, quarter, day(0-4), ps, pe, name, room, col}`（全年度・全クォーター）
+- ウィジェット側: 設定の年度・期で `slots` をフィルタ。設定なしなら default にフォールバック
+- 年度の選択肢は `YearOptionsProvider`（`DynamicOptionsProvider`）が App Group の slots から動的生成
+- ウィジェットが空のまま → ① App Group ID 不一致 ② アプリ側で時間割未読込 ③ プラグイン未登録、のいずれか
+- 過去年度を選びたいのに出ない → アプリでその年度の時間割を一度開く（`pastTTCache` に乗る）と送信される
 - 実機/シミュレータの再現: アプリ起動後、ウィジェットを一度削除→再追加でタイムライン強制リロード

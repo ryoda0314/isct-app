@@ -210,6 +210,22 @@ export default function App(){
     return()=>{cleanup?.remove?.();};
   },[goBack]);
 
+  // Deep link: widget tap (scitokyo://timetable) opens the timetable view (native).
+  useEffect(()=>{
+    if(!isNative())return;
+    let cleanup;
+    const route=(url)=>{if(url&&/timetable/i.test(url))setView("timetable");};
+    (async()=>{
+      try{
+        const {App:CapApp}=await import("@capacitor/app");
+        const launch=await CapApp.getLaunchUrl();
+        route(launch?.url);
+        cleanup=await CapApp.addListener("appUrlOpen",(e)=>route(e?.url));
+      }catch{}
+    })();
+    return()=>{cleanup?.remove?.();};
+  },[]);
+
   // Android back button (PWA standalone)
   useEffect(()=>{
     if(isNative())return;
@@ -652,8 +668,9 @@ export default function App(){
   },[splashPhase]);
 
   useEffect(()=>{try{localStorage.setItem("quarter",String(quarter));}catch{}},[quarter]);
-  // Push the current quarter timetable into the iOS home-screen widget (native only; no-op on web).
-  useEffect(()=>{if(qd&&qd.C&&qd.C.length)saveTimetableToWidget(qd,quarter,_selY);},[qd,quarter,_selY]);
+  // Push the full timetable (all quarters/years) to the iOS widget; it filters by its
+  // own year+quarter config. defaultYear/Quarter = what an unconfigured widget shows. Native-only.
+  useEffect(()=>{if(allCourses&&allCourses.length)saveTimetableToWidget({allCourses,pastTTCache,defaultYear:_selY,defaultQuarter:quarter});},[allCourses,pastTTCache,quarter,_selY]);
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
   useEffect(()=>{try{localStorage.setItem("notifSettings",JSON.stringify(notifSettings));}catch{}},[notifSettings]);
   const onSetupComplete=async()=>{try{const sr=await fetchT(`${API}/api/auth/status`);const sd=await sr.json();if(sd.loginId==="apple-review"){console.log("[App] review account detected, loading demo");onDemo("ss");return;}}catch{}const MAX=4;const attempt=async(n)=>{console.log(`[App] onSetupComplete: fetchData attempt ${n}/${MAX}`);const r=await fetchData();if(r){console.log(`[App] onSetupComplete: fetchData OK — ${r.length} assignments`);setAppState("ready");refreshRef.current=setInterval(async()=>{const r2=await fetchData();if(r2)fetchSubmissionStatuses(r2);},15*60*1000);fetchSiteSettings();fetchSubmissionStatuses(r);return;}if(n<MAX){const delay=n*2;console.warn(`[App] onSetupComplete: fetchData attempt ${n} failed, retrying in ${delay}s...`);await new Promise(r=>setTimeout(r,delay*1000));return attempt(n+1);}console.error(`[App] onSetupComplete: fetchData failed after ${MAX} attempts, returning to setup`);setAppState("setup");};await attempt(1);};

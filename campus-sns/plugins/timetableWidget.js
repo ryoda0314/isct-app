@@ -1,8 +1,9 @@
 /**
  * Timetable Widget — Native Capacitor Plugin Bridge
  *
- * Pushes the current quarter's timetable into the iOS App Group shared
- * UserDefaults so the WidgetKit home-screen widget can render it.
+ * Pushes the FULL timetable the app knows about (every quarter, every loaded
+ * year) into the iOS App Group shared UserDefaults. The WidgetKit widget then
+ * filters by the year + quarter chosen in its configuration screen (AppIntent).
  * On web (or if the native plugin is missing) this is a no-op.
  *
  * Native side: docs/ios-native/TimetablePlugin.swift  (jsName "Timetable")
@@ -32,8 +33,8 @@ function dayFromPer(per) {
   return d === undefined ? -1 : d;
 }
 
-/** Flatten one course (+ its extraSlots) into widget slot rows. */
-function courseToSlots(c) {
+/** Flatten one course (+ its extraSlots) into widget slot rows, tagged year+quarter. */
+function courseToSlots(c, year, quarter) {
   const slots = [];
   const push = (per, ps, pe, room) => {
     const day = dayFromPer(per);
@@ -42,6 +43,8 @@ function courseToSlots(c) {
     const peN = Number(pe) || psN;
     if (!psN) return;
     slots.push({
+      year: Number(year) || 0,
+      quarter: Number(quarter) || 0,
       day,
       ps: psN,
       pe: peN,
@@ -58,26 +61,59 @@ function courseToSlots(c) {
 }
 
 /**
- * Save the given quarter timetable to the widget.
+ * Push the full timetable to the widget.
  *
- * @param {Object} qd      - quarter data: { C: course[], TT: grid }
- * @param {number} quarter - 1..4
- * @param {number} [year]  - academic year
+ * @param {Object}   opts
+ * @param {Array}    opts.allCourses     - every loaded course (each carries .year/.quarter)
+ * @param {Object}   [opts.pastTTCache]  - { [year]: { qData: { 1:{C:[]}, ... } } }
+ * @param {number}   [opts.defaultYear]  - selection shown by an unconfigured widget
+ * @param {number}   [opts.defaultQuarter]
  */
-export async function saveTimetableToWidget(qd, quarter, year) {
+export async function saveTimetableToWidget({
+  allCourses = [],
+  pastTTCache = {},
+  defaultYear = 0,
+  defaultQuarter = 0,
+} = {}) {
   if (!isNative()) return;
   await ensurePlugin();
   if (!Timetable) return;
 
-  const courses = (qd && Array.isArray(qd.C)) ? qd.C : [];
-  const slots = courses.flatMap(courseToSlots);
+  const slots = [];
+  const seen = new Set();
+  const add = (s) => {
+    const k = `${s.year}|${s.quarter}|${s.day}|${s.ps}|${s.name}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    slots.push(s);
+  };
+
+  // Loaded courses carry their own year + quarter.
+  for (const c of allCourses) {
+    const q = Number(c.quarter) || 0;
+    if (!q) continue;
+    const y = Number(c.year) || Number(defaultYear) || 0;
+    for (const s of courseToSlots(c, y, q)) add(s);
+  }
+
+  // Past years fetched on demand: pastTTCache[year] = { qData: { 1:{C}, ... } }.
+  for (const [yStr, d] of Object.entries(pastTTCache)) {
+    const y = Number(yStr);
+    const qData = d && d.qData;
+    if (!y || !qData) continue;
+    for (const q of [1, 2, 3, 4]) {
+      const cs = qData[q] && qData[q].C;
+      if (!Array.isArray(cs)) continue;
+      for (const c of cs) for (const s of courseToSlots(c, y, q)) add(s);
+    }
+  }
 
   try {
     await Timetable.save({
-      quarter: Number(quarter) || 0,
-      year: Number(year) || 0,
       // Stored as a JSON string for a stable native decode boundary.
       slots: JSON.stringify(slots),
+      defaultYear: Number(defaultYear) || 0,
+      defaultQuarter: Number(defaultQuarter) || 0,
     });
   } catch (e) {
     // Widget is best-effort; never block the app on failure.
