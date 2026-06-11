@@ -16,6 +16,7 @@ import { resetCourseMaterialsCache } from "./hooks/useCourseMaterials.js";
 import { useMobile, useBreakpoint } from "./utils.jsx";
 import { isNative, clearNativeCookies } from "./capacitor.js";
 import { openLmsPage } from "./plugins/portalWebView.js";
+import { saveTimetableToWidget } from "./plugins/timetableWidget.js";
 import { Av, Loader } from "./shared.jsx";
 import { DSide, DChan, MNav, MoreMenu } from "./layout.jsx";
 import { HomeView } from "./views/HomeView.jsx";
@@ -651,6 +652,8 @@ export default function App(){
   },[splashPhase]);
 
   useEffect(()=>{try{localStorage.setItem("quarter",String(quarter));}catch{}},[quarter]);
+  // Push the current quarter timetable into the iOS home-screen widget (native only; no-op on web).
+  useEffect(()=>{if(qd&&qd.C&&qd.C.length)saveTimetableToWidget(qd,quarter,_selY);},[qd,quarter,_selY]);
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
   useEffect(()=>{try{localStorage.setItem("notifSettings",JSON.stringify(notifSettings));}catch{}},[notifSettings]);
   const onSetupComplete=async()=>{try{const sr=await fetchT(`${API}/api/auth/status`);const sd=await sr.json();if(sd.loginId==="apple-review"){console.log("[App] review account detected, loading demo");onDemo("ss");return;}}catch{}const MAX=4;const attempt=async(n)=>{console.log(`[App] onSetupComplete: fetchData attempt ${n}/${MAX}`);const r=await fetchData();if(r){console.log(`[App] onSetupComplete: fetchData OK — ${r.length} assignments`);setAppState("ready");refreshRef.current=setInterval(async()=>{const r2=await fetchData();if(r2)fetchSubmissionStatuses(r2);},15*60*1000);fetchSiteSettings();fetchSubmissionStatuses(r);return;}if(n<MAX){const delay=n*2;console.warn(`[App] onSetupComplete: fetchData attempt ${n} failed, retrying in ${delay}s...`);await new Promise(r=>setTimeout(r,delay*1000));return attempt(n+1);}console.error(`[App] onSetupComplete: fetchData failed after ${MAX} attempts, returning to setup`);setAppState("setup");};await attempt(1);};
