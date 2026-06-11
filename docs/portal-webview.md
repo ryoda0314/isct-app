@@ -45,7 +45,10 @@ Capacitor カスタムプラグイン `PortalPlugin.java` による、TiTech ポ
 ### SSL / ネットワーク
 
 - `network_security_config.xml` で対象ドメインを許可
-- SSL エラーハンドラで `.titech.ac.jp` / `.isct.ac.jp` / `.ex-tic.com` は `handler.proceed()`
+- **SSL エラーハンドラは実装しない**（`onReceivedSslError` を override しない）。
+  `handler.proceed()` で証明書エラーを握りつぶすと Google Play の
+  「WebView SSL エラーハンドラの安全でない実装」ポリシー違反になる。
+  対象ドメインは正規の有効証明書を持つため、WebView 既定（エラー時 cancel）で問題ない。
 - 一部ページが HTTP を使うため `cleartextTrafficPermitted="true"` が必要
 
 ### SAML SSO
