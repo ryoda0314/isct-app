@@ -17,23 +17,31 @@
 import { isNative } from '../capacitor.js';
 
 let Volume = null;
-let loaded = false;
+let initPromise = null;
 
-// NOTE: ensurePlugin must NOT return the plugin proxy. A Capacitor plugin proxy
-// is a thenable-looking object; returning it from an async fn makes `await`
-// invoke its `.then`, which the bridge interprets as a native method call and
-// rejects with `"Volume.then() is not implemented on ios"`. So we keep the
-// proxy in a module variable and return nothing.
-async function ensurePlugin() {
-  if (loaded) return;
-  loaded = true;
-  if (!isNative()) return;
-  try {
-    const { registerPlugin } = await import('@capacitor/core');
-    Volume = registerPlugin('Volume');
-  } catch {
-    Volume = null;
-  }
+// NOTE 1: ensurePlugin must NOT return the plugin proxy. A Capacitor plugin proxy
+// is a thenable-looking object; returning it (or resolving a Promise with it)
+// makes `await` invoke its `.then`, which the bridge treats as a native call and
+// rejects with `"Volume.then() is not implemented on ios"`. So the proxy lives in
+// a module variable and the shared init Promise resolves to undefined.
+//
+// NOTE 2: we cache the in-flight init Promise (not a boolean `loaded` flag). With a
+// flag, calling getSystemVolume() and onSystemVolumeChange() back-to-back lets the
+// 2nd call see "already loading" and fall through while Volume is still null —
+// so the volumeChange listener silently fails to register. Awaiting the shared
+// Promise guarantees Volume is set before any caller proceeds.
+function ensurePlugin() {
+  if (initPromise) return initPromise;
+  initPromise = (async () => {
+    if (!isNative()) return;
+    try {
+      const { registerPlugin } = await import('@capacitor/core');
+      Volume = registerPlugin('Volume');
+    } catch {
+      Volume = null;
+    }
+  })();
+  return initPromise;
 }
 
 /** Whether system-volume linking is available (native platform only). */

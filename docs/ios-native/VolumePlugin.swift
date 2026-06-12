@@ -37,9 +37,14 @@ public class VolumePlugin: CAPPlugin, CAPBridgedPlugin {
         try? session.setCategory(.playback, options: [.mixWithOthers])
         try? session.setActive(true)
 
-        // .initial で登録直後に現在値を 1 回流し、JS 側の初期同期も兼ねる。
-        observation = session.observe(\.outputVolume, options: [.new, .initial]) { [weak self] sess, _ in
-            self?.notifyListeners("volumeChange", data: ["value": Double(sess.outputVolume)])
+        observation = session.observe(\.outputVolume, options: [.new]) { [weak self] sess, _ in
+            let v = sess.outputVolume
+            // KVO は任意のスレッド（多くはバックグラウンド）で発火する。一方
+            // notifyListeners → WKWebView の JS 評価はメインスレッド必須で、別スレッド
+            // から呼ぶとイベントがサイレントに破棄される。必ずメインへディスパッチする。
+            DispatchQueue.main.async {
+                self?.notifyListeners("volumeChange", data: ["value": Double(v)])
+            }
         }
 
         DispatchQueue.main.async { [weak self] in
