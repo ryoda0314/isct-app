@@ -32,6 +32,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
       <SideItem icon={I.book} label={t("nav.textbooks")} on={view==="textbooks"} click={()=>setView("textbooks")} compact={cp}/>
       <SideItem icon={I.bar} label={t("nav.grading")} on={view==="grading"} click={()=>setView("grading")} compact={cp}/>
       <SideItem icon={I.file} label={t("nav.pdftools")} on={view==="pdftools"} click={()=>setView("pdftools")} compact={cp}/>
+      <SideItem icon={I.pen} label={t("nav.notes")} on={view==="notes"} click={()=>setView("notes")} compact={cp}/>
       <SideItem icon={I.tasks} label={t("nav.tasks")} on={view==="tasks"} click={()=>setView("tasks")} badge={ac} compact={cp}/>
       <SideItem icon={I.mail} label="DM" on={view==="dm"} click={()=>setView("dm")} badge={dmUnread} compact={cp}/>
       <SideItem icon={I.clip} label={t("nav.pocket")} on={view==="pocket"} click={()=>setView("pocket")} compact={cp}/>
@@ -182,7 +183,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
 // ============================================================
 
 const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false})=>{
-  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket","takiplaza","library","pdftools"];
+  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket","takiplaza","library","pdftools","notes"];
   const ttId=hasMed?"med-tt":"timetable";
   const isMore=moreViews.includes(view)&&view!==ttId;
   return(
@@ -223,6 +224,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
     {title:t("more.learningTools"),items:[
       {id:"textbooks",i:I.book,l:t("nav.textbooks")},
       {id:"pdftools",i:I.file,l:t("nav.pdftools")},
+      {id:"notes",i:I.pen,l:t("nav.notes")},
       {id:"pomo",i:I.play,l:t("more.pomoTimer")},
     ]},
     {title:t("more.campus"),items:[
