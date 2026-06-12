@@ -36,8 +36,12 @@ npx cap sync ios    # 2回目以降は基本これだけ（プラグイン・設
 ```bash
 cp docs/ios-native/PortalPlugin.swift      ios/App/App/PortalPlugin.swift
 cp docs/ios-native/TimetablePlugin.swift   ios/App/App/TimetablePlugin.swift
+cp docs/ios-native/SecureCredsPlugin.swift ios/App/App/SecureCredsPlugin.swift
 cp docs/ios-native/capacitor.config.json   ios/App/App/capacitor.config.json
 ```
+
+> `SecureCredsPlugin.swift` も `ViewController.swift` の `capacitorDidLoad` で
+> `bridge?.registerPluginInstance(SecureCredsPlugin())` 登録が必要（登録済み）。
 
 （ウィジェットを使う場合は `docs/ios-native/WIDGET_SETUP.md` を参照）
 

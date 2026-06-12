@@ -69,28 +69,59 @@ let _refreshInFlight = null;
  * Returns { wstoken, userid } or null if the native path is unavailable/failed
  * (caller then falls back to the server refresh).
  */
+/**
+ * Get the credential bundle from on-device secure storage (Keychain/Keystore),
+ * migrating it from the server once on first run. Returns the bundle, or null
+ * on web / when the native plugin is unavailable. Throws AUTH_REQUIRED if the
+ * server reports the session is gone during migration.
+ */
+async function ensureLocalCreds() {
+  if (!isNative()) return null;
+  const { loadCredsBundle, saveCredsBundle } = await import('./secureCreds.js');
+
+  const stored = await loadCredsBundle();
+  if (stored?.password && stored?.totpSecret) {
+    console.log('[SecureCreds] using locally-stored credentials (no server fetch)');
+    return stored;
+  }
+
+  // First run on this device: migrate the full bundle from the server, then
+  // persist it locally so the server-side copy can eventually be retired.
+  const r = await fetch('/api/auth/credentials/bundle', {
+    headers: { 'x-app-platform': 'capacitor' },
+    signal: AbortSignal.timeout(12000),
+  });
+  if (r.status === 401) {
+    const err = new Error('Not authenticated');
+    err.code = 'AUTH_REQUIRED';
+    throw err;
+  }
+  if (!r.ok) return null;
+  const bundle = await r.json();
+  if (!bundle?.password || !bundle?.totpSecret) return null;
+  console.log('[SecureCreds] migrating credentials from server to device Keychain (first run)');
+  try { await saveCredsBundle(bundle); } catch (e) { console.warn('[SecureCreds] save failed:', e.message); }
+  return bundle;
+}
+
 async function refreshTokenNative() {
   if (!isNative()) return null;
   try {
-    // Phase A: credentials still come from the server. A later phase moves this
-    // to on-device secure storage (Keychain/Keystore) and drops this fetch.
-    const cr = await fetch('/api/auth/credentials?type=isct', {
-      headers: { 'x-app-platform': 'capacitor' },
-      signal: AbortSignal.timeout(12000),
-    });
-    if (cr.status === 401) {
-      const err = new Error('Not authenticated');
-      err.code = 'AUTH_REQUIRED';
-      throw err;
-    }
-    if (!cr.ok) return null;
-    const { userId, password, totpCode } = await cr.json();
-    if (!userId || !password || !totpCode) return null;
+    const bundle = await ensureLocalCreds();
+    if (!bundle) return null;
+
+    // Generate the 2FA code on-device from the stored secret — no server call.
+    const { generateTOTP } = await import('./totp.js');
+    const totpCode = await generateTOTP(bundle.totpSecret);
 
     const { acquireWsToken } = await import('./plugins/portalWebView.js');
-    const { wstoken, userid } = await acquireWsToken({ userId, password, totpCode });
+    const { wstoken, userid } = await acquireWsToken({
+      userId: bundle.userId || bundle.loginId,
+      password: bundle.password,
+      totpCode,
+    });
     if (!wstoken) return null;
-    return { wstoken, userid: userid || _cachedUserid };
+    return { wstoken, userid: userid || bundle.moodleUserId || _cachedUserid };
   } catch (e) {
     if (e.code === 'AUTH_REQUIRED') throw e;
     console.warn('[MoodleAPI] native SSO refresh failed, falling back to server:', e.message);
