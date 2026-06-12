@@ -319,49 +319,49 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
     );
   }
 
-  /* ── Conversation list ── */
+  /* ── Conversation list (groups + DMs merged, newest first) ── */
+  const tsOf=x=>{const d=x?new Date(x).getTime():0;return isNaN(d)?0:d;};
+  const convItems=[
+    ...groups.map(g=>({kind:'group',ts:tsOf(g.lastMessage?.ts),g})),
+    ...conversations.map(conv=>{const last=conv.msgs[conv.msgs.length-1];return {kind:'dm',ts:tsOf(last?.ts),conv,last};}),
+  ].sort((a,b)=>b.ts-a.ts);
+
   return(
     <div style={{flex:1,overflowY:"auto",padding:12}}>
-      {/* Action buttons */}
-      <div style={{display:"flex",gap:8,marginBottom:12}}>
-        <button onClick={()=>setShowPicker(true)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"10px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer"}}>
-          <span style={{color:T.accent,display:"flex"}}>{I.pen}</span>
-          <span style={{fontSize:12,fontWeight:600,color:T.txH}}>{t("dm.newDM")}</span>
-        </button>
-        <button onClick={()=>setView("friends")} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"10px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer"}}>
-          <span style={{color:T.accent,display:"flex"}}>{I.users}</span>
-          <span style={{fontSize:12,fontWeight:600,color:T.txH}}>{t("dm.friendList")}</span>
-        </button>
-        <button onClick={()=>setShowNewGroup(true)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"10px 0",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer"}}>
-          <span style={{color:T.accent,display:"flex"}}>{I.plus}</span>
-          <span style={{fontSize:12,fontWeight:600,color:T.txH}}>{t("dm.group")}</span>
-        </button>
-      </div>
+      {/* Go to friends screen (start DMs / create groups there) */}
+      <button onClick={()=>setView("friends")} title={t("dm.friendListHint")}
+        style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 12px",marginBottom:10,borderRadius:9,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer",transition:"all .15s"}}
+        onMouseEnter={e=>{e.currentTarget.style.background=`${T.accent}0c`;e.currentTarget.style.borderColor=`${T.accent}40`;}}
+        onMouseLeave={e=>{e.currentTarget.style.background=T.bg2;e.currentTarget.style.borderColor=T.bd;}}>
+        <span style={{color:T.accent,display:"flex",flexShrink:0}}>{I.users}</span>
+        <span style={{fontSize:13,fontWeight:600,color:T.txH}}>{t("dm.friendList")}</span>
+        <span style={{flex:1}}/>
+        <span style={{color:T.txD,display:"flex",flexShrink:0}}>{I.arr}</span>
+      </button>
       {loading&&<Loader msg={t("dm.loadingDM")} size="sm"/>}
 
-      {/* Group conversations */}
-      {groups.length>0&&<>
-        {groups.map(g=>(
-          <div key={`g_${g.id}`} onClick={()=>setSel({type:'group',id:g.id,name:g.name,avatar:g.avatar,color:g.color,memberCount:g.memberCount,members:g.members})}
-            style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6,cursor:"pointer"}}>
-            <div style={{width:36,height:36,borderRadius:12,background:g.color||T.accent,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <span style={{color:"#fff",fontWeight:700,fontSize:13}}>{g.avatar||g.name?.[0]||'G'}</span>
-            </div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontWeight:600,color:T.txH,fontSize:14}}>{g.name}</div>
-              <div style={{fontSize:12,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                {g.lastMessage?`${g.lastMessage.senderName}: ${g.lastMessage.text}`:t("dm.memberGroup",{n:g.memberCount})}
+      {/* Conversations (groups + DMs, newest first) */}
+      {convItems.map(it=>{
+        if(it.kind==='group'){
+          const g=it.g;
+          return(
+            <div key={`g_${g.id}`} onClick={()=>setSel({type:'group',id:g.id,name:g.name,avatar:g.avatar,color:g.color,memberCount:g.memberCount,members:g.members})}
+              style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6,cursor:"pointer"}}>
+              <div style={{width:36,height:36,borderRadius:12,background:g.color||T.accent,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <span style={{color:"#fff",fontWeight:700,fontSize:13}}>{g.avatar||g.name?.[0]||'G'}</span>
               </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:600,color:T.txH,fontSize:14}}>{g.name}</div>
+                <div style={{fontSize:12,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {g.lastMessage?`${g.lastMessage.senderName}: ${g.lastMessage.text}`:t("dm.memberGroup",{n:g.memberCount})}
+                </div>
+              </div>
+              {g.lastMessage&&<span style={{fontSize:10,color:T.txD}}>{fT(new Date(g.lastMessage.ts))}</span>}
             </div>
-            {g.lastMessage&&<span style={{fontSize:10,color:T.txD}}>{fT(new Date(g.lastMessage.ts))}</span>}
-          </div>
-        ))}
-      </>}
-
-      {/* DM conversations */}
-      {conversations.map(conv=>{
+          );
+        }
+        const conv=it.conv,last=it.last;
         const wu={name:conv.withName||'?',av:conv.withAvatar||'?',col:conv.withColor||'#888'};
-        const last=conv.msgs[conv.msgs.length-1];
         return(
           <div key={conv.id} onClick={()=>{setSel({type:'dm',...conv});markDMSeen?.(conv.id);markRead(conv.id);}} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6,cursor:"pointer"}}>
             <Av u={wu} sz={36} st/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{wu.name}</div><div style={{fontSize:12,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{last?.stamp_id?t("dm.stampPreview"):last?.text}</div></div>
@@ -369,7 +369,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
           </div>
         );
       })}
-      {!loading&&conversations.length===0&&groups.length===0&&<div style={{textAlign:"center",padding:20,color:T.txD,fontSize:13}}>{t("dm.empty")}</div>}
+      {!loading&&convItems.length===0&&<div style={{textAlign:"center",padding:20,color:T.txD,fontSize:13}}>{t("dm.empty")}</div>}
     </div>
   );
 };

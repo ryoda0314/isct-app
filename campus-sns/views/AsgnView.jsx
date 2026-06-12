@@ -28,7 +28,7 @@ function OverdueCollapse({open,items,renderItems,hasUpcoming}){
   </div>;
 }
 
-export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,courses=[],quarter,setQuarter,hiddenAsgn,saveHidden,academicYear})=>{
+export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,deleteTask,navCourse,courses=[],quarter,setQuarter,hiddenAsgn,saveHidden,academicYear})=>{
 
   const [tab,setTab]=useState("active");
   const [sel,setSel]=useState(null);
@@ -53,9 +53,9 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
   const unhideA=(e,id)=>{e.stopPropagation();if(!saveHidden||!hiddenAsgn)return;saveHidden([...hiddenAsgn].filter(x=>x!==id));};
   const togSub=(aid,sid)=>setAsgn(p=>p.map(a=>{if(a.id!==aid)return a;const ns=a.subs.map(s=>s.id===sid?{...s,d:!s.d}:s);return{...a,subs:ns,st:ns.every(s=>s.d)&&ns.length?"completed":a.st==="not_started"?"in_progress":a.st};}));
   const chSt=(aid,st)=>setAsgn(p=>p.map(a=>a.id===aid?{...a,st,sub:st==="completed"?new Date():null}:a));
-  const togTk=id=>setMyTasks?.(p=>p?.map(t=>t.id===id?{...t,d:!t.d}:t));
-  const delTk=id=>setMyTasks?.(p=>p?.filter(t=>t.id!==id));
-  const addTk=()=>{if(!ntxt.trim()||!setMyTasks)return;const due=ndue?new Date(ndue+"T23:59:00"):null;setMyTasks(p=>[...p,{id:`mt_${Date.now()}`,t:ntxt.trim(),d:false,due}]);setNtxt("");setNdue("");setAddExpand(false);};
+  const togTk=id=>toggleTask?.(id);
+  const delTk=id=>deleteTask?.(id);
+  const addTk=()=>{if(!ntxt.trim()||!addTask)return;const due=ndue?new Date(ndue+"T23:59:00").toISOString():null;addTask(ntxt.trim(),due);setNtxt("");setNdue("");setAddExpand(false);};
   const [lmsLoading,setLmsLoading]=useState(false);
   const goLms=async(url)=>{
     if(!url)return;
@@ -151,6 +151,9 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
         {showTabs&&(tab==="active"||tab==="done")&&calMode==="month"&&(()=>{
           const calItems=tab==="done"?done:active;
           const byDay={};calItems.forEach(a=>{const k=dKey(a.due);(byDay[k]=byDay[k]||[]).push(a);});
+          // My Tasks with a due date show on the calendar too (pending only).
+          const calTasks=(myTasks||[]).filter(tk=>!tk.d&&tk.due);
+          const tByDay={};calTasks.forEach(tk=>{const k=dKey(tk.due);(tByDay[k]=tByDay[k]||[]).push(tk);});
           const first=new Date(calMonth.y,calMonth.m,1);
           const startOff=(first.getDay()+6)%7;
           const daysInMonth=new Date(calMonth.y,calMonth.m+1,0).getDate();
@@ -158,6 +161,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
           const prevM=()=>setCalMonth(p=>p.m===0?{y:p.y-1,m:11}:{y:p.y,m:p.m-1});
           const nextM=()=>setCalMonth(p=>p.m===11?{y:p.y+1,m:0}:{y:p.y,m:p.m+1});
           const selDayItems=selDay?calItems.filter(a=>isSameDay(a.due,selDay)):[];
+          const selDayTasks=selDay?calTasks.filter(tk=>isSameDay(tk.due,selDay)):[];
           const maxShow=mob?1:2;
           return <>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -181,6 +185,11 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
                     <div style={{fontSize:mob?7:8,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"12px"}}>{a.title}</div>
                   </div>;})}
                   {valid&&dayAsgn.length>maxShow&&<div style={{fontSize:mob?7:8,color:T.txD,padding:"0 2px"}}>+{dayAsgn.length-maxShow}</div>}
+                  {valid&&(tByDay[dKey(date)]||[]).slice(0,1).map(tk=><div key={tk.id} style={{display:"flex",alignItems:"center",gap:2,padding:mob?"1px 2px":"2px 3px",borderRadius:3,background:`${T.orange||T.accent}14`,borderLeft:`2px dashed ${T.orange||T.accent}`,overflow:"hidden"}}>
+                    <span style={{fontSize:mob?7:8,color:T.orange||T.accent,flexShrink:0,lineHeight:"12px"}}>✓</span>
+                    <span style={{fontSize:mob?7:8,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"12px"}}>{tk.t}</span>
+                  </div>)}
+                  {valid&&(tByDay[dKey(date)]||[]).length>1&&<div style={{fontSize:mob?7:8,color:T.txD,padding:"0 2px"}}>+{(tByDay[dKey(date)]||[]).length-1}</div>}
                 </div>;
               })}
             </div>
@@ -189,7 +198,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
                 <span style={{fontSize:13,fontWeight:700,color:T.txH}}>{selDay.getMonth()+1}/{selDay.getDate()} ({t(`asgn.weekdayShort.${(selDay.getDay()+6)%7}`)})</span>
                 <button onClick={()=>setSelDay(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:2}}>{I.x}</button>
               </div>
-              {selDayItems.length===0&&<div style={{fontSize:12,color:T.txD,padding:4}}>{t("asgn.noAssignments")}</div>}
+              {selDayItems.length===0&&selDayTasks.length===0&&<div style={{fontSize:12,color:T.txD,padding:4}}>{t("asgn.noAssignments")}</div>}
               {selDayItems.map(a=>{const co=courses.find(x=>x.id===a.cid),at=aMap()[a.type],si=sMap()[a.st],dl=uDue(a.due);return(
                 <div key={a.id} onClick={()=>setSel(a)} style={{padding:10,borderRadius:8,background:tab==="done"?`${T.green}06`:T.bg3,border:`1px solid ${tab==="done"?`${T.green}16`:T.bd}`,marginBottom:4,borderLeft:`3px solid ${tab==="done"?T.green:(co?.col||T.accent)}`,cursor:"pointer"}}>
                   <div style={{display:"flex",gap:4,marginBottom:3}}><Tag color={co?.col}>{co?.code}</Tag><Tag color={at?.c}>{at?.l}</Tag><Tag color={si.c}>{si.l}</Tag></div>
@@ -197,6 +206,12 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
                   <div style={{fontSize:11,color:tab==="done"?T.green:dl.c,marginTop:2}}>{fDF(a.due)} · {dl.t}</div>
                 </div>
               );})}
+              {selDayTasks.map(tk=>(
+                <div key={tk.id} style={{display:"flex",alignItems:"center",gap:8,padding:10,borderRadius:8,background:T.bg3,border:`1px solid ${T.bd}`,marginBottom:4,borderLeft:`3px dashed ${T.orange||T.accent}`}}>
+                  <div onClick={()=>togTk(tk.id)} style={{width:20,height:20,borderRadius:5,border:`2px solid ${T.bdL}`,flexShrink:0,cursor:"pointer"}}/>
+                  <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:T.txH}}>{tk.t}</div><div style={{fontSize:11,color:T.orange||T.accent,marginTop:2}}>{t("asgn.tabMyTasks")}</div></div>
+                </div>
+              ))}
             </div>}
           </>;
         })()}
@@ -263,22 +278,17 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
           const tmrw=(()=>{const d=new Date(NOW);d.setDate(d.getDate()+1);return fmtD(d);})();
           const nxtWk=(()=>{const d=new Date(NOW);d.setDate(d.getDate()+7);return fmtD(d);})();
           return <>
-            {/* Summary cards */}
-            {(pending.length>0||completed.length>0)&&<div style={{display:"flex",gap:8,marginBottom:12}}>
-              <div style={{flex:1,padding:"10px 12px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:32,height:32,borderRadius:8,background:`${T.accent}14`,display:"flex",alignItems:"center",justifyContent:"center",color:T.accent,flexShrink:0}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-                <div><div style={{fontSize:18,fontWeight:700,color:T.txH}}>{pending.length}</div><div style={{fontSize:10,color:T.txD}}>{t("asgn.tabActive")}</div></div>
-              </div>
-              <div style={{flex:1,padding:"10px 12px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:32,height:32,borderRadius:8,background:`${T.green}14`,display:"flex",alignItems:"center",justifyContent:"center",color:T.green,flexShrink:0}}>{I.chk}</div>
-                <div><div style={{fontSize:18,fontWeight:700,color:T.txH}}>{completed.length}</div><div style={{fontSize:10,color:T.txD}}>{t("asgn.completed")}</div></div>
-              </div>
+            {/* Summary line */}
+            {(pending.length>0||completed.length>0)&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,padding:"0 2px",fontSize:12,color:T.txD}}>
+              <span style={{display:"inline-flex",alignItems:"center",gap:4}}><span style={{color:T.accent,display:"flex"}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><b style={{color:T.txH,fontWeight:700}}>{pending.length}</b> {t("asgn.tabActive")}</span>
+              <span style={{color:T.bd}}>·</span>
+              <span style={{display:"inline-flex",alignItems:"center",gap:4}}><span style={{color:T.green,display:"flex"}}>{I.chk}</span><b style={{color:T.txH,fontWeight:700}}>{completed.length}</b> {t("asgn.completed")}</span>
             </div>}
 
             {/* Add task */}
             {!addExpand
-              ?<button onClick={()=>setAddExpand(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,border:`1.5px dashed ${T.bdL}`,background:"transparent",color:T.txD,fontSize:14,cursor:"pointer",marginBottom:14,textAlign:"left"}}>
-                <div style={{width:26,height:26,borderRadius:7,background:`${T.accent}14`,display:"flex",alignItems:"center",justifyContent:"center",color:T.accent,flexShrink:0}}>{I.plus}</div>
+              ?<button onClick={()=>setAddExpand(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderRadius:9,border:`1.5px dashed ${T.bdL}`,background:"transparent",color:T.txD,fontSize:13,cursor:"pointer",marginBottom:10,textAlign:"left"}}>
+                <span style={{color:T.accent,display:"flex",flexShrink:0}}>{I.plus}</span>
                 {t("asgn.addTask")}
               </button>
               :<div style={{padding:14,borderRadius:10,background:T.bg2,border:`1px solid ${T.accent}40`,marginBottom:14,boxShadow:`0 0 0 1px ${T.accent}10`}}>
@@ -307,11 +317,11 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
 
             {/* Pending tasks */}
             {pending.map(t=>{const dl=t.due?uDue(t.due):null;return(
-              <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6,borderLeft:dl?.u?`3px solid ${dl.c}`:`3px solid transparent`}}>
-                <div onClick={()=>togTk(t.id)} style={{width:22,height:22,borderRadius:6,border:`2px solid ${T.bdL}`,flexShrink:0,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}/>
+              <div key={t.id} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 12px",borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:5,boxShadow:dl?.u?`inset 3px 0 0 ${dl.c}`:"none"}}>
+                <div onClick={()=>togTk(t.id)} style={{width:19,height:19,borderRadius:5,border:`2px solid ${T.bdL}`,flexShrink:0,cursor:"pointer"}}/>
                 <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>togTk(t.id)}>
-                  <div style={{fontSize:14,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.t}</div>
-                  {dl&&<div style={{fontSize:11,color:dl.c,marginTop:2,display:"flex",alignItems:"center",gap:3}}>{I.clock} {fDS(t.due)} · {dl.t}</div>}
+                  <div style={{fontSize:13.5,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.t}</div>
+                  {dl&&<div style={{fontSize:11,color:dl.c,marginTop:1,display:"flex",alignItems:"center",gap:3}}>{I.clock} {fDS(t.due)} · {dl.t}</div>}
                 </div>
                 <button onClick={()=>delTk(t.id)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4,borderRadius:4,opacity:.3,flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.opacity=.9} onMouseLeave={e=>e.currentTarget.style.opacity=.3}>{I.x}</button>
               </div>
@@ -324,9 +334,9 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
                 {t("asgn.completedHeader",{n:completed.length})}
                 <div style={{flex:1,height:1,background:T.bd,marginLeft:4}}/>
               </button>
-              {showDoneTk&&completed.map(t=><div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",borderRadius:8,marginBottom:3,opacity:.5}}>
-                <div onClick={()=>togTk(t.id)} style={{width:22,height:22,borderRadius:6,background:T.green,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",flexShrink:0,cursor:"pointer"}}>{I.chk}</div>
-                <span onClick={()=>togTk(t.id)} style={{flex:1,fontSize:14,color:T.txD,textDecoration:"line-through",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}}>{t.t}</span>
+              {showDoneTk&&completed.map(t=><div key={t.id} style={{display:"flex",alignItems:"center",gap:9,padding:"6px 12px",borderRadius:8,marginBottom:3,opacity:.5}}>
+                <div onClick={()=>togTk(t.id)} style={{width:19,height:19,borderRadius:5,background:T.green,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",flexShrink:0,cursor:"pointer"}}>{I.chk}</div>
+                <span onClick={()=>togTk(t.id)} style={{flex:1,fontSize:13.5,color:T.txD,textDecoration:"line-through",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}}>{t.t}</span>
                 <button onClick={()=>delTk(t.id)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4,borderRadius:4,opacity:.3,flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.opacity=.9} onMouseLeave={e=>e.currentTarget.style.opacity=.3}>{I.x}</button>
               </div>)}
             </div>}
@@ -365,12 +375,13 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
           })():calMode==="month"&&selDay?(()=>{
             const calItems=tab==="done"?done:active;
             const selDayItems=calItems.filter(a=>isSameDay(a.due,selDay));
+            const selDayTasks=(myTasks||[]).filter(tk=>!tk.d&&tk.due&&isSameDay(tk.due,selDay));
             return <>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
                 <span style={{fontSize:14,fontWeight:700,color:T.txH}}>{selDay.getMonth()+1}/{selDay.getDate()} ({t(`asgn.weekdayShort.${(selDay.getDay()+6)%7}`)})</span>
                 <button onClick={()=>setSelDay(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:2}}>{I.x}</button>
               </div>
-              {selDayItems.length===0&&<div style={{fontSize:12,color:T.txD,padding:4}}>{t("asgn.noAssignmentsThisDay")}</div>}
+              {selDayItems.length===0&&selDayTasks.length===0&&<div style={{fontSize:12,color:T.txD,padding:4}}>{t("asgn.noAssignmentsThisDay")}</div>}
               {selDayItems.map(a=>{const co=courses.find(x=>x.id===a.cid),at=aMap()[a.type],si=sMap()[a.st],dl=uDue(a.due);return(
                 <div key={a.id} onClick={()=>setSel(a)} style={{padding:10,borderRadius:8,background:tab==="done"?`${T.green}06`:T.bg3,border:`1px solid ${tab==="done"?`${T.green}16`:T.bd}`,marginBottom:4,borderLeft:`3px solid ${tab==="done"?T.green:(co?.col||T.accent)}`,cursor:"pointer"}}>
                   <div style={{display:"flex",gap:4,marginBottom:3}}><Tag color={co?.col}>{co?.code}</Tag><Tag color={at?.c}>{at?.l}</Tag><Tag color={si.c}>{si.l}</Tag></div>
@@ -378,6 +389,12 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,setMyTasks,navCourse,cou
                   <div style={{fontSize:11,color:tab==="done"?T.green:dl.c,marginTop:2}}>{fDF(a.due)} · {dl.t}</div>
                 </div>
               );})}
+              {selDayTasks.map(tk=>(
+                <div key={tk.id} style={{display:"flex",alignItems:"center",gap:8,padding:10,borderRadius:8,background:T.bg3,border:`1px solid ${T.bd}`,marginBottom:4,borderLeft:`3px dashed ${T.orange||T.accent}`}}>
+                  <div onClick={()=>togTk(tk.id)} style={{width:20,height:20,borderRadius:5,border:`2px solid ${T.bdL}`,flexShrink:0,cursor:"pointer"}}/>
+                  <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:T.txH}}>{tk.t}</div><div style={{fontSize:11,color:T.orange||T.accent,marginTop:2}}>{t("asgn.tabMyTasks")}</div></div>
+                </div>
+              ))}
             </>;
           })():<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",color:T.txD,fontSize:13,gap:8}}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>

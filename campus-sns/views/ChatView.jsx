@@ -16,6 +16,23 @@ const ChatPoll=({options,votes,userId,onVote,settings,profiles})=>{
   const totalVotes=Object.values(votes).reduce((s,arr)=>s+(arr||[]).length,0);
   const myVotes=options.filter(o=>(votes[o]||[]).includes(userId));
   const [showVoters,setShowVoters]=useState(false);
+  const [extraProfiles,setExtraProfiles]=useState({});
+  const requestedRef=useRef(new Set()); // voter ids already looked up (avoid refetch loop)
+
+  // Resolve voter ids that aren't already known from chat messages.
+  useEffect(()=>{
+    if(!showVoters||anon)return;
+    const allVoters=[...new Set(Object.values(votes).flatMap(arr=>arr||[]))];
+    const missing=allVoters.filter(vid=>!profiles?.[vid]&&!requestedRef.current.has(vid));
+    if(missing.length===0)return;
+    missing.forEach(vid=>requestedRef.current.add(vid));
+    let cancelled=false;
+    fetch(`/api/data/profiles?ids=${missing.join(',')}`)
+      .then(r=>r.ok?r.json():null)
+      .then(m=>{if(m&&!cancelled&&Object.keys(m).length)setExtraProfiles(prev=>({...prev,...m}));})
+      .catch(()=>{});
+    return()=>{cancelled=true;};
+  },[showVoters,anon,votes,profiles]);
   return(
     <div style={{display:"flex",flexDirection:"column",gap:5,marginTop:6,maxWidth:320}}>
       {(multi||anon)&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -59,9 +76,9 @@ const ChatPoll=({options,votes,userId,onVote,settings,profiles})=>{
                 <div key={i} style={{padding:"8px 16px"}}>
                   <div style={{fontSize:12,fontWeight:600,color:T.txH,marginBottom:4}}>{opt} ({voters.length})</div>
                   <div style={{display:"flex",flexDirection:"column",gap:3}}>
-                    {voters.map((vid,j)=>{const p=profiles?.[vid];return(
+                    {voters.map((vid,j)=>{const p=profiles?.[vid]||extraProfiles[vid];return(
                       <div key={j} style={{display:"flex",alignItems:"center",gap:8}}>
-                        <Av u={{av:p?.av,col:p?.col}} sz={22}/>
+                        <Av u={{name:p?.name,av:p?.av,col:p?.col}} sz={22}/>
                         <span style={{fontSize:12,color:T.txH}}>{p?.name||`User ${vid}`}</span>
                       </div>
                     );})}

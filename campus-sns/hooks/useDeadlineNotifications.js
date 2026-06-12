@@ -29,7 +29,7 @@ function saveSeen(set) {
  * @param {Array} asgn  assignments (each: { id, title, cid, due:Date, st })
  * @param {boolean} enabled  gated by ready && notifEnabled && notifSettings.deadline
  */
-export function useDeadlineNotifications(asgn, enabled = true) {
+export function useDeadlineNotifications(asgn, enabled = true, kind = 'assignment') {
   const runningRef = useRef(false);
 
   useEffect(() => {
@@ -60,6 +60,7 @@ export function useDeadlineNotifications(asgn, enabled = true) {
         courseId: a.cid,
         due: new Date(dueMs).toISOString(),
         threshold: chosen.key,
+        kind,
       });
     }
 
@@ -78,5 +79,5 @@ export function useDeadlineNotifications(asgn, enabled = true) {
       })
       .catch(() => {})
       .finally(() => { runningRef.current = false; });
-  }, [asgn, enabled]);
+  }, [asgn, enabled, kind]);
 }

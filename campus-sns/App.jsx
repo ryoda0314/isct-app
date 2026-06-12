@@ -61,6 +61,8 @@ import { ACADEMIC_EVENTS, getCurrentQuarter } from "./academicCalendar.js";
 import { useFriends } from "./hooks/useFriends.js";
 import { useBlocks } from "./hooks/useBlocks.js";
 import { useMutes } from "./hooks/useMutes.js";
+import { useTasks } from "./hooks/useTasks.js";
+import { useCalendarEvents } from "./hooks/useCalendarEvents.js";
 import { useOfflineQueue } from "./hooks/useOfflineQueue.js";
 import { useGroups } from "./hooks/useGroups.js";
 import { getClientToken, clearClientToken, fetchUserCourses as moodleFetchCourses, fetchAssignments as moodleFetchAssignments, fetchSubmissionStatus as moodleFetchSubmissionStatus } from "./moodleClient.js";
@@ -251,7 +253,7 @@ export default function App(){
   const [asgn,setAsgn]=useState(ASGN0);
   const [hiddenAsgn,setHiddenAsgn]=useState(()=>{try{return JSON.parse(localStorage.getItem("hiddenAsgn"))||[];}catch{return[];}});
   const saveHidden=ids=>{setHiddenAsgn(ids);try{localStorage.setItem("hiddenAsgn",JSON.stringify(ids));}catch{}};
-  const [myTasks,setMyTasks]=useState(MYTK0);
+  const {tasks:myTasks,setTasks:setMyTasks,addTask:addTaskFn,toggleTask:toggleTaskFn,deleteTask:deleteTaskFn}=useTasks(ready);
   const appLock=useAppLock();
   const {bmarks,toggle:togBmark}=useBookmarks(ready);
   const {records:attRecords,setStatus:setAttStatus}=useAttendance(ready);
@@ -260,7 +262,7 @@ export default function App(){
   const allEvents=useMemo(()=>[...events,...ACADEMIC_EVENTS.map(e=>({...e,title:locCal(e.title),desc:locCal(e.desc),loc:locCal(e.loc)}))],[events,langPref]);
   // grades are now fetched inside GradeView directly
   const [reviews,setReviews]=useState(REVIEWS0);
-  const [myEvents,setMyEvents]=useState(MYEVENTS0);
+  const {events:myEvents,setEvents:setMyEvents,addEvent:addEventFn,addEvents:addEventsFn,updateEvent:updateEventFn,deleteEvent:deleteEventFn}=useCalendarEvents(ready);
   const [rsvps,setRsvps]=useState(()=>{try{const v=localStorage.getItem("eventRsvps");return v?JSON.parse(v):{};}catch{return{};}});
   const handleRsvp=useCallback((eventId,status)=>{
     const prev=rsvps[eventId];
@@ -709,6 +711,9 @@ export default function App(){
   const ac=asgnLoading?null:asgn.filter(a=>a.st!=="completed"&&qCourseIds.has(a.cid)&&!hiddenSet.has(a.id)).length;
   const {unreadCount:unreadN}=useNotifications(ready);
   useDeadlineNotifications(asgn, ready && notifEnabled && notifSettings.deadline);
+  // My Task deadlines reuse the same deadline pipeline (prefixed ids avoid dedup collisions with assignments).
+  const taskDeadlineItems=useMemo(()=>(myTasks||[]).filter(tk=>!tk.d&&tk.due).map(tk=>({id:`task_${tk.id}`,title:tk.t,cid:null,due:tk.due,st:"active"})),[myTasks]);
+  useDeadlineNotifications(taskDeadlineItems, ready && notifEnabled && notifSettings.deadline, "task");
   const {unreadDM:dmUnread,markDMSeen}=useUnreadDM(user?.moodleId||user?.id);
   const {friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,friendIds:_fIds,isFriend:_isFriend,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,lookupById,refetch:refetchFriends}=useFriends(ready,user?.moodleId||user?.id);
   const {blocks:blockList,isBlocked,blockUser,unblockUser}=useBlocks(ready);
@@ -983,7 +988,7 @@ export default function App(){
           {view==="home"&&<HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit} medSessions={medSessions} setPendingMat={setPendingMat}/>}
   {view==="timetable"&&(L?<LockedView title={t("nav.timetable")}/>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob={false} quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
           {view==="med-tt"&&(L?<LockedView title={t("nav.medTimetable")}/>:<MedTTView courses={medRawCourses} mob={false} setCid={setCid} setView={setView} setCh={setCh} demoKey={demoMedKey} asgn={asgn} hiddenSet={hiddenSet} onRefresh={fetchData}/>)}
-          {view==="tasks"&&(L?<LockedView title={t("header.taskMgmt")}/>:<AsgnView asgn={asgn} setAsgn={setAsgn} mob={false} myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/>)}
+          {view==="tasks"&&(L?<LockedView title={t("header.taskMgmt")}/>:<AsgnView asgn={asgn} setAsgn={setAsgn} mob={false} myTasks={myTasks} addTask={addTaskFn} toggleTask={toggleTaskFn} deleteTask={deleteTaskFn} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/>)}
           {view==="course"&&(L?<LockedView title={t("header.course")}/>:cc&&courseContent())}
           {view==="dept"&&(L?<LockedView title={t("sidebar.depts")}/>:cd&&deptContent())}
           {view==="friends"&&(L?<LockedView title={t("nav.friends")}/>:<FriendsView mob={false} setView={setView} {...friendProps}/>)}
@@ -994,7 +999,7 @@ export default function App(){
           {view==="notif"&&(L?<LockedView title={t("nav.notif")}/>:<NotifView mob={false}/>)}
           {view==="grades"&&(L?<LockedView title={t("tool.grades")}/>:<GradeView mob={false}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
-          {view==="calendar"&&(L?<LockedView title={t("nav.calendar")}/>:<CalendarView myEvents={myEvents} setMyEvents={setMyEvents} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob={false} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} medSessions={medSessions}/>)}
+          {view==="calendar"&&(L?<LockedView title={t("nav.calendar")}/>:<CalendarView myEvents={myEvents} addEvent={addEventFn} addEvents={addEventsFn} updateEvent={updateEventFn} deleteEvent={deleteEventFn} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob={false} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} medSessions={medSessions}/>)}
           {view==="events"&&<EventView events={allEvents} mob={false} rsvps={rsvps} onRsvp={handleRsvp}/>}
           {view==="reviews"&&(L?<LockedView title={t("tool.reviews")}/>:<ReviewView reviews={reviews} setReviews={setReviews} mob={false} courses={allCourses}/>)}
           {view==="bmarks"&&(L?<LockedView title={t("tool.bmarks")}/>:<BookmarkView bmarks={bmarks} mob={false} setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/>)}
@@ -1034,7 +1039,7 @@ export default function App(){
         {view==="home"&&<><MHdr title="ScienceTokyo App" right={<div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>setView("notif")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</button><button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button><button onClick={()=>setView("profile")} style={{background:"none",border:"none",cursor:"pointer",display:"flex",padding:0}}><Av u={user} sz={26}/></button></div>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} setPendingMat={setPendingMat} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit} medSessions={medSessions}/></>}
         {view==="timetable"&&(L?<><MHdr title={t("nav.timetable")}/><LockedView title={t("nav.timetable")}/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
         {view==="med-tt"&&(L?<><MHdr title={t("nav.medTimetable")}/><LockedView title={t("nav.medTimetable")}/></>:<><MHdr title={t("nav.medTimetable")}/><MedTTView courses={medRawCourses} mob setCid={setCid} setView={setView} setCh={setCh} demoKey={demoMedKey} asgn={asgn} hiddenSet={hiddenSet} onRefresh={fetchData}/></>)}
-        {view==="tasks"&&(L?<><MHdr title={t("header.taskMgmt")}/><LockedView title={t("header.taskMgmt")}/></>:<><MHdr title={t("header.taskMgmt")}/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} setMyTasks={setMyTasks} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/></>)}
+        {view==="tasks"&&(L?<><MHdr title={t("header.taskMgmt")}/><LockedView title={t("header.taskMgmt")}/></>:<><MHdr title={t("header.taskMgmt")}/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} addTask={addTaskFn} toggleTask={toggleTaskFn} deleteTask={deleteTaskFn} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/></>)}
         {view==="courseSelect"&&(L?<><MHdr title={t("header.courseSelect")}/><LockedView title={t("header.course")}/></>:<><MHdr title={t("header.courseSelect")}/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={allCourses} depts={userDepts} schools={userSchools} setDid={setDid} userUnit={userUnit} medSessions={medSessions}/></>)}
         {view==="course"&&(L?<><MHdr title={t("header.course")} back={goBack}/><LockedView title={t("header.course")}/></>:cc&&<><CourseHdr/>{courseContent()}</>)}
         {view==="dept"&&(L?<><MHdr title={t("sidebar.depts")} back={goBack}/><LockedView title={t("sidebar.depts")}/></>:cd&&<><MHdr title={<>{(()=>{const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?locName(cd):cd.prefix}</span>{!nameOnly&&<span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{locName(cd)}</span>}</>;})()}</>} back={goBack} right={<button onClick={()=>setShowMembers(true)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.users}{deptMembers.length>0&&<span style={{position:"absolute",top:-4,right:-6,minWidth:14,height:14,borderRadius:7,background:cd.col||T.accent,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{deptMembers.length}</span>}</button>}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:t("chan.timeline"),i:I.feed},{id:"chat",l:t("chan.chat"),i:I.chat}].map(tab=><button key={tab.id} onClick={()=>setCh(tab.id)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===tab.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===tab.id?T.txH:T.txD,fontSize:13,fontWeight:ch===tab.id?600:400,cursor:"pointer"}}>{tab.i}<span>{tab.l}</span></button>)}</div>{deptContent()}</>)}
@@ -1047,7 +1052,7 @@ export default function App(){
         {view==="notif"&&(L?<><MHdr title={t("nav.notif")} back={mBack}/><LockedView title={t("nav.notif")}/></>:<><MHdr title={t("nav.notif")} back={mBack}/><NotifView mob/></>)}
         {view==="grades"&&(L?<><MHdr title={t("tool.grades")} back={mBack}/><LockedView title={t("tool.grades")}/></>:<><MHdr title={t("tool.grades")} back={mBack}/><GradeView mob/></>)}
         {view==="pomo"&&<><MHdr title={t("tool.pomo")} back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
-        {view==="calendar"&&(L?<><MHdr title={t("nav.calendar")} back={mBack}/><LockedView title={t("nav.calendar")}/></>:<><MHdr title={t("nav.calendar")} back={mBack}/><CalendarView myEvents={myEvents} setMyEvents={setMyEvents} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} medSessions={medSessions}/></>)}
+        {view==="calendar"&&(L?<><MHdr title={t("nav.calendar")} back={mBack}/><LockedView title={t("nav.calendar")}/></>:<><MHdr title={t("nav.calendar")} back={mBack}/><CalendarView myEvents={myEvents} addEvent={addEventFn} addEvents={addEventsFn} updateEvent={updateEventFn} deleteEvent={deleteEventFn} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} medSessions={medSessions}/></>)}
         {view==="events"&&<><MHdr title={t("tool.events")} back={mBack}/><EventView events={allEvents} mob rsvps={rsvps} onRsvp={handleRsvp}/></>}
         {view==="reviews"&&(L?<><MHdr title={t("tool.reviews")} back={mBack}/><LockedView title={t("tool.reviews")}/></>:<><MHdr title={t("tool.reviews")} back={mBack}/><ReviewView reviews={reviews} setReviews={setReviews} mob courses={allCourses}/></>)}
         {view==="bmarks"&&(L?<><MHdr title={t("tool.bmarks")} back={mBack}/><LockedView title={t("tool.bmarks")}/></>:<><MHdr title={t("tool.bmarks")} back={mBack}/><BookmarkView bmarks={bmarks} mob setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/></>)}

@@ -53,14 +53,36 @@ export async function GET(request) {
       if (res.created) created++;
     }
 
-    // Cleanup past-due rows (await so serverless doesn't freeze before it runs).
+    // My Tasks live server-side (user_tasks), so the cron can remind on them
+    // directly — no client-side deadline cache needed. Same dedup namespace as
+    // the client path (task_<id>) so app-open + cron never double-fire.
+    const { data: taskRows, error: taskErr } = await sb
+      .from('user_tasks')
+      .select('id, user_id, title, due_at')
+      .eq('done', false)
+      .gt('due_at', nowIso)
+      .lte('due_at', windowIso);
+    if (taskErr) console.error('[DeadlineCron] task select error:', taskErr.message);
+    for (const r of taskRows || []) {
+      const res = await notifyDeadline({
+        userId: r.user_id,
+        assignmentId: `task_${r.id}`,
+        title: r.title,
+        courseId: null,
+        dueMs: new Date(r.due_at).getTime(),
+        kind: 'task',
+      });
+      if (res.created) created++;
+    }
+
+    // Cleanup past-due cache rows (assignment cache only; user_tasks is user data).
     const { error: delErr } = await sb
       .from('assignment_deadlines')
       .delete()
       .lt('due_at', nowIso);
     if (delErr) console.error('[DeadlineCron] cleanup error:', delErr.message);
 
-    return NextResponse.json({ scanned: rows?.length || 0, created });
+    return NextResponse.json({ scanned: (rows?.length || 0) + (taskRows?.length || 0), created });
   } catch (err) {
     console.error('[DeadlineCron] error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });

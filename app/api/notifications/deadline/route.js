@@ -25,10 +25,10 @@ export async function POST(request) {
 
     let created = 0;
     for (const it of items.slice(0, MAX_ITEMS)) {
-      const { assignmentId, title, courseId, due } = it || {};
+      const { assignmentId, title, courseId, due, kind } = it || {};
       const dueMs = new Date(due).getTime();
       if (!Number.isFinite(dueMs)) continue;
-      const r = await notifyDeadline({ userId: userid, assignmentId, title, courseId, dueMs });
+      const r = await notifyDeadline({ userId: userid, assignmentId, title, courseId, dueMs, kind });
       if (r.created) created++;
     }
 

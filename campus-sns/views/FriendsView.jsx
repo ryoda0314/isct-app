@@ -23,6 +23,8 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
   const streamRef=useRef(null);
   const scanRef=useRef(null);
   const [filter,setFilter]=useState('');
+  const [actionFor,setActionFor]=useState(null); // friend whose action sheet is open
+  const [topMenu,setTopMenu]=useState(false); // top-bar "+" dropdown
 
   // Group creation state
   const [grpOpen,setGrpOpen]=useState(false);
@@ -126,7 +128,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
   };
 
   /* ── Shared modal wrapper ── */
-  const addTabs=[{id:'requests',label:t("friends.tabRequests"),cnt:pendingCount},{id:'search',label:t("friends.tabSearch"),cnt:undefined},{id:'qr',label:t("friends.tabQrId")},{id:'blocked',label:t("friends.tabBlocked"),cnt:blocks.length||0},{id:'muted',label:t("friends.tabMuted"),cnt:mutes.length||0}];
+  const addTabs=[{id:'requests',label:t("friends.tabRequests"),cnt:pendingCount},{id:'search',label:t("friends.tabSearch"),cnt:undefined},{id:'qr',label:t("friends.tabQrId")}];
 
   const ModalWrap=({children,onClose})=>(
     <>
@@ -140,8 +142,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
     </>
   );
 
-  const AddModal=()=>(
-    <ModalWrap onClose={()=>{setAddOpen(false);stopScan();}}>
+  const AddModal=()=>ModalWrap({onClose:()=>{setAddOpen(false);stopScan();},children:(<>
       <div style={{padding:"12px 16px 0",flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
           <span style={{fontSize:16,fontWeight:700,color:T.txH}}>{t("friends.addFriend")}</span>
@@ -218,29 +219,11 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
             {lookupResult==='not_found'&&<div style={{marginTop:8,fontSize:12,color:T.red,textAlign:"center"}}>{t("friends.notFound")}</div>}
           </div>
         </div></div>}
-        {addTab==='blocked'&&<div style={{padding:"8px 0"}}>
-          {blocks.length===0&&<div style={{textAlign:"center",padding:"32px 20px",color:T.txD,fontSize:13}}>{t("friends.noBlocked")}</div>}
-          {blocks.map(b=>{const u={name:b.name,av:b.avatar,col:b.color};return <div key={b.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
-            <Av u={u} sz={40}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{b.name}</div>{b.dept&&<div style={{fontSize:11,color:T.txD}}>{b.dept}</div>}</div>
-            <button onClick={()=>doAction(`ub_${b.blockedId}`,()=>unblockUser(b.blockedId))} disabled={actionLoading===`ub_${b.blockedId}`}
-              style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:T.txD}}>{t("friends.unblock")}</button>
-          </div>;})}
-        </div>}
-        {addTab==='muted'&&<div style={{padding:"8px 0"}}>
-          {mutes.length===0&&<div style={{textAlign:"center",padding:"32px 20px",color:T.txD,fontSize:13}}>{t("friends.noMuted")}</div>}
-          {mutes.map(m=>{const p=m.profiles||{};const u={name:p.name||t("friends.userFallback",{id:m.muted_id}),av:p.avatar_url,col:'#888'};return <div key={m.muted_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
-            <Av u={u} sz={40}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{u.name}</div></div>
-            <button onClick={()=>doAction(`um_${m.muted_id}`,()=>unmuteUser(m.muted_id))} disabled={actionLoading===`um_${m.muted_id}`}
-              style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:T.txD}}>{t("friends.unmute")}</button>
-          </div>;})}
-        </div>}
       </div>
-    </ModalWrap>
-  );
+  </>)});
 
   /* ── Create Group modal ── */
-  const CreateGroupModal=()=>(
-    <ModalWrap onClose={()=>setGrpOpen(false)}>
+  const CreateGroupModal=()=>ModalWrap({onClose:()=>setGrpOpen(false),children:(<>
       <div style={{padding:"12px 16px 0",flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
           <span style={{fontSize:16,fontWeight:700,color:T.txH}}>{t("friends.createGroup")}</span>
@@ -274,8 +257,45 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
           {grpCreating?t("friends.creating"):t("friends.createGroupBtn")}
         </button>
       </div>
-    </ModalWrap>
-  );
+  </>)});
+
+  /* ── Friend action sheet (manage a single friend) ── */
+  const FriendActionSheet=()=>{
+    const f=actionFor;
+    const close=()=>setActionFor(null);
+    const muted=isMuted&&isMuted(f.friendId);
+    const row=(key,label,icon,{danger,run})=>(
+      <button key={key} disabled={actionLoading===key} onClick={()=>run()}
+        style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"13px 16px",border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontFamily:"inherit",fontSize:14,fontWeight:500,color:danger?T.red:T.txH,transition:"background .12s"}}
+        onMouseEnter={e=>{e.currentTarget.style.background=danger?`${T.red}10`:T.hover;}}
+        onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
+        <span style={{display:"flex",color:danger?T.red:T.txD,flexShrink:0}}>{icon}</span>{label}
+      </button>
+    );
+    return ModalWrap({onClose:close,children:(<>
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"4px 16px 12px",flexShrink:0}}>
+        <Av u={{name:f.name,av:f.avatar,col:f.color}} sz={44}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:15,fontWeight:700,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
+          {f.dept&&<div style={{fontSize:12,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.dept}</div>}
+        </div>
+      </div>
+      <div style={{borderTop:`1px solid ${T.bd}`,padding:"4px 0 8px"}}>
+        {onStartDM&&row(`dm_${f.friendId}`,t("friends.message"),
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>,
+          {run:()=>{close();onStartDM(f.friendId,f.name,f.avatar,f.color);}})}
+        {muteUser&&row(muted?`um_${f.friendId}`:`mu_${f.friendId}`,muted?t("friends.unmute"):t("friends.mute"),
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.12 1.5-.34 2.18"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>,
+          {run:()=>{close();muted?doAction(`um_${f.friendId}`,()=>unmuteUser(f.friendId)):doAction(`mu_${f.friendId}`,()=>muteUser(f.friendId));}})}
+        {row(`uf_${f.friendId}`,t("friends.unfriend"),
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="23" y2="8"/></svg>,
+          {danger:true,run:()=>{if(confirm(t("friends.unfriendConfirm",{name:f.name}))){close();doAction(`uf_${f.friendId}`,()=>unfriend(f.friendId));}}})}
+        {blockUser&&row(`bl_${f.friendId}`,t("friends.block"),
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
+          {danger:true,run:()=>{if(confirm(t("friends.blockConfirm",{name:f.name}))){close();doAction(`bl_${f.friendId}`,()=>blockUser(f.friendId));}}})}
+      </div>
+    </>)});
+  };
 
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:T.bg}}>
@@ -286,20 +306,33 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
           <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder={t("friends.searchBtn")} style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:13,outline:"none",fontFamily:"inherit",padding:"0"}}/>
           {filter&&<button onClick={()=>setFilter('')} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:2}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
         </div>
-        {createGroup&&<button onClick={()=>{setGrpOpen(true);setGrpName('');setGrpSel(new Set());}}
-          style={{width:34,height:34,borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txH,flexShrink:0,transition:"all .15s"}}
-          onMouseEnter={e=>{e.currentTarget.style.background=`${T.green}14`;e.currentTarget.style.borderColor=`${T.green}40`;e.currentTarget.style.color=T.green;}}
-          onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.borderColor=T.bd;e.currentTarget.style.color=T.txH;}}
-          title={t("friends.createGroup")}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 19v-1a4 4 0 00-4-4H5a4 4 0 00-4 4v1"/><circle cx="7.5" cy="7" r="3.5"/><path d="M22 19v-1a3 3 0 00-2.3-2.9"/><path d="M15.5 3.1a3.5 3.5 0 010 6.8"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-        </button>}
-        <button onClick={()=>setAddOpen(true)}
-          style={{position:"relative",width:34,height:34,borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txH,flexShrink:0,transition:"all .15s"}}
-          onMouseEnter={e=>{e.currentTarget.style.background=`${T.accent}14`;e.currentTarget.style.borderColor=`${T.accent}40`;e.currentTarget.style.color=T.accent;}}
-          onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.borderColor=T.bd;e.currentTarget.style.color=T.txH;}}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-          {pendingCount>0&&<span style={{position:"absolute",top:-4,right:-4,minWidth:16,height:16,borderRadius:8,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px",border:`2px solid ${T.bg2}`}}>{pendingCount}</span>}
-        </button>
+        <div style={{position:"relative",flexShrink:0}}>
+          <button onClick={()=>setTopMenu(o=>!o)} title={t("friends.addFriend")}
+            style={{position:"relative",width:34,height:34,borderRadius:8,border:`1px solid ${topMenu?`${T.accent}40`:T.bd}`,background:topMenu?`${T.accent}14`:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:topMenu?T.accent:T.txH,transition:"all .15s"}}
+            onMouseEnter={e=>{e.currentTarget.style.background=`${T.accent}14`;e.currentTarget.style.borderColor=`${T.accent}40`;e.currentTarget.style.color=T.accent;}}
+            onMouseLeave={e=>{if(!topMenu){e.currentTarget.style.background="transparent";e.currentTarget.style.borderColor=T.bd;e.currentTarget.style.color=T.txH;}}}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{transform:topMenu?"rotate(45deg)":"none",transition:"transform .18s ease"}}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            {pendingCount>0&&!topMenu&&<span style={{position:"absolute",top:-4,right:-4,minWidth:16,height:16,borderRadius:8,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px",border:`2px solid ${T.bg2}`}}>{pendingCount}</span>}
+          </button>
+          {topMenu&&<>
+            <div onClick={()=>setTopMenu(false)} style={{position:"fixed",inset:0,zIndex:60}}/>
+            <div style={{position:"absolute",top:40,right:0,zIndex:61,minWidth:188,background:T.bg2,border:`1px solid ${T.bd}`,borderRadius:12,boxShadow:"0 10px 30px rgba(0,0,0,.22)",overflow:"hidden"}}>
+              <button onClick={()=>{setTopMenu(false);setAddOpen(true);}}
+                style={{display:"flex",alignItems:"center",gap:11,width:"100%",padding:"12px 14px",border:"none",background:"transparent",cursor:"pointer",textAlign:"left",fontFamily:"inherit",fontSize:14,fontWeight:500,color:T.txH}}
+                onMouseEnter={e=>{e.currentTarget.style.background=T.hover;}} onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
+                <span style={{display:"flex",color:T.accent,flexShrink:0}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg></span>
+                <span style={{flex:1}}>{t("friends.addFriend")}</span>
+                {pendingCount>0&&<span style={{minWidth:16,height:16,borderRadius:8,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px"}}>{pendingCount}</span>}
+              </button>
+              {createGroup&&<button onClick={()=>{setTopMenu(false);setGrpOpen(true);setGrpName('');setGrpSel(new Set());}}
+                style={{display:"flex",alignItems:"center",gap:11,width:"100%",padding:"12px 14px",border:"none",borderTop:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",textAlign:"left",fontFamily:"inherit",fontSize:14,fontWeight:500,color:T.txH}}
+                onMouseEnter={e=>{e.currentTarget.style.background=T.hover;}} onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
+                <span style={{display:"flex",color:T.green,flexShrink:0}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></span>
+                <span style={{flex:1}}>{t("friends.createGroup")}</span>
+              </button>}
+            </div>
+          </>}
+        </div>
       </div>
 
       {/* ── Content ── */}
@@ -348,36 +381,28 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
               {f.dept&&<div style={{fontSize:12,color:T.txD,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.dept}</div>}
             </div>
             <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
+              {isMuted&&isMuted(f.friendId)&&<span title={t("friends.mute")} style={{color:T.txD,display:"flex",opacity:.55}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.12 1.5-.34 2.18"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              </span>}
               {onStartDM&&<button onClick={e=>{e.stopPropagation();onStartDM(f.friendId,f.name,f.avatar,f.color);}}
                 style={{width:32,height:32,borderRadius:8,border:"none",background:`${T.accent}10`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.accent,transition:"background .15s"}}
                 onMouseEnter={e=>{e.currentTarget.style.background=`${T.accent}20`;}} onMouseLeave={e=>{e.currentTarget.style.background=`${T.accent}10`;}} title={t("common.dm")}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
               </button>}
-              <button onClick={e=>{e.stopPropagation();doAction(`uf_${f.id}`,()=>unfriend(f.friendId));}} disabled={actionLoading===`uf_${f.id}`}
-                style={{width:32,height:32,borderRadius:8,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txD,transition:"all .15s",opacity:.4}}
-                onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.background=`${T.red}12`;e.currentTarget.style.color=T.red;}}
-                onMouseLeave={e=>{e.currentTarget.style.opacity=".4";e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.txD;}} title={t("friends.unfriend")}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <button onClick={e=>{e.stopPropagation();setActionFor(f);}}
+                style={{width:32,height:32,borderRadius:8,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txD,transition:"all .15s"}}
+                onMouseEnter={e=>{e.currentTarget.style.background=T.bg3;e.currentTarget.style.color=T.txH;}}
+                onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.txD;}} title={t("friends.manageFriend")}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>
               </button>
-              {muteUser&&<button onClick={e=>{e.stopPropagation();if(isMuted&&isMuted(f.friendId)){doAction(`um_${f.friendId}`,()=>unmuteUser(f.friendId));}else{doAction(`mu_${f.friendId}`,()=>muteUser(f.friendId));}}} disabled={actionLoading===`mu_${f.friendId}`||actionLoading===`um_${f.friendId}`}
-                style={{width:32,height:32,borderRadius:8,border:"none",background:isMuted&&isMuted(f.friendId)?`${T.accent}18`:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:isMuted&&isMuted(f.friendId)?T.accent:T.txD,transition:"all .15s",opacity:isMuted&&isMuted(f.friendId)?1:.4}}
-                onMouseEnter={e=>{e.currentTarget.style.opacity="1";}}
-                onMouseLeave={e=>{if(!(isMuted&&isMuted(f.friendId)))e.currentTarget.style.opacity=".4";}} title={isMuted&&isMuted(f.friendId)?t("friends.unmute"):t("friends.mute")}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.12 1.5-.34 2.18"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-              </button>}
-              {blockUser&&<button onClick={e=>{e.stopPropagation();if(confirm(t("friends.blockConfirm",{name:f.name}))){doAction(`bl_${f.friendId}`,()=>blockUser(f.friendId));}}} disabled={actionLoading===`bl_${f.friendId}`}
-                style={{width:32,height:32,borderRadius:8,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.txD,transition:"all .15s",opacity:.4}}
-                onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.background=`${T.red}12`;e.currentTarget.style.color=T.red;}}
-                onMouseLeave={e=>{e.currentTarget.style.opacity=".4";e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.txD;}} title={t("friends.block")}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-              </button>}
             </div>
           </div>;
         })}
       </div>
 
-      {addOpen&&<AddModal/>}
-      {grpOpen&&<CreateGroupModal/>}
+      {addOpen&&AddModal()}
+      {grpOpen&&CreateGroupModal()}
+      {actionFor&&FriendActionSheet()}
     </div>
   );
 };

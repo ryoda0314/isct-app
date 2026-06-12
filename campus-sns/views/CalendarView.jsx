@@ -31,7 +31,7 @@ const rangesOverlap=(s1h,s1m,e1h,e1m,s2h,s2m,e2h,e2m)=>{
 
 const getWeekStart=d=>{const dt=new Date(d);dt.setDate(dt.getDate()-dt.getDay());dt.setHours(0,0,0,0);return dt;};
 
-export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},mob,pastTTCache={},fetchPastTimetable,medSessions=[]})=>{
+export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:deleteEventApi,asgn,courses=[],qd,qDataAll={},mob,pastTTCache={},fetchPastTimetable,medSessions=[]})=>{
   const [viewMode,setViewMode]=useState("month");
   const [calMonth,setCalMonth]=useState(()=>({y:NOW.getFullYear(),m:NOW.getMonth()}));
   const [weekStart,setWeekStart]=useState(()=>getWeekStart(NOW));
@@ -87,13 +87,16 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
     setForm({title:ev.title,date:fmtDate(d),time:ts,endTime:et,color:ev.color,memo:ev.memo||"",repeat:"none"});
     setSavAsFav(false);setEditing(ev.id);setAdding(true);
   };
-  const applyPreset=p=>setForm(f=>({...f,title:p.label,color:p.color,time:p.time,endTime:p.endTime||""}));
+  // Click an active preset again to deselect it (reverses what applyPreset set).
+  const applyPreset=p=>setForm(f=>f.title===p.label
+    ?{...f,title:"",color:COLORS[0],time:"",endTime:""}
+    :{...f,title:p.label,color:p.color,time:p.time,endTime:p.endTime||""});
   const quickAdd=(day,p)=>{
     const [hh,mm]=p.time.split(":").map(Number);
     const date=new Date(day.getFullYear(),day.getMonth(),day.getDate(),hh,mm);
     let end=null;
     if(p.endTime){const [eh,em]=p.endTime.split(":").map(Number);end=new Date(day.getFullYear(),day.getMonth(),day.getDate(),eh,em);}
-    setMyEvents(prev=>[...prev,{id:`ev_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,title:p.label,date,end,color:p.color,memo:""}]);
+    addEvent({title:p.label,date,end,color:p.color,memo:""});
   };
 
   const saveEvent=()=>{
@@ -103,7 +106,7 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
     const mkDate=(yr,mo,dy)=>{const dt=new Date(yr,mo-1,dy,hh,mm);let end=null;if(form.endTime){const [eh,em]=form.endTime.split(":").map(Number);end=new Date(yr,mo-1,dy,eh,em);}return{date:dt,end};};
     if(editing){
       const {date,end}=mkDate(y,m,d);
-      setMyEvents(p=>p.map(e=>e.id===editing?{...e,title:form.title.trim(),date,end,color:form.color,memo:form.memo.trim()}:e));
+      updateEvent(editing,{title:form.title.trim(),date,end,color:form.color,memo:form.memo.trim()});
     }else{
       const newEvs=[];
       const weeks=form.repeat==="weekly"?12:form.repeat==="biweekly"?6:1;
@@ -111,16 +114,16 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
       for(let i=0;i<weeks;i++){
         const base=new Date(y,m-1,d+( i===0?0:i*step));
         const {date,end}=mkDate(base.getFullYear(),base.getMonth()+1,base.getDate());
-        newEvs.push({id:`ev_${Date.now()}_${i}_${Math.random().toString(36).slice(2,5)}`,title:form.title.trim(),date,end,color:form.color,memo:form.memo.trim()});
+        newEvs.push({title:form.title.trim(),date,end,color:form.color,memo:form.memo.trim()});
       }
-      setMyEvents(p=>[...p,...newEvs]);
+      addEvents(newEvs);
     }
     if(savAsFav&&form.title.trim()&&!isFav(form.title.trim())&&!builtinLabels.has(form.title.trim())){
       addFav({label:form.title.trim(),color:form.color,time:form.time||"09:00",endTime:form.endTime||""});
     }
     setAdding(false);resetForm();setEditing(null);
   };
-  const deleteEvent=id=>{setMyEvents(p=>p.filter(e=>e.id!==id));setEditing(null);setAdding(false);resetForm();};
+  const deleteEvent=id=>{deleteEventApi(id);setEditing(null);setAdding(false);resetForm();};
 
   // Academic year from date: April–March = same nendo
   const dateToAY=d=>d.getMonth()>=3?d.getFullYear():d.getFullYear()-1;
@@ -284,6 +287,9 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
   if(adding){
     const titleIsFav=isFav(form.title.trim()),titleIsBuiltin=builtinLabels.has(form.title.trim());
     const canSaveFav=form.title.trim()&&!titleIsFav&&!titleIsBuiltin;
+    const card={background:T.bg2,border:`1px solid ${T.bd}`,borderRadius:12,padding:12,display:"flex",flexDirection:"column",gap:10};
+    const lbl={fontSize:12,color:T.txD,marginBottom:4,display:"block"};
+    const inp={width:"100%",padding:"9px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"};
     return(
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:mob?14:20}}>
         <button onClick={()=>{setAdding(false);resetForm();setEditing(null);}} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",color:T.txD,fontSize:13,cursor:"pointer",marginBottom:12,padding:0}}>{I.back} {t("common.back")}</button>
@@ -304,26 +310,37 @@ export const CalendarView=({myEvents,setMyEvents,asgn,courses=[],qd,qDataAll={},
           </>}
           <div style={{height:10}}/>
         </>}
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <div>
-            <label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>{t("cal.title")}</label>
-            <input value={form.title} onChange={e=>setForm(p=>({...p,title:e.target.value}))} placeholder={t("cal.titlePlaceholder")} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr 1fr",gap:8}}>
-            <div><label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>{t("cal.date")}</label><input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/></div>
-            <div><label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>{t("cal.startTime")}</label><input type="time" value={form.time} onChange={e=>setForm(p=>({...p,time:e.target.value}))} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/></div>
-            <div><label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>{t("cal.endTimeOpt")}</label><input type="time" value={form.endTime} onChange={e=>setForm(p=>({...p,endTime:e.target.value}))} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/></div>
-          </div>
-          {/* Repeat */}
-          {!editing&&<div>
-            <label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>{t("cal.repeat")}</label>
-            <div style={{display:"flex",gap:6}}>
-              {[{id:"none",l:t("cal.repeatNone")},{id:"weekly",l:t("cal.repeatWeekly")},{id:"biweekly",l:t("cal.repeatBiweekly")}].map(r=><button key={r.id} onClick={()=>setForm(p=>({...p,repeat:r.id}))} style={{padding:"7px 14px",borderRadius:8,border:form.repeat===r.id?`2px solid ${T.accent}`:`1px solid ${T.bd}`,background:form.repeat===r.id?`${T.accent}14`:T.bg3,color:form.repeat===r.id?T.accent:T.txD,fontSize:13,fontWeight:form.repeat===r.id?600:400,cursor:"pointer"}}>{r.l}</button>)}
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {/* Basic */}
+          <div style={card}>
+            <div>
+              <label style={lbl}>{t("cal.title")}</label>
+              <input value={form.title} onChange={e=>setForm(p=>({...p,title:e.target.value}))} placeholder={t("cal.titlePlaceholder")} style={inp}/>
             </div>
-            {form.repeat!=="none"&&<div style={{fontSize:11,color:T.txD,marginTop:4}}>{form.repeat==="weekly"?t("cal.repeatWeeklyHint"):t("cal.repeatBiweeklyHint")}</div>}
-          </div>}
-          <div><label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>{t("cal.color")}</label><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{COLORS.map(c=><button key={c} onClick={()=>setForm(p=>({...p,color:c}))} style={{width:28,height:28,borderRadius:8,background:c,border:form.color===c?`2px solid ${T.txH}`:`2px solid transparent`,cursor:"pointer"}}/>)}</div></div>
-          <div><label style={{fontSize:12,color:T.txD,marginBottom:4,display:"block"}}>{t("cal.memoOpt")}</label><textarea value={form.memo} onChange={e=>setForm(p=>({...p,memo:e.target.value}))} placeholder={t("cal.memoPlaceholder")} rows={3} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/></div>
+            <div>
+              <label style={lbl}>{t("cal.date")}</label>
+              <input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))} style={inp}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <div><label style={lbl}>{t("cal.startTime")}</label><input type="time" value={form.time} onChange={e=>setForm(p=>({...p,time:e.target.value}))} style={inp}/></div>
+              <div><label style={lbl}>{t("cal.endTimeOpt")}</label><input type="time" value={form.endTime} onChange={e=>setForm(p=>({...p,endTime:e.target.value}))} style={inp}/></div>
+            </div>
+          </div>
+          {/* Details */}
+          <div style={card}>
+            {!editing&&<div>
+              <label style={lbl}>{t("cal.repeat")}</label>
+              <div style={{display:"flex",gap:6}}>
+                {[{id:"none",l:t("cal.repeatNone")},{id:"weekly",l:t("cal.repeatWeekly")},{id:"biweekly",l:t("cal.repeatBiweekly")}].map(r=><button key={r.id} onClick={()=>setForm(p=>({...p,repeat:r.id}))} style={{flex:1,padding:"7px 0",borderRadius:8,border:form.repeat===r.id?`2px solid ${T.accent}`:`1px solid ${T.bd}`,background:form.repeat===r.id?`${T.accent}14`:T.bg3,color:form.repeat===r.id?T.accent:T.txD,fontSize:13,fontWeight:form.repeat===r.id?600:400,cursor:"pointer"}}>{r.l}</button>)}
+              </div>
+              {form.repeat!=="none"&&<div style={{fontSize:11,color:T.txD,marginTop:4}}>{form.repeat==="weekly"?t("cal.repeatWeeklyHint"):t("cal.repeatBiweeklyHint")}</div>}
+            </div>}
+            <div>
+              <label style={lbl}>{t("cal.color")}</label>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>{COLORS.map(c=>{const sel=form.color===c;return <button key={c} onClick={()=>setForm(p=>({...p,color:c}))} aria-label={c} style={{width:30,height:30,borderRadius:"50%",background:c,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:sel?`0 0 0 2px ${T.bg2},0 0 0 4px ${c}`:"none",transition:"box-shadow .12s"}}>{sel&&<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}</button>;})}</div>
+            </div>
+            <div><label style={lbl}>{t("cal.memoOpt")}</label><textarea value={form.memo} onChange={e=>setForm(p=>({...p,memo:e.target.value}))} placeholder={t("cal.memoPlaceholder")} rows={3} style={{...inp,resize:"vertical"}}/></div>
+          </div>
           {!editing&&<button onClick={()=>{if(canSaveFav)setSavAsFav(p=>!p);}} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:8,border:`1px solid ${savAsFav?T.accent:T.bd}`,background:savAsFav?`${T.accent}10`:T.bg3,cursor:canSaveFav?"pointer":"default",opacity:canSaveFav?1:.4}}>
             <div style={{width:20,height:20,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",background:savAsFav?T.accent:"transparent",border:savAsFav?"none":`2px solid ${T.bdL}`,color:"#fff",flexShrink:0}}>{savAsFav&&I.chk}</div>
             <div style={{flex:1,textAlign:"left"}}><div style={{fontSize:13,color:T.txH,fontWeight:500}}>{t("cal.saveAsFav")}</div><div style={{fontSize:11,color:T.txD}}>{titleIsBuiltin?t("cal.saveFavBuiltin"):titleIsFav?t("cal.saveFavExists"):t("cal.saveFavHint")}</div></div>
