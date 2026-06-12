@@ -213,8 +213,16 @@ export const engine = {
 // 変更を購読して volume に反映する（読み取り方向）。書き込み(setVolume)は init 完了を待たず
 // 常に効くので、ここが失敗してもスライダー操作は機能する（反映が片方向になるだけ）。
 // web では isNativeVolume() が false なので何もしない。
-function initNativeVolume() {
-  if (!isClient() || !isNativeVolume()) return;
+function initNativeVolume(attempt = 0) {
+  if (!isClient()) return;
+  // audioEngine は Capacitor ブリッジ注入より先に読み込まれることがある。その瞬間に
+  // 判定すると isNativePlatform()=false になり、音量連携が「たまに」死ぬ（再起動で
+  // 直るのはこのレースのため）。window.Capacitor が来るまで数回待ってから判定する。
+  if (!window.Capacitor) {
+    if (attempt < 30) setTimeout(() => initNativeVolume(attempt + 1), 100);
+    return;
+  }
+  if (!isNativeVolume()) return; // web 確定。何もしない。
   getSystemVolume().then((cur) => {
     console.log('[audioEngine] system volume linked:', cur);
     if (typeof cur === 'number') { volume = cur; emit(); }

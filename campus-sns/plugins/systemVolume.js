@@ -31,14 +31,19 @@ let initPromise = null;
 // so the volumeChange listener silently fails to register. Awaiting the shared
 // Promise guarantees Volume is set before any caller proceeds.
 function ensurePlugin() {
+  if (Volume) return Promise.resolve();
   if (initPromise) return initPromise;
   initPromise = (async () => {
-    if (!isNative()) return;
+    // Capacitor ブリッジ未注入のタイミングで呼ばれると isNative() が false になる。
+    // その場合は initPromise を捨てて次回再試行できるようにする（恒久的に Volume=null
+    // で固定されると、その起動の間ずっと音量連携が死ぬ）。
+    if (!isNative()) { initPromise = null; return; }
     try {
       const { registerPlugin } = await import('@capacitor/core');
       Volume = registerPlugin('Volume');
     } catch {
       Volume = null;
+      initPromise = null;
     }
   })();
   return initPromise;
