@@ -163,6 +163,21 @@ async function saveBlob(blob, fname, mime, mob) {
 // ── 描画ユーティリティ ───────────────────────
 const A4_W = 1240, A4_H = 1754; // 白紙ページの論理解像度（A4 ≒ 150dpi）
 
+// 用紙サイズ（縦向きの論理px ≒ 150dpi）。横向きは w/h を入れ替える。
+const PAPER_SIZES = [
+  { id: "a4",     label: "A4",     w: 1240, h: 1754 },
+  { id: "a5",     label: "A5",     w: 874,  h: 1240 },
+  { id: "b5",     label: "B5",     w: 1039, h: 1476 },
+  { id: "letter", label: "Letter", w: 1276, h: 1648 },
+  { id: "square", label: "□",      w: 1240, h: 1240 },
+];
+function paperDims(sizeId, orient) {
+  const p = PAPER_SIZES.find((s) => s.id === sizeId) || PAPER_SIZES[0];
+  return orient === "landscape" ? { w: p.h, h: p.w } : { w: p.w, h: p.h };
+}
+// フィット倍率基準のズーム範囲（fit×0.5 〜 fit×6）
+const FIT_MIN_ZOOM = 0.5, FIT_MAX_ZOOM = 6;
+
 // 1ストロークを ctx（論理座標系）に描く
 function drawStroke(ctx, st) {
   const pts = st.pts;
@@ -227,18 +242,22 @@ export function NotesView({ mob, onExit }) {
   const [activeId, setActiveId] = useState(null);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const [paperSize, setPaperSize] = useState("a4");
+  const [orient, setOrient] = useState("portrait");
   const fileRef = useRef(null);
 
   useEffect(() => { setIndex(loadIndex()); }, []);
 
   const refreshIndex = useCallback(() => setIndex(loadIndex()), []);
 
-  // 白紙ノート新規作成
+  // 白紙ノート新規作成（選択中の用紙サイズ・向きを使用）
   const createBlank = async (template) => {
     const id = uid();
+    const { w, h } = paperDims(paperSize, orient);
     const note = {
       v: 1, id, title: t("notes.untitled"), type: "blank", template,
-      pages: [{ id: uid(), w: A4_W, h: A4_H, strokes: [] }],
+      paperSize, orient,
+      pages: [{ id: uid(), w, h, strokes: [] }],
       createdAt: Date.now(), updatedAt: Date.now(),
     };
     try {
@@ -299,6 +318,17 @@ export function NotesView({ mob, onExit }) {
         </header>
       )}
       <div style={{ flex: 1, overflowY: "auto", padding: mob ? 14 : 20, WebkitOverflowScrolling: "touch" }}>
+      {/* 用紙サイズ・向き */}
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 12, color: T.txD, fontWeight: 600 }}>{t("notes.paperSize")}</span>
+        {PAPER_SIZES.map((p) => (
+          <button key={p.id} onClick={() => setPaperSize(p.id)} style={{ minWidth: 40, padding: "5px 10px", borderRadius: 8, border: `1px solid ${paperSize === p.id ? T.accent : T.bd}`, background: paperSize === p.id ? `${T.accent}14` : T.bg2, color: paperSize === p.id ? T.accent : T.txH, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{p.label}</button>
+        ))}
+        <div style={{ width: 1, height: 22, background: T.bd, margin: "0 2px" }} />
+        {[{ id: "portrait", l: t("notes.portrait") }, { id: "landscape", l: t("notes.landscape") }].map((o) => (
+          <button key={o.id} onClick={() => setOrient(o.id)} style={{ padding: "5px 10px", borderRadius: 8, border: `1px solid ${orient === o.id ? T.accent : T.bd}`, background: orient === o.id ? `${T.accent}14` : T.bg2, color: orient === o.id ? T.accent : T.txH, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{o.l}</button>
+        ))}
+      </div>
       {/* 新規作成 */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 20 }}>
         <NewBtn icon={I.file} label={t("notes.blankPlain")} onClick={() => createBlank("plain")} />
@@ -470,9 +500,22 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
     const vs = viewState.current; const pw = pg.w * vs.scale, ph = pg.h * vs.scale;
     if (pw <= cv._cw) vs.panX = (cv._cw - pw) / 2;
     else vs.panX = Math.min(0, Math.max(cv._cw - pw, vs.panX));
-    if (ph <= cv._ch) vs.panY = Math.max(0, Math.min(cv._ch - ph, vs.panY));
+    if (ph <= cv._ch) vs.panY = (cv._ch - ph) / 2;
     else vs.panY = Math.min(0, Math.max(cv._ch - ph, vs.panY));
   }
+
+  function clampScale(s) { const fit = viewState.current.fit || 1; return Math.max(fit * FIT_MIN_ZOOM, Math.min(fit * FIT_MAX_ZOOM, s)); }
+  // 中心(cx,cy)を固定して targetScale へ。引数省略時はビューポート中央。
+  function applyZoom(targetScale, cx, cy) {
+    const cv = viewRef.current, pg = curPage(); if (!cv || !pg) return;
+    const vs = viewState.current;
+    if (cx == null) { cx = cv._cw / 2; cy = cv._ch / 2; }
+    const ns = clampScale(targetScale);
+    const lx = (cx - vs.panX) / vs.scale, ly = (cy - vs.panY) / vs.scale;
+    vs.scale = ns; vs.panX = cx - lx * ns; vs.panY = cy - ly * ns;
+    clampPan(); setZoom(+(ns / vs.fit).toFixed(2)); renderViewport();
+  }
+  const zoomBy = (factor) => applyZoom(viewState.current.scale * factor);
 
   function renderViewport() {
     const cv = viewRef.current, pc = pageCanvasRef.current, pg = curPage(); if (!cv || !pc || !pg) return;
@@ -647,9 +690,7 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
     const ps = [...pointers.current.values()]; const g = gesture.current; const vs = viewState.current; const cv = viewRef.current;
     if (g.mode === "pinch" && ps.length >= 2) {
       const [a, b] = ps; const d = Math.hypot(a.x - b.x, a.y - b.y);
-      let ns = g.scale0 * (d / (g.d0 || 1));
-      const minS = vs.fit * 1, maxS = vs.fit * 6;
-      ns = Math.max(minS, Math.min(maxS, ns));
+      let ns = clampScale(g.scale0 * (d / (g.d0 || 1)));
       const rect = cv.getBoundingClientRect();
       const fx = g.cx - rect.left, fy = g.cy - rect.top;
       // ピンチ中心を固定するようパン補正
@@ -814,14 +855,18 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
       </div>
 
       {/* ページバー */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "6px 10px", background: T.bg2, borderTop: `1px solid ${T.bd}`, flexShrink: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 10, padding: "6px 10px", background: T.bg2, borderTop: `1px solid ${T.bd}`, flexShrink: 0 }}>
         <button onClick={() => gotoPage(pageIdx - 1)} disabled={pageIdx <= 0} style={{ background: "none", border: "none", color: pageIdx <= 0 ? T.txD : T.txH, cursor: pageIdx <= 0 ? "default" : "pointer", display: "flex", padding: 4, transform: "scaleX(-1)" }}>{I.arr}</button>
         <span style={{ fontSize: 13, color: T.txH, minWidth: 60, textAlign: "center" }}>{pageIdx + 1} / {note.pages.length}</span>
         <button onClick={() => gotoPage(pageIdx + 1)} disabled={pageIdx >= note.pages.length - 1} style={{ background: "none", border: "none", color: pageIdx >= note.pages.length - 1 ? T.txD : T.txH, cursor: pageIdx >= note.pages.length - 1 ? "default" : "pointer", display: "flex", padding: 4 }}>{I.arr}</button>
         {note.type !== "pdf" && (
           <button onClick={addPage} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: `1px solid ${T.bd}`, borderRadius: 8, color: T.accent, cursor: "pointer", fontSize: 12, padding: "4px 10px" }}>{I.plus}{t("notes.addPage")}</button>
         )}
-        <span style={{ fontSize: 11, color: T.txD }}>{Math.round(zoom * 100)}%</span>
+        <div style={{ width: 1, height: 22, background: T.bd, margin: "0 2px" }} />
+        {/* ズーム操作 */}
+        <button onClick={() => zoomBy(1 / 1.25)} title={t("notes.zoomOut")} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, cursor: "pointer", fontSize: 18, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+        <button onClick={() => fitAndRender()} title={t("notes.fit")} style={{ minWidth: 48, height: 30, borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txD, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>{Math.round(zoom * 100)}%</button>
+        <button onClick={() => zoomBy(1.25)} title={t("notes.zoomIn")} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, cursor: "pointer", fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>＋</button>
       </div>
     </div>
   );
