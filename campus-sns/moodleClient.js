@@ -10,6 +10,8 @@
  * - Rate limited on server side (5 req/min for /api/auth/token)
  */
 
+import { isNative } from './capacitor.js';
+
 const LMS_API = 'https://lms.s.isct.ac.jp/2025/webservice/rest/server.php';
 
 // In-memory token cache (never persisted to storage)
@@ -58,9 +60,57 @@ const TOKEN_INVALID_ERRORCODES = new Set([
 // Single in-flight refresh promise so concurrent invalidtoken errors share one SSO.
 let _refreshInFlight = null;
 
+/**
+ * Re-run the ISCT SSO on-device to get a fresh wstoken, so the server's
+ * Puppeteer SSO (and the credentials it requires) is not needed for routine
+ * token expiry. Credentials are fetched per-use and never persisted client-side
+ * beyond this call.
+ *
+ * Returns { wstoken, userid } or null if the native path is unavailable/failed
+ * (caller then falls back to the server refresh).
+ */
+async function refreshTokenNative() {
+  if (!isNative()) return null;
+  try {
+    // Phase A: credentials still come from the server. A later phase moves this
+    // to on-device secure storage (Keychain/Keystore) and drops this fetch.
+    const cr = await fetch('/api/auth/credentials?type=isct', {
+      headers: { 'x-app-platform': 'capacitor' },
+      signal: AbortSignal.timeout(12000),
+    });
+    if (cr.status === 401) {
+      const err = new Error('Not authenticated');
+      err.code = 'AUTH_REQUIRED';
+      throw err;
+    }
+    if (!cr.ok) return null;
+    const { userId, password, totpCode } = await cr.json();
+    if (!userId || !password || !totpCode) return null;
+
+    const { acquireWsToken } = await import('./plugins/portalWebView.js');
+    const { wstoken, userid } = await acquireWsToken({ userId, password, totpCode });
+    if (!wstoken) return null;
+    return { wstoken, userid: userid || _cachedUserid };
+  } catch (e) {
+    if (e.code === 'AUTH_REQUIRED') throw e;
+    console.warn('[MoodleAPI] native SSO refresh failed, falling back to server:', e.message);
+    return null;
+  }
+}
+
 async function refreshClientToken() {
   if (_refreshInFlight) return _refreshInFlight;
   _refreshInFlight = (async () => {
+    // Prefer on-device SSO so the server doesn't need stored credentials.
+    const native = await refreshTokenNative();
+    if (native) {
+      _cachedToken = native.wstoken;
+      if (native.userid) _cachedUserid = native.userid;
+      _tokenExpiry = Date.now() + TOKEN_CLIENT_TTL;
+      return { wstoken: _cachedToken, userid: _cachedUserid };
+    }
+
+    // Fallback: server-side Puppeteer SSO.
     const r = await fetch('/api/auth/token/refresh', { method: 'POST' });
     if (r.status === 401) {
       const err = new Error('Not authenticated');

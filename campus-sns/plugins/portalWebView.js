@@ -102,6 +102,26 @@ export async function openLmsPage(url, { userId, password, totpCode }) {
 }
 
 /**
+ * Silently obtain a fresh Moodle wstoken on-device by running the ISCT SSO
+ * flow in an off-screen WebView (no visible UI). Replaces the server-side
+ * Puppeteer SSO so credentials never need to live on the server.
+ *
+ * @param {Object} credentials - { userId, password, totpCode }
+ * @returns {Promise<{ wstoken: string, userid?: string }>}
+ * @throws if not running natively, the plugin is unavailable, or SSO fails.
+ */
+export async function acquireWsToken({ userId, password, totpCode }) {
+  if (!isNative()) {
+    throw new Error('acquireWsToken is only available on native platforms');
+  }
+  await ensurePortalPlugin();
+  if (!Portal) {
+    throw new Error('Portal plugin unavailable');
+  }
+  return Portal.acquireWsToken({ userId, password, totpCode });
+}
+
+/**
  * Check if the native portal WebView is available.
  */
 export function isNativePortalAvailable() {
