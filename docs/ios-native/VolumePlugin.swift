@@ -32,23 +32,31 @@ public class VolumePlugin: CAPPlugin, CAPBridgedPlugin {
     private var volumeView: MPVolumeView?
 
     override public func load() {
-        // Observe the system output volume. KVO fires for volume buttons,
-        // Control Center, and our own MPVolumeView writes alike. We deliberately
-        // do NOT change the audio session category/active state here so we never
-        // disturb the WebView's own audio playback.
-        observation = session.observe(\.outputVolume, options: [.new]) { [weak self] sess, _ in
+        // outputVolume の KVO は session が active なときに確実に発火する。
+        // .mixWithOthers を付けて WebView 側の音声再生を止めずに共存させる。
+        try? session.setCategory(.playback, options: [.mixWithOthers])
+        try? session.setActive(true)
+
+        // .initial で登録直後に現在値を 1 回流し、JS 側の初期同期も兼ねる。
+        observation = session.observe(\.outputVolume, options: [.new, .initial]) { [weak self] sess, _ in
             self?.notifyListeners("volumeChange", data: ["value": Double(sess.outputVolume)])
         }
 
-        // A hidden, off-screen MPVolumeView whose embedded UISlider we drive to
-        // change the system volume. Placed off-screen (not hidden/alpha 0) because
-        // an actually-hidden slider is ignored by the system on modern iOS.
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            let v = MPVolumeView(frame: CGRect(x: -3000, y: -3000, width: 1, height: 1))
+            // 1x1 では内部 UISlider が生成されないことがあるため実寸を与え、
+            // 画面外 + ほぼ透明 + 操作不可で「見えないが生きている」状態にする。
+            let v = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 200, height: 40))
+            v.alpha = 0.001
+            v.isUserInteractionEnabled = false
             self.bridge?.viewController?.view.addSubview(v)
             self.volumeView = v
         }
+    }
+
+    /// MPVolumeView 内に埋め込まれたシステム音量 UISlider を取り出す。
+    private func systemSlider() -> UISlider? {
+        return volumeView?.subviews.compactMap { $0 as? UISlider }.first
     }
 
     @objc func getVolume(_ call: CAPPluginCall) {
@@ -59,8 +67,7 @@ public class VolumePlugin: CAPPlugin, CAPBridgedPlugin {
         let requested = Float(call.getDouble("value") ?? Double(session.outputVolume))
         let clamped = max(0, min(1, requested))
         DispatchQueue.main.async { [weak self] in
-            guard let slider = self?.volumeView?.subviews
-                .compactMap({ $0 as? UISlider }).first else {
+            guard let slider = self?.systemSlider() else {
                 call.reject("MPVolumeView slider unavailable")
                 return
             }
