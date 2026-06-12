@@ -625,6 +625,9 @@ export default function App(){
         finally{setRefreshing(false);startupBusyRef.current=false;}
       })();
     };
+    // Native: proactively migrate credentials to the device Keychain on every
+    // launch (no-op once migrated). Fire-and-forget — never blocks startup.
+    if(wasLoggedIn&&isNative()) import('./secureCreds.js').then(m=>m.ensureMigrated?.()).catch(()=>{});
     (async()=>{
       // Previously logged in → skip /api/auth/status, go straight to fetchData
       // iOS PWA often fails to send cookies on the initial status check after cold start

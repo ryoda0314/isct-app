@@ -53,6 +53,33 @@ export async function loadCredsBundle() {
   }
 }
 
+/**
+ * Ensure the credential bundle exists on-device, migrating it from the server
+ * once if absent. Safe to call on every startup: it's a no-op when already
+ * migrated or not native, and stays silent on failure (retries next launch).
+ * Returns true if credentials are present locally afterward.
+ */
+export async function ensureMigrated() {
+  if (!isNative()) return false;
+  const existing = await loadCredsBundle();
+  if (existing?.password && existing?.totpSecret) return true;
+  try {
+    const r = await fetch('/api/auth/credentials/bundle', {
+      headers: { 'x-app-platform': 'capacitor' },
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!r.ok) return false; // 401 (no session) / 404 (retired) → retry next launch
+    const bundle = await r.json();
+    if (!bundle?.password || !bundle?.totpSecret) return false;
+    await saveCredsBundle(bundle);
+    console.log('[SecureCreds] startup migration → credentials stored on device');
+    return true;
+  } catch (e) {
+    console.warn('[SecureCreds] startup migration failed (will retry next launch):', e.message);
+    return false;
+  }
+}
+
 /** Remove the stored bundle (call on logout). */
 export async function clearCreds() {
   const plugin = await ensurePlugin();
