@@ -19,18 +19,21 @@ import { isNative } from '../capacitor.js';
 let Volume = null;
 let loaded = false;
 
+// NOTE: ensurePlugin must NOT return the plugin proxy. A Capacitor plugin proxy
+// is a thenable-looking object; returning it from an async fn makes `await`
+// invoke its `.then`, which the bridge interprets as a native method call and
+// rejects with `"Volume.then() is not implemented on ios"`. So we keep the
+// proxy in a module variable and return nothing.
 async function ensurePlugin() {
-  if (loaded) return Volume;
+  if (loaded) return;
   loaded = true;
-  if (!isNative()) return null;
+  if (!isNative()) return;
   try {
     const { registerPlugin } = await import('@capacitor/core');
-    // NOTE: do not return the proxy from an async fn (its .then is intercepted)
     Volume = registerPlugin('Volume');
   } catch {
     Volume = null;
   }
-  return Volume;
 }
 
 /** Whether system-volume linking is available (native platform only). */
@@ -40,10 +43,10 @@ export function isNativeVolume() {
 
 /** Current system volume 0..1, or null if unavailable. */
 export async function getSystemVolume() {
-  const p = await ensurePlugin();
-  if (!p) return null;
+  await ensurePlugin();
+  if (!Volume) return null;
   try {
-    const r = await p.getVolume();
+    const r = await Volume.getVolume();
     return typeof r?.value === 'number' ? r.value : null;
   } catch {
     return null;
@@ -52,10 +55,10 @@ export async function getSystemVolume() {
 
 /** Set the system volume (0..1). Returns true if the native call succeeded. */
 export async function setSystemVolume(value) {
-  const p = await ensurePlugin();
-  if (!p) return false;
+  await ensurePlugin();
+  if (!Volume) return false;
   try {
-    await p.setVolume({ value: Math.min(1, Math.max(0, Number(value) || 0)) });
+    await Volume.setVolume({ value: Math.min(1, Math.max(0, Number(value) || 0)) });
     return true;
   } catch {
     return false;
@@ -67,10 +70,10 @@ export async function setSystemVolume(value) {
  * own writes). cb receives a number 0..1. Returns an async-safe unsubscribe.
  */
 export async function onSystemVolumeChange(cb) {
-  const p = await ensurePlugin();
-  if (!p) return () => {};
+  await ensurePlugin();
+  if (!Volume) return () => {};
   try {
-    const handle = await p.addListener('volumeChange', (e) => {
+    const handle = await Volume.addListener('volumeChange', (e) => {
       if (e && typeof e.value === 'number') cb(e.value);
     });
     return () => { try { handle.remove(); } catch {} };
