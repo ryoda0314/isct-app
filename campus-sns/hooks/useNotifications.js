@@ -3,9 +3,12 @@ import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { isDemoMode } from '../demoMode.js';
 import { DEMO_NOTIFICATIONS } from '../demoData.js';
 import { useCurrentUser } from './useCurrentUser.js';
+import { isNative } from '../capacitor.js';
+import { registerNativePush } from '../nativePush.js';
 
-// Subscribe to Web Push and register with server
+// Register for push: native (APNs) inside the iOS WebView, Web Push elsewhere.
 async function subscribePush() {
+  if (isNative()) { registerNativePush(); return; }
   try {
     const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
     if (!vapidKey || !('serviceWorker' in navigator) || !('PushManager' in window)) return;

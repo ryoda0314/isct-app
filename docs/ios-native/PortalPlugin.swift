@@ -34,7 +34,9 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
 
     // Shared state
     private var overlayView: UIView?
-    private var webView: WKWebView?
+    // NOTE: CAPPlugin already declares a `webView` property (the Capacitor main
+    // WebView). Our overlay WebView must use a distinct name or the build fails.
+    private var portalWebView: WKWebView?
     private var loadingOverlay: UIView?
     private var isIsctMode = false
 
@@ -501,7 +503,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             wv.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             wv.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
-        webView = wv
+        portalWebView = wv
 
         // Loading overlay
         let loading = createLoadingView(text: loadingText)
@@ -568,14 +570,14 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc private func closeTapped() { removeOverlay() }
 
     @objc private func backTapped() {
-        if webView?.canGoBack == true { webView?.goBack() }
+        if portalWebView?.canGoBack == true { portalWebView?.goBack() }
     }
 
     @objc private func forwardTapped() {
-        if webView?.canGoForward == true { webView?.goForward() }
+        if portalWebView?.canGoForward == true { portalWebView?.goForward() }
     }
 
-    @objc private func reloadTapped() { webView?.reload() }
+    @objc private func reloadTapped() { portalWebView?.reload() }
 
     @objc private func bottomNavTapped(_ gesture: UITapGestureRecognizer) {
         let location = gesture.location(in: bridge?.viewController?.view)
@@ -602,9 +604,9 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             vc.view.viewWithTag(9998)?.removeFromSuperview()
         }
 
-        webView?.stopLoading()
-        webView?.navigationDelegate = nil
-        webView = nil
+        portalWebView?.stopLoading()
+        portalWebView?.navigationDelegate = nil
+        portalWebView = nil
         loadingOverlay = nil
         overlayView?.removeFromSuperview()
         overlayView = nil
@@ -650,7 +652,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             return '';
         })()
         """
-        webView?.evaluateJavaScript(js) { [weak self] result, _ in
+        portalWebView?.evaluateJavaScript(js) { [weak self] result, _ in
             if let r = result as? String, r.contains("login") {
                 self?.loginDone = true
             }
@@ -701,7 +703,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             return 'matrix';
         })()
         """
-        webView?.evaluateJavaScript(js) { [weak self] result, _ in
+        portalWebView?.evaluateJavaScript(js) { [weak self] result, _ in
             if let r = result as? String, r.contains("matrix") {
                 self?.matrixDone = true
             }
@@ -722,7 +724,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             isctSamlDone = true
             if let target = lmsTargetUrl, let targetUrl = URL(string: target) {
                 NSLog("PortalPlugin: Navigating to LMS: \(target)")
-                webView?.load(URLRequest(url: targetUrl))
+                portalWebView?.load(URLRequest(url: targetUrl))
                 lmsTargetUrl = nil
                 return
             }
@@ -739,7 +741,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         } else {
             if let target = lmsTargetUrl, let targetUrl = URL(string: target) {
                 NSLog("PortalPlugin: SSO complete, navigating to LMS: \(target)")
-                webView?.load(URLRequest(url: targetUrl))
+                portalWebView?.load(URLRequest(url: targetUrl))
                 lmsTargetUrl = nil
             } else {
                 hideLoading()
@@ -760,7 +762,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             return '';
         })()
         """
-        webView?.evaluateJavaScript(js) { [weak self] result, _ in
+        portalWebView?.evaluateJavaScript(js) { [weak self] result, _ in
             if let r = result as? String, r.contains("login") {
                 self?.isctLoginDone = true
             }
@@ -778,7 +780,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             return '';
         })()
         """
-        webView?.evaluateJavaScript(js) { [weak self] result, _ in
+        portalWebView?.evaluateJavaScript(js) { [weak self] result, _ in
             if let r = result as? String, r.contains("totp") {
                 self?.isctTotpDone = true
             }
@@ -794,7 +796,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             return 'done';
         })()
         """
-        webView?.evaluateJavaScript(js) { [weak self] result, _ in
+        portalWebView?.evaluateJavaScript(js) { [weak self] result, _ in
             self?.isctSamlDone = true
             if let r = result as? String, r.contains("done") {
                 self?.hideLoading()

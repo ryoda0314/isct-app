@@ -70,15 +70,35 @@ enum SharedTimetableStore {
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return .empty }
 
-        let defaultYear = obj["defaultYear"] as? Int ?? 0
-        let defaultQuarter = obj["defaultQuarter"] as? Int ?? 0
+        // Tolerate both payload shapes:
+        //  - new: { slots:[{year,quarter,...}], defaultYear, defaultQuarter }
+        //  - old: { slots:[{...no year/quarter}], year, quarter }
+        let topYear = obj["defaultYear"] as? Int ?? obj["year"] as? Int ?? 0
+        let topQuarter = obj["defaultQuarter"] as? Int ?? obj["quarter"] as? Int ?? 0
 
         var slots: [TimetableSlot] = []
         if let slotsStr = obj["slots"] as? String,
            let slotsData = slotsStr.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode([TimetableSlot].self, from: slotsData) {
-            slots = decoded
+           let arr = try? JSONSerialization.jsonObject(with: slotsData) as? [[String: Any]] {
+            for s in arr {
+                let ps = s["ps"] as? Int ?? 0
+                guard ps > 0, let day = s["day"] as? Int else { continue }
+                slots.append(TimetableSlot(
+                    year: s["year"] as? Int ?? topYear,        // old payload: inherit top-level
+                    quarter: s["quarter"] as? Int ?? topQuarter,
+                    day: day,
+                    ps: ps,
+                    pe: s["pe"] as? Int ?? ps,
+                    name: s["name"] as? String ?? "",
+                    room: s["room"] as? String ?? "",
+                    col: s["col"] as? String ?? "#6375f0"
+                ))
+            }
         }
+
+        // Fall back to data-derived defaults if the payload didn't specify them.
+        let defaultYear = topYear > 0 ? topYear : (slots.map { $0.year }.max() ?? 0)
+        let defaultQuarter = topQuarter > 0 ? topQuarter : (slots.first?.quarter ?? 0)
         return TimetableStore(slots: slots, defaultYear: defaultYear, defaultQuarter: defaultQuarter)
     }
 }
