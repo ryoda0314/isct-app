@@ -15,6 +15,10 @@ let shuffle = false;
 let volume = 1;              // 0..1（iOS Safari は audio.volume を無視するため効かない場合がある）
 const listeners = new Set();
 
+// iOS ネイティブのみ: システム音量と双方向リンクするブリッジ。
+// 取得できた時だけ非 null。web/PWA では常に null（従来通り audio.volume を使う）。
+let nativeVol = null;        // { setSystemVolume } when linked to iOS system volume
+
 // 購読側に渡すスナップショット（イミュータブル）。useSyncExternalStore のため参照を維持する。
 let snapshot = {
   track: null,        // 現在のトラック { id, title, artist, audio:{url}, cover:{url}, duration }
@@ -38,7 +42,8 @@ function rebuildSnapshot() {
     repeat,
     shuffle,
     hasQueue: queue.length > 0,
-    volume: audio ? audio.volume : volume,
+    // iOS ではシステム音量(=volume 変数)を映す。audio.volume は WebView に無視されるため。
+    volume: nativeVol ? volume : (audio ? audio.volume : volume),
   };
 }
 
@@ -172,8 +177,14 @@ export const engine = {
 
   setVolume(v) {
     volume = Math.min(1, Math.max(0, Number(v)));
-    const a = ensureAudio();
-    if (a) a.volume = volume;
+    if (nativeVol) {
+      // iOS: スライダー操作 → 端末のシステム音量を変更（KVO 経由で volumeChange が
+      // 返ってきて volume が再確定する。同値なので余分なループにはならない）。
+      nativeVol.setSystemVolume(volume);
+    } else {
+      const a = ensureAudio();
+      if (a) a.volume = volume;
+    }
     emit();
   },
 
@@ -202,3 +213,22 @@ export const engine = {
   },
   getSnapshot() { return snapshot; },
 };
+
+// iOS ネイティブ起動時: システム音量を初期値として取り込み、ハードウェアボタンや
+// コントロールセンターの変更を購読して volume に反映する。web では何もしない。
+function initNativeVolume() {
+  if (!isClient()) return;
+  import('../plugins/systemVolume.js').then(async (m) => {
+    if (!m.isNativeVolume()) return;
+    const cur = await m.getSystemVolume();
+    if (typeof cur === 'number') { volume = cur; }
+    nativeVol = m; // 以降 setVolume はシステム音量を駆動する
+    emit();
+    m.onSystemVolumeChange((val) => {
+      volume = Math.min(1, Math.max(0, val));
+      emit();
+    });
+  }).catch(() => {});
+}
+
+initNativeVolume();
