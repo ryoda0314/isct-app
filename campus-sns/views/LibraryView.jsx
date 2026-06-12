@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { T } from "../theme.js";
 import { t } from "../i18n.js";
@@ -118,6 +118,26 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
   const [dq, setDq] = useState("");
   const [adv, setAdv] = useState(false);
   const [focused, setFocused] = useState(false); // 検索モード（タップで連続モーフ）
+  const rootRef = useRef(null);
+  // フォーカスすると検索バー上の「開館時間」ブロックが畳まれ、iOS等が input を
+  // 可視化しようと大きくスクロール→畳み完了後にスクロール位置だけ残って上がりすぎる。
+  // 検索バーは sticky top:0 なので、スクロール親を先頭へ戻せば常に最上部に収まる。
+  const pinScrollTop = () => {
+    let p = rootRef.current?.parentElement;
+    while (p) {
+      const oy = getComputedStyle(p).overflowY;
+      if ((oy === "auto" || oy === "scroll") && p.scrollHeight > p.clientHeight) break;
+      p = p.parentElement;
+    }
+    if (p) p.scrollTop = 0;
+  };
+  const onSearchFocus = () => {
+    setFocused(true);
+    // ブラウザの自動スクロール／キーボード表示／畳みアニメ(0.42s)に合わせて複数回打ち消す。
+    requestAnimationFrame(pinScrollTop);
+    setTimeout(pinScrollTop, 80);
+    setTimeout(pinScrollTop, 450);
+  };
   const [formats, setFormats] = useState([]);
   const [locations, setLocations] = useState([]);
   const [jw, setJw] = useState([]);
@@ -221,7 +241,7 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
   );
 
   return (
-    <div>
+    <div ref={rootRef}>
       {/* ホーム（本日の開館時間など）：検索モードで上方向へ連続的に畳む */}
       <div style={{ overflow: "hidden", maxHeight: searchMode ? 0 : 1600, opacity: searchMode ? 0 : 1, transform: searchMode ? "translateY(-6px)" : "none", transition: "max-height .42s cubic-bezier(.4,0,.2,1), opacity .22s ease, transform .42s cubic-bezier(.4,0,.2,1)", pointerEvents: searchMode ? "none" : "auto" }}>
         {hoursSlot}
@@ -238,7 +258,7 @@ const LibrarySearchPanel = ({ mob, openLink, hoursSlot }) => {
           )}
           <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 9, padding: "11px 14px", borderRadius: 13, background: T.bg2, border: `1px solid ${searchMode ? T.accent : T.bd}`, boxShadow: "0 1px 3px rgba(0,0,0,.06)", transition: "border-color .2s ease" }}>
             <span style={{ color: searchMode ? T.accent : T.txD, display: "flex" }}>{I.search}</span>
-            <input value={q} onFocus={() => setFocused(true)} onChange={(e) => setQ(e.target.value)} placeholder={t("library.searchPlaceholder")} style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", color: T.txH, fontSize: 15 }} />
+            <input value={q} onFocus={onSearchFocus} onChange={(e) => setQ(e.target.value)} placeholder={t("library.searchPlaceholder")} style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", color: T.txH, fontSize: 15 }} />
             {q && <button onClick={() => setQ("")} style={{ border: "none", background: T.bg3, borderRadius: "50%", width: 22, height: 22, color: T.txD, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{I.x}</button>}
           </div>
           <button onClick={() => setAdv((v) => !v)} title={t("library.advanced")} style={{ flexShrink: 0, position: "relative", display: "inline-flex", alignItems: "center", gap: 6, padding: mob ? "0 13px" : "0 16px", height: 44, borderRadius: 13, border: `1px solid ${adv || activeFilters ? T.accent : T.bd}`, background: adv || activeFilters ? `${T.accent}1f` : T.bg2, color: adv || activeFilters ? T.accent : T.txD, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
