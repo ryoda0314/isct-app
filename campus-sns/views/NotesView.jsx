@@ -52,7 +52,39 @@ function loadPdfLib() {
 
 // ── ローカル保存層 ────────────────────────────
 const INDEX_KEY = "notes_index_v1";
-const NOTE_DIR = "sciencetokyo-notes";
+// ノート本体は IndexedDB に保存する。
+// 理由: ネイティブ(iOS)アプリは sciencetokyo.app をリモート読み込みする構成で、
+// かつ packageClassList に @capacitor/filesystem が含まれていないため
+// Filesystem プラグインは実機で "not implemented" になる。IndexedDB なら
+// WKWebView 内で同一 origin に永続化でき、Web デプロイのみで実機反映できる。
+// インデックス(軽量メタ+サムネ)は同期読みのため localStorage のまま。
+const DB_NAME = "sciencetokyo_notes_db";
+const STORE = "notes";
+let _dbp = null;
+function openDB() {
+  if (_dbp) return _dbp;
+  _dbp = new Promise((resolve, reject) => {
+    try {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => { const db = req.result; if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error("idb open failed"));
+    } catch (e) { reject(e); }
+  });
+  return _dbp;
+}
+function idbDo(mode, run) {
+  return openDB().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, mode);
+    const store = tx.objectStore(STORE);
+    let result;
+    const r = run(store);
+    if (r) r.onsuccess = () => { result = r.result; };
+    tx.oncomplete = () => resolve(result);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error("idb tx aborted"));
+  }));
+}
 
 function loadIndex() {
   try { return JSON.parse(localStorage.getItem(INDEX_KEY) || "[]"); } catch { return []; }
@@ -61,30 +93,22 @@ function saveIndex(arr) {
   try { localStorage.setItem(INDEX_KEY, JSON.stringify(arr)); } catch {}
 }
 async function readNote(id) {
-  if (isNative()) {
-    try {
-      const { Filesystem, Directory, Encoding } = await import("@capacitor/filesystem");
-      const { data } = await Filesystem.readFile({ path: `${NOTE_DIR}/${id}.json`, directory: Directory.Data, encoding: Encoding.UTF8 });
-      return JSON.parse(data);
-    } catch (e) { console.warn("[notes] read", e); return null; }
-  }
+  try { const v = await idbDo("readonly", (s) => s.get(id)); if (v != null) return typeof v === "string" ? JSON.parse(v) : v; }
+  catch (e) { console.warn("[notes] idb read", e); }
+  // フォールバック(旧localStorage)
   try { return JSON.parse(localStorage.getItem(`notes_data_${id}`) || "null"); } catch { return null; }
 }
 async function writeNote(note) {
-  const text = JSON.stringify(note);
-  if (isNative()) {
-    const { Filesystem, Directory, Encoding } = await import("@capacitor/filesystem");
-    await Filesystem.writeFile({ path: `${NOTE_DIR}/${id2path(note.id)}`, data: text, directory: Directory.Data, encoding: Encoding.UTF8, recursive: true });
-    return;
+  try { await idbDo("readwrite", (s) => s.put(note, note.id)); return; }
+  catch (e) {
+    console.warn("[notes] idb write", e);
+    try { localStorage.setItem(`notes_data_${note.id}`, JSON.stringify(note)); }
+    catch { throw new Error("storage-full"); }
   }
-  try { localStorage.setItem(`notes_data_${note.id}`, text); }
-  catch (e) { throw new Error("storage-full"); }
 }
-const id2path = (id) => `${id}.json`;
 async function deleteNote(id) {
-  if (isNative()) {
-    try { const { Filesystem, Directory } = await import("@capacitor/filesystem"); await Filesystem.deleteFile({ path: `${NOTE_DIR}/${id}.json`, directory: Directory.Data }); } catch {}
-  } else { try { localStorage.removeItem(`notes_data_${id}`); } catch {} }
+  try { await idbDo("readwrite", (s) => s.delete(id)); } catch {}
+  try { localStorage.removeItem(`notes_data_${id}`); } catch {}
 }
 
 function fileToBase64(file) {
