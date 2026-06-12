@@ -29,6 +29,7 @@ import { DMView } from "./views/DMView.jsx";
 import { PocketView } from "./views/PocketView.jsx";
 import { MusicView } from "./views/MusicView.jsx";
 import { PdfToolsView } from "./views/PdfToolsView.jsx";
+import { NotesView } from "./views/NotesView.jsx";
 import { MiniPlayer } from "./components/MiniPlayer.jsx";
 import { NotifView } from "./views/NotifView.jsx";
 import { EventView } from "./views/EventView.jsx";
@@ -1022,7 +1023,7 @@ export default function App(){
 
   // --- DESKTOP ---
   if(!mob){
-    const titles={home:t("nav.home"),timetable:t("nav.timetable"),tasks:t("header.taskMgmt"),calendar:t("nav.calendar"),acadCal:t("tool.acadCal"),exams:t("tool.exams"),dm:t("common.dm"),notif:t("nav.notif"),grades:t("tool.grades"),pomo:t("tool.pomo"),events:t("tool.events"),reviews:t("tool.reviews"),bmarks:t("tool.bmarks"),search:t("nav.search"),profile:t("nav.profile"),navigation:t("nav.navigation"),friends:t("nav.friends"),circles:t("nav.circles"),admin:t("nav.admin"),freshman:t("nav.freshman"),reg:t("more.regAssist"),freeroom:t("tool.freeroom"),attendance:t("nav.attendance"),music:t("tool.music"),pdftools:t("nav.pdftools")};
+    const titles={home:t("nav.home"),timetable:t("nav.timetable"),tasks:t("header.taskMgmt"),calendar:t("nav.calendar"),acadCal:t("tool.acadCal"),exams:t("tool.exams"),dm:t("common.dm"),notif:t("nav.notif"),grades:t("tool.grades"),pomo:t("tool.pomo"),events:t("tool.events"),reviews:t("tool.reviews"),bmarks:t("tool.bmarks"),search:t("nav.search"),profile:t("nav.profile"),navigation:t("nav.navigation"),friends:t("nav.friends"),circles:t("nav.circles"),admin:t("nav.admin"),freshman:t("nav.freshman"),reg:t("more.regAssist"),freeroom:t("tool.freeroom"),attendance:t("nav.attendance"),music:t("tool.music"),pdftools:t("nav.pdftools"),notes:t("nav.notes")};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:t("chan.timeline"),chat:t("chan.chat"),assignments:t("chan.assignments"),materials:t("chan.materials"),reviews:t("chan.reviews")}[ch]}</>;
       if(view==="dept"&&cd){const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?locName(cd):cd.prefix}</span> {nameOnly?"":`${locName(cd)} `}— {{timeline:t("chan.timeline"),chat:t("chan.chat")}[ch]||""}</>;}
@@ -1049,6 +1050,7 @@ export default function App(){
           {view==="pocket"&&(L?<LockedView title={t("nav.pocket")}/>:<PocketView mob={false}/>)}
           {view==="music"&&(L?<LockedView title={t("tool.music")}/>:<MusicView mob={false}/>)}
           {view==="pdftools"&&(L?<LockedView title={t("nav.pdftools")}/>:<PdfToolsView mob={false}/>)}
+          {view==="notes"&&(L?<LockedView title={t("nav.notes")}/>:<NotesView mob={false}/>)}
           {view==="notif"&&(L?<LockedView title={t("nav.notif")}/>:<NotifView mob={false}/>)}
           {view==="grades"&&(L?<LockedView title={t("tool.grades")}/>:<GradeView mob={false}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
@@ -1103,6 +1105,7 @@ export default function App(){
         {view==="pocket"&&(L?<><MHdr title={t("nav.pocket")} back={mBack}/><LockedView title={t("nav.pocket")}/></>:<><MHdr title={t("nav.pocket")} back={mBack}/><PocketView mob/></>)}
         {view==="music"&&(L?<><MHdr title={t("tool.music")} back={mBack}/><LockedView title={t("tool.music")}/></>:<><MHdr title={t("tool.music")} back={mBack}/><MusicView mob/></>)}
         {view==="pdftools"&&(L?<><MHdr title={t("nav.pdftools")} back={mBack}/><LockedView title={t("nav.pdftools")}/></>:<><MHdr title={t("nav.pdftools")} back={mBack}/><PdfToolsView mob/></>)}
+        {view==="notes"&&(L?<><MHdr title={t("nav.notes")} back={mBack}/><LockedView title={t("nav.notes")}/></>:<NotesView mob onExit={mBack}/>)}
         {view==="notif"&&(L?<><MHdr title={t("nav.notif")} back={mBack}/><LockedView title={t("nav.notif")}/></>:<><MHdr title={t("nav.notif")} back={mBack}/><NotifView mob/></>)}
         {view==="grades"&&(L?<><MHdr title={t("tool.grades")} back={mBack}/><LockedView title={t("tool.grades")}/></>:<><MHdr title={t("tool.grades")} back={mBack}/><GradeView mob/></>)}
         {view==="pomo"&&<><MHdr title={t("tool.pomo")} back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
