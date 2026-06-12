@@ -83,6 +83,12 @@ struct TimetableWidgetView: View {
         return i < DAYS ? i : -1
     }
 
+    /// Today's classes, ordered by period (empty on weekends / no data).
+    private var todaySlots: [TimetableSlot] {
+        guard todayIndex >= 0 else { return [] }
+        return entry.data.slots.filter { $0.day == todayIndex }.sorted { $0.ps < $1.ps }
+    }
+
     /// Last grid row a class reaches (uses period END so spanning classes aren't clipped).
     private var lastUsedRow: Int {
         entry.data.slots
@@ -92,17 +98,94 @@ struct TimetableWidgetView: View {
     }
 
     var body: some View {
-        if family != .systemSmall && entry.data.slots.isEmpty {
-            emptyState
-        } else {
-            switch family {
-            case .systemSmall:
-                todayColumn
-            default:
+        content
+            .containerBackground(for: .widget) { backdrop }
+    }
+
+    @ViewBuilder private var content: some View {
+        switch family {
+        case .accessoryRectangular:
+            lockRectangular
+        case .accessoryInline:
+            lockInline
+        case .accessoryCircular:
+            lockCircular
+        case .systemSmall:
+            todayColumn
+        default:
+            if entry.data.slots.isEmpty {
+                emptyState
+            } else {
                 // Trim trailing empty rows; medium caps tighter than large.
                 let cap = family == .systemLarge ? ROWS : 4
                 weekGrid(rows: min(cap, max(1, lastUsedRow + 1)))
             }
+        }
+    }
+
+    @ViewBuilder private var backdrop: some View {
+        switch family {
+        case .accessoryRectangular, .accessoryCircular:
+            AccessoryWidgetBackground()
+        case .accessoryInline:
+            Color.clear
+        default:
+            // Frosted backdrop: material lets the wallpaper tint through.
+            Rectangle().fill(.ultraThinMaterial)
+        }
+    }
+
+    // MARK: Lock screen (accessory) views — system renders these monochrome/vibrant.
+
+    // Single line: next/first class today, or a no-class note.
+    private var lockInline: some View {
+        Group {
+            if let s = todaySlots.first {
+                Label("\(s.name) \(s.room)", systemImage: "book.closed")
+            } else {
+                Label("今日は授業なし", systemImage: "calendar")
+            }
+        }
+    }
+
+    // Rectangular: header + up to 3 of today's classes.
+    private var lockRectangular: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 3) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 11, weight: .bold))
+                Text(todayLabel)
+                    .font(.system(size: 12, weight: .bold))
+            }
+            .widgetAccentable()
+
+            if todaySlots.isEmpty {
+                Text("授業なし")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(todaySlots.prefix(3)) { s in
+                    Text("\(s.ps)-\(s.pe)  \(s.name)")
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                }
+                if todaySlots.count > 3 {
+                    Text("ほか\(todaySlots.count - 3)件")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    // Circular: count of today's classes.
+    private var lockCircular: some View {
+        VStack(spacing: -1) {
+            Text("\(todaySlots.count)")
+                .font(.system(size: 22, weight: .bold))
+            Text("コマ")
+                .font(.system(size: 9, weight: .medium))
         }
     }
 
@@ -243,17 +326,15 @@ struct TimetableWidgetView: View {
         .opacity(dimmed ? 0.45 : 1)
     }
 
+    /// "今日 (火)" style label.
+    private var todayLabel: String {
+        todayIndex >= 0 ? "今日 (\(DAY_LABELS[todayIndex]))" : "今日"
+    }
+
     // Small: just today's classes as a list.
     private var todayColumn: some View {
-        // Calendar weekday: 1=Sun..7=Sat -> our 0=Mon..4=Fri
-        let wd = Calendar.current.component(.weekday, from: entry.date)
-        let today = (wd + 5) % 7 // Sun(1)->6, Mon(2)->0, ... Sat(7)->5
-        let todaySlots = entry.data.slots
-            .filter { $0.day == today }
-            .sorted { $0.ps < $1.ps }
-
-        return VStack(alignment: .leading, spacing: 3) {
-            Text(today < DAYS ? "今日 (\(DAY_LABELS[today]))" : "今日")
+        VStack(alignment: .leading, spacing: 3) {
+            Text(todayLabel)
                 .font(.caption2).bold()
                 .foregroundColor(.secondary)
             if todaySlots.isEmpty {
@@ -300,16 +381,16 @@ struct TimetableWidget: Widget {
             intent: SelectTimetableIntent.self,
             provider: TimetableProvider()
         ) { entry in
+            // Background is set per-family inside the view (material vs accessory).
             TimetableWidgetView(entry: entry)
-                .containerBackground(for: .widget) {
-                    // Frosted backdrop: material lets the wallpaper tint through.
-                    Rectangle().fill(.ultraThinMaterial)
-                }
                 // Tap anywhere -> open the app on the timetable view.
                 .widgetURL(URL(string: "scitokyo://timetable"))
         }
         .configurationDisplayName("時間割")
-        .description("年度とクォーターを選んで時間割を表示します。")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .description("年度とクォーターを選んで時間割を表示します。ロック画面では今日の予定を表示します。")
+        .supportedFamilies([
+            .systemSmall, .systemMedium, .systemLarge,
+            .accessoryRectangular, .accessoryInline, .accessoryCircular,
+        ])
     }
 }
