@@ -668,9 +668,12 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
   }
 
   const onPointerMove = (e) => {
+    // ジェスチャー判定より先に最新座標を反映する（でないと moveGesture が
+    // 指を置いた瞬間の座標を読み続け、パン/ピンチの移動量が常に 0 になる）
+    const tracked = pointers.current.has(e.pointerId);
+    if (tracked) pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
     if (gesture.current) { moveGesture(); return; }
-    if (!pointers.current.has(e.pointerId)) return;
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
+    if (!tracked) return;
     const tc = toolRef.current;
     if (tc.tool === "eraser" && eraseOp.current) {
       // coalesced で滑らかに
