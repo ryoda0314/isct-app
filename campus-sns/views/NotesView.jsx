@@ -411,6 +411,7 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
   const undoStack = useRef([]);
   const redoStack = useRef([]);
   const rafRef = useRef(0);
+  const snapRaf = useRef(0);
   const saveTimer = useRef(0);
   const pdfDocRef = useRef(null);
   const dirtyRef = useRef(false);
@@ -431,7 +432,7 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
       // canvas はこの後の再レンダリングで初めて DOM に出るため、ここでは描画しない
       // （初期フィットは下の note 依存 effect が canvas マウント後に行う）
     })();
-    return () => { alive = false; cancelAnimationFrame(rafRef.current); flushSave(); };
+    return () => { alive = false; cancelAnimationFrame(rafRef.current); cancelAnimationFrame(snapRaf.current); flushSave(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -496,13 +497,45 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
     renderViewport();
   }
 
-  function clampPan() {
-    const cv = viewRef.current, pg = curPage(); if (!cv || !pg) return;
+  // 現在のスケールでの pan 許容範囲。ページが画面より小さい軸は中央に固定（min===max）。
+  function panBounds() {
+    const cv = viewRef.current, pg = curPage(); if (!cv || !pg) return null;
     const vs = viewState.current; const pw = pg.w * vs.scale, ph = pg.h * vs.scale;
-    if (pw <= cv._cw) vs.panX = (cv._cw - pw) / 2;
-    else vs.panX = Math.min(0, Math.max(cv._cw - pw, vs.panX));
-    if (ph <= cv._ch) vs.panY = (cv._ch - ph) / 2;
-    else vs.panY = Math.min(0, Math.max(cv._ch - ph, vs.panY));
+    let minX, maxX, minY, maxY;
+    if (pw <= cv._cw) { minX = maxX = (cv._cw - pw) / 2; } else { minX = cv._cw - pw; maxX = 0; }
+    if (ph <= cv._ch) { minY = maxY = (cv._ch - ph) / 2; } else { minY = cv._ch - ph; maxY = 0; }
+    return { minX, maxX, minY, maxY };
+  }
+  function clampPan() {
+    const b = panBounds(); if (!b) return; const vs = viewState.current;
+    vs.panX = Math.max(b.minX, Math.min(b.maxX, vs.panX));
+    vs.panY = Math.max(b.minY, Math.min(b.maxY, vs.panY));
+  }
+  // 枠外は抵抗をかけて引っ張れる（ラバーバンド）。min===max の軸は中央からの引っ張り。
+  function rubber(v, min, max) {
+    const R = 0.45;
+    if (min === max) return min + (v - min) * R;
+    if (v < min) return min - (min - v) * R;
+    if (v > max) return max + (v - max) * R;
+    return v;
+  }
+  // 指を離したら許容範囲へ弾性スナップ（easeOutCubic）
+  function snapPan() {
+    const vs = viewState.current; const b = panBounds(); if (!b) return;
+    const tx = Math.max(b.minX, Math.min(b.maxX, vs.panX));
+    const ty = Math.max(b.minY, Math.min(b.maxY, vs.panY));
+    const sx = vs.panX, sy = vs.panY;
+    cancelAnimationFrame(snapRaf.current);
+    if (Math.abs(tx - sx) < 0.5 && Math.abs(ty - sy) < 0.5) { vs.panX = tx; vs.panY = ty; renderViewport(); return; }
+    const start = performance.now(), dur = 260;
+    const step = (now) => {
+      let p = (now - start) / dur; if (p > 1) p = 1;
+      const e = 1 - Math.pow(1 - p, 3);
+      vs.panX = sx + (tx - sx) * e; vs.panY = sy + (ty - sy) * e;
+      renderViewport();
+      if (p < 1) snapRaf.current = requestAnimationFrame(step);
+    };
+    snapRaf.current = requestAnimationFrame(step);
   }
 
   function clampScale(s) { const fit = viewState.current.fit || 1; return Math.max(fit * FIT_MIN_ZOOM, Math.min(fit * FIT_MAX_ZOOM, s)); }
@@ -638,6 +671,7 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
   };
 
   function startGesture() {
+    cancelAnimationFrame(snapRaf.current); // 進行中のスナップを止めてからドラッグ開始
     const ps = [...pointers.current.values()];
     const vs = viewState.current;
     if (ps.length >= 2) {
@@ -704,10 +738,15 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
       const curMx = (a.x + b.x) / 2 - rect.left, curMy = (a.y + b.y) / 2 - rect.top;
       vs.panX = curMx - lx * ns; vs.panY = curMy - ly * ns;
       setZoom(+(ns / vs.fit).toFixed(2));
+      clampPan();
     } else if (g.mode === "pan" && ps.length >= 1) {
-      vs.panX = g.panX0 + (ps[0].x - g.x0); vs.panY = g.panY0 + (ps[0].y - g.y0);
+      // 枠外はラバーバンドで引っ張れる（離したら snapPan で吸着）
+      const rawX = g.panX0 + (ps[0].x - g.x0), rawY = g.panY0 + (ps[0].y - g.y0);
+      const b = panBounds();
+      if (b) { vs.panX = rubber(rawX, b.minX, b.maxX); vs.panY = rubber(rawY, b.minY, b.maxY); }
+      else { vs.panX = rawX; vs.panY = rawY; }
     }
-    clampPan(); scheduleRender();
+    scheduleRender();
   }
 
   function doErase(lx, ly) {
@@ -730,7 +769,7 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
     const cv = viewRef.current; cv?.releasePointerCapture?.(e.pointerId);
     pointers.current.delete(e.pointerId);
     if (gesture.current) {
-      if (pointers.current.size === 0) { gesture.current = null; }
+      if (pointers.current.size === 0) { gesture.current = null; snapPan(); } // 離したら枠内へ弾性スナップ
       else if (pointers.current.size === 1) { startGesture(); } // ピンチ→パンへ
       return;
     }
