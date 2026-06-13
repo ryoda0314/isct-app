@@ -388,6 +388,7 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
   const [hlSize, setHlSize] = useState(HL_SIZES[0]);
   const [eraserSize, setEraserSize] = useState(ERASER_SIZES[0]);
   const [panMode, setPanMode] = useState(false);
+  const [fingerDraw, setFingerDraw] = useState(false); // false=指は移動 / true=指でも描画
   const [zoom, setZoom] = useState(1);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
@@ -401,7 +402,7 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
   const pageCanvasRef = useRef(null);    // 論理解像度のページ（背景+確定ストローク）
   const noteRef = useRef(null);
   const pageIdxRef = useRef(0);
-  const toolRef = useRef({ tool, penColor, hlColor, penSize, hlSize, eraserSize, panMode });
+  const toolRef = useRef({ tool, penColor, hlColor, penSize, hlSize, eraserSize, panMode, fingerDraw });
   const viewState = useRef({ scale: 1, panX: 0, panY: 0, fit: 1, zoom: 1 });
   const pointers = useRef(new Map());
   const drawing = useRef(null);          // 進行中ストローク
@@ -414,7 +415,7 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
   const pdfDocRef = useRef(null);
   const dirtyRef = useRef(false);
 
-  useEffect(() => { toolRef.current = { tool, penColor, hlColor, penSize, hlSize, eraserSize, panMode }; }, [tool, penColor, hlColor, penSize, hlSize, eraserSize, panMode]);
+  useEffect(() => { toolRef.current = { tool, penColor, hlColor, penSize, hlSize, eraserSize, panMode, fingerDraw }; }, [tool, penColor, hlColor, penSize, hlSize, eraserSize, panMode, fingerDraw]);
 
   // ノート読み込み
   useEffect(() => {
@@ -627,8 +628,9 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
       if (eraseOp.current) eraseOp.current = null;
       startGesture(); return;
     }
-    // パンモード（手のひらツール）なら 1 本指でも移動
-    if (tc.panMode) { startGesture(); return; }
+    // パンモード（手のひらツール）／指（fingerDraw OFF時）は 1 本でも移動
+    // → 描画はペン(スタイラス)とマウスのみ。指はスクロール/移動に使う。
+    if (tc.panMode || (e.pointerType === "touch" && !tc.fingerDraw)) { startGesture(); return; }
 
     // 描画開始
     beginStroke(e);
@@ -814,6 +816,9 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
         </TB>
         <TB active={panMode} onClick={() => setPanMode((v) => !v)} tt={t("notes.pan")}>
           <span style={{ fontSize: 15 }}>✋</span>
+        </TB>
+        <TB active={fingerDraw} onClick={() => setFingerDraw((v) => !v)} tt={fingerDraw ? t("notes.fingerDrawOn") : t("notes.fingerDrawOff")}>
+          <span style={{ fontSize: 15 }}>✍️</span>
         </TB>
         <div style={{ width: 1, height: 22, background: T.bd, margin: "0 4px" }} />
         {/* 色 */}
