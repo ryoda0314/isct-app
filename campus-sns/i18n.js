@@ -85,6 +85,8 @@ const M = {
   "notes.zoomIn":       { ja:"拡大", en:"Zoom in", zh:"放大", ko:"확대", tp:"suli" },
   "notes.zoomOut":      { ja:"縮小", en:"Zoom out", zh:"缩小", ko:"축소", tp:"lili" },
   "notes.fit":          { ja:"全体表示", en:"Fit", zh:"适应", ko:"맞춤", tp:"ale" },
+  "notes.fingerDrawOff":{ ja:"指で描く（現在オフ＝指は移動）", en:"Draw with finger (off: finger pans)", zh:"用手指绘制（关：手指移动）", ko:"손가락으로 그리기 (꺼짐: 손가락 이동)", tp:"sitelen kepeken luka (weka)" },
+  "notes.fingerDrawOn": { ja:"指で描く（現在オン）", en:"Draw with finger (on)", zh:"用手指绘制（开）", ko:"손가락으로 그리기 (켜짐)", tp:"sitelen kepeken luka (lon)" },
   "nav.tasks":        { ja:"課題",         en:"Assignments", zh:"作业",       ko:"과제" , tp:"pali" },
   "nav.pocket":       { ja:"ポケット",     en:"Pocket",      zh:"口袋",       ko:"포켓" , tp:"poki" },
   "nav.friends":      { ja:"友達",         en:"Friends",     zh:"好友",       ko:"친구" , tp:"jan pona" },
