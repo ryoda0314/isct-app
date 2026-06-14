@@ -108,11 +108,12 @@ class InkOverlayView: UIView {
         canvasView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         canvasView.backgroundColor = .clear
         canvasView.isOpaque = false
-        canvasView.alwaysBounceVertical = true
+        canvasView.bounces = false          // スクロールの跳ね返りを無効化（吸着時のインク一瞬ズレ防止）
+        canvasView.alwaysBounceVertical = false
         canvasView.contentInsetAdjustmentBehavior = .never
         canvasView.minimumZoomScale = 1.0
         canvasView.maximumZoomScale = 4.0   // ピンチズーム有効（入力は PencilKit ネイティブ＝正確）
-        canvasView.bouncesZoom = true
+        canvasView.bouncesZoom = false      // ズームの跳ね返りも無効化（跳ね返り時のインク一瞬ズレ防止）
         canvasView.drawing = drawing
         if #available(iOS 14.0, *) { canvasView.drawingPolicy = .pencilOnly }
         bgContainer.layer.anchorPoint = CGPoint(x: 0, y: 0) // 左上基準で拡大（drawingと原点を合わせる）
