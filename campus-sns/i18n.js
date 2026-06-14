@@ -79,6 +79,7 @@ const M = {
   "notes.exportPng":    { ja:"画像で書き出し (PNG)", en:"Export as image (PNG)", zh:"导出为图片 (PNG)", ko:"이미지로 내보내기 (PNG)", tp:"pana sitelen (PNG)" },
   "notes.exportPdf":    { ja:"PDFで書き出し", en:"Export as PDF", zh:"导出为PDF", ko:"PDF로 내보내기", tp:"pana PDF" },
   "notes.exporting":    { ja:"書き出し中…", en:"Exporting…", zh:"导出中…", ko:"내보내는 중…", tp:"pana…" },
+  "notes.opening":      { ja:"開いています…", en:"Opening…", zh:"打开中…", ko:"여는 중…", tp:"open…" },
   "notes.paperSize":    { ja:"用紙", en:"Paper", zh:"纸张", ko:"용지", tp:"lipu" },
   "notes.portrait":     { ja:"縦", en:"Portrait", zh:"纵向", ko:"세로", tp:"sewi" },
   "notes.landscape":    { ja:"横", en:"Landscape", zh:"横向", ko:"가로", tp:"poka" },
