@@ -5,7 +5,7 @@ import Capacitor
 
 /// ネイティブ PencilKit 手書きキャンバスを「Webの指定領域に重ねる」プラグイン（オーバーレイ方式）。
 /// 全画面モーダルではなく、Web のキャンバス領域(rect)にだけ重ねるので、Web のサイドバー/
-/// ツールバーは表示されたまま。ペンで描画、指でスクロール/ズーム。
+/// ツールバーは表示されたまま。ペンで描画、指でスクロール。
 ///
 /// JS API:
 ///   Ink.show({ rect:{x,y,w,h}, pages:[{bg,w,h}], drawing? })  // 重ねて表示
@@ -83,12 +83,13 @@ public class InkPlugin: CAPPlugin, CAPBridgedPlugin {
 struct InkPage { let w: CGFloat; let h: CGFloat; let bg: UIImage? }
 
 /// 指定領域に重ねる PencilKit ビュー。
-/// 構成: scrollView(指でパン/ズーム) → contentView(背景UIImageView + PKCanvasView 全面・ペンのみ)
-class InkOverlayView: UIView, UIScrollViewDelegate {
+/// 構成: PKCanvasView 自身をスクロールビューとして使い（＝入力座標が常に正確）、
+///       背景画像はその中に縦積みで敷く。ペンのみ描画・指でスクロール。
+/// ※ ズームは入力ズレ防止のため一旦無効（min=max=1）。スクロールは有効。
+class InkOverlayView: UIView {
     private var pages: [InkPage]
-    private let scrollView = UIScrollView()
-    private let contentView = UIView()
     private let canvasView = PKCanvasView()
+    private let bgContainer = UIView()
     private var toolPicker: PKToolPicker?
     private let pageGap: CGFloat = 24
     private var pageRects: [CGRect] = []
@@ -101,23 +102,18 @@ class InkOverlayView: UIView, UIScrollViewDelegate {
         backgroundColor = UIColor(white: 0.93, alpha: 1.0)
         clipsToBounds = true
 
-        scrollView.frame = bounds
-        scrollView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        scrollView.delegate = self
-        scrollView.minimumZoomScale = 1.0
-        scrollView.maximumZoomScale = 5.0
-        scrollView.alwaysBounceVertical = true
-        scrollView.backgroundColor = .clear
-        scrollView.contentInsetAdjustmentBehavior = .never
-        addSubview(scrollView)
-        scrollView.addSubview(contentView)
-
+        canvasView.frame = bounds
+        canvasView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         canvasView.backgroundColor = .clear
         canvasView.isOpaque = false
-        canvasView.isScrollEnabled = false
+        canvasView.alwaysBounceVertical = true
+        canvasView.contentInsetAdjustmentBehavior = .never
+        canvasView.minimumZoomScale = 1.0
+        canvasView.maximumZoomScale = 1.0   // ズーム無効（位置ズレ防止）。スクロールは有効
         canvasView.drawing = drawing
         if #available(iOS 14.0, *) { canvasView.drawingPolicy = .pencilOnly }
-        contentView.addSubview(canvasView)
+        canvasView.insertSubview(bgContainer, at: 0) // 背景はキャンバス内（contentOffsetで一緒にスクロール）
+        addSubview(canvasView)
     }
     required init?(coder: NSCoder) { fatalError() }
 
@@ -146,7 +142,7 @@ class InkOverlayView: UIView, UIScrollViewDelegate {
         didLayout = true
         var y: CGFloat = 0
         pageRects.removeAll()
-        contentView.subviews.forEach { if $0 !== canvasView { $0.removeFromSuperview() } }
+        bgContainer.subviews.forEach { $0.removeFromSuperview() }
         for page in pages {
             let h = page.w > 0 ? targetW * (page.h / page.w) : targetW * 1.414
             let rect = CGRect(x: 0, y: y, width: targetW, height: h)
@@ -159,18 +155,15 @@ class InkOverlayView: UIView, UIScrollViewDelegate {
             iv.layer.shadowOpacity = 0.12
             iv.layer.shadowRadius = 5
             iv.layer.shadowOffset = CGSize(width: 0, height: 2)
-            contentView.insertSubview(iv, at: 0)
+            bgContainer.addSubview(iv)
             y += h + pageGap
         }
         contentSizeVal = CGSize(width: targetW, height: max(y - pageGap, 1))
-        contentView.frame = CGRect(origin: .zero, size: contentSizeVal)
-        canvasView.frame = contentView.bounds
-        scrollView.frame = bounds
-        scrollView.contentSize = contentSizeVal
-        scrollView.contentInset = UIEdgeInsets(top: 8, left: 0, bottom: 40, right: 0)
+        canvasView.frame = bounds
+        bgContainer.frame = CGRect(origin: .zero, size: contentSizeVal)
+        canvasView.contentSize = contentSizeVal
+        canvasView.contentInset = UIEdgeInsets(top: 8, left: 0, bottom: 40, right: 0)
     }
-
-    func viewForZooming(in scrollView: UIScrollView) -> UIView? { return contentView }
 
     private func setupToolPicker() {
         if toolPicker != nil { return }
