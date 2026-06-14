@@ -9,7 +9,7 @@ import Capacitor
 ///
 /// 導入: ViewController.capacitorDidLoad() で
 ///   bridge?.registerPluginInstance(InkPlugin())
-/// capacitor.config.json の packageClassList に "InkPlugin" を追加。
+/// （カスタムプラグインは registerPluginInstance で登録。packageClassList は不要）
 @objc(InkPlugin)
 public class InkPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "InkPlugin"
@@ -79,21 +79,28 @@ struct InkPage {
     let bg: UIImage?
 }
 
-/// 全画面の PencilKit エディタ（連続スクロール・PKToolPicker）
-class InkCanvasController: UIViewController, PKCanvasViewDelegate, PKToolPickerObserver {
+/// 全画面の PencilKit エディタ。
+/// 構成（GoodNotesと同じ方式）:
+///   外側 UIScrollView（指でパン/ピンチズーム）
+///     └ contentView（全ページを縦積み）
+///          ├ 背景 UIImageView（ページごと）
+///          └ PKCanvasView（全面・自前スクロール無効・ペンのみ描画）
+/// → ペンで描画、指でスクロール/ズーム。背景とインクが一緒にズームする。
+class InkCanvasController: UIViewController, UIScrollViewDelegate, PKToolPickerObserver {
     var onDone: (([String: Any]) -> Void)?
 
     private var pages: [InkPage]
     private let initialDrawing: PKDrawing
+    private let scrollView = UIScrollView()
+    private let contentView = UIView()
     private let canvasView = PKCanvasView()
     private var toolPicker: PKToolPicker?
-    private let bgContainer = UIView()
 
-    // ページ間ギャップ（points）。背景画像はページ論理サイズをそのまま points として配置。
     private let pageGap: CGFloat = 24
-    // ページ矩形（content 座標）を保持し、保存時のページ別書き出しに使う
     private var pageRects: [CGRect] = []
-    private var contentSize: CGSize = .zero
+    private var contentSizeVal: CGSize = .zero
+    private var didLayout = false
+    private var topBarHeight: CGFloat = 44
 
     init(pages: [InkPage], drawing: PKDrawing) {
         self.pages = pages
@@ -106,43 +113,55 @@ class InkCanvasController: UIViewController, PKCanvasViewDelegate, PKToolPickerO
         super.viewDidLoad()
         view.backgroundColor = UIColor(white: 0.93, alpha: 1.0)
 
-        layoutPages()
+        // 外側スクロール（指でパン/ズーム）
+        scrollView.frame = view.bounds
+        scrollView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        scrollView.delegate = self
+        scrollView.minimumZoomScale = 1.0
+        scrollView.maximumZoomScale = 5.0
+        scrollView.alwaysBounceVertical = true
+        scrollView.backgroundColor = .clear
+        scrollView.contentInsetAdjustmentBehavior = .never
+        view.addSubview(scrollView)
 
-        // PKCanvasView（= UIScrollView）
-        canvasView.frame = view.bounds
-        canvasView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        canvasView.alwaysBounceVertical = true
+        scrollView.addSubview(contentView)
+
+        // PKCanvasView は contentView 全面。自前スクロール無効＝外側に任せる。ペンのみ描画。
         canvasView.backgroundColor = .clear
         canvasView.isOpaque = false
-        canvasView.delegate = self
-        if #available(iOS 14.0, *) {
-            canvasView.drawingPolicy = .anyInput // 指でも描けるが、PKToolPicker側でPencil限定可
-        }
+        canvasView.isScrollEnabled = false
         canvasView.drawing = initialDrawing
-        // 背景をスクロール連動でぶら下げる
-        bgContainer.frame = CGRect(origin: .zero, size: contentSize)
-        canvasView.insertSubview(bgContainer, at: 0)
-        canvasView.contentSize = contentSize
-        // ズーム
-        canvasView.minimumZoomScale = 0.4
-        canvasView.maximumZoomScale = 6.0
-        view.addSubview(canvasView)
+        if #available(iOS 14.0, *) {
+            canvasView.drawingPolicy = .pencilOnly
+        }
+        contentView.addSubview(canvasView)
 
         setupToolPicker()
         setupTopBar()
-
-        // 横幅にフィットする初期ズーム
-        DispatchQueue.main.async { [weak self] in self?.fitWidth() }
     }
 
-    /// 背景を縦に積んで bgContainer に配置し、pageRects/contentSize を計算
-    private func layoutPages() {
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        let w = scrollView.bounds.width
+        guard !didLayout, w > 0 else { return }
+        didLayout = true
+        topBarHeight = view.safeAreaInsets.top + 44
+        layoutPages(targetW: w)
+        contentView.frame = CGRect(origin: .zero, size: contentSizeVal)
+        canvasView.frame = contentView.bounds
+        scrollView.contentSize = contentSizeVal
+        scrollView.contentInset = UIEdgeInsets(top: topBarHeight, left: 0, bottom: 60, right: 0)
+        scrollView.contentOffset = CGPoint(x: 0, y: -topBarHeight)
+    }
+
+    /// ページを画面幅にフィットさせて縦積み。背景は canvasView の下に敷く。
+    private func layoutPages(targetW: CGFloat) {
         var y: CGFloat = 0
-        var maxW: CGFloat = 0
         pageRects.removeAll()
-        bgContainer.subviews.forEach { $0.removeFromSuperview() }
+        contentView.subviews.forEach { if $0 !== canvasView { $0.removeFromSuperview() } }
         for page in pages {
-            let rect = CGRect(x: 0, y: y, width: page.w, height: page.h)
+            let h = page.w > 0 ? targetW * (page.h / page.w) : targetW * 1.414
+            let rect = CGRect(x: 0, y: y, width: targetW, height: h)
             pageRects.append(rect)
             let iv = UIImageView(frame: rect)
             iv.contentMode = .scaleToFill
@@ -152,12 +171,14 @@ class InkCanvasController: UIViewController, PKCanvasViewDelegate, PKToolPickerO
             iv.layer.shadowOpacity = 0.15
             iv.layer.shadowRadius = 6
             iv.layer.shadowOffset = CGSize(width: 0, height: 2)
-            bgContainer.addSubview(iv)
-            maxW = max(maxW, page.w)
-            y += page.h + pageGap
+            contentView.insertSubview(iv, at: 0) // canvasView の下へ
+            y += h + pageGap
         }
-        contentSize = CGSize(width: maxW, height: max(y - pageGap, 1))
+        contentSizeVal = CGSize(width: targetW, height: max(y - pageGap, 1))
     }
+
+    // ピンチズーム対象（背景＋インクを一緒に拡大）
+    func viewForZooming(in scrollView: UIScrollView) -> UIView? { return contentView }
 
     private func setupToolPicker() {
         if #available(iOS 14.0, *) {
@@ -168,7 +189,6 @@ class InkCanvasController: UIViewController, PKCanvasViewDelegate, PKToolPickerO
             canvasView.becomeFirstResponder()
             toolPicker = picker
         } else if #available(iOS 13.0, *) {
-            // iOS13: ウィンドウ共有のツールピッカー
             if let window = view.window, let picker = PKToolPicker.shared(for: window) {
                 picker.setVisible(true, forFirstResponder: canvasView)
                 picker.addObserver(canvasView)
@@ -207,40 +227,23 @@ class InkCanvasController: UIViewController, PKCanvasViewDelegate, PKToolPickerO
             addPage.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -16),
             addPage.bottomAnchor.constraint(equalTo: bar.bottomAnchor, constant: -8),
         ])
-        // ツールバー下にキャンバス上端が来るよう inset
-        canvasView.contentInset = UIEdgeInsets(top: view.safeAreaInsets.top + 44, left: 0, bottom: 40, right: 0)
-    }
-
-    // UIScrollView ズーム対象
-    func viewForZooming(in scrollView: UIScrollView) -> UIView? {
-        // PKCanvasView は自身の drawing をズームする。背景もスクロール連動。
-        // PencilKit は内部で zoom を扱うため nil 返しでも標準ズームが効く構成が多いが、
-        // 背景コンテナをズーム対象にすることで bg も拡大させる。
-        return bgContainer
-    }
-
-    private func fitWidth() {
-        guard contentSize.width > 0 else { return }
-        let avail = canvasView.bounds.width
-        let scale = max(canvasView.minimumZoomScale, min(canvasView.maximumZoomScale, avail / contentSize.width))
-        canvasView.zoomScale = scale
-        canvasView.contentOffset = CGPoint(x: 0, y: -canvasView.contentInset.top)
+        view.bringSubviewToFront(bar)
     }
 
     @objc private func tapAddPage() {
-        // v1: 白紙ページを末尾に追加（背景なし＝白）
         let last = pages.last
         let w = last?.w ?? 1240
         let h = last?.h ?? 1754
         pages.append(InkPage(w: w, h: h, bg: nil))
-        layoutPages()
-        bgContainer.frame = CGRect(origin: .zero, size: contentSize)
-        canvasView.contentSize = contentSize
+        let targetW = scrollView.bounds.width
+        layoutPages(targetW: targetW)
+        contentView.frame = CGRect(origin: .zero, size: contentSizeVal)
+        canvasView.frame = contentView.bounds
+        scrollView.contentSize = contentSizeVal
     }
 
     @objc private func tapDone() {
-        let result = exportResult()
-        onDone?(result)
+        onDone?(exportResult())
     }
 
     /// PKDrawing(base64) と ページ別 ink PNG(base64, 透明背景) を返す
@@ -250,13 +253,9 @@ class InkCanvasController: UIViewController, PKCanvasViewDelegate, PKToolPickerO
         var thumbs: [String] = []
         let exportScale: CGFloat = 2.0
         for rect in pageRects {
-            // そのページ範囲の手書きのみを画像化（透明背景）
             let img = drawing.image(from: rect, scale: exportScale)
-            if let png = img.pngData() {
-                thumbs.append(png.base64EncodedString())
-            } else {
-                thumbs.append("")
-            }
+            if let png = img.pngData() { thumbs.append(png.base64EncodedString()) }
+            else { thumbs.append("") }
         }
         return ["drawing": drawingB64, "thumbnails": thumbs]
     }
