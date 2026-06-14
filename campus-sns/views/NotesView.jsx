@@ -178,31 +178,60 @@ function paperDims(sizeId, orient) {
 // フィット倍率基準のズーム範囲（fit×0.5 〜 fit×6）
 const FIT_MIN_ZOOM = 0.5, FIT_MAX_ZOOM = 6;
 
-// 1ストロークを ctx（論理座標系）に描く
+const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+
+// 1ストロークを ctx（論理座標系）に描く。
+// 点と点の間を中点を通る2次ベジェで補間し、速描き時の折れ線(カクカク)を防ぐ。
 function drawStroke(ctx, st) {
   const pts = st.pts;
   if (!pts || !pts.length) return;
   ctx.save();
   ctx.lineCap = "round"; ctx.lineJoin = "round";
+
   if (st.tool === "highlighter") {
+    // 一定幅・半透明 → 1パスで滑らかに（結合部の濃淡ムラを避ける）
     ctx.globalAlpha = 0.32; ctx.strokeStyle = st.color; ctx.lineWidth = st.size;
-    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-    if (pts.length === 1) ctx.lineTo(pts[0][0] + 0.1, pts[0][1]);
-    ctx.stroke();
-  } else {
-    ctx.strokeStyle = st.color;
-    if (pts.length === 1) {
-      const r = (st.size * (0.35 + 0.65 * (pts[0][2] || 0.5))) / 2;
-      ctx.fillStyle = st.color; ctx.beginPath(); ctx.arc(pts[0][0], pts[0][1], r, 0, Math.PI * 2); ctx.fill();
-    } else {
-      for (let i = 1; i < pts.length; i++) {
-        const pr = ((pts[i - 1][2] || 0.5) + (pts[i][2] || 0.5)) / 2;
-        ctx.lineWidth = st.size * (0.35 + 0.65 * pr);
-        ctx.beginPath(); ctx.moveTo(pts[i - 1][0], pts[i - 1][1]); ctx.lineTo(pts[i][0], pts[i][1]); ctx.stroke();
-      }
+    ctx.beginPath();
+    if (pts.length === 1) { ctx.moveTo(pts[0][0], pts[0][1]); ctx.lineTo(pts[0][0] + 0.1, pts[0][1]); }
+    else {
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length - 1; i++) { const m = mid(pts[i], pts[i + 1]); ctx.quadraticCurveTo(pts[i][0], pts[i][1], m[0], m[1]); }
+      const n = pts.length; ctx.quadraticCurveTo(pts[n - 2][0], pts[n - 2][1], pts[n - 1][0], pts[n - 1][1]);
     }
+    ctx.stroke();
+    ctx.restore();
+    return;
   }
+
+  // ペン: 筆圧で太さを変えるためセグメント単位で描くが、各セグメントを
+  // 中点→(制御点=実点)→次の中点 の2次ベジェにして滑らかにする。
+  ctx.strokeStyle = st.color;
+  const W = (p) => st.size * (0.35 + 0.65 * (p != null ? p : 0.5));
+  if (pts.length === 1) {
+    const r = W(pts[0][2]) / 2;
+    ctx.fillStyle = st.color; ctx.beginPath(); ctx.arc(pts[0][0], pts[0][1], r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore(); return;
+  }
+  if (pts.length === 2) {
+    ctx.lineWidth = W((pts[0][2] + pts[1][2]) / 2);
+    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); ctx.lineTo(pts[1][0], pts[1][1]); ctx.stroke();
+    ctx.restore(); return;
+  }
+  // 始点 → 最初の中点
+  let prevMid = mid(pts[0], pts[1]);
+  ctx.lineWidth = W(pts[0][2]);
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); ctx.lineTo(prevMid[0], prevMid[1]); ctx.stroke();
+  // 中間: 中点→(実点)→次の中点 の2次ベジェ
+  for (let i = 1; i < pts.length - 1; i++) {
+    const nextMid = mid(pts[i], pts[i + 1]);
+    ctx.lineWidth = W(pts[i][2]);
+    ctx.beginPath(); ctx.moveTo(prevMid[0], prevMid[1]); ctx.quadraticCurveTo(pts[i][0], pts[i][1], nextMid[0], nextMid[1]); ctx.stroke();
+    prevMid = nextMid;
+  }
+  // 最後の中点 → 終点
+  const n = pts.length;
+  ctx.lineWidth = W(pts[n - 1][2]);
+  ctx.beginPath(); ctx.moveTo(prevMid[0], prevMid[1]); ctx.lineTo(pts[n - 1][0], pts[n - 1][1]); ctx.stroke();
   ctx.restore();
 }
 
