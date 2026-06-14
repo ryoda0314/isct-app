@@ -86,7 +86,7 @@ struct InkPage { let w: CGFloat; let h: CGFloat; let bg: UIImage? }
 /// 構成: PKCanvasView 自身をスクロールビューとして使い（＝入力座標が常に正確）、
 ///       背景画像はその中に縦積みで敷く。ペンのみ描画・指でスクロール。
 /// ※ ズームは入力ズレ防止のため一旦無効（min=max=1）。スクロールは有効。
-class InkOverlayView: UIView {
+class InkOverlayView: UIView, PKCanvasViewDelegate {
     private var pages: [InkPage]
     private let canvasView = PKCanvasView()
     private let bgContainer = UIView()
@@ -108,12 +108,13 @@ class InkOverlayView: UIView {
         canvasView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         canvasView.backgroundColor = .clear
         canvasView.isOpaque = false
-        canvasView.bounces = false          // スクロールの跳ね返りを無効化（吸着時のインク一瞬ズレ防止）
-        canvasView.alwaysBounceVertical = false
+        canvasView.bounces = true           // 跳ね返り(バウンス)あり。ズレはデリゲート同期で防ぐ
+        canvasView.alwaysBounceVertical = true
         canvasView.contentInsetAdjustmentBehavior = .never
         canvasView.minimumZoomScale = 1.0
         canvasView.maximumZoomScale = 4.0   // ピンチズーム有効（入力は PencilKit ネイティブ＝正確）
-        canvasView.bouncesZoom = false      // ズームの跳ね返りも無効化（跳ね返り時のインク一瞬ズレ防止）
+        canvasView.bouncesZoom = true       // ズームのバウンスあり
+        canvasView.delegate = self          // scroll/zoom 変化と同フレームで背景・マスクを同期（遅延ゼロ）
         canvasView.drawing = drawing
         if #available(iOS 14.0, *) { canvasView.drawingPolicy = .pencilOnly }
         bgContainer.layer.anchorPoint = CGPoint(x: 0, y: 0) // 左上基準で拡大（drawingと原点を合わせる）
@@ -131,7 +132,11 @@ class InkOverlayView: UIView {
         startBgSync()
     }
 
-    // 背景をキャンバスのズーム倍率に毎フレーム追従させる（PencilKitのdelegateを奪わない）
+    // scroll/zoom の変化と同じタイミングで背景・マスクを同期（遅延ゼロ＝バウンス中もズレない）
+    func scrollViewDidScroll(_ scrollView: UIScrollView) { syncBg() }
+    func scrollViewDidZoom(_ scrollView: UIScrollView) { syncBg() }
+
+    // 念のためのフォールバック（デリゲートが呼ばれない場合の保険）。毎フレーム同期
     private func startBgSync() {
         displayLink?.invalidate()
         let dl = CADisplayLink(target: self, selector: #selector(syncBg))
