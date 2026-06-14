@@ -15,7 +15,7 @@ import { isNative } from "../capacitor.js";
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v6-catmull";
+const NOTES_VERSION = "v7-diag";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -426,6 +426,7 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [exporting, setExporting] = useState("");
+  const [dbg, setDbg] = useState(""); // 実機の点データ診断（カクカク調査用）
 
   // 描画系は再レンダリングを避けるため ref で保持
   const wrapRef = useRef(null);
@@ -443,6 +444,7 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
   const redoStack = useRef([]);
   const rafRef = useRef(0);
   const snapRaf = useRef(0);
+  const coalMax = useRef(1); // 1イベントあたり取得できた最大 coalesced 数
   const saveTimer = useRef(0);
   const pdfDocRef = useRef(null);
   const dirtyRef = useRef(false);
@@ -748,6 +750,7 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
     }
     if (!drawing.current) return;
     const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    if (evs.length > coalMax.current) coalMax.current = evs.length;
     for (const ev of evs) {
       const [lx, ly] = toLogical(ev.clientX, ev.clientY);
       const pr = ev.pressure && ev.pressure > 0 ? ev.pressure : 0.5;
@@ -815,6 +818,14 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
         const pg = curPage(); pg.strokes.push(st);
         const ctx = pageCanvasRef.current.getContext("2d"); drawStroke(ctx, st);
         pushOp({ type: "add", pi: pageIdxRef.current, stroke: st }); markDirty();
+        // 診断: 生点数 / 補間後 / 平均点間距離(論理px) / coalesced最大 / 解像度
+        try {
+          const raw = st.pts, dn = densify(raw).length;
+          let seg = 0; for (let i = 1; i < raw.length; i++) seg += Math.hypot(raw[i][0] - raw[i - 1][0], raw[i][1] - raw[i - 1][1]);
+          const avg = raw.length > 1 ? (seg / (raw.length - 1)) : 0;
+          const pc = pageCanvasRef.current;
+          setDbg(`raw:${raw.length} dense:${dn} seg:${avg.toFixed(0)}px coal:${coalMax.current} dpr:${(window.devicePixelRatio||1)} cv:${cv._cw}x${cv._ch} pc:${pc.width}x${pc.height} sc:${viewState.current.scale.toFixed(2)}`);
+        } catch {}
       }
       renderViewport();
     }
@@ -931,6 +942,7 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
           onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onPointerLeave={onPointerUp}
           style={{ display: "block", touchAction: "none", cursor: panMode ? "grab" : "crosshair" }} />
         {exporting && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)", color: "#fff", fontSize: 14 }}>{exporting}</div>}
+        {dbg && <div style={{ position: "absolute", top: 6, left: 6, background: "rgba(0,0,0,0.78)", color: "#7CFC00", fontSize: 11, fontFamily: "monospace", padding: "4px 8px", borderRadius: 6, pointerEvents: "none", maxWidth: "90%", lineHeight: 1.4 }}>{NOTES_VERSION} {dbg}</div>}
       </div>
 
       {/* ページバー */}
