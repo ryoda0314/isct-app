@@ -15,7 +15,7 @@ import { isNative } from "../capacitor.js";
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v8-hires";
+const NOTES_VERSION = "v9-smooth";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -192,7 +192,7 @@ function densify(pts) {
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
     const dist = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
-    const steps = Math.max(1, Math.min(32, Math.ceil(dist / 5)));
+    const steps = Math.max(1, Math.min(64, Math.ceil(dist / 2.5)));
     const pr1 = p1[2] != null ? p1[2] : 0.5, pr2 = p2[2] != null ? p2[2] : 0.5;
     for (let s = 1; s <= steps; s++) {
       const t = s / steps, t2 = t * t, t3 = t2 * t;
@@ -439,6 +439,8 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
   const viewState = useRef({ scale: 1, panX: 0, panY: 0, fit: 1, zoom: 1 });
   const pointers = useRef(new Map());
   const drawing = useRef(null);          // 進行中ストローク
+  const liveLast = useRef(null);         // 増分ライブ描画: 直前の実点 [x,y,pr]
+  const liveMid = useRef(null);          // 増分ライブ描画: 直前の中点 [x,y]
   const eraseOp = useRef(null);          // 進行中の消去（undo 用）
   const gesture = useRef(null);          // ピンチ/パン
   const undoStack = useRef([]);
@@ -608,7 +610,8 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
     ctx.shadowColor = "transparent";
     // SS 解像度の pageCanvas を論理ページサイズに縮小描画（クッキリ）
     ctx.drawImage(pc, 0, 0, pg.w, pg.h);
-    if (drawing.current) drawStroke(ctx, drawing.current);
+    // ペンの進行中ストロークは増分描画(liveStrokeTo)で別途描くのでここでは描かない
+    if (drawing.current && drawing.current.tool === "highlighter") drawStroke(ctx, drawing.current);
     ctx.restore();
   }
   function scheduleRender() { if (!rafRef.current) rafRef.current = requestAnimationFrame(() => { rafRef.current = 0; renderViewport(); }); }
@@ -743,7 +746,29 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
       pts: [[lx, ly, pressure]],
       _pen: e.pointerType === "pen",
     };
-    scheduleRender();
+    if (tc.tool === "highlighter") {
+      scheduleRender(); // 蛍光ペンは半透明なので毎フレーム1パス再描画
+    } else {
+      // ペンは増分ライブ描画（全体を再計算しないので長い線でも軽い）
+      liveLast.current = [lx, ly, pressure];
+      liveMid.current = [lx, ly];
+      renderViewport(); // 背景+確定分を1回描く（進行中ペンは描かない）
+    }
+  }
+
+  // 増分ライブ描画: 直前の中点→(制御点=直前の実点)→新しい中点 の2次ベジェを1本だけ描く
+  function liveStrokeTo(x, y, pr) {
+    const cv = viewRef.current; const d = drawing.current; if (!cv || !d) return;
+    const ctx = cv.getContext("2d"); const vs = viewState.current; const dpr = cv._dpr || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.translate(vs.panX, vs.panY); ctx.scale(vs.scale, vs.scale);
+    ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = d.color;
+    const last = liveLast.current, m = liveMid.current;
+    const nmx = (last[0] + x) / 2, nmy = (last[1] + y) / 2;
+    const prAvg = ((last[2] != null ? last[2] : 0.5) + pr) / 2;
+    ctx.lineWidth = d.size * (0.35 + 0.65 * prAvg);
+    ctx.beginPath(); ctx.moveTo(m[0], m[1]); ctx.quadraticCurveTo(last[0], last[1], nmx, nmy); ctx.stroke();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    liveMid.current = [nmx, nmy]; liveLast.current = [x, y, pr];
   }
 
   const onPointerMove = (e) => {
@@ -762,12 +787,22 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
     }
     if (!drawing.current) return;
     const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
-    for (const ev of evs) {
-      const [lx, ly] = toLogical(ev.clientX, ev.clientY);
-      const pr = ev.pressure && ev.pressure > 0 ? ev.pressure : 0.5;
-      drawing.current.pts.push([lx, ly, pr]);
+    if (drawing.current.tool === "highlighter") {
+      for (const ev of evs) {
+        const [lx, ly] = toLogical(ev.clientX, ev.clientY);
+        const pr = ev.pressure && ev.pressure > 0 ? ev.pressure : 0.5;
+        drawing.current.pts.push([lx, ly, pr]);
+      }
+      scheduleRender();
+    } else {
+      // ペン: 新しい点だけを増分で描く（全体の再描画はしない）
+      for (const ev of evs) {
+        const [lx, ly] = toLogical(ev.clientX, ev.clientY);
+        const pr = ev.pressure && ev.pressure > 0 ? ev.pressure : 0.5;
+        drawing.current.pts.push([lx, ly, pr]);
+        liveStrokeTo(lx, ly, pr);
+      }
     }
-    scheduleRender();
   };
 
   function moveGesture() {
