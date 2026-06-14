@@ -43,7 +43,7 @@ public class InkPlugin: CAPPlugin, CAPBridgedPlugin {
             drawing = d
         }
 
-        call.keepAlive = true // close まで保持
+        keepAlive(call) // close まで保持
         pendingCall = call
 
         DispatchQueue.main.async { [weak self] in
