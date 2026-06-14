@@ -91,6 +91,7 @@ class InkOverlayView: UIView {
     private let canvasView = PKCanvasView()
     private let bgContainer = UIView()
     private var toolPicker: PKToolPicker?
+    private var displayLink: CADisplayLink?
     private let pageGap: CGFloat = 24
     private var pageRects: [CGRect] = []
     private var contentSizeVal: CGSize = .zero
@@ -109,9 +110,11 @@ class InkOverlayView: UIView {
         canvasView.alwaysBounceVertical = true
         canvasView.contentInsetAdjustmentBehavior = .never
         canvasView.minimumZoomScale = 1.0
-        canvasView.maximumZoomScale = 1.0   // ズーム無効（位置ズレ防止）。スクロールは有効
+        canvasView.maximumZoomScale = 4.0   // ピンチズーム有効（入力は PencilKit ネイティブ＝正確）
+        canvasView.bouncesZoom = true
         canvasView.drawing = drawing
         if #available(iOS 14.0, *) { canvasView.drawingPolicy = .pencilOnly }
+        bgContainer.layer.anchorPoint = CGPoint(x: 0, y: 0) // 左上基準で拡大（drawingと原点を合わせる）
         canvasView.insertSubview(bgContainer, at: 0) // 背景はキャンバス内（contentOffsetで一緒にスクロール）
         addSubview(canvasView)
     }
@@ -123,6 +126,20 @@ class InkOverlayView: UIView {
         layoutIfNeeded()
         relayout()
         setupToolPicker()
+        startBgSync()
+    }
+
+    // 背景をキャンバスのズーム倍率に毎フレーム追従させる（PencilKitのdelegateを奪わない）
+    private func startBgSync() {
+        displayLink?.invalidate()
+        let dl = CADisplayLink(target: self, selector: #selector(syncBg))
+        dl.add(to: .main, forMode: .common)
+        displayLink = dl
+    }
+    @objc private func syncBg() {
+        let s = canvasView.zoomScale
+        let tr = CGAffineTransform(scaleX: s, y: s)
+        if bgContainer.transform != tr { bgContainer.transform = tr }
     }
 
     override func layoutSubviews() {
@@ -160,6 +177,7 @@ class InkOverlayView: UIView {
         }
         contentSizeVal = CGSize(width: targetW, height: max(y - pageGap, 1))
         canvasView.frame = bounds
+        bgContainer.transform = .identity // サイズ設定中は等倍に戻す（syncBgが再追従）
         bgContainer.frame = CGRect(origin: .zero, size: contentSizeVal)
         canvasView.contentSize = contentSizeVal
         canvasView.contentInset = UIEdgeInsets(top: 8, left: 0, bottom: 40, right: 0)
@@ -184,6 +202,7 @@ class InkOverlayView: UIView {
     }
 
     func teardown() {
+        displayLink?.invalidate(); displayLink = nil
         if #available(iOS 14.0, *) { toolPicker?.setVisible(false, forFirstResponder: canvasView) }
         toolPicker?.removeObserver(canvasView)
         canvasView.resignFirstResponder()
