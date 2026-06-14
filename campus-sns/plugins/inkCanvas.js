@@ -1,38 +1,36 @@
-// ネイティブ PencilKit 手書きキャンバス（InkPlugin）への JS ブリッジ。
-// iPad のネイティブアプリでのみ利用可能。プラグイン未登録の旧ビルドや Web では
-// inkAvailable() が false を返し、呼び出し側は従来の Web キャンバスにフォールバックする。
+// ネイティブ PencilKit 手書きキャンバス（InkPlugin / オーバーレイ方式）への JS ブリッジ。
+// Web の「キャンバス領域(rect)」にだけネイティブ PKCanvasView を重ねる。サイドバーや
+// ツールバーは Web のまま表示される。ペンで描画、指でスクロール/ズーム（ネイティブ）。
+// プラグイン未登録の旧ビルドや Web では inkAvailable()=false → 従来の Web キャンバスへ。
 //
-// 対応する Swift: docs/ios-native/InkPlugin.swift（jsName="Ink"）
+// 対応 Swift: docs/ios-native/InkPlugin.swift（jsName="Ink"）
 import { isNative } from "../capacitor.js";
 
-/** ネイティブの Ink プラグインが使えるか（iPad + プラグイン登録済み） */
 export function inkAvailable() {
-  try {
-    return isNative() && !!window.Capacitor?.Plugins?.Ink?.open;
-  } catch {
-    return false;
-  }
+  try { return isNative() && !!window.Capacitor?.Plugins?.Ink?.show; } catch { return false; }
 }
 
-/**
- * ネイティブ PencilKit エディタを開く。ユーザーが「完了」を押すと解決。
- * @param {Object} opts
- * @param {Array<{bg:string,w:number,h:number}>} opts.pages
- *        各ページの背景PNG(base64, data:プレフィックス無し) と論理サイズ。
- *        背景が無いページ（白紙）は bg:"" でよい。
- * @param {string} [opts.drawing] 既存の PKDrawing(base64)。新規は省略。
- * @returns {Promise<{drawing:string, thumbnails:string[]}>}
- *        drawing: 更新後の PKDrawing(base64, 再編集用)
- *        thumbnails: ページ別の ink PNG(base64, 透明背景)。背景はWeb側で合成する。
- */
-export async function openInk({ pages, drawing }) {
+// rect: ビューポート基準の CSS px（= WKWebView の point 座標に一致）
+export async function showInk({ rect, pages, drawing }) {
   if (!inkAvailable()) throw new Error("ink-unavailable");
-  const { Ink } = window.Capacitor.Plugins;
-  const res = await Ink.open({ pages: pages || [], drawing: drawing || undefined });
-  return { drawing: res?.drawing || "", thumbnails: res?.thumbnails || [] };
+  return window.Capacitor.Plugins.Ink.show({ rect, pages: pages || [], drawing: drawing || undefined });
 }
 
-// base64(プレフィックス無し) → dataURL（Web 側で背景合成や img 表示に使う）
-export function pngB64ToDataUrl(b64) {
-  return b64 ? `data:image/png;base64,${b64}` : "";
+export async function setInkRect(rect) {
+  try { await window.Capacitor.Plugins.Ink.setRect({ rect }); } catch {}
+}
+
+// 保存して撤去 → { drawing:<base64 PKDrawing>, thumbnails:[<base64 PNG ink>/ページ] }
+export async function hideInk() {
+  if (!inkAvailable()) return { drawing: "", thumbnails: [] };
+  try {
+    const res = await window.Capacitor.Plugins.Ink.hide();
+    return { drawing: res?.drawing || "", thumbnails: res?.thumbnails || [] };
+  } catch { return { drawing: "", thumbnails: [] }; }
+}
+
+// DOM 要素のビューポート矩形を rect(CSS px, 整数) で返す
+export function rectOfEl(el) {
+  const r = el.getBoundingClientRect();
+  return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
 }

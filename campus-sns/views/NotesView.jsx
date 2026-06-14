@@ -3,7 +3,7 @@ import { T } from "../theme.js";
 import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { isNative } from "../capacitor.js";
-import { inkAvailable, openInk } from "../plugins/inkCanvas.js";
+import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl } from "../plugins/inkCanvas.js";
 
 /* ──────────────────────────────────────────────
    GoodNotes 風 手書きノート
@@ -16,7 +16,7 @@ import { inkAvailable, openInk } from "../plugins/inkCanvas.js";
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v10-native";
+const NOTES_VERSION = "v11-overlay";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -318,34 +318,12 @@ export function NotesView({ mob, onExit }) {
 
   const refreshIndex = useCallback(() => setIndex(loadIndex()), []);
 
-  // ノートを開く: iPad(ネイティブ)で engine=pencilkit なら PencilKit、それ以外は Web エディタ
+  // ノートを開く: iPad(ネイティブ)で engine=pencilkit ならオーバーレイ編集、それ以外は Web エディタ
   const openNote = async (id) => {
     const note = await readNote(id);
     if (!note) return;
-    if (inkAvailable() && note.engine === "pencilkit") runNative(note);
+    if (inkAvailable() && note.engine === "pencilkit") { setActiveId(id); setScreen("native"); }
     else { setActiveId(id); setScreen("editor"); }
-  };
-
-  // ネイティブ PencilKit を起動して編集 → 結果を保存（全画面・完了で戻る）
-  const runNative = async (note) => {
-    setBusy(t("notes.opening")); setErr("");
-    try {
-      const cache = {};
-      const pages = [];
-      for (const pg of note.pages) pages.push({ bg: await renderBgB64(note, pg, cache), w: pg.w, h: pg.h });
-      const res = await openInk({ pages, drawing: note.pkDrawing });
-      note.pkDrawing = res.drawing || note.pkDrawing || "";
-      note.engine = "pencilkit"; note.updatedAt = Date.now();
-      await writeNote(note);
-      let thumb = "";
-      try { thumb = await compositeThumb(pages[0]?.bg, res.thumbnails?.[0], note.pages[0]); } catch {}
-      const idx = loadIndex(); const e = idx.find((x) => x.id === note.id);
-      if (e) { e.updatedAt = note.updatedAt; e.pageCount = note.pages.length; e.engine = "pencilkit"; if (thumb) e.thumb = thumb; saveIndex(idx); }
-      setIndex(loadIndex());
-    } catch (e) {
-      console.warn("[notes] native open", e);
-      if (/unavailable/.test(String(e?.message))) { setActiveId(note.id); setScreen("editor"); } // 念のためWebへ
-    } finally { setBusy(""); }
   };
 
   // 白紙ノート新規作成（選択中の用紙サイズ・向きを使用）
@@ -363,7 +341,7 @@ export function NotesView({ mob, onExit }) {
       await writeNote(note);
       const idx = [{ id, title: note.title, type: "blank", template, engine: note.engine, pageCount: 1, updatedAt: note.updatedAt, thumb: "" }, ...loadIndex()];
       saveIndex(idx); setIndex(idx);
-      if (useInk) runNative(note); else { setActiveId(id); setScreen("editor"); }
+      setActiveId(id); setScreen(useInk ? "native" : "editor");
     } catch (e) { setErr(t("notes.saveFailed")); }
   };
 
@@ -393,7 +371,7 @@ export function NotesView({ mob, onExit }) {
       await writeNote(note);
       const idx = [{ id, title: note.title, type: "pdf", engine: note.engine, pageCount: pages.length, updatedAt: note.updatedAt, thumb: "" }, ...loadIndex()];
       saveIndex(idx); setIndex(idx);
-      if (useInk) runNative(note); else { setActiveId(id); setScreen("editor"); }
+      setActiveId(id); setScreen(useInk ? "native" : "editor");
     } catch (e) {
       console.error("[notes] import", e);
       setErr(/storage-full/.test(String(e?.message)) ? t("notes.storageFull") : t("notes.importFailed"));
@@ -406,6 +384,9 @@ export function NotesView({ mob, onExit }) {
     const idx = loadIndex().filter((n) => n.id !== id); saveIndex(idx); setIndex(idx);
   };
 
+  if (screen === "native" && activeId) {
+    return <NativeNoteEditor id={activeId} onBack={() => { setScreen("library"); setActiveId(null); refreshIndex(); }} onIndexChange={refreshIndex} />;
+  }
   if (screen === "editor" && activeId) {
     return <NoteEditor id={activeId} mob={mob} onBack={() => { setScreen("library"); setActiveId(null); refreshIndex(); }} onIndexChange={refreshIndex} />;
   }
@@ -465,6 +446,81 @@ export function NotesView({ mob, onExit }) {
           ))}
         </div>
       )}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════
+// ネイティブ(PencilKit)オーバーレイ編集
+//  Web のチャンク（ヘッダ＋キャンバス領域 div）を表示したまま、その領域に
+//  ネイティブ PKCanvasView を重ねる。サイドバーは App 側でそのまま表示される。
+// ══════════════════════════════════════════════
+function NativeNoteEditor({ id, onBack, onIndexChange }) {
+  const hostRef = useRef(null);
+  const noteRef = useRef(null);
+  const bgPagesRef = useRef([]);
+  const shownRef = useRef(false);
+  const finishedRef = useRef(false);
+  const [title, setTitle] = useState("");
+  const [status, setStatus] = useState(t("notes.opening"));
+
+  async function finish() {
+    if (finishedRef.current || !shownRef.current) return;
+    finishedRef.current = true;
+    try {
+      const res = await hideInk();
+      const note = noteRef.current; if (!note) return;
+      note.pkDrawing = res.drawing || note.pkDrawing || "";
+      note.engine = "pencilkit"; note.updatedAt = Date.now();
+      await writeNote(note);
+      let thumb = "";
+      try { thumb = await compositeThumb(bgPagesRef.current[0]?.bg, res.thumbnails?.[0], note.pages[0]); } catch {}
+      const idx = loadIndex(); const e = idx.find((x) => x.id === note.id);
+      if (e) { e.updatedAt = note.updatedAt; e.pageCount = note.pages.length; e.engine = "pencilkit"; if (thumb) e.thumb = thumb; saveIndex(idx); }
+      onIndexChange?.();
+    } catch (e) { console.warn("[notes] finish native", e); }
+  }
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const note = await readNote(id);
+      if (!alive || !note) { onBack(); return; }
+      noteRef.current = note; setTitle(note.title || "");
+      // レイアウト確定を待つ（host のサイズが決まってから rect を測る）
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      if (!alive) return;
+      const cache = {};
+      const pages = [];
+      for (const pg of note.pages) pages.push({ bg: await renderBgB64(note, pg, cache), w: pg.w, h: pg.h });
+      bgPagesRef.current = pages;
+      if (!alive || !hostRef.current) return;
+      try { await showInk({ rect: rectOfEl(hostRef.current), pages, drawing: note.pkDrawing }); shownRef.current = true; setStatus(""); }
+      catch (e) { console.warn("[notes] showInk", e); setStatus(""); }
+    })();
+    const onResize = () => { if (shownRef.current && hostRef.current) setInkRect(rectOfEl(hostRef.current)); };
+    window.addEventListener("resize", onResize);
+    let ro = null;
+    if (typeof ResizeObserver !== "undefined" && hostRef.current) { ro = new ResizeObserver(onResize); ro.observe(hostRef.current); }
+    return () => { alive = false; window.removeEventListener("resize", onResize); ro?.disconnect(); finish(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const back = async () => { await finish(); onBack(); };
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg3 }}>
+      <header style={{ display: "flex", alignItems: "center", gap: 8, padding: "env(safe-area-inset-top) 12px 0", minHeight: 50, background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", height: 50 }}>
+          <button onClick={back} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 4 }}>{I.back}</button>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
+          <span style={{ fontSize: 10, color: T.accent, fontWeight: 700, padding: "1px 5px", border: `1px solid ${T.accent}`, borderRadius: 5 }}>{NOTES_VERSION}</span>
+        </div>
+      </header>
+      {/* この div の矩形にネイティブ PKCanvasView を重ねる */}
+      <div ref={hostRef} style={{ flex: 1, minHeight: 0, position: "relative" }}>
+        {status && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.txD, fontSize: 13 }}>{status}</div>}
       </div>
     </div>
   );
