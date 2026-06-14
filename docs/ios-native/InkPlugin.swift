@@ -86,13 +86,14 @@ struct InkPage { let w: CGFloat; let h: CGFloat; let bg: UIImage? }
 /// 構成: PKCanvasView 自身をスクロールビューとして使い（＝入力座標が常に正確）、
 ///       背景画像はその中に縦積みで敷く。ペンのみ描画・指でスクロール。
 /// ※ ズームは入力ズレ防止のため一旦無効（min=max=1）。スクロールは有効。
-class InkOverlayView: UIView {
+class InkOverlayView: UIView, PKCanvasViewDelegate {
     private var pages: [InkPage]
     private let canvasView = PKCanvasView()
     private let bgContainer = UIView()
     private var toolPicker: PKToolPicker?
     private var displayLink: CADisplayLink?
-    private let pageGap: CGFloat = 0  // 隙間なしでページを隣接（つなぎ目に書ける違和感を解消）。境界は区切り線で表示
+    private var isFiltering = false       // 隙間ストローク除去の再入防止
+    private let pageGap: CGFloat = 20      // ページ間の隙間（ここに描かれた線は自動で消す）
     private var pageRects: [CGRect] = []
     private var contentSizeVal: CGSize = .zero
     private var didLayout = false
@@ -113,6 +114,7 @@ class InkOverlayView: UIView {
         canvasView.maximumZoomScale = 4.0   // ピンチズーム有効（入力は PencilKit ネイティブ＝正確）
         canvasView.bouncesZoom = true
         canvasView.drawing = drawing
+        canvasView.delegate = self
         if #available(iOS 14.0, *) { canvasView.drawingPolicy = .pencilOnly }
         bgContainer.layer.anchorPoint = CGPoint(x: 0, y: 0) // 左上基準で拡大（drawingと原点を合わせる）
         canvasView.insertSubview(bgContainer, at: 0) // 背景はキャンバス内（contentOffsetで一緒にスクロール）
@@ -160,7 +162,7 @@ class InkOverlayView: UIView {
         var y: CGFloat = 0
         pageRects.removeAll()
         bgContainer.subviews.forEach { $0.removeFromSuperview() }
-        for (i, page) in pages.enumerated() {
+        for page in pages {
             let h = page.w > 0 ? targetW * (page.h / page.w) : targetW * 1.414
             let rect = CGRect(x: 0, y: y, width: targetW, height: h)
             pageRects.append(rect)
@@ -168,14 +170,12 @@ class InkOverlayView: UIView {
             iv.contentMode = .scaleToFill
             iv.backgroundColor = .white
             iv.image = page.bg
+            iv.layer.shadowColor = UIColor.black.cgColor
+            iv.layer.shadowOpacity = 0.12
+            iv.layer.shadowRadius = 4
+            iv.layer.shadowOffset = CGSize(width: 0, height: 1)
             bgContainer.addSubview(iv)
-            // ページ境界の区切り線（最終ページ以外）
-            if i < pages.count - 1 {
-                let sep = UIView(frame: CGRect(x: 0, y: y + h - 1, width: targetW, height: 2))
-                sep.backgroundColor = UIColor(white: 0.66, alpha: 1.0)
-                bgContainer.addSubview(sep)
-            }
-            y += h + pageGap
+            y += h + pageGap // 次ページとの間に隙間（グレー背景が見える）
         }
         contentSizeVal = CGSize(width: targetW, height: max(y - pageGap, 1))
         canvasView.frame = bounds
@@ -183,6 +183,35 @@ class InkOverlayView: UIView {
         bgContainer.frame = CGRect(origin: .zero, size: contentSizeVal)
         canvasView.contentSize = contentSizeVal
         canvasView.contentInset = UIEdgeInsets(top: 8, left: 0, bottom: 40, right: 0)
+    }
+
+    // ページ間の隙間(バンド)の中だけに収まる線は自動で消す＝隙間には書けない（GoodNotes風）
+    func canvasViewDrawingDidChange(_ cv: PKCanvasView) {
+        if isFiltering { return }
+        guard #available(iOS 14.0, *) else { return }
+        let bands = gapBands()
+        if bands.isEmpty { return }
+        let strokes = cv.drawing.strokes
+        let kept = strokes.filter { st in
+            let b = st.renderBounds
+            return !bands.contains { b.minY >= $0.0 - 1 && b.maxY <= $0.1 + 1 }
+        }
+        if kept.count != strokes.count {
+            isFiltering = true
+            cv.drawing = PKDrawing(strokes: kept)
+            isFiltering = false
+        }
+    }
+    // ページ間の隙間の y 範囲（content 座標）
+    private func gapBands() -> [(CGFloat, CGFloat)] {
+        var bands: [(CGFloat, CGFloat)] = []
+        if pageRects.count < 2 { return bands }
+        for i in 0..<(pageRects.count - 1) {
+            let top = pageRects[i].maxY
+            let bottom = pageRects[i + 1].minY
+            if bottom > top { bands.append((top, bottom)) }
+        }
+        return bands
     }
 
     private func setupToolPicker() {
