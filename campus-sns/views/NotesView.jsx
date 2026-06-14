@@ -15,7 +15,7 @@ import { isNative } from "../capacitor.js";
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v7-diag";
+const NOTES_VERSION = "v8-hires";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -180,6 +180,8 @@ function paperDims(sizeId, orient) {
 }
 // フィット倍率基準のズーム範囲（fit×0.5 〜 fit×6）
 const FIT_MIN_ZOOM = 0.5, FIT_MAX_ZOOM = 6;
+// ページの内部描画をスーパーサンプリングしてRetina表示でもクッキリさせる倍率
+const RENDER_SS = 2;
 
 // Catmull-Rom スプラインで点列を密に補間する。端末が粗い点しか返さなくても
 // （速描き時など）滑らかな曲線になる。筆圧も線形補間して引き継ぐ。
@@ -426,7 +428,6 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [exporting, setExporting] = useState("");
-  const [dbg, setDbg] = useState(""); // 実機の点データ診断（カクカク調査用）
 
   // 描画系は再レンダリングを避けるため ref で保持
   const wrapRef = useRef(null);
@@ -444,7 +445,6 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
   const redoStack = useRef([]);
   const rafRef = useRef(0);
   const snapRaf = useRef(0);
-  const coalMax = useRef(1); // 1イベントあたり取得できた最大 coalesced 数
   const saveTimer = useRef(0);
   const pdfDocRef = useRef(null);
   const dirtyRef = useRef(false);
@@ -483,28 +483,38 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
 
   const curPage = () => noteRef.current?.pages[pageIdxRef.current];
 
-  // ページ canvas（論理解像度）を背景+確定ストロークで再構築
+  // ページ canvas（スーパーサンプリング解像度）を背景+確定ストロークで再構築。
+  // 背景は等倍(高解像度)で、テンプレ/ストロークは SS スケールした論理座標で描く。
   async function rebuildPage(pi) {
     const n = noteRef.current; if (!n) return;
     const pg = n.pages[pi]; if (!pg) return;
+    const SS = RENDER_SS;
     let pc = pageCanvasRef.current;
     if (!pc) { pc = document.createElement("canvas"); pageCanvasRef.current = pc; }
-    pc.width = pg.w; pc.height = pg.h;
+    pc.width = Math.round(pg.w * SS); pc.height = Math.round(pg.h * SS);
     const ctx = pc.getContext("2d");
-    ctx.clearRect(0, 0, pg.w, pg.h);
-    // 背景
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, pc.width, pc.height);
+    // 背景（高解像度で）
     if (n.type === "pdf" && pdfDocRef.current && pg.pdfIndex) {
-      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, pg.w, pg.h);
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, pc.width, pc.height);
       try {
         const page = await pdfDocRef.current.getPage(pg.pdfIndex);
-        const vp = page.getViewport({ scale: pg.w / page.getViewport({ scale: 1 }).width });
+        const vp = page.getViewport({ scale: pc.width / page.getViewport({ scale: 1 }).width });
         await page.render({ canvasContext: ctx, viewport: vp }).promise;
       } catch (e) { console.warn("[notes] render pdf bg", e); }
     } else {
+      ctx.setTransform(SS, 0, 0, SS, 0, 0);
       drawTemplate(ctx, pg.w, pg.h, n.template, n.bg);
     }
-    // 確定ストローク
+    // 確定ストローク（論理座標、SS スケール）
+    ctx.setTransform(SS, 0, 0, SS, 0, 0);
     for (const st of pg.strokes) drawStroke(ctx, st);
+  }
+  // 確定ストロークを pageCanvas に追記する用の ctx（SS 変換適用済み）
+  function pageCtxSS() {
+    const pc = pageCanvasRef.current; if (!pc) return null;
+    const ctx = pc.getContext("2d"); ctx.setTransform(RENDER_SS, 0, 0, RENDER_SS, 0, 0); return ctx;
   }
 
   function sizeViewport() {
@@ -587,6 +597,7 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
   function renderViewport() {
     const cv = viewRef.current, pc = pageCanvasRef.current, pg = curPage(); if (!cv || !pc || !pg) return;
     const ctx = cv.getContext("2d"); const vs = viewState.current; const dpr = cv._dpr || 1;
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = T.bg3 || "#222"; ctx.fillRect(0, 0, cv._cw, cv._ch);
     ctx.save();
@@ -595,7 +606,8 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
     ctx.shadowColor = "rgba(0,0,0,0.25)"; ctx.shadowBlur = 12 / vs.scale; ctx.shadowOffsetY = 4 / vs.scale;
     ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, pg.w, pg.h);
     ctx.shadowColor = "transparent";
-    ctx.drawImage(pc, 0, 0);
+    // SS 解像度の pageCanvas を論理ページサイズに縮小描画（クッキリ）
+    ctx.drawImage(pc, 0, 0, pg.w, pg.h);
     if (drawing.current) drawStroke(ctx, drawing.current);
     ctx.restore();
   }
@@ -750,7 +762,6 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
     }
     if (!drawing.current) return;
     const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
-    if (evs.length > coalMax.current) coalMax.current = evs.length;
     for (const ev of evs) {
       const [lx, ly] = toLogical(ev.clientX, ev.clientY);
       const pr = ev.pressure && ev.pressure > 0 ? ev.pressure : 0.5;
@@ -816,16 +827,8 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
       const st = drawing.current; drawing.current = null; delete st._pen;
       if (st.pts.length) {
         const pg = curPage(); pg.strokes.push(st);
-        const ctx = pageCanvasRef.current.getContext("2d"); drawStroke(ctx, st);
+        const ctx = pageCtxSS(); if (ctx) drawStroke(ctx, st);
         pushOp({ type: "add", pi: pageIdxRef.current, stroke: st }); markDirty();
-        // 診断: 生点数 / 補間後 / 平均点間距離(論理px) / coalesced最大 / 解像度
-        try {
-          const raw = st.pts, dn = densify(raw).length;
-          let seg = 0; for (let i = 1; i < raw.length; i++) seg += Math.hypot(raw[i][0] - raw[i - 1][0], raw[i][1] - raw[i - 1][1]);
-          const avg = raw.length > 1 ? (seg / (raw.length - 1)) : 0;
-          const pc = pageCanvasRef.current;
-          setDbg(`raw:${raw.length} dense:${dn} seg:${avg.toFixed(0)}px coal:${coalMax.current} dpr:${(window.devicePixelRatio||1)} cv:${cv._cw}x${cv._ch} pc:${pc.width}x${pc.height} sc:${viewState.current.scale.toFixed(2)}`);
-        } catch {}
       }
       renderViewport();
     }
@@ -942,7 +945,6 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
           onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onPointerLeave={onPointerUp}
           style={{ display: "block", touchAction: "none", cursor: panMode ? "grab" : "crosshair" }} />
         {exporting && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)", color: "#fff", fontSize: 14 }}>{exporting}</div>}
-        {dbg && <div style={{ position: "absolute", top: 6, left: 6, background: "rgba(0,0,0,0.78)", color: "#7CFC00", fontSize: 11, fontFamily: "monospace", padding: "4px 8px", borderRadius: 6, pointerEvents: "none", maxWidth: "90%", lineHeight: 1.4 }}>{NOTES_VERSION} {dbg}</div>}
       </div>
 
       {/* ページバー */}
