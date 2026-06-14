@@ -65,10 +65,10 @@ Web キャンバス）。新規 iPad ノートは `engine:"pencilkit"`。
    ```swift
    bridge?.registerPluginInstance(InkPlugin())
    ```
-3. `ios/App/App/capacitor.config.json` の `packageClassList` に `"InkPlugin"` を追加
-   （他プラグインと同様。Filesystem 等が未登録なのと同じ仕組み）
-4. PencilKit は権限不要（Info.plist 変更なし）。最低 iOS 13、PKToolPicker は iOS 14+ 推奨
-5. `npx cap sync ios && npx cap open ios` → 実機ビルド
+   （カスタムプラグインはこの方式で登録。`packageClassList` への追加は**不要**
+   ＝そこは SPM 自動検出プラグイン用。PortalPlugin 等と同じ扱い）
+3. PencilKit は権限不要（Info.plist 変更なし）。最低 iOS 13、PKToolPicker は iOS 14+ 推奨
+4. Xcode で App ターゲットに InkPlugin.swift が含まれているか確認 → 実機ビルド
 
 ## このリポジトリに含むファイル
 - `docs/ios-native/InkPlugin.swift` … プラグイン雛形（本体）
