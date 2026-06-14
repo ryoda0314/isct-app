@@ -86,14 +86,14 @@ struct InkPage { let w: CGFloat; let h: CGFloat; let bg: UIImage? }
 /// 構成: PKCanvasView 自身をスクロールビューとして使い（＝入力座標が常に正確）、
 ///       背景画像はその中に縦積みで敷く。ペンのみ描画・指でスクロール。
 /// ※ ズームは入力ズレ防止のため一旦無効（min=max=1）。スクロールは有効。
-class InkOverlayView: UIView, PKCanvasViewDelegate {
+class InkOverlayView: UIView {
     private var pages: [InkPage]
     private let canvasView = PKCanvasView()
     private let bgContainer = UIView()
     private var toolPicker: PKToolPicker?
     private var displayLink: CADisplayLink?
-    private var isFiltering = false       // 隙間ストローク除去の再入防止
-    private let pageGap: CGFloat = 20      // ページ間の隙間（ここに描かれた線は自動で消す）
+    private var gapMasks: [UIView] = []    // ページ間の隙間を隠すマスク（インクが隙間に見えないように）
+    private let pageGap: CGFloat = 20      // ページ間の隙間
     private var pageRects: [CGRect] = []
     private var contentSizeVal: CGSize = .zero
     private var didLayout = false
@@ -114,7 +114,6 @@ class InkOverlayView: UIView, PKCanvasViewDelegate {
         canvasView.maximumZoomScale = 4.0   // ピンチズーム有効（入力は PencilKit ネイティブ＝正確）
         canvasView.bouncesZoom = true
         canvasView.drawing = drawing
-        canvasView.delegate = self
         if #available(iOS 14.0, *) { canvasView.drawingPolicy = .pencilOnly }
         bgContainer.layer.anchorPoint = CGPoint(x: 0, y: 0) // 左上基準で拡大（drawingと原点を合わせる）
         canvasView.insertSubview(bgContainer, at: 0) // 背景はキャンバス内（contentOffsetで一緒にスクロール）
@@ -142,6 +141,7 @@ class InkOverlayView: UIView, PKCanvasViewDelegate {
         let s = canvasView.zoomScale
         let tr = CGAffineTransform(scaleX: s, y: s)
         if bgContainer.transform != tr { bgContainer.transform = tr }
+        positionGapMasks()
     }
 
     override func layoutSubviews() {
@@ -183,25 +183,32 @@ class InkOverlayView: UIView, PKCanvasViewDelegate {
         bgContainer.frame = CGRect(origin: .zero, size: contentSizeVal)
         canvasView.contentSize = contentSizeVal
         canvasView.contentInset = UIEdgeInsets(top: 8, left: 0, bottom: 40, right: 0)
+        // 隙間マスク（canvasView の上に重ねてインクを隠す。位置は syncBg で毎フレーム更新）
+        gapMasks.forEach { $0.removeFromSuperview() }
+        gapMasks.removeAll()
+        for _ in gapBands() {
+            let m = UIView()
+            m.backgroundColor = backgroundColor // 隙間の地色と同じ
+            m.isUserInteractionEnabled = false  // タッチは下のキャンバスへ通す
+            addSubview(m)                        // canvasView より前面
+            gapMasks.append(m)
+        }
+        positionGapMasks()
     }
 
-    // ページ間の隙間(バンド)の中だけに収まる線は自動で消す＝隙間には書けない（GoodNotes風）
-    func canvasViewDrawingDidChange(_ cv: PKCanvasView) {
-        if isFiltering { return }
-        guard #available(iOS 14.0, *) else { return }
+    // 隙間マスクを現在のスクロール/ズームに合わせて配置
+    private func positionGapMasks() {
+        let s = canvasView.zoomScale
+        let off = canvasView.contentOffset
         let bands = gapBands()
-        if bands.isEmpty { return }
-        let strokes = cv.drawing.strokes
-        let kept = strokes.filter { st in
-            let b = st.renderBounds
-            return !bands.contains { b.minY >= $0.0 - 1 && b.maxY <= $0.1 + 1 }
-        }
-        if kept.count != strokes.count {
-            isFiltering = true
-            cv.drawing = PKDrawing(strokes: kept)
-            isFiltering = false
+        for (idx, m) in gapMasks.enumerated() {
+            guard idx < bands.count else { m.isHidden = true; continue }
+            let (top, bottom) = bands[idx]
+            m.frame = CGRect(x: 0, y: top * s - off.y, width: bounds.width, height: (bottom - top) * s)
+            m.isHidden = false
         }
     }
+
     // ページ間の隙間の y 範囲（content 座標）
     private func gapBands() -> [(CGFloat, CGFloat)] {
         var bands: [(CGFloat, CGFloat)] = []
