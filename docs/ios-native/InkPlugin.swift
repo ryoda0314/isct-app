@@ -92,7 +92,7 @@ class InkOverlayView: UIView {
     private let bgContainer = UIView()
     private var toolPicker: PKToolPicker?
     private var displayLink: CADisplayLink?
-    private let pageGap: CGFloat = 24
+    private let pageGap: CGFloat = 0  // 隙間なしでページを隣接（つなぎ目に書ける違和感を解消）。境界は区切り線で表示
     private var pageRects: [CGRect] = []
     private var contentSizeVal: CGSize = .zero
     private var didLayout = false
@@ -160,7 +160,7 @@ class InkOverlayView: UIView {
         var y: CGFloat = 0
         pageRects.removeAll()
         bgContainer.subviews.forEach { $0.removeFromSuperview() }
-        for page in pages {
+        for (i, page) in pages.enumerated() {
             let h = page.w > 0 ? targetW * (page.h / page.w) : targetW * 1.414
             let rect = CGRect(x: 0, y: y, width: targetW, height: h)
             pageRects.append(rect)
@@ -168,11 +168,13 @@ class InkOverlayView: UIView {
             iv.contentMode = .scaleToFill
             iv.backgroundColor = .white
             iv.image = page.bg
-            iv.layer.shadowColor = UIColor.black.cgColor
-            iv.layer.shadowOpacity = 0.12
-            iv.layer.shadowRadius = 5
-            iv.layer.shadowOffset = CGSize(width: 0, height: 2)
             bgContainer.addSubview(iv)
+            // ページ境界の区切り線（最終ページ以外）
+            if i < pages.count - 1 {
+                let sep = UIView(frame: CGRect(x: 0, y: y + h - 1, width: targetW, height: 2))
+                sep.backgroundColor = UIColor(white: 0.66, alpha: 1.0)
+                bgContainer.addSubview(sep)
+            }
             y += h + pageGap
         }
         contentSizeVal = CGSize(width: targetW, height: max(y - pageGap, 1))
