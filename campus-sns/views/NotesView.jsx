@@ -3,6 +3,7 @@ import { T } from "../theme.js";
 import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { isNative } from "../capacitor.js";
+import { inkAvailable, openInk } from "../plugins/inkCanvas.js";
 
 /* ──────────────────────────────────────────────
    GoodNotes 風 手書きノート
@@ -15,7 +16,7 @@ import { isNative } from "../capacitor.js";
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v9-smooth";
+const NOTES_VERSION = "v10-native";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -266,6 +267,40 @@ const PEN_SIZES = [4, 8, 14];
 const HL_SIZES = [22, 38];
 const ERASER_SIZES = [28, 60];
 
+// ── ネイティブ(PencilKit)連携ヘルパー ──────────
+// ページ背景を base64 PNG(プレフィックス無し)で生成（手書きは含めない＝ネイティブが描く）
+async function renderBgB64(note, pg, cache) {
+  const c = document.createElement("canvas");
+  c.width = pg.w; c.height = pg.h;
+  const ctx = c.getContext("2d");
+  if (note.type === "pdf" && pg.pdfIndex && note.pdfBase64) {
+    if (!cache.doc) {
+      const pdfjs = await loadPdfjs();
+      cache.doc = await pdfjs.getDocument({ data: b64ToUint8(note.pdfBase64) }).promise;
+    }
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, pg.w, pg.h);
+    const page = await cache.doc.getPage(pg.pdfIndex);
+    const vp = page.getViewport({ scale: pg.w / page.getViewport({ scale: 1 }).width });
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  } else {
+    drawTemplate(ctx, pg.w, pg.h, note.template, note.bg);
+  }
+  return c.toDataURL("image/png").split(",")[1] || "";
+}
+function loadImg(src) {
+  return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
+}
+// 背景 + ネイティブから返った ink(透明PNG) を合成してライブラリ用サムネを作る
+async function compositeThumb(bgB64, inkB64, pg) {
+  const tw = 240, th = Math.max(1, Math.round(tw * pg.h / pg.w));
+  const c = document.createElement("canvas"); c.width = tw; c.height = th;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, tw, th);
+  if (bgB64) { try { ctx.drawImage(await loadImg("data:image/png;base64," + bgB64), 0, 0, tw, th); } catch {} }
+  if (inkB64) { try { ctx.drawImage(await loadImg("data:image/png;base64," + inkB64), 0, 0, tw, th); } catch {} }
+  return c.toDataURL("image/jpeg", 0.6);
+}
+
 // ══════════════════════════════════════════════
 // ライブラリ（ノート一覧）
 // ══════════════════════════════════════════════
@@ -283,20 +318,52 @@ export function NotesView({ mob, onExit }) {
 
   const refreshIndex = useCallback(() => setIndex(loadIndex()), []);
 
+  // ノートを開く: iPad(ネイティブ)で engine=pencilkit なら PencilKit、それ以外は Web エディタ
+  const openNote = async (id) => {
+    const note = await readNote(id);
+    if (!note) return;
+    if (inkAvailable() && note.engine === "pencilkit") runNative(note);
+    else { setActiveId(id); setScreen("editor"); }
+  };
+
+  // ネイティブ PencilKit を起動して編集 → 結果を保存（全画面・完了で戻る）
+  const runNative = async (note) => {
+    setBusy(t("notes.opening")); setErr("");
+    try {
+      const cache = {};
+      const pages = [];
+      for (const pg of note.pages) pages.push({ bg: await renderBgB64(note, pg, cache), w: pg.w, h: pg.h });
+      const res = await openInk({ pages, drawing: note.pkDrawing });
+      note.pkDrawing = res.drawing || note.pkDrawing || "";
+      note.engine = "pencilkit"; note.updatedAt = Date.now();
+      await writeNote(note);
+      let thumb = "";
+      try { thumb = await compositeThumb(pages[0]?.bg, res.thumbnails?.[0], note.pages[0]); } catch {}
+      const idx = loadIndex(); const e = idx.find((x) => x.id === note.id);
+      if (e) { e.updatedAt = note.updatedAt; e.pageCount = note.pages.length; e.engine = "pencilkit"; if (thumb) e.thumb = thumb; saveIndex(idx); }
+      setIndex(loadIndex());
+    } catch (e) {
+      console.warn("[notes] native open", e);
+      if (/unavailable/.test(String(e?.message))) { setActiveId(note.id); setScreen("editor"); } // 念のためWebへ
+    } finally { setBusy(""); }
+  };
+
   // 白紙ノート新規作成（選択中の用紙サイズ・向きを使用）
   const createBlank = async (template) => {
     const id = uid();
     const { w, h } = paperDims(paperSize, orient);
+    const useInk = inkAvailable();
     const note = {
       v: 1, id, title: t("notes.untitled"), type: "blank", template,
-      paperSize, orient,
+      paperSize, orient, engine: useInk ? "pencilkit" : "web", pkDrawing: "",
       pages: [{ id: uid(), w, h, strokes: [] }],
       createdAt: Date.now(), updatedAt: Date.now(),
     };
     try {
       await writeNote(note);
-      const idx = [{ id, title: note.title, type: "blank", template, pageCount: 1, updatedAt: note.updatedAt, thumb: "" }, ...loadIndex()];
-      saveIndex(idx); setIndex(idx); setActiveId(id); setScreen("editor");
+      const idx = [{ id, title: note.title, type: "blank", template, engine: note.engine, pageCount: 1, updatedAt: note.updatedAt, thumb: "" }, ...loadIndex()];
+      saveIndex(idx); setIndex(idx);
+      if (useInk) runNative(note); else { setActiveId(id); setScreen("editor"); }
     } catch (e) { setErr(t("notes.saveFailed")); }
   };
 
@@ -317,13 +384,16 @@ export function NotesView({ mob, onExit }) {
         pages.push({ id: uid(), w: Math.round(v2.width), h: Math.round(v2.height), pdfIndex: i, strokes: [] });
       }
       const id = uid();
+      const useInk = inkAvailable();
       const note = {
         v: 1, id, title: (file.name || t("notes.untitled")).replace(/\.pdf$/i, ""),
-        type: "pdf", pdfBase64: base64, pages, createdAt: Date.now(), updatedAt: Date.now(),
+        type: "pdf", pdfBase64: base64, engine: useInk ? "pencilkit" : "web", pkDrawing: "",
+        pages, createdAt: Date.now(), updatedAt: Date.now(),
       };
       await writeNote(note);
-      const idx = [{ id, title: note.title, type: "pdf", pageCount: pages.length, updatedAt: note.updatedAt, thumb: "" }, ...loadIndex()];
-      saveIndex(idx); setIndex(idx); setActiveId(id); setScreen("editor");
+      const idx = [{ id, title: note.title, type: "pdf", engine: note.engine, pageCount: pages.length, updatedAt: note.updatedAt, thumb: "" }, ...loadIndex()];
+      saveIndex(idx); setIndex(idx);
+      if (useInk) runNative(note); else { setActiveId(id); setScreen("editor"); }
     } catch (e) {
       console.error("[notes] import", e);
       setErr(/storage-full/.test(String(e?.message)) ? t("notes.storageFull") : t("notes.importFailed"));
@@ -381,7 +451,7 @@ export function NotesView({ mob, onExit }) {
         <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${mob ? 120 : 150}px, 1fr))`, gap: 14 }}>
           {index.map((n) => (
             <div key={n.id} style={{ cursor: "pointer" }}>
-              <div onClick={() => { setActiveId(n.id); setScreen("editor"); }}
+              <div onClick={() => openNote(n.id)}
                 style={{ aspectRatio: "3/4", borderRadius: 10, border: `1px solid ${T.bd}`, background: n.thumb ? `#fff url(${n.thumb}) center/cover` : "#fff", boxShadow: `0 2px 8px ${T.bd}`, overflow: "hidden", position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "flex-start" }}>
                 {!n.thumb && <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#c8c8d0" }}>{I.pen}</span>}
                 <span style={{ position: "absolute", top: 6, left: 6, fontSize: 9, fontWeight: 700, color: "#fff", background: n.type === "pdf" ? T.red : T.accent, padding: "2px 6px", borderRadius: 5 }}>{n.type === "pdf" ? "PDF" : "NOTE"}</span>
