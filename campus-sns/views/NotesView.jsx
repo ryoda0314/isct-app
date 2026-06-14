@@ -14,6 +14,9 @@ import { isNative } from "../capacitor.js";
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
+// 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
+const NOTES_VERSION = "v6-catmull";
+
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
 const PDFJS_CDN = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VER}`;
@@ -875,7 +878,8 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
       <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 8px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0, flexWrap: "wrap" }}>
         <button onClick={() => { flushSave(); onBack(); }} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 4 }}>{I.back}</button>
         <input value={title} onChange={(e) => setTitle(e.target.value)} onBlur={saveTitle}
-          style={{ width: mob ? 90 : 150, background: "transparent", border: "none", color: T.txH, fontSize: 14, fontWeight: 600, outline: "none" }} />
+          style={{ width: mob ? 80 : 140, background: "transparent", border: "none", color: T.txH, fontSize: 14, fontWeight: 600, outline: "none" }} />
+        <span style={{ fontSize: 10, color: T.accent, fontWeight: 700, padding: "1px 5px", border: `1px solid ${T.accent}`, borderRadius: 5 }}>{NOTES_VERSION}</span>
         <div style={{ width: 1, height: 22, background: T.bd, margin: "0 4px" }} />
         <TB active={tool === "pen"} onClick={() => { setTool("pen"); setPanMode(false); }} tt={t("notes.pen")}>{I.pen}</TB>
         <TB active={tool === "highlighter"} onClick={() => { setTool("highlighter"); setPanMode(false); }} tt={t("notes.highlighter")}>
