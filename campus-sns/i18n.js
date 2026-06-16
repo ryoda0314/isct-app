@@ -80,6 +80,7 @@ const M = {
   "notes.shapeAssist":  { ja:"図形", en:"Shapes", zh:"图形", ko:"도형", tp:"sijelo" },
   "notes.shapeHint":    { ja:"図形補助：描いてペンを止めて離すと直線/円/四角に整形", en:"Shape assist: draw, hold, then lift to snap to line/circle/rect", zh:"图形辅助：画完停顿再抬笔即整形", ko:"도형 보조: 그린 뒤 멈췄다 떼면 정형", tp:"sijelo: o sitelen, o awen, o weka" },
   "notes.highlighter":  { ja:"蛍光ペン", en:"Highlighter", zh:"荧光笔", ko:"형광펜", tp:"ilo suno" },
+  "notes.lasso":        { ja:"範囲選択", en:"Lasso", zh:"套索", ko:"올가미", tp:"sike" },
   "notes.eraser":       { ja:"消しゴム", en:"Eraser", zh:"橡皮擦", ko:"지우개", tp:"ilo weka" },
   "notes.eraseStroke":  { ja:"線ごと", en:"Stroke", zh:"整笔", ko:"획 단위", tp:"linja" },
   "notes.erasePixel":   { ja:"部分", en:"Pixel", zh:"局部", ko:"부분", tp:"lili" },

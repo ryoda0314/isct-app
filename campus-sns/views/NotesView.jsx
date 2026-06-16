@@ -731,6 +731,7 @@ const TOOL_ICONS = {
   mono: (<svg {...svgProps}><path d="M7 18l2.2-.5L18 8.8a1.7 1.7 0 0 0-2.4-2.4L6.8 15.2 7 18z" /><circle cx="7" cy="17.4" r="1.1" /></svg>),
   highlighter: (<svg {...svgProps}><path d="M4 21h16" /><path d="M8.5 13.5l-2 2V18h2.5l2-2" /><path d="M8.5 13.5l6.5-6.5 3 3-6.5 6.5z" /></svg>),
   eraser: (<svg {...svgProps}><path d="M4 21h16" /><path d="M8.5 18.5l-3.4-3.4a1.5 1.5 0 0 1 0-2.1l6.6-6.6a1.5 1.5 0 0 1 2.1 0l3.8 3.8a1.5 1.5 0 0 1 0 2.1L15 18.5z" /></svg>),
+  lasso: (<svg {...svgProps} strokeDasharray="3 2.5"><path d="M4 11a8 4 0 1 1 16 0 8 4 0 0 1-12.5 3.3" /><path d="M7.5 14.3c-.8.5-.8 2 .3 2.4" strokeDasharray="0" /></svg>),
 };
 
 function NativeNoteEditor({ id, onBack, onIndexChange }) {
@@ -761,6 +762,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
     if (tool === "pen") setInkTool({ type: "pen", color: penColor, width: penW });
     else if (tool === "mono") setInkTool({ type: "mono", color: monoColor, width: monoW });
     else if (tool === "highlighter") setInkTool({ type: "highlighter", color: hlColor, width: hlW });
+    else if (tool === "lasso") setInkTool({ type: "lasso" });
     else setInkTool({ type: "eraser", width: eraserW, mode: eraserMode });
   }, [ready, tool, penColor, monoColor, hlColor, penW, monoW, hlW, eraserW, eraserMode]);
 
@@ -849,7 +851,8 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const back = async () => { await finish(); onBack(); };
 
   // 選択中ツールの 色/太さ アクセサ（ペン2種＋蛍光は色/太さを個別保持）
-  const usesColor = tool !== "eraser";
+  const usesColor = tool !== "eraser" && tool !== "lasso";
+  const usesSize = tool !== "lasso"; // なげなわは太さ不要
   const palette = tool === "highlighter" ? HL_COLORS : PEN_COLORS;
   const curColor = tool === "mono" ? monoColor : tool === "highlighter" ? hlColor : penColor;
   const setColor = (c) => { if (tool === "mono") setMonoColor(c); else if (tool === "highlighter") setHlColor(c); else setPenColor(c); };
@@ -866,6 +869,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
     { id: "pen", icon: TOOL_ICONS.pen, label: t("notes.penPressure") },
     { id: "highlighter", icon: TOOL_ICONS.highlighter, label: t("notes.highlighter") },
     { id: "eraser", icon: TOOL_ICONS.eraser, label: t("notes.eraser") },
+    { id: "lasso", icon: TOOL_ICONS.lasso, label: t("notes.lasso") },
   ];
   const IconBtn = ({ onClick, children, title: tt, disabled }) => (
     <button title={tt} onClick={onClick} disabled={disabled} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: 9, border: "none", background: "transparent", color: T.txH, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.4 : 1 }}>{children}</button>
@@ -873,8 +877,14 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg3 }}>
-      <header style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, padding: "calc(env(safe-area-inset-top) + 10px) 10px 8px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
+      {/* ヘッダー（戻る＋タイトル＋書き出し） */}
+      <header style={{ display: "flex", alignItems: "center", gap: 8, padding: "calc(env(safe-area-inset-top) + 8px) 12px 8px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
         <button onClick={back} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 6 }}>{I.back}</button>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 700, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
+        <IconBtn onClick={exportCurrent} title={t("notes.exportPdf")} disabled={exporting}>{I.dl}</IconBtn>
+      </header>
+      {/* ツールバー（描画ツール） */}
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, padding: "8px 10px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
         {/* Undo / Redo（左側） */}
         <IconBtn onClick={() => inkUndo()} title="Undo">{I.reset}</IconBtn>
         <IconBtn onClick={() => inkRedo()} title="Redo"><span style={{ transform: "scaleX(-1)", display: "inline-flex" }}>{I.reset}</span></IconBtn>
@@ -911,6 +921,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
           </div>
         )}
 
+        {usesSize && <>
         <div style={{ width: 1, height: 26, background: T.bd, margin: "0 2px" }} />
 
         {/* 太さ */}
@@ -921,7 +932,9 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
             </button>
           ))}
         </div>
+        </>}
 
+        {tool !== "lasso" && tool !== "eraser" && <>
         <div style={{ width: 1, height: 26, background: T.bd, margin: "0 2px" }} />
         {/* 図形補助トグル */}
         <button onClick={() => setShapeAssist((v) => !v)} title={t("notes.shapeHint")}
@@ -929,12 +942,9 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="5" /><rect x="11" y="11" width="9" height="9" rx="1" /></svg>
           {t("notes.shapeAssist")}
         </button>
+        </>}
 
-        <div style={{ flex: 1 }} />
-
-        {/* 書き出し（右側） */}
-        <IconBtn onClick={exportCurrent} title={t("notes.exportPdf")} disabled={exporting}>{I.dl}</IconBtn>
-      </header>
+      </div>
       {/* この div の矩形にネイティブ PKCanvasView を重ねる */}
       <div ref={hostRef} style={{ flex: 1, minHeight: 0, position: "relative" }}>
         {status && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.txD, fontSize: 13 }}>{status}</div>}
@@ -1459,13 +1469,15 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg3 }}>
-      {/* ツールバー */}
-      <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 8px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0, flexWrap: "wrap" }}>
+      {/* ヘッダー（戻る＋タイトル） */}
+      <header style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
         <button onClick={() => { flushSave(); onBack(); }} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 4 }}>{I.back}</button>
         <input value={title} onChange={(e) => setTitle(e.target.value)} onBlur={saveTitle}
-          style={{ width: mob ? 80 : 140, background: "transparent", border: "none", color: T.txH, fontSize: 14, fontWeight: 600, outline: "none" }} />
-        <span style={{ fontSize: 10, color: T.accent, fontWeight: 700, padding: "1px 5px", border: `1px solid ${T.accent}`, borderRadius: 5 }}>{NOTES_VERSION}</span>
-        <div style={{ width: 1, height: 22, background: T.bd, margin: "0 4px" }} />
+          style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: T.txH, fontSize: 15, fontWeight: 700, outline: "none" }} />
+        <span style={{ fontSize: 10, color: T.accent, fontWeight: 700, padding: "1px 5px", border: `1px solid ${T.accent}`, borderRadius: 5, flexShrink: 0 }}>{NOTES_VERSION}</span>
+      </header>
+      {/* ツールバー */}
+      <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 8px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0, flexWrap: "wrap" }}>
         <TB active={tool === "pen"} onClick={() => { setTool("pen"); setPanMode(false); }} tt={t("notes.pen")}>{I.pen}</TB>
         <TB active={tool === "highlighter"} onClick={() => { setTool("highlighter"); setPanMode(false); }} tt={t("notes.highlighter")}>
           <span style={{ fontSize: 16 }}>🖍️</span>

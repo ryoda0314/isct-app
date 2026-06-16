@@ -352,6 +352,7 @@ class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate,
     // 独自ツールバーから呼ばれてキャンバスのツールを切り替える
     func applyTool(type: String, colorHex: String, width: CGFloat, eraserMode: String) {
         switch type {
+        case "lasso":       canvasView.tool = PKLassoTool() // 範囲を囲って掴む（移動/カット/コピー/削除）
         case "highlighter": canvasView.tool = PKInkingTool(.marker, color: colorFromHex(colorHex), width: width)
         case "eraser":      canvasView.tool = (eraserMode == "pixel") ? PKEraserTool(.bitmap) : PKEraserTool(.vector)
         case "mono": // 一律の太さ（筆圧で変わらない）
