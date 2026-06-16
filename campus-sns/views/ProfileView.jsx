@@ -7,6 +7,7 @@ import { updateUserPref } from '../hooks/useCurrentUser.js';
 import { MatrixInput, COLS, ROWS } from '../components/MatrixInput.jsx';
 import { QA_ALL, QA_DEFAULT } from './HomeView.jsx';
 import { isNative } from '../capacitor.js';
+import { APP_ICONS, isAppIconSupported, getAppIcon, setAppIcon } from '../plugins/appIcon.js';
 import { NAV_QUICK_DEFAULT, SPOT_GROUPS } from './NavigationView.jsx';
 import { SPOTS, SPOT_CATS } from '../hooks/useLocationSharing.js';
 import { TIMEOUT_OPTIONS } from '../hooks/useAppLock.js';
@@ -218,6 +219,27 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   // 表示設定
   const [fontSize,setFontSize]=useState(()=>{try{return localStorage.getItem("fontSize")||"medium";}catch{return "medium";}});
   const saveFontSize=v=>{setFontSize(v);try{localStorage.setItem("fontSize",v);}catch{}};
+
+  // アプリアイコン（iOS の代替アイコン。対応端末でのみセクションを表示）
+  const [iconSupported,setIconSupported]=useState(false);
+  const [currentIcon,setCurrentIcon]=useState("default");
+  const [iconBusy,setIconBusy]=useState(false);
+  useEffect(()=>{
+    (async()=>{
+      if(!isNative())return;
+      if(!(await isAppIconSupported()))return;
+      setIconSupported(true);
+      setCurrentIcon(await getAppIcon());
+    })();
+  },[]);
+  const chooseIcon=async(name)=>{
+    if(iconBusy||name===currentIcon)return;
+    setIconBusy(true);
+    // iOS の確認アラート後に実際に切り替わるため、成功時のみ選択状態を更新
+    const ok=await setAppIcon(name);
+    if(ok)setCurrentIcon(await getAppIcon());
+    setIconBusy(false);
+  };
 
   // クイックアクセス設定
   const [qaIds,setQaIds]=useState(()=>{try{const v=localStorage.getItem("quickAccess");return v?JSON.parse(v):QA_DEFAULT;}catch{return QA_DEFAULT;}});
@@ -943,6 +965,27 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               })}
             </div>
           </div>
+          {/* ── アプリアイコンセクション（iOS のみ） ── */}
+          {iconSupported&&(
+            <div style={{padding:"10px 14px",borderBottom:`1px solid ${T.bd}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                <span style={{color:T.txD,display:"flex"}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></span>
+                <span style={{fontSize:13,fontWeight:600,color:T.txH}}>{t("profile.appIcon")}</span>
+                {iconBusy&&<span style={{fontSize:10,color:T.txD}}>…</span>}
+              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:10,opacity:iconBusy?0.5:1,pointerEvents:iconBusy?"none":"auto",transition:"opacity .15s"}}>
+                {APP_ICONS.map(ic=>{
+                  const sel=currentIcon===ic.name;
+                  return <button key={ic.name} onClick={e=>{e.stopPropagation();chooseIcon(ic.name);}}
+                    style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5,padding:0,border:"none",background:"none",cursor:"pointer"}}>
+                    <img src={ic.thumb} alt={ic.label} width={56} height={56}
+                      style={{width:56,height:56,borderRadius:13,objectFit:"cover",border:sel?`2.5px solid ${T.accent}`:`1px solid ${T.bd}`,boxShadow:sel?`0 0 10px ${T.accent}40`:"none",transition:"all .15s"}}/>
+                    <span style={{fontSize:10,fontWeight:sel?700:400,color:sel?T.accent:T.txD,whiteSpace:"nowrap"}}>{ic.label}</span>
+                  </button>;
+                })}
+              </div>
+            </div>
+          )}
           <GRow icon={I.bell} label={t("profile.notifications")} onClick={()=>setNotifOpen(p=>!p)}
             right={<Toggle on={notifEnabled} onTog={()=>setNotifEnabled(p=>!p)}/>}/>
           {notifOpen&&notifEnabled&&<>
