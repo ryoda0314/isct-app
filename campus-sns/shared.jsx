@@ -16,7 +16,7 @@ const usePurify=()=>{
   },[]);
   return ready;
 };
-const _sanitize=html=>window.DOMPurify?window.DOMPurify.sanitize(html,{ADD_TAGS:["annotation","semantics","mrow","mi","mo","mn","msup","msub","mfrac","mover","munder","mspace","mtable","mtr","mtd","msqrt","mroot","menclose","mstyle","mtext","merror","mpadded","mphantom"],ADD_ATTR:["xmlns","encoding","mathvariant","displaystyle","scriptlevel","fence","stretchy","symmetric","maxsize","minsize","largeop","movablelimits","accent","accentunder","align","rowalign","columnalign","columnwidth","data-tag"],FORBID_TAGS:["style"],FORBID_ATTR:["onerror","onload","onclick","onmouseover","onfocus"]}):"";
+const _sanitize=html=>window.DOMPurify?window.DOMPurify.sanitize(html,{ADD_TAGS:["annotation","semantics","mrow","mi","mo","mn","msup","msub","mfrac","mover","munder","mspace","mtable","mtr","mtd","msqrt","mroot","menclose","mstyle","mtext","merror","mpadded","mphantom"],ADD_ATTR:["xmlns","encoding","mathvariant","displaystyle","scriptlevel","fence","stretchy","symmetric","maxsize","minsize","largeop","movablelimits","accent","accentunder","align","rowalign","columnalign","columnwidth","data-tag","target","rel"],FORBID_TAGS:["style"],FORBID_ATTR:["onerror","onload","onclick","onmouseover","onfocus"]}):"";
 
 // --- KaTeX Loader ---
 const useKatex=()=>{
@@ -63,14 +63,89 @@ const useHighlight=()=>{
   return ready;
 };
 
-// --- TeX Text Component ---
-// Supports ```code blocks```, $$...$$ (display), $...$ (inline), **bold**, @mentions, #hashtags
+// --- Markdown Text Component ---
+// Block: # headings, - / * / + & 1. lists, > blockquotes, --- rules, ```code```, $$math$$
+// Inline: **bold**, *italic*/_italic_, ~~strike~~, `code`, $math$, [links](url), bare URLs, @mentions, #hashtags
 const _esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const _codeBlock=(highlighted,lang,raw)=>{
   const langLabel=lang?`<span style="color:#888;font-size:11px;font-weight:500;user-select:none">${_esc(lang)}</span>`:"";
   const copyBtn=`<button class="code-copy-btn" data-code="${_esc(raw)}" style="padding:5px 14px;border-radius:5px;border:1px solid #444;background:#2a2a3e;color:#aaa;font-size:12px;cursor:pointer;font-family:inherit;transition:background .15s;-webkit-tap-highlight-color:transparent">${_esc(t("shared.copy"))}</button>`;
   const toolbar=`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#181825;border-radius:0 0 8px 8px;border-top:1px solid #2a2a3e">${langLabel}${copyBtn}</div>`;
   return `<div style="margin:4px 0;border-radius:8px;overflow:hidden;background:#1e1e2e"><pre style="margin:0;padding:10px 12px;overflow-x:auto;font-size:12.5px;line-height:1.5;background:transparent"><code${highlighted?' class="hljs"':' style="color:#cdd6f4"'}>${highlighted||_esc(raw)}</code></pre>${toolbar}</div>`;
+};
+// Parse a markdown string to safe-ish HTML (final pass is DOMPurify). Output contains no literal
+// newlines so a call-site white-space:pre-wrap stays a no-op.
+const _mdParse=(children,hlReady)=>{
+  const held=[];
+  const ph=h=>{const id=`\x00${held.length}\x00`;held.push(h);return id;};
+  let src=children;
+  // Protect block code fences first (own line via surrounding newlines)
+  src=src.replace(/```(\w*)\n?([\s\S]*?)```/g,(_,lang,code)=>{
+    const raw=code.replace(/\n$/,"");
+    if(hlReady&&window.hljs){
+      try{
+        const r=lang&&window.hljs.getLanguage(lang)?window.hljs.highlight(raw,{language:lang}):window.hljs.highlightAuto(raw);
+        return "\n"+ph(_codeBlock(r.value,lang,raw))+"\n";
+      }catch{}
+    }
+    return "\n"+ph(_codeBlock(null,lang,raw))+"\n";
+  });
+  // Protect display math (may span lines), inline code, inline math — all become newline-free tokens
+  src=src.replace(/\$\$([\s\S]+?)\$\$/g,(_,m)=>{try{return ph(window.katex.renderToString(m,{displayMode:true,throwOnError:false}));}catch{return _;}});
+  src=src.replace(/`([^`\n]+)`/g,(_,code)=>ph(`<code style="background:#1e1e2e;color:#cdd6f4;padding:1px 5px;border-radius:4px;font-size:12.5px">${_esc(code)}</code>`));
+  src=src.replace(/\$([^\n$]+?)\$/g,(_,m)=>{try{return ph(window.katex.renderToString(m,{displayMode:false,throwOnError:false}));}catch{return _;}});
+  // Inline markup → placeholders (links/URLs before mentions/hashtags so #/@ inside URLs survive)
+  const inline=txt=>{
+    let o=txt;
+    o=o.replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g,(_,tx,url)=>ph(`<a href="${_esc(url)}" target="_blank" rel="noopener noreferrer" style="color:#6375f0;text-decoration:underline">${_esc(tx)}</a>`));
+    o=o.replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g,(_,pre,url)=>pre+ph(`<a href="${_esc(url)}" target="_blank" rel="noopener noreferrer" style="color:#6375f0;text-decoration:underline">${_esc(url)}</a>`));
+    o=o.replace(/\*\*([^\n]+?)\*\*/g,(_,x)=>ph(`<strong>${_esc(x)}</strong>`));
+    o=o.replace(/~~([^\n]+?)~~/g,(_,x)=>ph(`<del>${_esc(x)}</del>`));
+    o=o.replace(/\*([^*\n]+?)\*/g,(_,x)=>ph(`<em>${_esc(x)}</em>`));
+    o=o.replace(/(^|[^\w])_([^_\n]+?)_(?![\w])/g,(_,pre,x)=>pre+ph(`<em>${_esc(x)}</em>`));
+    o=o.replace(/@(\S+)/g,(_,name)=>ph(`<span style="color:#6375f0;font-weight:600">@${_esc(name)}</span>`));
+    o=o.replace(/#([^\s#]+)/g,(_,tag)=>ph(`<span class="hashtag" style="color:#6375f0;font-weight:500;cursor:pointer" data-tag="${_esc(tag)}">#${_esc(tag)}</span>`));
+    return o;
+  };
+  // Finalize a text fragment: run inline markup, escape the plain gaps, restore all placeholders
+  const fin=txt=>{
+    let o=inline(txt);
+    o=o.split(/(\x00\d+\x00)/g).map((seg,j)=>j%2===0?_esc(seg):seg).join('');
+    return o.replace(/\x00(\d+)\x00/g,(_,j)=>held[+j]);
+  };
+  const lines=src.split('\n');
+  const isPh=l=>/^\x00\d+\x00$/.test(l);
+  const isBlock=l=>l===''||isPh(l)||/^(#{1,6})\s+/.test(l)||/^>\s?/.test(l)||/^[-*+]\s+/.test(l)||/^\d+\.\s+/.test(l)||/^(---+|\*\*\*+|___+)$/.test(l);
+  const hSize=[0,17,16,15,14,13.5,13];
+  const out=[];
+  let i=0;
+  while(i<lines.length){
+    const l=lines[i].trim();
+    if(l===''){i++;continue;}
+    if(isPh(l)){out.push(`<div style="margin:4px 0">${held[+l.replace(/\x00/g,'')]}</div>`);i++;continue;}
+    if(/^(---+|\*\*\*+|___+)$/.test(l)){out.push(`<hr style="border:none;border-top:1px solid ${T.bd};margin:8px 0">`);i++;continue;}
+    const hm=l.match(/^(#{1,6})\s+(.+)$/);
+    if(hm){out.push(`<div style="font-weight:700;font-size:${hSize[hm[1].length]}px;line-height:1.4;margin:6px 0 2px">${fin(hm[2])}</div>`);i++;continue;}
+    if(/^>\s?/.test(l)){
+      const buf=[];
+      while(i<lines.length&&/^>\s?/.test(lines[i].trim())){buf.push(lines[i].trim().replace(/^>\s?/,''));i++;}
+      out.push(`<blockquote style="margin:4px 0;padding:2px 0 2px 10px;border-left:3px solid #6375f0;opacity:.85">${buf.map(fin).join('<br>')}</blockquote>`);continue;
+    }
+    if(/^[-*+]\s+/.test(l)){
+      const buf=[];
+      while(i<lines.length&&/^[-*+]\s+/.test(lines[i].trim())){buf.push(lines[i].trim().replace(/^[-*+]\s+/,''));i++;}
+      out.push(`<ul style="margin:4px 0;padding-left:20px">${buf.map(x=>`<li style="margin:1px 0">${fin(x)}</li>`).join('')}</ul>`);continue;
+    }
+    if(/^\d+\.\s+/.test(l)){
+      const buf=[];
+      while(i<lines.length&&/^\d+\.\s+/.test(lines[i].trim())){buf.push(lines[i].trim().replace(/^\d+\.\s+/,''));i++;}
+      out.push(`<ol style="margin:4px 0;padding-left:22px">${buf.map(x=>`<li style="margin:1px 0">${fin(x)}</li>`).join('')}</ol>`);continue;
+    }
+    const buf=[];
+    while(i<lines.length&&!isBlock(lines[i].trim())){buf.push(lines[i]);i++;}
+    out.push(`<div style="margin:0">${buf.map(fin).join('<br>')}</div>`);
+  }
+  return out.join('');
 };
 const Tx=({children,style:s})=>{
   const k=useKatex();
@@ -79,45 +154,7 @@ const Tx=({children,style:s})=>{
   const html=useMemo(()=>{
     if(!children||typeof children!=="string")return null;
     if(!k)return null;
-    try{
-      let out=children;
-      // 1) Extract code blocks & inline code into placeholders (protect from later regexes)
-      const held=[];
-      const ph=html=>{const id=`\x00${held.length}\x00`;held.push(html);return id;};
-      // code blocks: ```lang\ncode\n``` → <pre><code>
-      out=out.replace(/```(\w*)\n?([\s\S]*?)```/g,(_,lang,code)=>{
-        const raw=code.replace(/\n$/,"");
-        if(hl&&window.hljs){
-          try{
-            const result=lang&&window.hljs.getLanguage(lang)?window.hljs.highlight(raw,{language:lang}):window.hljs.highlightAuto(raw);
-            return ph(_codeBlock(result.value,lang,raw));
-          }catch{}
-        }
-        return ph(_codeBlock(null,lang,raw));
-      });
-      // inline code: `code`
-      out=out.replace(/`([^`\n]+)`/g,(_,code)=>ph(`<code style="background:#1e1e2e;color:#cdd6f4;padding:1px 5px;border-radius:4px;font-size:12.5px">${_esc(code)}</code>`));
-      // 2) Display math
-      out=out.replace(/\$\$(.+?)\$\$/gs,(_, m)=>{
-        try{return ph(window.katex.renderToString(m,{displayMode:true,throwOnError:false}));}catch{return _;}
-      });
-      // Inline math
-      out=out.replace(/\$(.+?)\$/g,(_,m)=>{
-        try{return ph(window.katex.renderToString(m,{displayMode:false,throwOnError:false}));}catch{return _;}
-      });
-      // 3) Text-level formatting — escape all captured content
-      // bold
-      out=out.replace(/\*\*(.+?)\*\*/g,(_,text)=>ph(`<strong>${_esc(text)}</strong>`));
-      // @mentions → placeholder (protect color codes like #6375f0 from hashtag regex)
-      out=out.replace(/@(\S+)/g,(_,name)=>ph(`<span style="color:#6375f0;font-weight:600">@${_esc(name)}</span>`));
-      // #hashtags
-      out=out.replace(/#([^\s#]+)/g,(_,tag)=>ph(`<span class="hashtag" style="color:#6375f0;font-weight:500;cursor:pointer" data-tag="${_esc(tag)}">#${_esc(tag)}</span>`));
-      // 3.5) Escape remaining plain text (everything outside placeholders)
-      out=out.split(/(\x00\d+\x00)/g).map((seg,i)=>i%2===0?_esc(seg):seg).join('');
-      // 4) Restore placeholders
-      out=out.replace(/\x00(\d+)\x00/g,(_,i)=>held[+i]);
-      return out;
-    }catch{return null;}
+    try{return _mdParse(children,hl);}catch{return null;}
   },[children,k,hl,dp]);
   // Event delegation for code copy buttons (no inline onclick)
   const handleClick=React.useCallback(e=>{
