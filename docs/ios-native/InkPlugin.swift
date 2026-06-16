@@ -24,6 +24,7 @@ public class InkPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "undo", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "redo", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "snapshot", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setShapeAssist", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "hide", returnType: CAPPluginReturnPromise),
     ]
 
@@ -93,6 +94,11 @@ public class InkPlugin: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.main.async { [weak self] in self?.overlay?.redo(); call.resolve() }
     }
 
+    @objc func setShapeAssist(_ call: CAPPluginCall) {
+        let on = call.getBool("enabled") ?? false
+        DispatchQueue.main.async { [weak self] in self?.overlay?.setShapeAssist(on); call.resolve() }
+    }
+
     @objc func snapshot(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [weak self] in
             let res = self?.overlay?.exportResult() ?? ["drawing": "", "thumbnails": []]
@@ -126,6 +132,9 @@ class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate 
     private let bgContainer = UIView()
     private var displayLink: CADisplayLink?
     private var gapMasks: [UIView] = []    // ページ間の隙間を隠すマスク（インクが隙間に見えないように）
+    private var shapeAssist = false        // 図形補助（直線/円/四角に整える）
+    private var lastStrokeCount = 0
+    private var isReplacing = false
     private let pageGap: CGFloat = 20      // ページ間の隙間
     private var pageRects: [CGRect] = []
     private var contentSizeVal: CGSize = .zero
@@ -305,6 +314,99 @@ class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate 
 
     func undo() { canvasView.undoManager?.undo() }
     func redo() { canvasView.undoManager?.redo() }
+    func setShapeAssist(_ on: Bool) { shapeAssist = on }
+
+    // 図形補助: 新しいストロークを解析し、直線/円/四角なら整形ストロークに差し替える
+    func canvasViewDrawingDidChange(_ cv: PKCanvasView) {
+        guard #available(iOS 14.0, *) else { return }
+        if isReplacing { return }
+        let strokes = cv.drawing.strokes
+        defer { lastStrokeCount = cv.drawing.strokes.count }
+        guard shapeAssist, strokes.count == lastStrokeCount + 1, let last = strokes.last else { return }
+        guard let ideal = idealStroke(from: last) else { return }
+        isReplacing = true
+        var ns = strokes; ns[ns.count - 1] = ideal
+        cv.drawing = PKDrawing(strokes: ns)
+        isReplacing = false
+    }
+
+    @available(iOS 14.0, *)
+    private func idealStroke(from stroke: PKStroke) -> PKStroke? {
+        let path = stroke.path
+        let cnt = path.count
+        if cnt < 4 { return nil }
+        var pts: [CGPoint] = []
+        pts.reserveCapacity(cnt)
+        for i in 0..<cnt { pts.append(path[i].location) }
+        guard let shapePts = makeShapePoints(pts) else { return nil }
+        let ref = path[0]
+        var np: [PKStrokePoint] = []
+        np.reserveCapacity(shapePts.count)
+        for (i, loc) in shapePts.enumerated() {
+            np.append(PKStrokePoint(location: loc, timeOffset: Double(i) * 0.008, size: ref.size, opacity: ref.opacity, force: ref.force, azimuth: ref.azimuth, altitude: ref.altitude))
+        }
+        let newPath = PKStrokePath(controlPoints: np, creationDate: Date())
+        return PKStroke(ink: stroke.ink, path: newPath, transform: stroke.transform)
+    }
+
+    // 形状判定＋理想形の点列生成（nil=整形しない）
+    private func makeShapePoints(_ pts: [CGPoint]) -> [CGPoint]? {
+        let n = pts.count
+        guard let start = pts.first, let end = pts.last else { return nil }
+        var minX = pts[0].x, maxX = pts[0].x, minY = pts[0].y, maxY = pts[0].y
+        for p in pts { minX = min(minX, p.x); maxX = max(maxX, p.x); minY = min(minY, p.y); maxY = max(maxY, p.y) }
+        let w = maxX - minX, h = maxY - minY
+        let diag = hypot(w, h)
+        if diag < 24 { return nil }
+        let closed = hypot(end.x - start.x, end.y - start.y) < 0.28 * diag
+
+        if !closed {
+            let dx = end.x - start.x, dy = end.y - start.y
+            let len = hypot(dx, dy)
+            if len < 12 { return nil }
+            var maxDev: CGFloat = 0
+            for p in pts { let d = abs((p.x - start.x) * dy - (p.y - start.y) * dx) / len; maxDev = max(maxDev, d) }
+            if maxDev < max(10, 0.08 * len) { return sampleLine(start, end) }
+            return nil
+        }
+        // 閉じている → 楕円 or 四角
+        let cx = minX + w / 2, cy = minY + h / 2, rx = max(w / 2, 1), ry = max(h / 2, 1)
+        var ellErr: CGFloat = 0
+        for p in pts { ellErr += abs(pow((p.x - cx) / rx, 2) + pow((p.y - cy) / ry, 2) - 1) }
+        ellErr /= CGFloat(n)
+        var rectErr: CGFloat = 0
+        for p in pts {
+            let dEdge = min(min(abs(p.x - minX), abs(p.x - maxX)), min(abs(p.y - minY), abs(p.y - maxY)))
+            rectErr += dEdge
+        }
+        rectErr = (rectErr / CGFloat(n)) / diag
+        if ellErr < 0.22 { return ellipsePoints(cx, cy, rx, ry) }
+        if rectErr < 0.12 { return rectPoints(minX, minY, maxX, maxY) }
+        if ellErr < 0.4 { return ellipsePoints(cx, cy, rx, ry) }
+        return nil
+    }
+
+    private func sampleLine(_ a: CGPoint, _ b: CGPoint) -> [CGPoint] {
+        let len = hypot(b.x - a.x, b.y - a.y)
+        let steps = max(2, min(64, Int(len / 16)))
+        return (0...steps).map { i in let t = CGFloat(i) / CGFloat(steps); return CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t) }
+    }
+    private func ellipsePoints(_ cx: CGFloat, _ cy: CGFloat, _ rx: CGFloat, _ ry: CGFloat) -> [CGPoint] {
+        let steps = 72
+        return (0...steps).map { i in let th = CGFloat(i) / CGFloat(steps) * 2 * .pi; return CGPoint(x: cx + rx * cos(th), y: cy + ry * sin(th)) }
+    }
+    private func rectPoints(_ minX: CGFloat, _ minY: CGFloat, _ maxX: CGFloat, _ maxY: CGFloat) -> [CGPoint] {
+        let corners = [CGPoint(x: minX, y: minY), CGPoint(x: maxX, y: minY), CGPoint(x: maxX, y: maxY), CGPoint(x: minX, y: maxY), CGPoint(x: minX, y: minY)]
+        var out: [CGPoint] = []
+        for i in 0..<(corners.count - 1) {
+            let a = corners[i], b = corners[i + 1]
+            let len = hypot(b.x - a.x, b.y - a.y)
+            let steps = max(1, min(40, Int(len / 16)))
+            for s in 0..<steps { let t = CGFloat(s) / CGFloat(steps); out.append(CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)) }
+        }
+        out.append(corners[0])
+        return out
+    }
 
     func teardown() {
         displayLink?.invalidate(); displayLink = nil

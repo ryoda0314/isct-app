@@ -26,6 +26,8 @@ export async function setInkTool({ type, color, width, mode }) {
 }
 export async function inkUndo() { try { await window.Capacitor.Plugins.Ink.undo(); } catch {} }
 export async function inkRedo() { try { await window.Capacitor.Plugins.Ink.redo(); } catch {} }
+// 図形補助（直線/円/四角に整える）のON/OFF
+export async function setInkShapeAssist(on) { try { await window.Capacitor.Plugins.Ink.setShapeAssist({ enabled: !!on }); } catch {} }
 
 // Apple Pencil ダブルタップ。cb には {action} が渡る。戻り値の handle.remove() で解除
 export async function onPencilDoubleTap(cb) {

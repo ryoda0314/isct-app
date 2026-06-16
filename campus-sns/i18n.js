@@ -73,6 +73,7 @@ const M = {
   "notes.penPressure":  { ja:"筆圧", en:"Pressure", zh:"压感", ko:"필압", tp:"nena" },
   "notes.penMono":      { ja:"一律", en:"Uniform", zh:"均一", ko:"균일", tp:"sama" },
   "notes.thickness":    { ja:"太さ", en:"Width", zh:"粗细", ko:"굵기", tp:"suli" },
+  "notes.shapeAssist":  { ja:"図形", en:"Shapes", zh:"图形", ko:"도형", tp:"sijelo" },
   "notes.highlighter":  { ja:"蛍光ペン", en:"Highlighter", zh:"荧光笔", ko:"형광펜", tp:"ilo suno" },
   "notes.eraser":       { ja:"消しゴム", en:"Eraser", zh:"橡皮擦", ko:"지우개", tp:"ilo weka" },
   "notes.eraseStroke":  { ja:"線ごと", en:"Stroke", zh:"整笔", ko:"획 단위", tp:"linja" },
