@@ -16,7 +16,7 @@ import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUn
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v13-pentools";
+const NOTES_VERSION = "v14-eraser";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -543,14 +543,15 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const [penW, setPenW] = useState(NPEN_SIZES[1]);
   const [hlW, setHlW] = useState(NHL_SIZES[0]);
   const [eraserW, setEraserW] = useState(NERASER_SIZES[0]);
+  const [eraserMode, setEraserMode] = useState("stroke"); // stroke=線ごと / pixel=部分消し
 
   // ツール変更をネイティブへ反映
   useEffect(() => {
     if (!ready) return;
     if (tool === "pen") setInkTool({ type: "pen", color: penColor, width: penW });
     else if (tool === "highlighter") setInkTool({ type: "highlighter", color: hlColor, width: hlW });
-    else setInkTool({ type: "eraser", width: eraserW });
-  }, [ready, tool, penColor, hlColor, penW, hlW, eraserW]);
+    else setInkTool({ type: "eraser", width: eraserW, mode: eraserMode });
+  }, [ready, tool, penColor, hlColor, penW, hlW, eraserW, eraserMode]);
 
   async function finish() {
     if (finishedRef.current || !shownRef.current) return;
@@ -631,6 +632,15 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
             <span style={{ display: "block", borderRadius: "50%", background: tool === "eraser" ? T.txD : curColor === "#ffffff" ? "#999" : curColor, width: Math.max(4, s / (tool === "eraser" ? 8 : isHL ? 4 : 2.2)), height: Math.max(4, s / (tool === "eraser" ? 8 : isHL ? 4 : 2.2)) }} />
           </button>
         ))}
+        {/* 消しゴムの種類（ストローク/部分） */}
+        {tool === "eraser" && (
+          <>
+            <div style={{ width: 1, height: 22, background: T.bd, margin: "0 4px" }} />
+            {[{ id: "stroke", l: t("notes.eraseStroke") }, { id: "pixel", l: t("notes.erasePixel") }].map((m) => (
+              <button key={m.id} onClick={() => setEraserMode(m.id)} style={{ padding: "5px 9px", borderRadius: 8, border: `1px solid ${eraserMode === m.id ? T.accent : T.bd}`, background: eraserMode === m.id ? `${T.accent}14` : T.bg2, color: eraserMode === m.id ? T.accent : T.txH, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{m.l}</button>
+            ))}
+          </>
+        )}
         <div style={{ flex: 1 }} />
         {/* Undo/Redo */}
         <TBtn onClick={() => inkUndo()} title="Undo">{I.reset}</TBtn>

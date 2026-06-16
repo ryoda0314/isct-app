@@ -72,6 +72,8 @@ const M = {
   "notes.pen":          { ja:"ペン", en:"Pen", zh:"钢笔", ko:"펜", tp:"ilo sitelen" },
   "notes.highlighter":  { ja:"蛍光ペン", en:"Highlighter", zh:"荧光笔", ko:"형광펜", tp:"ilo suno" },
   "notes.eraser":       { ja:"消しゴム", en:"Eraser", zh:"橡皮擦", ko:"지우개", tp:"ilo weka" },
+  "notes.eraseStroke":  { ja:"線ごと", en:"Stroke", zh:"整笔", ko:"획 단위", tp:"linja" },
+  "notes.erasePixel":   { ja:"部分", en:"Pixel", zh:"局部", ko:"부분", tp:"lili" },
   "notes.pan":          { ja:"移動", en:"Pan", zh:"移动", ko:"이동", tp:"tawa" },
   "notes.more":         { ja:"その他", en:"More", zh:"更多", ko:"더보기", tp:"ante" },
   "notes.addPage":      { ja:"ページ追加", en:"Add page", zh:"添加页面", ko:"페이지 추가", tp:"lipu sin" },

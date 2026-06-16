@@ -21,8 +21,8 @@ export async function setInkRect(rect) {
 }
 
 // 独自ツールバーからネイティブのペンを操作
-export async function setInkTool({ type, color, width }) {
-  try { await window.Capacitor.Plugins.Ink.setTool({ type, color: color || "#1c1c1e", width: width || 6 }); } catch {}
+export async function setInkTool({ type, color, width, mode }) {
+  try { await window.Capacitor.Plugins.Ink.setTool({ type, color: color || "#1c1c1e", width: width || 6, mode: mode || "stroke" }); } catch {}
 }
 export async function inkUndo() { try { await window.Capacitor.Plugins.Ink.undo(); } catch {} }
 export async function inkRedo() { try { await window.Capacitor.Plugins.Ink.redo(); } catch {} }

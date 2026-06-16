@@ -74,8 +74,9 @@ public class InkPlugin: CAPPlugin, CAPBridgedPlugin {
         let type = call.getString("type") ?? "pen"
         let color = call.getString("color") ?? "#1c1c1e"
         let width = CGFloat((call.getDouble("width")) ?? 6)
+        let mode = call.getString("mode") ?? "stroke"
         DispatchQueue.main.async { [weak self] in
-            self?.overlay?.applyTool(type: type, colorHex: color, width: width)
+            self?.overlay?.applyTool(type: type, colorHex: color, width: width, eraserMode: mode)
             call.resolve()
         }
     }
@@ -250,7 +251,7 @@ class InkOverlayView: UIView, PKCanvasViewDelegate {
     // PKToolPicker は使わず（独自Webツールバーで操作）、初期ツールだけ設定して描画可能にする
     private func setupTool() {
         canvasView.becomeFirstResponder()
-        applyTool(type: "pen", colorHex: "#1c1c1e", width: 6)
+        applyTool(type: "pen", colorHex: "#1c1c1e", width: 6, eraserMode: "stroke")
     }
 
     private func colorFromHex(_ hex: String) -> UIColor {
@@ -265,10 +266,10 @@ class InkOverlayView: UIView, PKCanvasViewDelegate {
     }
 
     // 独自ツールバーから呼ばれてキャンバスのツールを切り替える
-    func applyTool(type: String, colorHex: String, width: CGFloat) {
+    func applyTool(type: String, colorHex: String, width: CGFloat, eraserMode: String) {
         switch type {
         case "highlighter": canvasView.tool = PKInkingTool(.marker, color: colorFromHex(colorHex), width: width)
-        case "eraser":      canvasView.tool = PKEraserTool(.vector) // ストローク単位の消しゴム（全iOSで安定）
+        case "eraser":      canvasView.tool = (eraserMode == "pixel") ? PKEraserTool(.bitmap) : PKEraserTool(.vector)
         default:            canvasView.tool = PKInkingTool(.pen, color: colorFromHex(colorHex), width: width)
         }
     }
