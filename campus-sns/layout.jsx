@@ -5,6 +5,7 @@ import { I } from "./icons.jsx";
 import { Av } from "./shared.jsx";
 import { isNative } from "./capacitor.js";
 import { openInSystemBrowser } from "./openMaterial.js";
+import { openLmsPage } from "./plugins/portalWebView.js";
 // ============================================================
 
 const SideItem=({icon,label,on,click,badge,compact})=>(
@@ -185,6 +186,23 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
   const onlineIds=new Set(onlineMembers.map(u=>String(u.id)));
   const offline=members.filter(m=>!onlineIds.has(String(m.id)));
   const W=compact?160:210;
+  const [lmsLoading,setLmsLoading]=useState(false);
+  const goLms=async(url)=>{
+    if(!url)return;
+    if(!isNative()){window.open(url,"_blank","noopener");return;}
+    setLmsLoading(true);
+    try{
+      const r=await fetch("/api/auth/credentials?type=isct",{headers:{"x-app-platform":"capacitor"}});
+      if(!r.ok)throw new Error("認証情報の取得に失敗");
+      const{userId,password,totpCode}=await r.json();
+      await openLmsPage(url,{userId,password,totpCode});
+    }catch(e){
+      console.error('[LMS]',e);
+      // 自動ログイン不可時はアプリ内ブラウザにフォールバック
+      openInSystemBrowser(url);
+    }
+    setLmsLoading(false);
+  };
   return(
     <div style={{width:W,background:T.bg2,display:"flex",flexDirection:"column",borderRight:`1px solid ${T.bd}`,flexShrink:0,transition:"width .15s ease"}}>
       <div style={{padding:compact?"10px 10px 8px":"13px 12px 10px",borderBottom:`1px solid ${T.bd}`}}>
@@ -195,7 +213,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
           <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:"50%",background:course.col}}/><span style={{fontWeight:700,color:T.txH,fontSize:compact?12:14}}>{course.code}</span></div>
           <div style={{fontSize:compact?10:11,color:T.txD,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{course.name}</div>
           {!compact&&<div style={{fontSize:10,color:T.txD,marginTop:1}}>{course.per} · {course.room}</div>}
-          {course.moodleId&&<button onClick={()=>{const url=`https://lms.s.isct.ac.jp/2025/course/view.php?id=${course.moodleId}`;if(isNative())openInSystemBrowser(url);else window.open(url,"_blank","noopener");}} title={t("chan.openLms")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,width:"100%",marginTop:8,background:`${course.col}18`,border:`1px solid ${course.col}40`,borderRadius:8,color:course.col,cursor:"pointer",padding:compact?"5px 6px":"6px 8px",fontSize:compact?10:11,fontWeight:700}}>{I.book}<span>{t("chan.openLms")}</span></button>}
+          {course.moodleId&&<button onClick={()=>goLms(`https://lms.s.isct.ac.jp/2025/course/view.php?id=${course.moodleId}`)} disabled={lmsLoading} title={t("chan.openLms")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,width:"100%",marginTop:8,background:`${course.col}18`,border:`1px solid ${course.col}40`,borderRadius:8,color:course.col,cursor:lmsLoading?"wait":"pointer",padding:compact?"5px 6px":"6px 8px",fontSize:compact?10:11,fontWeight:700,opacity:lmsLoading?.6:1}}>{I.book}<span>{t("chan.openLms")}</span></button>}
         </>}
       </div>
       <div style={{padding:"5px 0",flex:1,overflowY:"auto"}}>
