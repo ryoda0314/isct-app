@@ -16,7 +16,7 @@ import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUn
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v22-toolbar";
+const NOTES_VERSION = "v23-monodefault";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -548,7 +548,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const [ready, setReady] = useState(false);
   const [exporting, setExporting] = useState(false);
   // ツール状態（独自ツールバー → ネイティブのペンを操作）。各ペンは色/太さを個別に保持
-  const [tool, setTool] = useState("pen"); // pen(筆圧) / mono(一律) / highlighter / eraser
+  const [tool, setTool] = useState("mono"); // 初期=一律ペン。pen(筆圧)/mono(一律)/highlighter/eraser
   const [penColor, setPenColor] = useState(PEN_COLORS[0]);
   const [monoColor, setMonoColor] = useState(PEN_COLORS[2]);
   const [hlColor, setHlColor] = useState(HL_COLORS[0]);
