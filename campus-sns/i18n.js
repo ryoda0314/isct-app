@@ -80,6 +80,8 @@ const M = {
   "notes.exportPdf":    { ja:"PDFで書き出し", en:"Export as PDF", zh:"导出为PDF", ko:"PDF로 내보내기", tp:"pana PDF" },
   "notes.exporting":    { ja:"書き出し中…", en:"Exporting…", zh:"导出中…", ko:"내보내는 중…", tp:"pana…" },
   "notes.opening":      { ja:"開いています…", en:"Opening…", zh:"打开中…", ko:"여는 중…", tp:"open…" },
+  "notes.exportFailed": { ja:"書き出しに失敗しました", en:"Failed to export", zh:"导出失败", ko:"내보내기에 실패했습니다", tp:"pana li ike" },
+  "notes.exportReopen": { ja:"一度ノートを開いて閉じてから書き出してください（手書きデータの保存が必要）", en:"Open and close the note once before exporting (to save the handwriting)", zh:"请先打开并关闭笔记一次再导出（需要保存手写数据）", ko:"내보내기 전에 노트를 한 번 열었다 닫아 주세요(필기 저장 필요)", tp:"o open e lipu, o pini, o pana" },
   "notes.paperSize":    { ja:"用紙", en:"Paper", zh:"纸张", ko:"용지", tp:"lipu" },
   "notes.portrait":     { ja:"縦", en:"Portrait", zh:"纵向", ko:"세로", tp:"sewi" },
   "notes.landscape":    { ja:"横", en:"Landscape", zh:"横向", ko:"가로", tp:"poka" },

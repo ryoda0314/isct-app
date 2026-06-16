@@ -16,7 +16,7 @@ import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl } from "../plugins
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v11-overlay";
+const NOTES_VERSION = "v12-export";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -301,6 +301,55 @@ async function compositeThumb(bgB64, inkB64, pg) {
   return c.toDataURL("image/jpeg", 0.6);
 }
 
+// ページ i の手書きを透明背景 PNG(base64, プレフィックス無) で得る。
+// ネイティブ(pencilkit)は保存済みの inkPNGs、Web はストロークから描画。
+function pageInkB64(note, pg, i) {
+  if (note.engine === "pencilkit") return note.inkPNGs?.[i] || "";
+  const c = document.createElement("canvas"); c.width = pg.w; c.height = pg.h;
+  const ctx = c.getContext("2d");
+  for (const st of (pg.strokes || [])) drawStroke(ctx, st);
+  return c.toDataURL("image/png").split(",")[1] || "";
+}
+
+// ノートを「描き込み済み PDF」として書き出す。
+// ・PDF ノート: 元PDFにインクを重ねて書き出し（本文テキストは保持）
+// ・白紙ノート: 背景(テンプレ)＋インクを合成して新規PDF化
+async function buildNotePdfBytes(note) {
+  const PDFLib = await loadPdfLib();
+  const cache = {};
+  if (note.type === "pdf" && note.pdfBase64) {
+    const out = await PDFLib.PDFDocument.load(b64ToUint8(note.pdfBase64));
+    const pdfPages = out.getPages();
+    for (let i = 0; i < note.pages.length; i++) {
+      const pg = note.pages[i];
+      const inkB64 = pageInkB64(note, pg, i);
+      if (!inkB64) continue;
+      const idx = pg.pdfIndex ? pg.pdfIndex - 1 : i;
+      const page = pdfPages[idx]; if (!page) continue;
+      const img = await out.embedPng(b64ToUint8(inkB64));
+      const { width, height } = page.getSize();
+      page.drawImage(img, { x: 0, y: 0, width, height });
+    }
+    return await out.save();
+  }
+  // 白紙ノート
+  const out = await PDFLib.PDFDocument.create();
+  for (let i = 0; i < note.pages.length; i++) {
+    const pg = note.pages[i];
+    const c = document.createElement("canvas"); c.width = pg.w; c.height = pg.h;
+    const ctx = c.getContext("2d");
+    const bgB64 = await renderBgB64(note, pg, cache);
+    if (bgB64) ctx.drawImage(await loadImg("data:image/png;base64," + bgB64), 0, 0, pg.w, pg.h);
+    const inkB64 = pageInkB64(note, pg, i);
+    if (inkB64) ctx.drawImage(await loadImg("data:image/png;base64," + inkB64), 0, 0, pg.w, pg.h);
+    const jpgB64 = c.toDataURL("image/jpeg", 0.9).split(",")[1];
+    const img = await out.embedJpg(b64ToUint8(jpgB64));
+    const page = out.addPage([pg.w, pg.h]);
+    page.drawImage(img, { x: 0, y: 0, width: pg.w, height: pg.h });
+  }
+  return await out.save();
+}
+
 // ══════════════════════════════════════════════
 // ライブラリ（ノート一覧）
 // ══════════════════════════════════════════════
@@ -384,6 +433,23 @@ export function NotesView({ mob, onExit }) {
     const idx = loadIndex().filter((n) => n.id !== id); saveIndex(idx); setIndex(idx);
   };
 
+  // 描き込み済みPDFを書き出し（PDFノートは元PDFにインク重ね、白紙は合成）
+  const exportNotePdf = async (id) => {
+    setBusy(t("notes.exporting")); setErr("");
+    try {
+      const note = await readNote(id);
+      if (!note) return;
+      if (note.engine === "pencilkit" && !(note.inkPNGs && note.inkPNGs.length)) {
+        setErr(t("notes.exportReopen")); return; // インク未保存（この版より前に作成）→一度開いて閉じてもらう
+      }
+      const bytes = await buildNotePdfBytes(note);
+      await saveBlob(new Blob([bytes], { type: "application/pdf" }), `${(note.title || "note").replace(/[\\/:*?"<>|]/g, "_")}.pdf`, "application/pdf", mob);
+    } catch (e) {
+      console.error("[notes] export pdf", e);
+      setErr(t("notes.exportFailed"));
+    } finally { setBusy(""); }
+  };
+
   if (screen === "native" && activeId) {
     return <NativeNoteEditor id={activeId} onBack={() => { setScreen("library"); setActiveId(null); refreshIndex(); }} onIndexChange={refreshIndex} />;
   }
@@ -439,7 +505,8 @@ export function NotesView({ mob, onExit }) {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6 }}>
                 <span style={{ flex: 1, fontSize: 12, color: T.txH, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.title}</span>
-                <button onClick={(e) => { e.stopPropagation(); removeNote(n.id); }} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 2 }}>{I.trash}</button>
+                <button title={t("notes.exportPdf")} onClick={(e) => { e.stopPropagation(); exportNotePdf(n.id); }} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 2 }}>{I.dl}</button>
+                <button title={t("notes.confirmDelete")} onClick={(e) => { e.stopPropagation(); removeNote(n.id); }} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 2 }}>{I.trash}</button>
               </div>
               <div style={{ fontSize: 10, color: T.txD }}>{n.pageCount} {t("notes.pages")}</div>
             </div>
@@ -472,6 +539,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
       const res = await hideInk();
       const note = noteRef.current; if (!note) return;
       note.pkDrawing = res.drawing || note.pkDrawing || "";
+      note.inkPNGs = res.thumbnails || []; // ページ別の透明インクPNG（PDF書き出し用）
       note.engine = "pencilkit"; note.updatedAt = Date.now();
       await writeNote(note);
       let thumb = "";
