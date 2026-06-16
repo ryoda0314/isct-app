@@ -402,6 +402,7 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
   const [orient, setOrient] = useState("portrait");
   const [tabYear, setTabYear] = useState(null); // 選択中の年度タブ（key）。null=先頭
   const [tabQ, setTabQ] = useState(0); // 選択中のクォーター（0=すべて）
+  const [showNew, setShowNew] = useState(false); // 新規ノート作成モーダル
   const fileRef = useRef(null);
 
   useEffect(() => { setIndex(loadIndex()); }, []);
@@ -542,25 +543,12 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
         </header>
       )}
       <div style={{ flex: 1, overflowY: "auto", padding: mob ? 14 : 20, WebkitOverflowScrolling: "touch" }}>
-      {/* 用紙サイズ・向き */}
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <span style={{ fontSize: 12, color: T.txD, fontWeight: 600 }}>{t("notes.paperSize")}</span>
-        {PAPER_SIZES.map((p) => (
-          <button key={p.id} onClick={() => setPaperSize(p.id)} style={{ minWidth: 40, padding: "5px 10px", borderRadius: 8, border: `1px solid ${paperSize === p.id ? T.accent : T.bd}`, background: paperSize === p.id ? `${T.accent}14` : T.bg2, color: paperSize === p.id ? T.accent : T.txH, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{p.label}</button>
-        ))}
-        <div style={{ width: 1, height: 22, background: T.bd, margin: "0 2px" }} />
-        {[{ id: "portrait", l: t("notes.portrait") }, { id: "landscape", l: t("notes.landscape") }].map((o) => (
-          <button key={o.id} onClick={() => setOrient(o.id)} style={{ padding: "5px 10px", borderRadius: 8, border: `1px solid ${orient === o.id ? T.accent : T.bd}`, background: orient === o.id ? `${T.accent}14` : T.bg2, color: orient === o.id ? T.accent : T.txH, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{o.l}</button>
-        ))}
-      </div>
-      {/* 新規作成 */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 20 }}>
-        <NewBtn icon={I.file} label={t("notes.blankPlain")} onClick={() => createBlank("plain")} />
-        <NewBtn icon={I.file} label={t("notes.blankLined")} onClick={() => createBlank("lined")} />
-        <NewBtn icon={I.file} label={t("notes.blankGrid")} onClick={() => createBlank("grid")} />
-        <NewBtn icon={I.upload} label={t("notes.importPdf")} onClick={() => fileRef.current?.click()} accent />
+      {/* 新規作成（＋でモーダルを開く） */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 18 }}>
+        {!mob && <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: T.txH }}>{t("nav.notes")}</h1>}
+        <button onClick={() => setShowNew(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: `0 2px 8px ${T.accent}40`, marginLeft: mob ? "auto" : 0 }}>{I.plus || I.add || "+"} {t("notes.new")}</button>
         <input ref={fileRef} type="file" accept="application/pdf,.pdf" style={{ display: "none" }}
-          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; importPdf(f); }} />
+          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; setShowNew(false); importPdf(f); }} />
       </div>
 
       {busy && <div style={{ color: T.txD, fontSize: 13, marginBottom: 12 }}>{busy}</div>}
@@ -668,6 +656,60 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
         );
       })()}
       </div>
+
+      {/* 新規ノート作成モーダル */}
+      {showNew && (() => {
+        const TEMPLATES = [
+          { id: "plain", label: t("notes.blankPlain"), bg: "#fff" },
+          { id: "lined", label: t("notes.blankLined"), bg: "#fff", img: "repeating-linear-gradient(to bottom, transparent 0 9px, #d6d6de 9px 10px)" },
+          { id: "grid", label: t("notes.blankGrid"), bg: "#fff", img: "repeating-linear-gradient(to bottom, transparent 0 9px, #d6d6de 9px 10px), repeating-linear-gradient(to right, transparent 0 9px, #d6d6de 9px 10px)" },
+        ];
+        const makeBlank = (tpl) => { setShowNew(false); createBlank(tpl); };
+        return (
+          <div onClick={() => setShowNew(false)}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", display: "flex", alignItems: mob ? "flex-end" : "center", justifyContent: "center", zIndex: 3000, padding: mob ? 0 : 20 }}>
+            <div onClick={(e) => e.stopPropagation()}
+              style={{ background: T.bg2, borderRadius: mob ? "16px 16px 0 0" : 16, border: `1px solid ${T.bd}`, padding: mob ? "18px 16px calc(env(safe-area-inset-bottom) + 18px)" : "22px 24px", width: mob ? "100%" : 440, maxWidth: "100%", boxShadow: "0 8px 32px rgba(0,0,0,.4)" }}>
+              <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
+                <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: T.txH }}>{t("notes.newTitle")}</span>
+                <button onClick={() => setShowNew(false)} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 4 }}>{I.x}</button>
+              </div>
+
+              {/* 用紙サイズ */}
+              <div style={{ fontSize: 12, color: T.txD, fontWeight: 700, marginBottom: 7 }}>{t("notes.paperSize")}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+                {PAPER_SIZES.map((p) => (
+                  <button key={p.id} onClick={() => setPaperSize(p.id)} style={{ minWidth: 44, padding: "6px 12px", borderRadius: 8, border: `1px solid ${paperSize === p.id ? T.accent : T.bd}`, background: paperSize === p.id ? `${T.accent}14` : T.bg3, color: paperSize === p.id ? T.accent : T.txH, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{p.label}</button>
+                ))}
+              </div>
+
+              {/* 向き */}
+              <div style={{ fontSize: 12, color: T.txD, fontWeight: 700, marginBottom: 7 }}>{t("notes.orient")}</div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
+                {[{ id: "portrait", l: t("notes.portrait") }, { id: "landscape", l: t("notes.landscape") }].map((o) => (
+                  <button key={o.id} onClick={() => setOrient(o.id)} style={{ padding: "6px 16px", borderRadius: 8, border: `1px solid ${orient === o.id ? T.accent : T.bd}`, background: orient === o.id ? `${T.accent}14` : T.bg3, color: orient === o.id ? T.accent : T.txH, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{o.l}</button>
+                ))}
+              </div>
+
+              {/* テンプレート（押すと作成） */}
+              <div style={{ fontSize: 12, color: T.txD, fontWeight: 700, marginBottom: 9 }}>{t("notes.template")}</div>
+              <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
+                {TEMPLATES.map((tpl) => (
+                  <button key={tpl.id} onClick={() => makeBlank(tpl.id)}
+                    style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "12px 8px", borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg3, cursor: "pointer", transition: "all .12s" }}>
+                    <div style={{ width: 48, height: 64, borderRadius: 5, background: tpl.bg, backgroundImage: tpl.img || "none", border: `1px solid ${T.bd}`, boxShadow: `0 1px 4px ${T.bd}` }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: T.txH }}>{tpl.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* PDF 取込 */}
+              <button onClick={() => fileRef.current?.click()}
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", padding: "11px", borderRadius: 10, border: `1px dashed ${T.accent}`, background: `${T.accent}10`, color: T.accent, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{I.upload} {t("notes.importPdf")}</button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -899,14 +941,6 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
         {exporting && <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 12, padding: "4px 10px", borderRadius: 8 }}>{t("notes.exporting")}</div>}
       </div>
     </div>
-  );
-}
-
-function NewBtn({ icon, label, onClick, accent }) {
-  return (
-    <button onClick={onClick} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, width: 96, padding: "14px 8px", borderRadius: 12, border: `1px solid ${accent ? T.accent : T.bd}`, background: accent ? `${T.accent}14` : T.bg2, color: accent ? T.accent : T.txH, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
-      <span style={{ display: "flex" }}>{icon}</span>{label}
-    </button>
   );
 }
 
