@@ -3,7 +3,7 @@ import { T } from "../theme.js";
 import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { isNative } from "../capacitor.js";
-import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUndo, inkRedo } from "../plugins/inkCanvas.js";
+import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUndo, inkRedo, inkSnapshot } from "../plugins/inkCanvas.js";
 
 /* ──────────────────────────────────────────────
    GoodNotes 風 手書きノート
@@ -16,7 +16,7 @@ import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUn
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v14-eraser";
+const NOTES_VERSION = "v15-pens";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -536,11 +536,14 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState(t("notes.opening"));
   const [ready, setReady] = useState(false);
-  // ツール状態（独自ツールバー → ネイティブのペンを操作）
-  const [tool, setTool] = useState("pen");
+  const [exporting, setExporting] = useState(false);
+  // ツール状態（独自ツールバー → ネイティブのペンを操作）。各ペンは色/太さを個別に保持
+  const [tool, setTool] = useState("pen"); // pen(筆圧) / mono(一律) / highlighter / eraser
   const [penColor, setPenColor] = useState(PEN_COLORS[0]);
+  const [monoColor, setMonoColor] = useState(PEN_COLORS[2]);
   const [hlColor, setHlColor] = useState(HL_COLORS[0]);
   const [penW, setPenW] = useState(NPEN_SIZES[1]);
+  const [monoW, setMonoW] = useState(NPEN_SIZES[1]);
   const [hlW, setHlW] = useState(NHL_SIZES[0]);
   const [eraserW, setEraserW] = useState(NERASER_SIZES[0]);
   const [eraserMode, setEraserMode] = useState("stroke"); // stroke=線ごと / pixel=部分消し
@@ -549,9 +552,26 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   useEffect(() => {
     if (!ready) return;
     if (tool === "pen") setInkTool({ type: "pen", color: penColor, width: penW });
+    else if (tool === "mono") setInkTool({ type: "mono", color: monoColor, width: monoW });
     else if (tool === "highlighter") setInkTool({ type: "highlighter", color: hlColor, width: hlW });
     else setInkTool({ type: "eraser", width: eraserW, mode: eraserMode });
-  }, [ready, tool, penColor, hlColor, penW, hlW, eraserW, eraserMode]);
+  }, [ready, tool, penColor, monoColor, hlColor, penW, monoW, hlW, eraserW, eraserMode]);
+
+  // 編集中にこのノートを「描き込み済みPDF」で書き出す
+  async function exportCurrent() {
+    const note = noteRef.current; if (!note) return;
+    setExporting(true);
+    try {
+      const res = await inkSnapshot();
+      note.pkDrawing = res.drawing || note.pkDrawing || "";
+      note.inkPNGs = (res.thumbnails && res.thumbnails.length) ? res.thumbnails : (note.inkPNGs || []);
+      note.engine = "pencilkit"; note.updatedAt = Date.now();
+      await writeNote(note);
+      const bytes = await buildNotePdfBytes(note);
+      await saveBlob(new Blob([bytes], { type: "application/pdf" }), `${(note.title || "note").replace(/[\\/:*?"<>|]/g, "_")}.pdf`, "application/pdf", true);
+    } catch (e) { console.warn("[notes] export current", e); }
+    finally { setExporting(false); }
+  }
 
   async function finish() {
     if (finishedRef.current || !shownRef.current) return;
@@ -598,58 +618,85 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
 
   const back = async () => { await finish(); onBack(); };
 
-  const isHL = tool === "highlighter";
-  const colors = isHL ? HL_COLORS : PEN_COLORS;
-  const curColor = isHL ? hlColor : penColor;
-  const setColor = isHL ? setHlColor : setPenColor;
-  const sizes = tool === "eraser" ? NERASER_SIZES : isHL ? NHL_SIZES : NPEN_SIZES;
-  const curSize = tool === "eraser" ? eraserW : isHL ? hlW : penW;
-  const setSize = tool === "eraser" ? setEraserW : isHL ? setHlW : setPenW;
+  // 選択中ツールの 色/太さ アクセサ（ペン2種＋蛍光は色/太さを個別保持）
+  const usesColor = tool !== "eraser";
+  const palette = tool === "highlighter" ? HL_COLORS : PEN_COLORS;
+  const curColor = tool === "mono" ? monoColor : tool === "highlighter" ? hlColor : penColor;
+  const setColor = (c) => { if (tool === "mono") setMonoColor(c); else if (tool === "highlighter") setHlColor(c); else setPenColor(c); };
+  const sizes = tool === "eraser" ? NERASER_SIZES : tool === "highlighter" ? NHL_SIZES : NPEN_SIZES;
+  const curSize = tool === "mono" ? monoW : tool === "highlighter" ? hlW : tool === "eraser" ? eraserW : penW;
+  const setSize = (s) => { if (tool === "mono") setMonoW(s); else if (tool === "highlighter") setHlW(s); else if (tool === "eraser") setEraserW(s); else setPenW(s); };
+  const dotColor = tool === "eraser" ? T.txD : curColor === "#ffffff" ? "#999" : curColor;
+  const sizeDiv = tool === "eraser" ? 8 : tool === "highlighter" ? 4 : 2.2;
 
-  const TBtn = ({ active, onClick, children, title: tt }) => (
-    <button title={tt} onClick={onClick} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 8, border: "none", background: active ? T.accent : "transparent", color: active ? "#fff" : T.txH, cursor: "pointer", fontSize: 15 }}>{children}</button>
+  const TOOLS = [
+    { id: "pen", icon: "✒️", label: t("notes.penPressure") },
+    { id: "mono", icon: "🖊️", label: t("notes.penMono") },
+    { id: "highlighter", icon: "🖍️", label: t("notes.highlighter") },
+    { id: "eraser", icon: "🧽", label: t("notes.eraser") },
+  ];
+  const IconBtn = ({ onClick, children, title: tt, disabled }) => (
+    <button title={tt} onClick={onClick} disabled={disabled} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: 9, border: "none", background: "transparent", color: T.txH, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.4 : 1 }}>{children}</button>
   );
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg3 }}>
-      <header style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4, padding: "env(safe-area-inset-top) 10px 4px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
-        <button onClick={back} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 4 }}>{I.back}</button>
-        <span style={{ maxWidth: 120, fontSize: 13, fontWeight: 600, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
-        <div style={{ width: 1, height: 22, background: T.bd, margin: "0 4px" }} />
-        {/* ツール */}
-        <TBtn active={tool === "pen"} onClick={() => setTool("pen")} title={t("notes.pen")}>{I.pen}</TBtn>
-        <TBtn active={tool === "highlighter"} onClick={() => setTool("highlighter")} title={t("notes.highlighter")}>🖍️</TBtn>
-        <TBtn active={tool === "eraser"} onClick={() => setTool("eraser")} title={t("notes.eraser")}>🩹</TBtn>
-        <div style={{ width: 1, height: 22, background: T.bd, margin: "0 4px" }} />
+      <header style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, padding: "env(safe-area-inset-top) 10px 6px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
+        <button onClick={back} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 6 }}>{I.back}</button>
+
+        {/* ツール選択（アイコン＋ラベル・大きめ・はっきり） */}
+        <div style={{ display: "flex", gap: 2, background: T.bg3, borderRadius: 11, padding: 3 }}>
+          {TOOLS.map((tl) => (
+            <button key={tl.id} onClick={() => setTool(tl.id)} title={tl.label}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, minWidth: 46, height: 42, borderRadius: 9, border: "none", background: tool === tl.id ? T.bg2 : "transparent", boxShadow: tool === tl.id ? `0 1px 3px ${T.bd}` : "none", cursor: "pointer" }}>
+              <span style={{ fontSize: 17, lineHeight: 1 }}>{tl.icon}</span>
+              <span style={{ fontSize: 9, fontWeight: 700, color: tool === tl.id ? T.accent : T.txD }}>{tl.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div style={{ width: 1, height: 26, background: T.bd, margin: "0 2px" }} />
+
         {/* 色 */}
-        {tool !== "eraser" && colors.map((c) => (
-          <button key={c} onClick={() => setColor(c)} style={{ width: 22, height: 22, borderRadius: "50%", border: curColor === c ? `2px solid ${T.accent}` : `1px solid ${T.bd}`, background: c, cursor: "pointer", padding: 0, boxShadow: c === "#ffffff" ? "inset 0 0 0 1px #ccc" : "none" }} />
-        ))}
-        {tool !== "eraser" && <div style={{ width: 1, height: 22, background: T.bd, margin: "0 4px" }} />}
-        {/* 太さ */}
-        {sizes.map((s) => (
-          <button key={s} onClick={() => setSize(s)} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 8, border: "none", background: curSize === s ? T.bg4 : "transparent", cursor: "pointer" }}>
-            <span style={{ display: "block", borderRadius: "50%", background: tool === "eraser" ? T.txD : curColor === "#ffffff" ? "#999" : curColor, width: Math.max(4, s / (tool === "eraser" ? 8 : isHL ? 4 : 2.2)), height: Math.max(4, s / (tool === "eraser" ? 8 : isHL ? 4 : 2.2)) }} />
-          </button>
-        ))}
-        {/* 消しゴムの種類（ストローク/部分） */}
-        {tool === "eraser" && (
-          <>
-            <div style={{ width: 1, height: 22, background: T.bd, margin: "0 4px" }} />
-            {[{ id: "stroke", l: t("notes.eraseStroke") }, { id: "pixel", l: t("notes.erasePixel") }].map((m) => (
-              <button key={m.id} onClick={() => setEraserMode(m.id)} style={{ padding: "5px 9px", borderRadius: 8, border: `1px solid ${eraserMode === m.id ? T.accent : T.bd}`, background: eraserMode === m.id ? `${T.accent}14` : T.bg2, color: eraserMode === m.id ? T.accent : T.txH, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{m.l}</button>
+        {usesColor && (
+          <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+            {palette.map((c) => (
+              <button key={c} onClick={() => setColor(c)} style={{ width: 24, height: 24, borderRadius: "50%", border: curColor === c ? `2.5px solid ${T.accent}` : `1px solid ${T.bd}`, background: c, cursor: "pointer", padding: 0, boxShadow: c === "#ffffff" ? "inset 0 0 0 1px #ccc" : "none" }} />
             ))}
-          </>
+          </div>
         )}
+
+        {/* 消しゴムの種類 */}
+        {tool === "eraser" && (
+          <div style={{ display: "flex", gap: 4 }}>
+            {[{ id: "stroke", l: t("notes.eraseStroke") }, { id: "pixel", l: t("notes.erasePixel") }].map((m) => (
+              <button key={m.id} onClick={() => setEraserMode(m.id)} style={{ padding: "6px 11px", borderRadius: 8, border: `1px solid ${eraserMode === m.id ? T.accent : T.bd}`, background: eraserMode === m.id ? `${T.accent}14` : T.bg2, color: eraserMode === m.id ? T.accent : T.txH, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{m.l}</button>
+            ))}
+          </div>
+        )}
+
+        <div style={{ width: 1, height: 26, background: T.bd, margin: "0 2px" }} />
+
+        {/* 太さ */}
+        <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+          {sizes.map((s) => (
+            <button key={s} onClick={() => setSize(s)} title={t("notes.thickness") || ""} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 8, border: "none", background: curSize === s ? T.bg4 : "transparent", cursor: "pointer" }}>
+              <span style={{ display: "block", borderRadius: "50%", background: dotColor, width: Math.max(4, s / sizeDiv), height: Math.max(4, s / sizeDiv) }} />
+            </button>
+          ))}
+        </div>
+
         <div style={{ flex: 1 }} />
-        {/* Undo/Redo */}
-        <TBtn onClick={() => inkUndo()} title="Undo">{I.reset}</TBtn>
-        <TBtn onClick={() => inkRedo()} title="Redo"><span style={{ transform: "scaleX(-1)", display: "inline-flex" }}>{I.reset}</span></TBtn>
-        <span style={{ fontSize: 9, color: T.accent, fontWeight: 700, padding: "1px 4px", border: `1px solid ${T.accent}`, borderRadius: 5 }}>{NOTES_VERSION}</span>
+
+        {/* Undo / Redo / 書き出し */}
+        <IconBtn onClick={() => inkUndo()} title="Undo">{I.reset}</IconBtn>
+        <IconBtn onClick={() => inkRedo()} title="Redo"><span style={{ transform: "scaleX(-1)", display: "inline-flex" }}>{I.reset}</span></IconBtn>
+        <IconBtn onClick={exportCurrent} title={t("notes.exportPdf")} disabled={exporting}>{I.dl}</IconBtn>
       </header>
       {/* この div の矩形にネイティブ PKCanvasView を重ねる */}
       <div ref={hostRef} style={{ flex: 1, minHeight: 0, position: "relative" }}>
         {status && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.txD, fontSize: 13 }}>{status}</div>}
+        {exporting && <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 12, padding: "4px 10px", borderRadius: 8 }}>{t("notes.exporting")}</div>}
       </div>
     </div>
   );

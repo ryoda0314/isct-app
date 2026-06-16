@@ -27,6 +27,12 @@ export async function setInkTool({ type, color, width, mode }) {
 export async function inkUndo() { try { await window.Capacitor.Plugins.Ink.undo(); } catch {} }
 export async function inkRedo() { try { await window.Capacitor.Plugins.Ink.redo(); } catch {} }
 
+// 編集中に現在の描画を取得（オーバーレイは閉じない）→ ノート内からの書き出し用
+export async function inkSnapshot() {
+  try { const r = await window.Capacitor.Plugins.Ink.snapshot(); return { drawing: r?.drawing || "", thumbnails: r?.thumbnails || [] }; }
+  catch { return { drawing: "", thumbnails: [] }; }
+}
+
 // 保存して撤去 → { drawing:<base64 PKDrawing>, thumbnails:[<base64 PNG ink>/ページ] }
 export async function hideInk() {
   if (!inkAvailable()) return { drawing: "", thumbnails: [] };

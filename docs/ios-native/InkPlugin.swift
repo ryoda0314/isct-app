@@ -23,6 +23,7 @@ public class InkPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "setTool", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "undo", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "redo", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "snapshot", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "hide", returnType: CAPPluginReturnPromise),
     ]
 
@@ -87,6 +88,13 @@ public class InkPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func redo(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [weak self] in self?.overlay?.redo(); call.resolve() }
+    }
+
+    @objc func snapshot(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            let res = self?.overlay?.exportResult() ?? ["drawing": "", "thumbnails": []]
+            call.resolve(res)
+        }
     }
 
     @objc func hide(_ call: CAPPluginCall) {
@@ -270,7 +278,10 @@ class InkOverlayView: UIView, PKCanvasViewDelegate {
         switch type {
         case "highlighter": canvasView.tool = PKInkingTool(.marker, color: colorFromHex(colorHex), width: width)
         case "eraser":      canvasView.tool = (eraserMode == "pixel") ? PKEraserTool(.bitmap) : PKEraserTool(.vector)
-        default:            canvasView.tool = PKInkingTool(.pen, color: colorFromHex(colorHex), width: width)
+        case "mono": // 一律の太さ（筆圧で変わらない）
+            if #available(iOS 17.0, *) { canvasView.tool = PKInkingTool(.monoline, color: colorFromHex(colorHex), width: width) }
+            else { canvasView.tool = PKInkingTool(.pen, color: colorFromHex(colorHex), width: width) }
+        default:            canvasView.tool = PKInkingTool(.pen, color: colorFromHex(colorHex), width: width) // 筆圧で変わる
         }
     }
 
