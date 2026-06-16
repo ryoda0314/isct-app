@@ -877,14 +877,9 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg3 }}>
-      {/* ヘッダー（戻る＋タイトル＋書き出し） */}
-      <header style={{ display: "flex", alignItems: "center", gap: 8, padding: "calc(env(safe-area-inset-top) + 8px) 12px 8px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
+      {/* ツールバー（戻る＋描画ツール＋書き出し） */}
+      <header style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, padding: "calc(env(safe-area-inset-top) + 10px) 10px 8px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
         <button onClick={back} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 6 }}>{I.back}</button>
-        <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 700, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
-        <IconBtn onClick={exportCurrent} title={t("notes.exportPdf")} disabled={exporting}>{I.dl}</IconBtn>
-      </header>
-      {/* ツールバー（描画ツール） */}
-      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, padding: "8px 10px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
         {/* Undo / Redo（左側） */}
         <IconBtn onClick={() => inkUndo()} title="Undo">{I.reset}</IconBtn>
         <IconBtn onClick={() => inkRedo()} title="Redo"><span style={{ transform: "scaleX(-1)", display: "inline-flex" }}>{I.reset}</span></IconBtn>
@@ -944,7 +939,10 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
         </button>
         </>}
 
-      </div>
+        <div style={{ flex: 1 }} />
+        {/* 書き出し（右側） */}
+        <IconBtn onClick={exportCurrent} title={t("notes.exportPdf")} disabled={exporting}>{I.dl}</IconBtn>
+      </header>
       {/* この div の矩形にネイティブ PKCanvasView を重ねる */}
       <div ref={hostRef} style={{ flex: 1, minHeight: 0, position: "relative" }}>
         {status && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.txD, fontSize: 13 }}>{status}</div>}
@@ -1469,15 +1467,13 @@ function NoteEditor({ id, mob, onBack, onIndexChange }) {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg3 }}>
-      {/* ヘッダー（戻る＋タイトル） */}
-      <header style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
-        <button onClick={() => { flushSave(); onBack(); }} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 4 }}>{I.back}</button>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} onBlur={saveTitle}
-          style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: T.txH, fontSize: 15, fontWeight: 700, outline: "none" }} />
-        <span style={{ fontSize: 10, color: T.accent, fontWeight: 700, padding: "1px 5px", border: `1px solid ${T.accent}`, borderRadius: 5, flexShrink: 0 }}>{NOTES_VERSION}</span>
-      </header>
       {/* ツールバー */}
       <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 8px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0, flexWrap: "wrap" }}>
+        <button onClick={() => { flushSave(); onBack(); }} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 4 }}>{I.back}</button>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} onBlur={saveTitle}
+          style={{ width: mob ? 80 : 140, background: "transparent", border: "none", color: T.txH, fontSize: 14, fontWeight: 600, outline: "none" }} />
+        <span style={{ fontSize: 10, color: T.accent, fontWeight: 700, padding: "1px 5px", border: `1px solid ${T.accent}`, borderRadius: 5 }}>{NOTES_VERSION}</span>
+        <div style={{ width: 1, height: 22, background: T.bd, margin: "0 4px" }} />
         <TB active={tool === "pen"} onClick={() => { setTool("pen"); setPanMode(false); }} tt={t("notes.pen")}>{I.pen}</TB>
         <TB active={tool === "highlighter"} onClick={() => { setTool("highlighter"); setPanMode(false); }} tt={t("notes.highlighter")}>
           <span style={{ fontSize: 16 }}>🖍️</span>
