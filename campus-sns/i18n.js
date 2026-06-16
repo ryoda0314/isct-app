@@ -74,6 +74,7 @@ const M = {
   "notes.penMono":      { ja:"一律", en:"Uniform", zh:"均一", ko:"균일", tp:"sama" },
   "notes.thickness":    { ja:"太さ", en:"Width", zh:"粗细", ko:"굵기", tp:"suli" },
   "notes.shapeAssist":  { ja:"図形", en:"Shapes", zh:"图形", ko:"도형", tp:"sijelo" },
+  "notes.shapeHint":    { ja:"図形補助：描いてペンを止めて離すと直線/円/四角に整形", en:"Shape assist: draw, hold, then lift to snap to line/circle/rect", zh:"图形辅助：画完停顿再抬笔即整形", ko:"도형 보조: 그린 뒤 멈췄다 떼면 정형", tp:"sijelo: o sitelen, o awen, o weka" },
   "notes.highlighter":  { ja:"蛍光ペン", en:"Highlighter", zh:"荧光笔", ko:"형광펜", tp:"ilo suno" },
   "notes.eraser":       { ja:"消しゴム", en:"Eraser", zh:"橡皮擦", ko:"지우개", tp:"ilo weka" },
   "notes.eraseStroke":  { ja:"線ごと", en:"Stroke", zh:"整笔", ko:"획 단위", tp:"linja" },

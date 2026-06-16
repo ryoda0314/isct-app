@@ -1,7 +1,41 @@
 import Foundation
 import UIKit
+import UIKit.UIGestureRecognizerSubclass
 import PencilKit
 import Capacitor
+
+/// ペンの動きを「観察するだけ」のジェスチャー（state を .began にしないので PencilKit の描画を妨げない）。
+/// ペン先が一定時間ほぼ静止したら onHoldChanged(true)、動いたら false。
+final class HoldObserver: UIGestureRecognizer {
+    var onHoldChanged: ((Bool) -> Void)?
+    private var lastPt: CGPoint = .zero
+    private var lastT: CFTimeInterval = 0
+    private var held = false
+    private var timer: Timer?
+    private let dwell: CFTimeInterval = 0.35
+    private let moveThresh: CGFloat = 6
+
+    private func setHeld(_ v: Bool) { if held != v { held = v; onHoldChanged?(v) } }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard let t = touches.first, t.type == .pencil else { return }
+        lastPt = t.location(in: view); lastT = CACurrentMediaTime(); setHeld(false)
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            if CACurrentMediaTime() - self.lastT >= self.dwell { self.setHeld(true) }
+        }
+    }
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard let t = touches.first, t.type == .pencil else { return }
+        let p = t.location(in: view)
+        if hypot(p.x - lastPt.x, p.y - lastPt.y) > moveThresh { lastPt = p; lastT = CACurrentMediaTime(); setHeld(false) }
+    }
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) { finishObserve() }
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) { finishObserve() }
+    private func finishObserve() { timer?.invalidate(); timer = nil; state = .failed }
+    override func reset() { super.reset(); timer?.invalidate(); timer = nil; setHeld(false) }
+}
 
 /// ネイティブ PencilKit 手書きキャンバスを「Webの指定領域に重ねる」プラグイン（オーバーレイ方式）。
 /// 全画面モーダルではなく、Web のキャンバス領域(rect)にだけ重ねるので、Web のサイドバー/
@@ -125,8 +159,9 @@ struct InkPage { let w: CGFloat; let h: CGFloat; let bg: UIImage? }
 /// 構成: PKCanvasView 自身をスクロールビューとして使い（＝入力座標が常に正確）、
 ///       背景画像はその中に縦積みで敷く。ペンのみ描画・指でスクロール。
 /// ※ ズームは入力ズレ防止のため一旦無効（min=max=1）。スクロールは有効。
-class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate {
+class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate, UIGestureRecognizerDelegate {
     var onPencilTap: ((String) -> Void)?
+    private var snapNext = false // ホールド成立中（離したら整形）
     private var pages: [InkPage]
     private let canvasView = PKCanvasView()
     private let bgContainer = UIView()
@@ -175,7 +210,21 @@ class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate 
         if #available(iOS 12.1, *) {
             let pi = UIPencilInteraction(); pi.delegate = self; addInteraction(pi)
         }
+        // ホールド観察ジェスチャー（描いて止めたら図形整形）
+        let hold = HoldObserver()
+        hold.delegate = self
+        hold.cancelsTouchesInView = false
+        hold.delaysTouchesBegan = false
+        hold.delaysTouchesEnded = false
+        hold.onHoldChanged = { [weak self] held in
+            self?.snapNext = held
+            if held { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
+        }
+        canvasView.addGestureRecognizer(hold)
     }
+
+    // PencilKit の描画と同時に観察できるように
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { return true }
 
     // Apple Pencil ダブルタップ。ユーザー設定を尊重して Web に通知（Webがツール切替）
     @available(iOS 12.1, *)
@@ -316,17 +365,20 @@ class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate 
     func redo() { canvasView.undoManager?.redo() }
     func setShapeAssist(_ on: Bool) { shapeAssist = on }
 
-    // 図形補助: 新しいストロークを解析し、直線/円/四角なら整形ストロークに差し替える
+    // 図形補助(ホールド方式): 直前に「ホールドして離した」ストロークだけ整形
     func canvasViewDrawingDidChange(_ cv: PKCanvasView) {
         guard #available(iOS 14.0, *) else { return }
         if isReplacing { return }
         let strokes = cv.drawing.strokes
-        defer { lastStrokeCount = cv.drawing.strokes.count }
-        guard shapeAssist, strokes.count == lastStrokeCount + 1, let last = strokes.last else { return }
-        guard let ideal = idealStroke(from: last) else { return }
+        let added = strokes.count == lastStrokeCount + 1
+        lastStrokeCount = strokes.count
+        let doSnap = shapeAssist && snapNext && added
+        snapNext = false
+        guard doSnap, let last = strokes.last, let ideal = idealStroke(from: last) else { return }
         isReplacing = true
         var ns = strokes; ns[ns.count - 1] = ideal
         cv.drawing = PKDrawing(strokes: ns)
+        lastStrokeCount = cv.drawing.strokes.count
         isReplacing = false
     }
 

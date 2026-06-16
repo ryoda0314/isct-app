@@ -16,7 +16,7 @@ import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUn
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v25-shapes";
+const NOTES_VERSION = "v26-shapehold";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -557,7 +557,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const [hlW, setHlW] = useState(NHL_SIZES[0]);
   const [eraserW, setEraserW] = useState(NERASER_SIZES[0]);
   const [eraserMode, setEraserMode] = useState("stroke"); // stroke=線ごと / pixel=部分消し
-  const [shapeAssist, setShapeAssist] = useState(false); // 図形補助（直線/円/四角に整える）
+  const [shapeAssist, setShapeAssist] = useState(true); // 図形補助(ホールドで整形)。既定ON
 
   // ツール変更をネイティブへ反映
   useEffect(() => {
@@ -728,7 +728,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
 
         <div style={{ width: 1, height: 26, background: T.bd, margin: "0 2px" }} />
         {/* 図形補助トグル */}
-        <button onClick={() => setShapeAssist((v) => !v)} title={t("notes.shapeAssist")}
+        <button onClick={() => setShapeAssist((v) => !v)} title={t("notes.shapeHint")}
           style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 8, border: `1px solid ${shapeAssist ? T.accent : T.bd}`, background: shapeAssist ? `${T.accent}14` : T.bg2, color: shapeAssist ? T.accent : T.txH, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="5" /><rect x="11" y="11" width="9" height="9" rx="1" /></svg>
           {t("notes.shapeAssist")}
