@@ -15,6 +15,18 @@ import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUn
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
+// フォルダ表示用の簡易アイコン（icons.jsx に無いためローカル定義）
+const FOLDER_ICON = (
+  <svg width="100%" height="100%" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+  </svg>
+);
+const CHEV_R = (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polyline points="9 18 15 12 9 6" />
+  </svg>
+);
+
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
 const NOTES_VERSION = "v26-shapehold";
 
@@ -403,6 +415,16 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
   const [tabYear, setTabYear] = useState(null); // 選択中の年度タブ（key）。null=先頭
   const [tabQ, setTabQ] = useState(0); // 選択中のクォーター（0=すべて）
   const [showNew, setShowNew] = useState(false); // 新規ノート作成モーダル
+  // ライブラリ表示モード: "group"=授業別タブ / "folder"=GoodNotes風フォルダ階層
+  const [libMode, setLibMode] = useState(() => {
+    try { return localStorage.getItem("notesLibMode") === "folder" ? "folder" : "group"; } catch { return "group"; }
+  });
+  const [folderPath, setFolderPath] = useState([]); // フォルダ階層の現在位置（[{type,key,label}]）
+  const setLibModePersist = (m) => {
+    setLibMode(m);
+    try { localStorage.setItem("notesLibMode", m); } catch {}
+    if (m === "folder") setFolderPath([]);
+  };
   const fileRef = useRef(null);
 
   useEffect(() => { setIndex(loadIndex()); }, []);
@@ -546,7 +568,17 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
       {/* 新規作成（＋でモーダルを開く） */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 18 }}>
         {!mob && <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: T.txH }}>{t("nav.notes")}</h1>}
-        <button onClick={() => setShowNew(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: `0 2px 8px ${T.accent}40`, marginLeft: mob ? "auto" : 0 }}>{I.plus || I.add || "+"} {t("notes.new")}</button>
+        {/* 表示モード切替（授業別 / フォルダ） */}
+        <div style={{ display: "inline-flex", gap: 2, background: T.bg3, borderRadius: 9, padding: 3, marginLeft: mob ? "auto" : 0 }}>
+          {[["group", t("notes.viewGroup")], ["folder", t("notes.viewFolder")]].map(([m, label]) => {
+            const on = libMode === m;
+            return (
+              <button key={m} onClick={() => setLibModePersist(m)}
+                style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: on ? T.bg2 : "transparent", boxShadow: on ? `0 1px 3px ${T.bd}` : "none", color: on ? T.accent : T.txD, fontSize: 12, fontWeight: on ? 700 : 600, cursor: "pointer" }}>{label}</button>
+            );
+          })}
+        </div>
+        <button onClick={() => setShowNew(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: `0 2px 8px ${T.accent}40` }}>{I.plus || I.add || "+"} {t("notes.new")}</button>
         <input ref={fileRef} type="file" accept="application/pdf,.pdf" style={{ display: "none" }}
           onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; setShowNew(false); importPdf(f); }} />
       </div>
@@ -593,6 +625,87 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
         };
 
         const { uncat, years } = groupNotes(index);
+
+        // ── GoodNotes 風フォルダ表示（年度 → クォーター → 講義 → ノート）──
+        if (libMode === "folder") {
+          const countCourse = (cg) => cg.sessions.reduce((a, s) => a + s.notes.length, 0);
+          const countQuarter = (qg) => qg.courses.reduce((a, c) => a + countCourse(c), 0);
+          const countYear = (yg) => yg.quarters.reduce((a, q) => a + countQuarter(q), 0);
+
+          const folderTile = (key, label, count, onOpen) => (
+            <button key={key} onClick={onOpen}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: mob ? "14px 8px" : "18px 10px", borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg2, cursor: "pointer", transition: "all .12s" }}>
+              <span style={{ width: mob ? 46 : 56, height: mob ? 46 : 56, color: T.accent, display: "flex" }}>{FOLDER_ICON}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: T.txH, textAlign: "center", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.3 }}>{label}</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: T.txD }}>{t("notes.itemCount", { n: count })}</span>
+            </button>
+          );
+          const tilesGrid = (children) => (
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${mob ? 110 : 140}px, 1fr))`, gap: 14 }}>{children}</div>
+          );
+
+          const yearByKey = (k) => years.find((y) => String(y.year) === String(k));
+          const depth = folderPath.length;
+          const head = folderPath[0];
+          let content = null;
+
+          const renderRoot = () => {
+            const tiles = years.map((yg) =>
+              folderTile(`y${yg.year}`, yg.year ? t("notes.yearLabel", { year: yg.year }) : t("notes.uncategorized"), countYear(yg),
+                () => setFolderPath([{ type: "year", key: yg.year, label: yg.year ? t("notes.yearLabel", { year: yg.year }) : t("notes.uncategorized") }]))
+            );
+            if (uncat.length) tiles.push(folderTile("uncat", t("notes.uncategorized"), uncat.length, () => setFolderPath([{ type: "uncat", label: t("notes.uncategorized") }])));
+            return tilesGrid(tiles);
+          };
+
+          if (depth === 0) {
+            content = renderRoot();
+          } else if (head.type === "uncat") {
+            content = grid(uncat);
+          } else {
+            const yg = yearByKey(head.key);
+            if (!yg) { content = renderRoot(); }
+            else if (depth === 1) {
+              content = tilesGrid(yg.quarters.map((qg) =>
+                folderTile(`q${qg.quarter}`, qg.quarter ? t("notes.quarterLabel", { q: qg.quarter }) : t("notes.uncategorized"), countQuarter(qg),
+                  () => setFolderPath([...folderPath, { type: "quarter", key: qg.quarter, label: qg.quarter ? t("notes.quarterLabel", { q: qg.quarter }) : t("notes.uncategorized") }]))));
+            } else {
+              const qg = yg.quarters.find((q) => String(q.quarter) === String(folderPath[1].key));
+              if (!qg) { content = renderRoot(); }
+              else if (depth === 2) {
+                content = tilesGrid(qg.courses.map((cg) =>
+                  folderTile(cg.id, cg.name, countCourse(cg),
+                    () => setFolderPath([...folderPath, { type: "course", key: cg.id, label: cg.name }]))));
+              } else {
+                const cg = qg.courses.find((c) => c.id === folderPath[2].key);
+                content = cg ? grid(cg.sessions.flatMap((s) => s.notes)) : renderRoot();
+              }
+            }
+          }
+
+          // パンくず（Home > 年度 > Q > 講義）
+          const crumbs = [{ label: t("nav.notes"), path: [] }];
+          folderPath.forEach((seg, i) => crumbs.push({ label: seg.label, path: folderPath.slice(0, i + 1) }));
+
+          return (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap", marginBottom: 16 }}>
+                {crumbs.map((c, i) => {
+                  const last = i === crumbs.length - 1;
+                  return (
+                    <span key={i} style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                      {i > 0 && <span style={{ color: T.txD, display: "flex" }}>{CHEV_R}</span>}
+                      <button onClick={() => !last && setFolderPath(c.path)} disabled={last}
+                        style={{ background: "none", border: "none", color: last ? T.txH : T.accent, fontSize: 13, fontWeight: last ? 700 : 600, cursor: last ? "default" : "pointer", padding: "2px 3px", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.label}</button>
+                    </span>
+                  );
+                })}
+              </div>
+              {content}
+            </div>
+          );
+        }
+
         // タブモデル: 年度タブ（降順）＋ 末尾に「その他」（講義メタ無し）
         const tabs = years.map((yg) => ({ key: `y${yg.year}`, label: yg.year ? t("notes.yearLabel", { year: yg.year }) : t("notes.uncategorized"), yg }));
         if (uncat.length) tabs.push({ key: "uncat", label: t("notes.uncategorized"), uncat });
