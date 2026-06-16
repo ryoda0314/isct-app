@@ -96,6 +96,35 @@ function loadIndex() {
 function saveIndex(arr) {
   try { localStorage.setItem(INDEX_KEY, JSON.stringify(arr)); } catch {}
 }
+// 教材IDに紐づく既存ノートを同期的に検索（MatView から相互リンクに使用）
+export function findMaterialNote(matId) {
+  if (!matId) return null;
+  try { return loadIndex().find((n) => n.sourceMatId === matId) || null; } catch { return null; }
+}
+// index を 年度(降順) > クォーター(昇順) > 講義(名前順) にグルーピング。
+// 講義メタを持たないノート(白紙/手動取込)は uncat に分離。
+function groupNotes(list) {
+  const uncat = [];
+  const years = new Map(); // year -> Map(quarter -> Map(courseId -> {id,name,notes}))
+  for (const n of list) {
+    if (!n.courseId) { uncat.push(n); continue; }
+    const y = n.year || 0, q = n.quarter || 0;
+    if (!years.has(y)) years.set(y, new Map());
+    const qmap = years.get(y);
+    if (!qmap.has(q)) qmap.set(q, new Map());
+    const cmap = qmap.get(q);
+    if (!cmap.has(n.courseId)) cmap.set(n.courseId, { id: n.courseId, name: n.courseName || n.courseCode || n.courseId, notes: [] });
+    cmap.get(n.courseId).notes.push(n);
+  }
+  const yearArr = [...years.entries()].sort((a, b) => b[0] - a[0]).map(([year, qmap]) => ({
+    year,
+    quarters: [...qmap.entries()].sort((a, b) => a[0] - b[0]).map(([quarter, cmap]) => ({
+      quarter,
+      courses: [...cmap.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), "ja")),
+    })),
+  }));
+  return { uncat, years: yearArr };
+}
 async function readNote(id) {
   try { const v = await idbDo("readonly", (s) => s.get(id)); if (v != null) return typeof v === "string" ? JSON.parse(v) : v; }
   catch (e) { console.warn("[notes] idb read", e); }
@@ -353,7 +382,7 @@ async function buildNotePdfBytes(note) {
 // ══════════════════════════════════════════════
 // ライブラリ（ノート一覧）
 // ══════════════════════════════════════════════
-export function NotesView({ mob, onExit }) {
+export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
   const [screen, setScreen] = useState("library");
   const [index, setIndex] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -361,11 +390,38 @@ export function NotesView({ mob, onExit }) {
   const [err, setErr] = useState("");
   const [paperSize, setPaperSize] = useState("a4");
   const [orient, setOrient] = useState("portrait");
+  const [collapsed, setCollapsed] = useState({}); // フォルダ折りたたみ状態（キー単位）
   const fileRef = useRef(null);
+  const toggle = (k) => setCollapsed((p) => ({ ...p, [k]: !p[k] }));
 
   useEffect(() => { setIndex(loadIndex()); }, []);
 
   const refreshIndex = useCallback(() => setIndex(loadIndex()), []);
+
+  // 教材ビューから渡された依頼を消費（既存ノートを開く / 教材PDFから新規ノート作成）
+  const pendingDoneRef = useRef(null);
+  useEffect(() => {
+    if (!pendingNote) return;
+    if (pendingDoneRef.current === pendingNote) return; // 二重実行ガード
+    pendingDoneRef.current = pendingNote;
+    (async () => {
+      try {
+        if (pendingNote.openId) {
+          await openNote(pendingNote.openId);
+        } else if (pendingNote.create) {
+          const c = pendingNote.create;
+          const existing = findMaterialNote(c.matId); // 既に作成済みなら開くだけ
+          if (existing) { await openNote(existing.id); }
+          else {
+            const file = new File([b64ToUint8(c.base64)], c.name || "material.pdf", { type: "application/pdf" });
+            await importPdf(file, { title: c.name, matId: c.matId, courseId: c.courseId, courseName: c.courseName, courseCode: c.courseCode, year: c.year, quarter: c.quarter });
+          }
+        }
+      } catch (e) { console.warn("[notes] pending", e); }
+      finally { onPendingConsumed?.(); }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingNote]);
 
   // ノートを開く: iPad(ネイティブ)で engine=pencilkit ならオーバーレイ編集、それ以外は Web エディタ
   const openNote = async (id) => {
@@ -394,8 +450,8 @@ export function NotesView({ mob, onExit }) {
     } catch (e) { setErr(t("notes.saveFailed")); }
   };
 
-  // PDF 取り込み
-  const importPdf = async (file) => {
+  // PDF 取り込み（meta があれば講義メタ＝年度/クォーター/講義/教材ID をノートへ付与）
+  const importPdf = async (file, meta) => {
     if (!file) return;
     setBusy(t("notes.importing")); setErr("");
     try {
@@ -412,15 +468,22 @@ export function NotesView({ mob, onExit }) {
       }
       const id = uid();
       const useInk = inkAvailable();
+      const title = (meta?.title || file.name || t("notes.untitled")).replace(/\.pdf$/i, "");
+      // 講義メタ（教材から書き込む場合のみ。null/undefined は持たせない）
+      const cm = meta ? {
+        courseId: meta.courseId || null, courseName: meta.courseName || null, courseCode: meta.courseCode || null,
+        year: meta.year || null, quarter: meta.quarter || null, sourceMatId: meta.matId || null,
+      } : {};
       const note = {
-        v: 1, id, title: (file.name || t("notes.untitled")).replace(/\.pdf$/i, ""),
+        v: 1, id, title,
         type: "pdf", pdfBase64: base64, engine: useInk ? "pencilkit" : "web", pkDrawing: "",
-        pages, createdAt: Date.now(), updatedAt: Date.now(),
+        pages, createdAt: Date.now(), updatedAt: Date.now(), ...cm,
       };
       await writeNote(note);
-      const idx = [{ id, title: note.title, type: "pdf", engine: note.engine, pageCount: pages.length, updatedAt: note.updatedAt, thumb: "" }, ...loadIndex()];
+      const idx = [{ id, title, type: "pdf", engine: note.engine, pageCount: pages.length, updatedAt: note.updatedAt, thumb: "", ...cm }, ...loadIndex()];
       saveIndex(idx); setIndex(idx);
       setActiveId(id); setScreen(useInk ? "native" : "editor");
+      return id;
     } catch (e) {
       console.error("[notes] import", e);
       setErr(/storage-full/.test(String(e?.message)) ? t("notes.storageFull") : t("notes.importFailed"));
@@ -494,25 +557,69 @@ export function NotesView({ mob, onExit }) {
 
       {index.length === 0 ? (
         <div style={{ color: T.txD, fontSize: 13, textAlign: "center", padding: "60px 0" }}>{t("notes.empty")}</div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${mob ? 120 : 150}px, 1fr))`, gap: 14 }}>
-          {index.map((n) => (
-            <div key={n.id} style={{ cursor: "pointer" }}>
-              <div onClick={() => openNote(n.id)}
-                style={{ aspectRatio: "3/4", borderRadius: 10, border: `1px solid ${T.bd}`, background: n.thumb ? `#fff url(${n.thumb}) center/cover` : "#fff", boxShadow: `0 2px 8px ${T.bd}`, overflow: "hidden", position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "flex-start" }}>
-                {!n.thumb && <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#c8c8d0" }}>{I.pen}</span>}
-                <span style={{ position: "absolute", top: 6, left: 6, fontSize: 9, fontWeight: 700, color: "#fff", background: n.type === "pdf" ? T.red : T.accent, padding: "2px 6px", borderRadius: 5 }}>{n.type === "pdf" ? "PDF" : "NOTE"}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6 }}>
-                <span style={{ flex: 1, fontSize: 12, color: T.txH, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.title}</span>
-                <button title={t("notes.exportPdf")} onClick={(e) => { e.stopPropagation(); exportNotePdf(n.id); }} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 2 }}>{I.dl}</button>
-                <button title={t("notes.confirmDelete")} onClick={(e) => { e.stopPropagation(); removeNote(n.id); }} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 2 }}>{I.trash}</button>
-              </div>
-              <div style={{ fontSize: 10, color: T.txD }}>{n.pageCount} {t("notes.pages")}</div>
+      ) : (() => {
+        const card = (n) => (
+          <div key={n.id} style={{ cursor: "pointer" }}>
+            <div onClick={() => openNote(n.id)}
+              style={{ aspectRatio: "3/4", borderRadius: 10, border: `1px solid ${T.bd}`, background: n.thumb ? `#fff url(${n.thumb}) center/cover` : "#fff", boxShadow: `0 2px 8px ${T.bd}`, overflow: "hidden", position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "flex-start" }}>
+              {!n.thumb && <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#c8c8d0" }}>{I.pen}</span>}
+              <span style={{ position: "absolute", top: 6, left: 6, fontSize: 9, fontWeight: 700, color: "#fff", background: n.type === "pdf" ? T.red : T.accent, padding: "2px 6px", borderRadius: 5 }}>{n.type === "pdf" ? "PDF" : "NOTE"}</span>
             </div>
-          ))}
-        </div>
-      )}
+            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6 }}>
+              <span style={{ flex: 1, fontSize: 12, color: T.txH, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.title}</span>
+              <button title={t("notes.exportPdf")} onClick={(e) => { e.stopPropagation(); exportNotePdf(n.id); }} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 2 }}>{I.dl}</button>
+              <button title={t("notes.confirmDelete")} onClick={(e) => { e.stopPropagation(); removeNote(n.id); }} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 2 }}>{I.trash}</button>
+            </div>
+            <div style={{ fontSize: 10, color: T.txD }}>{n.pageCount} {t("notes.pages")}</div>
+          </div>
+        );
+        const grid = (notes) => (
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${mob ? 120 : 150}px, 1fr))`, gap: 14 }}>{notes.map(card)}</div>
+        );
+        const chevron = (open) => (
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2.5" style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform .15s", flexShrink: 0 }}><path d="M9 18l6-6-6-6" /></svg>
+        );
+        const Folder = ({ k, label, count, depth, children }) => {
+          const open = !collapsed[k];
+          return (
+            <div style={{ marginBottom: 6 }}>
+              <div onClick={() => toggle(k)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 4px", paddingLeft: 4 + depth * 16, cursor: "pointer", userSelect: "none" }}>
+                {chevron(open)}
+                <span style={{ display: "flex", color: depth === 2 ? T.accent : T.txD }}>{depth === 2 ? I.book || I.file : I.folder || I.file}</span>
+                <span style={{ fontSize: depth === 0 ? 14 : 13, fontWeight: 700, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+                {count != null && <span style={{ fontSize: 11, color: T.txD }}>{count}</span>}
+              </div>
+              {open && <div style={{ paddingLeft: depth >= 0 ? 8 : 0 }}>{children}</div>}
+            </div>
+          );
+        };
+        const { uncat, years } = groupNotes(index);
+        return (
+          <div>
+            {years.map((yg) => (
+              <Folder key={`y${yg.year}`} k={`y${yg.year}`} depth={0}
+                label={yg.year ? t("notes.yearLabel", { year: yg.year }) : t("notes.uncategorized")}>
+                {yg.quarters.map((qg) => (
+                  <Folder key={`y${yg.year}q${qg.quarter}`} k={`y${yg.year}q${qg.quarter}`} depth={1}
+                    label={qg.quarter ? t("notes.quarterLabel", { q: qg.quarter }) : t("notes.uncategorized")}>
+                    {qg.courses.map((cg) => (
+                      <Folder key={`y${yg.year}q${qg.quarter}c${cg.id}`} k={`y${yg.year}q${qg.quarter}c${cg.id}`} depth={2}
+                        label={cg.name} count={cg.notes.length}>
+                        {grid(cg.notes)}
+                      </Folder>
+                    ))}
+                  </Folder>
+                ))}
+              </Folder>
+            ))}
+            {uncat.length > 0 && (
+              <Folder k="uncat" depth={0} label={t("notes.uncategorized")} count={uncat.length}>
+                {grid(uncat)}
+              </Folder>
+            )}
+          </div>
+        );
+      })()}
       </div>
     </div>
   );

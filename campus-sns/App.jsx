@@ -249,6 +249,7 @@ export default function App(){
   const [did,setDid]=useState(null);
   const [ch,setCh]=useState("timeline");
   const [pendingMat,setPendingMat]=useState(null);
+  const [pendingNote,setPendingNote]=useState(null); // 教材→ノート橋渡し（作成 or 既存を開く）
   const [showMembers,setShowMembers]=useState(false);
   const [lmsLoading,setLmsLoading]=useState(false);
   const [asgn,setAsgn]=useState(ASGN0);
@@ -775,6 +776,9 @@ export default function App(){
   const [navOrig,setNavOrig]=useState(null);
   const navCrs=id=>{setCid(id);setView("course");setCh("materials");};
   const goToBuilding=(destId,origId)=>{if(destId){setNavDest(destId);setNavOrig(origId||null);setView("navigation");}};
+  // 教材→ノート: PDF を端末ローカルのノートに取り込み手書き編集へ（年度/クォーター/講義メタ付き）
+  const annotateMaterial=({matId,name,base64,course})=>{setPendingNote({create:{base64,name,matId,courseId:course?.id,courseName:course?.name,courseCode:course?.code,year:course?.year||_selY,quarter:course?.quarter}});setView("notes");};
+  const openMaterialNote=(noteId)=>{setPendingNote({openId:noteId});setView("notes");};
   // togBmark is now from useBookmarks()
   const {groups:groupList,createGroup,leaveGroup}=useGroups(ready,user?.moodleId||user?.id);
   const {circles:circleList,messages:circleMsgs,discover:circleDiscover,sendMessage:circleSend,createCircle,joinCircle,leaveCircle,addChannel:circleAddCh,deleteChannel:circleDelCh,pinMessage:circlePin,updateCircle:circleUpdate,init:circleInit,fetchMessages:circleFetchMsgs}=useCircles(ready,user?.moodleId||user?.id);
@@ -927,7 +931,7 @@ export default function App(){
     if(ch==="timeline") return <FeedView course={cc} mob={mob} bmarks={bmarks} togBmark={togBmark} courses={allCourses} onOfflineQueue={enqueueOffline}/>;
     if(ch==="chat") return <ChatView course={cc} mob={mob}/>;
     if(ch==="assignments") return <AsgnView asgn={asgn} setAsgn={setAsgn} course={cc} mob={mob} courses={allCourses}/>;
-    if(ch==="materials") return <MatView course={cc} mob={mob} initialMatId={pendingMat?.courseId===cc.id?pendingMat.matId:null} onInitialConsumed={()=>setPendingMat(null)}/>;
+    if(ch==="materials") return <MatView course={cc} mob={mob} initialMatId={pendingMat?.courseId===cc.id?pendingMat.matId:null} onInitialConsumed={()=>setPendingMat(null)} onAnnotate={annotateMaterial} onOpenNote={openMaterialNote}/>;
     if(ch==="reviews") return <ReviewView reviews={reviews} setReviews={setReviews} course={cc} mob={mob} courses={allCourses}/>;
     return null;
   };
@@ -1050,7 +1054,7 @@ export default function App(){
           {view==="pocket"&&(L?<LockedView title={t("nav.pocket")}/>:<PocketView mob={false}/>)}
           {view==="music"&&(L?<LockedView title={t("tool.music")}/>:<MusicView mob={false}/>)}
           {view==="pdftools"&&(L?<LockedView title={t("nav.pdftools")}/>:<PdfToolsView mob={false}/>)}
-          {view==="notes"&&(L?<LockedView title={t("nav.notes")}/>:<NotesView mob={false}/>)}
+          {view==="notes"&&(L?<LockedView title={t("nav.notes")}/>:<NotesView mob={false} pendingNote={pendingNote} onPendingConsumed={()=>setPendingNote(null)}/>)}
           {view==="notif"&&(L?<LockedView title={t("nav.notif")}/>:<NotifView mob={false}/>)}
           {view==="grades"&&(L?<LockedView title={t("tool.grades")}/>:<GradeView mob={false}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
@@ -1105,7 +1109,7 @@ export default function App(){
         {view==="pocket"&&(L?<><MHdr title={t("nav.pocket")} back={mBack}/><LockedView title={t("nav.pocket")}/></>:<><MHdr title={t("nav.pocket")} back={mBack}/><PocketView mob/></>)}
         {view==="music"&&(L?<><MHdr title={t("tool.music")} back={mBack}/><LockedView title={t("tool.music")}/></>:<><MHdr title={t("tool.music")} back={mBack}/><MusicView mob/></>)}
         {view==="pdftools"&&(L?<><MHdr title={t("nav.pdftools")} back={mBack}/><LockedView title={t("nav.pdftools")}/></>:<><MHdr title={t("nav.pdftools")} back={mBack}/><PdfToolsView mob/></>)}
-        {view==="notes"&&(L?<><MHdr title={t("nav.notes")} back={mBack}/><LockedView title={t("nav.notes")}/></>:<NotesView mob onExit={mBack}/>)}
+        {view==="notes"&&(L?<><MHdr title={t("nav.notes")} back={mBack}/><LockedView title={t("nav.notes")}/></>:<NotesView mob onExit={mBack} pendingNote={pendingNote} onPendingConsumed={()=>setPendingNote(null)}/>)}
         {view==="notif"&&(L?<><MHdr title={t("nav.notif")} back={mBack}/><LockedView title={t("nav.notif")}/></>:<><MHdr title={t("nav.notif")} back={mBack}/><NotifView mob/></>)}
         {view==="grades"&&(L?<><MHdr title={t("tool.grades")} back={mBack}/><LockedView title={t("tool.grades")}/></>:<><MHdr title={t("tool.grades")} back={mBack}/><GradeView mob/></>)}
         {view==="pomo"&&<><MHdr title={t("tool.pomo")} back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
