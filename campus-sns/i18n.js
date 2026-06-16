@@ -126,6 +126,9 @@ const M = {
   "sidebar.schools":  { ja:"学院",         en:"Schools",     zh:"学院",       ko:"단과대학" , tp:"kulupu sona suli" },
   "sidebar.depts":    { ja:"学系",         en:"Departments", zh:"学系",       ko:"학과" , tp:"kulupu sona" },
   "sidebar.unit":     { ja:"ユニット",     en:"Unit",        zh:"单元",       ko:"유닛" , tp:"kulupu lili" },
+  "sidebar.study":    { ja:"学習",         en:"Study",       zh:"学习",       ko:"학습" , tp:"kama sona" },
+  "sidebar.social":   { ja:"SNS",          en:"Social",      zh:"社交",       ko:"소셜" , tp:"toki" },
+  "sidebar.campus":   { ja:"キャンパス",   en:"Campus",      zh:"校园",       ko:"캠퍼스" , tp:"tomo sona" },
   "sidebar.nendo":    { ja:"年度",         en:"",            zh:"学年度",     ko:"학년도" , tp:"sike tenpo sona" },
 
   // ── ツールメニュー項目 ──────────────────────────────────
@@ -157,6 +160,7 @@ const M = {
   "more.gradesEval":      { ja:"成績・評価",   en:"Grades & Reviews", zh:"成绩·评价", ko:"성적·평가" , tp:"nanpa en toki pona ike" },
   "more.courses":         { ja:"履修・授業",   en:"Courses",       zh:"选课·课程", ko:"수강·강의" , tp:"kulupu sona" },
   "more.regAssist":       { ja:"履修登録補助", en:"Registration Helper", zh:"选课辅助", ko:"수강신청 도우미" , tp:"ilo pi awen e sona sina" },
+  "more.utility":         { ja:"便利ツール",   en:"Utilities",   zh:"实用工具",   ko:"유틸리티" , tp:"ilo" },
   "more.learningTools":   { ja:"学習ツール",   en:"Study Tools",   zh:"学习工具",  ko:"학습 도구" , tp:"ilo pi kama sona" },
   "more.pomoTimer":       { ja:"ポモドーロタイマー", en:"Pomodoro Timer", zh:"番茄钟", ko:"뽀모도로 타이머" , tp:"ilo tenpo Pomodoro" },
   "more.campus":          { ja:"キャンパス",   en:"Campus",        zh:"校园",      ko:"캠퍼스" , tp:"tomo sona suli" },
