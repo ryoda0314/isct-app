@@ -31,6 +31,7 @@ const tabs = [
   { id: "exams", labelKey: "admin.tab.exams", icon: I.clip },
   { id: "t2schola", labelKey: "admin.tab.t2schola", icon: I.search },
   { id: "user_analytics", labelKey: "admin.tab.userAnalytics", icon: I.bar },
+  { id: "analytics", labelKey: "admin.tab.analytics", icon: I.poll },
   { id: "guests", labelKey: "admin.tab.guests", icon: I.eye },
   { id: "med_syllabus", labelKey: "admin.tab.medSyllabus", icon: I.cal },
   { id: "med_fetch", labelKey: "admin.tab.medFetch", icon: I.cal },
@@ -98,6 +99,245 @@ const MiniChart = ({ data, color, height = 60 }) => {
         <span>{entries[0]?.[0]?.slice(5)}</span>
         <span>{entries[entries.length - 1]?.[0]?.slice(5)}</span>
       </div>
+    </div>
+  );
+};
+
+// ---- Richer SVG charts for the Analytics tab ----
+const fmtDay = (d) => (d || "").slice(5); // YYYY-MM-DD -> MM-DD
+const niceMax = (v) => {
+  if (v <= 5) return Math.max(Math.ceil(v), 1);
+  const pow = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v / pow;
+  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  return step * pow;
+};
+
+// Line chart with y-axis, gridlines, optional area fill and an interactive tooltip.
+const LineChart = ({ data, valueKey, color = T.accent, height = 150, area = true, fmt = (v) => v }) => {
+  const [hover, setHover] = useState(null);
+  const W = 600, padL = 44, padR = 12, padT = 10, padB = 22;
+  const pts = (data || []).map(d => ({ x: d.day, y: Number(d[valueKey]) || 0 }));
+  if (!pts.length) return <div style={{ fontSize: 12, color: T.txD }}>{t("admin.noData")}</div>;
+  const maxY = niceMax(Math.max(...pts.map(p => p.y), 1));
+  const innerW = W - padL - padR, innerH = height - padT - padB;
+  const X = (i) => padL + (pts.length === 1 ? innerW / 2 : (i / (pts.length - 1)) * innerW);
+  const Y = (v) => padT + innerH - (v / maxY) * innerH;
+  const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${X(i).toFixed(1)},${Y(p.y).toFixed(1)}`).join(" ");
+  const areaPath = `${line} L${X(pts.length - 1).toFixed(1)},${(padT + innerH).toFixed(1)} L${X(0).toFixed(1)},${(padT + innerH).toFixed(1)} Z`;
+  const ticks = [0, 0.5, 1].map(f => Math.round(maxY * f));
+  const xLabelIdx = [0, Math.floor(pts.length / 2), pts.length - 1];
+  return (
+    <div style={{ position: "relative" }}>
+      <svg viewBox={`0 0 ${W} ${height}`} width="100%" height={height} preserveAspectRatio="none"
+        onMouseLeave={() => setHover(null)}
+        onMouseMove={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const rx = ((e.clientX - rect.left) / rect.width) * W;
+          let idx = pts.length === 1 ? 0 : Math.round(((rx - padL) / innerW) * (pts.length - 1));
+          setHover(Math.max(0, Math.min(pts.length - 1, idx)));
+        }}>
+        {ticks.map((tk, i) => {
+          const yy = Y(tk);
+          return (
+            <g key={i}>
+              <line x1={padL} y1={yy} x2={W - padR} y2={yy} stroke={T.bd} strokeWidth="1" />
+              <text x={padL - 6} y={yy + 3} textAnchor="end" fontSize="9" fill={T.txD}>{tk}</text>
+            </g>
+          );
+        })}
+        {area && <path d={areaPath} fill={color} fillOpacity="0.12" stroke="none" />}
+        <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+        {hover != null && (
+          <g>
+            <line x1={X(hover)} y1={padT} x2={X(hover)} y2={padT + innerH} stroke={color} strokeWidth="1" strokeDasharray="3 3" />
+            <circle cx={X(hover)} cy={Y(pts[hover].y)} r="3.5" fill={color} stroke={T.bg2} strokeWidth="1.5" />
+          </g>
+        )}
+        {xLabelIdx.map((i, k) => (
+          <text key={k} x={X(i)} y={height - 6} textAnchor={k === 0 ? "start" : k === 2 ? "end" : "middle"} fontSize="9" fill={T.txD}>{fmtDay(pts[i].x)}</text>
+        ))}
+      </svg>
+      {hover != null && (
+        <div style={{ position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)", background: T.bg2, border: `1px solid ${T.bd}`, borderRadius: 8, padding: "4px 10px", fontSize: 11, color: T.txH, pointerEvents: "none", whiteSpace: "nowrap" }}>
+          <span style={{ color: T.txD }}>{pts[hover].x}</span> · <b style={{ color }}>{fmt(pts[hover].y)}</b>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Stacked bar chart (1+ series) with y-axis, gridlines and a per-day tooltip.
+const StackedBars = ({ data, keys, height = 160 }) => {
+  const [hover, setHover] = useState(null);
+  const rows = data || [];
+  if (!rows.length) return <div style={{ fontSize: 12, color: T.txD }}>{t("admin.noData")}</div>;
+  const totals = rows.map(r => keys.reduce((s, k) => s + (Number(r[k.key]) || 0), 0));
+  const maxY = niceMax(Math.max(...totals, 1));
+  const W = 600, padL = 44, padR = 12, padT = 10, padB = 22;
+  const innerW = W - padL - padR, innerH = height - padT - padB;
+  const bw = innerW / rows.length;
+  const ticks = [0, 0.5, 1].map(f => Math.round(maxY * f));
+  const xLabelIdx = [0, Math.floor(rows.length / 2), rows.length - 1];
+  return (
+    <div style={{ position: "relative" }}>
+      <svg viewBox={`0 0 ${W} ${height}`} width="100%" height={height} preserveAspectRatio="none" onMouseLeave={() => setHover(null)}>
+        {ticks.map((tk, i) => {
+          const yy = padT + innerH - (tk / maxY) * innerH;
+          return (
+            <g key={i}>
+              <line x1={padL} y1={yy} x2={W - padR} y2={yy} stroke={T.bd} strokeWidth="1" />
+              <text x={padL - 6} y={yy + 3} textAnchor="end" fontSize="9" fill={T.txD}>{tk}</text>
+            </g>
+          );
+        })}
+        {rows.map((r, i) => {
+          let yAcc = padT + innerH;
+          const x = padL + i * bw;
+          return (
+            <g key={i} onMouseEnter={() => setHover(i)}>
+              {keys.map(k => {
+                const v = Number(r[k.key]) || 0;
+                const h = (v / maxY) * innerH;
+                yAcc -= h;
+                if (v === 0) return null;
+                return <rect key={k.key} x={x + bw * 0.12} y={yAcc} width={Math.max(bw * 0.76, 0.5)} height={h} fill={k.color} />;
+              })}
+              <rect x={x} y={padT} width={bw} height={innerH} fill="transparent" />
+            </g>
+          );
+        })}
+        {xLabelIdx.map((i, k) => (
+          <text key={k} x={padL + i * bw + bw / 2} y={height - 6} textAnchor={k === 0 ? "start" : k === 2 ? "end" : "middle"} fontSize="9" fill={T.txD}>{fmtDay(rows[i].day)}</text>
+        ))}
+      </svg>
+      {hover != null && (
+        <div style={{ position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)", background: T.bg2, border: `1px solid ${T.bd}`, borderRadius: 8, padding: "6px 10px", fontSize: 11, color: T.txH, pointerEvents: "none", whiteSpace: "nowrap" }}>
+          <div style={{ color: T.txD, marginBottom: 3 }}>{rows[hover].day}</div>
+          {keys.map(k => (
+            <div key={k.key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: k.color, display: "inline-block" }} /> {k.label}: <b>{Number(rows[hover][k.key]) || 0}</b>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ChartCard = ({ title, desc, children }) => (
+  <div style={{ padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
+    <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: desc ? 2 : 10 }}>{title}</div>
+    {desc && <div style={{ fontSize: 11, color: T.txD, marginBottom: 10 }}>{desc}</div>}
+    {children}
+  </div>
+);
+
+const ChartLegend = ({ items }) => (
+  <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 10 }}>
+    {items.map(it => (
+      <div key={it.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: T.txD }}>
+        <span style={{ width: 10, height: 10, borderRadius: 3, background: it.color, display: "inline-block" }} /> {it.label}
+      </div>
+    ))}
+  </div>
+);
+
+// ---- Analytics Tab (growth & activity time-series) ----
+const AnalyticsTab = () => {
+  const [range, setRange] = useState(90);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${API}/api/admin?action=analytics&range=${range}`)
+      .then(r => r.json())
+      .then(setData)
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [range]);
+
+  const stats = useMemo(() => {
+    if (!data?.growth?.length) return null;
+    const g = data.growth, a = data.activity || [];
+    const newInPeriod = g.reduce((s, r) => s + r.new, 0);
+    const baseline = (g[0]?.cumulative || 0) - (g[0]?.new || 0);
+    const growthRate = baseline > 0 ? (newInPeriod / baseline) * 100 : null;
+    const peakReg = g.reduce((m, r) => (r.new > m.new ? r : m), g[0]);
+    const avgActive = a.length ? a.reduce((s, r) => s + r.active, 0) / a.length : 0;
+    const totalContent = a.reduce((s, r) => s + r.posts + r.comments + r.messages + r.dms, 0);
+    const sn = data.snapshot || {};
+    const stickiness = sn.mau > 0 ? (sn.dau / sn.mau) * 100 : null;
+    return { newInPeriod, growthRate, peakReg, avgActive, totalContent, stickiness };
+  }, [data]);
+
+  const sn = data?.snapshot || {};
+  const contentKeys = [
+    { key: "posts", label: t("admin.stat.postsShort"), color: T.accent },
+    { key: "comments", label: t("admin.stat.commentsShort"), color: T.green },
+    { key: "messages", label: t("admin.stat.chat"), color: T.orange },
+    { key: "dms", label: "DM", color: "#c6a236" },
+  ];
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.an.title")}</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {[30, 90, 180, 365].map(r => (
+            <button key={r} onClick={() => setRange(r)} style={{
+              padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: range === r ? 600 : 400,
+              border: `1px solid ${range === r ? T.accent : T.bd}`,
+              background: range === r ? `${T.accent}18` : T.bg3, color: range === r ? T.accent : T.txD, cursor: "pointer",
+            }}>{t("admin.an.daysN", { n: r })}</button>
+          ))}
+        </div>
+      </div>
+
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
+      {!loading && !data && <div style={{ color: T.txD, fontSize: 13 }}>{t("admin.fetchDataFailed")}</div>}
+      {!loading && data && (
+        <>
+          {/* Live snapshot */}
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+            <Card label={t("admin.an.totalUsers")} value={sn.total} color={T.accent} />
+            <Card label={t("admin.stat.dau")} value={sn.dau} color={T.green} />
+            <Card label={t("admin.stat.wau")} value={sn.wau} color={T.accent} />
+            <Card label={t("admin.stat.mau")} value={sn.mau} color={T.orange} />
+            <Card label={t("admin.an.stickiness")} value={stats?.stickiness != null ? `${stats.stickiness.toFixed(1)}%` : "-"} color="#c6a236" />
+          </div>
+          {/* Period summary */}
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+            <Card label={t("admin.an.newInPeriod")} value={stats?.newInPeriod} color={T.green} />
+            <Card label={t("admin.an.avgPerDay")} value={stats ? (stats.newInPeriod / range).toFixed(1) : "-"} color={T.accent} />
+            <Card label={t("admin.an.growthRate")} value={stats?.growthRate != null ? `+${stats.growthRate.toFixed(1)}%` : "-"} color={T.green} />
+            <Card label={t("admin.an.avgActive")} value={stats ? stats.avgActive.toFixed(1) : "-"} color={T.orange} />
+            <Card label={t("admin.an.totalContent")} value={stats?.totalContent} color="#c6a236" />
+          </div>
+
+          <ChartCard title={t("admin.an.userGrowth")} desc={t("admin.an.userGrowthDesc")}>
+            <LineChart data={data.growth} valueKey="cumulative" color={T.accent} height={170} />
+          </ChartCard>
+
+          <ChartCard title={t("admin.an.newUsers")} desc={stats?.peakReg ? t("admin.an.peakDay", { day: stats.peakReg.day, n: stats.peakReg.new }) : undefined}>
+            <StackedBars data={data.growth} keys={[{ key: "new", label: t("admin.an.newUsers"), color: T.green }]} height={140} />
+          </ChartCard>
+
+          <ChartCard title={t("admin.an.activeUsers")} desc={t("admin.an.activeUsersDesc")}>
+            <LineChart data={data.activity} valueKey="active" color={T.orange} height={150} />
+          </ChartCard>
+
+          <ChartCard title={t("admin.an.contentActivity")} desc={t("admin.an.contentActivityDesc")}>
+            <StackedBars data={data.activity} keys={contentKeys} height={170} />
+            <ChartLegend items={contentKeys} />
+          </ChartCard>
+
+          {data.source === "fallback" && (
+            <div style={{ fontSize: 11, color: T.txD, marginTop: -6 }}>{t("admin.an.fallbackNote")}</div>
+          )}
+        </>
+      )}
     </div>
   );
 };
@@ -4012,6 +4252,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "exams" && <ExamTab />}
         {tab === "t2schola" && <T2ScholaTab />}
         {tab === "user_analytics" && <UserAnalyticsTab />}
+        {tab === "analytics" && <AnalyticsTab />}
         {tab === "guests" && <GuestAnalyticsTab />}
         {tab === "med_syllabus" && <MedSyllabusTab />}
         {tab === "med_fetch" && <MedSyllabusFetchTab />}

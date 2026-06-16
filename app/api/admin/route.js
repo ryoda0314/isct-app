@@ -779,6 +779,89 @@ export async function GET(request) {
       return NextResponse.json({ sessions: data || [], total: count || 0, page });
     }
 
+    // --- Growth & activity analytics (time-series for the Analytics tab) ---
+    if (action === 'analytics') {
+      const range = Math.min(365, Math.max(7, parseInt(searchParams.get('range')) || 90));
+      const now = Date.now();
+      const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+      const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      // Live snapshot (DAU/WAU/MAU + total) — cheap count(head) queries.
+      const [totalUsers, dau, wau, mau, gRpc, aRpc] = await Promise.all([
+        sb.from('profiles').select('*', { count: 'exact', head: true }),
+        sb.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', dayAgo),
+        sb.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', weekAgo),
+        sb.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', monthAgo),
+        sb.rpc('admin_growth_daily', { p_days: range }),
+        sb.rpc('admin_activity_daily', { p_days: range }),
+      ]);
+
+      let growth, activity, source = 'rpc';
+      if (!gRpc.error && !aRpc.error && gRpc.data && aRpc.data) {
+        growth = gRpc.data.map(r => ({ day: r.day, new: Number(r.new_users), cumulative: Number(r.cumulative) }));
+        activity = aRpc.data.map(r => ({
+          day: r.day, active: Number(r.active_users), posts: Number(r.posts),
+          comments: Number(r.comments), messages: Number(r.messages), dms: Number(r.dms),
+        }));
+      } else {
+        // Fallback: analytics.sql not applied yet — aggregate in JS (heavier).
+        source = 'fallback';
+        const tokyoDay = (iso) => new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const todayTokyo = tokyoDay(new Date(now).toISOString());
+        const startMs = new Date(`${todayTokyo}T00:00:00+09:00`).getTime() - (range - 1) * 24 * 60 * 60 * 1000;
+        const startDay = tokyoDay(new Date(startMs).toISOString());
+        const startISO = new Date(startMs).toISOString();
+        const days = [];
+        for (let i = 0; i < range; i++) days.push(tokyoDay(new Date(startMs + i * 24 * 60 * 60 * 1000).toISOString()));
+
+        const pageAll = async (table, cols) => {
+          const PAGE = 1000; let rows = [], from = 0;
+          while (true) {
+            const { data, error } = await sb.from(table).select(cols).gte('created_at', startISO)
+              .order('created_at', { ascending: true }).range(from, from + PAGE - 1);
+            if (error || !data?.length) break;
+            rows = rows.concat(data);
+            if (data.length < PAGE) break;
+            from += PAGE;
+          }
+          return rows;
+        };
+
+        const [profRows, postRows, commentRows, msgRows, dmRows] = await Promise.all([
+          pageAll('profiles', 'created_at'),
+          pageAll('posts', 'moodle_user_id, created_at'),
+          pageAll('comments', 'moodle_user_id, created_at'),
+          pageAll('messages', 'moodle_user_id, created_at'),
+          pageAll('dm_messages', 'sender_id, created_at'),
+        ]);
+
+        const newByDay = {};
+        profRows.forEach(r => { const d = tokyoDay(r.created_at); if (d >= startDay) newByDay[d] = (newByDay[d] || 0) + 1; });
+        const baseline = (totalUsers.count || 0) - profRows.filter(r => tokyoDay(r.created_at) >= startDay).length;
+        let cum = baseline;
+        growth = days.map(d => { cum += (newByDay[d] || 0); return { day: d, new: newByDay[d] || 0, cumulative: cum }; });
+
+        const act = {};
+        days.forEach(d => { act[d] = { active: new Set(), posts: 0, comments: 0, messages: 0, dms: 0 }; });
+        const tally = (rows, idCol, kind) => rows.forEach(r => {
+          const d = tokyoDay(r.created_at); if (!act[d]) return;
+          act[d][kind]++; if (r[idCol] != null) act[d].active.add(r[idCol]);
+        });
+        tally(postRows, 'moodle_user_id', 'posts');
+        tally(commentRows, 'moodle_user_id', 'comments');
+        tally(msgRows, 'moodle_user_id', 'messages');
+        tally(dmRows, 'sender_id', 'dms');
+        activity = days.map(d => ({ day: d, active: act[d].active.size, posts: act[d].posts, comments: act[d].comments, messages: act[d].messages, dms: act[d].dms }));
+      }
+
+      return NextResponse.json({
+        range, source,
+        snapshot: { total: totalUsers.count || 0, dau: dau.count || 0, wau: wau.count || 0, mau: mau.count || 0 },
+        growth, activity,
+      });
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (e) {
     console.error('[Admin GET]', e);
