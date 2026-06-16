@@ -16,7 +16,7 @@ import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUn
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v16-icons";
+const NOTES_VERSION = "v17-monowidth";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -524,6 +524,7 @@ export function NotesView({ mob, onExit }) {
 //  ネイティブ PKCanvasView を重ねる。サイドバーは App 側でそのまま表示される。
 // ══════════════════════════════════════════════
 const NPEN_SIZES = [5, 9, 16];
+const NMONO_SIZES = [2, 4, 7]; // 一律ペンは指定幅で一定太さになるため細めの値
 const NHL_SIZES = [22, 40];
 const NERASER_SIZES = [40, 80];
 
@@ -552,7 +553,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const [monoColor, setMonoColor] = useState(PEN_COLORS[2]);
   const [hlColor, setHlColor] = useState(HL_COLORS[0]);
   const [penW, setPenW] = useState(NPEN_SIZES[1]);
-  const [monoW, setMonoW] = useState(NPEN_SIZES[1]);
+  const [monoW, setMonoW] = useState(NMONO_SIZES[1]);
   const [hlW, setHlW] = useState(NHL_SIZES[0]);
   const [eraserW, setEraserW] = useState(NERASER_SIZES[0]);
   const [eraserMode, setEraserMode] = useState("stroke"); // stroke=線ごと / pixel=部分消し
@@ -632,11 +633,11 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const palette = tool === "highlighter" ? HL_COLORS : PEN_COLORS;
   const curColor = tool === "mono" ? monoColor : tool === "highlighter" ? hlColor : penColor;
   const setColor = (c) => { if (tool === "mono") setMonoColor(c); else if (tool === "highlighter") setHlColor(c); else setPenColor(c); };
-  const sizes = tool === "eraser" ? NERASER_SIZES : tool === "highlighter" ? NHL_SIZES : NPEN_SIZES;
+  const sizes = tool === "eraser" ? NERASER_SIZES : tool === "mono" ? NMONO_SIZES : tool === "highlighter" ? NHL_SIZES : NPEN_SIZES;
   const curSize = tool === "mono" ? monoW : tool === "highlighter" ? hlW : tool === "eraser" ? eraserW : penW;
   const setSize = (s) => { if (tool === "mono") setMonoW(s); else if (tool === "highlighter") setHlW(s); else if (tool === "eraser") setEraserW(s); else setPenW(s); };
   const dotColor = tool === "eraser" ? T.txD : curColor === "#ffffff" ? "#999" : curColor;
-  const sizeDiv = tool === "eraser" ? 8 : tool === "highlighter" ? 4 : 2.2;
+  const sizeDiv = tool === "eraser" ? 8 : tool === "highlighter" ? 4 : tool === "mono" ? 0.9 : 2.2;
 
   const TOOLS = [
     { id: "pen", icon: TOOL_ICONS.pen, label: t("notes.penPressure") },
