@@ -3,7 +3,7 @@ import { T } from "../theme.js";
 import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { isNative } from "../capacitor.js";
-import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUndo, inkRedo, inkSnapshot } from "../plugins/inkCanvas.js";
+import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUndo, inkRedo, inkSnapshot, onPencilDoubleTap } from "../plugins/inkCanvas.js";
 
 /* ──────────────────────────────────────────────
    GoodNotes 風 手書きノート
@@ -16,7 +16,7 @@ import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUn
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v23-monodefault";
+const NOTES_VERSION = "v24-pencildtap";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -566,6 +566,26 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
     else if (tool === "highlighter") setInkTool({ type: "highlighter", color: hlColor, width: hlW });
     else setInkTool({ type: "eraser", width: eraserW, mode: eraserMode });
   }, [ready, tool, penColor, monoColor, hlColor, penW, monoW, hlW, eraserW, eraserMode]);
+
+  // 直前のツールを記憶（Apple Pencil ダブルタップの「前のツールに戻す」用）
+  const prevToolRef = useRef("pen");
+  const curToolRef = useRef(tool);
+  useEffect(() => { if (curToolRef.current !== tool) { prevToolRef.current = curToolRef.current; curToolRef.current = tool; } }, [tool]);
+
+  // Apple Pencil ダブルタップ → ツール切替（設定を尊重）。ツールバー表示も同期される
+  useEffect(() => {
+    let handle;
+    (async () => {
+      handle = await onPencilDoubleTap((ev) => {
+        const action = ev?.action || "switchEraser";
+        if (action === "ignore") return;
+        if (action === "switchPrevious") { setTool(prevToolRef.current || "pen"); return; }
+        // switchEraser など → 現ツール↔消しゴムをトグル
+        setTool((cur) => cur === "eraser" ? (prevToolRef.current && prevToolRef.current !== "eraser" ? prevToolRef.current : "mono") : "eraser");
+      });
+    })();
+    return () => { try { handle && handle.remove && handle.remove(); } catch {} };
+  }, []);
 
   // 編集中にこのノートを「描き込み済みPDF」で書き出す
   async function exportCurrent() {

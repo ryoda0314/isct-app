@@ -56,6 +56,9 @@ public class InkPlugin: CAPPlugin, CAPBridgedPlugin {
             guard let host = self.webView else { call.reject("no webView"); return }
             self.overlay?.teardown(); self.overlay?.removeFromSuperview()
             let ov = InkOverlayView(frame: rect, pages: pages, drawing: drawing)
+            ov.onPencilTap = { [weak self] action in
+                self?.notifyListeners("pencilDoubleTap", data: ["action": action])
+            }
             host.addSubview(ov)
             host.bringSubviewToFront(ov)
             self.overlay = ov
@@ -116,7 +119,8 @@ struct InkPage { let w: CGFloat; let h: CGFloat; let bg: UIImage? }
 /// 構成: PKCanvasView 自身をスクロールビューとして使い（＝入力座標が常に正確）、
 ///       背景画像はその中に縦積みで敷く。ペンのみ描画・指でスクロール。
 /// ※ ズームは入力ズレ防止のため一旦無効（min=max=1）。スクロールは有効。
-class InkOverlayView: UIView, PKCanvasViewDelegate {
+class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate {
+    var onPencilTap: ((String) -> Void)?
     private var pages: [InkPage]
     private let canvasView = PKCanvasView()
     private let bgContainer = UIView()
@@ -159,6 +163,20 @@ class InkOverlayView: UIView, PKCanvasViewDelegate {
         relayout()
         setupTool()
         startBgSync()
+        if #available(iOS 12.1, *) {
+            let pi = UIPencilInteraction(); pi.delegate = self; addInteraction(pi)
+        }
+    }
+
+    // Apple Pencil ダブルタップ。ユーザー設定を尊重して Web に通知（Webがツール切替）
+    @available(iOS 12.1, *)
+    func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
+        let a = UIPencilInteraction.preferredTapAction
+        let s: String
+        if a == .switchPrevious { s = "switchPrevious" }
+        else if a == .ignore { s = "ignore" }
+        else { s = "switchEraser" } // 消しゴム切替・その他はトグル扱い
+        onPencilTap?(s)
     }
 
     // scroll/zoom の変化と同じタイミングで背景・マスクを同期（遅延ゼロ＝バウンス中もズレない）
