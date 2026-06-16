@@ -16,7 +16,7 @@ import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUn
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v15-pens";
+const NOTES_VERSION = "v16-icons";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -527,6 +527,15 @@ const NPEN_SIZES = [5, 9, 16];
 const NHL_SIZES = [22, 40];
 const NERASER_SIZES = [40, 80];
 
+// ツール用ライン系アイコン（絵文字をやめて既存アイコンと統一感のあるSVGに）
+const svgProps = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" };
+const TOOL_ICONS = {
+  pen: (<svg {...svgProps}><path d="M4 20l3.8-.9L19 7.9a2.1 2.1 0 1 0-3-3L4.9 16.2 4 20z" /><path d="M13.5 6.5l3 3" /></svg>),
+  mono: (<svg {...svgProps}><path d="M7 18l2.2-.5L18 8.8a1.7 1.7 0 0 0-2.4-2.4L6.8 15.2 7 18z" /><circle cx="7" cy="17.4" r="1.1" /></svg>),
+  highlighter: (<svg {...svgProps}><path d="M4 21h16" /><path d="M8.5 13.5l-2 2V18h2.5l2-2" /><path d="M8.5 13.5l6.5-6.5 3 3-6.5 6.5z" /></svg>),
+  eraser: (<svg {...svgProps}><path d="M4 21h16" /><path d="M8.5 18.5l-3.4-3.4a1.5 1.5 0 0 1 0-2.1l6.6-6.6a1.5 1.5 0 0 1 2.1 0l3.8 3.8a1.5 1.5 0 0 1 0 2.1L15 18.5z" /></svg>),
+};
+
 function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const hostRef = useRef(null);
   const noteRef = useRef(null);
@@ -630,10 +639,10 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const sizeDiv = tool === "eraser" ? 8 : tool === "highlighter" ? 4 : 2.2;
 
   const TOOLS = [
-    { id: "pen", icon: "✒️", label: t("notes.penPressure") },
-    { id: "mono", icon: "🖊️", label: t("notes.penMono") },
-    { id: "highlighter", icon: "🖍️", label: t("notes.highlighter") },
-    { id: "eraser", icon: "🧽", label: t("notes.eraser") },
+    { id: "pen", icon: TOOL_ICONS.pen, label: t("notes.penPressure") },
+    { id: "mono", icon: TOOL_ICONS.mono, label: t("notes.penMono") },
+    { id: "highlighter", icon: TOOL_ICONS.highlighter, label: t("notes.highlighter") },
+    { id: "eraser", icon: TOOL_ICONS.eraser, label: t("notes.eraser") },
   ];
   const IconBtn = ({ onClick, children, title: tt, disabled }) => (
     <button title={tt} onClick={onClick} disabled={disabled} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: 9, border: "none", background: "transparent", color: T.txH, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.4 : 1 }}>{children}</button>
@@ -649,7 +658,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
           {TOOLS.map((tl) => (
             <button key={tl.id} onClick={() => setTool(tl.id)} title={tl.label}
               style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, minWidth: 46, height: 42, borderRadius: 9, border: "none", background: tool === tl.id ? T.bg2 : "transparent", boxShadow: tool === tl.id ? `0 1px 3px ${T.bd}` : "none", cursor: "pointer" }}>
-              <span style={{ fontSize: 17, lineHeight: 1 }}>{tl.icon}</span>
+              <span style={{ display: "flex", color: tool === tl.id ? T.accent : T.txH }}>{tl.icon}</span>
               <span style={{ fontSize: 9, fontWeight: 700, color: tool === tl.id ? T.accent : T.txD }}>{tl.label}</span>
             </button>
           ))}
