@@ -404,7 +404,7 @@ async function buildNotePdfBytes(note) {
 // ══════════════════════════════════════════════
 // ライブラリ（ノート一覧）
 // ══════════════════════════════════════════════
-export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
+export function NotesView({ mob, onExit, courses, pendingNote, onPendingConsumed }) {
   const [screen, setScreen] = useState("library");
   const [index, setIndex] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -419,12 +419,16 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
   const [libMode, setLibMode] = useState(() => {
     try { return localStorage.getItem("notesLibMode") === "folder" ? "folder" : "group"; } catch { return "group"; }
   });
-  const [folderPath, setFolderPath] = useState([]); // フォルダ階層の現在位置（[{type,key,label}]）
+  const [folderPath, setFolderPath] = useState([]); // フォルダ表示の現在位置（[]=講義一覧 / [{type:"course"|"uncat",...}]）
+  const [folderQ, setFolderQ] = useState(0); // フォルダ表示のクォーター絞り込み（0=すべて）
   const setLibModePersist = (m) => {
     setLibMode(m);
     try { localStorage.setItem("notesLibMode", m); } catch {}
     if (m === "folder") setFolderPath([]);
   };
+  // courseId → 時間割の科目色 のマップ
+  const courseColors = {};
+  (courses || []).forEach((c) => { if (c && c.id != null) courseColors[c.id] = c.col; });
   const fileRef = useRef(null);
 
   useEffect(() => { setIndex(loadIndex()); }, []);
@@ -628,68 +632,65 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
 
         // ── GoodNotes 風フォルダ表示（年度 → クォーター → 講義 → ノート）──
         if (libMode === "folder") {
-          const countCourse = (cg) => cg.sessions.reduce((a, s) => a + s.notes.length, 0);
-          const countQuarter = (qg) => qg.courses.reduce((a, c) => a + countCourse(c), 0);
-          const countYear = (yg) => yg.quarters.reduce((a, q) => a + countQuarter(q), 0);
+          // 年度フォルダは作らない。講義(科目)をフォルダにし、クォーターは上部トグルで絞り込む。
+          // 同一courseIdが複数年度に跨る場合はノートをまとめて1フォルダにする。
+          const courseMap = new Map(); // id -> { id, name, col, quarter, notes:[] }
+          for (const yg of years) for (const qg of yg.quarters) for (const cg of qg.courses) {
+            const notes = cg.sessions.flatMap((s) => s.notes);
+            if (!courseMap.has(cg.id)) {
+              courseMap.set(cg.id, { id: cg.id, name: cg.name, col: courseColors[cg.id] || T.accent, quarter: qg.quarter || 0, notes: [...notes] });
+            } else {
+              courseMap.get(cg.id).notes.push(...notes);
+            }
+          }
+          const courseList = [...courseMap.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), "ja"));
+          const quartersPresent = [...new Set(courseList.map((c) => c.quarter).filter((q) => q > 0))].sort((a, b) => a - b);
 
-          const folderTile = (key, label, count, onOpen) => (
+          const tilesGrid = (children) => (
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${mob ? 110 : 140}px, 1fr))`, gap: 14 }}>{children}</div>
+          );
+          // 科目色で着色したフォルダタイル
+          const courseTile = (key, label, count, col, onOpen) => (
             <button key={key} onClick={onOpen}
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: mob ? "14px 8px" : "18px 10px", borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg2, cursor: "pointer", transition: "all .12s" }}>
-              <span style={{ width: mob ? 46 : 56, height: mob ? 46 : 56, color: T.accent, display: "flex" }}>{FOLDER_ICON}</span>
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: mob ? "14px 8px" : "18px 10px", borderRadius: 12, border: `1px solid ${col}40`, background: `${col}0f`, cursor: "pointer", transition: "all .12s" }}>
+              <span style={{ width: mob ? 46 : 56, height: mob ? 46 : 56, color: col, display: "flex" }}>{FOLDER_ICON}</span>
               <span style={{ fontSize: 12, fontWeight: 700, color: T.txH, textAlign: "center", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.3 }}>{label}</span>
               <span style={{ fontSize: 10, fontWeight: 600, color: T.txD }}>{t("notes.itemCount", { n: count })}</span>
             </button>
           );
-          const tilesGrid = (children) => (
-            <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${mob ? 110 : 140}px, 1fr))`, gap: 14 }}>{children}</div>
-          );
 
-          const yearByKey = (k) => years.find((y) => String(y.year) === String(k));
-          const depth = folderPath.length;
           const head = folderPath[0];
           let content = null;
 
-          const renderRoot = () => {
-            const tiles = years.map((yg) =>
-              folderTile(`y${yg.year}`, yg.year ? t("notes.yearLabel", { year: yg.year }) : t("notes.uncategorized"), countYear(yg),
-                () => setFolderPath([{ type: "year", key: yg.year, label: yg.year ? t("notes.yearLabel", { year: yg.year }) : t("notes.uncategorized") }]))
+          if (!head) {
+            // ルート: クォーター絞り込み後の講義フォルダ一覧 ＋（すべて時のみ）その他
+            const shown = folderQ === 0 ? courseList : courseList.filter((c) => c.quarter === folderQ);
+            const tiles = shown.map((c) =>
+              courseTile(c.id, c.name, c.notes.length, c.col,
+                () => setFolderPath([{ type: "course", key: c.id, label: c.name }])));
+            if (folderQ === 0 && uncat.length) {
+              tiles.push(courseTile("uncat", t("notes.uncategorized"), uncat.length, T.txD,
+                () => setFolderPath([{ type: "uncat", label: t("notes.uncategorized") }])));
+            }
+            content = tiles.length ? tilesGrid(tiles) : (
+              <div style={{ color: T.txD, fontSize: 13, textAlign: "center", padding: "40px 0" }}>{t("notes.empty")}</div>
             );
-            if (uncat.length) tiles.push(folderTile("uncat", t("notes.uncategorized"), uncat.length, () => setFolderPath([{ type: "uncat", label: t("notes.uncategorized") }])));
-            return tilesGrid(tiles);
-          };
-
-          if (depth === 0) {
-            content = renderRoot();
           } else if (head.type === "uncat") {
             content = grid(uncat);
           } else {
-            const yg = yearByKey(head.key);
-            if (!yg) { content = renderRoot(); }
-            else if (depth === 1) {
-              content = tilesGrid(yg.quarters.map((qg) =>
-                folderTile(`q${qg.quarter}`, qg.quarter ? t("notes.quarterLabel", { q: qg.quarter }) : t("notes.uncategorized"), countQuarter(qg),
-                  () => setFolderPath([...folderPath, { type: "quarter", key: qg.quarter, label: qg.quarter ? t("notes.quarterLabel", { q: qg.quarter }) : t("notes.uncategorized") }]))));
-            } else {
-              const qg = yg.quarters.find((q) => String(q.quarter) === String(folderPath[1].key));
-              if (!qg) { content = renderRoot(); }
-              else if (depth === 2) {
-                content = tilesGrid(qg.courses.map((cg) =>
-                  folderTile(cg.id, cg.name, countCourse(cg),
-                    () => setFolderPath([...folderPath, { type: "course", key: cg.id, label: cg.name }]))));
-              } else {
-                const cg = qg.courses.find((c) => c.id === folderPath[2].key);
-                content = cg ? grid(cg.sessions.flatMap((s) => s.notes)) : renderRoot();
-              }
-            }
+            const c = courseMap.get(head.key);
+            content = c ? grid(c.notes) : (
+              <div style={{ color: T.txD, fontSize: 13, textAlign: "center", padding: "40px 0" }}>{t("notes.empty")}</div>
+            );
           }
 
-          // パンくず（Home > 年度 > Q > 講義）
+          // パンくず（ノート > 講義名）
           const crumbs = [{ label: t("nav.notes"), path: [] }];
           folderPath.forEach((seg, i) => crumbs.push({ label: seg.label, path: folderPath.slice(0, i + 1) }));
 
           return (
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap", marginBottom: 14 }}>
                 {crumbs.map((c, i) => {
                   const last = i === crumbs.length - 1;
                   return (
@@ -701,6 +702,19 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
                   );
                 })}
               </div>
+              {/* クォーター スライドトグル（ルートのみ表示） */}
+              {!head && quartersPresent.length > 0 && (
+                <div style={{ display: "inline-flex", gap: 2, background: T.bg3, borderRadius: 10, padding: 3, marginBottom: 18, flexWrap: "wrap" }}>
+                  {[0, ...quartersPresent].map((q) => {
+                    const on = folderQ === q;
+                    const label = q === 0 ? t("notes.allQuarters") : t("notes.quarterLabel", { q });
+                    return (
+                      <button key={q} onClick={() => setFolderQ(q)}
+                        style={{ padding: "5px 14px", borderRadius: 8, border: "none", background: on ? T.bg2 : "transparent", boxShadow: on ? `0 1px 3px ${T.bd}` : "none", color: on ? T.accent : T.txD, fontSize: 12, fontWeight: on ? 700 : 600, cursor: "pointer" }}>{label}</button>
+                    );
+                  })}
+                </div>
+              )}
               {content}
             </div>
           );
