@@ -101,11 +101,12 @@ export function findMaterialNote(matId) {
   if (!matId) return null;
   try { return loadIndex().find((n) => n.sourceMatId === matId) || null; } catch { return null; }
 }
-// index を 年度(降順) > クォーター(昇順) > 講義(名前順) にグルーピング。
+// index を 年度(降順) > クォーター(昇順) > 講義(名前順) > 授業回(section順) にグルーピング。
 // 講義メタを持たないノート(白紙/手動取込)は uncat に分離。
+const NO_SESSION = 1e9; // 授業回なしのノートは末尾へ
 function groupNotes(list) {
   const uncat = [];
-  const years = new Map(); // year -> Map(quarter -> Map(courseId -> {id,name,notes}))
+  const years = new Map(); // year -> Map(quarter -> Map(courseId -> course))
   for (const n of list) {
     if (!n.courseId) { uncat.push(n); continue; }
     const y = n.year || 0, q = n.quarter || 0;
@@ -113,14 +114,23 @@ function groupNotes(list) {
     const qmap = years.get(y);
     if (!qmap.has(q)) qmap.set(q, new Map());
     const cmap = qmap.get(q);
-    if (!cmap.has(n.courseId)) cmap.set(n.courseId, { id: n.courseId, name: n.courseName || n.courseCode || n.courseId, notes: [] });
-    cmap.get(n.courseId).notes.push(n);
+    if (!cmap.has(n.courseId)) cmap.set(n.courseId, { id: n.courseId, name: n.courseName || n.courseCode || n.courseId, sessions: new Map() });
+    const course = cmap.get(n.courseId);
+    const sk = n.session || ""; // 授業回(section名)。無ければ ""
+    if (!course.sessions.has(sk)) course.sessions.set(sk, { session: n.session || null, order: n.session ? (n.sessionOrder ?? NO_SESSION - 1) : NO_SESSION, notes: [] });
+    const sess = course.sessions.get(sk);
+    if (n.session && n.sessionOrder != null) sess.order = Math.min(sess.order, n.sessionOrder);
+    sess.notes.push(n);
   }
+  const sortCourse = (c) => ({
+    id: c.id, name: c.name,
+    sessions: [...c.sessions.values()].sort((a, b) => a.order - b.order || String(a.session).localeCompare(String(b.session), "ja")),
+  });
   const yearArr = [...years.entries()].sort((a, b) => b[0] - a[0]).map(([year, qmap]) => ({
     year,
     quarters: [...qmap.entries()].sort((a, b) => a[0] - b[0]).map(([quarter, cmap]) => ({
       quarter,
-      courses: [...cmap.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), "ja")),
+      courses: [...cmap.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), "ja")).map(sortCourse),
     })),
   }));
   return { uncat, years: yearArr };
@@ -414,7 +424,7 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
           if (existing) { await openNote(existing.id); }
           else {
             const file = new File([b64ToUint8(c.base64)], c.name || "material.pdf", { type: "application/pdf" });
-            await importPdf(file, { title: c.name, matId: c.matId, courseId: c.courseId, courseName: c.courseName, courseCode: c.courseCode, year: c.year, quarter: c.quarter });
+            await importPdf(file, { title: c.name, matId: c.matId, courseId: c.courseId, courseName: c.courseName, courseCode: c.courseCode, year: c.year, quarter: c.quarter, session: c.session, sessionOrder: c.sessionOrder });
           }
         }
       } catch (e) { console.warn("[notes] pending", e); }
@@ -473,6 +483,7 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
       const cm = meta ? {
         courseId: meta.courseId || null, courseName: meta.courseName || null, courseCode: meta.courseCode || null,
         year: meta.year || null, quarter: meta.quarter || null, sourceMatId: meta.matId || null,
+        session: meta.session || null, sessionOrder: meta.sessionOrder ?? null,
       } : {};
       const note = {
         v: 1, id, title,
@@ -576,17 +587,30 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
         const grid = (notes) => (
           <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${mob ? 120 : 150}px, 1fr))`, gap: 14 }}>{notes.map(card)}</div>
         );
-        // 講義ブロック（アイコン付き見出し＋ノートのサムネグリッド）
-        const courseBlock = (cg) => (
-          <div key={cg.id} style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
-              <span style={{ display: "flex", color: T.accent }}>{I.book || I.file}</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cg.name}</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: T.txD, background: T.bg3, borderRadius: 10, padding: "1px 8px", flexShrink: 0 }}>{cg.notes.length}</span>
+        // 講義ブロック（アイコン付き見出し＋ 授業回サブ見出し ＋ ノートのサムネグリッド）
+        const courseBlock = (cg) => {
+          const total = cg.sessions.reduce((a, s) => a + s.notes.length, 0);
+          const flat = cg.sessions.length === 1 && !cg.sessions[0].session; // 授業回なし → 直接グリッド
+          return (
+            <div key={cg.id} style={{ marginBottom: 22 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
+                <span style={{ display: "flex", color: T.accent }}>{I.book || I.file}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cg.name}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: T.txD, background: T.bg3, borderRadius: 10, padding: "1px 8px", flexShrink: 0 }}>{total}</span>
+              </div>
+              {flat ? grid(cg.sessions[0].notes) : cg.sessions.map((s) => (
+                <div key={s.session || "_"} style={{ marginBottom: 14, paddingLeft: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, margin: "0 0 9px" }}>
+                    <span style={{ width: 3, height: 13, borderRadius: 2, background: T.accent, opacity: 0.55, flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: T.txD, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.session || t("notes.uncategorized")}</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: T.txD, opacity: 0.7, flexShrink: 0 }}>{s.notes.length}</span>
+                  </div>
+                  {grid(s.notes)}
+                </div>
+              ))}
             </div>
-            {grid(cg.notes)}
-          </div>
-        );
+          );
+        };
 
         const { uncat, years } = groupNotes(index);
         // タブモデル: 年度タブ（降順）＋ 末尾に「その他」（講義メタ無し）

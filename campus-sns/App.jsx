@@ -777,7 +777,7 @@ export default function App(){
   const navCrs=id=>{setCid(id);setView("course");setCh("materials");};
   const goToBuilding=(destId,origId)=>{if(destId){setNavDest(destId);setNavOrig(origId||null);setView("navigation");}};
   // 教材→ノート: PDF を端末ローカルのノートに取り込み手書き編集へ（年度/クォーター/講義メタ付き）
-  const annotateMaterial=({matId,name,base64,course})=>{setPendingNote({create:{base64,name,matId,courseId:course?.id,courseName:course?.name,courseCode:course?.code,year:course?.year||_selY,quarter:course?.quarter}});setView("notes");};
+  const annotateMaterial=({matId,name,base64,course,session,sessionOrder})=>{setPendingNote({create:{base64,name,matId,courseId:course?.id,courseName:course?.name,courseCode:course?.code,year:course?.year||_selY,quarter:course?.quarter,session,sessionOrder}});setView("notes");};
   const openMaterialNote=(noteId)=>{setPendingNote({openId:noteId});setView("notes");};
   // togBmark is now from useBookmarks()
   const {groups:groupList,createGroup,leaveGroup}=useGroups(ready,user?.moodleId||user?.id);

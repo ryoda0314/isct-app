@@ -517,7 +517,7 @@ const FsIcon=({active})=>active
    Preview component (PDF / image / video / audio)
    Works for both Moodle materials and shared files
    ────────────────────────────────────────────── */
-const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote})=>{
+const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote,session,sessionOrder})=>{
   const ft=m.fileType||detectType(m.mimetype);
   const c=tCol[ft]||T.txD;
   // 教材→ノート（PDFのみ）。既存ノートがあれば「開く」、無ければ取得して「書き込む」
@@ -535,7 +535,7 @@ const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote})=>{
       let bin=""; const bytes=new Uint8Array(buf);
       for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));
       const base64=btoa(bin);
-      onAnnotate?.({matId:m.id,name:m.filename||m.name,base64,course});
+      onAnnotate?.({matId:m.id,name:m.filename||m.name,base64,course,session,sessionOrder});
     }catch(e){ console.warn("[mat] annotate fetch",e); onStale?.(); }
     finally{ setPrepNote(false); }
   };
@@ -805,8 +805,13 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
     }
   },[initialMatId,sections,onInitialConsumed]);
 
+  /* 選択教材が属する section（授業回。例: 第1回）を引く。並び順は section インデックス */
+  const selSecIdx=sel?sections.findIndex(s=>s.materials.some(mm=>mm.id===sel.id)):-1;
+  const selSession=selSecIdx>=0?(sections[selSecIdx].name||null):null;
+  const selSessionOrder=selSecIdx>=0?selSecIdx:null;
+
   /* Mobile: full-screen preview */
-  if(sel&&mob) return <Preview m={sel} mob onClose={()=>setSel(null)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote}/>;
+  if(sel&&mob) return <Preview m={sel} mob onClose={()=>setSel(null)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={selSession} sessionOrder={selSessionOrder}/>;
 
   /* Desktop: split view when previewing */
   if(sel&&!mob){
@@ -836,7 +841,7 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
               ))
           }
         </div>
-        <Preview m={sel} mob={false} onClose={()=>setSel(null)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote}/>
+        <Preview m={sel} mob={false} onClose={()=>setSel(null)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={selSession} sessionOrder={selSessionOrder}/>
       </div>
     );
   }
