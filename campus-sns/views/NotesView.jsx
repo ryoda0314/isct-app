@@ -390,9 +390,9 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
   const [err, setErr] = useState("");
   const [paperSize, setPaperSize] = useState("a4");
   const [orient, setOrient] = useState("portrait");
-  const [collapsed, setCollapsed] = useState({}); // フォルダ折りたたみ状態（キー単位）
+  const [tabYear, setTabYear] = useState(null); // 選択中の年度タブ（key）。null=先頭
+  const [tabQ, setTabQ] = useState(0); // 選択中のクォーター（0=すべて）
   const fileRef = useRef(null);
-  const toggle = (k) => setCollapsed((p) => ({ ...p, [k]: !p[k] }));
 
   useEffect(() => { setIndex(loadIndex()); }, []);
 
@@ -576,47 +576,78 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
         const grid = (notes) => (
           <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${mob ? 120 : 150}px, 1fr))`, gap: 14 }}>{notes.map(card)}</div>
         );
-        const chevron = (open) => (
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2.5" style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform .15s", flexShrink: 0 }}><path d="M9 18l6-6-6-6" /></svg>
-        );
-        const Folder = ({ k, label, count, depth, children }) => {
-          const open = !collapsed[k];
-          return (
-            <div style={{ marginBottom: 6 }}>
-              <div onClick={() => toggle(k)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 4px", paddingLeft: 4 + depth * 16, cursor: "pointer", userSelect: "none" }}>
-                {chevron(open)}
-                <span style={{ display: "flex", color: depth === 2 ? T.accent : T.txD }}>{depth === 2 ? I.book || I.file : I.folder || I.file}</span>
-                <span style={{ fontSize: depth === 0 ? 14 : 13, fontWeight: 700, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-                {count != null && <span style={{ fontSize: 11, color: T.txD }}>{count}</span>}
-              </div>
-              {open && <div style={{ paddingLeft: depth >= 0 ? 8 : 0 }}>{children}</div>}
+        // 講義ブロック（アイコン付き見出し＋ノートのサムネグリッド）
+        const courseBlock = (cg) => (
+          <div key={cg.id} style={{ marginBottom: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
+              <span style={{ display: "flex", color: T.accent }}>{I.book || I.file}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cg.name}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: T.txD, background: T.bg3, borderRadius: 10, padding: "1px 8px", flexShrink: 0 }}>{cg.notes.length}</span>
             </div>
+            {grid(cg.notes)}
+          </div>
+        );
+
+        const { uncat, years } = groupNotes(index);
+        // タブモデル: 年度タブ（降順）＋ 末尾に「その他」（講義メタ無し）
+        const tabs = years.map((yg) => ({ key: `y${yg.year}`, label: yg.year ? t("notes.yearLabel", { year: yg.year }) : t("notes.uncategorized"), yg }));
+        if (uncat.length) tabs.push({ key: "uncat", label: t("notes.uncategorized"), uncat });
+        const curKey = tabs.some((tb) => tb.key === tabYear) ? tabYear : tabs[0]?.key;
+        const cur = tabs.find((tb) => tb.key === curKey);
+
+        const yearTab = (tb) => {
+          const on = tb.key === curKey;
+          return (
+            <button key={tb.key} onClick={() => { setTabYear(tb.key); setTabQ(0); }}
+              style={{ display: "flex", alignItems: "center", gap: 5, padding: "9px 14px", border: "none", borderBottom: `2px solid ${on ? T.accent : "transparent"}`, background: "transparent", color: on ? T.accent : T.txD, fontSize: 13, fontWeight: on ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap", transition: "all .15s" }}>
+              {tb.label}
+            </button>
           );
         };
-        const { uncat, years } = groupNotes(index);
+
+        let body = null;
+        if (cur?.uncat) {
+          body = grid(cur.uncat);
+        } else if (cur?.yg) {
+          const qs = cur.yg.quarters; // [{quarter,courses}] quarter昇順
+          const effQ = qs.some((q) => q.quarter === tabQ) ? tabQ : 0;
+          const qOptions = [0, ...qs.map((q) => q.quarter)];
+          const shown = effQ === 0 ? qs : qs.filter((q) => q.quarter === effQ);
+          body = (
+            <div>
+              {qs.length > 0 && (
+                <div style={{ display: "inline-flex", gap: 2, background: T.bg3, borderRadius: 10, padding: 3, marginBottom: 18, flexWrap: "wrap" }}>
+                  {qOptions.map((q) => {
+                    const on = effQ === q;
+                    const label = q === 0 ? t("notes.allQuarters") : q < 0 ? t("notes.uncategorized") : t("notes.quarterLabel", { q });
+                    return (
+                      <button key={q} onClick={() => setTabQ(q)}
+                        style={{ padding: "5px 14px", borderRadius: 8, border: "none", background: on ? T.bg2 : "transparent", boxShadow: on ? `0 1px 3px ${T.bd}` : "none", color: on ? T.accent : T.txD, fontSize: 12, fontWeight: on ? 700 : 600, cursor: "pointer" }}>{label}</button>
+                    );
+                  })}
+                </div>
+              )}
+              {shown.map((qg) => (
+                <div key={qg.quarter}>
+                  {effQ === 0 && qs.length > 1 && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "6px 0 12px" }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: T.txD, letterSpacing: ".04em" }}>{qg.quarter ? t("notes.quarterLabel", { q: qg.quarter }) : t("notes.uncategorized")}</span>
+                      <div style={{ flex: 1, height: 1, background: T.bd }} />
+                    </div>
+                  )}
+                  {qg.courses.map(courseBlock)}
+                </div>
+              ))}
+            </div>
+          );
+        }
+
         return (
           <div>
-            {years.map((yg) => (
-              <Folder key={`y${yg.year}`} k={`y${yg.year}`} depth={0}
-                label={yg.year ? t("notes.yearLabel", { year: yg.year }) : t("notes.uncategorized")}>
-                {yg.quarters.map((qg) => (
-                  <Folder key={`y${yg.year}q${qg.quarter}`} k={`y${yg.year}q${qg.quarter}`} depth={1}
-                    label={qg.quarter ? t("notes.quarterLabel", { q: qg.quarter }) : t("notes.uncategorized")}>
-                    {qg.courses.map((cg) => (
-                      <Folder key={`y${yg.year}q${qg.quarter}c${cg.id}`} k={`y${yg.year}q${qg.quarter}c${cg.id}`} depth={2}
-                        label={cg.name} count={cg.notes.length}>
-                        {grid(cg.notes)}
-                      </Folder>
-                    ))}
-                  </Folder>
-                ))}
-              </Folder>
-            ))}
-            {uncat.length > 0 && (
-              <Folder k="uncat" depth={0} label={t("notes.uncategorized")} count={uncat.length}>
-                {grid(uncat)}
-              </Folder>
-            )}
+            <div style={{ display: "flex", gap: 2, borderBottom: `1px solid ${T.bd}`, marginBottom: 16, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              {tabs.map(yearTab)}
+            </div>
+            {body}
           </div>
         );
       })()}

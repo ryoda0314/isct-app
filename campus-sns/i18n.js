@@ -66,6 +66,7 @@ const M = {
   "notes.uncategorized":{ ja:"その他", en:"Other", zh:"其他", ko:"기타", tp:"ante" },
   "notes.yearLabel":    { ja:"{year}年度", en:"AY {year}", zh:"{year}年度", ko:"{year}학년도", tp:"tenpo {year}" },
   "notes.quarterLabel": { ja:"{q}Q", en:"Q{q}", zh:"第{q}学期", ko:"{q}분기", tp:"tenpo {q}" },
+  "notes.allQuarters":  { ja:"すべて", en:"All", zh:"全部", ko:"전체", tp:"ale" },
   "notes.importing":    { ja:"取り込み中…", en:"Importing…", zh:"导入中…", ko:"가져오는 중…", tp:"kama jo…" },
   "notes.importFailed": { ja:"PDFの取り込みに失敗しました", en:"Failed to import PDF", zh:"PDF导入失败", ko:"PDF 가져오기 실패", tp:"kama jo PDF li ike" },
   "notes.saveFailed":   { ja:"保存に失敗しました", en:"Failed to save", zh:"保存失败", ko:"저장 실패", tp:"awen li ike" },
