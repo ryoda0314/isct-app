@@ -571,6 +571,7 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
       ) : (() => {
         const card = (n) => (
           <div key={n.id} style={{ cursor: "pointer" }}>
+            {n.session && <div style={{ fontSize: 10, fontWeight: 700, color: T.accent, marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.session}</div>}
             <div onClick={() => openNote(n.id)}
               style={{ aspectRatio: "3/4", borderRadius: 10, border: `1px solid ${T.bd}`, background: n.thumb ? `#fff url(${n.thumb}) center/cover` : "#fff", boxShadow: `0 2px 8px ${T.bd}`, overflow: "hidden", position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "flex-start" }}>
               {!n.thumb && <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#c8c8d0" }}>{I.pen}</span>}
@@ -587,27 +588,18 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
         const grid = (notes) => (
           <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${mob ? 120 : 150}px, 1fr))`, gap: 14 }}>{notes.map(card)}</div>
         );
-        // 講義ブロック（アイコン付き見出し＋ 授業回サブ見出し ＋ ノートのサムネグリッド）
+        // 講義ブロック（アイコン付き見出し＋ 授業回ラベル付きカードを横並びグリッド）。
+        // 基本1授業1教材なので、授業回(section順)に並べてカード上部にラベルを置くだけにする。
         const courseBlock = (cg) => {
-          const total = cg.sessions.reduce((a, s) => a + s.notes.length, 0);
-          const flat = cg.sessions.length === 1 && !cg.sessions[0].session; // 授業回なし → 直接グリッド
+          const notes = cg.sessions.flatMap((s) => s.notes); // sessions は section 順にソート済み
           return (
             <div key={cg.id} style={{ marginBottom: 22 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
                 <span style={{ display: "flex", color: T.accent }}>{I.book || I.file}</span>
                 <span style={{ fontSize: 14, fontWeight: 700, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cg.name}</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: T.txD, background: T.bg3, borderRadius: 10, padding: "1px 8px", flexShrink: 0 }}>{total}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: T.txD, background: T.bg3, borderRadius: 10, padding: "1px 8px", flexShrink: 0 }}>{notes.length}</span>
               </div>
-              {flat ? grid(cg.sessions[0].notes) : cg.sessions.map((s) => (
-                <div key={s.session || "_"} style={{ marginBottom: 14, paddingLeft: 4 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, margin: "0 0 9px" }}>
-                    <span style={{ width: 3, height: 13, borderRadius: 2, background: T.accent, opacity: 0.55, flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: T.txD, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.session || t("notes.uncategorized")}</span>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: T.txD, opacity: 0.7, flexShrink: 0 }}>{s.notes.length}</span>
-                  </div>
-                  {grid(s.notes)}
-                </div>
-              ))}
+              {grid(notes)}
             </div>
           );
         };
