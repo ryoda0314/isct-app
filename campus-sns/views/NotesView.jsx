@@ -16,7 +16,7 @@ import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUn
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v18-monothin";
+const NOTES_VERSION = "v19-mono02";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -524,7 +524,7 @@ export function NotesView({ mob, onExit }) {
 //  ネイティブ PKCanvasView を重ねる。サイドバーは App 側でそのまま表示される。
 // ══════════════════════════════════════════════
 const NPEN_SIZES = [5, 9, 16];
-const NMONO_SIZES = [1, 2, 4]; // 一律ペンは指定幅で一定太さになるためかなり細めに
+const NMONO_SIZES = [0.2, 0.8, 2]; // 一律ペンは極細まで（0.2はヘアライン）
 const NHL_SIZES = [22, 40];
 const NERASER_SIZES = [40, 80];
 
@@ -553,7 +553,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const [monoColor, setMonoColor] = useState(PEN_COLORS[2]);
   const [hlColor, setHlColor] = useState(HL_COLORS[0]);
   const [penW, setPenW] = useState(NPEN_SIZES[1]);
-  const [monoW, setMonoW] = useState(NMONO_SIZES[1]);
+  const [monoW, setMonoW] = useState(NMONO_SIZES[0]);
   const [hlW, setHlW] = useState(NHL_SIZES[0]);
   const [eraserW, setEraserW] = useState(NERASER_SIZES[0]);
   const [eraserMode, setEraserMode] = useState("stroke"); // stroke=線ごと / pixel=部分消し
@@ -637,7 +637,9 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const curSize = tool === "mono" ? monoW : tool === "highlighter" ? hlW : tool === "eraser" ? eraserW : penW;
   const setSize = (s) => { if (tool === "mono") setMonoW(s); else if (tool === "highlighter") setHlW(s); else if (tool === "eraser") setEraserW(s); else setPenW(s); };
   const dotColor = tool === "eraser" ? T.txD : curColor === "#ffffff" ? "#999" : curColor;
-  const sizeDiv = tool === "eraser" ? 8 : tool === "highlighter" ? 4 : tool === "mono" ? 0.4 : 2.2;
+  const sizeDiv = tool === "eraser" ? 8 : tool === "highlighter" ? 4 : 2.2;
+  // 太さ選択ドットの見た目サイズ（極細の一律ペンは段階が見分かるよう専用スケール）
+  const dotSize = (s) => tool === "mono" ? (3 + s * 2.2) : Math.max(3, s / sizeDiv);
 
   const TOOLS = [
     { id: "pen", icon: TOOL_ICONS.pen, label: t("notes.penPressure") },
@@ -691,7 +693,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
         <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
           {sizes.map((s) => (
             <button key={s} onClick={() => setSize(s)} title={t("notes.thickness") || ""} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 8, border: "none", background: curSize === s ? T.bg4 : "transparent", cursor: "pointer" }}>
-              <span style={{ display: "block", borderRadius: "50%", background: dotColor, width: Math.max(3, s / sizeDiv), height: Math.max(3, s / sizeDiv) }} />
+              <span style={{ display: "block", borderRadius: "50%", background: dotColor, width: dotSize(s), height: dotSize(s) }} />
             </button>
           ))}
         </div>
