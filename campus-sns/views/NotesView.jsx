@@ -16,7 +16,7 @@ import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUn
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v20-mono01";
+const NOTES_VERSION = "v21-mono02b";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -524,7 +524,7 @@ export function NotesView({ mob, onExit }) {
 //  ネイティブ PKCanvasView を重ねる。サイドバーは App 側でそのまま表示される。
 // ══════════════════════════════════════════════
 const NPEN_SIZES = [5, 9, 16];
-const NMONO_SIZES = [0.1, 0.5, 1.5]; // 一律ペンは極細まで（0.1はヘアライン）
+const NMONO_SIZES = [0.2, 0.6, 1.5]; // 一律ペンは極細まで（0.2が最小）
 const NHL_SIZES = [22, 40];
 const NERASER_SIZES = [40, 80];
 
