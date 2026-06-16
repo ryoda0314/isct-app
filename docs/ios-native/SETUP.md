@@ -38,16 +38,41 @@ cp docs/ios-native/PortalPlugin.swift      ios/App/App/PortalPlugin.swift
 cp docs/ios-native/TimetablePlugin.swift   ios/App/App/TimetablePlugin.swift
 cp docs/ios-native/SecureCredsPlugin.swift ios/App/App/SecureCredsPlugin.swift
 cp docs/ios-native/VolumePlugin.swift      ios/App/App/VolumePlugin.swift
+cp docs/ios-native/AppIconPlugin.swift     ios/App/App/AppIconPlugin.swift
 cp docs/ios-native/capacitor.config.json   ios/App/App/capacitor.config.json
 ```
 
-> `SecureCredsPlugin.swift` / `VolumePlugin.swift` も `ViewController.swift` の
-> `capacitorDidLoad` で `bridge?.registerPluginInstance(...)` 登録が必要（登録済み）。
+> `SecureCredsPlugin.swift` / `VolumePlugin.swift` / `AppIconPlugin.swift` も
+> `ViewController.swift` の `capacitorDidLoad` で
+> `bridge?.registerPluginInstance(...)` 登録が必要（登録済み）。
 >
 > `VolumePlugin.swift` … アプリ内の音量スライダーと端末のシステム音量を双方向リンク。
 > `AVAudioSession.outputVolume` を KVO 監視（読み取り）し、非表示の `MPVolumeView` の
 > スライダーを駆動（書き込み）する。**実機のみ動作**（シミュレータにハード音量がない）。
 > 追加フレームワーク（AVFoundation / MediaPlayer）はシステム標準なので明示リンク不要。
+
+### アプリアイコン切替（`AppIconPlugin.swift`）
+
+アプリ内（プロフィール → アプリアイコン）からホーム画面アイコンを切り替える。
+`UIApplication.setAlternateIconName` を使う。代替アイコンは **アセットカタログ方式**
+（Xcode 14+）で管理しており、`cap add ios` でプロジェクトを作り直したときは以下を再現する:
+
+1. **アイコンセット**: `ios/App/App/Assets.xcassets/` に `IconPurple.appiconset` 〜
+   `IconPink.appiconset`（計9色）。各セットは 1024×1024 の不透明 PNG 1枚（アルファ禁止）。
+   素材は `資料/ocon/`、再生成は本リポジトリの生成手順（sips で 1024 化）参照。
+2. **ビルド設定**（App ターゲットの Debug / Release 両方、`project.pbxproj`）:
+   ```
+   ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+   ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "IconPurple IconGreen IconOrange IconBlue IconPastel IconBlack IconMagenta IconRed IconPink";
+   ```
+   これで `Info.plist` 手書きや loose file の Copy Bundle Resources 登録は不要。
+3. **ピッカー用サムネ**: WebView 側は端末バンドルのアイコンを読めないため、`public/app-icons/`
+   に 256px サムネ（`purple.png` 等）を置き、Vercel デプロイで配信する。
+   一覧/名前の対応は `campus-sns/plugins/appIcon.js` の `APP_ICONS`。
+
+> 注意: `setAlternateIconName` を呼ぶと iOS が「"ScienceTokyo" のアイコンを変更しました」
+> という**システムアラートを必ず表示**する（公開 API で抑止不可）。
+> JS ブリッジ: `campus-sns/plugins/appIcon.js`（jsName "AppIcon"）。
 
 （ウィジェットを使う場合は `docs/ios-native/WIDGET_SETUP.md` を参照）
 

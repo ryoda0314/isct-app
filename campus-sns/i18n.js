@@ -1679,6 +1679,7 @@ const M = {
   "profile.number": { ja:"番号", en:"Number", zh:"编号", ko:"번호" , tp:"nanpa" },
   "profile.set": { ja:"設定", en:"Set", zh:"设置", ko:"설정" , tp:"o nasin" },
   "profile.theme": { ja:"テーマ", en:"Theme", zh:"主题", ko:"테마" , tp:"sitelen kule" },
+  "profile.appIcon": { ja:"アプリアイコン", en:"App Icon", zh:"应用图标", ko:"앱 아이콘" , tp:"sitelen ilo" },
   "profile.themeSoft": { ja:"ソフト", en:"Soft", zh:"柔和", ko:"소프트" , tp:"kiwen ala" },
   "profile.themeSeason": { ja:"季節", en:"Seasonal", zh:"季节", ko:"계절" , tp:"tenpo sike" },
   "profile.themeFun": { ja:"おふざけ", en:"Fun", zh:"趣味", ko:"재미" , tp:"musi" },
