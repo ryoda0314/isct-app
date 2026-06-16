@@ -20,6 +20,9 @@ public class InkPlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "show", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setRect", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setTool", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "undo", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "redo", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "hide", returnType: CAPPluginReturnPromise),
     ]
 
@@ -67,6 +70,24 @@ public class InkPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    @objc func setTool(_ call: CAPPluginCall) {
+        let type = call.getString("type") ?? "pen"
+        let color = call.getString("color") ?? "#1c1c1e"
+        let width = CGFloat((call.getDouble("width")) ?? 6)
+        DispatchQueue.main.async { [weak self] in
+            self?.overlay?.applyTool(type: type, colorHex: color, width: width)
+            call.resolve()
+        }
+    }
+
+    @objc func undo(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in self?.overlay?.undo(); call.resolve() }
+    }
+
+    @objc func redo(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in self?.overlay?.redo(); call.resolve() }
+    }
+
     @objc func hide(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { call.resolve(); return }
@@ -90,7 +111,6 @@ class InkOverlayView: UIView, PKCanvasViewDelegate {
     private var pages: [InkPage]
     private let canvasView = PKCanvasView()
     private let bgContainer = UIView()
-    private var toolPicker: PKToolPicker?
     private var displayLink: CADisplayLink?
     private var gapMasks: [UIView] = []    // ページ間の隙間を隠すマスク（インクが隙間に見えないように）
     private let pageGap: CGFloat = 20      // ページ間の隙間
@@ -128,7 +148,7 @@ class InkOverlayView: UIView, PKCanvasViewDelegate {
         guard window != nil else { return }
         layoutIfNeeded()
         relayout()
-        setupToolPicker()
+        setupTool()
         startBgSync()
     }
 
@@ -227,30 +247,38 @@ class InkOverlayView: UIView, PKCanvasViewDelegate {
         return bands
     }
 
-    private func setupToolPicker() {
-        if toolPicker != nil { return }
-        if #available(iOS 14.0, *) {
-            let picker = PKToolPicker()
-            picker.setVisible(true, forFirstResponder: canvasView)
-            picker.addObserver(canvasView)
-            canvasView.becomeFirstResponder()
-            toolPicker = picker
-        } else if #available(iOS 13.0, *) {
-            if let win = window, let picker = PKToolPicker.shared(for: win) {
-                picker.setVisible(true, forFirstResponder: canvasView)
-                picker.addObserver(canvasView)
-                canvasView.becomeFirstResponder()
-                toolPicker = picker
-            }
+    // PKToolPicker は使わず（独自Webツールバーで操作）、初期ツールだけ設定して描画可能にする
+    private func setupTool() {
+        canvasView.becomeFirstResponder()
+        applyTool(type: "pen", colorHex: "#1c1c1e", width: 6)
+    }
+
+    private func colorFromHex(_ hex: String) -> UIColor {
+        var s = hex.trimmingCharacters(in: .whitespaces)
+        if s.hasPrefix("#") { s.removeFirst() }
+        var v: UInt64 = 0
+        Scanner(string: s).scanHexInt64(&v)
+        let r, g, b, a: CGFloat
+        if s.count == 8 { r = CGFloat((v>>24)&0xff)/255; g = CGFloat((v>>16)&0xff)/255; b = CGFloat((v>>8)&0xff)/255; a = CGFloat(v&0xff)/255 }
+        else { r = CGFloat((v>>16)&0xff)/255; g = CGFloat((v>>8)&0xff)/255; b = CGFloat(v&0xff)/255; a = 1 }
+        return UIColor(red: r, green: g, blue: b, alpha: a)
+    }
+
+    // 独自ツールバーから呼ばれてキャンバスのツールを切り替える
+    func applyTool(type: String, colorHex: String, width: CGFloat) {
+        switch type {
+        case "highlighter": canvasView.tool = PKInkingTool(.marker, color: colorFromHex(colorHex), width: width)
+        case "eraser":      canvasView.tool = PKEraserTool(.vector) // ストローク単位の消しゴム（全iOSで安定）
+        default:            canvasView.tool = PKInkingTool(.pen, color: colorFromHex(colorHex), width: width)
         }
     }
 
+    func undo() { canvasView.undoManager?.undo() }
+    func redo() { canvasView.undoManager?.redo() }
+
     func teardown() {
         displayLink?.invalidate(); displayLink = nil
-        if #available(iOS 14.0, *) { toolPicker?.setVisible(false, forFirstResponder: canvasView) }
-        toolPicker?.removeObserver(canvasView)
         canvasView.resignFirstResponder()
-        toolPicker = nil
     }
 
     /// PKDrawing(base64) と ページ別 ink PNG(base64, 透明背景) を返す

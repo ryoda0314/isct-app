@@ -20,6 +20,13 @@ export async function setInkRect(rect) {
   try { await window.Capacitor.Plugins.Ink.setRect({ rect }); } catch {}
 }
 
+// 独自ツールバーからネイティブのペンを操作
+export async function setInkTool({ type, color, width }) {
+  try { await window.Capacitor.Plugins.Ink.setTool({ type, color: color || "#1c1c1e", width: width || 6 }); } catch {}
+}
+export async function inkUndo() { try { await window.Capacitor.Plugins.Ink.undo(); } catch {} }
+export async function inkRedo() { try { await window.Capacitor.Plugins.Ink.redo(); } catch {} }
+
 // 保存して撤去 → { drawing:<base64 PKDrawing>, thumbnails:[<base64 PNG ink>/ページ] }
 export async function hideInk() {
   if (!inkAvailable()) return { drawing: "", thumbnails: [] };

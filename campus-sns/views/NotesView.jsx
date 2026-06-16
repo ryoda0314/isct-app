@@ -3,7 +3,7 @@ import { T } from "../theme.js";
 import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { isNative } from "../capacitor.js";
-import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl } from "../plugins/inkCanvas.js";
+import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUndo, inkRedo } from "../plugins/inkCanvas.js";
 
 /* ──────────────────────────────────────────────
    GoodNotes 風 手書きノート
@@ -16,7 +16,7 @@ import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl } from "../plugins
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v12-export";
+const NOTES_VERSION = "v13-pentools";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -523,6 +523,10 @@ export function NotesView({ mob, onExit }) {
 //  Web のチャンク（ヘッダ＋キャンバス領域 div）を表示したまま、その領域に
 //  ネイティブ PKCanvasView を重ねる。サイドバーは App 側でそのまま表示される。
 // ══════════════════════════════════════════════
+const NPEN_SIZES = [5, 9, 16];
+const NHL_SIZES = [22, 40];
+const NERASER_SIZES = [40, 80];
+
 function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const hostRef = useRef(null);
   const noteRef = useRef(null);
@@ -531,6 +535,22 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const finishedRef = useRef(false);
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState(t("notes.opening"));
+  const [ready, setReady] = useState(false);
+  // ツール状態（独自ツールバー → ネイティブのペンを操作）
+  const [tool, setTool] = useState("pen");
+  const [penColor, setPenColor] = useState(PEN_COLORS[0]);
+  const [hlColor, setHlColor] = useState(HL_COLORS[0]);
+  const [penW, setPenW] = useState(NPEN_SIZES[1]);
+  const [hlW, setHlW] = useState(NHL_SIZES[0]);
+  const [eraserW, setEraserW] = useState(NERASER_SIZES[0]);
+
+  // ツール変更をネイティブへ反映
+  useEffect(() => {
+    if (!ready) return;
+    if (tool === "pen") setInkTool({ type: "pen", color: penColor, width: penW });
+    else if (tool === "highlighter") setInkTool({ type: "highlighter", color: hlColor, width: hlW });
+    else setInkTool({ type: "eraser", width: eraserW });
+  }, [ready, tool, penColor, hlColor, penW, hlW, eraserW]);
 
   async function finish() {
     if (finishedRef.current || !shownRef.current) return;
@@ -564,7 +584,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
       for (const pg of note.pages) pages.push({ bg: await renderBgB64(note, pg, cache), w: pg.w, h: pg.h });
       bgPagesRef.current = pages;
       if (!alive || !hostRef.current) return;
-      try { await showInk({ rect: rectOfEl(hostRef.current), pages, drawing: note.pkDrawing }); shownRef.current = true; setStatus(""); }
+      try { await showInk({ rect: rectOfEl(hostRef.current), pages, drawing: note.pkDrawing }); shownRef.current = true; setStatus(""); setReady(true); }
       catch (e) { console.warn("[notes] showInk", e); setStatus(""); }
     })();
     const onResize = () => { if (shownRef.current && hostRef.current) setInkRect(rectOfEl(hostRef.current)); };
@@ -577,14 +597,45 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
 
   const back = async () => { await finish(); onBack(); };
 
+  const isHL = tool === "highlighter";
+  const colors = isHL ? HL_COLORS : PEN_COLORS;
+  const curColor = isHL ? hlColor : penColor;
+  const setColor = isHL ? setHlColor : setPenColor;
+  const sizes = tool === "eraser" ? NERASER_SIZES : isHL ? NHL_SIZES : NPEN_SIZES;
+  const curSize = tool === "eraser" ? eraserW : isHL ? hlW : penW;
+  const setSize = tool === "eraser" ? setEraserW : isHL ? setHlW : setPenW;
+
+  const TBtn = ({ active, onClick, children, title: tt }) => (
+    <button title={tt} onClick={onClick} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 8, border: "none", background: active ? T.accent : "transparent", color: active ? "#fff" : T.txH, cursor: "pointer", fontSize: 15 }}>{children}</button>
+  );
+
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg3 }}>
-      <header style={{ display: "flex", alignItems: "center", gap: 8, padding: "env(safe-area-inset-top) 12px 0", minHeight: 50, background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", height: 50 }}>
-          <button onClick={back} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 4 }}>{I.back}</button>
-          <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
-          <span style={{ fontSize: 10, color: T.accent, fontWeight: 700, padding: "1px 5px", border: `1px solid ${T.accent}`, borderRadius: 5 }}>{NOTES_VERSION}</span>
-        </div>
+      <header style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4, padding: "env(safe-area-inset-top) 10px 4px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
+        <button onClick={back} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 4 }}>{I.back}</button>
+        <span style={{ maxWidth: 120, fontSize: 13, fontWeight: 600, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
+        <div style={{ width: 1, height: 22, background: T.bd, margin: "0 4px" }} />
+        {/* ツール */}
+        <TBtn active={tool === "pen"} onClick={() => setTool("pen")} title={t("notes.pen")}>{I.pen}</TBtn>
+        <TBtn active={tool === "highlighter"} onClick={() => setTool("highlighter")} title={t("notes.highlighter")}>🖍️</TBtn>
+        <TBtn active={tool === "eraser"} onClick={() => setTool("eraser")} title={t("notes.eraser")}>🩹</TBtn>
+        <div style={{ width: 1, height: 22, background: T.bd, margin: "0 4px" }} />
+        {/* 色 */}
+        {tool !== "eraser" && colors.map((c) => (
+          <button key={c} onClick={() => setColor(c)} style={{ width: 22, height: 22, borderRadius: "50%", border: curColor === c ? `2px solid ${T.accent}` : `1px solid ${T.bd}`, background: c, cursor: "pointer", padding: 0, boxShadow: c === "#ffffff" ? "inset 0 0 0 1px #ccc" : "none" }} />
+        ))}
+        {tool !== "eraser" && <div style={{ width: 1, height: 22, background: T.bd, margin: "0 4px" }} />}
+        {/* 太さ */}
+        {sizes.map((s) => (
+          <button key={s} onClick={() => setSize(s)} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 8, border: "none", background: curSize === s ? T.bg4 : "transparent", cursor: "pointer" }}>
+            <span style={{ display: "block", borderRadius: "50%", background: tool === "eraser" ? T.txD : curColor === "#ffffff" ? "#999" : curColor, width: Math.max(4, s / (tool === "eraser" ? 8 : isHL ? 4 : 2.2)), height: Math.max(4, s / (tool === "eraser" ? 8 : isHL ? 4 : 2.2)) }} />
+          </button>
+        ))}
+        <div style={{ flex: 1 }} />
+        {/* Undo/Redo */}
+        <TBtn onClick={() => inkUndo()} title="Undo">{I.reset}</TBtn>
+        <TBtn onClick={() => inkRedo()} title="Redo"><span style={{ transform: "scaleX(-1)", display: "inline-flex" }}>{I.reset}</span></TBtn>
+        <span style={{ fontSize: 9, color: T.accent, fontWeight: 700, padding: "1px 4px", border: `1px solid ${T.accent}`, borderRadius: 5 }}>{NOTES_VERSION}</span>
       </header>
       {/* この div の矩形にネイティブ PKCanvasView を重ねる */}
       <div ref={hostRef} style={{ flex: 1, minHeight: 0, position: "relative" }}>
