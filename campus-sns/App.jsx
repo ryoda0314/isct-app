@@ -29,6 +29,7 @@ import { DMView } from "./views/DMView.jsx";
 import { PocketView } from "./views/PocketView.jsx";
 import { MusicView } from "./views/MusicView.jsx";
 import { PdfToolsView } from "./views/PdfToolsView.jsx";
+import { NotesView } from "./views/NotesView.jsx";
 import { MiniPlayer } from "./components/MiniPlayer.jsx";
 import { NotifView } from "./views/NotifView.jsx";
 import { EventView } from "./views/EventView.jsx";
@@ -248,6 +249,7 @@ export default function App(){
   const [did,setDid]=useState(null);
   const [ch,setCh]=useState("timeline");
   const [pendingMat,setPendingMat]=useState(null);
+  const [pendingNote,setPendingNote]=useState(null); // 教材→ノート橋渡し（作成 or 既存を開く）
   const [showMembers,setShowMembers]=useState(false);
   const [lmsLoading,setLmsLoading]=useState(false);
   const [asgn,setAsgn]=useState(ASGN0);
@@ -315,6 +317,7 @@ export default function App(){
   const [telecomRestricted,setTelecomRestricted]=useState(false);
   const [telecomMsg,setTelecomMsg]=useState("");
   const [lmsDown,setLmsDown]=useState(false);
+  const [refreshing,setRefreshing]=useState(false);
 
   const lastAsnErrorRef=useRef(false);
   const startupBusyRef=useRef(true);
@@ -347,8 +350,29 @@ export default function App(){
     }catch(e){console.error('[App] cache load error:',e);return false;}
   };
 
+  /** Apply last-known submission statuses from cache so assignments render instantly. */
+  const applyCachedStatuses=()=>{
+    try{
+      const merged=JSON.parse(localStorage.getItem('asnStatusCache')||'{}');
+      if(Object.keys(merged).length>0){
+        setAsgn(prev=>prev.map(a=>{const s=merged[a.id];return s?{...a,st:s.st,sub:s.sub?new Date(s.sub):undefined}:a;}));
+      }
+    }catch{}
+  };
+
+  /** Paint cached data for an instant first frame on startup (no lmsDown banner). Returns asnList or false. */
+  const loadCacheForStartup=()=>{
+    try{
+      const raw=localStorage.getItem('dataAllCache');
+      if(!raw) return false;
+      const asnList=applyData(JSON.parse(raw));
+      applyCachedStatuses();
+      return asnList;
+    }catch(e){console.error('[App] startup cache load error:',e);return false;}
+  };
+
   /** Client-side Moodle API flow: fetch token, call Moodle directly, then send to server for transforms */
-  const fetchDataClientSide=async()=>{
+  const fetchDataClientSide=async(opts={})=>{
     const t0=performance.now();
     let step='init';
     const tag=(s)=>{step=s;console.log(`[ClientFetch] step=${s} t=${(performance.now()-t0).toFixed(0)}ms`);};
@@ -359,7 +383,7 @@ export default function App(){
       try{
         ({wstoken,userid}=await getClientToken());
       }catch(e){
-        if(e.code==='AUTH_REQUIRED'){setAppState("setup");return false;}
+        if(e.code==='AUTH_REQUIRED'){if(!opts.silentAuth)setAppState("setup");return false;}
         console.error(`[ClientFetch] token fetch failed: name=${e.name} code=${e.code||'-'} msg=${e.message}`);
         throw e;
       }
@@ -414,11 +438,11 @@ export default function App(){
   };
 
   /** Original server-side flow (fallback) */
-  const fetchDataServerSide=async()=>{
+  const fetchDataServerSide=async(opts={})=>{
     const t0=performance.now();
     const r=await fetchT(`${API}/api/data/all`,{},15000);
     console.log(`[Timing] /api/data/all fetch: ${(performance.now()-t0).toFixed(0)}ms`);
-    if(r.status===401){console.warn('[App] fetchData: 401 — not authenticated');setAppState("setup");return false;}
+    if(r.status===401){console.warn('[App] fetchData: 401 — not authenticated');if(!opts.silentAuth)setAppState("setup");return false;}
     if(r.status===503){
       console.warn('[App] fetchData: 503 — LMS down, trying cache');
       return loadCachedData();
@@ -432,14 +456,14 @@ export default function App(){
     return asnList;
   };
 
-  const fetchData=async()=>{
+  const fetchData=async(opts={})=>{
     try{
       // Try client-side Moodle API first (bypasses server-side 403 block)
-      return await fetchDataClientSide();
+      return await fetchDataClientSide(opts);
     }catch(e){
       console.warn(`[App] client-side fetch failed at step=${e.clientFetchStep||'?'} name=${e.name} code=${e.code||'-'} msg=${e.message}, falling back to server-side`);
       try{
-        return await fetchDataServerSide();
+        return await fetchDataServerSide(opts);
       }catch(e2){
         console.error(`[App] fetchData exception: name=${e2.name} code=${e2.code||'-'} msg=${e2.message}`,e2);
         return loadCachedData();
@@ -587,6 +611,25 @@ export default function App(){
         startupBusyRef.current=false;
       }
     };
+    // Cache-first: show last-known data immediately, then refresh in the background
+    // so a slow token recovery (on-device SSO) never freezes the splash.
+    const goReadyFromCache=(cachedAsn)=>{
+      setAppState("ready");
+      if(guestMode) setGuestMode(null);
+      fetchSiteSettings();
+      refreshRef.current=setInterval(async()=>{const r2=await fetchData();if(r2)fetchSubmissionStatuses(r2);},15*60*1000);
+      setRefreshing(true);
+      (async()=>{
+        try{
+          const fresh=await fetchData({silentAuth:true});
+          if(fresh) await fetchSubmissionStatuses(fresh);
+        }catch(e){console.warn('[App] background refresh failed:',e.message);}
+        finally{setRefreshing(false);startupBusyRef.current=false;}
+      })();
+    };
+    // Native: proactively migrate credentials to the device Keychain on every
+    // launch (no-op once migrated). Fire-and-forget — never blocks startup.
+    if(wasLoggedIn&&isNative()) import('./secureCreds.js').then(m=>m.ensureMigrated?.()).catch(()=>{});
     (async()=>{
       // Previously logged in → skip /api/auth/status, go straight to fetchData
       // iOS PWA often fails to send cookies on the initial status check after cold start
@@ -597,7 +640,14 @@ export default function App(){
         if(sd.loginId==="apple-review"){console.log("[App] review account detected, loading demo");onDemo("ss");return;}
       }catch{}
       if(wasLoggedIn){
-        console.log(`[Timing] wasLoggedIn=true, skipping status check, calling fetchData directly`);
+        // Paint cached data instantly and refresh in the background.
+        const cachedAsn=loadCacheForStartup();
+        if(cachedAsn){
+          console.log(`[Timing] cache-first paint: ${(performance.now()-tStart).toFixed(0)}ms`);
+          goReadyFromCache(cachedAsn);
+          return;
+        }
+        console.log(`[Timing] wasLoggedIn=true, no cache, calling fetchData directly`);
         try{
           const asnList=await fetchData();
           if(asnList){goReady(asnList);return;}
@@ -726,6 +776,9 @@ export default function App(){
   const [navOrig,setNavOrig]=useState(null);
   const navCrs=id=>{setCid(id);setView("course");setCh("materials");};
   const goToBuilding=(destId,origId)=>{if(destId){setNavDest(destId);setNavOrig(origId||null);setView("navigation");}};
+  // 教材→ノート: PDF を端末ローカルのノートに取り込み手書き編集へ（年度/クォーター/講義メタ付き）
+  const annotateMaterial=({matId,name,base64,course,session,sessionOrder})=>{setPendingNote({create:{base64,name,matId,courseId:course?.id,courseName:course?.name,courseCode:course?.code,year:course?.year||_selY,quarter:course?.quarter,session,sessionOrder}});setView("notes");};
+  const openMaterialNote=(noteId)=>{setPendingNote({openId:noteId});setView("notes");};
   // togBmark is now from useBookmarks()
   const {groups:groupList,createGroup,leaveGroup}=useGroups(ready,user?.moodleId||user?.id);
   const {circles:circleList,messages:circleMsgs,discover:circleDiscover,sendMessage:circleSend,createCircle,joinCircle,leaveCircle,addChannel:circleAddCh,deleteChannel:circleDelCh,pinMessage:circlePin,updateCircle:circleUpdate,init:circleInit,fetchMessages:circleFetchMsgs}=useCircles(ready,user?.moodleId||user?.id);
@@ -733,7 +786,7 @@ export default function App(){
   const openGroupChat=(g)=>{setView("dm");};
   const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat,blockUser,unblockUser,isBlocked,blocks:blockList,muteUser,unmuteUser,isMuted,mutes:muteList,refetch:refetchFriends};
   const togTheme=()=>setThemePref(p=>p==="dark"?"light":"dark");
-  const onLogout=async()=>{setDemoMode(false);clearClientToken();try{await fetch("/api/auth/logout",{method:"POST"});}catch{}await clearNativeCookies();if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
+  const onLogout=async()=>{setDemoMode(false);clearClientToken();try{await fetch("/api/auth/logout",{method:"POST"});}catch{}await clearNativeCookies();try{const{clearCreds}=await import("./secureCreds.js");await clearCreds();}catch{}if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
 
   // Telecom restriction overlay — shown when regulated features are disabled
   const TelecomBlockView=({title,onBack})=><div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,gap:16}}>
@@ -868,13 +921,17 @@ export default function App(){
     <span>T2SCHOLAに接続できないため、前回のデータを表示しています</span>
     <button onClick={async()=>{const r=await fetchData();if(r)setLmsDown(false);}} style={{marginLeft:8,padding:"3px 10px",borderRadius:6,border:"1px solid #856404",background:"transparent",color:"#856404",fontSize:12,cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}}>{t("app.retry")}</button>
   </div>:null;
+  const refreshingBanner=(refreshing&&!lmsDown)?<div style={{padding:"5px 14px",background:"rgba(127,127,127,0.10)",color:T.txD,fontSize:12,fontWeight:500,textAlign:"center",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+    <span style={{width:11,height:11,border:`2px solid ${T.txD}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"mnSpin .7s linear infinite"}}/>
+    <span>{langPref==="ja"?"最新の情報に更新中…":"Refreshing…"}</span>
+  </div>:null;
   const TR=telecomRestricted;
   const courseContent=()=>{
     if(!cc) return null;
     if(ch==="timeline") return <FeedView course={cc} mob={mob} bmarks={bmarks} togBmark={togBmark} courses={allCourses} onOfflineQueue={enqueueOffline}/>;
     if(ch==="chat") return <ChatView course={cc} mob={mob}/>;
     if(ch==="assignments") return <AsgnView asgn={asgn} setAsgn={setAsgn} course={cc} mob={mob} courses={allCourses}/>;
-    if(ch==="materials") return <MatView course={cc} mob={mob} initialMatId={pendingMat?.courseId===cc.id?pendingMat.matId:null} onInitialConsumed={()=>setPendingMat(null)}/>;
+    if(ch==="materials") return <MatView course={cc} mob={mob} initialMatId={pendingMat?.courseId===cc.id?pendingMat.matId:null} onInitialConsumed={()=>setPendingMat(null)} onAnnotate={annotateMaterial} onOpenNote={openMaterialNote}/>;
     if(ch==="reviews") return <ReviewView reviews={reviews} setReviews={setReviews} course={cc} mob={mob} courses={allCourses}/>;
     return null;
   };
@@ -970,7 +1027,7 @@ export default function App(){
 
   // --- DESKTOP ---
   if(!mob){
-    const titles={home:t("nav.home"),timetable:t("nav.timetable"),tasks:t("header.taskMgmt"),calendar:t("nav.calendar"),acadCal:t("tool.acadCal"),exams:t("tool.exams"),dm:t("common.dm"),notif:t("nav.notif"),grades:t("tool.grades"),pomo:t("tool.pomo"),events:t("tool.events"),reviews:t("tool.reviews"),bmarks:t("tool.bmarks"),search:t("nav.search"),profile:t("nav.profile"),navigation:t("nav.navigation"),friends:t("nav.friends"),circles:t("nav.circles"),admin:t("nav.admin"),freshman:t("nav.freshman"),reg:t("more.regAssist"),freeroom:t("tool.freeroom"),attendance:t("nav.attendance"),music:t("tool.music"),pdftools:t("nav.pdftools")};
+    const titles={home:t("nav.home"),timetable:t("nav.timetable"),tasks:t("header.taskMgmt"),calendar:t("nav.calendar"),acadCal:t("tool.acadCal"),exams:t("tool.exams"),dm:t("common.dm"),notif:t("nav.notif"),grades:t("tool.grades"),pomo:t("tool.pomo"),events:t("tool.events"),reviews:t("tool.reviews"),bmarks:t("tool.bmarks"),search:t("nav.search"),profile:t("nav.profile"),navigation:t("nav.navigation"),friends:t("nav.friends"),circles:t("nav.circles"),admin:t("nav.admin"),freshman:t("nav.freshman"),reg:t("more.regAssist"),freeroom:t("tool.freeroom"),attendance:t("nav.attendance"),music:t("tool.music"),pdftools:t("nav.pdftools"),notes:t("nav.notes")};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:t("chan.timeline"),chat:t("chan.chat"),assignments:t("chan.assignments"),materials:t("chan.materials"),reviews:t("chan.reviews")}[ch]}</>;
       if(view==="dept"&&cd){const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?locName(cd):cd.prefix}</span> {nameOnly?"":`${locName(cd)} `}— {{timeline:t("chan.timeline"),chat:t("chan.chat")}[ch]||""}</>;}
@@ -985,6 +1042,7 @@ export default function App(){
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
           <DTop title={dTitle()} color={view==="course"&&cc?cc.col:view==="dept"&&cd?cd.col:undefined}/>
           {lmsDownBanner}
+          {refreshingBanner}
           {view==="home"&&<HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit} medSessions={medSessions} setPendingMat={setPendingMat}/>}
   {view==="timetable"&&(L?<LockedView title={t("nav.timetable")}/>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob={false} quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
           {view==="med-tt"&&(L?<LockedView title={t("nav.medTimetable")}/>:<MedTTView courses={medRawCourses} mob={false} setCid={setCid} setView={setView} setCh={setCh} demoKey={demoMedKey} asgn={asgn} hiddenSet={hiddenSet} onRefresh={fetchData}/>)}
@@ -996,6 +1054,7 @@ export default function App(){
           {view==="pocket"&&(L?<LockedView title={t("nav.pocket")}/>:<PocketView mob={false}/>)}
           {view==="music"&&(L?<LockedView title={t("tool.music")}/>:<MusicView mob={false}/>)}
           {view==="pdftools"&&(L?<LockedView title={t("nav.pdftools")}/>:<PdfToolsView mob={false}/>)}
+          {view==="notes"&&(L?<LockedView title={t("nav.notes")}/>:<NotesView mob={false} pendingNote={pendingNote} onPendingConsumed={()=>setPendingNote(null)}/>)}
           {view==="notif"&&(L?<LockedView title={t("nav.notif")}/>:<NotifView mob={false}/>)}
           {view==="grades"&&(L?<LockedView title={t("tool.grades")}/>:<GradeView mob={false}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
@@ -1036,6 +1095,7 @@ export default function App(){
     <div ref={el=>{if(!el)return;const pwa=window.matchMedia("(display-mode:standalone)").matches||window.navigator.standalone;const u=()=>{el.style.height=pwa?screen.height+"px":"100dvh";};u();window.addEventListener("resize",u);}} style={{display:"flex",flexDirection:"column",width:"100vw",overflow:"hidden",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0,position:"relative"}}>
         {lmsDownBanner}
+        {refreshingBanner}
         {view==="home"&&<><MHdr title="ScienceTokyo App" right={<div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>setView("notif")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</button><button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button><button onClick={()=>setView("profile")} style={{background:"none",border:"none",cursor:"pointer",display:"flex",padding:0}}><Av u={user} sz={26}/></button></div>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} setPendingMat={setPendingMat} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit} medSessions={medSessions}/></>}
         {view==="timetable"&&(L?<><MHdr title={t("nav.timetable")}/><LockedView title={t("nav.timetable")}/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
         {view==="med-tt"&&(L?<><MHdr title={t("nav.medTimetable")}/><LockedView title={t("nav.medTimetable")}/></>:<><MHdr title={t("nav.medTimetable")}/><MedTTView courses={medRawCourses} mob setCid={setCid} setView={setView} setCh={setCh} demoKey={demoMedKey} asgn={asgn} hiddenSet={hiddenSet} onRefresh={fetchData}/></>)}
@@ -1049,6 +1109,7 @@ export default function App(){
         {view==="pocket"&&(L?<><MHdr title={t("nav.pocket")} back={mBack}/><LockedView title={t("nav.pocket")}/></>:<><MHdr title={t("nav.pocket")} back={mBack}/><PocketView mob/></>)}
         {view==="music"&&(L?<><MHdr title={t("tool.music")} back={mBack}/><LockedView title={t("tool.music")}/></>:<><MHdr title={t("tool.music")} back={mBack}/><MusicView mob/></>)}
         {view==="pdftools"&&(L?<><MHdr title={t("nav.pdftools")} back={mBack}/><LockedView title={t("nav.pdftools")}/></>:<><MHdr title={t("nav.pdftools")} back={mBack}/><PdfToolsView mob/></>)}
+        {view==="notes"&&(L?<><MHdr title={t("nav.notes")} back={mBack}/><LockedView title={t("nav.notes")}/></>:<NotesView mob onExit={mBack} pendingNote={pendingNote} onPendingConsumed={()=>setPendingNote(null)}/>)}
         {view==="notif"&&(L?<><MHdr title={t("nav.notif")} back={mBack}/><LockedView title={t("nav.notif")}/></>:<><MHdr title={t("nav.notif")} back={mBack}/><NotifView mob/></>)}
         {view==="grades"&&(L?<><MHdr title={t("tool.grades")} back={mBack}/><LockedView title={t("tool.grades")}/></>:<><MHdr title={t("tool.grades")} back={mBack}/><GradeView mob/></>)}
         {view==="pomo"&&<><MHdr title={t("tool.pomo")} back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}

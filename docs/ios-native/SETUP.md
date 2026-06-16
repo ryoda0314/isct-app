@@ -36,8 +36,18 @@ npx cap sync ios    # 2回目以降は基本これだけ（プラグイン・設
 ```bash
 cp docs/ios-native/PortalPlugin.swift      ios/App/App/PortalPlugin.swift
 cp docs/ios-native/TimetablePlugin.swift   ios/App/App/TimetablePlugin.swift
+cp docs/ios-native/SecureCredsPlugin.swift ios/App/App/SecureCredsPlugin.swift
+cp docs/ios-native/VolumePlugin.swift      ios/App/App/VolumePlugin.swift
 cp docs/ios-native/capacitor.config.json   ios/App/App/capacitor.config.json
 ```
+
+> `SecureCredsPlugin.swift` / `VolumePlugin.swift` も `ViewController.swift` の
+> `capacitorDidLoad` で `bridge?.registerPluginInstance(...)` 登録が必要（登録済み）。
+>
+> `VolumePlugin.swift` … アプリ内の音量スライダーと端末のシステム音量を双方向リンク。
+> `AVAudioSession.outputVolume` を KVO 監視（読み取り）し、非表示の `MPVolumeView` の
+> スライダーを駆動（書き込み）する。**実機のみ動作**（シミュレータにハード音量がない）。
+> 追加フレームワーク（AVFoundation / MediaPlayer）はシステム標準なので明示リンク不要。
 
 （ウィジェットを使う場合は `docs/ios-native/WIDGET_SETUP.md` を参照）
 
@@ -48,9 +58,10 @@ npx cap open ios
 ```
 
 Xcode が開いたら:
-1. `PortalPlugin.swift` がプロジェクト（App ターゲット）に含まれているか確認。
-   なければ **File > Add Files to "App"** で `ios/App/App/PortalPlugin.swift` を追加し、
-   Target Membership で **App** にチェック。
+1. 各カスタムプラグイン（`PortalPlugin.swift` / `SecureCredsPlugin.swift` /
+   `TimetablePlugin.swift` / `VolumePlugin.swift`）がプロジェクト（App ターゲット）に
+   含まれているか確認。なければ **File > Add Files to "App"** で
+   `ios/App/App/<Plugin>.swift` を追加し、Target Membership で **App** にチェック。
 2. **Signing & Capabilities** で Team を設定。
 3. 実機 or シミュレータを選んで **Build & Run**（⌘R）。
 

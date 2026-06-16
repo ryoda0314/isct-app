@@ -7,6 +7,7 @@ import { useCourseMaterials } from "../hooks/useCourseMaterials.js";
 import { useSharedMaterials } from "../hooks/useSharedMaterials.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
 import { openMaterial } from "../openMaterial.js";
+import { findMaterialNote } from "./NotesView.jsx";
 
 const tCol={pdf:'#e5534b',slide:'#d4843e',document:'#6375f0',spreadsheet:'#3dae72',image:'#a855c7',video:'#2d9d8f',audio:'#c6a236',archive:'#68687a',code:'#3dae72',text:'#68687a',link:'#6375f0',file:'#68687a'};
 const tLblKey={pdf:'mat.ft.pdf',slide:'mat.ft.slide',document:'mat.ft.document',spreadsheet:'mat.ft.spreadsheet',image:'mat.ft.image',video:'mat.ft.video',audio:'mat.ft.audio',archive:'mat.ft.archive',code:'mat.ft.code',text:'mat.ft.text',link:'mat.ft.link',file:'mat.ft.file'};
@@ -516,9 +517,28 @@ const FsIcon=({active})=>active
    Preview component (PDF / image / video / audio)
    Works for both Moodle materials and shared files
    ────────────────────────────────────────────── */
-const Preview=({m,mob,onClose,onStale})=>{
+const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote,session,sessionOrder})=>{
   const ft=m.fileType||detectType(m.mimetype);
   const c=tCol[ft]||T.txD;
+  // 教材→ノート（PDFのみ）。既存ノートがあれば「開く」、無ければ取得して「書き込む」
+  const [existingNote,setExistingNote]=useState(null);
+  const [prepNote,setPrepNote]=useState(false);
+  useEffect(()=>{ setExistingNote(findMaterialNote(m.id)); },[m.id]);
+  const annotate=async()=>{
+    if(prepNote)return;
+    if(existingNote){ onOpenNote?.(existingNote.id); return; }
+    const url=m.fileurl||m.url||m.proxyUrl;
+    if(!url){ onStale?.(); return; }
+    setPrepNote(true);
+    try{
+      const buf=await (await fetch(url)).arrayBuffer();
+      let bin=""; const bytes=new Uint8Array(buf);
+      for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));
+      const base64=btoa(bin);
+      onAnnotate?.({matId:m.id,name:m.filename||m.name,base64,course,session,sessionOrder});
+    }catch(e){ console.warn("[mat] annotate fetch",e); onStale?.(); }
+    finally{ setPrepNote(false); }
+  };
   // Client-direct (fileurl) is the primary path: the LMS rejects server-side
   // fetches (403), so the proxy is only a last-resort fallback. filenotfound is
   // detected client-side instead — Moodle returns it as a JSON body.
@@ -550,6 +570,7 @@ const Preview=({m,mob,onClose,onStale})=>{
         <div style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:13,fontWeight:600,color:T.txH}}>{m.filename||m.name}</div>
         <Tag color={c}>{t(tLblKey[ft]||'mat.ft.file')}</Tag>
         <button onClick={toggleFs} title={fs?t("mat.exitFullscreen"):t("mat.fullscreen")} style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,borderRadius:6,border:`1px solid ${T.bd}`,background:fs?`${T.accent}18`:T.bg3,color:fs?T.accent:T.txD,cursor:"pointer",flexShrink:0}}><FsIcon active={fs}/></button>
+        {ft==="pdf"&&onAnnotate&&<button onClick={annotate} disabled={prepNote} title={existingNote?t("mat.openNote"):t("mat.annotate")} style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,border:`1px solid ${T.accent}`,background:`${T.accent}14`,color:T.accent,fontSize:12,fontWeight:600,cursor:prepNote?"default":"pointer",opacity:prepNote?0.6:1,flexShrink:0}}>{I.pen} {prepNote?t("mat.preparingNote"):existingNote?t("mat.openNote"):t("mat.annotate")}</button>}
         {dlUrl&&(m.fileurl
           ?<button onClick={()=>openMaterial(m,onStale,{download:true,mob})} style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0}}>{I.dl} DL</button>
           :<a href={dlUrl} target="_blank" rel="noopener noreferrer" download style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,background:T.accent,color:"#fff",fontSize:12,fontWeight:600,textDecoration:"none",flexShrink:0}}>{I.dl} DL</a>)}
@@ -763,7 +784,7 @@ const SharedMaterials=({courseId,mob,onSelect})=>{
 /* ──────────────────────────────────────────────
    Main MatView — 2-tab layout
    ────────────────────────────────────────────── */
-export const MatView=({course,mob,initialMatId,onInitialConsumed})=>{
+export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOpenNote})=>{
   const {sections,totalFiles,loading,error,refresh}=useCourseMaterials(course?.moodleId);
   const [tab,setTab]=useState(0); // 0=講義資料, 1=みんなの共有
   const [sel,setSel]=useState(null);
@@ -784,8 +805,13 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed})=>{
     }
   },[initialMatId,sections,onInitialConsumed]);
 
+  /* 選択教材が属する section（授業回。例: 第1回）を引く。並び順は section インデックス */
+  const selSecIdx=sel?sections.findIndex(s=>s.materials.some(mm=>mm.id===sel.id)):-1;
+  const selSession=selSecIdx>=0?(sections[selSecIdx].name||null):null;
+  const selSessionOrder=selSecIdx>=0?selSecIdx:null;
+
   /* Mobile: full-screen preview */
-  if(sel&&mob) return <Preview m={sel} mob onClose={()=>setSel(null)} onStale={refresh}/>;
+  if(sel&&mob) return <Preview m={sel} mob onClose={()=>setSel(null)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={selSession} sessionOrder={selSessionOrder}/>;
 
   /* Desktop: split view when previewing */
   if(sel&&!mob){
@@ -815,7 +841,7 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed})=>{
               ))
           }
         </div>
-        <Preview m={sel} mob={false} onClose={()=>setSel(null)} onStale={refresh}/>
+        <Preview m={sel} mob={false} onClose={()=>setSel(null)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={selSession} sessionOrder={selSessionOrder}/>
       </div>
     );
   }

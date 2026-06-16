@@ -6,9 +6,10 @@ import { useCurrentUser } from './useCurrentUser.js';
 import { isNative } from '../capacitor.js';
 import { registerNativePush } from '../nativePush.js';
 
-// Register for push: native (APNs) inside the iOS WebView, Web Push elsewhere.
+// Web Push subscription (web / PWA). Native iOS uses registerNativePush() instead,
+// fired from its own effect so it doesn't depend on the notifications fetch.
 async function subscribePush() {
-  if (isNative()) { registerNativePush(); return; }
+  if (isNative()) return;
   try {
     const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
     if (!vapidKey || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
@@ -85,6 +86,12 @@ export function useNotifications(enabled = true) {
   }, []);
 
   useEffect(() => { if (enabled) fetchNotifs(); }, [fetchNotifs, enabled]);
+
+  // Native (iOS) push registration — fire once on mount, independent of the
+  // notifications fetch so the APNs permission prompt always gets a chance.
+  useEffect(() => {
+    if (enabled && !isDemoMode() && isNative()) registerNativePush();
+  }, [enabled]);
 
   // Realtime subscription（自分宛の通知のみ受信）
   useEffect(() => {

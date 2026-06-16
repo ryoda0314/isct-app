@@ -5,6 +5,7 @@ import { I } from "./icons.jsx";
 import { Av } from "./shared.jsx";
 import { isNative } from "./capacitor.js";
 import { openInSystemBrowser } from "./openMaterial.js";
+import { openLmsPage } from "./plugins/portalWebView.js";
 // ============================================================
 
 const SideItem=({icon,label,on,click,badge,compact})=>(
@@ -17,33 +18,43 @@ const SideItem=({icon,label,on,click,badge,compact})=>(
 
 const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,courses=[],depts=[],schools=[],user={},quarter,academicYear,pendingFriendCount=0,userUnit=null,compact=false,narrow=false,hasMed=false})=>{
   const [moreOpen,setMoreOpen]=useState(false);
-  const extras=["grades","pomo","events","reviews","bmarks","acadCal","exams","freeroom","freshman","reg"];
+  const extras=["grades","grading","reg","exams","acadCal","reviews","textbooks","pdftools","freeroom","events","pomo","music","bmarks"];
   const isExtra=extras.includes(view);
   const W=compact?56:narrow?150:180;
   const cp=compact;
+  // セクション見出し（コンパクト時は区切り線のみでグループを示す）
+  const secHdr=(label)=>cp
+    ? <div style={{width:"calc(100% - 8px)",height:1,background:T.bd,margin:"5px auto"}}/>
+    : <div style={{padding:"9px 10px 3px",fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5}}>{label}</div>;
   return(
   <div style={{width:W,background:T.bg2,display:"flex",flexDirection:"column",borderRight:`1px solid ${T.bd}`,flexShrink:0,overflowY:"auto",transition:"width .15s ease"}}>
     <div style={{padding:cp?"10px 0 8px":"12px 10px 8px",fontWeight:800,fontSize:cp?11:15,color:T.txH,letterSpacing:-.3,textAlign:cp?"center":"left"}}>{cp?"ST":"ScienceTokyo App"}</div>
     <div style={{padding:cp?"0 4px":"0 6px"}}>
       <SideItem icon={I.home} label={t("nav.home")} on={view==="home"} click={()=>setView("home")} compact={cp}/>
+      <SideItem icon={I.search} label={t("nav.search")} on={view==="search"} click={()=>setView("search")} compact={cp}/>
+
+      {secHdr(t("sidebar.study"))}
       <SideItem icon={I.cal} label={t("nav.timetable")} on={view==="timetable"} click={()=>setView("timetable")} compact={cp}/>
       {hasMed&&<SideItem icon={I.cal} label={t("nav.medTimetable")} on={view==="med-tt"} click={()=>setView("med-tt")} compact={cp}/>}
       <SideItem icon={I.attend} label={t("nav.attendance")} on={view==="attendance"} click={()=>setView("attendance")} compact={cp}/>
-      <SideItem icon={I.book} label={t("nav.textbooks")} on={view==="textbooks"} click={()=>setView("textbooks")} compact={cp}/>
-      <SideItem icon={I.bar} label={t("nav.grading")} on={view==="grading"} click={()=>setView("grading")} compact={cp}/>
-      <SideItem icon={I.file} label={t("nav.pdftools")} on={view==="pdftools"} click={()=>setView("pdftools")} compact={cp}/>
+      <SideItem icon={I.pen} label={t("nav.notes")} on={view==="notes"} click={()=>setView("notes")} compact={cp}/>
       <SideItem icon={I.tasks} label={t("nav.tasks")} on={view==="tasks"} click={()=>setView("tasks")} badge={ac} compact={cp}/>
+
+      {secHdr(t("sidebar.social"))}
       <SideItem icon={I.mail} label="DM" on={view==="dm"} click={()=>setView("dm")} badge={dmUnread} compact={cp}/>
-      <SideItem icon={I.clip} label={t("nav.pocket")} on={view==="pocket"} click={()=>setView("pocket")} compact={cp}/>
       <SideItem icon={I.users} label={t("nav.friends")} on={view==="friends"} click={()=>setView("friends")} badge={pendingFriendCount} compact={cp}/>
-      <SideItem icon={I.bell} label={t("nav.notif")} on={view==="notif"} click={()=>setView("notif")} badge={unreadN} compact={cp}/>
-      <SideItem icon={I.search} label={t("nav.search")} on={view==="search"} click={()=>setView("search")} compact={cp}/>
-      <SideItem icon={I.cal} label={t("nav.calendar")} on={view==="calendar"} click={()=>setView("calendar")} compact={cp}/>
       <SideItem icon={I.circle} label={t("nav.circles")} on={view==="circles"} click={()=>setView("circles")} compact={cp}/>
+      <SideItem icon={I.bell} label={t("nav.notif")} on={view==="notif"} click={()=>setView("notif")} badge={unreadN} compact={cp}/>
+
+      {secHdr(t("sidebar.campus"))}
       <SideItem icon={I.map} label={t("nav.navigation")} on={view==="navigation"} click={()=>setView("navigation")} compact={cp}/>
-      <SideItem icon={I.clock} label="Taki Plaza" on={view==="takiplaza"} click={()=>setView("takiplaza")} compact={cp}/>
       <SideItem icon={I.book} label={t("nav.library")} on={view==="library"} click={()=>setView("library")} compact={cp}/>
+      <SideItem icon={I.clock} label="Taki Plaza" on={view==="takiplaza"} click={()=>setView("takiplaza")} compact={cp}/>
       <SideItem icon={I.grad} label={t("nav.freshman")} on={view==="freshman"} click={()=>setView("freshman")} compact={cp}/>
+      <SideItem icon={I.cal} label={t("nav.calendar")} on={view==="calendar"} click={()=>setView("calendar")} compact={cp}/>
+      <SideItem icon={I.clip} label={t("nav.pocket")} on={view==="pocket"} click={()=>setView("pocket")} compact={cp}/>
+
+      {secHdr("")}
       <SideItem icon={I.more} label={t("nav.tools")} on={moreOpen||isExtra} click={()=>setMoreOpen(p=>!p)} compact={cp}/>
     </div>
     <div style={{width:cp?"calc(100% - 8px)":"calc(100% - 20px)",height:1,background:T.bd,margin:cp?"6px 4px":"6px 10px"}}/>
@@ -114,13 +125,40 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
           <span style={{fontWeight:700,color:T.txH,fontSize:15}}>Tools</span>
           <button onClick={()=>setMoreOpen(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.x}</button>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          {[{id:"grades",i:I.grad,l:t("tool.grades"),c:T.accentSoft},{id:"exams",i:I.clip,l:t("tool.exams"),c:T.red},{id:"freeroom",i:I.pin,l:t("tool.freeroom"),c:T.green},{id:"reg",i:I.pen,l:t("tool.reg"),c:T.accent},{id:"acadCal",i:I.cal,l:t("tool.acadCal"),c:"#6366f1"},{id:"pomo",i:I.play,l:t("tool.pomo"),c:T.green},{id:"music",i:I.music,l:t("tool.music"),c:"#FF2D55"},{id:"events",i:I.event,l:t("tool.events"),c:T.orange},{id:"reviews",i:I.star,l:t("tool.reviews"),c:"#c6a236"},{id:"bmarks",i:I.bmark,l:t("tool.bmarks"),c:T.txD}].map(n=>
-            <button key={n.id} onClick={()=>{setView(n.id);setMoreOpen(false);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,padding:"16px 8px",borderRadius:12,border:view===n.id?`2px solid ${n.c}`:`1px solid ${T.bd}`,background:view===n.id?`${n.c}10`:T.bg3,cursor:"pointer",transition:"all .12s"}}>
-              <span style={{color:n.c,display:"flex"}}>{n.i}</span>
-              <span style={{fontSize:12,fontWeight:view===n.id?600:400,color:view===n.id?T.txH:T.tx}}>{n.l}</span>
-            </button>
-          )}
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          {[
+            {title:t("sidebar.study"),items:[
+              {id:"grades",i:I.grad,l:t("tool.grades"),c:T.accentSoft},
+              {id:"grading",i:I.bar,l:t("nav.grading"),c:T.accent},
+              {id:"reg",i:I.pen,l:t("tool.reg"),c:T.accent},
+              {id:"exams",i:I.clip,l:t("tool.exams"),c:T.red},
+              {id:"acadCal",i:I.cal,l:t("tool.acadCal"),c:"#6366f1"},
+              {id:"reviews",i:I.star,l:t("tool.reviews"),c:"#c6a236"},
+              {id:"textbooks",i:I.book,l:t("nav.textbooks"),c:T.green},
+              {id:"pdftools",i:I.file,l:t("nav.pdftools"),c:T.red},
+            ]},
+            {title:t("sidebar.campus"),items:[
+              {id:"freeroom",i:I.pin,l:t("tool.freeroom"),c:T.green},
+              {id:"events",i:I.event,l:t("tool.events"),c:T.orange},
+            ]},
+            {title:t("more.utility"),items:[
+              {id:"pomo",i:I.play,l:t("tool.pomo"),c:T.green},
+              {id:"music",i:I.music,l:t("tool.music"),c:"#FF2D55"},
+              {id:"bmarks",i:I.bmark,l:t("tool.bmarks"),c:T.txD},
+            ]},
+          ].map(g=>(
+            <div key={g.title}>
+              <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5,marginBottom:7}}>{g.title}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {g.items.map(n=>
+                  <button key={n.id} onClick={()=>{setView(n.id);setMoreOpen(false);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,padding:"14px 8px",borderRadius:12,border:view===n.id?`2px solid ${n.c}`:`1px solid ${T.bd}`,background:view===n.id?`${n.c}10`:T.bg3,cursor:"pointer",transition:"all .12s"}}>
+                    <span style={{color:n.c,display:"flex"}}>{n.i}</span>
+                    <span style={{fontSize:12,fontWeight:view===n.id?600:400,color:view===n.id?T.txH:T.tx}}>{n.l}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </>}
@@ -148,6 +186,23 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
   const onlineIds=new Set(onlineMembers.map(u=>String(u.id)));
   const offline=members.filter(m=>!onlineIds.has(String(m.id)));
   const W=compact?160:210;
+  const [lmsLoading,setLmsLoading]=useState(false);
+  const goLms=async(url)=>{
+    if(!url)return;
+    if(!isNative()){window.open(url,"_blank","noopener");return;}
+    setLmsLoading(true);
+    try{
+      const r=await fetch("/api/auth/credentials?type=isct",{headers:{"x-app-platform":"capacitor"}});
+      if(!r.ok)throw new Error("認証情報の取得に失敗");
+      const{userId,password,totpCode}=await r.json();
+      await openLmsPage(url,{userId,password,totpCode});
+    }catch(e){
+      console.error('[LMS]',e);
+      // 自動ログイン不可時はアプリ内ブラウザにフォールバック
+      openInSystemBrowser(url);
+    }
+    setLmsLoading(false);
+  };
   return(
     <div style={{width:W,background:T.bg2,display:"flex",flexDirection:"column",borderRight:`1px solid ${T.bd}`,flexShrink:0,transition:"width .15s ease"}}>
       <div style={{padding:compact?"10px 10px 8px":"13px 12px 10px",borderBottom:`1px solid ${T.bd}`}}>
@@ -158,7 +213,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
           <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:"50%",background:course.col}}/><span style={{fontWeight:700,color:T.txH,fontSize:compact?12:14}}>{course.code}</span></div>
           <div style={{fontSize:compact?10:11,color:T.txD,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{course.name}</div>
           {!compact&&<div style={{fontSize:10,color:T.txD,marginTop:1}}>{course.per} · {course.room}</div>}
-          {course.moodleId&&<button onClick={()=>{const url=`https://lms.s.isct.ac.jp/2025/course/view.php?id=${course.moodleId}`;if(isNative())openInSystemBrowser(url);else window.open(url,"_blank","noopener");}} title={t("chan.openLms")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,width:"100%",marginTop:8,background:`${course.col}18`,border:`1px solid ${course.col}40`,borderRadius:8,color:course.col,cursor:"pointer",padding:compact?"5px 6px":"6px 8px",fontSize:compact?10:11,fontWeight:700}}>{I.book}<span>{t("chan.openLms")}</span></button>}
+          {course.moodleId&&<button onClick={()=>goLms(`https://lms.s.isct.ac.jp/2025/course/view.php?id=${course.moodleId}`)} disabled={lmsLoading} title={t("chan.openLms")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,width:"100%",marginTop:8,background:`${course.col}18`,border:`1px solid ${course.col}40`,borderRadius:8,color:course.col,cursor:lmsLoading?"wait":"pointer",padding:compact?"5px 6px":"6px 8px",fontSize:compact?10:11,fontWeight:700,opacity:lmsLoading?.6:1}}>{I.book}<span>{t("chan.openLms")}</span></button>}
         </>}
       </div>
       <div style={{padding:"5px 0",flex:1,overflowY:"auto"}}>
@@ -182,7 +237,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
 // ============================================================
 
 const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false})=>{
-  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket","takiplaza","library","pdftools"];
+  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket","takiplaza","library","pdftools","notes"];
   const ttId=hasMed?"med-tt":"timetable";
   const isMore=moreViews.includes(view)&&view!==ttId;
   return(
@@ -223,6 +278,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
     {title:t("more.learningTools"),items:[
       {id:"textbooks",i:I.book,l:t("nav.textbooks")},
       {id:"pdftools",i:I.file,l:t("nav.pdftools")},
+      {id:"notes",i:I.pen,l:t("nav.notes")},
       {id:"pomo",i:I.play,l:t("more.pomoTimer")},
     ]},
     {title:t("more.campus"),items:[

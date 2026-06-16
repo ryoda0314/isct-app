@@ -3,6 +3,10 @@ import UIKit
 import WebKit
 import Capacitor
 
+extension Notification.Name {
+    static let portalOverlayNeedsUpdate = Notification.Name("portalOverlayNeedsUpdate")
+}
+
 @objc(PortalPlugin)
 public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "PortalPlugin"
@@ -34,11 +38,13 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
 
     // Shared state
     private var overlayView: UIView?
-    // NOTE: CAPPlugin already declares a `webView` property (the Capacitor main
-    // WebView). Our overlay WebView must use a distinct name or the build fails.
     private var portalWebView: WKWebView?
     private var loadingOverlay: UIView?
+    private var shareButton: UIButton?
     private var isIsctMode = false
+    private var sidebarWidth: CGFloat = 0
+    private var leadingConstraint: NSLayoutConstraint?
+    private var bottomConstraint: NSLayoutConstraint?
 
     // TiTech Portal state
     private var loginDone = false
@@ -381,7 +387,12 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         isctTotpDone = false
         isctSamlDone = false
 
-        let bottomNavHeight: CGFloat = 78
+        // 画面幅からサイドバー幅を算出（JS から渡す必要なし）
+        sidebarWidth = PortalPlugin.calcSidebarWidth(viewWidth: rootView.bounds.width)
+        let hasSidebar = sidebarWidth > 0
+        // MNav の高さ(50px) + border(1px) = 51px
+        // safe area は safeAreaLayoutGuide で自動対応
+        let mnavHeight: CGFloat = hasSidebar ? 0 : 51
 
         // Container
         let container = UIView()
@@ -389,13 +400,24 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         container.tag = 9999
         rootView.addSubview(container)
         container.translatesAutoresizingMaskIntoConstraints = false
+        let leading = container.leadingAnchor.constraint(equalTo: rootView.leadingAnchor, constant: sidebarWidth)
+        let bottom = hasSidebar
+            ? container.bottomAnchor.constraint(equalTo: rootView.bottomAnchor)
+            : container.bottomAnchor.constraint(equalTo: rootView.safeAreaLayoutGuide.bottomAnchor, constant: -mnavHeight)
         NSLayoutConstraint.activate([
             container.topAnchor.constraint(equalTo: rootView.topAnchor),
-            container.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
+            leading,
             container.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
-            container.bottomAnchor.constraint(equalTo: rootView.bottomAnchor, constant: -bottomNavHeight),
+            bottom,
         ])
+        leadingConstraint = leading
+        bottomConstraint = bottom
         overlayView = container
+
+        // 画面回転完了後に制約を更新（ViewController から通知）
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(handleSizeChange(_:)),
+            name: .portalOverlayNeedsUpdate, object: nil)
 
         // Toolbar
         let toolbar = UIView()
@@ -461,7 +483,13 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         reloadBtn.setTitleColor(navColor, for: .normal)
         reloadBtn.addTarget(self, action: #selector(reloadTapped), for: .touchUpInside)
 
-        let navStack = UIStackView(arrangedSubviews: [backBtn, fwdBtn, reloadBtn])
+        let shareBtn = UIButton(type: .system)
+        shareBtn.setImage(UIImage(systemName: "square.and.arrow.up"), for: .normal)
+        shareBtn.tintColor = navColor
+        shareBtn.addTarget(self, action: #selector(shareTapped), for: .touchUpInside)
+        shareButton = shareBtn
+
+        let navStack = UIStackView(arrangedSubviews: [backBtn, fwdBtn, reloadBtn, shareBtn])
         navStack.axis = .horizontal
         navStack.spacing = 0
         toolbar.addSubview(navStack)
@@ -470,7 +498,7 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
             navStack.trailingAnchor.constraint(equalTo: toolbar.trailingAnchor, constant: -12),
             navStack.centerYAnchor.constraint(equalTo: closeBtn.centerYAnchor),
         ])
-        for btn in [backBtn, fwdBtn, reloadBtn] {
+        for btn in [backBtn, fwdBtn, reloadBtn, shareBtn] {
             btn.widthAnchor.constraint(equalToConstant: 40).isActive = true
             btn.heightAnchor.constraint(equalToConstant: 44).isActive = true
         }
@@ -489,9 +517,12 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         // WebView
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()  // Share cookies across WebViews
+        config.preferences.javaScriptCanOpenWindowsAutomatically = true
         let wv = WKWebView(frame: .zero, configuration: config)
         wv.navigationDelegate = self
+        wv.uiDelegate = self
         wv.allowsBackForwardNavigationGestures = true
+        wv.allowsLinkPreview = false
         wv.customUserAgent =
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
             + "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
@@ -517,20 +548,22 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         ])
         loadingOverlay = loading
 
-        // Bottom nav touch interceptor
-        let navInterceptor = UIView()
-        navInterceptor.tag = 9998
-        navInterceptor.backgroundColor = .clear
-        rootView.addSubview(navInterceptor)
-        navInterceptor.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            navInterceptor.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
-            navInterceptor.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
-            navInterceptor.bottomAnchor.constraint(equalTo: rootView.bottomAnchor),
-            navInterceptor.heightAnchor.constraint(equalToConstant: bottomNavHeight),
-        ])
-        let tap = UITapGestureRecognizer(target: self, action: #selector(bottomNavTapped(_:)))
-        navInterceptor.addGestureRecognizer(tap)
+        // Bottom nav touch interceptor (iPhone only — iPad uses sidebar)
+        if !hasSidebar {
+            let navInterceptor = UIView()
+            navInterceptor.tag = 9998
+            navInterceptor.backgroundColor = .clear
+            rootView.addSubview(navInterceptor)
+            navInterceptor.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                navInterceptor.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
+                navInterceptor.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
+                navInterceptor.bottomAnchor.constraint(equalTo: rootView.bottomAnchor),
+                navInterceptor.topAnchor.constraint(equalTo: rootView.safeAreaLayoutGuide.bottomAnchor, constant: -mnavHeight),
+            ])
+            let tap = UITapGestureRecognizer(target: self, action: #selector(bottomNavTapped(_:)))
+            navInterceptor.addGestureRecognizer(tap)
+        }
 
         // Load URL
         if let url = URL(string: startUrl) {
@@ -579,6 +612,95 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc private func reloadTapped() { portalWebView?.reload() }
 
+    @objc private func shareTapped() {
+        guard let wv = portalWebView,
+              let url = wv.url,
+              let vc = bridge?.viewController else { return }
+
+        let loadingAlert = UIAlertController(
+            title: nil, message: "ダウンロード中…", preferredStyle: .alert)
+        vc.present(loadingAlert, animated: true)
+
+        wv.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
+            var request = URLRequest(url: url)
+            let host = url.host ?? ""
+            let cookieHeader = cookies
+                .filter { cookie in
+                    let d = cookie.domain.hasPrefix(".")
+                        ? String(cookie.domain.dropFirst()) : cookie.domain
+                    return host == d || host.hasSuffix("." + d)
+                }
+                .map { "\($0.name)=\($0.value)" }
+                .joined(separator: "; ")
+            if !cookieHeader.isEmpty {
+                request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+            }
+            if let ua = wv.customUserAgent {
+                request.setValue(ua, forHTTPHeaderField: "User-Agent")
+            }
+
+            URLSession.shared.downloadTask(with: request) { tempURL, response, error in
+                DispatchQueue.main.async {
+                    loadingAlert.dismiss(animated: true) {
+                        guard let tempURL = tempURL, error == nil else {
+                            let alert = UIAlertController(
+                                title: "保存に失敗しました",
+                                message: error?.localizedDescription,
+                                preferredStyle: .alert)
+                            alert.addAction(UIAlertAction(title: "OK", style: .default))
+                            vc.present(alert, animated: true)
+                            return
+                        }
+                        let filename = self?.filenameFor(response: response, url: url) ?? "download"
+                        let destURL = FileManager.default.temporaryDirectory
+                            .appendingPathComponent(filename)
+                        try? FileManager.default.removeItem(at: destURL)
+                        do {
+                            try FileManager.default.moveItem(at: tempURL, to: destURL)
+                        } catch {
+                            NSLog("PortalPlugin: moveItem failed: \(error)")
+                            return
+                        }
+                        let activityVC = UIActivityViewController(
+                            activityItems: [destURL], applicationActivities: nil)
+                        if let popover = activityVC.popoverPresentationController {
+                            popover.sourceView = self?.shareButton ?? vc.view
+                            popover.sourceRect = self?.shareButton?.bounds
+                                ?? CGRect(x: vc.view.bounds.midX, y: vc.view.bounds.midY,
+                                          width: 0, height: 0)
+                            popover.permittedArrowDirections = .up
+                        }
+                        vc.present(activityVC, animated: true)
+                    }
+                }
+            }.resume()
+        }
+    }
+
+    private func filenameFor(response: URLResponse?, url: URL) -> String {
+        if let http = response as? HTTPURLResponse,
+           let disposition = http.value(forHTTPHeaderField: "Content-Disposition") {
+            if let range = disposition.range(
+                of: #"filename\*=UTF-8''([^;]+)"#, options: .regularExpression) {
+                let raw = String(disposition[range])
+                    .replacingOccurrences(of: "filename*=UTF-8''", with: "")
+                if let decoded = raw.removingPercentEncoding, !decoded.isEmpty {
+                    return decoded
+                }
+            }
+            if let range = disposition.range(
+                of: #"filename="?([^";]+)"?"#, options: .regularExpression) {
+                let raw = String(disposition[range])
+                    .replacingOccurrences(of: "filename=", with: "")
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "\" "))
+                if !raw.isEmpty { return raw }
+            }
+        }
+        let last = url.lastPathComponent
+        if !last.isEmpty, last != "/" { return last }
+        return "download"
+    }
+
     @objc private func bottomNavTapped(_ gesture: UITapGestureRecognizer) {
         let location = gesture.location(in: bridge?.viewController?.view)
         removeOverlay()
@@ -599,6 +721,8 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
     // MARK: - Overlay Management
 
     private func removeOverlay() {
+        NotificationCenter.default.removeObserver(self, name: .portalOverlayNeedsUpdate, object: nil)
+
         // Remove nav interceptor
         if let vc = bridge?.viewController {
             vc.view.viewWithTag(9998)?.removeFromSuperview()
@@ -608,8 +732,39 @@ public class PortalPlugin: CAPPlugin, CAPBridgedPlugin {
         portalWebView?.navigationDelegate = nil
         portalWebView = nil
         loadingOverlay = nil
+        shareButton = nil
+        leadingConstraint = nil
+        bottomConstraint = nil
         overlayView?.removeFromSuperview()
         overlayView = nil
+    }
+
+    /// 画面幅から CSS ブレークポイントに合わせたサイドバー幅を算出
+    /// mobile(<768): 0, tablet(768-1079): 150, desktop(>=1080): 180
+    private static func calcSidebarWidth(viewWidth: CGFloat) -> CGFloat {
+        if viewWidth < 768 { return 0 }
+        if viewWidth < 1080 { return 150 }
+        return 180
+    }
+
+    @objc private func handleSizeChange(_ notification: Notification) {
+        guard let rootView = overlayView?.superview else { return }
+        let viewWidth = (notification.userInfo?["width"] as? CGFloat) ?? rootView.bounds.width
+        let newWidth = PortalPlugin.calcSidebarWidth(viewWidth: viewWidth)
+        sidebarWidth = newWidth
+        let hasSidebar = newWidth > 0
+        leadingConstraint?.constant = newWidth
+
+        // bottom 制約を差し替え（safe area 基準 ↔ rootView 基準の切り替え）
+        if let old = bottomConstraint {
+            old.isActive = false
+        }
+        let newBottom = hasSidebar
+            ? overlayView!.bottomAnchor.constraint(equalTo: rootView.bottomAnchor)
+            : overlayView!.bottomAnchor.constraint(equalTo: rootView.safeAreaLayoutGuide.bottomAnchor, constant: -51)
+        newBottom.isActive = true
+        bottomConstraint = newBottom
+        rootView.layoutIfNeeded()
     }
 
     private func hideLoading() {
@@ -845,15 +1000,52 @@ extension PortalPlugin: WKNavigationDelegate {
     public func webView(_ webView: WKWebView,
                         decidePolicyFor navigationAction: WKNavigationAction,
                         decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        let url = navigationAction.request.url?.absoluteString ?? ""
         // The moodlemobile:// launch redirect is captured here for the headless
         // token WebView before WKWebView errors on the unknown scheme.
         if webView === tokenWebView {
-            let url = navigationAction.request.url?.absoluteString ?? ""
             if handleTokenRedirect(url) {
                 decisionHandler(.cancel)
                 return
             }
+            decisionHandler(.allow)
+            return
         }
+        NSLog("PortalPlugin: navigate -> \(url)")
         decisionHandler(.allow)
+    }
+
+    public func webView(_ webView: WKWebView,
+                        didReceive challenge: URLAuthenticationChallenge,
+                        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let trust = challenge.protectionSpace.serverTrust else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+        let host = challenge.protectionSpace.host
+        let allowedDomains = ["titech.ac.jp", "isct.ac.jp", "ex-tic.com", "gsic.titech.ac.jp"]
+        if allowedDomains.contains(where: { host.hasSuffix($0) }) {
+            NSLog("PortalPlugin: SSL trust override for \(host)")
+            completionHandler(.useCredential, URLCredential(trust: trust))
+        } else {
+            completionHandler(.performDefaultHandling, nil)
+        }
+    }
+}
+
+// MARK: - WKUIDelegate
+
+extension PortalPlugin: WKUIDelegate {
+    public func webView(_ webView: WKWebView,
+                        createWebViewWith configuration: WKWebViewConfiguration,
+                        for navigationAction: WKNavigationAction,
+                        windowFeatures: WKWindowFeatures) -> WKWebView? {
+        // target="_blank" links: load in the same WebView
+        if let url = navigationAction.request.url {
+            NSLog("PortalPlugin: target=_blank -> \(url.absoluteString)")
+            webView.load(URLRequest(url: url))
+        }
+        return nil
     }
 }

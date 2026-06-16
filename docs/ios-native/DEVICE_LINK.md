@@ -45,6 +45,13 @@ QR連携は「A の Keychain に資格情報がある」ことが前提（＝Pha
 }
 ```
 
+> **状態（2026-06-12）**: iOS の `SecureCreds`（Keychain save/load/clear）は実装済み
+> （`docs/ios-native/SecureCredsPlugin.swift`）。JS ラッパー `campus-sns/secureCreds.js`、
+> オンデバイス TOTP `campus-sns/totp.js`、移行用エンドポイント
+> `GET /api/auth/credentials/bundle`（native+認証のみ・`totpSecret` を含むフルバンドル）も実装済み。
+> `moodleClient.refreshTokenNative` は SecureCreds を優先し、初回のみサーバーから移行する。
+> **残り**: Android 実装 / サーバー保存の廃止（Phase 3） / `DeviceLink` プラグイン（Phase 2）。
+
 ### プラグイン `SecureCreds`
 | メソッド | 引数 | 戻り | 実装 |
 |---|---|---|---|

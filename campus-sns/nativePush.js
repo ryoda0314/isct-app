@@ -18,27 +18,36 @@ function notifEnabled() {
 }
 
 export async function registerNativePush() {
-  if (!isNative() || registered || !notifEnabled()) return;
+  if (!isNative()) { console.log('[nativePush] skip: not native'); return; }
+  if (registered) { console.log('[nativePush] skip: already registered'); return; }
+  if (!notifEnabled()) { console.log('[nativePush] skip: notifications disabled in settings'); return; }
 
   try {
     const { PushNotifications } = await import('@capacitor/push-notifications');
 
     let perm = await PushNotifications.checkPermissions();
+    console.log('[nativePush] current permission:', perm.receive);
     if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
       perm = await PushNotifications.requestPermissions();
+      console.log('[nativePush] after request:', perm.receive);
     }
-    if (perm.receive !== 'granted') return;
+    if (perm.receive !== 'granted') {
+      console.warn('[nativePush] permission not granted:', perm.receive);
+      return;
+    }
 
     // APNs device token → send to backend.
     PushNotifications.addListener('registration', async (token) => {
       currentToken = token.value;
+      console.log('[nativePush] APNs token received:', token.value.slice(0, 12) + '…');
       try {
-        await fetch('/api/push/device', {
+        const r = await fetch('/api/push/device', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: token.value, platform: 'ios' }),
         });
-      } catch {}
+        console.log('[nativePush] token POST /api/push/device →', r.status);
+      } catch (e) { console.warn('[nativePush] token POST failed', e); }
     });
 
     PushNotifications.addListener('registrationError', (err) => {
@@ -58,6 +67,7 @@ export async function registerNativePush() {
 
     await PushNotifications.register();
     registered = true;
+    console.log('[nativePush] register() called — waiting for APNs token');
   } catch (e) {
     console.warn('[nativePush] register failed', e);
   }

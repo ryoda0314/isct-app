@@ -7,12 +7,15 @@
 // 音源URLは API が返す署名URL（6時間有効）。期限切れ時は onError で曲を読み直す想定。
 // =============================================================
 
+import { isNativeVolume, getSystemVolume, setSystemVolume, onSystemVolumeChange } from '../plugins/systemVolume.js';
+
 let audio = null;            // HTMLAudioElement（遅延生成）
 let queue = [];              // 再生キュー（トラックの配列）
 let index = -1;             // queue 内の現在位置
 let repeat = 'off';          // 'off' | 'all' | 'one'
 let shuffle = false;
-let volume = 1;              // 0..1（iOS Safari は audio.volume を無視するため効かない場合がある）
+let volume = 1;              // 0..1。音量の唯一の真実。iOS は audio.volume を無視するため
+                             // この変数を基準にし、システム音量へは setSystemVolume で反映する。
 const listeners = new Set();
 
 // 購読側に渡すスナップショット（イミュータブル）。useSyncExternalStore のため参照を維持する。
@@ -38,7 +41,9 @@ function rebuildSnapshot() {
     repeat,
     shuffle,
     hasQueue: queue.length > 0,
-    volume: audio ? audio.volume : volume,
+    // volume 変数が唯一の真実。audio.volume は iOS で常に 1.0 を返すため参照しない
+    // （初期化が間に合わない間スライダーが最大に張り付くのを防ぐ）。
+    volume,
   };
 }
 
@@ -173,7 +178,8 @@ export const engine = {
   setVolume(v) {
     volume = Math.min(1, Math.max(0, Number(v)));
     const a = ensureAudio();
-    if (a) a.volume = volume;
+    if (a) a.volume = volume;   // web 用（iOS は無視するが無害）
+    setSystemVolume(volume);    // iOS 用（web は no-op）。初期化状態に依存せず常に反映する。
     emit();
   },
 
@@ -202,3 +208,30 @@ export const engine = {
   },
   getSnapshot() { return snapshot; },
 };
+
+// iOS ネイティブ: 起動時にシステム音量を取り込み、ハードウェアボタン/コントロールセンターの
+// 変更を購読して volume に反映する（読み取り方向）。書き込み(setVolume)は init 完了を待たず
+// 常に効くので、ここが失敗してもスライダー操作は機能する（反映が片方向になるだけ）。
+// web では isNativeVolume() が false なので何もしない。
+function initNativeVolume(attempt = 0) {
+  if (!isClient()) return;
+  // audioEngine は Capacitor ブリッジ注入より先に読み込まれることがある。その瞬間に
+  // 判定すると isNativePlatform()=false になり、音量連携が「たまに」死ぬ（再起動で
+  // 直るのはこのレースのため）。window.Capacitor が来るまで数回待ってから判定する。
+  if (!window.Capacitor) {
+    if (attempt < 30) setTimeout(() => initNativeVolume(attempt + 1), 100);
+    return;
+  }
+  if (!isNativeVolume()) return; // web 確定。何もしない。
+  getSystemVolume().then((cur) => {
+    console.log('[audioEngine] system volume linked:', cur);
+    if (typeof cur === 'number') { volume = cur; emit(); }
+  });
+  onSystemVolumeChange((val) => {
+    if (typeof val !== 'number') return;
+    volume = Math.min(1, Math.max(0, val));
+    emit();
+  });
+}
+
+initNativeVolume();
