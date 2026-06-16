@@ -16,7 +16,7 @@ import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUn
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
-const NOTES_VERSION = "v21-mono02b";
+const NOTES_VERSION = "v22-toolbar";
 
 // ── pdf.js ローダ（PdfToolsView と同じ jsdelivr 経由）──
 const PDFJS_VER = "3.11.174";
@@ -642,8 +642,8 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const dotSize = (s) => tool === "mono" ? (3 + s * 2.2) : Math.max(3, s / sizeDiv);
 
   const TOOLS = [
-    { id: "pen", icon: TOOL_ICONS.pen, label: t("notes.penPressure") },
     { id: "mono", icon: TOOL_ICONS.mono, label: t("notes.penMono") },
+    { id: "pen", icon: TOOL_ICONS.pen, label: t("notes.penPressure") },
     { id: "highlighter", icon: TOOL_ICONS.highlighter, label: t("notes.highlighter") },
     { id: "eraser", icon: TOOL_ICONS.eraser, label: t("notes.eraser") },
   ];
@@ -653,8 +653,12 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg3 }}>
-      <header style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, padding: "env(safe-area-inset-top) 10px 6px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
+      <header style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, padding: "calc(env(safe-area-inset-top) + 10px) 10px 8px", background: T.bg2, borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
         <button onClick={back} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 6 }}>{I.back}</button>
+        {/* Undo / Redo（左側） */}
+        <IconBtn onClick={() => inkUndo()} title="Undo">{I.reset}</IconBtn>
+        <IconBtn onClick={() => inkRedo()} title="Redo"><span style={{ transform: "scaleX(-1)", display: "inline-flex" }}>{I.reset}</span></IconBtn>
+        <div style={{ width: 1, height: 26, background: T.bd, margin: "0 2px" }} />
 
         {/* ツール選択（アイコン＋ラベル・大きめ・はっきり） */}
         <div style={{ display: "flex", gap: 2, background: T.bg3, borderRadius: 11, padding: 3 }}>
@@ -700,9 +704,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
 
         <div style={{ flex: 1 }} />
 
-        {/* Undo / Redo / 書き出し */}
-        <IconBtn onClick={() => inkUndo()} title="Undo">{I.reset}</IconBtn>
-        <IconBtn onClick={() => inkRedo()} title="Redo"><span style={{ transform: "scaleX(-1)", display: "inline-flex" }}>{I.reset}</span></IconBtn>
+        {/* 書き出し（右側） */}
         <IconBtn onClick={exportCurrent} title={t("notes.exportPdf")} disabled={exporting}>{I.dl}</IconBtn>
       </header>
       {/* この div の矩形にネイティブ PKCanvasView を重ねる */}
