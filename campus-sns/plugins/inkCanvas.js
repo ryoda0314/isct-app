@@ -11,9 +11,9 @@ export function inkAvailable() {
 }
 
 // rect: ビューポート基準の CSS px（= WKWebView の point 座標に一致）
-export async function showInk({ rect, pages, drawing }) {
+export async function showInk({ rect, pages, drawing, texts }) {
   if (!inkAvailable()) throw new Error("ink-unavailable");
-  return window.Capacitor.Plugins.Ink.show({ rect, pages: pages || [], drawing: drawing || undefined });
+  return window.Capacitor.Plugins.Ink.show({ rect, pages: pages || [], drawing: drawing || undefined, texts: texts || [] });
 }
 
 export async function setInkRect(rect) {
@@ -36,17 +36,17 @@ export async function onPencilDoubleTap(cb) {
 
 // 編集中に現在の描画を取得（オーバーレイは閉じない）→ ノート内からの書き出し用
 export async function inkSnapshot() {
-  try { const r = await window.Capacitor.Plugins.Ink.snapshot(); return { drawing: r?.drawing || "", thumbnails: r?.thumbnails || [] }; }
-  catch { return { drawing: "", thumbnails: [] }; }
+  try { const r = await window.Capacitor.Plugins.Ink.snapshot(); return { drawing: r?.drawing || "", thumbnails: r?.thumbnails || [], texts: r?.texts || [] }; }
+  catch { return { drawing: "", thumbnails: [], texts: [] }; }
 }
 
-// 保存して撤去 → { drawing:<base64 PKDrawing>, thumbnails:[<base64 PNG ink>/ページ] }
+// 保存して撤去 → { drawing:<base64 PKDrawing>, thumbnails:[<base64 PNG>/ページ], texts:[テキスト注釈] }
 export async function hideInk() {
-  if (!inkAvailable()) return { drawing: "", thumbnails: [] };
+  if (!inkAvailable()) return { drawing: "", thumbnails: [], texts: [] };
   try {
     const res = await window.Capacitor.Plugins.Ink.hide();
-    return { drawing: res?.drawing || "", thumbnails: res?.thumbnails || [] };
-  } catch { return { drawing: "", thumbnails: [] }; }
+    return { drawing: res?.drawing || "", thumbnails: res?.thumbnails || [], texts: res?.texts || [] };
+  } catch { return { drawing: "", thumbnails: [], texts: [] }; }
 }
 
 // DOM 要素のビューポート矩形を rect(CSS px, 整数) で返す

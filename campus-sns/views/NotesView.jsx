@@ -850,6 +850,7 @@ const NPEN_SIZES = [5, 9, 16];
 const NMONO_SIZES = [0.2, 0.6, 1.5]; // 一律ペンは極細まで（0.2が最小）
 const NHL_SIZES = [22, 40];
 const NERASER_SIZES = [40, 80];
+const NTEXT_SIZES = [22, 30, 44, 64]; // テキストの論理フォントサイズ
 
 // ツール用ライン系アイコン（絵文字をやめて既存アイコンと統一感のあるSVGに）
 const svgProps = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" };
@@ -859,6 +860,7 @@ const TOOL_ICONS = {
   highlighter: (<svg {...svgProps}><path d="M4 21h16" /><path d="M8.5 13.5l-2 2V18h2.5l2-2" /><path d="M8.5 13.5l6.5-6.5 3 3-6.5 6.5z" /></svg>),
   eraser: (<svg {...svgProps}><path d="M4 21h16" /><path d="M8.5 18.5l-3.4-3.4a1.5 1.5 0 0 1 0-2.1l6.6-6.6a1.5 1.5 0 0 1 2.1 0l3.8 3.8a1.5 1.5 0 0 1 0 2.1L15 18.5z" /></svg>),
   lasso: (<svg {...svgProps} strokeDasharray="3 2.5"><path d="M4 11a8 4 0 1 1 16 0 8 4 0 0 1-12.5 3.3" /><path d="M7.5 14.3c-.8.5-.8 2 .3 2.4" strokeDasharray="0" /></svg>),
+  text: (<svg {...svgProps}><path d="M5 5h14" /><path d="M12 5v14" /><path d="M9 19h6" /></svg>),
 };
 
 function NativeNoteEditor({ id, onBack, onIndexChange }) {
@@ -880,6 +882,8 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const [monoW, setMonoW] = useState(NMONO_SIZES[0]);
   const [hlW, setHlW] = useState(NHL_SIZES[0]);
   const [eraserW, setEraserW] = useState(NERASER_SIZES[0]);
+  const [textColor, setTextColor] = useState(PEN_COLORS[2]);
+  const [textSize, setTextSize] = useState(NTEXT_SIZES[1]);
   const [eraserMode, setEraserMode] = useState("stroke"); // stroke=線ごと / pixel=部分消し
   const [shapeAssist, setShapeAssist] = useState(true); // 図形補助(ホールドで整形)。既定ON
 
@@ -890,8 +894,9 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
     else if (tool === "mono") setInkTool({ type: "mono", color: monoColor, width: monoW });
     else if (tool === "highlighter") setInkTool({ type: "highlighter", color: hlColor, width: hlW });
     else if (tool === "lasso") setInkTool({ type: "lasso" });
+    else if (tool === "text") setInkTool({ type: "text", color: textColor, width: textSize });
     else setInkTool({ type: "eraser", width: eraserW, mode: eraserMode });
-  }, [ready, tool, penColor, monoColor, hlColor, penW, monoW, hlW, eraserW, eraserMode]);
+  }, [ready, tool, penColor, monoColor, hlColor, penW, monoW, hlW, eraserW, eraserMode, textColor, textSize]);
 
   // 図形補助の ON/OFF をネイティブへ反映
   useEffect(() => { if (ready) setInkShapeAssist(shapeAssist); }, [ready, shapeAssist]);
@@ -924,6 +929,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
       const res = await inkSnapshot();
       note.pkDrawing = res.drawing || note.pkDrawing || "";
       note.inkPNGs = (res.thumbnails && res.thumbnails.length) ? res.thumbnails : (note.inkPNGs || []);
+      note.texts = res.texts || note.texts || [];
       note.engine = "pencilkit"; note.updatedAt = Date.now();
       await writeNote(note);
       const bytes = await buildNotePdfBytes(note);
@@ -939,7 +945,8 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
       const res = await hideInk();
       const note = noteRef.current; if (!note) return;
       note.pkDrawing = res.drawing || note.pkDrawing || "";
-      note.inkPNGs = res.thumbnails || []; // ページ別の透明インクPNG（PDF書き出し用）
+      note.inkPNGs = res.thumbnails || []; // ページ別のPNG（インク＋テキスト焼き込み・PDF書き出し用）
+      note.texts = res.texts || []; // テキスト注釈（再編集用・論理座標）
       note.engine = "pencilkit"; note.updatedAt = Date.now();
       await writeNote(note);
       let thumb = "";
@@ -964,7 +971,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
       for (const pg of note.pages) pages.push({ bg: await renderBgB64(note, pg, cache), w: pg.w, h: pg.h });
       bgPagesRef.current = pages;
       if (!alive || !hostRef.current) return;
-      try { await showInk({ rect: rectOfEl(hostRef.current), pages, drawing: note.pkDrawing }); shownRef.current = true; setStatus(""); setReady(true); }
+      try { await showInk({ rect: rectOfEl(hostRef.current), pages, drawing: note.pkDrawing, texts: note.texts }); shownRef.current = true; setStatus(""); setReady(true); }
       catch (e) { console.warn("[notes] showInk", e); setStatus(""); }
     })();
     const onResize = () => { if (shownRef.current && hostRef.current) setInkRect(rectOfEl(hostRef.current)); };
@@ -981,20 +988,21 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const usesColor = tool !== "eraser" && tool !== "lasso";
   const usesSize = tool !== "lasso"; // なげなわは太さ不要
   const palette = tool === "highlighter" ? HL_COLORS : PEN_COLORS;
-  const curColor = tool === "mono" ? monoColor : tool === "highlighter" ? hlColor : penColor;
-  const setColor = (c) => { if (tool === "mono") setMonoColor(c); else if (tool === "highlighter") setHlColor(c); else setPenColor(c); };
-  const sizes = tool === "eraser" ? NERASER_SIZES : tool === "mono" ? NMONO_SIZES : tool === "highlighter" ? NHL_SIZES : NPEN_SIZES;
-  const curSize = tool === "mono" ? monoW : tool === "highlighter" ? hlW : tool === "eraser" ? eraserW : penW;
-  const setSize = (s) => { if (tool === "mono") setMonoW(s); else if (tool === "highlighter") setHlW(s); else if (tool === "eraser") setEraserW(s); else setPenW(s); };
+  const curColor = tool === "mono" ? monoColor : tool === "highlighter" ? hlColor : tool === "text" ? textColor : penColor;
+  const setColor = (c) => { if (tool === "mono") setMonoColor(c); else if (tool === "highlighter") setHlColor(c); else if (tool === "text") setTextColor(c); else setPenColor(c); };
+  const sizes = tool === "eraser" ? NERASER_SIZES : tool === "mono" ? NMONO_SIZES : tool === "highlighter" ? NHL_SIZES : tool === "text" ? NTEXT_SIZES : NPEN_SIZES;
+  const curSize = tool === "mono" ? monoW : tool === "highlighter" ? hlW : tool === "eraser" ? eraserW : tool === "text" ? textSize : penW;
+  const setSize = (s) => { if (tool === "mono") setMonoW(s); else if (tool === "highlighter") setHlW(s); else if (tool === "eraser") setEraserW(s); else if (tool === "text") setTextSize(s); else setPenW(s); };
   const dotColor = tool === "eraser" ? T.txD : curColor === "#ffffff" ? "#999" : curColor;
   const sizeDiv = tool === "eraser" ? 8 : tool === "highlighter" ? 4 : 2.2;
   // 太さ選択ドットの見た目サイズ（極細の一律ペンは段階が見分かるよう専用スケール）
-  const dotSize = (s) => tool === "mono" ? (3 + s * 2.2) : Math.max(3, s / sizeDiv);
+  const dotSize = (s) => tool === "mono" ? (3 + s * 2.2) : tool === "text" ? Math.max(7, s / 3.5) : Math.max(3, s / sizeDiv);
 
   const TOOLS = [
     { id: "mono", icon: TOOL_ICONS.mono, label: t("notes.penMono") },
     { id: "pen", icon: TOOL_ICONS.pen, label: t("notes.penPressure") },
     { id: "highlighter", icon: TOOL_ICONS.highlighter, label: t("notes.highlighter") },
+    { id: "text", icon: TOOL_ICONS.text, label: t("notes.text") },
     { id: "eraser", icon: TOOL_ICONS.eraser, label: t("notes.eraser") },
     { id: "lasso", icon: TOOL_ICONS.lasso, label: t("notes.lasso") },
   ];
@@ -1056,7 +1064,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
         </div>
         </>}
 
-        {tool !== "lasso" && tool !== "eraser" && <>
+        {tool !== "lasso" && tool !== "eraser" && tool !== "text" && <>
         <div style={{ width: 1, height: 26, background: T.bd, margin: "0 2px" }} />
         {/* 図形補助トグル */}
         <button onClick={() => setShapeAssist((v) => !v)} title={t("notes.shapeHint")}
