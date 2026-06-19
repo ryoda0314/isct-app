@@ -21,12 +21,14 @@ create table if not exists music_tracks (
   cover      jsonb,                           -- {path} カバー画像（任意）※同上
   duration   real,                            -- 秒（クライアントが計測して保存。任意）
   is_public  boolean not null default false,  -- true: 管理者が全員へ配信した公式曲（owner_id=投稿した管理者）
+  lyrics     text,                            -- 歌詞（任意）。プレーンテキスト or LRC形式（[mm:ss.xx]）。同期はクライアントで解析
   sort_order integer not null default 0,      -- 並び順（小さいほど上）。0なら created_at 順
   created_at timestamptz not null default now()
 );
 
 -- 既にテーブルがある場合に列を追加（冪等）
 alter table music_tracks add column if not exists is_public boolean not null default false;
+alter table music_tracks add column if not exists lyrics text;
 
 create index if not exists music_tracks_owner_idx
   on music_tracks (owner_id, sort_order asc, created_at desc);

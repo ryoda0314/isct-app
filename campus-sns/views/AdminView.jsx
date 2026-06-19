@@ -6,6 +6,7 @@ import { MapEditorView } from "./MapEditorView.jsx";
 import { usePresence } from "../hooks/usePresence.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
 import { useMusic } from "../hooks/useMusic.js";
+import { LyricsSyncEditor } from "../components/LyricsSyncEditor.jsx";
 import { showToast } from "../hooks/useToast.js";
 import { t } from "../i18n.js";
 
@@ -1161,10 +1162,11 @@ const AnnouncementsTab = () => {
 // 管理者がアップロードした曲は is_public=true で全ユーザーのミュージック画面に配信される。
 // ミュージック画面側は全員同一表示（聴くだけ）。管理はこのタブで行う。
 const MusicTab = () => {
-  const { tracks, loading, addTrack, removeTrack } = useMusic();
+  const { tracks, loading, addTrack, removeTrack, renameTrack } = useMusic();
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
+  const [lyrics, setLyrics] = useState("");
   const [audioFile, setAudioFile] = useState(null);
   const [coverFile, setCoverFile] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -1172,8 +1174,11 @@ const MusicTab = () => {
   const coverRef = useRef(null);
   const published = tracks.filter(tr => tr.is_public);
 
+  // 既存曲の歌詞同期エディタを開いているトラックID
+  const [editId, setEditId] = useState(null);
+
   const reset = () => {
-    setShowForm(false); setTitle(""); setArtist(""); setAudioFile(null); setCoverFile(null);
+    setShowForm(false); setTitle(""); setArtist(""); setLyrics(""); setAudioFile(null); setCoverFile(null);
     if (audioRef.current) audioRef.current.value = "";
     if (coverRef.current) coverRef.current.value = "";
   };
@@ -1181,7 +1186,7 @@ const MusicTab = () => {
     if (!audioFile) { showToast(t("admin.music.selectAudio"), "error"); return; }
     setSaving(true);
     try {
-      await addTrack({ audioFile, coverFile, title: title.trim(), artist: artist.trim(), isPublic: true });
+      await addTrack({ audioFile, coverFile, title: title.trim(), artist: artist.trim(), lyrics: lyrics.trim(), isPublic: true });
       showToast(t("admin.music.published"), "success");
       reset();
     } catch (e) {
@@ -1193,6 +1198,13 @@ const MusicTab = () => {
     await removeTrack(tr.id);
     showToast(t("admin.deleted"), "success");
   };
+  const saveLyrics = async (id, lrc) => {
+    setEditId(null);
+    await renameTrack(id, { lyrics: lrc });
+    showToast(t("admin.music.lyricsSaved"), "success");
+  };
+
+  const lyricsArea = { width: "100%", minHeight: 120, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "inherit", resize: "vertical", lineHeight: 1.5 };
 
   const fileInput = { flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" };
 
@@ -1216,6 +1228,10 @@ const MusicTab = () => {
             </label>
             <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t("admin.music.songName")} style={fileInput} />
             <input value={artist} onChange={e => setArtist(e.target.value)} placeholder={t("admin.music.artistName")} style={fileInput} />
+            <label style={{ fontSize: 12, color: T.txD }}>{t("admin.music.lyrics")}
+              <textarea value={lyrics} onChange={e => setLyrics(e.target.value)} placeholder={t("admin.music.lyricsPlaceholder")} style={{ ...lyricsArea, marginTop: 4 }} />
+            </label>
+            <div style={{ fontSize: 11, color: T.txD, lineHeight: 1.5 }}>{t("admin.music.lyricsHint")}</div>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
             <Btn onClick={reset} color={T.txD} disabled={saving}>{t("common.cancel")}</Btn>
@@ -1227,15 +1243,25 @@ const MusicTab = () => {
       {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {published.map(tr => (
-          <div key={tr.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
-            <div style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, overflow: "hidden", background: `linear-gradient(145deg, ${T.accent}, ${T.accent}99)`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-              {tr.cover?.url ? <img src={tr.cover.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : I.music}
+          <div key={tr.id} style={{ padding: 12, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, overflow: "hidden", background: `linear-gradient(145deg, ${T.accent}, ${T.accent}99)`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                {tr.cover?.url ? <img src={tr.cover.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : I.music}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tr.title}</div>
+                <div style={{ fontSize: 12, color: T.txD, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {tr.artist || "ScienceTokyo Music"}{tr.lyrics ? ` · ${t("admin.music.hasLyrics")}` : ""}
+                </div>
+              </div>
+              <Btn onClick={() => setEditId(editId === tr.id ? null : tr.id)} color={T.accent} small>{I.lyrics} {t("admin.music.editLyrics")}</Btn>
+              <Btn onClick={() => del(tr)} color={T.red} small>{I.trash} {t("common.delete")}</Btn>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tr.title}</div>
-              <div style={{ fontSize: 12, color: T.txD, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tr.artist || "ScienceTokyo Music"}</div>
-            </div>
-            <Btn onClick={() => del(tr)} color={T.red} small>{I.trash} {t("common.delete")}</Btn>
+            {editId === tr.id && (
+              tr.audio?.url
+                ? <LyricsSyncEditor track={tr} onSave={(lrc) => saveLyrics(tr.id, lrc)} onClose={() => setEditId(null)} />
+                : <div style={{ marginTop: 10, fontSize: 12, color: T.txD }}>{t("admin.music.syncNoAudio")}</div>
+            )}
           </div>
         ))}
         {!loading && published.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.music.empty")}</div>}

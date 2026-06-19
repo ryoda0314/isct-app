@@ -1,0 +1,21 @@
+{
+  "name": "scitokyo-promo-video",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ScienceTokyo App 紹介動画（ずんだもん解説）の自動生成パイプライン",
+  "type": "module",
+  "scripts": {
+    "voices": "node generate_voices.mjs",
+    "studio": "remotion studio src/index.js",
+    "render": "remotion render src/index.js PromoVideo out/video.mp4",
+    "render:test": "remotion render src/index.js PromoVideo out/test.mp4 --props=./sample-timeline.json",
+    "all": "npm run voices && npm run render"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "@remotion/media-utils": "^4.0.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "^4.0.0"
+  }
+}

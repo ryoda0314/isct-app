@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { useMusicPlayer } from "../hooks/useMusicPlayer.js";
+import { parseLyrics, activeLineIndex } from "../player/lyrics.js";
 import { t } from "../i18n.js";
 
 const fmt = (s) => {
@@ -44,6 +45,11 @@ export function NowPlaying({ onClose, onOpenLibrary }) {
   });
   useEffect(() => { draggingSeekRef.current = false; }, [track?.id]);
 
+  // 歌詞表示トグル（Apple Music 風）。曲が変わったら閉じる。
+  const [showLyrics, setShowLyrics] = useState(false);
+  const hasLyrics = !!track?.lyrics;
+  useEffect(() => { setShowLyrics(false); }, [track?.id]);
+
   // 下スワイプで閉じる（指に追従。一定以上下げて離すと閉じ、途中で離すと戻る）
   const startYRef = useRef(0);
   const movedRef = useRef(false);
@@ -53,8 +59,8 @@ export function NowPlaying({ onClose, onOpenLibrary }) {
   const CLOSE_THRESHOLD = 110;
 
   const onPointerDown = (e) => {
-    // スライダーやボタンの操作はドラッグ閉じの対象外
-    if (e.target.closest("button, input")) return;
+    // スライダー・ボタン・歌詞スクロール領域の操作はドラッグ閉じの対象外
+    if (e.target.closest("button, input, [data-no-drag]")) return;
     startYRef.current = e.clientY;
     movedRef.current = false;
     setDragging(true);
@@ -119,12 +125,16 @@ export function NowPlaying({ onClose, onOpenLibrary }) {
 
       {/* 中央コンテンツ */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 22, padding: "0 28px", maxWidth: 460, width: "100%", margin: "0 auto", minHeight: 0 }}>
-        {/* カバー */}
-        <div style={{ width: "100%", aspectRatio: "1 / 1", maxHeight: "46vh", borderRadius: 14, overflow: "hidden", alignSelf: "center", boxShadow: "0 18px 50px rgba(0,0,0,0.5)", background: `linear-gradient(145deg, ${T.accent}, ${T.accent}88)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {cover
-            ? <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            : <span style={{ opacity: 0.85, transform: "scale(3)" }}>{I.music}</span>}
-        </div>
+        {/* カバー or 歌詞（歌詞表示中はカバーの位置に歌詞をスクロール表示） */}
+        {showLyrics
+          ? <LyricsPanel raw={track.lyrics} currentTime={currentTime} seek={seek} />
+          : (
+            <div style={{ width: "100%", aspectRatio: "1 / 1", maxHeight: "46vh", borderRadius: 14, overflow: "hidden", alignSelf: "center", boxShadow: "0 18px 50px rgba(0,0,0,0.5)", background: `linear-gradient(145deg, ${T.accent}, ${T.accent}88)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {cover
+                ? <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                : <span style={{ opacity: 0.85, transform: "scale(3)" }}>{I.music}</span>}
+            </div>
+          )}
 
         {/* タイトル + お気に入り/… */}
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
@@ -166,8 +176,8 @@ export function NowPlaying({ onClose, onOpenLibrary }) {
           <button onClick={next} aria-label={t("nowplaying.next")} style={ctrlBtn()}>{midIcon(I.skipFwd)}</button>
         </div>
 
-        {/* 音量 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {/* 音量（歌詞表示中は歌詞にスペースを譲るため隠す） */}
+        <div style={{ display: showLyrics ? "none" : "flex", alignItems: "center", gap: 12 }}>
           <span style={{ color: "rgba(255,255,255,0.6)", display: "flex" }}>{I.volMin}</span>
           <input
             className="np-range"
@@ -178,7 +188,7 @@ export function NowPlaying({ onClose, onOpenLibrary }) {
           <span style={{ color: "rgba(255,255,255,0.6)", display: "flex" }}>{I.volMax}</span>
         </div>
 
-        {/* 下部: シャッフル / リピート / キュー */}
+        {/* 下部: シャッフル / リピート / 歌詞 / キュー */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", paddingTop: 4 }}>
           <button onClick={toggleShuffle} aria-label={t("nowplaying.shuffle")} style={footBtn(shuffle)}>{I.shuffle}</button>
           <button onClick={toggleRepeat} aria-label={t("nowplaying.repeat")} style={footBtn(repeat !== "off")}>
@@ -187,6 +197,7 @@ export function NowPlaying({ onClose, onOpenLibrary }) {
               {repeat === "one" && <span style={{ position: "absolute", right: -6, top: -5, fontSize: 9, fontWeight: 800 }}>1</span>}
             </span>
           </button>
+          {hasLyrics && <button onClick={() => setShowLyrics((v) => !v)} aria-label={t("nowplaying.lyrics")} style={footBtn(showLyrics)}>{I.lyrics}</button>}
           {onOpenLibrary && <button onClick={() => { onOpenLibrary(); onClose?.(); }} aria-label={t("nowplaying.library")} style={footBtn(false)}>{I.queue}</button>}
         </div>
       </div>
@@ -224,3 +235,74 @@ const footBtn = (active) => ({
 // アイコンは 18px 固定なので拡大表示する
 const bigIcon = (icon) => <span style={{ transform: "scale(2)", display: "flex" }}>{icon}</span>;
 const midIcon = (icon) => <span style={{ transform: "scale(1.6)", display: "flex" }}>{icon}</span>;
+
+// Apple Music 風の歌詞パネル。カバーの位置に表示する。
+//  - 同期歌詞(LRC): 現在行を強調＆中央へ自動スクロール。行タップでその位置へシーク。
+//  - プレーン歌詞: 単純なスクロール表示（ハイライト無し）。
+function LyricsPanel({ raw, currentTime, seek }) {
+  const { synced, lines } = useMemo(() => parseLyrics(raw), [raw]);
+  // 少し先読み(0.3s)して、歌い出しの瞬間に行が切り替わるように見せる
+  const activeIdx = synced ? activeLineIndex(lines, currentTime + 0.3) : -1;
+
+  const contRef = useRef(null);
+  const lineRefs = useRef([]);
+  // ユーザーが手動スクロールしたら数秒間は自動スクロールを止める（操作を奪わない）
+  const pausedUntilRef = useRef(0);
+  const onUserScroll = () => { pausedUntilRef.current = performance.now() + 4000; };
+
+  useEffect(() => {
+    if (!synced || activeIdx < 0) return;
+    if (performance.now() < pausedUntilRef.current) return;
+    const el = lineRefs.current[activeIdx];
+    const cont = contRef.current;
+    if (!el || !cont) return;
+    const top = el.offsetTop - cont.clientHeight / 2 + el.clientHeight / 2;
+    cont.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  }, [activeIdx, synced]);
+
+  if (!lines.length) {
+    return (
+      <div data-no-drag style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.55)", fontSize: 14 }}>
+        {t("nowplaying.noLyrics")}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={contRef}
+      data-no-drag
+      onWheel={onUserScroll}
+      onTouchMove={onUserScroll}
+      style={{
+        flex: 1, minHeight: 0, overflowY: "auto", touchAction: "pan-y",
+        WebkitMaskImage: "linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%)",
+        maskImage: "linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%)",
+        padding: "32% 4px",
+      }}
+    >
+      {lines.map((ln, i) => {
+        const active = synced && i === activeIdx;
+        const passed = synced && activeIdx >= 0 && i < activeIdx;
+        return (
+          <div
+            key={i}
+            ref={(el) => { lineRefs.current[i] = el; }}
+            onClick={() => { if (synced && ln.time != null) seek(ln.time); }}
+            style={{
+              fontSize: 23, fontWeight: 800, lineHeight: 1.3, padding: "8px 6px",
+              textAlign: "left", cursor: synced ? "pointer" : "default",
+              color: active ? "#fff" : passed ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.55)",
+              transform: active ? "scale(1.0)" : "scale(0.96)",
+              transformOrigin: "left center",
+              transition: "color 0.3s ease, opacity 0.3s ease, transform 0.3s ease",
+              textShadow: active ? "0 1px 12px rgba(0,0,0,0.45)" : "none",
+            }}
+          >
+            {ln.text || "♪"}
+          </div>
+        );
+      })}
+    </div>
+  );
+}

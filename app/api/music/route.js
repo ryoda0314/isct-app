@@ -11,6 +11,7 @@ const MAX_USER_STORAGE = 500 * 1024 * 1024; // ユーザー合計 500MB
 const SIGN_TTL = 21600; // 署名URL有効期限(秒) = 6時間（長尺再生中に切れないように）
 const BUCKET = 'post-attachments';
 const MAX_TITLE = 200;
+const MAX_LYRICS = 20000; // 歌詞（LRC含む）の最大文字数
 
 // 管理者判定（admin/route.js と同じ仕組み: ENV_ADMIN_IDS + admin_users テーブル）
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -45,7 +46,7 @@ export async function GET(request) {
     // 自分の曲 + 管理者が全員へ配信した公式曲（is_public）の両方を返す
     const { data, error } = await sb
       .from('music_tracks')
-      .select('id, title, artist, audio, cover, duration, is_public, owner_id, sort_order, created_at')
+      .select('id, title, artist, audio, cover, duration, lyrics, is_public, owner_id, sort_order, created_at')
       .or(`owner_id.eq.${userid},is_public.eq.true`)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: false })
@@ -157,6 +158,7 @@ export async function POST(request) {
     const title = (body.title || a.name || '無題').toString().trim().slice(0, MAX_TITLE) || '無題';
     const artist = body.artist ? body.artist.toString().trim().slice(0, MAX_TITLE) : null;
     const duration = Number.isFinite(Number(body.duration)) ? Number(body.duration) : null;
+    const lyrics = typeof body.lyrics === 'string' ? (body.lyrics.slice(0, MAX_LYRICS).trim() || null) : null;
 
     const { data, error } = await sb
       .from('music_tracks')
@@ -167,9 +169,10 @@ export async function POST(request) {
         audio: { name: a.name || 'track', path: a.path, size: Number(a.size) || 0, type: a.type || '' },
         cover,
         duration,
+        lyrics,
         is_public: wantPublic,
       })
-      .select('id, title, artist, audio, cover, duration, is_public, owner_id, sort_order, created_at')
+      .select('id, title, artist, audio, cover, duration, lyrics, is_public, owner_id, sort_order, created_at')
       .single();
     if (error) throw error;
     return NextResponse.json(await signTrack(sb, data));
@@ -205,6 +208,7 @@ export async function PATCH(request) {
     const patch = {};
     if (typeof body.title === 'string') patch.title = body.title.trim().slice(0, MAX_TITLE) || '無題';
     if (typeof body.artist === 'string') patch.artist = body.artist.trim().slice(0, MAX_TITLE) || null;
+    if (typeof body.lyrics === 'string') patch.lyrics = body.lyrics.slice(0, MAX_LYRICS).trim() || null;
     if (!Object.keys(patch).length) return NextResponse.json({ error: 'nothing to update' }, { status: 400 });
 
     // 権限: 自分の曲、または 公式曲(is_public)なら管理者

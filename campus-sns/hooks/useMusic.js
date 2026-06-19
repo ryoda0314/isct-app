@@ -100,7 +100,7 @@ export function useMusic() {
   }), []);
 
   // 曲を追加（音源必須・カバー任意）。isPublic=true で管理者が全員へ配信。
-  const addTrack = useCallback(async ({ audioFile, coverFile, title, artist, isPublic }) => {
+  const addTrack = useCallback(async ({ audioFile, coverFile, title, artist, lyrics, isPublic }) => {
     if (isDemoMode() || !audioFile) return;
     const [audio, duration, cover] = await Promise.all([
       uploadOne(audioFile, 'audio', isPublic),
@@ -115,6 +115,7 @@ export function useMusic() {
         cover: cover ? { path: cover.path } : null,
         title: title || audioFile.name.replace(/\.[^.]+$/, ''),
         artist: artist || null,
+        lyrics: lyrics || null,
         duration,
         public: !!isPublic,
       }),
@@ -135,15 +136,20 @@ export function useMusic() {
     try { await fetch(`/api/music?id=${encodeURIComponent(id)}`, { method: 'DELETE' }); } catch {}
   }, []);
 
-  // 曲名/アーティスト編集（楽観的）
-  const renameTrack = useCallback(async (id, { title, artist }) => {
-    setTracks((prev) => prev.map((p) => (p.id === id ? { ...p, ...(title != null ? { title } : {}), ...(artist != null ? { artist } : {}) } : p)));
+  // 曲名/アーティスト/歌詞 編集（楽観的）
+  const renameTrack = useCallback(async (id, { title, artist, lyrics }) => {
+    const fields = {
+      ...(title != null ? { title } : {}),
+      ...(artist != null ? { artist } : {}),
+      ...(lyrics != null ? { lyrics } : {}),
+    };
+    setTracks((prev) => prev.map((p) => (p.id === id ? { ...p, ...fields } : p)));
     if (isDemoMode() || String(id).startsWith('demo')) return;
     try {
       await fetch('/api/music', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...(title != null ? { title } : {}), ...(artist != null ? { artist } : {}) }),
+        body: JSON.stringify({ id, ...fields }),
       });
     } catch {}
   }, []);

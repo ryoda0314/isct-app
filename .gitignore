@@ -38,5 +38,10 @@ www/
 
 # Portal login debug snapshots (may contain student ID / matrix card)
 debug-portal/
+
+# Promo video generated artifacts (VOICEVOX audio / timeline / render output)
+promo-video/out/
+promo-video/public/voice/
+promo-video/public/timeline.json
 data/trace-portal-*
 data/trace-*.png
