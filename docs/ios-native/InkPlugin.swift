@@ -85,12 +85,24 @@ public class InkPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         var drawing = PKDrawing()
         if let db64 = call.getString("drawing"), let data = Data(base64Encoded: db64), let d = try? PKDrawing(data: data) { drawing = d }
+        var texts: [InkText] = []
+        for tr in (call.getArray("texts") as? [[String: Any]]) ?? [] {
+            texts.append(InkText(
+                page: (tr["page"] as? NSNumber)?.intValue ?? 0,
+                x: CGFloat((tr["x"] as? NSNumber)?.doubleValue ?? 0),
+                y: CGFloat((tr["y"] as? NSNumber)?.doubleValue ?? 0),
+                w: CGFloat((tr["w"] as? NSNumber)?.doubleValue ?? 200),
+                fontSize: CGFloat((tr["fontSize"] as? NSNumber)?.doubleValue ?? 28),
+                text: (tr["text"] as? String) ?? "",
+                colorHex: (tr["color"] as? String) ?? "#1c1c1e"
+            ))
+        }
 
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             guard let host = self.webView else { call.reject("no webView"); return }
             self.overlay?.teardown(); self.overlay?.removeFromSuperview()
-            let ov = InkOverlayView(frame: rect, pages: pages, drawing: drawing)
+            let ov = InkOverlayView(frame: rect, pages: pages, drawing: drawing, texts: texts)
             ov.onPencilTap = { [weak self] action in
                 self?.notifyListeners("pencilDoubleTap", data: ["action": action])
             }
@@ -155,16 +167,46 @@ public class InkPlugin: CAPPlugin, CAPBridgedPlugin {
 /// 1ページ定義
 struct InkPage { let w: CGFloat; let h: CGFloat; let bg: UIImage? }
 
+/// テキスト注釈1件（論理ページ座標で保持＝端末幅に依存しない）
+struct InkText {
+    var page: Int
+    var x: CGFloat        // ページ左上基準・論理px
+    var y: CGFloat
+    var w: CGFloat        // 論理px
+    var fontSize: CGFloat // 論理px
+    var text: String
+    var colorHex: String
+}
+
+/// 移動・編集できるテキストボックス（論理座標を保持し relayout で再配置）
+final class TextBox: UITextView {
+    var pageIndex: Int = 0
+    var colorHex: String = "#1c1c1e"
+    var logX: CGFloat = 0      // ページ左上基準・論理px
+    var logY: CGFloat = 0
+    var logW: CGFloat = 200    // 論理px
+    var baseFontSize: CGFloat = 28 // 論理px（ページスケール前）
+}
+
 /// 指定領域に重ねる PencilKit ビュー。
 /// 構成: PKCanvasView 自身をスクロールビューとして使い（＝入力座標が常に正確）、
 ///       背景画像はその中に縦積みで敷く。ペンのみ描画・指でスクロール。
 /// ※ ズームは入力ズレ防止のため一旦無効（min=max=1）。スクロールは有効。
-class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate, UIGestureRecognizerDelegate {
+class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate, UIGestureRecognizerDelegate, UITextViewDelegate {
     var onPencilTap: ((String) -> Void)?
     private var snapNext = false // ホールド成立中（離したら整形）
     private var pages: [InkPage]
     private let canvasView = PKCanvasView()
     private let bgContainer = UIView()
+    // テキスト注釈
+    private let textLayer = UIView()       // bgContainer 内・ページ画像より前面（インクより背面）
+    private var textBoxes: [TextBox] = []
+    private var initialTexts: [InkText]
+    private var textsCreated = false
+    private var textMode = false
+    private var curTextColor = "#1c1c1e"
+    private var curTextSize: CGFloat = 28   // 論理px
+    private var pageScales: [CGFloat] = []  // 各ページ display/logical 比
     private var displayLink: CADisplayLink?
     private var gapMasks: [UIView] = []    // ページ間の隙間を隠すマスク（インクが隙間に見えないように）
     private var shapeAssist = false        // 図形補助（直線/円/四角に整える）
@@ -175,8 +217,9 @@ class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate,
     private var contentSizeVal: CGSize = .zero
     private var didLayout = false
 
-    init(frame: CGRect, pages: [InkPage], drawing: PKDrawing) {
+    init(frame: CGRect, pages: [InkPage], drawing: PKDrawing, texts: [InkText] = []) {
         self.pages = pages
+        self.initialTexts = texts
         super.init(frame: frame)
         backgroundColor = UIColor(white: 0.93, alpha: 1.0)
         clipsToBounds = true
@@ -196,6 +239,9 @@ class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate,
         if #available(iOS 14.0, *) { canvasView.drawingPolicy = .pencilOnly }
         bgContainer.layer.anchorPoint = CGPoint(x: 0, y: 0) // 左上基準で拡大（drawingと原点を合わせる）
         canvasView.insertSubview(bgContainer, at: 0) // 背景はキャンバス内（contentOffsetで一緒にスクロール）
+        // テキスト層（bgContainer 内＝スクロール/ズーム自動追従。テキストモード時のみ操作可能）
+        textLayer.isUserInteractionEnabled = false
+        bgContainer.addSubview(textLayer)
         addSubview(canvasView)
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -221,6 +267,10 @@ class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate,
             if held { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
         }
         canvasView.addGestureRecognizer(hold)
+        // テキストモード時に空き領域タップで新規テキスト生成
+        let textTap = UITapGestureRecognizer(target: self, action: #selector(handleTextTap(_:)))
+        textTap.delegate = self
+        textLayer.addGestureRecognizer(textTap)
     }
 
     // PencilKit の描画と同時に観察できるように
@@ -292,6 +342,11 @@ class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate,
         canvasView.frame = bounds
         bgContainer.transform = .identity // サイズ設定中は等倍に戻す（syncBgが再追従）
         bgContainer.frame = CGRect(origin: .zero, size: contentSizeVal)
+        // テキスト層を全コンテンツに広げ、各ページの表示/論理スケールを更新→テキスト再配置
+        pageScales = pageRects.enumerated().map { (i, r) in pages[i].w > 0 ? r.width / pages[i].w : 1 }
+        textLayer.frame = CGRect(origin: .zero, size: contentSizeVal)
+        bgContainer.bringSubviewToFront(textLayer)
+        layoutTextBoxes()
         canvasView.contentSize = contentSizeVal
         canvasView.contentInset = UIEdgeInsets(top: 8, left: 0, bottom: 40, right: 0)
         // 隙間マスク（canvasView の上に重ねてインクを隠す。位置は syncBg で毎フレーム更新）
@@ -351,6 +406,18 @@ class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate,
 
     // 独自ツールバーから呼ばれてキャンバスのツールを切り替える
     func applyTool(type: String, colorHex: String, width: CGFloat, eraserMode: String) {
+        if type == "text" {
+            curTextColor = colorHex
+            curTextSize = max(8, width) // width を論理フォントサイズとして扱う
+            setTextMode(true)
+            // 編集中のテキストに色/サイズを即反映
+            if let tb = textBoxes.first(where: { $0.isFirstResponder }) {
+                tb.colorHex = colorHex; tb.baseFontSize = curTextSize
+                applyTextStyle(tb); layoutTextBoxes()
+            }
+            return
+        }
+        setTextMode(false)
         switch type {
         case "lasso":       canvasView.tool = PKLassoTool() // 範囲を囲って掴む（移動/カット/コピー/削除）
         case "highlighter": canvasView.tool = PKInkingTool(.marker, color: colorFromHex(colorHex), width: width)
@@ -461,21 +528,155 @@ class InkOverlayView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate,
         return out
     }
 
+    // ── テキスト注釈 ──────────────────────────────
+    private func setTextMode(_ on: Bool) {
+        if textMode == on { return }
+        textMode = on
+        textLayer.isUserInteractionEnabled = on
+        if #available(iOS 14.0, *) { canvasView.drawingGestureRecognizer.isEnabled = !on } // テキスト中はペン描画を止める
+        if !on { textBoxes.forEach { if $0.isFirstResponder { $0.resignFirstResponder() } }; removeEmptyBoxes() }
+    }
+
+    private func makeTextBox() -> TextBox {
+        let tb = TextBox()
+        tb.delegate = self
+        tb.backgroundColor = .clear
+        tb.isScrollEnabled = false
+        tb.textContainerInset = UIEdgeInsets(top: 4, left: 4, bottom: 4, right: 4)
+        tb.textContainer.lineFragmentPadding = 0
+        tb.autocorrectionType = .no
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handleTextPan(_:)))
+        pan.delegate = self
+        tb.addGestureRecognizer(pan)
+        textLayer.addSubview(tb)
+        textBoxes.append(tb)
+        return tb
+    }
+
+    private func addTextBox(from it: InkText) {
+        let tb = makeTextBox()
+        tb.pageIndex = max(0, min(it.page, max(pages.count - 1, 0)))
+        tb.logX = it.x; tb.logY = it.y; tb.logW = it.w
+        tb.baseFontSize = it.fontSize; tb.colorHex = it.colorHex
+        tb.text = it.text
+    }
+
+    private func createTextBox(at p: CGPoint) {
+        guard !pageRects.isEmpty else { return }
+        var idx = 0
+        for (i, r) in pageRects.enumerated() { if r.minY <= p.y { idx = i }; if r.contains(p) { idx = i; break } }
+        let sc = idx < pageScales.count ? pageScales[idx] : 1
+        let pr = pageRects[idx]
+        let tb = makeTextBox()
+        tb.pageIndex = idx
+        tb.colorHex = curTextColor
+        tb.baseFontSize = curTextSize
+        tb.logW = min(pages[idx].w * 0.7, 600)
+        tb.logX = max(0, (p.x - pr.minX) / sc)
+        tb.logY = max(0, (p.y - pr.minY) / sc)
+        layoutTextBoxes()
+        tb.becomeFirstResponder()
+    }
+
+    @objc private func handleTextTap(_ g: UITapGestureRecognizer) {
+        guard textMode else { return }
+        createTextBox(at: g.location(in: textLayer))
+    }
+
+    @objc private func handleTextPan(_ g: UIPanGestureRecognizer) {
+        guard let tb = g.view as? TextBox, !tb.isFirstResponder else { return } // 編集中は移動しない
+        let t = g.translation(in: textLayer)
+        g.setTranslation(.zero, in: textLayer)
+        let sc = tb.pageIndex < pageScales.count ? pageScales[tb.pageIndex] : 1
+        tb.logX += t.x / sc; tb.logY += t.y / sc
+        layoutTextBoxes()
+    }
+
+    private func applyTextStyle(_ tb: TextBox) {
+        let sc = tb.pageIndex < pageScales.count ? pageScales[tb.pageIndex] : 1
+        tb.font = UIFont.systemFont(ofSize: tb.baseFontSize * sc)
+        tb.textColor = colorFromHex(tb.colorHex)
+    }
+
+    private func layoutTextBoxes() {
+        guard !pageRects.isEmpty else { return }
+        if !textsCreated { textsCreated = true; initialTexts.forEach { addTextBox(from: $0) } }
+        for tb in textBoxes {
+            guard tb.pageIndex < pageRects.count else { continue }
+            let pr = pageRects[tb.pageIndex]
+            let sc = tb.pageIndex < pageScales.count ? pageScales[tb.pageIndex] : 1
+            applyTextStyle(tb)
+            let w = tb.logW * sc
+            let fit = tb.sizeThatFits(CGSize(width: w, height: .greatestFiniteMagnitude))
+            tb.frame = CGRect(x: pr.minX + tb.logX * sc, y: pr.minY + tb.logY * sc, width: w, height: max(fit.height, tb.baseFontSize * sc + 12))
+        }
+    }
+
+    private func removeEmptyBoxes() {
+        for tb in textBoxes where tb.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { tb.removeFromSuperview() }
+        textBoxes.removeAll { $0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    // UITextViewDelegate
+    func textViewDidChange(_ textView: UITextView) { layoutTextBoxes() }
+    func textViewDidEndEditing(_ textView: UITextView) {
+        if textView.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let tb = textView as? TextBox {
+            tb.removeFromSuperview(); textBoxes.removeAll { $0 === tb }
+        }
+    }
+
+    // テキストモード時のみ空き領域タップを受ける（既存テキスト上は無視＝その TextBox が編集を受ける）
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        if g is UITapGestureRecognizer {
+            if !textMode { return false }
+            let p = touch.location(in: textLayer)
+            for tb in textBoxes { if tb.frame.insetBy(dx: -6, dy: -6).contains(p) { return false } }
+            return true
+        }
+        return true
+    }
+
     func teardown() {
         displayLink?.invalidate(); displayLink = nil
+        textBoxes.forEach { if $0.isFirstResponder { $0.resignFirstResponder() } }
         canvasView.resignFirstResponder()
     }
 
-    /// PKDrawing(base64) と ページ別 ink PNG(base64, 透明背景) を返す
+    /// PKDrawing(base64) と ページ別 PNG(base64, 透明背景=インク＋テキスト焼き込み) と
+    /// テキスト注釈(編集用に論理座標で保持) を返す
     func exportResult() -> [String: Any] {
         let drawing = canvasView.drawing
         let drawingB64 = drawing.dataRepresentation().base64EncodedString()
         var thumbs: [String] = []
         let exportScale: CGFloat = 2.0
-        for rect in pageRects {
-            let img = drawing.image(from: rect, scale: exportScale)
-            if let png = img.pngData() { thumbs.append(png.base64EncodedString()) } else { thumbs.append("") }
+        for (i, rect) in pageRects.enumerated() {
+            let inkImg = drawing.image(from: rect, scale: exportScale)
+            let fmt = UIGraphicsImageRendererFormat.default(); fmt.scale = exportScale; fmt.opaque = false
+            let composed = UIGraphicsImageRenderer(size: rect.size, format: fmt).image { _ in
+                inkImg.draw(in: CGRect(origin: .zero, size: rect.size))
+                for tb in textBoxes where tb.pageIndex == i {
+                    if tb.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { continue }
+                    let sc = i < pageScales.count ? pageScales[i] : 1
+                    let frame = CGRect(x: tb.frame.minX - rect.minX + 4, y: tb.frame.minY - rect.minY + 4,
+                                       width: max(tb.frame.width - 8, 1), height: max(tb.frame.height - 8, 1))
+                    let para = NSMutableParagraphStyle(); para.lineBreakMode = .byWordWrapping
+                    let attrs: [NSAttributedString.Key: Any] = [
+                        .font: UIFont.systemFont(ofSize: tb.baseFontSize * sc),
+                        .foregroundColor: colorFromHex(tb.colorHex), .paragraphStyle: para,
+                    ]
+                    (tb.text as NSString).draw(in: frame, withAttributes: attrs)
+                }
+            }
+            if let png = composed.pngData() { thumbs.append(png.base64EncodedString()) } else { thumbs.append("") }
         }
-        return ["drawing": drawingB64, "thumbnails": thumbs]
+        var textArr: [[String: Any]] = []
+        for tb in textBoxes {
+            if tb.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { continue }
+            textArr.append([
+                "page": tb.pageIndex, "x": Double(tb.logX), "y": Double(tb.logY), "w": Double(tb.logW),
+                "fontSize": Double(tb.baseFontSize), "text": tb.text, "color": tb.colorHex,
+            ])
+        }
+        return ["drawing": drawingB64, "thumbnails": thumbs, "texts": textArr]
     }
 }

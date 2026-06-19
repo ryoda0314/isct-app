@@ -15,6 +15,18 @@ import { inkAvailable, showInk, setInkRect, hideInk, rectOfEl, setInkTool, inkUn
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
+// フォルダ表示用の簡易アイコン（icons.jsx に無いためローカル定義）
+const FOLDER_ICON = (
+  <svg width="100%" height="100%" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+  </svg>
+);
+const CHEV_R = (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polyline points="9 18 15 12 9 6" />
+  </svg>
+);
+
 // 実機が実際に動かしているコード版を画面で確認するための版数（キャッシュ切り分け用）
 const NOTES_VERSION = "v26-shapehold";
 
@@ -392,7 +404,7 @@ async function buildNotePdfBytes(note) {
 // ══════════════════════════════════════════════
 // ライブラリ（ノート一覧）
 // ══════════════════════════════════════════════
-export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
+export function NotesView({ mob, onExit, courses, pendingNote, onPendingConsumed }) {
   const [screen, setScreen] = useState("library");
   const [index, setIndex] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -403,6 +415,20 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
   const [tabYear, setTabYear] = useState(null); // 選択中の年度タブ（key）。null=先頭
   const [tabQ, setTabQ] = useState(0); // 選択中のクォーター（0=すべて）
   const [showNew, setShowNew] = useState(false); // 新規ノート作成モーダル
+  // ライブラリ表示モード: "group"=授業別タブ / "folder"=GoodNotes風フォルダ階層
+  const [libMode, setLibMode] = useState(() => {
+    try { return localStorage.getItem("notesLibMode") === "folder" ? "folder" : "group"; } catch { return "group"; }
+  });
+  const [folderPath, setFolderPath] = useState([]); // フォルダ表示の現在位置（[]=講義一覧 / [{type:"course"|"uncat",...}]）
+  const [folderQ, setFolderQ] = useState(0); // フォルダ表示のクォーター絞り込み（0=すべて）
+  const setLibModePersist = (m) => {
+    setLibMode(m);
+    try { localStorage.setItem("notesLibMode", m); } catch {}
+    if (m === "folder") setFolderPath([]);
+  };
+  // courseId → 時間割の科目色 のマップ
+  const courseColors = {};
+  (courses || []).forEach((c) => { if (c && c.id != null) courseColors[c.id] = c.col; });
   const fileRef = useRef(null);
 
   useEffect(() => { setIndex(loadIndex()); }, []);
@@ -546,7 +572,17 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
       {/* 新規作成（＋でモーダルを開く） */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 18 }}>
         {!mob && <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: T.txH }}>{t("nav.notes")}</h1>}
-        <button onClick={() => setShowNew(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: `0 2px 8px ${T.accent}40`, marginLeft: mob ? "auto" : 0 }}>{I.plus || I.add || "+"} {t("notes.new")}</button>
+        {/* 表示モード切替（授業別 / フォルダ） */}
+        <div style={{ display: "inline-flex", gap: 2, background: T.bg3, borderRadius: 9, padding: 3, marginLeft: mob ? "auto" : 0 }}>
+          {[["group", t("notes.viewGroup")], ["folder", t("notes.viewFolder")]].map(([m, label]) => {
+            const on = libMode === m;
+            return (
+              <button key={m} onClick={() => setLibModePersist(m)}
+                style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: on ? T.bg2 : "transparent", boxShadow: on ? `0 1px 3px ${T.bd}` : "none", color: on ? T.accent : T.txD, fontSize: 12, fontWeight: on ? 700 : 600, cursor: "pointer" }}>{label}</button>
+            );
+          })}
+        </div>
+        <button onClick={() => setShowNew(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: `0 2px 8px ${T.accent}40` }}>{I.plus || I.add || "+"} {t("notes.new")}</button>
         <input ref={fileRef} type="file" accept="application/pdf,.pdf" style={{ display: "none" }}
           onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; setShowNew(false); importPdf(f); }} />
       </div>
@@ -593,6 +629,97 @@ export function NotesView({ mob, onExit, pendingNote, onPendingConsumed }) {
         };
 
         const { uncat, years } = groupNotes(index);
+
+        // ── GoodNotes 風フォルダ表示（年度 → クォーター → 講義 → ノート）──
+        if (libMode === "folder") {
+          // 年度フォルダは作らない。講義(科目)をフォルダにし、クォーターは上部トグルで絞り込む。
+          // 同一courseIdが複数年度に跨る場合はノートをまとめて1フォルダにする。
+          const courseMap = new Map(); // id -> { id, name, col, quarter, notes:[] }
+          for (const yg of years) for (const qg of yg.quarters) for (const cg of qg.courses) {
+            const notes = cg.sessions.flatMap((s) => s.notes);
+            if (!courseMap.has(cg.id)) {
+              courseMap.set(cg.id, { id: cg.id, name: cg.name, col: courseColors[cg.id] || T.accent, quarter: qg.quarter || 0, notes: [...notes] });
+            } else {
+              courseMap.get(cg.id).notes.push(...notes);
+            }
+          }
+          const courseList = [...courseMap.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), "ja"));
+          const quartersPresent = [...new Set(courseList.map((c) => c.quarter).filter((q) => q > 0))].sort((a, b) => a - b);
+
+          const tilesGrid = (children) => (
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${mob ? 110 : 140}px, 1fr))`, gap: 14 }}>{children}</div>
+          );
+          // 科目色で着色したフォルダタイル
+          const courseTile = (key, label, count, col, onOpen) => (
+            <button key={key} onClick={onOpen}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: mob ? "14px 8px" : "18px 10px", borderRadius: 12, border: `1px solid ${col}40`, background: `${col}0f`, cursor: "pointer", transition: "all .12s" }}>
+              <span style={{ width: mob ? 46 : 56, height: mob ? 46 : 56, color: col, display: "flex" }}>{FOLDER_ICON}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: T.txH, textAlign: "center", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.3 }}>{label}</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: T.txD }}>{t("notes.itemCount", { n: count })}</span>
+            </button>
+          );
+
+          const head = folderPath[0];
+          let content = null;
+
+          if (!head) {
+            // ルート: クォーター絞り込み後の講義フォルダ一覧 ＋（すべて時のみ）その他
+            const shown = folderQ === 0 ? courseList : courseList.filter((c) => c.quarter === folderQ);
+            const tiles = shown.map((c) =>
+              courseTile(c.id, c.name, c.notes.length, c.col,
+                () => setFolderPath([{ type: "course", key: c.id, label: c.name }])));
+            if (folderQ === 0 && uncat.length) {
+              tiles.push(courseTile("uncat", t("notes.uncategorized"), uncat.length, T.txD,
+                () => setFolderPath([{ type: "uncat", label: t("notes.uncategorized") }])));
+            }
+            content = tiles.length ? tilesGrid(tiles) : (
+              <div style={{ color: T.txD, fontSize: 13, textAlign: "center", padding: "40px 0" }}>{t("notes.empty")}</div>
+            );
+          } else if (head.type === "uncat") {
+            content = grid(uncat);
+          } else {
+            const c = courseMap.get(head.key);
+            content = c ? grid(c.notes) : (
+              <div style={{ color: T.txD, fontSize: 13, textAlign: "center", padding: "40px 0" }}>{t("notes.empty")}</div>
+            );
+          }
+
+          // パンくず（ノート > 講義名）
+          const crumbs = [{ label: t("nav.notes"), path: [] }];
+          folderPath.forEach((seg, i) => crumbs.push({ label: seg.label, path: folderPath.slice(0, i + 1) }));
+
+          return (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap", marginBottom: 14 }}>
+                {crumbs.map((c, i) => {
+                  const last = i === crumbs.length - 1;
+                  return (
+                    <span key={i} style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                      {i > 0 && <span style={{ color: T.txD, display: "flex" }}>{CHEV_R}</span>}
+                      <button onClick={() => !last && setFolderPath(c.path)} disabled={last}
+                        style={{ background: "none", border: "none", color: last ? T.txH : T.accent, fontSize: 13, fontWeight: last ? 700 : 600, cursor: last ? "default" : "pointer", padding: "2px 3px", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.label}</button>
+                    </span>
+                  );
+                })}
+              </div>
+              {/* クォーター スライドトグル（ルートのみ表示） */}
+              {!head && quartersPresent.length > 0 && (
+                <div style={{ display: "inline-flex", gap: 2, background: T.bg3, borderRadius: 10, padding: 3, marginBottom: 18, flexWrap: "wrap" }}>
+                  {[0, ...quartersPresent].map((q) => {
+                    const on = folderQ === q;
+                    const label = q === 0 ? t("notes.allQuarters") : t("notes.quarterLabel", { q });
+                    return (
+                      <button key={q} onClick={() => setFolderQ(q)}
+                        style={{ padding: "5px 14px", borderRadius: 8, border: "none", background: on ? T.bg2 : "transparent", boxShadow: on ? `0 1px 3px ${T.bd}` : "none", color: on ? T.accent : T.txD, fontSize: 12, fontWeight: on ? 700 : 600, cursor: "pointer" }}>{label}</button>
+                    );
+                  })}
+                </div>
+              )}
+              {content}
+            </div>
+          );
+        }
+
         // タブモデル: 年度タブ（降順）＋ 末尾に「その他」（講義メタ無し）
         const tabs = years.map((yg) => ({ key: `y${yg.year}`, label: yg.year ? t("notes.yearLabel", { year: yg.year }) : t("notes.uncategorized"), yg }));
         if (uncat.length) tabs.push({ key: "uncat", label: t("notes.uncategorized"), uncat });
@@ -723,6 +850,7 @@ const NPEN_SIZES = [5, 9, 16];
 const NMONO_SIZES = [0.2, 0.6, 1.5]; // 一律ペンは極細まで（0.2が最小）
 const NHL_SIZES = [22, 40];
 const NERASER_SIZES = [40, 80];
+const NTEXT_SIZES = [22, 30, 44, 64]; // テキストの論理フォントサイズ
 
 // ツール用ライン系アイコン（絵文字をやめて既存アイコンと統一感のあるSVGに）
 const svgProps = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" };
@@ -732,6 +860,7 @@ const TOOL_ICONS = {
   highlighter: (<svg {...svgProps}><path d="M4 21h16" /><path d="M8.5 13.5l-2 2V18h2.5l2-2" /><path d="M8.5 13.5l6.5-6.5 3 3-6.5 6.5z" /></svg>),
   eraser: (<svg {...svgProps}><path d="M4 21h16" /><path d="M8.5 18.5l-3.4-3.4a1.5 1.5 0 0 1 0-2.1l6.6-6.6a1.5 1.5 0 0 1 2.1 0l3.8 3.8a1.5 1.5 0 0 1 0 2.1L15 18.5z" /></svg>),
   lasso: (<svg {...svgProps} strokeDasharray="3 2.5"><path d="M4 11a8 4 0 1 1 16 0 8 4 0 0 1-12.5 3.3" /><path d="M7.5 14.3c-.8.5-.8 2 .3 2.4" strokeDasharray="0" /></svg>),
+  text: (<svg {...svgProps}><path d="M5 5h14" /><path d="M12 5v14" /><path d="M9 19h6" /></svg>),
 };
 
 function NativeNoteEditor({ id, onBack, onIndexChange }) {
@@ -753,6 +882,8 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const [monoW, setMonoW] = useState(NMONO_SIZES[0]);
   const [hlW, setHlW] = useState(NHL_SIZES[0]);
   const [eraserW, setEraserW] = useState(NERASER_SIZES[0]);
+  const [textColor, setTextColor] = useState(PEN_COLORS[2]);
+  const [textSize, setTextSize] = useState(NTEXT_SIZES[1]);
   const [eraserMode, setEraserMode] = useState("stroke"); // stroke=線ごと / pixel=部分消し
   const [shapeAssist, setShapeAssist] = useState(true); // 図形補助(ホールドで整形)。既定ON
 
@@ -763,8 +894,9 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
     else if (tool === "mono") setInkTool({ type: "mono", color: monoColor, width: monoW });
     else if (tool === "highlighter") setInkTool({ type: "highlighter", color: hlColor, width: hlW });
     else if (tool === "lasso") setInkTool({ type: "lasso" });
+    else if (tool === "text") setInkTool({ type: "text", color: textColor, width: textSize });
     else setInkTool({ type: "eraser", width: eraserW, mode: eraserMode });
-  }, [ready, tool, penColor, monoColor, hlColor, penW, monoW, hlW, eraserW, eraserMode]);
+  }, [ready, tool, penColor, monoColor, hlColor, penW, monoW, hlW, eraserW, eraserMode, textColor, textSize]);
 
   // 図形補助の ON/OFF をネイティブへ反映
   useEffect(() => { if (ready) setInkShapeAssist(shapeAssist); }, [ready, shapeAssist]);
@@ -797,6 +929,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
       const res = await inkSnapshot();
       note.pkDrawing = res.drawing || note.pkDrawing || "";
       note.inkPNGs = (res.thumbnails && res.thumbnails.length) ? res.thumbnails : (note.inkPNGs || []);
+      note.texts = res.texts || note.texts || [];
       note.engine = "pencilkit"; note.updatedAt = Date.now();
       await writeNote(note);
       const bytes = await buildNotePdfBytes(note);
@@ -812,7 +945,8 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
       const res = await hideInk();
       const note = noteRef.current; if (!note) return;
       note.pkDrawing = res.drawing || note.pkDrawing || "";
-      note.inkPNGs = res.thumbnails || []; // ページ別の透明インクPNG（PDF書き出し用）
+      note.inkPNGs = res.thumbnails || []; // ページ別のPNG（インク＋テキスト焼き込み・PDF書き出し用）
+      note.texts = res.texts || []; // テキスト注釈（再編集用・論理座標）
       note.engine = "pencilkit"; note.updatedAt = Date.now();
       await writeNote(note);
       let thumb = "";
@@ -837,7 +971,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
       for (const pg of note.pages) pages.push({ bg: await renderBgB64(note, pg, cache), w: pg.w, h: pg.h });
       bgPagesRef.current = pages;
       if (!alive || !hostRef.current) return;
-      try { await showInk({ rect: rectOfEl(hostRef.current), pages, drawing: note.pkDrawing }); shownRef.current = true; setStatus(""); setReady(true); }
+      try { await showInk({ rect: rectOfEl(hostRef.current), pages, drawing: note.pkDrawing, texts: note.texts }); shownRef.current = true; setStatus(""); setReady(true); }
       catch (e) { console.warn("[notes] showInk", e); setStatus(""); }
     })();
     const onResize = () => { if (shownRef.current && hostRef.current) setInkRect(rectOfEl(hostRef.current)); };
@@ -854,20 +988,21 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
   const usesColor = tool !== "eraser" && tool !== "lasso";
   const usesSize = tool !== "lasso"; // なげなわは太さ不要
   const palette = tool === "highlighter" ? HL_COLORS : PEN_COLORS;
-  const curColor = tool === "mono" ? monoColor : tool === "highlighter" ? hlColor : penColor;
-  const setColor = (c) => { if (tool === "mono") setMonoColor(c); else if (tool === "highlighter") setHlColor(c); else setPenColor(c); };
-  const sizes = tool === "eraser" ? NERASER_SIZES : tool === "mono" ? NMONO_SIZES : tool === "highlighter" ? NHL_SIZES : NPEN_SIZES;
-  const curSize = tool === "mono" ? monoW : tool === "highlighter" ? hlW : tool === "eraser" ? eraserW : penW;
-  const setSize = (s) => { if (tool === "mono") setMonoW(s); else if (tool === "highlighter") setHlW(s); else if (tool === "eraser") setEraserW(s); else setPenW(s); };
+  const curColor = tool === "mono" ? monoColor : tool === "highlighter" ? hlColor : tool === "text" ? textColor : penColor;
+  const setColor = (c) => { if (tool === "mono") setMonoColor(c); else if (tool === "highlighter") setHlColor(c); else if (tool === "text") setTextColor(c); else setPenColor(c); };
+  const sizes = tool === "eraser" ? NERASER_SIZES : tool === "mono" ? NMONO_SIZES : tool === "highlighter" ? NHL_SIZES : tool === "text" ? NTEXT_SIZES : NPEN_SIZES;
+  const curSize = tool === "mono" ? monoW : tool === "highlighter" ? hlW : tool === "eraser" ? eraserW : tool === "text" ? textSize : penW;
+  const setSize = (s) => { if (tool === "mono") setMonoW(s); else if (tool === "highlighter") setHlW(s); else if (tool === "eraser") setEraserW(s); else if (tool === "text") setTextSize(s); else setPenW(s); };
   const dotColor = tool === "eraser" ? T.txD : curColor === "#ffffff" ? "#999" : curColor;
   const sizeDiv = tool === "eraser" ? 8 : tool === "highlighter" ? 4 : 2.2;
   // 太さ選択ドットの見た目サイズ（極細の一律ペンは段階が見分かるよう専用スケール）
-  const dotSize = (s) => tool === "mono" ? (3 + s * 2.2) : Math.max(3, s / sizeDiv);
+  const dotSize = (s) => tool === "mono" ? (3 + s * 2.2) : tool === "text" ? Math.max(7, s / 3.5) : Math.max(3, s / sizeDiv);
 
   const TOOLS = [
     { id: "mono", icon: TOOL_ICONS.mono, label: t("notes.penMono") },
     { id: "pen", icon: TOOL_ICONS.pen, label: t("notes.penPressure") },
     { id: "highlighter", icon: TOOL_ICONS.highlighter, label: t("notes.highlighter") },
+    { id: "text", icon: TOOL_ICONS.text, label: t("notes.text") },
     { id: "eraser", icon: TOOL_ICONS.eraser, label: t("notes.eraser") },
     { id: "lasso", icon: TOOL_ICONS.lasso, label: t("notes.lasso") },
   ];
@@ -929,7 +1064,7 @@ function NativeNoteEditor({ id, onBack, onIndexChange }) {
         </div>
         </>}
 
-        {tool !== "lasso" && tool !== "eraser" && <>
+        {tool !== "lasso" && tool !== "eraser" && tool !== "text" && <>
         <div style={{ width: 1, height: 26, background: T.bd, margin: "0 2px" }} />
         {/* 図形補助トグル */}
         <button onClick={() => setShapeAssist((v) => !v)} title={t("notes.shapeHint")}

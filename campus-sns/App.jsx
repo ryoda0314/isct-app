@@ -1054,7 +1054,7 @@ export default function App(){
           {view==="pocket"&&(L?<LockedView title={t("nav.pocket")}/>:<PocketView mob={false}/>)}
           {view==="music"&&(L?<LockedView title={t("tool.music")}/>:<MusicView mob={false}/>)}
           {view==="pdftools"&&(L?<LockedView title={t("nav.pdftools")}/>:<PdfToolsView mob={false}/>)}
-          {view==="notes"&&(L?<LockedView title={t("nav.notes")}/>:<NotesView mob={false} pendingNote={pendingNote} onPendingConsumed={()=>setPendingNote(null)}/>)}
+          {view==="notes"&&(L?<LockedView title={t("nav.notes")}/>:<NotesView mob={false} courses={allCourses} pendingNote={pendingNote} onPendingConsumed={()=>setPendingNote(null)}/>)}
           {view==="notif"&&(L?<LockedView title={t("nav.notif")}/>:<NotifView mob={false}/>)}
           {view==="grades"&&(L?<LockedView title={t("tool.grades")}/>:<GradeView mob={false}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
@@ -1109,7 +1109,7 @@ export default function App(){
         {view==="pocket"&&(L?<><MHdr title={t("nav.pocket")} back={mBack}/><LockedView title={t("nav.pocket")}/></>:<><MHdr title={t("nav.pocket")} back={mBack}/><PocketView mob/></>)}
         {view==="music"&&(L?<><MHdr title={t("tool.music")} back={mBack}/><LockedView title={t("tool.music")}/></>:<><MHdr title={t("tool.music")} back={mBack}/><MusicView mob/></>)}
         {view==="pdftools"&&(L?<><MHdr title={t("nav.pdftools")} back={mBack}/><LockedView title={t("nav.pdftools")}/></>:<><MHdr title={t("nav.pdftools")} back={mBack}/><PdfToolsView mob/></>)}
-        {view==="notes"&&(L?<><MHdr title={t("nav.notes")} back={mBack}/><LockedView title={t("nav.notes")}/></>:<NotesView mob onExit={mBack} pendingNote={pendingNote} onPendingConsumed={()=>setPendingNote(null)}/>)}
+        {view==="notes"&&(L?<><MHdr title={t("nav.notes")} back={mBack}/><LockedView title={t("nav.notes")}/></>:<NotesView mob onExit={mBack} courses={allCourses} pendingNote={pendingNote} onPendingConsumed={()=>setPendingNote(null)}/>)}
         {view==="notif"&&(L?<><MHdr title={t("nav.notif")} back={mBack}/><LockedView title={t("nav.notif")}/></>:<><MHdr title={t("nav.notif")} back={mBack}/><NotifView mob/></>)}
         {view==="grades"&&(L?<><MHdr title={t("tool.grades")} back={mBack}/><LockedView title={t("tool.grades")}/></>:<><MHdr title={t("tool.grades")} back={mBack}/><GradeView mob/></>)}
         {view==="pomo"&&<><MHdr title={t("tool.pomo")} back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
