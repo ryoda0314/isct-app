@@ -25,6 +25,7 @@ export function LyricsSyncEditor({ track, onSave, onClose }) {
     parseLyrics(track?.lyrics).lines.map((l) => ({ text: l.text, time: l.time }))
   );
   const [activeIdx, setActiveIdx] = useState(0); // 次に打刻する行
+  const [offset, setOffset] = useState(0); // 全体タイミング補正(秒)。反応遅れをまとめて吸収
   const [playing, setPlaying] = useState(false);
   const [cur, setCur] = useState(0);
   const [dur, setDur] = useState(track?.duration || 0);
@@ -33,6 +34,15 @@ export function LyricsSyncEditor({ track, onSave, onClose }) {
 
   const stamped = lines.filter((l) => l.time != null).length;
   const hasLines = lines.length > 0;
+
+  // 再生位置(cur)に対応する「いま歌っている行」。offset を反映して判定（プレビュー用）
+  let previewIdx = -1, bestT = -Infinity;
+  for (let i = 0; i < lines.length; i++) {
+    const tm = lines[i].time;
+    if (tm == null) continue;
+    const tt = tm + offset;
+    if (tt <= cur && tt > bestT) { bestT = tt; previewIdx = i; }
+  }
 
   // 編集中は常駐プレイヤーを止めて二重再生を防ぐ
   useEffect(() => { try { engine.pause(); } catch {} }, []);
@@ -94,15 +104,16 @@ export function LyricsSyncEditor({ track, onSave, onClose }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  // activeIdx の行をリスト内で見える位置へ
+  // 再生中は「いま歌っている行」、停止中は「次に打刻する行」を中央へ追従
+  const followIdx = playing && previewIdx >= 0 ? previewIdx : activeIdx;
   useEffect(() => {
-    const el = lineRefs.current[activeIdx];
+    const el = lineRefs.current[followIdx];
     const cont = listRef.current;
     if (el && cont) {
       const top = el.offsetTop - cont.clientHeight / 2 + el.clientHeight / 2;
       cont.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
     }
-  }, [activeIdx]);
+  }, [followIdx]);
 
   const nudge = (i, d) =>
     setLines((prev) => prev.map((l, idx) => (idx === i && l.time != null ? { ...l, time: Math.max(0, +(l.time + d).toFixed(2)) } : l)));
@@ -116,9 +127,12 @@ export function LyricsSyncEditor({ track, onSave, onClose }) {
 
   const save = async () => {
     setSaving(true);
-    const lrc = linesToLrc(lines.filter((l) => l.text !== "" || l.time != null));
+    // 全体オフセットを各行の時刻に焼き込んでから LRC 化
+    const baked = lines.map((l) => (l.time != null ? { ...l, time: Math.max(0, +(l.time + offset).toFixed(2)) } : l));
+    const lrc = linesToLrc(baked.filter((l) => l.text !== "" || l.time != null));
     try { await onSave(lrc); } finally { setSaving(false); }
   };
+  const offBtn = { padding: "5px 10px", borderRadius: 6, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit", lineHeight: 1 };
 
   const chip = (active) => ({
     minWidth: 62, padding: "4px 6px", borderRadius: 8, border: "none", cursor: "pointer",
@@ -187,19 +201,31 @@ export function LyricsSyncEditor({ track, onSave, onClose }) {
           </button>
           <div style={{ fontSize: 11, color: T.txD, textAlign: "center", marginBottom: 8 }}>{t("admin.music.syncHint")}</div>
 
+          {/* 全体タイミング調整（反応遅れをまとめて補正。再生しながら現在行プレビューで合わせる） */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 11, color: T.txD }}>{t("admin.music.syncOffset")}</span>
+            <button onClick={() => setOffset((o) => +(o - 0.1).toFixed(2))} style={offBtn} title={t("admin.music.syncOffsetEarlier")}>−0.1s</button>
+            <span style={{ fontVariantNumeric: "tabular-nums", fontSize: 13, fontWeight: 800, color: offset ? T.accent : T.txH, minWidth: 56, textAlign: "center" }}>
+              {(offset >= 0 ? "+" : "") + offset.toFixed(2)}s
+            </span>
+            <button onClick={() => setOffset((o) => +(o + 0.1).toFixed(2))} style={offBtn} title={t("admin.music.syncOffsetLater")}>＋0.1s</button>
+            {offset !== 0 && <button onClick={() => setOffset(0)} style={{ ...offBtn, color: T.txD }} title={t("admin.music.syncClear")}>{I.reset}</button>}
+          </div>
+
           {/* 行リスト */}
           <div ref={listRef} style={{ maxHeight: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4, padding: "2px" }}>
             {lines.map((ln, i) => {
-              const isActive = i === activeIdx;
+              const isActive = i === activeIdx;     // 次に打刻する行
+              const isPlaying = i === previewIdx;    // いま歌っている行（offset反映）
               return (
                 <div
                   key={i}
                   ref={(el) => { lineRefs.current[i] = el; }}
-                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px", borderRadius: 8, background: isActive ? `${T.accent}22` : "transparent", border: isActive ? `1px solid ${T.accent}66` : "1px solid transparent" }}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px", borderRadius: 8, background: isPlaying ? `${T.accent}33` : isActive ? `${T.accent}1a` : "transparent", borderLeft: isPlaying ? `3px solid ${T.accent}` : "3px solid transparent", border: isActive && !isPlaying ? `1px solid ${T.accent}66` : undefined }}
                 >
-                  {/* 時刻チップ: タップでその行を次の打刻対象にしつつ頭出し */}
+                  {/* 時刻チップ: タップでその行を次の打刻対象にしつつ頭出し（offset反映） */}
                   <button
-                    onClick={() => { setActiveIdx(i); if (ln.time != null) seekAudio(ln.time); }}
+                    onClick={() => { setActiveIdx(i); if (ln.time != null) seekAudio(ln.time + offset); }}
                     style={chip(isActive)}
                     title={t("admin.music.syncSeek")}
                   >

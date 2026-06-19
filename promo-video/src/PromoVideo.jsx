@@ -20,7 +20,21 @@ function assetSrc(char, expr, open) {
   return `assets/${slug}_${e}_${open ? 'open' : 'close'}.png`;
 }
 const USE_ASSETS = true; // false にすると簡易プレースホルダー描画
-const CHAR_HEIGHT = 760;  // 立ち絵の表示高さ(px)
+const CHAR_HEIGHT = 660;  // 立ち絵の表示高さ(px)
+
+// ── BGM（任意）──────────────────────────────────────
+// public/bgm/ に音源を置き、ファイル名を BGM に設定するとループ再生する。
+// 例: const BGM = 'bgm/track.mp3';  （未設定なら無音）
+const BGM = 'bgm/昼下がり気分.mp3';  // もう1曲: 'bgm/soundorbis - Hey So Jungle [Country Release].mp3'
+const BGM_VOLUME = 0.14;  // 声を邪魔しない控えめな音量
+const BGM_FADE = 30;      // フェードイン/アウトのフレーム数
+
+// ── 効果音（任意）──────────────────────────────────
+// public/se/ に短い効果音を置き、ファイル名を設定すると自動で鳴る。
+//   transition: 章の切り替わり（場面転換）  例: 'se/transition.mp3'
+//   telop:      テロップ表示時（ポンッ）     例: 'se/pop.mp3'
+const SE = { transition: null, telop: null };
+const SE_VOLUME = 0.5;
 
 // 章ごとの背景グラデーション
 const PALETTE = [
@@ -89,7 +103,7 @@ function Character({ char, active, expr, mouthOpen, frame }) {
 
 export const PromoVideo = ({ timeline }) => {
   const frame = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
+  const { fps, width, height, durationInFrames } = useVideoConfig();
   const segs = useMemo(() => layout(timeline.segments, fps), [timeline, fps]);
 
   // 章 → パレット
@@ -99,6 +113,19 @@ export const PromoVideo = ({ timeline }) => {
     for (const s of timeline.segments) if (!(s.chapter in map)) map[s.chapter] = PALETTE[i++ % PALETTE.length];
     return map;
   }, [timeline]);
+
+  // 効果音のトリガフレーム（章替わり／テロップ出現）
+  const seTriggers = useMemo(() => {
+    const transition = [], telop = [];
+    segs.forEach((s, i) => {
+      const prev = segs[i - 1];
+      if (!prev || prev.chapter !== s.chapter) transition.push(s.startFrame);
+      const tp = JSON.stringify(s.telop || []);
+      const prevTp = prev ? JSON.stringify(prev.telop || []) : '[]';
+      if ((s.telop || []).length && tp !== prevTp) telop.push(s.startFrame);
+    });
+    return { transition, telop };
+  }, [segs]);
 
   // 現在のセグメント
   const current = segs.find((s) => frame >= s.startFrame && frame < s.startFrame + s.durFrames)
@@ -124,8 +151,46 @@ export const PromoVideo = ({ timeline }) => {
 
   const cc = CHARS[current.speaker];
 
+  // 章バナー／コンテンツカードの出現アニメ用の起点フレーム
+  const chapterStart = Math.max(0, ...seTriggers.transition.filter((f) => f <= frame));
+  const telopHits = seTriggers.telop.filter((f) => f <= frame);
+  const telopStart = telopHits.length ? telopHits[telopHits.length - 1] : current.startFrame;
+  const chapterProg = interpolate(frame - chapterStart, [0, 12], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const telopProg = interpolate(frame - telopStart, [0, 10], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+
+  // テロップ: 1行目=見出し、2行目以降=箇条書き
+  const telopLines = current.telop || [];
+  const telopHead = telopLines[0];
+  const telopItems = telopLines.slice(1).map((t) => t.replace(/^[-・]\s*/, ''));
+
+  const BRAND = '#28c868', BRAND_DARK = '#1c9e50', INK = '#22303f';
+
   return (
     <AbsoluteFill style={{ fontFamily: '"Inter","Hiragino Sans","Yu Gothic",sans-serif', background: `linear-gradient(135deg, ${bg[0]}, ${bg[1]})` }}>
+      {/* BGM（ループ＋フェードイン/アウト）*/}
+      {BGM && (
+        <Audio
+          src={staticFile(BGM)}
+          loop
+          volume={(f) =>
+            BGM_VOLUME *
+            interpolate(f, [0, BGM_FADE, durationInFrames - BGM_FADE, durationInFrames], [0, 1, 1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+          }
+        />
+      )}
+
+      {/* 効果音（章替わり＝場面転換／テロップ出現＝ポンッ）*/}
+      {SE.transition && seTriggers.transition.map((f, i) => (
+        <Sequence key={'set' + i} from={f} durationInFrames={fps * 3}>
+          <Audio src={staticFile(SE.transition)} volume={SE_VOLUME} />
+        </Sequence>
+      ))}
+      {SE.telop && seTriggers.telop.map((f, i) => (
+        <Sequence key={'sep' + i} from={f + 3} durationInFrames={fps * 2}>
+          <Audio src={staticFile(SE.telop)} volume={SE_VOLUME} />
+        </Sequence>
+      ))}
+
       {/* 音声（各セグメントをオフセット配置）*/}
       {segs.map((s) => s.audio ? (
         <Sequence key={s.seq} from={s.startFrame} durationInFrames={s.durFrames + 4}>
@@ -133,26 +198,75 @@ export const PromoVideo = ({ timeline }) => {
         </Sequence>
       ) : null)}
 
-      {/* 章タイトル */}
-      <div style={{ position: 'absolute', top: 48, left: 0, right: 0, textAlign: 'center', fontSize: 40, fontWeight: 800, color: '#2a3b4d', textShadow: '0 2px 8px #fff8' }}>
+      {/* 章タイトル（バナー）*/}
+      <div
+        style={{
+          position: 'absolute', top: 44, left: '50%',
+          transform: `translateX(-50%) translateY(${(1 - chapterProg) * -14}px)`,
+          opacity: chapterProg,
+          padding: '12px 40px', borderRadius: 999,
+          background: `linear-gradient(135deg, ${BRAND}, ${BRAND_DARK})`,
+          color: '#fff', fontSize: 36, fontWeight: 800, letterSpacing: 1.5,
+          boxShadow: `0 10px 28px ${BRAND_DARK}66`, border: '3px solid rgba(255,255,255,0.55)',
+          whiteSpace: 'nowrap',
+        }}
+      >
         {current.chapter}
       </div>
 
-      {/* テロップ（箇条書き）*/}
-      {current.telop && current.telop.length > 0 && (
-        <div style={{ position: 'absolute', top: 140, left: 80, maxWidth: 760, background: '#ffffffdd', borderRadius: 20, padding: '24px 30px', boxShadow: '0 10px 40px #0002' }}>
-          {current.telop.map((t, i) => {
-            const op = interpolate(frame - current.startFrame, [i * 4, i * 4 + 8], [0, 1], { extrapolateRight: 'clamp', extrapolateLeft: 'clamp' });
-            return <div key={i} style={{ fontSize: 30, lineHeight: 1.6, color: '#22303f', opacity: op, fontWeight: i === 0 && !/^[-・]/.test(t) ? 800 : 500 }}>{/^[-・]/.test(t) ? t : `・${t}`}</div>;
-          })}
-        </div>
+      {/* コンテンツカード（テロップ）*/}
+      {telopLines.length > 0 && (
+        telopItems.length === 0 ? (
+          // 見出しのみ → 中央の大見出し
+          <div
+            style={{
+              position: 'absolute', top: 250, left: '50%',
+              transform: `translateX(-50%) scale(${interpolate(telopProg, [0, 1], [0.94, 1])})`,
+              opacity: telopProg, maxWidth: width * 0.52, textAlign: 'center',
+              background: '#fffffff2', borderRadius: 24, padding: '30px 50px',
+              boxShadow: '0 18px 50px rgba(0,0,0,0.18)', border: `3px solid ${BRAND}`,
+              fontSize: 44, fontWeight: 800, color: INK, lineHeight: 1.4,
+            }}
+          >
+            {telopHead}
+          </div>
+        ) : (
+          // 見出し＋箇条書き → コンテンツパネル
+          <div
+            style={{
+              position: 'absolute', top: 150, left: '50%',
+              transform: `translateX(-50%) translateY(${(1 - telopProg) * 16}px)`,
+              opacity: telopProg, width: width * 0.5,
+              background: '#fffffff5', borderRadius: 26, overflow: 'hidden',
+              boxShadow: '0 20px 55px rgba(0,0,0,0.2)', border: '1px solid #00000010',
+            }}
+          >
+            {/* ヘッダー帯 */}
+            <div style={{ background: `linear-gradient(135deg, ${BRAND}, ${BRAND_DARK})`, color: '#fff', fontSize: 38, fontWeight: 800, padding: '18px 34px', letterSpacing: 0.5 }}>
+              {telopHead}
+            </div>
+            {/* 箇条書き */}
+            <div style={{ padding: '20px 34px 26px' }}>
+              {telopItems.map((t, i) => {
+                const op = interpolate(frame - telopStart, [10 + i * 5, 18 + i * 5], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+                const dx = interpolate(frame - telopStart, [10 + i * 5, 18 + i * 5], [18, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 14, fontSize: 35, lineHeight: 1.5, color: INK, fontWeight: 600, opacity: op, transform: `translateX(${dx}px)`, marginBottom: i === telopItems.length - 1 ? 0 : 10 }}>
+                    <span style={{ color: BRAND, fontWeight: 900, flexShrink: 0 }}>✓</span>
+                    <span>{t}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )
       )}
 
       {/* キャラ（めたん左／ずんだもん右）*/}
-      <div style={{ position: 'absolute', bottom: 240, left: 140 }}>
+      <div style={{ position: 'absolute', bottom: 150, left: 60 }}>
         <Character char="metan" active={current.speaker === 'metan'} expr={current.expr} mouthOpen={current.speaker === 'metan' && mouthOpen} frame={frame} />
       </div>
-      <div style={{ position: 'absolute', bottom: 240, right: 140 }}>
+      <div style={{ position: 'absolute', bottom: 150, right: 60 }}>
         <Character char="zundamon" active={current.speaker === 'zundamon'} expr={current.expr} mouthOpen={current.speaker === 'zundamon' && mouthOpen} frame={frame} />
       </div>
 

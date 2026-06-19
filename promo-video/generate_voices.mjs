@@ -20,7 +20,8 @@ const ENGINE = process.env.VOICEVOX_URL || 'http://127.0.0.1:50021';
 const FPS = 30;
 const WIDTH = 1920;
 const HEIGHT = 1080;
-const GAP_SEC = 0.35;          // セリフ間の無音ポーズ
+const GAP_SEC = 0.30;          // セリフ間の無音ポーズ
+const SPEED = 1.25;            // 話す速さ（1.0=標準。大きいほど速い。1.2〜1.4目安）
 const STRIP_PARENS = true;     // （独り言）を読み上げから除外
 
 // VOICEVOX スピーカーID（ずんだもん ノーマル=3 / 四国めたん ノーマル=2）
@@ -151,6 +152,7 @@ async function main() {
     const file = `${seq}_${speaker.slug}.wav`;
 
     const query = await audioQuery(read, speaker.id);
+    query.speedScale = SPEED;  // 話速を反映（尺・口パクも analyzeTiming が追従）
     const { duration, mouth } = analyzeTiming(query);
     const wav = await synthesize(query, speaker.id);
     await writeFile(join(PUBLIC_VOICE, file), wav);

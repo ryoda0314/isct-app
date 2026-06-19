@@ -236,13 +236,18 @@ const footBtn = (active) => ({
 const bigIcon = (icon) => <span style={{ transform: "scale(2)", display: "flex" }}>{icon}</span>;
 const midIcon = (icon) => <span style={{ transform: "scale(1.6)", display: "flex" }}>{icon}</span>;
 
+// 歌詞ハイライトの先読み量(秒)。スクロール/色替えのトリガを少しだけ前倒しして
+// 描画・スクロール遅延を吸収する。行タップのシークも同量だけ手前へ送って基準を揃える。
+const LYRIC_LEAD = 0.1;
+
 // Apple Music 風の歌詞パネル。カバーの位置に表示する。
 //  - 同期歌詞(LRC): 現在行を強調＆中央へ自動スクロール。行タップでその位置へシーク。
 //  - プレーン歌詞: 単純なスクロール表示（ハイライト無し）。
 function LyricsPanel({ raw, currentTime, seek }) {
   const { synced, lines } = useMemo(() => parseLyrics(raw), [raw]);
-  // 少し先読み(0.3s)して、歌い出しの瞬間に行が切り替わるように見せる
-  const activeIdx = synced ? activeLineIndex(lines, currentTime + 0.3) : -1;
+  // ハイライトの先読み量。大きいと歌詞が音より先走って見えるので控えめに。
+  // 行タップ時のシークも同じ値だけ手前へ送り、ハイライトと再生位置の基準を一致させる。
+  const activeIdx = synced ? activeLineIndex(lines, currentTime + LYRIC_LEAD) : -1;
 
   const contRef = useRef(null);
   const lineRefs = useRef([]);
@@ -288,7 +293,7 @@ function LyricsPanel({ raw, currentTime, seek }) {
           <div
             key={i}
             ref={(el) => { lineRefs.current[i] = el; }}
-            onClick={() => { if (synced && ln.time != null) seek(ln.time); }}
+            onClick={() => { if (synced && ln.time != null) seek(Math.max(0, ln.time - LYRIC_LEAD)); }}
             style={{
               fontSize: 23, fontWeight: 800, lineHeight: 1.3, padding: "8px 6px",
               textAlign: "left", cursor: synced ? "pointer" : "default",

@@ -43,5 +43,16 @@ debug-portal/
 promo-video/out/
 promo-video/public/voice/
 promo-video/public/timeline.json
+# Promo video media assets (distributed 立ち絵 PSD/PNG, BGM) — keep README.txt only
+promo-video/public/assets/*.psd
+promo-video/public/assets/*.png
+promo-video/public/bgm/*.mp3
+promo-video/public/bgm/*.wav
+promo-video/public/bgm/*.m4a
+promo-video/public/bgm/*.ogg
+promo-video/public/se/*.mp3
+promo-video/public/se/*.wav
+promo-video/public/se/*.m4a
+promo-video/public/se/*.ogg
 data/trace-portal-*
 data/trace-*.png
