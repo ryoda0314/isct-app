@@ -127,9 +127,17 @@ export const PromoVideo = ({ timeline }) => {
     return { transition, telop };
   }, [segs]);
 
-  // 現在のセグメント
-  const current = segs.find((s) => frame >= s.startFrame && frame < s.startFrame + s.durFrames)
-    || segs.reduce((a, s) => (s.startFrame <= frame ? s : a), segs[0]);
+  // 各セグメントの「実画像の表示開始フレーム」（同じ画像が続く区間の先頭）
+  const imageStarts = useMemo(() => {
+    const arr = [];
+    segs.forEach((s, i) => { arr[i] = (i > 0 && segs[i - 1].image === s.image) ? arr[i - 1] : s.startFrame; });
+    return arr;
+  }, [segs]);
+
+  // 現在のセグメント（インデックスで保持）
+  let curIdx = segs.findIndex((s) => frame >= s.startFrame && frame < s.startFrame + s.durFrames);
+  if (curIdx < 0) { curIdx = 0; for (let i = 0; i < segs.length; i++) if (segs[i].startFrame <= frame) curIdx = i; }
+  const current = segs[curIdx];
 
   // 口パク判定
   const localSec = (frame - current.startFrame) / fps;
@@ -157,6 +165,8 @@ export const PromoVideo = ({ timeline }) => {
   const telopStart = telopHits.length ? telopHits[telopHits.length - 1] : current.startFrame;
   const chapterProg = interpolate(frame - chapterStart, [0, 12], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const telopProg = interpolate(frame - telopStart, [0, 10], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const imageStart = imageStarts[curIdx] ?? current.startFrame;
+  const imageProg = interpolate(frame - imageStart, [0, 12], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
   // テロップ: 1行目=見出し、2行目以降=箇条書き
   const telopLines = current.telop || [];
@@ -214,8 +224,27 @@ export const PromoVideo = ({ timeline }) => {
         {current.chapter}
       </div>
 
-      {/* コンテンツカード（テロップ）*/}
-      {telopLines.length > 0 && (
+      {/* 実画像ショーケース（アプリのスクショ等）*/}
+      {current.image && (
+        <div
+          style={{
+            position: 'absolute', top: 134, left: '50%',
+            transform: `translateX(-50%) translateY(${(1 - imageProg) * 18}px) scale(${interpolate(imageProg, [0, 1], [0.96, 1])})`,
+            opacity: imageProg, textAlign: 'center',
+          }}
+        >
+          <Img
+            src={staticFile(current.image)}
+            style={{ display: 'block', maxHeight: 548, maxWidth: width * 0.5, borderRadius: 22, objectFit: 'contain', boxShadow: '0 24px 60px rgba(0,0,0,0.32)' }}
+          />
+          {telopHead && (
+            <div style={{ marginTop: 14, display: 'inline-block', background: `linear-gradient(135deg, ${BRAND}, ${BRAND_DARK})`, color: '#fff', fontSize: 26, fontWeight: 800, padding: '8px 26px', borderRadius: 999, boxShadow: `0 6px 16px ${BRAND_DARK}66` }}>{telopHead}</div>
+          )}
+        </div>
+      )}
+
+      {/* コンテンツカード（テロップ）※実画像があるときは画像を優先 */}
+      {!current.image && telopLines.length > 0 && (
         telopItems.length === 0 ? (
           // 見出しのみ → 中央の大見出し
           <div

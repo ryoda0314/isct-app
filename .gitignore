@@ -54,5 +54,9 @@ promo-video/public/se/*.mp3
 promo-video/public/se/*.wav
 promo-video/public/se/*.m4a
 promo-video/public/se/*.ogg
+# Promo video app screenshots (may contain personal data)
+promo-video/public/screens/*.png
+promo-video/public/screens/*.jpg
+promo-video/public/screens/*.jpeg
 data/trace-portal-*
 data/trace-*.png

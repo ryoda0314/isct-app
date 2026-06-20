@@ -104,11 +104,24 @@ export function useFriends(enabled = true, userId = null) {
     return r.ok ? await r.json() : null;
   }, []);
 
+  const fetchGraph = useCallback(async () => {
+    if (isDemoMode()) {
+      // Demo: star of me ↔ each friend, no 2nd-degree
+      return {
+        me: { id: userId, name: 'You', avatar: '★', color: '#6375f0' },
+        nodes: DEMO_FRIENDS.map(f => ({ id: f.friendId, name: f.name, avatar: f.avatar, color: f.color, dept: f.dept, degree: 1 })),
+        edges: DEMO_FRIENDS.map(f => [userId, f.friendId]),
+      };
+    }
+    const r = await fetch('/api/friends?type=graph');
+    return r.ok ? await r.json() : null;
+  }, [userId]);
+
   return {
     friends, pending, sent, loading,
     pendingCount: pending.length,
     friendIds, isFriend,
     sendRequest, acceptRequest, rejectRequest, unfriend,
-    searchUsers, lookupById, refetch: fetchAll,
+    searchUsers, lookupById, fetchGraph, refetch: fetchAll,
   };
 }

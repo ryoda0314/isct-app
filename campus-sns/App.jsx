@@ -43,6 +43,7 @@ import { CalendarView } from "./views/CalendarView.jsx";
 import { SetupView } from "./views/SetupView.jsx";
 import { NavigationView } from "./views/NavigationView.jsx";
 import { FacilityReservationView } from "./views/FacilityReservationView.jsx";
+import { TrainView } from "./views/TrainView.jsx";
 import { LibraryView } from "./views/LibraryView.jsx";
 import { FriendsView } from "./views/FriendsView.jsx";
 import { CircleView } from "./views/CircleView.jsx";
@@ -765,7 +766,7 @@ export default function App(){
   const taskDeadlineItems=useMemo(()=>(myTasks||[]).filter(tk=>!tk.d&&tk.due).map(tk=>({id:`task_${tk.id}`,title:tk.t,cid:null,due:tk.due,st:"active"})),[myTasks]);
   useDeadlineNotifications(taskDeadlineItems, ready && notifEnabled && notifSettings.deadline, "task");
   const {unreadDM:dmUnread,markDMSeen}=useUnreadDM(user?.moodleId||user?.id);
-  const {friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,friendIds:_fIds,isFriend:_isFriend,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,lookupById,refetch:refetchFriends}=useFriends(ready,user?.moodleId||user?.id);
+  const {friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,friendIds:_fIds,isFriend:_isFriend,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,lookupById,fetchGraph,refetch:refetchFriends}=useFriends(ready,user?.moodleId||user?.id);
   const {blocks:blockList,isBlocked,blockUser,unblockUser}=useBlocks(ready);
   const {mutes:muteList,isMuted,muteUser,unmuteUser}=useMutes(ready);
   const {enqueue:enqueueOffline,pending:offlinePending}=useOfflineQueue();
@@ -784,7 +785,7 @@ export default function App(){
   const {circles:circleList,messages:circleMsgs,discover:circleDiscover,sendMessage:circleSend,createCircle,joinCircle,leaveCircle,addChannel:circleAddCh,deleteChannel:circleDelCh,pinMessage:circlePin,updateCircle:circleUpdate,init:circleInit,fetchMessages:circleFetchMsgs}=useCircles(ready,user?.moodleId||user?.id);
   const startDMFromFriend=(fid,name,avatar,color)=>{setView("dm");};
   const openGroupChat=(g)=>{setView("dm");};
-  const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat,blockUser,unblockUser,isBlocked,blocks:blockList,muteUser,unmuteUser,isMuted,mutes:muteList,refetch:refetchFriends};
+  const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,fetchGraph,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat,blockUser,unblockUser,isBlocked,blocks:blockList,muteUser,unmuteUser,isMuted,mutes:muteList,refetch:refetchFriends};
   const togTheme=()=>setThemePref(p=>p==="dark"?"light":"dark");
   const onLogout=async()=>{setDemoMode(false);clearClientToken();try{await fetch("/api/auth/logout",{method:"POST"});}catch{}await clearNativeCookies();try{const{clearCreds}=await import("./secureCreds.js");await clearCreds();}catch{}if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
 
@@ -1067,6 +1068,7 @@ export default function App(){
           {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} sitelenPref={sitelenPref} setSitelenPref={setSitelenPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/>}
           {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/>}
           {view==="takiplaza"&&(L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob={false} onNavigate={goToBuilding}/>)}
+          {view==="train"&&(L?<LockedView title={t("nav.train")}/>:<TrainView mob={false}/>)}
           {view==="library"&&<LibraryView mob={false}/>}
           {view==="circles"&&(TR?<TelecomBlockView title={t("telecom.circlesUnavailable")}/>:<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs}/>)}
           {view==="acadCal"&&<AcademicCalendarView mob={false}/>}
@@ -1122,6 +1124,7 @@ export default function App(){
         {view==="profile"&&<><MHdr title={t("nav.profile")} back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} sitelenPref={sitelenPref} setSitelenPref={setSitelenPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/></>}
         {view==="navigation"&&<><MHdr title={t("nav.navigation")} back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
         {view==="takiplaza"&&<><MHdr title="Taki Plaza" back={mBack}/>{L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob onNavigate={goToBuilding}/>}</>}
+        {view==="train"&&<><MHdr title={t("nav.train")} back={mBack}/>{L?<LockedView title={t("nav.train")}/>:<TrainView mob/>}</>}
         {view==="library"&&<><MHdr title={t("nav.library")} back={mBack}/><LibraryView mob/></>}
         {view==="circles"&&(TR?<><MHdr title={t("nav.circles")} back={mBack}/><TelecomBlockView title={t("telecom.circlesUnavailable")} onBack={goBack}/></>:<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs} onBack={mBack}/>)}
         {view==="acadCal"&&<AcademicCalendarView mob/>}

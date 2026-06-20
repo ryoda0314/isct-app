@@ -3,8 +3,10 @@ import { T } from '../theme.js';
 import { t } from "../i18n.js";
 import { I } from '../icons.jsx';
 import { Av, Loader, useQRCode } from '../shared.jsx';
+import { SocialGraphView } from './SocialGraphView.jsx';
 
-export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM,userId,lookupById,groups=[],createGroup,leaveGroup,onOpenGroup,blockUser,unblockUser,isBlocked,blocks=[],muteUser,unmuteUser,isMuted,mutes=[],refetch})=>{
+export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM,userId,lookupById,fetchGraph,groups=[],createGroup,leaveGroup,onOpenGroup,blockUser,unblockUser,isBlocked,blocks=[],muteUser,unmuteUser,isMuted,mutes=[],refetch})=>{
+  const [mode,setMode]=useState('list'); // 'list' | 'graph'
   const [addOpen,setAddOpen]=useState(false);
   const [addTab,setAddTab]=useState('requests');
   const [searchQ,setSearchQ]=useState('');
@@ -301,11 +303,23 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:T.bg}}>
       {/* ── Top bar ── */}
       <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 12px",flexShrink:0,borderBottom:`1px solid ${T.bd}`,background:T.bg2}}>
-        <div style={{flex:1,display:"flex",alignItems:"center",gap:6,padding:"0 10px",borderRadius:8,background:T.bg3,height:34}}>
+        {/* List / Graph toggle */}
+        <div style={{display:"flex",alignItems:"center",gap:2,padding:2,borderRadius:8,background:T.bg3,height:34,flexShrink:0}}>
+          {[{id:'list',label:t("friends.viewList"),icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>},
+            {id:'graph',label:t("friends.viewGraph"),icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.2 7.4l7.6 9.2M15.5 6h-7.3"/></svg>}].map(m=>{
+            const active=mode===m.id;
+            return <button key={m.id} onClick={()=>setMode(m.id)} title={m.label}
+              style={{display:"flex",alignItems:"center",gap:5,padding:"0 10px",height:30,borderRadius:6,border:"none",cursor:"pointer",background:active?T.bg2:"transparent",color:active?T.accent:T.txD,fontSize:12,fontWeight:600,fontFamily:"inherit",transition:"all .15s",boxShadow:active?"0 1px 3px rgba(0,0,0,.12)":"none"}}>
+              {m.icon}{!mob&&<span>{m.label}</span>}
+            </button>;
+          })}
+        </div>
+        {mode==='list'&&<div style={{flex:1,display:"flex",alignItems:"center",gap:6,padding:"0 10px",borderRadius:8,background:T.bg3,height:34}}>
           <span style={{color:T.txD,display:"flex",flexShrink:0}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
           <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder={t("friends.searchBtn")} style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:13,outline:"none",fontFamily:"inherit",padding:"0"}}/>
           {filter&&<button onClick={()=>setFilter('')} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:2}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
-        </div>
+        </div>}
+        {mode==='graph'&&<div style={{flex:1}}/>}
         <div style={{position:"relative",flexShrink:0}}>
           <button onClick={()=>setTopMenu(o=>!o)} title={t("friends.addFriend")}
             style={{position:"relative",width:34,height:34,borderRadius:8,border:`1px solid ${topMenu?`${T.accent}40`:T.bd}`,background:topMenu?`${T.accent}14`:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:topMenu?T.accent:T.txH,transition:"all .15s"}}
@@ -335,8 +349,11 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
         </div>
       </div>
 
-      {/* ── Content ── */}
-      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+      {/* ── Graph mode ── */}
+      {mode==='graph'&&<SocialGraphView mob={mob} fetchGraph={fetchGraph} userId={userId} onStartDM={onStartDM} sendRequest={sendRequest}/>}
+
+      {/* ── Content (list mode) ── */}
+      {mode==='list'&&<div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
         {loading&&<Loader msg={t("common.loading")} size="sm"/>}
 
         {!loading&&friends.length===0&&groups.length===0&&(
@@ -398,7 +415,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
             </div>
           </div>;
         })}
-      </div>
+      </div>}
 
       {addOpen&&AddModal()}
       {grpOpen&&CreateGroupModal()}

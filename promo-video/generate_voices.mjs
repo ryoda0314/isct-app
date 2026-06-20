@@ -10,6 +10,7 @@
 //   public/voice/manifest.csv        … 一覧（字幕流用・確認用）
 
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -117,15 +118,18 @@ async function main() {
   const md = await readFile(SCRIPT, 'utf8');
   const lines = md.split(/\r?\n/);
 
-  // 章見出しと直近のテロップを追跡しながらセリフを拾う
+  // 章見出し・直近のテロップ・直近の実画像を追跡しながらセリフを拾う
   let chapter = '';
   let telop = [];
   let inTelop = false;
+  let curImage = '';   // 【図】path で設定。次の【図】か章替わりまで継続
   const events = [];
 
   for (const line of lines) {
     const h = line.match(/^##\s+(.+)$/);
-    if (h) { chapter = h[1].replace(/[🟢🔵🟡]/g, '').replace(/（[^）]*）/g, '').trim(); telop = []; inTelop = false; continue; }
+    if (h) { chapter = h[1].replace(/[🟢🔵🟡]/g, '').replace(/（[^）]*）/g, '').trim(); telop = []; inTelop = false; curImage = ''; continue; }
+    const fig = line.match(/^【図】\s*(.+)$/);  // 例: 【図】screens/home.png （なし で解除）
+    if (fig) { const v = fig[1].trim(); curImage = (v === 'なし' || v === 'none') ? '' : v; inTelop = false; continue; }
     if (/^【テロップ】/.test(line)) { telop = []; inTelop = true; const rest = line.replace(/^【テロップ】/, '').trim(); if (rest) telop.push(rest.replace(/\*\*/g,'')); continue; }
     if (inTelop && /^\s*[-・]/.test(line)) { telop.push(line.replace(/^\s*[-・]\s*/, '').replace(/\*\*/g,'').trim()); continue; }
     if (/^【/.test(line)) { inTelop = false; } // 別のト書きでテロップ収集終了
@@ -133,7 +137,7 @@ async function main() {
     if (sp) {
       const read = cleanText(sp.text);
       if (!read) continue;
-      events.push({ speaker: sp.speaker, expr: sp.expr, read, sub: subtitleText(sp.text), chapter, telop: telop.slice(0, 6) });
+      events.push({ speaker: sp.speaker, expr: sp.expr, read, sub: subtitleText(sp.text), chapter, telop: telop.slice(0, 6), image: curImage });
       inTelop = false;
     }
   }
@@ -145,9 +149,15 @@ async function main() {
 
   const segments = [];
   const manifest = [['seq','speaker','file','duration','text']];
+  const warnedImg = new Set();
 
   for (let i = 0; i < events.length; i++) {
     const { speaker, expr, read, sub, chapter, telop } = events[i];
+    let image = events[i].image || null;
+    if (image && !existsSync(resolve(__dirname, 'public', image))) {
+      if (!warnedImg.has(image)) { console.log(`  [画像未配置→スキップ] public/${image}`); warnedImg.add(image); }
+      image = null;
+    }
     const seq = String(i + 1).padStart(3, '0');
     const file = `${seq}_${speaker.slug}.wav`;
 
@@ -162,7 +172,7 @@ async function main() {
       seq, speaker: speaker.slug, expr, audio: `voice/${file}`,
       text: sub, duration: +duration.toFixed(3),
       gapAfter: GAP_SEC, mouth: mouth.map(([a,b]) => [+a.toFixed(3), +b.toFixed(3)]),
-      chapter, telop,
+      chapter, telop, image,
     });
     manifest.push([seq, speaker.slug, file, duration.toFixed(2), sub]);
   }

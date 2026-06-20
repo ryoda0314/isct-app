@@ -153,6 +153,98 @@ export async function GET(request) {
       return NextResponse.json(results);
     }
 
+    if (type === 'graph') {
+      // 1st-degree: my accepted friendships
+      const { data: myEdges, error: e1 } = await sb
+        .from('friendships')
+        .select('requester_id,addressee_id')
+        .eq('status', 'accepted')
+        .or(`requester_id.eq.${userid},addressee_id.eq.${userid}`);
+      if (e1) throw e1;
+
+      const blockedIds = await getBlockedIds(userid);
+      const friendIds = [...new Set(
+        myEdges
+          .map(f => (f.requester_id === userid ? f.addressee_id : f.requester_id))
+          .filter(id => !blockedIds.has(id))
+      )];
+
+      // Edges touching any of my friends (gives friend↔friend + friend↔2nd-degree)
+      let ringEdges = [];
+      if (friendIds.length > 0) {
+        const list = `(${friendIds.join(',')})`;
+        const { data: re, error: e2 } = await sb
+          .from('friendships')
+          .select('requester_id,addressee_id')
+          .eq('status', 'accepted')
+          .or(`requester_id.in.${list},addressee_id.in.${list}`);
+        if (e2) throw e2;
+        ringEdges = re || [];
+      }
+
+      const friendSet = new Set(friendIds);
+      // Count how many of my friends each 2nd-degree person connects to
+      const mutualCount = new Map();
+      for (const e of ringEdges) {
+        const { requester_id: a, addressee_id: b } = e;
+        for (const [x, y] of [[a, b], [b, a]]) {
+          // x is the 2nd-degree candidate if it's not me, not blocked, not already a friend,
+          // and its counterpart y is one of my friends
+          if (x !== userid && !friendSet.has(x) && !blockedIds.has(x) && friendSet.has(y)) {
+            mutualCount.set(x, (mutualCount.get(x) || 0) + 1);
+          }
+        }
+      }
+
+      // Cap 2nd-degree nodes, ranked by mutual connections
+      const SECOND_DEGREE_CAP = 40;
+      const secondIds = [...mutualCount.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, SECOND_DEGREE_CAP)
+        .map(([id]) => id);
+      const secondSet = new Set(secondIds);
+
+      // Final node id set (excluding me) + profiles
+      const allIds = [...new Set([userid, ...friendIds, ...secondIds])];
+      let profiles = {};
+      if (allIds.length > 0) {
+        const { data: pData } = await sb.from('profiles').select('*').in('moodle_id', allIds);
+        if (pData) pData.forEach(p => { profiles[p.moodle_id] = p; });
+      }
+      const profOf = (id) => profiles[id] || { name: `User ${id}`, avatar: '?', color: '#888' };
+
+      const inGraph = (id) => id === userid || friendSet.has(id) || secondSet.has(id);
+      const nodes = [];
+      for (const id of friendIds) {
+        const p = profOf(id);
+        nodes.push({ id, name: p.name, avatar: p.avatar, color: p.color, dept: p.dept, degree: 1 });
+      }
+      for (const id of secondIds) {
+        const p = profOf(id);
+        nodes.push({ id, name: p.name, avatar: p.avatar, color: p.color, dept: p.dept, degree: 2, mutual: mutualCount.get(id) || 0 });
+      }
+
+      // Dedupe edges (undirected) among final node set
+      const seen = new Set();
+      const edges = [];
+      const pushEdge = (a, b) => {
+        if (a === b || !inGraph(a) || !inGraph(b)) return;
+        const key = a < b ? `${a}_${b}` : `${b}_${a}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        edges.push([a, b]);
+      };
+      for (const f of myEdges) pushEdge(f.requester_id, f.addressee_id);
+      for (const f of ringEdges) pushEdge(f.requester_id, f.addressee_id);
+
+      const me = profOf(userid);
+      return NextResponse.json({
+        me: { id: userid, name: me.name, avatar: me.avatar, color: me.color, dept: me.dept },
+        nodes,
+        edges,
+      });
+    }
+
     if (type === 'lookup') {
       const id = searchParams.get('id');
       if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
