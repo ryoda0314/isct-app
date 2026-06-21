@@ -28,6 +28,7 @@ import { MatView } from "./views/MatView.jsx";
 import { DMView } from "./views/DMView.jsx";
 import { PocketView } from "./views/PocketView.jsx";
 import { MusicView } from "./views/MusicView.jsx";
+import { GymView } from "./views/GymView.jsx";
 import { PdfToolsView } from "./views/PdfToolsView.jsx";
 import { NotesView } from "./views/NotesView.jsx";
 import { MiniPlayer } from "./components/MiniPlayer.jsx";
@@ -1076,6 +1077,7 @@ export default function App(){
           {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} sitelenPref={sitelenPref} setSitelenPref={setSitelenPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/>}
           {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/>}
           {view==="takiplaza"&&(L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob={false} onNavigate={goToBuilding}/>)}
+          {view==="gym"&&(L?<LockedView title={t("tool.gym")}/>:<GymView mob={false}/>)}
           {view==="train"&&(L?<LockedView title={t("nav.train")}/>:<TrainView mob={false}/>)}
           {view==="library"&&<LibraryView mob={false}/>}
           {view==="circles"&&(TR?<TelecomBlockView title={t("telecom.circlesUnavailable")}/>:<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs}/>)}
@@ -1133,6 +1135,7 @@ export default function App(){
         {view==="profile"&&<><MHdr title={t("nav.profile")} back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} sitelenPref={sitelenPref} setSitelenPref={setSitelenPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser}/></>}
         {view==="navigation"&&<><MHdr title={t("nav.navigation")} back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
         {view==="takiplaza"&&<><MHdr title="Taki Plaza" back={mBack}/>{L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob onNavigate={goToBuilding}/>}</>}
+        {view==="gym"&&<><MHdr title={t("tool.gym")} back={mBack}/>{L?<LockedView title={t("tool.gym")}/>:<GymView mob/>}</>}
         {view==="train"&&<><MHdr title={t("nav.train")} back={mBack}/>{L?<LockedView title={t("nav.train")}/>:<TrainView mob/>}</>}
         {view==="library"&&<><MHdr title={t("nav.library")} back={mBack}/><LibraryView mob/></>}
         {view==="circles"&&(TR?<><MHdr title={t("nav.circles")} back={mBack}/><TelecomBlockView title={t("telecom.circlesUnavailable")} onBack={goBack}/></>:<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs} onBack={mBack}/>)}

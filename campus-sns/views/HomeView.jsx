@@ -56,6 +56,7 @@ const QA_ALL=[
   {id:"navigation",icon:I.map,labelKey:"nav.map"},
   {id:"library",icon:I.book,labelKey:"nav.library"},
   {id:"search",icon:I.search,labelKey:"nav.search"},
+  {id:"gym",icon:I.dumbbell,labelKey:"tool.gym"},
 ];
 const QA_DEFAULT=["portal","isctportal","calendar","events"];
 const getQA=()=>{try{const v=localStorage.getItem("quickAccess");return v?JSON.parse(v):QA_DEFAULT;}catch{return QA_DEFAULT;}};
