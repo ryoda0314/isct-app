@@ -55,7 +55,7 @@ export const BookmarkView=({bmarks=[],mob,setView,setCid,setCh,courses=[]})=>{
           <div key={p.id} style={{padding:"12px 14px",borderBottom:`1px solid ${T.bd}`,cursor:"pointer"}}
             onClick={()=>{if(course){setCid(course.id);setCh("timeline");setView("course");}}}>
             <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:4}}>
-              <Av u={{name:p.name,av:p.avatar,col:p.color}} sz={28}/>
+              <Av u={{name:p.name,av:p.avatar,col:p.color}} sz={28} uid={p.uid}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   <span style={{fontWeight:600,fontSize:12,color:p.color||T.txH}}>{p.name||`User ${p.uid}`}</span>

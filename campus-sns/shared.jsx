@@ -171,7 +171,12 @@ const Tx=({children,style:s})=>{
 };
 
 const _isImg=v=>v&&(v.startsWith("data:")||v.startsWith("http")||v.startsWith("/"));
-const Av=({u,sz=32,st})=>{const av=u?.av,img=_isImg(av);return <div style={{position:"relative",flexShrink:0}}>{img?<img src={av} style={{width:sz,height:sz,borderRadius:"50%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{width:sz,height:sz,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:sz*.36,fontWeight:700,color:"#fff",background:u?.col||T.accent,userSelect:"none"}}>{av||"?"}</div>}{st&&u?.st&&<div style={{position:"absolute",bottom:-1,right:-1,width:sz*.28,height:sz*.28,borderRadius:"50%",border:`2px solid ${T.bg}`,background:u.st==="online"?T.on:u.st==="idle"?T.idle:T.off}}/>}</div>;};
+// グローバルなプロフィールオープナー（App が一度だけ登録）。Av に uid を渡すと
+// どこでもアイコンタップでその人のプロフィールが開く。親の onClick とは stopPropagation で分離。
+let _profileOpener=null;
+const setProfileOpener=(fn)=>{_profileOpener=fn;};
+const openProfileFor=(uid)=>{if(uid!=null&&_profileOpener)_profileOpener(uid);};
+const Av=({u,sz=32,st,uid})=>{const av=u?.av,img=_isImg(av);const clickable=uid!=null&&!!_profileOpener;const onClick=clickable?(e)=>{e.stopPropagation();_profileOpener(uid);}:undefined;return <div onClick={onClick} style={{position:"relative",flexShrink:0,...(clickable?{cursor:"pointer"}:null)}}>{img?<img src={av} style={{width:sz,height:sz,borderRadius:"50%",objectFit:"cover",display:"block"}} alt=""/>:<div style={{width:sz,height:sz,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:sz*.36,fontWeight:700,color:"#fff",background:u?.col||T.accent,userSelect:"none"}}>{av||"?"}</div>}{st&&u?.st&&<div style={{position:"absolute",bottom:-1,right:-1,width:sz*.28,height:sz*.28,borderRadius:"50%",border:`2px solid ${T.bg}`,background:u.st==="online"?T.on:u.st==="idle"?T.idle:T.off}}/>}</div>;};
 const Tag=({children,color=T.accent})=><span style={{display:"inline-flex",alignItems:"center",padding:"2px 7px",borderRadius:4,fontSize:11,fontWeight:600,color,background:`${color}16`,whiteSpace:"nowrap",gap:3}}>{children}</span>;
 const Bar=({p,h=4,c})=><div style={{flex:1,height:h,borderRadius:h,background:T.bg4}}><div style={{height:"100%",borderRadius:h,background:c||(p>=100?T.green:T.accent),width:`${Math.min(p,100)}%`,transition:"width .3s"}}/></div>;
 const Btn=({children,on,onClick,style:s})=><button onClick={onClick} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:5,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:500,borderRadius:6,padding:"5px 10px",fontSize:13,background:on?T.accent:"transparent",color:on?"#fff":T.txD,transition:"all .12s",...s}}>{children}</button>;
@@ -209,4 +214,4 @@ const Loader=({msg,size="md"})=>{
   );
 };
 
-export { useKatex, useHighlight, useLeaflet, useQRCode, Tx, Av, Tag, Bar, Btn, Loader };
+export { useKatex, useHighlight, useLeaflet, useQRCode, Tx, Av, Tag, Bar, Btn, Loader, setProfileOpener, openProfileFor };

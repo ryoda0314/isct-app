@@ -9,7 +9,7 @@ const _isImg = (s) => typeof s === 'string' && (s.startsWith('http') || s.starts
  * Force-directed social graph rendered on a <canvas> (no external libs — CSP-safe).
  * me = degree 0 (pinned center), friends = degree 1, friends-of-friends = degree 2.
  */
-export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendRequest }) => {
+export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendRequest, openProfile }) => {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const nodesRef = useRef([]);        // {id,name,avatar,color,dept,degree,mutual,x,y,vx,vy,pinned,r}
@@ -400,6 +400,12 @@ export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendReques
                 </div>
               </div>
             </div>
+            {selected.degree !== 0 && openProfile && (
+              <button onClick={() => { openProfile(selected.id); setSelected(null); }}
+                style={{ width: '100%', padding: '11px 0', borderRadius: 10, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 8 }}>
+                {t('profile.viewProfile')}
+              </button>
+            )}
             {selected.degree === 1 && onStartDM && (
               <button onClick={() => { onStartDM(selected.id, selected.name, selected.avatar, selected.color); setSelected(null); }}
                 style={{ width: '100%', padding: '11px 0', borderRadius: 10, border: 'none', background: T.accent, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>

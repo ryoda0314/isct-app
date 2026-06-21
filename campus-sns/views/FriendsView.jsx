@@ -4,9 +4,14 @@ import { t } from "../i18n.js";
 import { I } from '../icons.jsx';
 import { Av, Loader, useQRCode } from '../shared.jsx';
 import { SocialGraphView } from './SocialGraphView.jsx';
+import { QRScanner } from '../components/QRScanner.jsx';
 
-export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM,userId,lookupById,fetchGraph,groups=[],createGroup,leaveGroup,onOpenGroup,blockUser,unblockUser,isBlocked,blocks=[],muteUser,unmuteUser,isMuted,mutes=[],refetch})=>{
+export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM,userId,lookupById,fetchGraph,fetchRecommendations,openProfile,groups=[],createGroup,leaveGroup,onOpenGroup,blockUser,unblockUser,isBlocked,blocks=[],muteUser,unmuteUser,isMuted,mutes=[],refetch})=>{
   const [mode,setMode]=useState('list'); // 'list' | 'graph'
+  const [recs,setRecs]=useState([]);
+  const [recsLoading,setRecsLoading]=useState(false);
+  const [recsLoaded,setRecsLoaded]=useState(false);
+  const [sentRecs,setSentRecs]=useState(()=>new Set());
   const [addOpen,setAddOpen]=useState(false);
   const [addTab,setAddTab]=useState('requests');
   const [searchQ,setSearchQ]=useState('');
@@ -21,9 +26,6 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
   const [scanning,setScanning]=useState(false);
   const [qrDataUrl,setQrDataUrl]=useState(null);
   const qrReady=useQRCode();
-  const videoRef=useRef(null);
-  const streamRef=useRef(null);
-  const scanRef=useRef(null);
   const [filter,setFilter]=useState('');
   const [actionFor,setActionFor]=useState(null); // friend whose action sheet is open
   const [topMenu,setTopMenu]=useState(false); // top-bar "+" dropdown
@@ -47,15 +49,23 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
     return()=>clearTimeout(debounceRef.current);
   },[searchQ,addTab,addOpen,searchUsers]);
 
+  // Lazy-load "people you may know" when the search tab opens
+  useEffect(()=>{
+    if(!addOpen||addTab!=='search'||recsLoaded||!fetchRecommendations)return;
+    setRecsLoading(true);
+    fetchRecommendations().then(r=>{setRecs(r||[]);setRecsLoaded(true);setRecsLoading(false);}).catch(()=>{setRecsLoaded(true);setRecsLoading(false);});
+  },[addOpen,addTab,recsLoaded,fetchRecommendations]);
+
   useEffect(()=>{
     if(!qrReady||!userId||!addOpen||addTab!=='qr')return;
     try{const qr=window.qrcode(0,'M');qr.addData(`ISCT:${userId}`);qr.make();setQrDataUrl(qr.createDataURL(8,4));}catch{}
   },[qrReady,userId,addTab,addOpen]);
 
-  useEffect(()=>()=>{
-    if(scanRef.current)cancelAnimationFrame(scanRef.current);
-    if(streamRef.current)streamRef.current.getTracks().forEach(t=>t.stop());
-  },[]);
+  // Each tab starts clean: close the scanner when leaving QR, clear any lookup result on tab switch
+  useEffect(()=>{
+    if(addTab!=='qr')setScanning(false);
+    setLookupResult(null);
+  },[addTab]);
 
   const doLookup=async(id)=>{
     const v=id||lookupId;if(!v?.trim())return;
@@ -65,28 +75,15 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
     setLookupLoading(false);
   };
   const copyId=()=>{navigator.clipboard.writeText(String(userId));setCopied(true);setTimeout(()=>setCopied(false),2000);};
-  const stopScan=()=>{
-    if(scanRef.current)cancelAnimationFrame(scanRef.current);
-    if(streamRef.current){streamRef.current.getTracks().forEach(t=>t.stop());streamRef.current=null;}
+  // Handle a decoded QR string. Returns true if it was a valid ISCT friend code.
+  const handleScannedQr=(raw)=>{
+    if(typeof raw!=='string'||!raw.startsWith('ISCT:'))return false;
+    const fid=raw.slice(5).trim();
+    if(!fid)return false;
     setScanning(false);
-  };
-  const startScan=async()=>{
-    try{
-      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-      streamRef.current=stream;setScanning(true);
-      setTimeout(()=>{
-        if(videoRef.current){videoRef.current.srcObject=stream;videoRef.current.play();}
-        if(typeof BarcodeDetector!=='undefined'){
-          const det=new BarcodeDetector({formats:['qr_code']});
-          const tick=async()=>{
-            if(!videoRef.current||!streamRef.current)return;
-            try{const bs=await det.detect(videoRef.current);for(const b of bs){if(b.rawValue?.startsWith('ISCT:')){const fid=b.rawValue.slice(5);stopScan();setLookupId(fid);doLookup(fid);return;}}}catch{}
-            scanRef.current=requestAnimationFrame(tick);
-          };
-          scanRef.current=requestAnimationFrame(tick);
-        }
-      },100);
-    }catch{setScanning(false);}
+    setLookupId(fid);
+    doLookup(fid);
+    return true;
   };
   const doAction=async(key,fn)=>{setActionLoading(key);await fn();if(refetch)await refetch();setActionLoading(null);};
   const friendStatus=(f)=>{
@@ -96,6 +93,9 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
     if(f.status==='pending'&&!f.isSender)return 'received';
     return null;
   };
+  const Mutual=({n})=>n>0?<div style={{fontSize:11,color:T.accentSoft,fontWeight:500,display:"flex",alignItems:"center",gap:3}}>
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+    {t("friends.mutual",{n})}</div>:null;
 
   const filtered=filter?friends.filter(f=>f.name?.toLowerCase().includes(filter.toLowerCase())):friends;
   const filteredGroups=filter?groups.filter(g=>g.name?.toLowerCase().includes(filter.toLowerCase())):groups;
@@ -130,7 +130,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
   };
 
   /* ── Shared modal wrapper ── */
-  const addTabs=[{id:'requests',label:t("friends.tabRequests"),cnt:pendingCount},{id:'search',label:t("friends.tabSearch"),cnt:undefined},{id:'qr',label:t("friends.tabQrId")}];
+  const addTabs=[{id:'requests',label:t("friends.tabRequests"),cnt:pendingCount},{id:'search',label:t("friends.tabSearch"),cnt:undefined},{id:'qr',label:t("friends.tabQr")},{id:'id',label:t("friends.tabId")}];
 
   const ModalWrap=({children,onClose})=>(
     <>
@@ -144,11 +144,11 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
     </>
   );
 
-  const AddModal=()=>ModalWrap({onClose:()=>{setAddOpen(false);stopScan();},children:(<>
+  const AddModal=()=>ModalWrap({onClose:()=>{setAddOpen(false);setScanning(false);},children:(<>
       <div style={{padding:"12px 16px 0",flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
           <span style={{fontSize:16,fontWeight:700,color:T.txH}}>{t("friends.addFriend")}</span>
-          <button onClick={()=>{setAddOpen(false);stopScan();}} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
+          <button onClick={()=>{setAddOpen(false);setScanning(false);}} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</button>
         </div>
         <div style={{display:"flex",gap:0,borderBottom:`1px solid ${T.bd}`}}>
           {addTabs.map(t=>{const active=addTab===t.id;return <button key={t.id} onClick={()=>setAddTab(t.id)} style={{flex:1,padding:"8px 0",border:"none",background:"transparent",cursor:"pointer",borderBottom:active?`2px solid ${T.accent}`:"2px solid transparent",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
@@ -161,14 +161,14 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
         {addTab==='requests'&&<div style={{padding:"8px 0"}}>
           {pending.length>0&&<><div style={{padding:"4px 16px 4px",fontSize:11,fontWeight:600,color:T.txD,letterSpacing:.3}}>{t("friends.received")} {pending.length}</div>
             {pending.map(p=>{const u={name:p.fromName,av:p.fromAvatar,col:p.fromColor};return <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
-              <Av u={u} sz={40}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{p.fromName}</div>{p.fromDept&&<div style={{fontSize:11,color:T.txD}}>{p.fromDept}</div>}</div>
+              <Av u={u} sz={40} uid={p.fromId}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{p.fromName}</div>{p.fromDept&&<div style={{fontSize:11,color:T.txD}}>{p.fromDept}</div>}<Mutual n={p.mutual}/></div>
               <div style={{display:"flex",gap:6}}><button onClick={()=>doAction(`accept_${p.id}`,()=>acceptRequest(p.id))} disabled={actionLoading===`accept_${p.id}`} style={{padding:"6px 14px",borderRadius:8,border:"none",background:T.green,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>{t("friends.accept")}</button>
               <button onClick={()=>doAction(`reject_${p.id}`,()=>rejectRequest(p.id))} disabled={actionLoading===`reject_${p.id}`} style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:T.txD}}>{t("friends.reject")}</button></div>
             </div>;})}
           </>}
           {sent.length>0&&<><div style={{padding:`${pending.length>0?12:4}px 16px 4px`,fontSize:11,fontWeight:600,color:T.txD,letterSpacing:.3}}>{t("friends.sent")} {sent.length}</div>
             {sent.map(s=>{const u={name:s.toName,av:s.toAvatar,col:s.toColor};return <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
-              <Av u={u} sz={40}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{s.toName}</div>{s.toDept&&<div style={{fontSize:11,color:T.txD}}>{s.toDept}</div>}</div>
+              <Av u={u} sz={40} uid={s.toId}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{s.toName}</div>{s.toDept&&<div style={{fontSize:11,color:T.txD}}>{s.toDept}</div>}</div>
               <span style={{fontSize:11,fontWeight:600,color:T.txD,padding:"4px 10px",borderRadius:6,background:T.bg3}}>{t("friends.requesting")}</span>
             </div>;})}
           </>}
@@ -184,36 +184,65 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
             {searching&&<Loader msg={t("friends.searching")} size="sm"/>}
             {!searching&&searchQ&&results.length===0&&<div style={{textAlign:"center",padding:20,color:T.txD,fontSize:13}}>{t("friends.notFound")}</div>}
             {results.map(r=>{const u={name:r.name,av:r.avatar,col:r.color};const st=friendStatus(r.friendship);return <div key={r.moodleId} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0"}}>
-              <Av u={u} sz={40}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{r.name}</div>{r.dept&&<div style={{fontSize:11,color:T.txD}}>{r.dept}</div>}</div>
+              <Av u={u} sz={40} uid={r.moodleId}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{r.name}</div>{r.dept&&<div style={{fontSize:11,color:T.txD}}>{r.dept}</div>}<Mutual n={r.mutual}/></div>
               {st==='friend'&&<span style={{fontSize:11,fontWeight:600,color:T.green,padding:"4px 10px",borderRadius:6,background:`${T.green}12`}}>{t("friends.friend")}</span>}
               {st==='sent'&&<span style={{fontSize:11,fontWeight:600,color:T.txD,padding:"4px 10px",borderRadius:6,background:T.bg3}}>{t("friends.requesting")}</span>}
               {st==='received'&&<button onClick={()=>doAction(`ac_${r.moodleId}`,()=>acceptRequest(r.friendship.id))} disabled={actionLoading===`ac_${r.moodleId}`} style={{padding:"6px 14px",borderRadius:8,border:"none",background:T.green,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>{t("friends.accept")}</button>}
               {!st&&<button onClick={()=>doAction(`send_${r.moodleId}`,()=>sendRequest(r.moodleId))} disabled={actionLoading===`send_${r.moodleId}`} style={{padding:"6px 14px",borderRadius:8,border:"none",background:T.accent,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>{t("friends.add")}</button>}
             </div>;})}
-            {!searchQ&&<div style={{textAlign:"center",padding:"24px 20px",color:T.txD,fontSize:13}}>{t("friends.enterNameToSearch")}</div>}
+            {!searchQ&&<div>
+              {recsLoading&&<Loader msg={t("friends.searching")} size="sm"/>}
+              {!recsLoading&&recs.length>0&&<>
+                <div style={{padding:"2px 0 6px",fontSize:11,fontWeight:600,color:T.txD,letterSpacing:.3}}>{t("friends.recommendHeader")}</div>
+                {recs.map(r=>{const u={name:r.name,av:r.avatar,col:r.color};const sentR=sentRecs.has(r.moodleId);return <div key={r.moodleId} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0"}}>
+                  <Av u={u} sz={40} uid={r.moodleId}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{r.name}</div>{r.dept&&<div style={{fontSize:11,color:T.txD}}>{r.dept}</div>}<Mutual n={r.mutual}/></div>
+                  {sentR?<span style={{fontSize:11,fontWeight:600,color:T.txD,padding:"4px 10px",borderRadius:6,background:T.bg3}}>{t("friends.requesting")}</span>
+                  :<button onClick={()=>{setSentRecs(prev=>new Set(prev).add(r.moodleId));doAction(`rec_${r.moodleId}`,()=>sendRequest(r.moodleId));}} disabled={actionLoading===`rec_${r.moodleId}`} style={{padding:"6px 14px",borderRadius:8,border:"none",background:T.accent,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>{t("friends.add")}</button>}
+                </div>;})}
+              </>}
+              {!recsLoading&&recs.length===0&&<div style={{textAlign:"center",padding:"24px 20px",color:T.txD,fontSize:13}}>{t("friends.enterNameToSearch")}</div>}
+            </div>}
           </div>
         </div>}
         {addTab==='qr'&&<div style={{padding:16}}><div style={{maxWidth:320,margin:"0 auto"}}>
-          <div style={{textAlign:"center",padding:"16px 0",marginBottom:12}}>
+          {/* 自分のQRを見せる */}
+          <div style={{textAlign:"center",padding:"4px 0 16px"}}>
             <div style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:10}}>{t("friends.yourQrCode")}</div>
-            {qrDataUrl?<div style={{display:"inline-block",padding:10,background:"#fff",borderRadius:12}}><img src={qrDataUrl} alt="QR" style={{width:150,height:150,display:"block",imageRendering:"pixelated"}}/></div>
-            :<div style={{width:170,height:170,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg3,borderRadius:12}}><Loader size="sm"/></div>}
-            <div style={{marginTop:10,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-              <span style={{fontSize:13,color:T.txH,fontWeight:600,fontFamily:"monospace",background:T.bg3,padding:"4px 10px",borderRadius:6}}>{userId}</span>
-              <button onClick={copyId} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${copied?T.green:T.bd}`,background:copied?`${T.green}14`:"transparent",color:copied?T.green:T.txD,fontSize:11,fontWeight:600,cursor:"pointer"}}>{copied?t("friends.copied"):t("friends.copy")}</button>
+            {qrDataUrl?<div style={{display:"inline-block",padding:12,background:"#fff",borderRadius:14}}><img src={qrDataUrl} alt="QR" style={{width:180,height:180,display:"block",imageRendering:"pixelated"}}/></div>
+            :<div style={{width:204,height:204,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",background:T.bg3,borderRadius:14}}><Loader size="sm"/></div>}
+          </div>
+          {/* 相手のQRをスキャン */}
+          <div style={{borderTop:`1px solid ${T.bd}`,paddingTop:14}}>
+            <div style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:8}}>{t("friends.scanFriendQr")}</div>
+            {scanning?<QRScanner onResult={handleScannedQr} onClose={()=>setScanning(false)}/>
+            :<button onClick={()=>setScanning(true)} style={{width:"100%",padding:"11px 0",borderRadius:8,border:`1px solid ${T.accent}30`,background:`${T.accent}08`,color:T.accent,fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{I.search}<span>{t("friends.scanQr")}</span></button>}
+            {lookupResult&&lookupResult!=='not_found'&&<div style={{display:"flex",alignItems:"center",gap:10,paddingTop:10,marginTop:10,borderTop:`1px solid ${T.bd}`}}>
+              <Av u={{name:lookupResult.name,av:lookupResult.avatar,col:lookupResult.color}} sz={38} uid={lookupResult.moodleId}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:T.txH}}>{lookupResult.name}</div>{lookupResult.dept&&<div style={{fontSize:11,color:T.txD}}>{lookupResult.dept}</div>}<Mutual n={lookupResult.mutual}/></div>
+              {lookupResult.friendship?.status==='accepted'&&<span style={{fontSize:11,fontWeight:600,color:T.green}}>{t("friends.friend")}</span>}
+              {lookupResult.friendship?.status==='pending'&&<span style={{fontSize:11,color:T.txD}}>{t("friends.requesting")}</span>}
+              {!lookupResult.friendship&&<button onClick={()=>doAction(`sq_${lookupResult.moodleId}`,()=>sendRequest(lookupResult.moodleId))} disabled={actionLoading===`sq_${lookupResult.moodleId}`} style={{padding:"5px 12px",borderRadius:7,border:"none",background:T.accent,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>{t("friends.add")}</button>}
+            </div>}
+          </div>
+        </div></div>}
+        {addTab==='id'&&<div style={{padding:16}}><div style={{maxWidth:320,margin:"0 auto"}}>
+          {/* 自分のID */}
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:8}}>{t("friends.yourId")}</div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{flex:1,fontSize:16,color:T.txH,fontWeight:700,fontFamily:"monospace",background:T.bg3,padding:"11px 14px",borderRadius:8,textAlign:"center",letterSpacing:1}}>{userId}</span>
+              <button onClick={copyId} style={{padding:"11px 14px",borderRadius:8,border:`1px solid ${copied?T.green:T.bd}`,background:copied?`${T.green}14`:"transparent",color:copied?T.green:T.txD,fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>{copied?t("friends.copied"):t("friends.copy")}</button>
             </div>
           </div>
-          {scanning?<div style={{marginBottom:10}}><video ref={videoRef} style={{width:"100%",borderRadius:10,background:"#000"}} playsInline muted/><button onClick={stopScan} style={{width:"100%",marginTop:6,padding:"8px 0",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:12,fontWeight:600,cursor:"pointer"}}>{t("friends.stop")}</button></div>
-          :<button onClick={startScan} style={{width:"100%",marginBottom:10,padding:"10px 0",borderRadius:8,border:`1px solid ${T.accent}30`,background:`${T.accent}08`,color:T.accent,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{I.search}<span>{t("friends.scanQr")}</span></button>}
-          <div style={{background:T.bg3,borderRadius:10,padding:12}}>
+          {/* IDで追加 */}
+          <div style={{borderTop:`1px solid ${T.bd}`,paddingTop:14}}>
             <div style={{fontSize:12,fontWeight:600,color:T.txD,marginBottom:6}}>{t("friends.addById")}</div>
             <div style={{display:"flex",gap:6}}>
-              <input value={lookupId} onChange={e=>setLookupId(e.target.value)} onKeyDown={e=>e.key==='Enter'&&doLookup()} placeholder={t("friends.enterId")} style={{flex:1,padding:"8px 10px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg2,color:T.txH,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-              <button onClick={()=>doLookup()} disabled={lookupLoading||!lookupId.trim()} style={{padding:"8px 14px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",opacity:lookupLoading||!lookupId.trim()?0.4:1}}>{t("friends.searchBtn")}</button>
+              <input value={lookupId} onChange={e=>setLookupId(e.target.value)} onKeyDown={e=>e.key==='Enter'&&doLookup()} placeholder={t("friends.enterId")} style={{flex:1,padding:"10px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg2,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
+              <button onClick={()=>doLookup()} disabled={lookupLoading||!lookupId.trim()} style={{padding:"10px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",opacity:lookupLoading||!lookupId.trim()?0.4:1}}>{t("friends.searchBtn")}</button>
             </div>
             {lookupLoading&&<div style={{marginTop:6}}><Loader msg={t("friends.searching")} size="sm"/></div>}
             {lookupResult&&lookupResult!=='not_found'&&<div style={{display:"flex",alignItems:"center",gap:10,paddingTop:10,marginTop:10,borderTop:`1px solid ${T.bd}`}}>
-              <Av u={{name:lookupResult.name,av:lookupResult.avatar,col:lookupResult.color}} sz={38}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:T.txH}}>{lookupResult.name}</div>{lookupResult.dept&&<div style={{fontSize:11,color:T.txD}}>{lookupResult.dept}</div>}</div>
+              <Av u={{name:lookupResult.name,av:lookupResult.avatar,col:lookupResult.color}} sz={38} uid={lookupResult.moodleId}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:T.txH}}>{lookupResult.name}</div>{lookupResult.dept&&<div style={{fontSize:11,color:T.txD}}>{lookupResult.dept}</div>}<Mutual n={lookupResult.mutual}/></div>
               {lookupResult.friendship?.status==='accepted'&&<span style={{fontSize:11,fontWeight:600,color:T.green}}>{t("friends.friend")}</span>}
               {lookupResult.friendship?.status==='pending'&&<span style={{fontSize:11,color:T.txD}}>{t("friends.requesting")}</span>}
               {!lookupResult.friendship&&<button onClick={()=>doAction(`sq_${lookupResult.moodleId}`,()=>sendRequest(lookupResult.moodleId))} disabled={actionLoading===`sq_${lookupResult.moodleId}`} style={{padding:"5px 12px",borderRadius:7,border:"none",background:T.accent,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>{t("friends.add")}</button>}
@@ -276,13 +305,16 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
     );
     return ModalWrap({onClose:close,children:(<>
       <div style={{display:"flex",alignItems:"center",gap:12,padding:"4px 16px 12px",flexShrink:0}}>
-        <Av u={{name:f.name,av:f.avatar,col:f.color}} sz={44}/>
+        <Av u={{name:f.name,av:f.avatar,col:f.color}} sz={44} uid={f.friendId}/>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:15,fontWeight:700,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
           {f.dept&&<div style={{fontSize:12,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.dept}</div>}
         </div>
       </div>
       <div style={{borderTop:`1px solid ${T.bd}`,padding:"4px 0 8px"}}>
+        {openProfile&&row(`pf_${f.friendId}`,t("profile.viewProfile"),
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+          {run:()=>{close();openProfile(f.friendId);}})}
         {onStartDM&&row(`dm_${f.friendId}`,t("friends.message"),
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>,
           {run:()=>{close();onStartDM(f.friendId,f.name,f.avatar,f.color);}})}
@@ -350,7 +382,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
       </div>
 
       {/* ── Graph mode ── */}
-      {mode==='graph'&&<SocialGraphView mob={mob} fetchGraph={fetchGraph} userId={userId} onStartDM={onStartDM} sendRequest={sendRequest}/>}
+      {mode==='graph'&&<SocialGraphView mob={mob} fetchGraph={fetchGraph} userId={userId} onStartDM={onStartDM} sendRequest={sendRequest} openProfile={openProfile}/>}
 
       {/* ── Content (list mode) ── */}
       {mode==='list'&&<div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
@@ -392,8 +424,8 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
           return <div key={f.id}
             style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",cursor:"pointer",borderBottom:i<filtered.length-1?`1px solid ${T.bd}`:"none",transition:"background .12s"}}
             onMouseEnter={e=>{e.currentTarget.style.background=T.hover;}} onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
-            <Av u={u} sz={44} st/>
-            <div style={{flex:1,minWidth:0}} onClick={()=>onStartDM&&onStartDM(f.friendId,f.name,f.avatar,f.color)}>
+            <Av u={u} sz={44} st uid={f.friendId}/>
+            <div style={{flex:1,minWidth:0}} onClick={()=>openProfile?openProfile(f.friendId):onStartDM&&onStartDM(f.friendId,f.name,f.avatar,f.color)}>
               <div style={{fontSize:14,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
               {f.dept&&<div style={{fontSize:12,color:T.txD,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.dept}</div>}
             </div>

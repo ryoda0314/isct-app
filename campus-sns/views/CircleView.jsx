@@ -21,7 +21,7 @@ const Hdr = ({ title, back, right }) => (
 /* ── Member row ── */
 const MemberRow = ({ m, sz = 24 }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px' }}>
-    <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={sz} />
+    <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={sz} uid={m.id} />
     <span style={{ fontSize: 12, color: T.txH, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</span>
     {m.role === 'admin' && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: `${T.accent}20`, color: T.accent, fontWeight: 600 }}>{t('circle.admin')}</span>}
   </div>
@@ -533,7 +533,7 @@ const AdminEvents = ({ sc, updateCircle, SubHdr, cardS, btnPrimary, btnDel }) =>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
           {(ev.going || []).map(uid => {
             const m = (sc.members || []).find(mm => mm.id === uid);
-            return m ? <div key={uid} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px 4px 4px', borderRadius: 20, background: T.bg3 }}><Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={22} /><span style={{ fontSize: 12, color: T.txH }}>{m.name}</span></div> : null;
+            return m ? <div key={uid} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px 4px 4px', borderRadius: 20, background: T.bg3 }}><Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={22} uid={m.id} /><span style={{ fontSize: 12, color: T.txH }}>{m.name}</span></div> : null;
           })}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -739,7 +739,7 @@ const AdminMembers = ({ sc, updateCircle, uid, SubHdr, cardS, btnDel }) => {
         <div style={{ fontSize: 11, fontWeight: 700, color: T.txD, letterSpacing: 0.5, marginBottom: 8, padding: '0 2px' }}>{t('circle.admin')} ({admins.length})</div>
         {admins.map(m => (
           <div key={m.id} style={{ ...cardS, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={38} />
+            <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={38} uid={m.id} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{m.name}</div>
               {m.id === uid && <div style={{ fontSize: 10, color: T.txD }}>{t('circle.you')}</div>}
@@ -753,7 +753,7 @@ const AdminMembers = ({ sc, updateCircle, uid, SubHdr, cardS, btnDel }) => {
         <div style={{ fontSize: 11, fontWeight: 700, color: T.txD, letterSpacing: 0.5, marginBottom: 8, marginTop: 12, padding: '0 2px' }}>{t('circle.member')} ({mems.length})</div>
         {mems.map(m => (
           <div key={m.id} style={{ ...cardS, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={38} />
+            <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={38} uid={m.id} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{m.name}</div>
             </div>
@@ -1912,7 +1912,7 @@ export const CircleView = ({ mob, circles = [], messages = {}, discover = [], se
                     <div style={{ display: 'flex', gap: -4, padding: '0 2px' }}>
                       {(sc.members || []).slice(0, 8).map((m, i) => (
                         <div key={m.id} style={{ marginLeft: i > 0 ? -6 : 0 }}>
-                          <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={32} />
+                          <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={32} uid={m.id} />
                         </div>
                       ))}
                       {(sc.members?.length || 0) > 8 && <div style={{ width: 32, height: 32, borderRadius: '50%', background: T.bg3, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: T.txD, marginLeft: -6, border: `2px solid ${T.bg}` }}>+{(sc.members?.length || 0) - 8}</div>}
@@ -2025,7 +2025,7 @@ export const CircleView = ({ mob, circles = [], messages = {}, discover = [], se
                             <div style={{ fontSize: 10, fontWeight: 700, color: T.txD, letterSpacing: 0.5, marginBottom: 6 }}>{t('circle.admin')} ({admins.length})</div>
                             {admins.map(m => (
                               <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px', borderRadius: 10, marginBottom: 2 }}>
-                                <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={34} />
+                                <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={34} uid={m.id} />
                                 <span style={{ flex: 1, fontWeight: 600, color: T.txH, fontSize: 14 }}>{m.name}</span>
                                 <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: `${T.accent}16`, color: T.accent, fontWeight: 600 }}>{t('circle.admin')}</span>
                               </div>
@@ -2037,7 +2037,7 @@ export const CircleView = ({ mob, circles = [], messages = {}, discover = [], se
                             <div style={{ fontSize: 10, fontWeight: 700, color: T.txD, letterSpacing: 0.5, marginBottom: 6 }}>{t('circle.member')} ({mems.length})</div>
                             {mems.map(m => (
                               <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px', borderRadius: 10, marginBottom: 2 }}>
-                                <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={34} />
+                                <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={34} uid={m.id} />
                                 <span style={{ flex: 1, fontWeight: 600, color: T.txH, fontSize: 14 }}>{m.name}</span>
                               </div>
                             ))}
@@ -2124,7 +2124,7 @@ export const CircleView = ({ mob, circles = [], messages = {}, discover = [], se
               )}
               {chMsgs.map(m => (
                 <div key={m.id} style={{ display: 'flex', gap: 8, marginBottom: 6, padding: '4px 2px' }}>
-                  <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={30} />
+                  <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={30} uid={m.uid} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 600, color: m.color || T.txH, fontSize: 13 }}>{m.name}</span>
@@ -2232,7 +2232,7 @@ export const CircleView = ({ mob, circles = [], messages = {}, discover = [], se
             )}
             {chMsgs.map(m => (
               <div key={m.id} style={{ display: 'flex', gap: 10, marginBottom: 4, padding: '6px 4px', borderRadius: 6 }}>
-                <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={36} />
+                <Av u={{ name: m.name, av: m.avatar, col: m.color }} sz={36} uid={m.uid} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                     <span style={{ fontWeight: 600, color: m.color || T.txH, fontSize: 14 }}>{m.name}</span>

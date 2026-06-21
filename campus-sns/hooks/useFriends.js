@@ -32,25 +32,18 @@ export function useFriends(enabled = true, userId = null) {
 
   useEffect(() => { if (enabled) fetchAll(); }, [fetchAll, enabled]);
 
-  // Realtime subscription（自分が関係する変更のみ受信）
+  // Realtime: server-emitted broadcast ping → re-fetch.
+  // (friendships has deny_all RLS for anon, so postgres_changes never fires —
+  //  the API broadcasts a content-free ping on `friends:<userId>` instead.
+  //  See lib/realtime.js / app/api/friends/route.js.)
   useEffect(() => {
     if (isDemoMode() || !enabled || !userId) return;
     const sb = getSupabaseClient();
-    const ch1 = sb
-      .channel(`friendships_req_${userId}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'friendships',
-        filter: `requester_id=eq.${userId}`,
-      }, () => { fetchAll(); })
+    const ch = sb
+      .channel(`friends:${userId}`)
+      .on('broadcast', { event: 'new' }, () => { fetchAll(); })
       .subscribe();
-    const ch2 = sb
-      .channel(`friendships_addr_${userId}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'friendships',
-        filter: `addressee_id=eq.${userId}`,
-      }, () => { fetchAll(); })
-      .subscribe();
-    return () => { sb.removeChannel(ch1); sb.removeChannel(ch2); };
+    return () => { sb.removeChannel(ch); };
   }, [fetchAll, enabled, userId]);
 
   const friendIds = useMemo(() => new Set(friends.map(f => f.friendId)), [friends]);
@@ -104,6 +97,12 @@ export function useFriends(enabled = true, userId = null) {
     return r.ok ? await r.json() : null;
   }, []);
 
+  const fetchRecommendations = useCallback(async () => {
+    if (isDemoMode()) return [];
+    const r = await fetch('/api/friends?type=recommendations');
+    return r.ok ? await r.json() : [];
+  }, []);
+
   const fetchGraph = useCallback(async () => {
     if (isDemoMode()) {
       // Demo: star of me ↔ each friend, no 2nd-degree
@@ -122,6 +121,6 @@ export function useFriends(enabled = true, userId = null) {
     pendingCount: pending.length,
     friendIds, isFriend,
     sendRequest, acceptRequest, rejectRequest, unfriend,
-    searchUsers, lookupById, fetchGraph, refetch: fetchAll,
+    searchUsers, lookupById, fetchGraph, fetchRecommendations, refetch: fetchAll,
   };
 }

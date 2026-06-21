@@ -53,7 +53,7 @@ const CommentSection=({postId,user,onCountChange,loggedIn,onLogin})=>{
     <div style={{marginTop:10,borderTop:`1px solid ${T.bd}`,paddingTop:10}}>
       {comments.map(c=>(
         <div key={c.id} style={{display:"flex",gap:8,marginBottom:8,alignItems:"flex-start"}}>
-          <Av u={{name:c.name,col:c.color}} sz={22}/>
+          <Av u={{name:c.name,col:c.color}} sz={22} uid={c.uid}/>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:6}}>
               <span style={{fontWeight:600,fontSize:11,color:c.color||T.txH}}>{c.name}</span>
@@ -154,7 +154,7 @@ export const FreshmanBoardView=({mob,loggedIn,onLogin})=>{
           <div style={{padding:mob?16:24}}>
             {/* Author + meta */}
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-              <Av u={{name:threadPost.name,col:threadPost.color}} sz={40}/>
+              <Av u={{name:threadPost.name,col:threadPost.color}} sz={40} uid={threadPost.uid}/>
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontWeight:600,fontSize:14,color:threadPost.color||T.txH}}>{threadPost.name}</span><RoleBadge yr={threadPost.yr}/></div>
                 <div style={{fontSize:11,color:T.txD,marginTop:1}}>{fT(threadPost.ts)}</div>
@@ -437,7 +437,7 @@ export const FreshmanBoardView=({mob,loggedIn,onLogin})=>{
                     {/* Meta row */}
                     <div style={{display:"flex",alignItems:"center",gap:8,marginTop:8,flexWrap:"wrap"}}>
                       <div style={{display:"flex",alignItems:"center",gap:4}}>
-                        <Av u={{name:p.name,col:p.color}} sz={18}/>
+                        <Av u={{name:p.name,col:p.color}} sz={18} uid={p.uid}/>
                         <span style={{fontSize:11,color:T.txD,fontWeight:500}}>{p.name}</span>
                         <RoleBadge yr={p.yr}/>
                       </div>

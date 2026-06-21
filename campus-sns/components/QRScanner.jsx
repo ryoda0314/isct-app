@@ -24,11 +24,13 @@ function decodeQR(imageData) {
 }
 
 /**
- * QRScanner — camera or file-based QR code reader for TOTP setup
- * @param {Function} onSecret - called with extracted TOTP secret string
+ * QRScanner — camera or file-based QR code reader (jsQR, works on all browsers).
+ * @param {Function} [onSecret] - TOTP mode: called with the extracted TOTP secret string
+ * @param {Function} [onResult] - generic mode: called with the raw decoded string;
+ *                                return truthy if it was a valid/handled code, falsy to show an error
  * @param {Function} onClose - called to close the scanner
  */
-export function QRScanner({ onSecret, onClose }) {
+export function QRScanner({ onSecret, onResult, onClose }) {
   const [mode, setMode] = useState(null); // null | "camera" | "file"
   const [error, setError] = useState(null);
   const [scanning, setScanning] = useState(false);
@@ -50,6 +52,13 @@ export function QRScanner({ onSecret, onClose }) {
   useEffect(() => () => stopCamera(), [stopCamera]);
 
   const handleResult = useCallback((raw) => {
+    // Generic mode: hand the raw decoded string to the caller.
+    if (onResult) {
+      const ok = onResult(raw);
+      if (ok) stopCamera();
+      else setError(t("qr.errInvalid"));
+      return;
+    }
     const secret = parseOtpAuth(raw);
     if (secret) {
       stopCamera();
@@ -57,7 +66,7 @@ export function QRScanner({ onSecret, onClose }) {
     } else {
       setError(t("qr.errNoSecret"));
     }
-  }, [onSecret, stopCamera]);
+  }, [onResult, onSecret, stopCamera]);
 
   /* ── Camera scanning ── */
   const startCamera = useCallback(async () => {

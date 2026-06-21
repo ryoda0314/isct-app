@@ -1,5 +1,5 @@
 {
-  "timestamp": 1781364374489,
+  "timestamp": 1782017679033,
   "courses": {
     "@202601913": [
       {
@@ -118,43 +118,30 @@
         "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110300-0/202601568"
       }
     ],
-    "@202617478": [
+    "@202601870": [
       {
-        "per": "",
-        "day": null,
-        "periodStart": null,
-        "periodEnd": null,
-        "room": null,
-        "quarter": "1Q",
-        "building": null,
-        "dept": "LAE",
-        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110200-0/202617478"
+        "per": "火5-8",
+        "day": "火",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "W3-201",
+        "quarter": "2Q",
+        "building": "W3",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601870"
       }
     ],
-    "LAE.E311:申告専用": [
+    "MEC.M331": [
       {
-        "per": "",
-        "day": null,
-        "periodStart": null,
-        "periodEnd": null,
-        "room": null,
-        "quarter": "1Q",
-        "building": null,
-        "dept": "LAE",
-        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110200-0/202617478"
-      }
-    ],
-    "LAE.E311": [
-      {
-        "per": "",
-        "day": null,
-        "periodStart": null,
-        "periodEnd": null,
-        "room": null,
-        "quarter": "1Q",
-        "building": null,
-        "dept": "LAE",
-        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110200-0/202617478"
+        "per": "火5-8",
+        "day": "火",
+        "periodStart": 5,
+        "periodEnd": 8,
+        "room": "W3-201",
+        "quarter": "2Q",
+        "building": "W3",
+        "dept": "MEC",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601870"
       }
     ],
     "@202601847": [

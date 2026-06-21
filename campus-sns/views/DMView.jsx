@@ -63,7 +63,7 @@ const stampSrc = (id) => {
   return cat ? `/stamps/${cat}/${id}.webp` : `/stamps/${id}.webp`;
 };
 
-export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,createGroup})=>{
+export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,createGroup,dmTarget,onConsumeDmTarget})=>{
   const user=useCurrentUser();
   const {conversations,loading}=useDMList(user?.moodleId);
   const [sel,setSel]=useState(null); // {type:'dm'|'group', ...}
@@ -99,6 +99,15 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
     setSel({type:'dm',id:null,withId:friendId,withName:name,withAvatar:avatar,withColor:color,msgs:[]});
     setShowPicker(false);
   };
+
+  // 友達画面の吹き出し等から相手指定で開かれたとき、その人のDMを直接開く。
+  // 会話リストの読み込み完了を待ってから既存会話を解決し、消費して二重起動を防ぐ。
+  useEffect(()=>{
+    if(!dmTarget||loading)return;
+    startNewDM(dmTarget.id,dmTarget.name,dmTarget.avatar,dmTarget.color);
+    onConsumeDmTarget?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[dmTarget,loading,conversations]);
 
   const sendMsg=async()=>{
     if(!inp.trim()||!sel)return;
@@ -165,7 +174,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderBottom:`1px solid ${T.bd}`,background:T.bg2}}>
           <button onClick={()=>setSel(null)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.back}</button>
-          <Av u={headerAv} sz={28} st={!isGroup}/>
+          <Av u={headerAv} sz={28} st={!isGroup} uid={!isGroup?convData.withId:undefined}/>
           <div style={{flex:1,minWidth:0}}>
             <span style={{fontWeight:600,color:T.txH,fontSize:14}}>{headerName}</span>
             {isGroup&&<span style={{fontSize:11,color:T.txD,marginLeft:6}}>{t("dm.memberCount",{n:sel.memberCount})}</span>}
@@ -202,7 +211,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
               return <div key={m.id} className="dmMsg" style={{display:"flex",justifyContent:me?"flex-end":"flex-start",marginBottom:4,alignItems:"flex-end",gap:4}}>
               {/* Group: show sender avatar */}
               {isGroup&&!me&&<div style={{marginRight:2,alignSelf:"flex-end"}}>
-                <Av u={{name:m.name,av:m.avatar,col:m.color}} sz={24}/>
+                <Av u={{name:m.name,av:m.avatar,col:m.color}} sz={24} uid={m.uid}/>
               </div>}
               {!me&&<span className="dmMsgFlag" onClick={()=>setReportTarget({type:isGroup?"message":"dm",id:m.id,userId:m.uid})} style={{cursor:"pointer",color:T.txD,display:"flex",opacity:0,transition:"opacity .15s",alignSelf:"center",flexShrink:0}} title={t("dm.report")}>{I.flag}</span>}
               <div style={{maxWidth:"75%"}}>
@@ -275,7 +284,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
           {friends.map(f=>{
             const u={name:f.name,av:f.avatar,col:f.color};
             return <div key={f.friendId} onClick={()=>startNewDM(f.friendId,f.name,f.avatar,f.color)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6,cursor:"pointer"}}>
-              <Av u={u} sz={36}/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{f.name}</div>{f.dept&&<div style={{fontSize:11,color:T.txD}}>{f.dept}</div>}</div>
+              <Av u={u} sz={36} uid={f.friendId}/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{f.name}</div>{f.dept&&<div style={{fontSize:11,color:T.txD}}>{f.dept}</div>}</div>
             </div>;
           })}
         </div>
@@ -307,7 +316,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
             const u={name:f.name,av:f.avatar,col:f.color};
             const on=grpSel.includes(f.friendId);
             return <div key={f.friendId} onClick={()=>toggleGrpMember(f.friendId)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:on?`${T.accent}10`:T.bg2,border:`1px solid ${on?T.accent+'50':T.bd}`,marginBottom:6,cursor:"pointer"}}>
-              <Av u={u} sz={36}/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{f.name}</div>{f.dept&&<div style={{fontSize:11,color:T.txD}}>{f.dept}</div>}</div>
+              <Av u={u} sz={36} uid={f.friendId}/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{f.name}</div>{f.dept&&<div style={{fontSize:11,color:T.txD}}>{f.dept}</div>}</div>
               <div style={{width:22,height:22,borderRadius:6,border:`2px solid ${on?T.accent:T.bd}`,background:on?T.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>{on&&I.chk}</div>
             </div>;
           })}
@@ -364,7 +373,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
         const wu={name:conv.withName||'?',av:conv.withAvatar||'?',col:conv.withColor||'#888'};
         return(
           <div key={conv.id} onClick={()=>{setSel({type:'dm',...conv});markDMSeen?.(conv.id);markRead(conv.id);}} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6,cursor:"pointer"}}>
-            <Av u={wu} sz={36} st/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{wu.name}</div><div style={{fontSize:12,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{last?.stamp_id?t("dm.stampPreview"):last?.text}</div></div>
+            <Av u={wu} sz={36} st uid={conv.withId}/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{wu.name}</div><div style={{fontSize:12,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{last?.stamp_id?t("dm.stampPreview"):last?.text}</div></div>
             <span style={{fontSize:10,color:T.txD}}>{last?fT(last.ts):""}</span>
           </div>
         );

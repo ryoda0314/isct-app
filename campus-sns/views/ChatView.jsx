@@ -78,7 +78,7 @@ const ChatPoll=({options,votes,userId,onVote,settings,profiles})=>{
                   <div style={{display:"flex",flexDirection:"column",gap:3}}>
                     {voters.map((vid,j)=>{const p=profiles?.[vid]||extraProfiles[vid];return(
                       <div key={j} style={{display:"flex",alignItems:"center",gap:8}}>
-                        <Av u={{name:p?.name,av:p?.av,col:p?.col}} sz={22}/>
+                        <Av u={{name:p?.name,av:p?.av,col:p?.col}} sz={22} uid={vid}/>
                         <span style={{fontSize:12,color:T.txH}}>{p?.name||`User ${vid}`}</span>
                       </div>
                     );})}
@@ -198,7 +198,7 @@ export const ChatView=({course,dept,mob})=>{
           );
           const u=resolveUser(m);const userId=user?.moodleId||user?.id;const own=m.uid===userId;const poll=m.pollOptions?<ChatPoll options={m.pollOptions} votes={m.pollVotes||{}} userId={userId} onVote={opt=>votePoll(m.id,opt,userId)} settings={m.pollSettings} profiles={profileMap}/>:null;return(
           <div key={m.id} className="chatMsg" style={{padding:m.hdr?"5px 14px 2px":"1px 14px 1px 56px",maxWidth:"100%",overflow:"hidden"}}>
-            {m.hdr?<div style={{display:"flex",gap:8}}><Av u={u} sz={32}/><div style={{flex:1,minWidth:0}}><div style={{display:"flex",alignItems:"baseline",gap:4}}><span style={{fontWeight:600,color:u?.col,fontSize:13}}>{u?.name}</span><span style={{fontSize:10,color:T.txD}}>{fTs(m.ts)}</span>{!own&&<span className="chatMsgFlag" onClick={()=>setReportTarget({type:"message",id:m.id,userId:m.uid})} style={{cursor:"pointer",color:T.txD,display:"flex",opacity:0,transition:"opacity .15s",marginLeft:2}} title={t("chat.report")}>{I.flag}</span>}</div><div style={{margin:"2px 0 0",color:T.tx,fontSize:14,lineHeight:1.5}}><Tx>{m.text}</Tx></div>{poll}</div></div>
+            {m.hdr?<div style={{display:"flex",gap:8}}><Av u={u} sz={32} uid={m.uid}/><div style={{flex:1,minWidth:0}}><div style={{display:"flex",alignItems:"baseline",gap:4}}><span style={{fontWeight:600,color:u?.col,fontSize:13}}>{u?.name}</span><span style={{fontSize:10,color:T.txD}}>{fTs(m.ts)}</span>{!own&&<span className="chatMsgFlag" onClick={()=>setReportTarget({type:"message",id:m.id,userId:m.uid})} style={{cursor:"pointer",color:T.txD,display:"flex",opacity:0,transition:"opacity .15s",marginLeft:2}} title={t("chat.report")}>{I.flag}</span>}</div><div style={{margin:"2px 0 0",color:T.tx,fontSize:14,lineHeight:1.5}}><Tx>{m.text}</Tx></div>{poll}</div></div>
             :<><div style={{margin:0,color:T.tx,fontSize:14,lineHeight:1.5}}><Tx>{m.text}</Tx></div>{poll}</>}
           </div>
         );})}

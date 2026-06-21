@@ -129,6 +129,13 @@ export function updateUserPref(patch) {
       body: JSON.stringify({ color: patch.col || null }),
     }).catch(() => {});
   }
+  if ('bio' in patch) {
+    fetch('/api/auth/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bio: patch.bio || null }),
+    }).catch(() => {});
+  }
 }
 
 export function resetCurrentUserCache() {

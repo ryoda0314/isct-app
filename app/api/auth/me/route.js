@@ -49,7 +49,7 @@ export async function GET(request) {
     const sb = getSupabaseAdmin();
     const [isAdmin, profile] = await Promise.all([
       checkAdmin(auth.userid),
-      sb.from('profiles').select('banned, ban_reason, dept, year_group, unit, student_id, avatar, color').eq('moodle_id', auth.userid).maybeSingle().then(r => r.data),
+      sb.from('profiles').select('banned, ban_reason, dept, year_group, unit, student_id, avatar, color, bio').eq('moodle_id', auth.userid).maybeSingle().then(r => r.data),
     ]);
 
     if (profile?.banned) {
@@ -83,7 +83,7 @@ export async function GET(request) {
       }
     }
 
-    return NextResponse.json({ userid: auth.userid, fullname: auth.fullname, isAdmin, dept: profile?.dept || null, yearGroup, unit: profile?.unit || null, studentId, avatar: profile?.avatar || null, color: profile?.color || null });
+    return NextResponse.json({ userid: auth.userid, fullname: auth.fullname, isAdmin, dept: profile?.dept || null, yearGroup, unit: profile?.unit || null, studentId, avatar: profile?.avatar || null, color: profile?.color || null, bio: profile?.bio || null });
   } catch (err) {
     console.error('[AuthMe] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
@@ -145,6 +145,18 @@ export async function PATCH(request) {
         return NextResponse.json({ error: 'Invalid color' }, { status: 400 });
       }
       updates.color = col || null;
+    }
+
+    // bio: 自己紹介（最大 300 文字）or null
+    if ('bio' in body) {
+      const bio = body.bio;
+      if (bio !== null && typeof bio !== 'string') {
+        return NextResponse.json({ error: 'Invalid bio' }, { status: 400 });
+      }
+      if (bio && bio.length > 300) {
+        return NextResponse.json({ error: 'Bio too long' }, { status: 400 });
+      }
+      updates.bio = bio ? bio.trim() : null;
     }
 
     // student_id: e.g. "25B60001" or "31220001" or null

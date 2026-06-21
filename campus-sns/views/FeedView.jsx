@@ -81,7 +81,7 @@ const CommentSection=({postId,user,onCountChange,members,onReport})=>{
         const isOwn=c.uid===(user.moodleId||user.id);
         return(
           <div key={c.id} style={{display:"flex",gap:8,marginBottom:8,alignItems:"flex-start"}}>
-            <Av u={{name:c.name,av:c.avatar,col:c.color}} sz={24}/>
+            <Av u={{name:c.name,av:c.avatar,col:c.color}} sz={24} uid={c.uid}/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
                 <span style={{fontWeight:600,fontSize:12,color:c.color||T.txH}}>{c.name||`User ${c.uid}`}</span>
@@ -393,7 +393,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
         </div>}
         {/* Header */}
         <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:6}}>
-          <div onClick={()=>p.type!=="anon"&&(setFilterUser({uid:p.uid,name:u.name,av:u.av,col:u.col}),setProfileTab("course"))} style={{cursor:p.type==="anon"?"default":"pointer"}}><Av u={u} sz={34}/></div>
+          <div onClick={()=>p.type!=="anon"&&(setFilterUser({uid:p.uid,name:u.name,av:u.av,col:u.col}),setProfileTab("course"))} style={{cursor:p.type==="anon"?"default":"pointer"}}><Av u={u} sz={34} uid={p.type!=="anon"?p.uid:undefined}/></div>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
               <span onClick={()=>p.type!=="anon"&&(setFilterUser({uid:p.uid,name:u.name,av:u.av,col:u.col}),setProfileTab("course"))} style={{fontWeight:600,fontSize:13,color:u.col||T.txH,cursor:p.type==="anon"?"default":"pointer"}}>{u.name}</span>
@@ -505,7 +505,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
       {/* Composer (hidden when viewing user profile) */}
       {!filterUser&&<div style={{padding:mob?12:14,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>
         <div style={{display:"flex",gap:8,alignItems:mob&&!composing?"center":"flex-start"}}>
-          <Av u={user} sz={mob?32:36}/>
+          <Av u={user} sz={mob?32:36} uid={user?.moodleId||user?.id}/>
           {mob&&!composing?
             <div onClick={()=>setComposing(true)} style={{flex:1,padding:"8px 12px",borderRadius:18,background:T.bg3,border:`1px solid ${T.bd}`,color:T.txD,fontSize:13,cursor:"pointer"}}>{t("feed.composePrompt")}</div>
           :
@@ -596,7 +596,7 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
           <div style={{height:80,background:`linear-gradient(135deg, ${filterUser.col||T.accent}, ${filterUser.col||T.accent}88)`}}/>
           <div style={{padding:"0 16px 12px",position:"relative"}}>
             <div style={{marginTop:-32,marginBottom:8,border:`3px solid ${T.bg}`,borderRadius:"50%",width:68,height:68,display:"inline-block"}}>
-              <Av u={filterUser} sz={62}/>
+              <Av u={filterUser} sz={62} uid={filterUser.uid}/>
             </div>
             <div style={{fontWeight:700,fontSize:17,color:T.txH}}>{filterUser.name}</div>
             <div style={{fontSize:13,color:T.txD,marginTop:2}}>{t("feed.totalPostCount",{n:userPostCount})}</div>

@@ -3,6 +3,44 @@ import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { getBlockedIds } from '../../../lib/blocks.js';
 import { sendPushToUser } from '../../../lib/push.js';
+import { broadcast, friendsTopic } from '../../../lib/realtime.js';
+
+// Ping the friends-realtime topic of one or more users so their useFriends
+// re-fetches. Content-free (friendships has deny_all RLS for anon, so
+// postgres_changes never fires — see lib/realtime.js).
+function pingFriends(...userIds) {
+  broadcast(userIds.filter(Boolean).map(friendsTopic), 'new').catch(() => {});
+}
+
+// Set of my accepted-friend ids.
+async function getMyFriendIds(sb, userid) {
+  const { data } = await sb
+    .from('friendships')
+    .select('requester_id,addressee_id')
+    .eq('status', 'accepted')
+    .or(`requester_id.eq.${userid},addressee_id.eq.${userid}`);
+  return new Set((data || []).map(f => (f.requester_id === userid ? f.addressee_id : f.requester_id)));
+}
+
+// Map<candidateId, mutualFriendCount> — how many of my friends each candidate is friends with.
+async function getMutualCounts(sb, userid, myFriendSet, candidateIds) {
+  const counts = new Map();
+  const ids = [...new Set(candidateIds)].filter(id => id !== userid);
+  if (ids.length === 0 || myFriendSet.size === 0) return counts;
+  const list = `(${ids.join(',')})`;
+  const { data } = await sb
+    .from('friendships')
+    .select('requester_id,addressee_id')
+    .eq('status', 'accepted')
+    .or(`requester_id.in.${list},addressee_id.in.${list}`);
+  const candSet = new Set(ids);
+  for (const e of data || []) {
+    for (const [x, y] of [[e.requester_id, e.addressee_id], [e.addressee_id, e.requester_id]]) {
+      if (candSet.has(x) && myFriendSet.has(y)) counts.set(x, (counts.get(x) || 0) + 1);
+    }
+  }
+  return counts;
+}
 
 // GET: list friends, pending requests, sent requests, or search users
 export async function GET(request) {
@@ -60,6 +98,9 @@ export async function GET(request) {
         if (pData) pData.forEach(p => { profiles[p.moodle_id] = p; });
       }
 
+      const myFriendSet = await getMyFriendIds(sb, userid);
+      const mutual = await getMutualCounts(sb, userid, myFriendSet, ids);
+
       const pending = data.map(f => {
         const p = profiles[f.requester_id] || { name: `User ${f.requester_id}`, avatar: '?', color: '#888' };
         return {
@@ -69,6 +110,7 @@ export async function GET(request) {
           fromAvatar: p.avatar,
           fromColor: p.color,
           fromDept: p.dept,
+          mutual: mutual.get(f.requester_id) || 0,
           requestedAt: f.created_at,
         };
       });
@@ -140,16 +182,19 @@ export async function GET(request) {
         }
       }
 
-      const results = (pData || [])
-        .filter(p => !blockedIds.has(p.moodle_id))
-        .map(p => ({
-          moodleId: p.moodle_id,
-          name: p.name,
-          avatar: p.avatar,
-          color: p.color,
-          dept: p.dept,
-          friendship: friendshipMap[p.moodle_id] || null,
-        }));
+      const visible = (pData || []).filter(p => !blockedIds.has(p.moodle_id));
+      const myFriendSet = await getMyFriendIds(sb, userid);
+      const mutual = await getMutualCounts(sb, userid, myFriendSet, visible.map(p => p.moodle_id));
+
+      const results = visible.map(p => ({
+        moodleId: p.moodle_id,
+        name: p.name,
+        avatar: p.avatar,
+        color: p.color,
+        dept: p.dept,
+        mutual: mutual.get(p.moodle_id) || 0,
+        friendship: friendshipMap[p.moodle_id] || null,
+      }));
       return NextResponse.json(results);
     }
 
@@ -245,6 +290,53 @@ export async function GET(request) {
       });
     }
 
+    if (type === 'recommendations') {
+      const myFriendSet = await getMyFriendIds(sb, userid);
+      if (myFriendSet.size === 0) return NextResponse.json([]);
+      const friendIds = [...myFriendSet];
+
+      // Everyone I already have any relationship with (friend/pending/sent/rejected/blocked)
+      const { data: rel } = await sb
+        .from('friendships')
+        .select('requester_id,addressee_id')
+        .or(`requester_id.eq.${userid},addressee_id.eq.${userid}`);
+      const related = new Set((rel || []).map(f => (f.requester_id === userid ? f.addressee_id : f.requester_id)));
+      const blockedIds = await getBlockedIds(userid);
+
+      // Friend-of-friend edges
+      const list = `(${friendIds.join(',')})`;
+      const { data: fof } = await sb
+        .from('friendships')
+        .select('requester_id,addressee_id')
+        .eq('status', 'accepted')
+        .or(`requester_id.in.${list},addressee_id.in.${list}`);
+
+      const mutualCount = new Map();
+      for (const e of fof || []) {
+        for (const [x, y] of [[e.requester_id, e.addressee_id], [e.addressee_id, e.requester_id]]) {
+          if (x !== userid && !related.has(x) && !blockedIds.has(x) && myFriendSet.has(y)) {
+            mutualCount.set(x, (mutualCount.get(x) || 0) + 1);
+          }
+        }
+      }
+
+      const ranked = [...mutualCount.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 15);
+      if (ranked.length === 0) return NextResponse.json([]);
+
+      const recIds = ranked.map(([id]) => id);
+      const { data: pData } = await sb.from('profiles').select('*').in('moodle_id', recIds);
+      const profMap = {};
+      (pData || []).forEach(p => { profMap[p.moodle_id] = p; });
+
+      const recs = ranked.map(([id, n]) => {
+        const p = profMap[id] || { name: `User ${id}`, avatar: '?', color: '#888' };
+        return { moodleId: id, name: p.name, avatar: p.avatar, color: p.color, dept: p.dept, mutual: n };
+      });
+      return NextResponse.json(recs);
+    }
+
     if (type === 'lookup') {
       const id = searchParams.get('id');
       if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
@@ -269,12 +361,18 @@ export async function GET(request) {
       const f = fData?.[0];
       const friendship = f ? { status: f.status, id: f.id, isSender: f.requester_id === userid } : null;
 
+      const myFriendSet = await getMyFriendIds(sb, userid);
+      const mutual = await getMutualCounts(sb, userid, myFriendSet, [numId]);
+
       return NextResponse.json({
         moodleId: profile.moodle_id,
         name: profile.name,
         avatar: profile.avatar,
         color: profile.color,
         dept: profile.dept,
+        bio: profile.bio || null,
+        yearGroup: profile.year_group || null,
+        mutual: mutual.get(numId) || 0,
         friendship,
       });
     }
@@ -346,8 +444,10 @@ export async function POST(request) {
           moodle_user_id: numTo,
           type: 'friend_request',
           text: acceptText,
+          actor_id: userid,
         });
         sendPushToUser(numTo, { title: '友達', body: acceptText }).catch(() => {});
+        pingFriends(userid, numTo);
         return NextResponse.json({ ok: true, status: 'accepted' });
       }
       // We already sent a pending request
@@ -379,8 +479,10 @@ export async function POST(request) {
       moodle_user_id: numTo,
       type: 'friend_request',
       text: reqText,
+      actor_id: userid,
     });
     sendPushToUser(numTo, { title: '友達申請', body: reqText }).catch(() => {});
+    pingFriends(userid, numTo);
 
     return NextResponse.json({ ok: true, status: 'pending' });
   } catch (err) {
@@ -432,9 +534,11 @@ export async function PATCH(request) {
         moodle_user_id: row.requester_id,
         type: 'friend_request',
         text: patchText,
+        actor_id: userid,
       });
       sendPushToUser(row.requester_id, { title: '友達', body: patchText }).catch(() => {});
     }
+    pingFriends(userid, row.requester_id);
 
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -466,6 +570,7 @@ export async function DELETE(request) {
         `and(requester_id.eq.${userid},addressee_id.eq.${numFriend}),and(requester_id.eq.${numFriend},addressee_id.eq.${userid})`
       );
     if (error) throw error;
+    pingFriends(userid, numFriend);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

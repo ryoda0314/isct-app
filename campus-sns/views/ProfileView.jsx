@@ -145,6 +145,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   const [pinError,setPinError]=useState("");
   const [avEdit,setAvEdit]=useState(false);
   const [uploading,setUploading]=useState(false);
+  const [bioDraft,setBioDraft]=useState(user.bio||"");
   const fileRef=useRef(null);
   const isImgAv=user.av&&(user.av.startsWith("data:")||user.av.startsWith("http")||user.av.startsWith("/"));
 
@@ -441,7 +442,15 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               </div>
             </>}
 
-            <button onClick={()=>setAvEdit(false)}
+            {/* 自己紹介 (bio) */}
+            <div style={{fontSize:11,fontWeight:600,color:T.txD,marginBottom:6}}>{t("profile.bioLabel")}</div>
+            <textarea value={bioDraft} onChange={e=>setBioDraft(e.target.value.slice(0,300))}
+              onBlur={()=>{if((bioDraft||"")!==(user.bio||""))updateUserPref({bio:bioDraft});}}
+              placeholder={t("profile.bioPlaceholder")} rows={3}
+              style={{width:"100%",boxSizing:"border-box",padding:"10px 12px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,outline:"none",fontFamily:"inherit",resize:"vertical",lineHeight:1.6,marginBottom:4}}/>
+            <div style={{fontSize:10,color:T.txD,textAlign:"right",marginBottom:14}}>{bioDraft.length}/300</div>
+
+            <button onClick={()=>{if((bioDraft||"")!==(user.bio||""))updateUserPref({bio:bioDraft});setAvEdit(false);}}
               style={{width:"100%",padding:"9px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
               {t("profile.done")}
             </button>

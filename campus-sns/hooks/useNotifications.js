@@ -75,6 +75,7 @@ export function useNotifications(enabled = true) {
         type: n.type,
         text: n.text,
         cid: n.course_id,
+        actorId: n.actor_id,
         ts: new Date(n.created_at),
         read: n.read,
       }));
