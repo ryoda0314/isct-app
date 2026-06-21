@@ -2,6 +2,14 @@ import { useState, useRef, useEffect } from "react";
 import { T } from "../theme.js";
 import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
+import { isNative } from "../capacitor.js";
+import { openInSystemBrowser } from "../openMaterial.js";
+
+/** Open an external app URL: in-app system browser on native, new tab on web. */
+function openExternalApp(url) {
+  if (isNative()) openInSystemBrowser(url);
+  else window.open(url, "_blank", "noopener");
+}
 
 /* ── iOS-style app icon colors ── */
 const C = {
@@ -32,6 +40,7 @@ const APPS = [
   { id: "search",     icon: I.search,    labelKey: "nav.search",       color: C.gray },
   { id: "profile",    icon: I.user1,     labelKey: "nav.profile",      color: C.teal },
   { id: "courseSelect", icon: I.clip,    labelKey: "appgrid.course",   color: C.purple },
+  { id: "polylinga",  icon: I.chat,      labelKey: "appgrid.polylinga", color: "#0EA5E9", href: "https://polylinga.app" },
 ];
 
 const COLS = 4;
@@ -160,7 +169,11 @@ export function AppGridView({ setView, badges = {} }) {
     }
   }, [page]);
 
-  const onTap = (id) => setView(id);
+  const onTap = (id) => {
+    const app = APPS.find(a => a.id === id);
+    if (app?.href) { openExternalApp(app.href); return; }
+    setView(id);
+  };
 
   return (
     <div style={{
