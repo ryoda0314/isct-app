@@ -11,12 +11,14 @@ create table if not exists user_train_routes (
   label          text,            -- 表示用キャッシュ名（出発→目的地）
   sort_order     int not null default 0,
   on_home        boolean not null default false,  -- ホーム画面に表示するか
+  type_filter    text[],          -- 表示する種別IDの配列。null=全種別表示
   created_at     timestamptz not null default now(),
   unique (moodle_user_id, origin_station, dest_station)
 );
 
 -- 既存テーブルへの後付け（再実行安全）
 alter table user_train_routes add column if not exists on_home boolean not null default false;
+alter table user_train_routes add column if not exists type_filter text[];
 
 create index if not exists idx_user_train_routes_user on user_train_routes(moodle_user_id);
 

@@ -109,7 +109,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
     });
   },[exams,courses]);
   useEffect(()=>{try{localStorage.setItem("wxLoc",JSON.stringify(loc));}catch{}},[loc]);
-  useEffect(()=>{if(!isNative())fetch("/api/portal/page?warmup=1",{cache:"no-store"}).catch(()=>{});},[]);
+  useEffect(()=>{if(!isNative()&&!isDemoMode())fetch("/api/portal/page?warmup=1",{cache:"no-store"}).catch(()=>{});},[]);
   useEffect(()=>{
     (async()=>{
       try{

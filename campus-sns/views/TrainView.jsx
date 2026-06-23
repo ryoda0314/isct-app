@@ -60,9 +60,10 @@ const Meta = ({ d }) => (
 );
 
 // ── 1 ルート(出発→目的地)のカード。目的地に停車する直近の電車を表示 ──
-function RouteCard({ route, now, onRemove, onToggleHome, variant = "full", onOpen }) {
+function RouteCard({ route, now, onRemove, onToggleHome, onSetFilter, variant = "full", onOpen }) {
   const [data, setData] = useState(null);
   const [state, setState] = useState("loading"); // loading | ok | unavailable | error
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const load = useCallback(async () => {
     const qs = new URLSearchParams({ origin: route.origin_station, dest: route.dest_station, lang: getLang() });
@@ -80,13 +81,18 @@ function RouteCard({ route, now, onRemove, onToggleHome, variant = "full", onOpe
 
   const nowMs = now.getTime();
   const countdown = (targetMs) => Math.max(0, Math.floor((targetMs - nowMs) / 1000)); // 残り秒
+  // 登録された種別フィルタ（null/空 = 全種別表示）
+  const tf = route.type_filter && route.type_filter.length ? new Set(route.type_filter) : null;
+  const availableTypes = (state === "ok" && data ? data.availableTypes : []) || [];
   // 発車20秒後までは「まもなく」で残し、その後ドロップ（出払ったら下のeffectで補充）
-  const visible = (state === "ok" && data ? data.trains : []).filter((d) => d.targetMs - nowMs > -20000);
+  const timeVisible = (state === "ok" && data ? data.trains : []).filter((d) => d.targetMs - nowMs > -20000);
+  const visible = tf ? timeVisible.filter((d) => tf.has(d.trainType)) : timeVisible;
   const hero = visible[0];
 
+  // 全列車（種別問わず）が出払ったら補充取得。種別フィルタでは再取得しない（同データでループするため）。
   useEffect(() => {
-    if (state === "ok" && data && !data.finished && visible.length === 0) load();
-  }, [visible.length, state, data, load]);
+    if (state === "ok" && data && !data.finished && timeVisible.length === 0) load();
+  }, [timeVisible.length, state, data, load]);
 
   const labelParts = (route.label || route.dest_station || "").split("→").map((s) => s.trim());
 
@@ -102,6 +108,10 @@ function RouteCard({ route, now, onRemove, onToggleHome, variant = "full", onOpe
             : (route.label || route.dest_station)}
         </div>
         {variant === "full" ? <>
+          {availableTypes.length > 1 && (
+            <button onClick={() => setFilterOpen((o) => !o)} title={t("train.filter")}
+              style={{ width: 26, height: 26, borderRadius: "50%", background: (tf || filterOpen) ? `${T.accent}1a` : T.bg3, border: "none", color: (tf || filterOpen) ? T.accent : T.txD, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{I.filter}</button>
+          )}
           <button onClick={() => onToggleHome(route.id, !route.on_home)} title={route.on_home ? t("train.removeHome") : t("train.addHome")}
             style={{ width: 26, height: 26, borderRadius: "50%", background: route.on_home ? `${T.accent}1a` : T.bg3, border: "none", color: route.on_home ? T.accent : T.txD, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{I.home}</button>
           <button onClick={() => onRemove(route.id)} title={t("train.remove")}
@@ -110,11 +120,40 @@ function RouteCard({ route, now, onRemove, onToggleHome, variant = "full", onOpe
       </div>
 
       <div style={{ padding: "4px 14px 12px" }}>
+        {/* 種別フィルタ */}
+        {filterOpen && variant === "full" && availableTypes.length > 1 && (
+          <div style={{ padding: "10px 0", borderBottom: `1px solid ${T.bd}`, marginBottom: 4 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: T.txD, letterSpacing: .4, marginBottom: 7 }}>{t("train.filterHeading")}</div>
+            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+              {availableTypes.map((ty) => {
+                const on = tf ? tf.has(ty.id) : true;
+                return (
+                  <button key={ty.id} onClick={() => {
+                    const allIds = availableTypes.map((a) => a.id);
+                    const sel = new Set(tf ? allIds.filter((x) => tf.has(x)) : allIds);
+                    if (sel.has(ty.id)) sel.delete(ty.id); else sel.add(ty.id);
+                    let next = allIds.filter((x) => sel.has(x));
+                    if (next.length === 0 || next.length === allIds.length) next = []; // 全て/ゼロ = 絞り込み解除
+                    onSetFilter(route.id, next);
+                  }}
+                    style={{ padding: "5px 12px", borderRadius: 999, border: `1px solid ${on ? T.accent : T.bd}`, background: on ? `${T.accent}1a` : T.bg3, color: on ? T.accent : T.txD, fontSize: 12.5, fontWeight: on ? 700 : 500, cursor: "pointer" }}>
+                    {ty.title}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {state === "loading" && <div style={{ color: T.txD, fontSize: 13, padding: "10px 0" }}>{t("train.loading")}</div>}
         {state === "error" && <div style={{ color: T.red, fontSize: 12.5, padding: "10px 0" }}>{t("train.fetchError")}</div>}
         {state === "unavailable" && <div style={{ color: T.txD, fontSize: 12.5, padding: "10px 0" }}>{t("train.noOpenData")}</div>}
         {state === "ok" && !hero &&
-          <div style={{ color: T.txD, fontSize: 13, padding: "10px 0" }}>{data?.finished ? t("train.serviceEnded") : t("train.loading")}</div>}
+          <div style={{ color: T.txD, fontSize: 13, padding: "10px 0" }}>
+            {data?.finished ? t("train.serviceEnded")
+              : (tf && timeVisible.length > 0) ? t("train.noneOfFilterSoon")
+              : t("train.loading")}
+          </div>}
 
         {/* 次発（ヒーロー） */}
         {hero && (
@@ -241,7 +280,7 @@ export function HomeTrainWidget({ setView }) {
 }
 
 export const TrainView = ({ mob }) => {
-  const { routes, loading, addRoute, removeRoute, toggleHome } = useTrainRoutes(true);
+  const { routes, loading, addRoute, removeRoute, toggleHome, setFilter } = useTrainRoutes(true);
   const [adding, setAdding] = useState(false);
   const now = useNow();
 
@@ -265,7 +304,7 @@ export const TrainView = ({ mob }) => {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {routes.map((r) => <RouteCard key={r.id} route={r} now={now} onRemove={removeRoute} onToggleHome={toggleHome} />)}
+          {routes.map((r) => <RouteCard key={r.id} route={r} now={now} onRemove={removeRoute} onToggleHome={toggleHome} onSetFilter={setFilter} />)}
         </div>
       )}
 

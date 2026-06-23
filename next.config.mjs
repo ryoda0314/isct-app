@@ -22,6 +22,8 @@ const withPWA = withPWAInit({
 const nextConfig = {
   // puppeteer etc. should not be bundled into client
   serverExternalPackages: ['puppeteer', 'puppeteer-core', '@sparticuz/chromium', 'otplib'],
+  // 開発時の「N」インジケーターを無効化（/features 実演iframe内でアプリ右上に被るため）。本番では元々非表示。
+  devIndicators: false,
 };
 
 export default withPWA(nextConfig);

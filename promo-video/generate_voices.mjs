@@ -32,7 +32,9 @@ const SPEAKERS = {
 };
 // ─────────────────────────────────────────────────────
 
-const SCRIPT = resolve(__dirname, 'script.md');
+// 台本ファイルは --script で指定可（既定 script.md）。複数動画を作り分けられる。
+const _si = process.argv.indexOf('--script');
+const SCRIPT = resolve(__dirname, _si >= 0 ? process.argv[_si + 1] : 'script.md');
 const PUBLIC_VOICE = resolve(__dirname, 'public', 'voice');
 const TIMELINE = resolve(__dirname, 'public', 'timeline.json'); // Remotionが staticFile で参照
 

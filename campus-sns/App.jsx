@@ -597,6 +597,8 @@ export default function App(){
   };
 
   useEffect(()=>{
+    // 機能紹介ページ(/features)の実演iframe(/embed/demo#demo)用：認証/通信を一切せず即デモ起動。
+    if(typeof window!=="undefined"&&window.location.hash==="#demo"){onDemo("ss");return;}
     const tStart=performance.now();
     console.log(`[Timing] === startup begin ===`);
     const wasLoggedIn=!!localStorage.getItem("userPref");

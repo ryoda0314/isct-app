@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 // ユーザーの登録電車ルート CRUD（出欠ルートと同型）。
 
-const COLS = 'id, origin_station, dest_station, label, sort_order, on_home';
+const COLS = 'id, origin_station, dest_station, label, sort_order, on_home, type_filter';
 
 export async function GET(request) {
   try {
@@ -65,21 +65,31 @@ export async function POST(request) {
   }
 }
 
-// ホーム表示フラグの切替（{ id, on_home }）
+// ルート設定の更新（{ id, on_home?, type_filter? }）。
+// type_filter: 表示する種別IDの配列。null/空 = 全種別表示（絞り込み無し）。
 export async function PATCH(request) {
   try {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
 
-    const { id, on_home } = await request.json();
-    if (!id || typeof on_home !== 'boolean') {
+    const body = await request.json();
+    const { id } = body;
+    if (!id) return NextResponse.json({ error: 'invalid params' }, { status: 400 });
+
+    const patch = {};
+    if (typeof body.on_home === 'boolean') patch.on_home = body.on_home;
+    if ('type_filter' in body) {
+      const tf = body.type_filter;
+      patch.type_filter = Array.isArray(tf) && tf.length ? tf.map(String) : null;
+    }
+    if (Object.keys(patch).length === 0) {
       return NextResponse.json({ error: 'invalid params' }, { status: 400 });
     }
 
     const sb = getSupabaseAdmin();
     const { error } = await sb
       .from('user_train_routes')
-      .update({ on_home })
+      .update(patch)
       .eq('moodle_user_id', auth.userid)
       .eq('id', id);
 

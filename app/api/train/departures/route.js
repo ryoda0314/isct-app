@@ -26,6 +26,16 @@ export async function GET(request) {
       return NextResponse.json({ available: false, reason: 'no_data' });
     }
 
+    // この目的地に来る列車種別（本日ダイヤ・時刻問わず）。クライアントの種別フィルタUI用。
+    const availableTypes = [];
+    const seenType = new Set();
+    for (const d of src.departures) {
+      if (d.trainType && !seenType.has(d.trainType)) {
+        seenType.add(d.trainType);
+        availableTypes.push({ id: d.trainType, title: d.trainTypeTitle || '' });
+      }
+    }
+
     const now = jstNow();
     const upcoming = src.departures
       .map((d) => {
@@ -34,10 +44,11 @@ export async function GET(request) {
       })
       .filter((d) => d.minutesUntil >= 0)
       .sort((a, b) => a._m - b._m)
-      .slice(0, 4)
+      .slice(0, 12)
       .map((d) => ({
         time: d.departureTime,
         minutesUntil: d.minutesUntil,
+        trainType: d.trainType || '',
         trainTypeTitle: d.trainTypeTitle || '',
         destination: d.destination || '',
         requiredMin: d.requiredMin,
@@ -46,6 +57,7 @@ export async function GET(request) {
     return NextResponse.json({
       available: true,
       finished: upcoming.length === 0,
+      availableTypes,
       trains: upcoming,
     });
   } catch (err) {

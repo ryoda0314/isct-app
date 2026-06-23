@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { T } from "./theme.js";
 import { I } from "./icons.jsx";
 import { t } from "./i18n.js";
+import { isDemoMode } from "./demoMode.js";
 
 const TYPE_STYLES = {
   info: { color: T.accent, icon: I.bell, labelKey: "announce.typeInfo" },
@@ -35,6 +36,7 @@ export const AnnouncementBanner = () => {
   });
 
   useEffect(() => {
+    if (isDemoMode()) return;
     fetch("/api/announcements")
       .then(r => r.ok ? r.json() : [])
       .then(data => setItems(Array.isArray(data) ? data : []))

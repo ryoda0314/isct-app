@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { isDemoMode } from '../demoMode.js';
 
 const cache = {};
 
@@ -10,7 +11,7 @@ export function useCourseMembers(moodleCourseId) {
   const [members, setMembers] = useState(cache[moodleCourseId] || []);
 
   useEffect(() => {
-    if (!moodleCourseId) return;
+    if (!moodleCourseId || isDemoMode()) return;
     if (cache[moodleCourseId]) { setMembers(cache[moodleCourseId]); return; }
 
     let cancelled = false;

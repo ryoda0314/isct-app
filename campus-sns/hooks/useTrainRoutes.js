@@ -61,6 +61,26 @@ export function useTrainRoutes(enabled = true) {
     }
   }, []);
 
+  // 種別フィルタの更新（楽観更新）。type_filter: 表示する種別IDの配列。空=全表示。
+  const setFilter = useCallback(async (id, type_filter) => {
+    const norm = Array.isArray(type_filter) && type_filter.length ? type_filter : null;
+    const prev = routes;
+    setRoutes((cur) => cur.map((x) => x.id === id ? { ...x, type_filter: norm } : x));
+    if (isDemoMode()) return;
+    try {
+      const r = await fetch('/api/train/routes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, type_filter: norm }),
+      });
+      if (!r.ok) throw new Error('patch failed');
+    } catch (e) {
+      console.error('[useTrainRoutes setFilter]', e);
+      setRoutes(prev);
+      showToast(t("train.filterFailed"));
+    }
+  }, [routes]);
+
   const removeRoute = useCallback(async (id) => {
     const prev = routes;
     setRoutes((cur) => cur.filter((x) => x.id !== id)); // 楽観削除
@@ -79,5 +99,5 @@ export function useTrainRoutes(enabled = true) {
     }
   }, [routes]);
 
-  return { routes, loading, addRoute, removeRoute, toggleHome, refetch };
+  return { routes, loading, addRoute, removeRoute, toggleHome, setFilter, refetch };
 }

@@ -48,6 +48,9 @@ export function middleware(request) {
   const isApi = pathname.startsWith('/api/');
   // Portal proxy pages are displayed inside a same-origin iframe
   const isPortalPage = pathname.startsWith('/api/portal/page') || pathname.startsWith('/api/portal/proxy');
+  // /embed/* は機能紹介ページ(/features)内に同一オリジン限定で埋め込むデモ専用ルート。
+  // frame-ancestors 'self' なので外部サイトからの clickjacking は不可。本体(/)の DENY は据え置き。
+  const isFramablePage = isPortalPage || pathname.startsWith('/embed');
 
   // M4: Rate limit API endpoints (tiered)
   // 開発環境ではスキップ（ローカルは攻撃対象でなく、HMR/StrictMode二重実行/頻繁な
@@ -125,7 +128,7 @@ export function middleware(request) {
     "media-src 'self' blob: data: https://*.supabase.co",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lms.s.isct.ac.jp https://api.open-meteo.com https://geocoding-api.open-meteo.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com https://server.arcgisonline.com https://tile.openstreetmap.org",
     "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com",
-    isPortalPage ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
+    isFramablePage ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
   ].join('; ');
@@ -162,7 +165,7 @@ export function middleware(request) {
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
 
-  res.headers.set('X-Frame-Options', isPortalPage ? 'SAMEORIGIN' : 'DENY');
+  res.headers.set('X-Frame-Options', isFramablePage ? 'SAMEORIGIN' : 'DENY');
 
   // M2: HSTS
   res.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');

@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "voices": "node generate_voices.mjs",
+    "voices:lab": "node generate_voices.mjs --script script-lab.md",
     "studio": "remotion studio src/index.js",
     "render": "remotion render src/index.js PromoVideo out/video.mp4",
     "render:test": "remotion render src/index.js PromoVideo out/test.mp4 --props=./sample-timeline.json",
