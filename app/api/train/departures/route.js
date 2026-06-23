@@ -1,83 +1,52 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../../lib/auth/require-auth.js';
-import {
-  hasOdptKey, getStationTimetable, getStationTitleMap, getTrainTypeMap,
-} from '../../../../lib/api/odpt.js';
-import { jstNow, todayCalendars, departureMinutes } from '../../../../lib/api/jp-calendar.js';
+import { jstNow, todayDayType, departureMinutes } from '../../../../lib/api/jp-calendar.js';
+import { getStaticDestinationDepartures } from '../../../../lib/api/static-timetables.js';
 
-// 駅・方向の本日の発車を返す。GET ?railway=&station=&direction=&type=&lang=ja
-// 主種別(type)の直近2本(main) + 種別問わず直近3本(supplement)。
-
-const locStr = (obj, lang) => (obj ? (obj[lang] || obj.ja || obj.en || '') : '');
-
-function operatorOf(railway) {
-  const tail = String(railway).split(':')[1] || ''; // "Tokyu.Meguro"
-  const op = tail.split('.')[0];                     // "Tokyu"
-  return op ? `odpt.Operator:${op}` : null;
-}
+// 出発駅→目的地の、本日ダイヤで「目的地に停車する」直近の発車を返す。
+// GET ?origin=&dest=&lang=ja → { available, finished, trains:[{ time, minutesUntil,
+//      trainTypeTitle, destination(行先), requiredMin(所要分) }] }
+// ※ 現状は静的同梱(東急)のみ。ODPT 対応は将来拡張。
 
 export async function GET(request) {
   try {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
 
-    if (!hasOdptKey()) {
-      return NextResponse.json({ available: false, reason: 'odpt_key_missing' }, { status: 503 });
-    }
-
     const { searchParams } = new URL(request.url);
-    const railway = searchParams.get('railway');
-    const station = searchParams.get('station');
-    const direction = searchParams.get('direction');
-    const type = searchParams.get('type') || null;
+    const origin = searchParams.get('origin');
+    const dest = searchParams.get('dest');
     const lang = searchParams.get('lang') || 'ja';
-    if (!railway || !station || !direction) {
+    if (!origin || !dest) {
       return NextResponse.json({ error: 'invalid params' }, { status: 400 });
     }
 
-    const now = jstNow();
-    const cals = todayCalendars(now);
-    const tt = await getStationTimetable(railway, station, direction, cals);
-    if (!tt.available) {
-      return NextResponse.json({ available: false, reason: 'no_open_data' });
+    const src = getStaticDestinationDepartures(origin, dest, todayDayType(), lang);
+    if (!src.available) {
+      return NextResponse.json({ available: false, reason: 'no_data' });
     }
 
-    const operator = operatorOf(railway);
-    const [titleMap, typeMap] = await Promise.all([
-      getStationTitleMap(railway).catch(() => ({})),
-      operator ? getTrainTypeMap(operator).catch(() => ({})) : Promise.resolve({}),
-    ]);
-
-    const upcoming = tt.departures
+    const now = jstNow();
+    const upcoming = src.departures
       .map((d) => {
-        const mins = departureMinutes(d.departureTime, now.minutes);
-        return { ...d, mins, minutesUntil: mins - now.minutes };
+        const m = departureMinutes(d.departureTime, now.minutes);
+        return { ...d, _m: m, minutesUntil: m - now.minutes };
       })
       .filter((d) => d.minutesUntil >= 0)
-      .sort((a, b) => a.mins - b.mins);
-
-    const fmt = (d) => ({
-      time: d.departureTime,
-      minutesUntil: d.minutesUntil,
-      trainType: d.trainType,
-      trainTypeTitle: locStr(typeMap[d.trainType], lang) || '',
-      destination: d.destination && d.destination[0] ? locStr(titleMap[d.destination[0]], lang) : '',
-      isRegisteredType: type ? d.trainType === type : true,
-      isLast: d.isLast,
-    });
-
-    const registered = type ? upcoming.filter((d) => d.trainType === type) : upcoming;
-    const main = registered.slice(0, 2).map(fmt);
-    const supplement = upcoming.slice(0, 3).map(fmt);
+      .sort((a, b) => a._m - b._m)
+      .slice(0, 4)
+      .map((d) => ({
+        time: d.departureTime,
+        minutesUntil: d.minutesUntil,
+        trainTypeTitle: d.trainTypeTitle || '',
+        destination: d.destination || '',
+        requiredMin: d.requiredMin,
+      }));
 
     return NextResponse.json({
       available: true,
-      finished: upcoming.length === 0, // 本日の運行終了
-      calendar: tt.calendar,
-      registeredType: type,
-      registeredTypeTitle: type ? (locStr(typeMap[type], lang) || '') : '',
-      main,
-      supplement,
+      finished: upcoming.length === 0,
+      trains: upcoming,
     });
   } catch (err) {
     console.error('[Train departures]', err);

@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server';
 const hits = new Map();
 const TIERS = {
   auth:   { window: 60_000, max: 10 },   // 認証系: 10 req/min
-  token:  { window: 60_000, max: 5 },    // トークン取得: 5 req/min（クライアントサイドMoodle API用）
+  token:  { window: 60_000, max: 20 },   // トークン取得: 20 req/min（10分キャッシュ前提。複数タブ/リロード/StrictModeでも詰まらない値）
   write:  { window: 60_000, max: 40 },   // 書き込み系: 40 req/min
   global: { window: 60_000, max: 120 },  // 全API: 120 req/min
 };
@@ -50,7 +50,9 @@ export function middleware(request) {
   const isPortalPage = pathname.startsWith('/api/portal/page') || pathname.startsWith('/api/portal/proxy');
 
   // M4: Rate limit API endpoints (tiered)
-  if (isApi) {
+  // 開発環境ではスキップ（ローカルは攻撃対象でなく、HMR/StrictMode二重実行/頻繁な
+  // リロードで token 等の制限を即枯渇させて開発を妨げるため）。
+  if (isApi && process.env.NODE_ENV !== 'development') {
     // H11: Prefer x-real-ip (set by Vercel/trusted proxy, not spoofable)
     const ip = request.headers.get('x-real-ip')
       || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()

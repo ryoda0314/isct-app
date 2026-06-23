@@ -19,28 +19,40 @@ let _cachedToken = null;
 let _cachedUserid = null;
 let _tokenExpiry = 0;
 const TOKEN_CLIENT_TTL = 10 * 60 * 1000; // 10 minutes
+// Single in-flight fetch so concurrent startup callers (App + each useCourseMaterials,
+// friends, etc.) share ONE /api/auth/token request instead of bursting past the
+// 5 req/min rate limit → 429. Without this, a cold load fires N simultaneous fetches.
+let _tokenInFlight = null;
 
 /**
- * Get token from server, with short-lived in-memory cache.
+ * Get token from server, with short-lived in-memory cache + single-flight dedup.
  * Never stores token in localStorage/sessionStorage.
  */
 export async function getClientToken() {
   if (_cachedToken && Date.now() < _tokenExpiry) {
     return { wstoken: _cachedToken, userid: _cachedUserid };
   }
-  // Hard timeout so a hung backend can't freeze startup forever.
-  const r = await fetch('/api/auth/token', { signal: AbortSignal.timeout(12000) });
-  if (r.status === 401) {
-    const err = new Error('Not authenticated');
-    err.code = 'AUTH_REQUIRED';
-    throw err;
+  if (_tokenInFlight) return _tokenInFlight; // concurrent callers share the same fetch
+  _tokenInFlight = (async () => {
+    // Hard timeout so a hung backend can't freeze startup forever.
+    const r = await fetch('/api/auth/token', { signal: AbortSignal.timeout(12000) });
+    if (r.status === 401) {
+      const err = new Error('Not authenticated');
+      err.code = 'AUTH_REQUIRED';
+      throw err;
+    }
+    if (!r.ok) throw new Error(`Token fetch failed: ${r.status}`);
+    const { wstoken, userid } = await r.json();
+    _cachedToken = wstoken;
+    _cachedUserid = userid;
+    _tokenExpiry = Date.now() + TOKEN_CLIENT_TTL;
+    return { wstoken, userid };
+  })();
+  try {
+    return await _tokenInFlight;
+  } finally {
+    _tokenInFlight = null;
   }
-  if (!r.ok) throw new Error(`Token fetch failed: ${r.status}`);
-  const { wstoken, userid } = await r.json();
-  _cachedToken = wstoken;
-  _cachedUserid = userid;
-  _tokenExpiry = Date.now() + TOKEN_CLIENT_TTL;
-  return { wstoken, userid };
 }
 
 /** Clear cached token (call on logout) */

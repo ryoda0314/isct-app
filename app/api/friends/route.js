@@ -12,6 +12,14 @@ function pingFriends(...userIds) {
   broadcast(userIds.filter(Boolean).map(friendsTopic), 'new').catch(() => {});
 }
 
+// 管理者判定（admin route と同じ方式: 環境変数 + admin_users テーブル）
+const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
+async function isAdminUser(sb, userid) {
+  if (ENV_ADMIN_IDS.includes(String(userid))) return true;
+  const { data } = await sb.from('admin_users').select('moodle_user_id').eq('moodle_user_id', userid).maybeSingle();
+  return !!data;
+}
+
 // Set of my accepted-friend ids.
 async function getMyFriendIds(sb, userid) {
   const { data } = await sb
@@ -199,6 +207,75 @@ export async function GET(request) {
     }
 
     if (type === 'graph') {
+      const scope = searchParams.get('scope') || 'ego';
+
+      // 学内全体グラフ（管理者限定）: 全員の承認済みフレンド関係を返す。
+      if (scope === 'all') {
+        if (!(await isAdminUser(sb, userid))) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+        const blockedIds = await getBlockedIds(userid);
+        const myFriendSet = await getMyFriendIds(sb, userid);
+
+        const { data: allEdges } = await sb
+          .from('friendships')
+          .select('requester_id,addressee_id')
+          .eq('status', 'accepted')
+          .limit(5000);
+
+        // ブロック関係を除外しつつ、ノードの次数を集計
+        const deg = new Map();
+        const rawEdges = [];
+        for (const e of allEdges || []) {
+          const a = e.requester_id, b = e.addressee_id;
+          if (a === b || blockedIds.has(a) || blockedIds.has(b)) continue;
+          rawEdges.push([a, b]);
+          deg.set(a, (deg.get(a) || 0) + 1);
+          deg.set(b, (deg.get(b) || 0) + 1);
+        }
+
+        // ノード数を制限（次数の高い順）。自分と自分の友達は必ず含める。
+        const NODE_CAP = 400;
+        const truncated = deg.size > NODE_CAP;
+        let keepIds;
+        if (!truncated) {
+          keepIds = new Set(deg.keys());
+        } else {
+          keepIds = new Set([...deg.entries()].sort((a, b) => b[1] - a[1]).slice(0, NODE_CAP).map(([id]) => id));
+          myFriendSet.forEach(id => keepIds.add(id));
+        }
+        keepIds.add(userid);
+
+        const ids = [...keepIds];
+        const { data: pData } = await sb.from('profiles').select('moodle_id,name,avatar,color,dept').in('moodle_id', ids);
+        const profMap = {};
+        (pData || []).forEach(p => { profMap[p.moodle_id] = p; });
+        const profOf = (id) => profMap[id] || { name: `User ${id}`, avatar: '?', color: '#888' };
+
+        const nodes = [];
+        for (const id of ids) {
+          if (id === userid) continue;
+          const p = profOf(id);
+          nodes.push({ id, name: p.name, avatar: p.avatar, color: p.color, dept: p.dept, degree: myFriendSet.has(id) ? 1 : 2 });
+        }
+
+        const seen = new Set();
+        const edges = [];
+        for (const [a, b] of rawEdges) {
+          if (!keepIds.has(a) || !keepIds.has(b)) continue;
+          const key = a < b ? `${a}_${b}` : `${b}_${a}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          edges.push([a, b]);
+        }
+
+        const me = profOf(userid);
+        return NextResponse.json({
+          me: { id: userid, name: me.name, avatar: me.avatar, color: me.color, dept: me.dept },
+          nodes, edges, scope: 'all', truncated,
+        });
+      }
+
       // 1st-degree: my accepted friendships
       const { data: myEdges, error: e1 } = await sb
         .from('friendships')
@@ -258,6 +335,18 @@ export async function GET(request) {
       }
       const profOf = (id) => profiles[id] || { name: `User ${id}`, avatar: '?', color: '#888' };
 
+      // 2次の人同士のつながり（自分とも友達とも直接関係ない線）も拾う。
+      // ringEdges は友達に接する辺しか含まないため、外周ノード間の辺を別途取得する。
+      let outerEdges = [];
+      if (secondIds.length > 1) {
+        const { data: oe } = await sb
+          .from('friendships')
+          .select('requester_id,addressee_id')
+          .eq('status', 'accepted')
+          .in('requester_id', secondIds);
+        outerEdges = (oe || []).filter(e => secondSet.has(e.addressee_id));
+      }
+
       const inGraph = (id) => id === userid || friendSet.has(id) || secondSet.has(id);
       const nodes = [];
       for (const id of friendIds) {
@@ -281,6 +370,7 @@ export async function GET(request) {
       };
       for (const f of myEdges) pushEdge(f.requester_id, f.addressee_id);
       for (const f of ringEdges) pushEdge(f.requester_id, f.addressee_id);
+      for (const f of outerEdges) pushEdge(f.requester_id, f.addressee_id);
 
       const me = profOf(userid);
       return NextResponse.json({

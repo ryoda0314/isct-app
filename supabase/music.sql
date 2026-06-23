@@ -8,8 +8,10 @@
 -- プライバシーモデルは pocket_items / dm_messages を踏襲:
 --   - RLS 有効・anon ポリシー無し → 直接アクセスは全て拒否
 --   - 読み書きは API ルート (service_role) 経由のみ。owner_id = 認証ユーザー で制限
---   - 音源/カバー画像の実体は既存の非公開バケット post-attachments に
---     music/<owner_id>/ で保存し、署名URL経由でのみ取得（pocket と同じ仕組み）
+--   - 個人曲の音源/カバー実体は非公開バケット post-attachments の music/<owner_id>/ に
+--     保存し、署名URL経由でのみ取得（pocket と同じ仕組み）
+--   - 公式曲(is_public)の実体は公開バケット music-public（music/public/）に置き、安定 getPublicUrl で
+--     配信して CDN キャッシュを効かせる（egress対策。supabase/music-public-bucket.sql 参照）
 -- =============================================================
 
 create table if not exists music_tracks (

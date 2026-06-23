@@ -29,6 +29,8 @@ import { DMView } from "./views/DMView.jsx";
 import { PocketView } from "./views/PocketView.jsx";
 import { MusicView } from "./views/MusicView.jsx";
 import { GymView } from "./views/GymView.jsx";
+import { TsubameView } from "./views/TsubameView.jsx";
+import { useDailyTsubameClaim } from "./hooks/useTsubamePoints.js";
 import { PdfToolsView } from "./views/PdfToolsView.jsx";
 import { NotesView } from "./views/NotesView.jsx";
 import { MiniPlayer } from "./components/MiniPlayer.jsx";
@@ -71,7 +73,7 @@ import { useOfflineQueue } from "./hooks/useOfflineQueue.js";
 import { useGroups } from "./hooks/useGroups.js";
 import { getClientToken, clearClientToken, fetchUserCourses as moodleFetchCourses, fetchAssignments as moodleFetchAssignments, fetchSubmissionStatus as moodleFetchSubmissionStatus } from "./moodleClient.js";
 import { useCircles } from "./hooks/useCircles.js";
-import { Toasts } from "./hooks/useToast.js";
+import { Toasts, showToast } from "./hooks/useToast.js";
 import { useBookmarks } from "./hooks/useBookmarks.js";
 import { useAttendance } from "./hooks/useAttendance.js";
 import { useUnreadDM } from "./hooks/useUnreadDM.js";
@@ -181,6 +183,12 @@ export default function App(){
   const [mockMode,setMockMode]=useState(false);
   const [guestMode,setGuestMode]=useState(()=>{if(typeof window==="undefined")return null;const h=window.location.hash;if(h==="#freshman")return "freshman";if(h==="#navi")return "navi";if(h==="#reg")return "reg";return null;});
   const [fromGuest,setFromGuest]=useState(null);
+  // ツバメポイント: 起動時に当日分を自動受け取り（View を開かなくても貯まる）。
+  //   demo/guest では付与しない（本人セッションのみ）。
+  useDailyTsubameClaim({
+    active: ready && !guestMode && !isDemoMode(),
+    onClaimed: (res) => showToast(t("tsubame.claimedToast", { n: res.awarded }), "success"),
+  });
   const [quarter,setQuarter]=useState(()=>{try{const v=localStorage.getItem("quarter");if(v)return Number(v);const jd=new Date(Date.now()+9*3600000);return getCurrentQuarter(jd);}catch{return 1;}});
   const [qDataLive,setQDataLive]=useState(null);
   const [pastTTCache,setPastTTCache]=useState({});
@@ -792,7 +800,7 @@ export default function App(){
   // どこでもアイコンタップでプロフィールが開くよう、グローバルオープナーを登録
   useEffect(()=>{setProfileOpener(openProfile);},[openProfile]);
   const openGroupChat=(g)=>{setView("dm");};
-  const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,fetchGraph,fetchRecommendations,openProfile,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat,blockUser,unblockUser,isBlocked,blocks:blockList,muteUser,unmuteUser,isMuted,mutes:muteList,refetch:refetchFriends};
+  const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,fetchGraph,fetchRecommendations,openProfile,isAdmin:!!user?.isAdmin,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat,blockUser,unblockUser,isBlocked,blocks:blockList,muteUser,unmuteUser,isMuted,mutes:muteList,refetch:refetchFriends};
   const profileProps={userId:profileId,user,lookupById,onStartDM:startDMFromFriend,sendRequest,acceptRequest,unfriend,blockUser,muteUser,unmuteUser,isMuted,onEditProfile:()=>setView("profile"),goBack,refetch:refetchFriends};
   const togTheme=()=>setThemePref(p=>p==="dark"?"light":"dark");
   const onLogout=async()=>{setDemoMode(false);clearClientToken();try{await fetch("/api/auth/logout",{method:"POST"});}catch{}await clearNativeCookies();try{const{clearCreds}=await import("./secureCreds.js");await clearCreds();}catch{}if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
@@ -1078,6 +1086,7 @@ export default function App(){
           {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/>}
           {view==="takiplaza"&&(L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob={false} onNavigate={goToBuilding}/>)}
           {view==="gym"&&(L?<LockedView title={t("tool.gym")}/>:<GymView mob={false}/>)}
+          {view==="tsubame"&&(L?<LockedView title={t("tool.tsubame")}/>:<TsubameView mob={false}/>)}
           {view==="train"&&(L?<LockedView title={t("nav.train")}/>:<TrainView mob={false}/>)}
           {view==="library"&&<LibraryView mob={false}/>}
           {view==="circles"&&(TR?<TelecomBlockView title={t("telecom.circlesUnavailable")}/>:<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs}/>)}
@@ -1136,6 +1145,7 @@ export default function App(){
         {view==="navigation"&&<><MHdr title={t("nav.navigation")} back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
         {view==="takiplaza"&&<><MHdr title="Taki Plaza" back={mBack}/>{L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob onNavigate={goToBuilding}/>}</>}
         {view==="gym"&&<><MHdr title={t("tool.gym")} back={mBack}/>{L?<LockedView title={t("tool.gym")}/>:<GymView mob/>}</>}
+        {view==="tsubame"&&<><MHdr title={t("tool.tsubame")} back={mBack}/>{L?<LockedView title={t("tool.tsubame")}/>:<TsubameView mob/>}</>}
         {view==="train"&&<><MHdr title={t("nav.train")} back={mBack}/>{L?<LockedView title={t("nav.train")}/>:<TrainView mob/>}</>}
         {view==="library"&&<><MHdr title={t("nav.library")} back={mBack}/><LibraryView mob/></>}
         {view==="circles"&&(TR?<><MHdr title={t("nav.circles")} back={mBack}/><TelecomBlockView title={t("telecom.circlesUnavailable")} onBack={goBack}/></>:<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs} onBack={mBack}/>)}

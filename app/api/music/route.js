@@ -10,6 +10,9 @@ const MAX_AUDIO_SIZE = 50 * 1024 * 1024; // 50MB（曲1本）
 const MAX_USER_STORAGE = 500 * 1024 * 1024; // ユーザー合計 500MB
 const SIGN_TTL = 21600; // 署名URL有効期限(秒) = 6時間（長尺再生中に切れないように）
 const BUCKET = 'post-attachments';
+// 公式曲(is_public)は公開バケットへ。安定した getPublicUrl で配信することで CDN キャッシュが効き、
+// 全員が繰り返し再生しても Storage egress が増え続けない（署名URLはトークンが毎回変わりキャッシュ不成立）。
+const PUBLIC_BUCKET = 'music-public';
 const MAX_TITLE = 200;
 const MAX_LYRICS = 20000; // 歌詞（LRC含む）の最大文字数
 
@@ -21,9 +24,22 @@ async function isAdmin(sb, userid) {
   return !!data;
 }
 
-// 音源・カバーの署名URLを付与（取得のたびに再署名）
+// 音源・カバーのURLを付与。
+//   公式曲(is_public): 公開バケットの安定 getPublicUrl（CDNキャッシュが効き egress を抑える）
+//   個人曲          : 非公開バケットの署名URL（取得のたびに再署名・6時間有効）
 async function signTrack(sb, row) {
   const out = { ...row };
+  if (row.is_public) {
+    if (row.audio?.path) {
+      const { data } = sb.storage.from(PUBLIC_BUCKET).getPublicUrl(row.audio.path);
+      out.audio = { ...row.audio, url: data?.publicUrl || '' };
+    }
+    if (row.cover?.path) {
+      const { data } = sb.storage.from(PUBLIC_BUCKET).getPublicUrl(row.cover.path);
+      out.cover = { ...row.cover, url: data?.publicUrl || '' };
+    }
+    return out;
+  }
   if (row.audio?.path) {
     const { data } = await sb.storage.from(BUCKET).createSignedUrl(row.audio.path, SIGN_TTL);
     out.audio = { ...row.audio, url: data?.signedUrl || '' };
@@ -127,12 +143,15 @@ export async function POST(request) {
       const ts = Date.now();
       const prefix = wantPublic ? `music/public/${kind}` : `music/${userid}/${kind}`;
       const path = `${prefix}/${ts}_${base}${ext}`;
-      const { data, error } = await sb.storage.from(BUCKET).createSignedUploadUrl(path);
+      // 公式曲は公開バケット、個人曲は非公開バケットへアップロード
+      const uploadBucket = wantPublic ? PUBLIC_BUCKET : BUCKET;
+      const { data, error } = await sb.storage.from(uploadBucket).createSignedUploadUrl(path);
       if (error) {
         console.error('[Music] createSignedUploadUrl:', error.message);
         return NextResponse.json({ error: 'sign failed' }, { status: 500 });
       }
-      return NextResponse.json({ path, token: data.token });
+      // bucket もクライアントへ返す（署名トークンはバケット固有のため、同じバケットへアップロードする必要がある）
+      return NextResponse.json({ path, token: data.token, bucket: uploadBucket });
     }
 
     // 2) アップロード済みの記録（アップロードは管理者のみ）
@@ -259,7 +278,9 @@ export async function DELETE(request) {
 
     const paths = [row.audio?.path, row.cover?.path].filter(Boolean);
     if (paths.length) {
-      const { error: rmErr } = await sb.storage.from(BUCKET).remove(paths);
+      // 公式曲は公開バケット、個人曲は非公開バケットから実体を削除
+      const delBucket = row.is_public ? PUBLIC_BUCKET : BUCKET;
+      const { error: rmErr } = await sb.storage.from(delBucket).remove(paths);
       if (rmErr) console.error('[Music] storage remove:', rmErr.message);
     }
 

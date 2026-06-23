@@ -9,7 +9,7 @@ const _isImg = (s) => typeof s === 'string' && (s.startsWith('http') || s.starts
  * Force-directed social graph rendered on a <canvas> (no external libs — CSP-safe).
  * me = degree 0 (pinned center), friends = degree 1, friends-of-friends = degree 2.
  */
-export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendRequest, openProfile }) => {
+export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendRequest, openProfile, scope = 'ego' }) => {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const nodesRef = useRef([]);        // {id,name,avatar,color,dept,degree,mutual,x,y,vx,vy,pinned,r}
@@ -21,35 +21,44 @@ export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendReques
   const ptrs = useRef(new Map());     // active pointers
   const dragRef = useRef(null);       // { node, moved } | { panning, moved }
   const pinchRef = useRef(null);      // { dist, scale }
+  const scopeRef = useRef(scope);     // 'ego' | 'all'（描画の色分けに使用）
+  const fittedRef = useRef(false);    // 初回緩和後に一度だけ全体フィットしたか
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(false);
   const [empty, setEmpty] = useState(false);
   const [selected, setSelected] = useState(null);
   const [actionState, setActionState] = useState(null); // 'sending' | 'sent'
+  const [truncated, setTruncated] = useState(false);
 
   /* ── load graph data & lay out ── */
   const load = useCallback(async () => {
     setLoading(true); setErr(false); setEmpty(false);
-    const g = await fetchGraph?.();
+    scopeRef.current = scope;
+    const g = await fetchGraph?.(scope);
     if (!g || !g.me) { setErr(true); setLoading(false); return; }
     if (!g.nodes || g.nodes.length === 0) { setEmpty(true); setLoading(false); return; }
+    setTruncated(!!g.truncated);
 
+    const isAll = scope === 'all';
     const me = { ...g.me, degree: 0 };
     const all = [me, ...g.nodes];
+    // ノードが多いとき(=学内全体)は小さく描く
+    const k = all.length > 200 ? 0.45 : all.length > 90 ? 0.6 : 1;
     const byId = new Map();
-    // Initial layout: me at center, ring by degree, golden-angle spread
+    // Initial layout: ego は me 中心の同心円。all は全体を散らす(me は固定しない)。
     const GA = 2.399963;
     all.forEach((n, i) => {
-      const ring = n.degree === 0 ? 0 : n.degree === 1 ? 150 : 290;
+      const ring = isAll ? 60 + (i % 50) * 8 : n.degree === 0 ? 0 : n.degree === 1 ? 150 : 290;
       const ang = i * GA;
+      const atCenter = n.degree === 0 && !isAll;
       const node = {
         ...n,
-        x: n.degree === 0 ? 0 : Math.cos(ang) * ring + (i % 5) * 4,
-        y: n.degree === 0 ? 0 : Math.sin(ang) * ring + (i % 3) * 4,
+        x: atCenter ? 0 : Math.cos(ang) * ring + (i % 5) * 4,
+        y: atCenter ? 0 : Math.sin(ang) * ring + (i % 3) * 4,
         vx: 0, vy: 0,
-        pinned: n.degree === 0,
-        r: n.degree === 0 ? 26 : n.degree === 1 ? 19 : 13,
+        pinned: atCenter, // all モードでは me も自由に動く
+        r: (n.degree === 0 ? 26 : n.degree === 1 ? 19 : 13) * k,
       };
       byId.set(n.id, node);
     });
@@ -69,9 +78,10 @@ export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendReques
 
     viewRef.current = { scale: 1, ox: 0, oy: 0 };
     alphaRef.current = 1;
+    fittedRef.current = false;
     setLoading(false);
     kick();
-  }, [fetchGraph]);
+  }, [fetchGraph, scope]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -81,8 +91,16 @@ export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendReques
     const edges = edgesRef.current;
     const alpha = alphaRef.current;
     const n = nodes.length;
+    const isAll = scopeRef.current === 'all';
 
-    // Repulsion (all pairs — n is small, capped server-side)
+    // 交差を減らすには「よく広げて十分に緩和させる」のが要点:
+    //  斥力を強く / 辺を長く / 中心引力を弱く。ノードが多いほど広げる。
+    const repK = isAll ? 26000 : 16000;
+    const lenK = isAll ? (n > 200 ? 2.2 : 1.7) : 1.3;
+    const grav = isAll ? 0.0016 : 0.003;
+    const damp = 0.84;
+
+    // Repulsion (all pairs)
     for (let i = 0; i < n; i++) {
       const a = nodes[i];
       for (let j = i + 1; j < n; j++) {
@@ -91,20 +109,21 @@ export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendReques
         let d2 = dx * dx + dy * dy;
         if (d2 < 0.01) { dx = (i - j) || 1; dy = 1; d2 = 2; }
         const d = Math.sqrt(d2);
-        const rep = 9000 / d2;
+        const rep = repK / d2;
         const fx = (dx / d) * rep, fy = (dy / d) * rep;
         a.vx += fx; a.vy += fy;
         b.vx -= fx; b.vy -= fy;
       }
     }
-    // Springs
+    // Springs（理想長を長めに取り、クラスタを離して交差を減らす）
     for (const e of edges) {
       const a = e.a, b = e.b;
-      const ideal = (a.degree === 0 || b.degree === 0) ? 130
-        : (a.degree === 2 || b.degree === 2) ? 110 : 95;
+      const base = (a.degree === 0 || b.degree === 0) ? 150
+        : (a.degree === 2 && b.degree === 2) ? 120 : 110;
+      const ideal = base * lenK;
       let dx = b.x - a.x, dy = b.y - a.y;
       const d = Math.sqrt(dx * dx + dy * dy) || 1;
-      const f = (d - ideal) * 0.035;
+      const f = (d - ideal) * 0.04;
       const fx = (dx / d) * f, fy = (dy / d) * f;
       a.vx += fx; a.vy += fy;
       b.vx -= fx; b.vy -= fy;
@@ -113,14 +132,15 @@ export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendReques
     let motion = 0;
     for (const node of nodes) {
       if (node.pinned) { node.x = node.degree === 0 ? 0 : node.x; node.y = node.degree === 0 ? 0 : node.y; node.vx = 0; node.vy = 0; continue; }
-      node.vx += -node.x * 0.004;
-      node.vy += -node.y * 0.004;
-      node.vx *= 0.82; node.vy *= 0.82;
+      node.vx += -node.x * grav;
+      node.vy += -node.y * grav;
+      node.vx *= damp; node.vy *= damp;
       node.x += node.vx * alpha;
       node.y += node.vy * alpha;
       motion += Math.abs(node.vx) + Math.abs(node.vy);
     }
-    alphaRef.current = Math.max(0, alpha - 0.006);
+    // ゆっくり冷ます = より時間をかけて緩和し、交差の少ない配置に落ち着く
+    alphaRef.current = Math.max(0, alpha - 0.0042);
     return motion;
   }, []);
 
@@ -138,11 +158,23 @@ export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendReques
     ctx.translate(w / 2 + ox, h / 2 + oy);
     ctx.scale(scale, scale);
 
-    // Edges
-    ctx.lineWidth = 1;
+    // Edges — 3種類に色分け:
+    //  ・自分/友達どうし(accent)
+    //  ・友達↔2次(やや薄め)
+    //  ・2次↔2次 = あなたと繋がりのない人どうしのつながり(orangeで目立たせる)
+    const isAll = scopeRef.current === 'all';
     for (const e of edgesRef.current) {
-      const deg2 = e.a.degree === 2 || e.b.degree === 2;
-      ctx.strokeStyle = deg2 ? `${T.txD}44` : `${T.accent}55`;
+      if (isAll) {
+        // 学内全体: 自分/友達に接する辺だけ強調、他は薄く
+        const hot = e.a.degree <= 1 || e.b.degree <= 1;
+        ctx.lineWidth = hot ? 1.2 : 0.6;
+        ctx.strokeStyle = hot ? `${T.accent}88` : `${T.tx}22`;
+      } else {
+        const bothSecond = e.a.degree === 2 && e.b.degree === 2;
+        const anySecond = e.a.degree === 2 || e.b.degree === 2;
+        ctx.lineWidth = bothSecond ? 1.5 : 1;
+        ctx.strokeStyle = bothSecond ? `${T.orange}cc` : anySecond ? `${T.tx}55` : `${T.accent}66`;
+      }
       ctx.beginPath();
       ctx.moveTo(e.a.x, e.a.y);
       ctx.lineTo(e.b.x, e.b.y);
@@ -202,6 +234,25 @@ export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendReques
     ctx.restore();
   }, []);
 
+  // 全ノードが収まるように scale / pan を自動調整
+  const fitView = useCallback(() => {
+    const nodes = nodesRef.current, cv = canvasRef.current;
+    if (!nodes.length || !cv) return;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const nd of nodes) {
+      if (nd.x < minX) minX = nd.x; if (nd.x > maxX) maxX = nd.x;
+      if (nd.y < minY) minY = nd.y; if (nd.y > maxY) maxY = nd.y;
+    }
+    const rect = cv.getBoundingClientRect();
+    const w = rect.width || 1, h = rect.height || 1;
+    const gw = (maxX - minX) || 1, gh = (maxY - minY) || 1;
+    const pad = 90;
+    const scale = Math.min(2, Math.max(0.15, Math.min((w - pad) / gw, (h - pad) / gh)));
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    viewRef.current = { scale, ox: -cx * scale, oy: -cy * scale };
+    draw();
+  }, [draw]);
+
   const loop = useCallback(() => {
     const motion = step();
     draw();
@@ -209,8 +260,10 @@ export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendReques
       rafRef.current = requestAnimationFrame(loop);
     } else {
       rafRef.current = 0;
+      // 緩和が落ち着いたら一度だけ全体が見えるようフィット
+      if (!fittedRef.current) { fittedRef.current = true; fitView(); }
     }
-  }, [step, draw]);
+  }, [step, draw, fitView]);
 
   const kick = useCallback(() => {
     if (!rafRef.current) rafRef.current = requestAnimationFrame(loop);
@@ -285,7 +338,7 @@ export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendReques
     if (pinchRef.current && ptrs.current.size === 2) {
       const [p1, p2] = [...ptrs.current.values()];
       const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-      const next = Math.min(3, Math.max(0.4, pinchRef.current.scale * (dist / pinchRef.current.dist)));
+      const next = Math.min(3, Math.max(0.12, pinchRef.current.scale * (dist / pinchRef.current.dist)));
       viewRef.current.scale = next;
       draw();
       return;
@@ -317,14 +370,22 @@ export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendReques
     }
     dragRef.current = null;
   };
-  const onWheel = (e) => {
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.1 : 0.9;
-    viewRef.current.scale = Math.min(3, Math.max(0.4, viewRef.current.scale * factor));
-    draw();
-  };
+  // ホイールズーム: React は wheel を passive リスナーで登録するため onWheel 内の
+  // preventDefault が効かず警告が出る。canvas に非passive のネイティブリスナーを張る。
+  useEffect(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const handler = (e) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.1 : 0.9;
+      viewRef.current.scale = Math.min(3, Math.max(0.12, viewRef.current.scale * factor));
+      draw();
+    };
+    cv.addEventListener('wheel', handler, { passive: false });
+    return () => cv.removeEventListener('wheel', handler);
+  }, [draw]);
 
-  const recenter = () => { viewRef.current = { scale: 1, ox: 0, oy: 0 }; reheat(); };
+  const recenter = () => { fitView(); };
 
   /* ── selected-node action sheet ── */
   const doAdd = async () => {
@@ -360,19 +421,32 @@ export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendReques
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onWheel={onWheel}
         style={{ display: (loading || err || empty) ? 'none' : 'block', cursor: 'grab', touchAction: 'none' }}
       />
 
       {/* Legend */}
       {!loading && !err && !empty && (
         <div style={{ position: 'absolute', top: 10, left: 10, display: 'flex', flexDirection: 'column', gap: 5, background: `${T.bg2}d8`, border: `1px solid ${T.bd}`, borderRadius: 10, padding: '8px 10px', backdropFilter: 'blur(6px)' }}>
-          {[[T.accent, t('graph.you')], [`${T.accent}88`, t('graph.friend')], [T.bd, t('graph.fof')]].map(([c, label], i) => (
+          {[[T.accent, t('graph.you')], [`${T.accent}88`, t('graph.friend')], [T.bd, scope === 'all' ? t('graph.other') : t('graph.fof')]].map(([c, label], i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <span style={{ width: 11, height: 11, borderRadius: '50%', background: i === 0 ? T.accent : T.bg3, border: `2px solid ${c}`, flexShrink: 0 }} />
               <span style={{ fontSize: 11, color: T.txD, fontWeight: 500 }}>{label}</span>
             </div>
           ))}
+          {/* エッジ凡例: 知らない人どうしのつながり（ego のみ） */}
+          {scope !== 'all' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 1 }}>
+              <span style={{ width: 11, height: 0, borderTop: `2px solid ${T.orange}`, flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: T.txD, fontWeight: 500 }}>{t('graph.fofLink')}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 学内全体: ノード上限に達したときの注意書き */}
+      {!loading && !err && !empty && scope === 'all' && truncated && (
+        <div style={{ position: 'absolute', top: 10, right: 10, maxWidth: 200, background: `${T.bg2}e0`, border: `1px solid ${T.bd}`, borderRadius: 10, padding: '6px 10px', fontSize: 10, color: T.txD, backdropFilter: 'blur(6px)' }}>
+          {t('graph.truncated')}
         </div>
       )}
 

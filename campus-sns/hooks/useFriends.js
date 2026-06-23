@@ -103,7 +103,7 @@ export function useFriends(enabled = true, userId = null) {
     return r.ok ? await r.json() : [];
   }, []);
 
-  const fetchGraph = useCallback(async () => {
+  const fetchGraph = useCallback(async (scope = 'ego') => {
     if (isDemoMode()) {
       // Demo: star of me ↔ each friend, no 2nd-degree
       return {
@@ -112,7 +112,7 @@ export function useFriends(enabled = true, userId = null) {
         edges: DEMO_FRIENDS.map(f => [userId, f.friendId]),
       };
     }
-    const r = await fetch('/api/friends?type=graph');
+    const r = await fetch(`/api/friends?type=graph${scope === 'all' ? '&scope=all' : ''}`);
     return r.ok ? await r.json() : null;
   }, [userId]);
 

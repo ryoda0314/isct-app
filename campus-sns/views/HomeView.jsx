@@ -15,6 +15,7 @@ import { isDemoMode } from "../demoMode.js";
 import { DEMO_EXAMS } from "../demoData.js";
 import { AnnouncementBanner } from "../AnnouncementBanner.jsx";
 import { TodayMaterials } from "../components/TodayMaterials.jsx";
+import { HomeTrainWidget } from "./TrainView.jsx";
 
 // SVG weather icons — clean, consistent style
 const WxIcon=({type,sz=20})=>{const s={width:sz,height:sz,display:"inline-block",verticalAlign:"middle",flexShrink:0};
@@ -57,6 +58,7 @@ const QA_ALL=[
   {id:"library",icon:I.book,labelKey:"nav.library"},
   {id:"search",icon:I.search,labelKey:"nav.search"},
   {id:"gym",icon:I.dumbbell,labelKey:"tool.gym"},
+  {id:"tsubame",icon:I.swallow,labelKey:"tool.tsubame"},
 ];
 const QA_DEFAULT=["portal","isctportal","calendar","events"];
 const getQA=()=>{try{const v=localStorage.getItem("quickAccess");return v?JSON.parse(v):QA_DEFAULT;}catch{return QA_DEFAULT;}};
@@ -486,6 +488,9 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
 
       {/* ── お知らせバナー ── */}
       <div style={{padding:"0 16px"}}><AnnouncementBanner/></div>
+
+      {/* ── 電車（ホームに追加したルート） ── */}
+      <HomeTrainWidget setView={setView}/>
 
       {/* ── メインコンテンツ: 40:60 ── */}
       <div style={{padding:"4px 16px 8px",display:mob?"block":"flex",gap:14,alignItems:"flex-start"}}>

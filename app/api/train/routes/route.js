@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 // ユーザーの登録電車ルート CRUD（出欠ルートと同型）。
 
-const COLS = 'id, railway, station, direction, train_type, label, sort_order';
+const COLS = 'id, origin_station, dest_station, label, sort_order, on_home';
 
 export async function GET(request) {
   try {
@@ -33,8 +33,8 @@ export async function POST(request) {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
 
-    const { railway, station, direction, train_type, label, sort_order } = await request.json();
-    if (!railway || !station || !direction) {
+    const { origin_station, dest_station, label, sort_order } = await request.json();
+    if (!origin_station || !dest_station) {
       return NextResponse.json({ error: 'invalid params' }, { status: 400 });
     }
 
@@ -44,14 +44,12 @@ export async function POST(request) {
       .upsert(
         {
           moodle_user_id: auth.userid,
-          railway: String(railway),
-          station: String(station),
-          direction: String(direction),
-          train_type: train_type ? String(train_type) : null,
+          origin_station: String(origin_station),
+          dest_station: String(dest_station),
           label: label ? String(label) : null,
           sort_order: Number.isFinite(sort_order) ? sort_order : 0,
         },
-        { onConflict: 'moodle_user_id,railway,station,direction' }
+        { onConflict: 'moodle_user_id,origin_station,dest_station' }
       )
       .select(COLS)
       .single();
@@ -63,6 +61,35 @@ export async function POST(request) {
     return NextResponse.json(data);
   } catch (err) {
     console.error('[Train routes POST]', err);
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+}
+
+// ホーム表示フラグの切替（{ id, on_home }）
+export async function PATCH(request) {
+  try {
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+
+    const { id, on_home } = await request.json();
+    if (!id || typeof on_home !== 'boolean') {
+      return NextResponse.json({ error: 'invalid params' }, { status: 400 });
+    }
+
+    const sb = getSupabaseAdmin();
+    const { error } = await sb
+      .from('user_train_routes')
+      .update({ on_home })
+      .eq('moodle_user_id', auth.userid)
+      .eq('id', id);
+
+    if (error) {
+      console.error('[Train routes PATCH]', error.message);
+      return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    }
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('[Train routes PATCH]', err);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

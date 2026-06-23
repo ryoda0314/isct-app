@@ -19,6 +19,7 @@ export function useMusic() {
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
   const refetchTimer = useRef(null);
+  const lastFetchAt = useRef(0);
 
   const refresh = useCallback(async () => {
     if (isDemoMode()) { setTracks(DEMO_TRACKS); setLoading(false); return; }
@@ -27,16 +28,22 @@ export function useMusic() {
       if (!r.ok) { setLoading(false); return; }
       const data = await r.json();
       setTracks(Array.isArray(data) ? data : []);
+      lastFetchAt.current = Date.now();
     } catch {}
     setLoading(false);
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  // 別端末で追加した分を復帰時に最新化
+  // 別端末で追加した分を復帰時に最新化。
+  // フォーカス復帰のたびに叩くと無駄なAPI/再署名が増えるので、前回取得から60秒未満ならスキップ。
   useEffect(() => {
     if (isDemoMode()) return;
-    const onFocus = () => { if (document.visibilityState !== 'hidden') refresh(); };
+    const onFocus = () => {
+      if (document.visibilityState === 'hidden') return;
+      if (Date.now() - lastFetchAt.current < 60_000) return;
+      refresh();
+    };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onFocus);
     return () => {
@@ -78,11 +85,14 @@ export function useMusic() {
       const e = await signRes.json().catch(() => ({}));
       throw new Error(e.error || t("toast.signedUrlFailed"));
     }
-    const { path, token } = await signRes.json();
+    // bucket はサーバーが決める（公式曲=公開バケット / 個人曲=非公開バケット）。署名トークンはバケット固有。
+    const { path, token, bucket } = await signRes.json();
     const sb = getSupabaseClient();
     const { error: upErr } = await sb.storage
-      .from(BUCKET)
-      .uploadToSignedUrl(path, token, file, { contentType: file.type || undefined });
+      .from(bucket || BUCKET)
+      // cacheControl を明示しないと max-age=undefined になり CDN キャッシュが効かない（公式曲のegress対策の要）。
+      // ファイル名はタイムスタンプ付きで不変なため1年キャッシュで安全。
+      .uploadToSignedUrl(path, token, file, { contentType: file.type || undefined, cacheControl: '31536000' });
     if (upErr) throw new Error(upErr.message || t("toast.uploadFailed"));
     return { name: file.name, path, size: file.size, type: file.type };
   }, []);

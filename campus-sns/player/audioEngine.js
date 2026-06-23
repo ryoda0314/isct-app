@@ -118,6 +118,14 @@ function pickNextIndex() {
 }
 
 function onEnded() {
+  // repeat='one': src を再代入すると同じ曲を毎回フル再ダウンロードしてしまう（egress増大）。
+  // 既に読み込み済みのバッファを頭出しして再生するだけにする。
+  if (repeat === 'one' && audio && index >= 0) {
+    audio.currentTime = 0;
+    audio.play().catch((e) => console.warn('[audioEngine] repeat-one play() rejected', e?.message));
+    emit();
+    return;
+  }
   const next = pickNextIndex();
   if (next === -1) { emit(); return; }
   loadAndPlay(next);

@@ -6,8 +6,9 @@ import { Av, Loader, useQRCode } from '../shared.jsx';
 import { SocialGraphView } from './SocialGraphView.jsx';
 import { QRScanner } from '../components/QRScanner.jsx';
 
-export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM,userId,lookupById,fetchGraph,fetchRecommendations,openProfile,groups=[],createGroup,leaveGroup,onOpenGroup,blockUser,unblockUser,isBlocked,blocks=[],muteUser,unmuteUser,isMuted,mutes=[],refetch})=>{
+export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM,userId,lookupById,fetchGraph,fetchRecommendations,openProfile,isAdmin,groups=[],createGroup,leaveGroup,onOpenGroup,blockUser,unblockUser,isBlocked,blocks=[],muteUser,unmuteUser,isMuted,mutes=[],refetch})=>{
   const [mode,setMode]=useState('list'); // 'list' | 'graph'
+  const [graphScope,setGraphScope]=useState('ego'); // 'ego' | 'all'（学内全体は管理者のみ）
   const [recs,setRecs]=useState([]);
   const [recsLoading,setRecsLoading]=useState(false);
   const [recsLoaded,setRecsLoaded]=useState(false);
@@ -351,7 +352,16 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
           <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder={t("friends.searchBtn")} style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:13,outline:"none",fontFamily:"inherit",padding:"0"}}/>
           {filter&&<button onClick={()=>setFilter('')} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:2}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>}
         </div>}
-        {mode==='graph'&&<div style={{flex:1}}/>}
+        {mode==='graph'&&<div style={{flex:1,display:"flex",justifyContent:"center"}}>
+          {isAdmin&&<div style={{display:"flex",alignItems:"center",gap:2,padding:2,borderRadius:8,background:T.bg3,height:34}}>
+            {[{id:'ego',label:t("friends.viewGraph")},{id:'all',label:t("graph.campus")}].map(s=>{
+              const active=graphScope===s.id;
+              return <button key={s.id} onClick={()=>setGraphScope(s.id)}
+                style={{padding:"0 12px",height:30,borderRadius:6,border:"none",cursor:"pointer",background:active?T.bg2:"transparent",color:active?T.accent:T.txD,fontSize:12,fontWeight:600,fontFamily:"inherit",transition:"all .15s",boxShadow:active?"0 1px 3px rgba(0,0,0,.12)":"none"}}>
+                {s.label}</button>;
+            })}
+          </div>}
+        </div>}
         <div style={{position:"relative",flexShrink:0}}>
           <button onClick={()=>setTopMenu(o=>!o)} title={t("friends.addFriend")}
             style={{position:"relative",width:34,height:34,borderRadius:8,border:`1px solid ${topMenu?`${T.accent}40`:T.bd}`,background:topMenu?`${T.accent}14`:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:topMenu?T.accent:T.txH,transition:"all .15s"}}
@@ -382,7 +392,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
       </div>
 
       {/* ── Graph mode ── */}
-      {mode==='graph'&&<SocialGraphView mob={mob} fetchGraph={fetchGraph} userId={userId} onStartDM={onStartDM} sendRequest={sendRequest} openProfile={openProfile}/>}
+      {mode==='graph'&&<SocialGraphView mob={mob} fetchGraph={fetchGraph} userId={userId} onStartDM={onStartDM} sendRequest={sendRequest} openProfile={openProfile} scope={isAdmin?graphScope:'ego'}/>}
 
       {/* ── Content (list mode) ── */}
       {mode==='list'&&<div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>

@@ -22,7 +22,7 @@ export function useTrainRoutes(enabled = true) {
 
   useEffect(() => { refetch(); }, [refetch]);
 
-  // route: { railway, station, direction, train_type?, label? }
+  // route: { origin_station, dest_station, label? }
   const addRoute = useCallback(async (route) => {
     if (isDemoMode()) return;
     try {
@@ -43,6 +43,24 @@ export function useTrainRoutes(enabled = true) {
     }
   }, [routes.length]);
 
+  // ホーム表示フラグの切替（楽観更新）
+  const toggleHome = useCallback(async (id, on) => {
+    setRoutes((cur) => cur.map((x) => x.id === id ? { ...x, on_home: on } : x));
+    if (isDemoMode()) return;
+    try {
+      const r = await fetch('/api/train/routes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, on_home: on }),
+      });
+      if (!r.ok) throw new Error('patch failed');
+    } catch (e) {
+      console.error('[useTrainRoutes toggleHome]', e);
+      setRoutes((cur) => cur.map((x) => x.id === id ? { ...x, on_home: !on } : x));
+      showToast(t("train.homeFailed"));
+    }
+  }, []);
+
   const removeRoute = useCallback(async (id) => {
     const prev = routes;
     setRoutes((cur) => cur.filter((x) => x.id !== id)); // 楽観削除
@@ -61,5 +79,5 @@ export function useTrainRoutes(enabled = true) {
     }
   }, [routes]);
 
-  return { routes, loading, addRoute, removeRoute, refetch };
+  return { routes, loading, addRoute, removeRoute, toggleHome, refetch };
 }
