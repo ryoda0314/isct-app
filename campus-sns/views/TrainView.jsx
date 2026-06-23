@@ -67,32 +67,33 @@ function RouteCard({ route, now, onRemove, onToggleHome, onSetFilter, variant = 
 
   const load = useCallback(async () => {
     const qs = new URLSearchParams({ origin: route.origin_station, dest: route.dest_station, lang: getLang() });
+    if (route.type_filter && route.type_filter.length) qs.set("types", route.type_filter.join(","));
     try {
       const r = await fetch(`/api/train/departures?${qs.toString()}`);
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setState("error"); return; }
       if (!j.available) { setState("unavailable"); return; }
-      setData({ finished: !!j.finished, trains: withTargets(j.trains, Date.now()) });
+      setData({ finished: !!j.finished, availableTypes: j.availableTypes || [], trains: withTargets(j.trains, Date.now()) });
       setState("ok");
     } catch { setState("error"); }
-  }, [route.origin_station, route.dest_station]);
+  }, [route.origin_station, route.dest_station, route.type_filter]);
 
   useEffect(() => { load(); const id = setInterval(load, 30 * 1000); return () => clearInterval(id); }, [load]);
 
   const nowMs = now.getTime();
   const countdown = (targetMs) => Math.max(0, Math.floor((targetMs - nowMs) / 1000)); // 残り秒
-  // 登録された種別フィルタ（null/空 = 全種別表示）
+  // 登録された種別フィルタ（null/空 = 全種別表示）。絞り込み自体はサーバー側で実施済み。
+  // ここでは funnel の点灯／フィルタパネルの選択状態にのみ使う。
   const tf = route.type_filter && route.type_filter.length ? new Set(route.type_filter) : null;
   const availableTypes = (state === "ok" && data ? data.availableTypes : []) || [];
   // 発車20秒後までは「まもなく」で残し、その後ドロップ（出払ったら下のeffectで補充）
-  const timeVisible = (state === "ok" && data ? data.trains : []).filter((d) => d.targetMs - nowMs > -20000);
-  const visible = tf ? timeVisible.filter((d) => tf.has(d.trainType)) : timeVisible;
+  const visible = (state === "ok" && data ? data.trains : []).filter((d) => d.targetMs - nowMs > -20000);
   const hero = visible[0];
 
-  // 全列車（種別問わず）が出払ったら補充取得。種別フィルタでは再取得しない（同データでループするため）。
+  // 表示中が出払ったら補充取得。finished（=対象種別が本日もう無い）なら再取得しない（ループ防止）。
   useEffect(() => {
-    if (state === "ok" && data && !data.finished && timeVisible.length === 0) load();
-  }, [timeVisible.length, state, data, load]);
+    if (state === "ok" && data && !data.finished && visible.length === 0) load();
+  }, [visible.length, state, data, load]);
 
   const labelParts = (route.label || route.dest_station || "").split("→").map((s) => s.trim());
 
@@ -150,8 +151,7 @@ function RouteCard({ route, now, onRemove, onToggleHome, onSetFilter, variant = 
         {state === "unavailable" && <div style={{ color: T.txD, fontSize: 12.5, padding: "10px 0" }}>{t("train.noOpenData")}</div>}
         {state === "ok" && !hero &&
           <div style={{ color: T.txD, fontSize: 13, padding: "10px 0" }}>
-            {data?.finished ? t("train.serviceEnded")
-              : (tf && timeVisible.length > 0) ? t("train.noneOfFilterSoon")
+            {data?.finished ? (tf ? t("train.noMoreFilteredToday") : t("train.serviceEnded"))
               : t("train.loading")}
           </div>}
 

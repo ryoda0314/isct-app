@@ -150,6 +150,7 @@ const M = {
   "train.filterHeading":{ ja:"表示する種別", en:"Show types", zh:"显示种别", ko:"표시할 종별" },
   "train.filterAll":  { ja:"すべて", en:"All", zh:"全部", ko:"전체" },
   "train.noneOfFilterSoon":{ ja:"選択した種別の電車は当面ありません", en:"No trains of the selected type for a while", zh:"所选种别暂无班次", ko:"선택한 종별의 전철이 당분간 없습니다" },
+  "train.noMoreFilteredToday":{ ja:"本日、絞り込み中の種別はこれ以上ありません", en:"No more trains of the selected type today", zh:"今日所选种别已无后续班次", ko:"오늘 선택한 종별의 전철은 더 없습니다" },
   "train.filterFailed":{ ja:"絞り込みの保存に失敗しました", en:"Failed to save filter", zh:"筛选保存失败", ko:"필터 저장에 실패했습니다" },
   "train.emptyTitle": { ja:"まだルートが登録されていません", en:"No routes saved yet", zh:"尚未登记路线", ko:"등록된 경로가 없습니다" },
   "train.emptyHint":  { ja:"「ルート追加」から行き先の駅を登録しましょう", en:"Tap \"Add route\" to register a destination station", zh:"点击“添加路线”登记目的地车站", ko:"\"경로 추가\"에서 목적지 역을 등록하세요" },

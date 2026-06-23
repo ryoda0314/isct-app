@@ -36,6 +36,11 @@ export async function GET(request) {
       }
     }
 
+    // 種別フィルタ（クエリ ?types=id1,id2）。種別ごとに「その種別の直近」を返したいので
+    // スライスより前に絞り込む（全種別12件から拾うと急行が数件しか残らない問題への対処）。
+    const types = (searchParams.get('types') || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const typeSet = types.length ? new Set(types) : null;
+
     const now = jstNow();
     const upcoming = src.departures
       .map((d) => {
@@ -43,8 +48,11 @@ export async function GET(request) {
         return { ...d, _m: m, minutesUntil: m - now.minutes };
       })
       .filter((d) => d.minutesUntil >= 0)
-      .sort((a, b) => a._m - b._m)
-      .slice(0, 12)
+      .filter((d) => !typeSet || typeSet.has(d.trainType))
+      .sort((a, b) => a._m - b._m);
+
+    const trains = upcoming
+      .slice(0, 5)
       .map((d) => ({
         time: d.departureTime,
         minutesUntil: d.minutesUntil,
@@ -54,11 +62,12 @@ export async function GET(request) {
         requiredMin: d.requiredMin,
       }));
 
+    // finished: 絞り込み後の本日残り発車が無い（種別フィルタ時は「対象種別が本日もう無い」）
     return NextResponse.json({
       available: true,
       finished: upcoming.length === 0,
       availableTypes,
-      trains: upcoming,
+      trains,
     });
   } catch (err) {
     console.error('[Train departures]', err);
