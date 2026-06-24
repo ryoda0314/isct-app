@@ -63,7 +63,7 @@ export async function GET(request) {
       const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
       const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
       const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const [users, posts, messages, dms, reportsPending, reportsTotal, banned, dau, wau, mau, circles] = await Promise.all([
+      const [users, posts, messages, dms, reportsPending, reportsTotal, banned, dau, wau, mau, circles, feedbackPending] = await Promise.all([
         sb.from('profiles').select('*', { count: 'exact', head: true }),
         sb.from('posts').select('*', { count: 'exact', head: true }),
         sb.from('messages').select('*', { count: 'exact', head: true }),
@@ -75,6 +75,7 @@ export async function GET(request) {
         sb.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', weekAgo),
         sb.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', monthAgo),
         sb.from('circles').select('*', { count: 'exact', head: true }),
+        sb.from('feedback').select('*', { count: 'exact', head: true }).eq('status', 'open'),
       ]);
       return NextResponse.json({
         users: users.count || 0,
@@ -88,6 +89,7 @@ export async function GET(request) {
         wau: wau.count || 0,
         mau: mau.count || 0,
         circles: circles.count || 0,
+        feedbackPending: feedbackPending.count || 0,
       });
     }
 
@@ -184,6 +186,23 @@ export async function GET(request) {
       const { data, error, count } = await query;
       if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       return NextResponse.json({ reports: data || [], total: count || 0, page });
+    }
+
+    if (action === 'feedback') {
+      const page = parseInt(searchParams.get('page')) || 0;
+      const limit = 30;
+      const status = searchParams.get('status') || '';
+      const category = searchParams.get('category') || '';
+      let query = sb
+        .from('feedback')
+        .select('*, user:profiles!feedback_user_id_fkey(name, avatar, color)', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(page * limit, (page + 1) * limit - 1);
+      if (status) query = query.eq('status', status);
+      if (category) query = query.eq('category', category);
+      const { data, error, count } = await query;
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
+      return NextResponse.json({ feedback: data || [], total: count || 0, page });
     }
 
     if (action === 'announcements') {
@@ -985,6 +1004,28 @@ export async function POST(request) {
       }).eq('id', reportId);
       if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'resolve_report', 'report', reportId, { status, adminNote });
+      return NextResponse.json({ ok: true });
+    }
+
+    // --- Feedback (不具合・お問い合わせ) ---
+    if (action === 'resolve_feedback') {
+      const { feedbackId, status, adminNote } = body;
+      if (!feedbackId || !status) return NextResponse.json({ error: 'feedbackId and status required' }, { status: 400 });
+      if (!['open', 'in_progress', 'resolved', 'closed'].includes(status)) {
+        return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+      }
+      const updates = { status, admin_note: adminNote ?? undefined };
+      if (status === 'resolved' || status === 'closed') {
+        updates.resolved_by = auth.userid;
+        updates.resolved_at = new Date().toISOString();
+      } else {
+        updates.resolved_by = null;
+        updates.resolved_at = null;
+      }
+      if (updates.admin_note === undefined) delete updates.admin_note;
+      const { error } = await sb.from('feedback').update(updates).eq('id', feedbackId);
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
+      await auditLog(sb, auth.userid, 'resolve_feedback', 'feedback', feedbackId, { status, adminNote });
       return NextResponse.json({ ok: true });
     }
 

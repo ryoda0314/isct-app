@@ -530,6 +530,62 @@ export const AREAS = {
   "m5": [[35.609076,139.678062],[35.609114,139.678227],[35.608966,139.678282],[35.608927,139.678116]],
 };
 
+// ── 出席ジオフェンス: 現在地が指定建物の範囲内かを判定 ──
+const _toR = (x) => (x * Math.PI) / 180;
+const _haversineM = (aLat, aLng, bLat, bLng) => {
+  const R = 6371000;
+  const dLat = _toR(bLat - aLat), dLng = _toR(bLng - aLng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(_toR(aLat)) * Math.cos(_toR(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+};
+const _pointInPoly = (lat, lng, poly) => {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [yi, xi] = poly[i], [yj, xj] = poly[j];
+    if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+};
+// 緯度経度を基準点まわりの局所平面(m)に投影して点-線分の最短距離を測る
+const _distToPolyM = (lat, lng, poly) => {
+  const lat0 = poly[0][0], R = 6371000;
+  const proj = (la, ln) => [R * _toR(ln) * Math.cos(_toR(lat0)), R * _toR(la)];
+  const [px, py] = proj(lat, lng);
+  let min = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [ax, ay] = proj(poly[j][0], poly[j][1]);
+    const [bx, by] = proj(poly[i][0], poly[i][1]);
+    const dx = bx - ax, dy = by - ay;
+    const t = dx || dy ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy))) : 0;
+    const d = Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    if (d < min) min = d;
+  }
+  return min;
+};
+
+/**
+ * 現在地(lat,lng)が建物 buildingId の範囲内かを判定する。
+ * AREAS にポリゴンがあればポリゴン基準、無ければ SPOT 中心 ±SPOT_RADIUS で判定。
+ * bufferM はGPS誤差を吸収する許容マージン(m)。
+ * @returns {{ok:boolean, distance:number}} distance は範囲外時の最短距離(m)、範囲内は0。
+ */
+export function checkInsideBuilding(lat, lng, buildingId, bufferM = 25) {
+  if (!buildingId) return { ok: false, distance: Infinity };
+  const poly = AREAS[buildingId];
+  if (poly && poly.length >= 3) {
+    if (_pointInPoly(lat, lng, poly)) return { ok: true, distance: 0 };
+    const d = _distToPolyM(lat, lng, poly);
+    return { ok: d <= bufferM, distance: d };
+  }
+  const sp = getSpot(buildingId);
+  if (sp) {
+    const SPOT_RADIUS = 40; // ポリゴン未定義の建物は中心から半径40mを建物とみなす
+    const d = _haversineM(lat, lng, sp.lat, sp.lng);
+    return { ok: d <= SPOT_RADIUS + bufferM, distance: Math.max(0, d - SPOT_RADIUS) };
+  }
+  return { ok: false, distance: Infinity };
+}
+
 // ── 建物入口 ──
 // spot: 建物ID, lat/lng: 入口座標
 // 1建物に複数入口可。ルート案内で歩道→入口の接続に使用

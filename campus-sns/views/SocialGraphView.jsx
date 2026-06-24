@@ -163,16 +163,19 @@ export const SocialGraphView = ({ mob, fetchGraph, userId, onStartDM, sendReques
     //  ・友達↔2次(やや薄め)
     //  ・2次↔2次 = あなたと繋がりのない人どうしのつながり(orangeで目立たせる)
     const isAll = scopeRef.current === 'all';
+    // 線幅をズーム補正: ctx.scale で線が縮むため px/scale で画面上の太さを保ち、
+    // 縮小時(scale小)はさらに最大1.8倍まで太くして見やすくする。
+    const lw = (px) => px / scale * Math.min(1.8, Math.max(1, 0.7 / scale));
     for (const e of edgesRef.current) {
       if (isAll) {
         // 学内全体: 自分/友達に接する辺だけ強調、他は薄く
         const hot = e.a.degree <= 1 || e.b.degree <= 1;
-        ctx.lineWidth = hot ? 1.2 : 0.6;
+        ctx.lineWidth = lw(hot ? 1.6 : 0.9);
         ctx.strokeStyle = hot ? `${T.accent}88` : `${T.tx}22`;
       } else {
         const bothSecond = e.a.degree === 2 && e.b.degree === 2;
         const anySecond = e.a.degree === 2 || e.b.degree === 2;
-        ctx.lineWidth = bothSecond ? 1.5 : 1;
+        ctx.lineWidth = lw(bothSecond ? 2 : anySecond ? 1.3 : 1.6);
         ctx.strokeStyle = bothSecond ? `${T.orange}cc` : anySecond ? `${T.tx}55` : `${T.accent}66`;
       }
       ctx.beginPath();

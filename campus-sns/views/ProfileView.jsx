@@ -14,6 +14,7 @@ import { TIMEOUT_OPTIONS } from '../hooks/useAppLock.js';
 import { SCHOOLS, DEPTS, UNIT_COL } from '../data.js';
 import { PrivacyPolicyView } from './PrivacyPolicyView.jsx';
 import { TermsOfServiceView } from './TermsOfServiceView.jsx';
+import { FeedbackModal } from '../FeedbackModal.jsx';
 
 /* ─── 画像 → 正方形クロップ → data URI ─── */
 const AV_SZ=160;
@@ -139,6 +140,9 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   const [cacheCleared,setCacheCleared]=useState(false);
   const [showPrivacy,setShowPrivacy]=useState(false);
   const [showTerms,setShowTerms]=useState(false);
+  const [showFeedback,setShowFeedback]=useState(false);
+  const [showLangPage,setShowLangPage]=useState(false);
+  const [showThemePage,setShowThemePage]=useState(false);
   // App lock PIN setup
   const [pinSetup,setPinSetup]=useState(null); // null | {phase:"new"} | {phase:"confirm",first:string}
   const [pinInput,setPinInput]=useState("");
@@ -860,101 +864,16 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             </div>}
           </div>}
           </>;})()}
-          {/* ── 言語設定セクション ── */}
-          <div style={{padding:"10px 14px",borderBottom:`1px solid ${T.bd}`}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-              <span style={{color:T.txD,display:"flex"}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
-              <span style={{fontSize:13,fontWeight:600,color:T.txH}}>{t("settings.language")}</span>
-            </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {LANGUAGES.map(l=>{
-                const sel=langPref===l.id;
-                return <button key={l.id} onClick={e=>{e.stopPropagation();setLangPref?.(l.id);}}
-                  style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}14`:"transparent",color:sel?T.accent:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
-                  <span style={{marginRight:5}}>{l.flag}</span>{l.name}
-                </button>;
-              })}
-            </div>
-            {/* toki pona のとき: sitelen pona(表語文字)表示トグル */}
-            {langPref==="tp"&&(
-              <div onClick={e=>{e.stopPropagation();setSitelenPref?.(!sitelenPref);}}
-                style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:10,padding:"8px 2px",cursor:"pointer"}}>
-                <span style={{fontSize:13,color:T.txH}}>{t("settings.sitelenPona")}</span>
-                <span style={{width:40,height:24,borderRadius:12,background:sitelenPref?T.accent:T.bd,position:"relative",transition:"background .15s",flexShrink:0}}>
-                  <span style={{position:"absolute",top:2,left:sitelenPref?18:2,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
-                </span>
-              </div>
-            )}
-          </div>
-          {/* ── テーマ設定セクション ── */}
-          <div style={{padding:"10px 14px",borderBottom:`1px solid ${T.bd}`}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-              <span style={{color:T.txD,display:"flex"}}>{dark?I.moon:I.sun}</span>
-              <span style={{fontSize:13,fontWeight:600,color:T.txH}}>{t("profile.theme")}</span>
-            </div>
-            {/* ベーステーマ */}
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {THEME_MODES.base.map(m=>{
-                const sel=themePref===m.id;
-                return <button key={m.id} onClick={e=>{e.stopPropagation();setThemePref?.(m.id);}}
-                  style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}14`:"transparent",color:sel?T.accent:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
-                  {t(m.nameKey)}
-                </button>;
-              })}
-            </div>
-            {/* Science Tokyo ブランド */}
-            <div style={{marginTop:12,marginBottom:4}}>
-              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>Science Tokyo</span>
-            </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {THEME_MODES.brand.map(m=>{
-                const sel=themePref===m.id;
-                return <button key={m.id} onClick={e=>{e.stopPropagation();setThemePref?.(m.id);}}
-                  style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:"transparent",color:sel?m.col:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
-                  {t(m.nameKey)}
-                </button>;
-              })}
-            </div>
-            {/* ソフトテーマ */}
-            <div style={{marginTop:12,marginBottom:4}}>
-              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>{t("profile.themeSoft")}</span>
-            </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {THEME_MODES.soft.map(m=>{
-                const sel=themePref===m.id;
-                return <button key={m.id} onClick={e=>{e.stopPropagation();setThemePref?.(m.id);}}
-                  style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:"transparent",color:sel?m.col:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
-                  <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:m.col,marginRight:6,verticalAlign:"middle"}}/>{t(m.nameKey)}
-                </button>;
-              })}
-            </div>
-            {/* 季節テーマ */}
-            <div style={{marginTop:12,marginBottom:4}}>
-              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>{t("profile.themeSeason")}</span>
-            </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {THEME_MODES.season.map(m=>{
-                const sel=themePref===m.id;
-                return <button key={m.id} onClick={e=>{e.stopPropagation();setThemePref?.(m.id);}}
-                  style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:"transparent",color:sel?m.col:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
-                  <span style={{marginRight:4}}>{m.emoji}</span>{t(m.nameKey)}
-                </button>;
-              })}
-            </div>
-            {/* おふざけテーマ */}
-            <div style={{marginTop:12,marginBottom:4}}>
-              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>{t("profile.themeFun")}</span>
-            </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {THEME_MODES.fun.map(m=>{
-                const sel=themePref===m.id;
-                return <button key={m.id} onClick={e=>{e.stopPropagation();setThemePref?.(m.id);}}
-                  style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:"transparent",color:sel?m.col:T.txD,fontSize:12,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
-                  <span style={{marginRight:4}}>{m.emoji}</span>{t(m.nameKey)}
-                </button>;
-              })}
-            </div>
-          </div>
+          {/* ── 言語（タップでページ遷移） ── */}
+          <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>}
+            label={t("settings.language")}
+            onClick={()=>setShowLangPage(true)}
+            right={<span style={{fontSize:13,fontWeight:600,color:T.accent}}>{(LANGUAGES.find(l=>l.id===langPref)||{}).name||langPref}</span>}/>
+          {/* ── テーマ（タップでページ遷移） ── */}
+          <GRow icon={dark?I.moon:I.sun}
+            label={t("profile.theme")}
+            onClick={()=>setShowThemePage(true)}
+            right={(()=>{const all=[...THEME_MODES.base,...THEME_MODES.brand,...THEME_MODES.soft,...THEME_MODES.season,...THEME_MODES.fun];const cur=all.find(m=>m.id===themePref);return <span style={{fontSize:13,fontWeight:600,color:cur?.col||T.accent}}>{cur?t(cur.nameKey):themePref}</span>;})()}/>
           {/* ── アクセントカラーセクション ── */}
           <div style={{padding:"10px 14px",borderBottom:`1px solid ${T.bd}`}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
@@ -1175,6 +1094,10 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
         {/* ═══ その他 ═══ */}
         <GHead>{t("profile.other")}</GHead>
         <GCard>
+          <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>}
+            label={t("feedback.menuLabel")}
+            sub={t("feedback.menuSub")}
+            onClick={()=>setShowFeedback(true)}/>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>}
             label={t("profile.termsOfService")}
             sub={t("profile.termsSub")}
@@ -1217,6 +1140,112 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
           </div>
           <PrivacyPolicyView mob={mob} embedded={false}/>
         </div>}
+        {/* ═══ 言語 モーダル ═══ */}
+        {showLangPage&&<div onClick={()=>setShowLangPage(false)} style={{position:"fixed",inset:0,zIndex:10001,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:400,maxHeight:"82vh",overflowY:"auto",borderRadius:16,background:T.bg2,border:`1px solid ${T.bd}`,padding:24,boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+              <span style={{color:T.accent,display:"flex"}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
+              <span style={{fontSize:15,fontWeight:700,color:T.txH}}>{t("settings.language")}</span>
+              <div style={{flex:1}}/>
+              <button onClick={()=>setShowLangPage(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.x}</button>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {LANGUAGES.map(l=>{
+                const sel=langPref===l.id;
+                return <button key={l.id} onClick={()=>setLangPref?.(l.id)}
+                  style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"13px 16px",borderRadius:12,border:`1.5px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}14`:T.bg3,color:sel?T.accent:T.txH,fontSize:15,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s",textAlign:"left"}}>
+                  <span>{l.flag}</span><span style={{flex:1}}>{l.name}</span>
+                  {sel&&<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                </button>;
+              })}
+            </div>
+            {/* toki pona のとき: sitelen pona(表語文字)表示トグル */}
+            {langPref==="tp"&&(
+              <div onClick={()=>setSitelenPref?.(!sitelenPref)}
+                style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:16,padding:"13px 16px",borderRadius:12,border:`1px solid ${T.bd}`,background:T.bg3,cursor:"pointer"}}>
+                <span style={{fontSize:15,color:T.txH}}>{t("settings.sitelenPona")}</span>
+                <span style={{width:42,height:24,borderRadius:12,background:sitelenPref?T.accent:T.bd,position:"relative",transition:"background .15s",flexShrink:0}}>
+                  <span style={{position:"absolute",top:2,left:sitelenPref?20:2,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
+                </span>
+              </div>
+            )}
+          </div>
+        </div>}
+        {/* ═══ テーマ モーダル ═══ */}
+        {showThemePage&&<div onClick={()=>setShowThemePage(false)} style={{position:"fixed",inset:0,zIndex:10001,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:440,maxHeight:"82vh",overflowY:"auto",borderRadius:16,background:T.bg2,border:`1px solid ${T.bd}`,padding:24,boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+              <span style={{color:T.accent,display:"flex"}}>{dark?I.moon:I.sun}</span>
+              <span style={{fontSize:15,fontWeight:700,color:T.txH}}>{t("profile.theme")}</span>
+              <div style={{flex:1}}/>
+              <button onClick={()=>setShowThemePage(false)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.x}</button>
+            </div>
+            {/* ベーステーマ */}
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              {THEME_MODES.base.map(m=>{
+                const sel=themePref===m.id;
+                return <button key={m.id} onClick={()=>setThemePref?.(m.id)}
+                  style={{padding:"9px 18px",borderRadius:10,border:`1.5px solid ${sel?T.accent:T.bd}`,background:sel?`${T.accent}14`:T.bg3,color:sel?T.accent:T.txD,fontSize:13,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
+                  {t(m.nameKey)}
+                </button>;
+              })}
+            </div>
+            {/* Science Tokyo ブランド */}
+            <div style={{marginTop:18,marginBottom:6}}>
+              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>Science Tokyo</span>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              {THEME_MODES.brand.map(m=>{
+                const sel=themePref===m.id;
+                return <button key={m.id} onClick={()=>setThemePref?.(m.id)}
+                  style={{padding:"9px 18px",borderRadius:10,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:T.bg3,color:sel?m.col:T.txD,fontSize:13,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
+                  {t(m.nameKey)}
+                </button>;
+              })}
+            </div>
+            {/* ソフトテーマ */}
+            <div style={{marginTop:18,marginBottom:6}}>
+              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>{t("profile.themeSoft")}</span>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              {THEME_MODES.soft.map(m=>{
+                const sel=themePref===m.id;
+                return <button key={m.id} onClick={()=>setThemePref?.(m.id)}
+                  style={{padding:"9px 18px",borderRadius:10,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:T.bg3,color:sel?m.col:T.txD,fontSize:13,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
+                  <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:m.col,marginRight:6,verticalAlign:"middle"}}/>{t(m.nameKey)}
+                </button>;
+              })}
+            </div>
+            {/* 季節テーマ */}
+            <div style={{marginTop:18,marginBottom:6}}>
+              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>{t("profile.themeSeason")}</span>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              {THEME_MODES.season.map(m=>{
+                const sel=themePref===m.id;
+                return <button key={m.id} onClick={()=>setThemePref?.(m.id)}
+                  style={{padding:"9px 18px",borderRadius:10,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:T.bg3,color:sel?m.col:T.txD,fontSize:13,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
+                  <span style={{marginRight:4}}>{m.emoji}</span>{t(m.nameKey)}
+                </button>;
+              })}
+            </div>
+            {/* おふざけテーマ */}
+            <div style={{marginTop:18,marginBottom:6}}>
+              <span style={{fontSize:11,fontWeight:600,color:T.txD,letterSpacing:"0.03em"}}>{t("profile.themeFun")}</span>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              {THEME_MODES.fun.map(m=>{
+                const sel=themePref===m.id;
+                return <button key={m.id} onClick={()=>setThemePref?.(m.id)}
+                  style={{padding:"9px 18px",borderRadius:10,border:`1.5px solid ${sel?m.col:T.bd}`,background:sel?`${m.col}18`:T.bg3,color:sel?m.col:T.txD,fontSize:13,fontWeight:sel?700:500,cursor:"pointer",transition:"all .12s"}}>
+                  <span style={{marginRight:4}}>{m.emoji}</span>{t(m.nameKey)}
+                </button>;
+              })}
+            </div>
+          </div>
+        </div>}
+        {/* ═══ 不具合・お問い合わせ モーダル ═══ */}
+        {showFeedback&&<FeedbackModal onClose={()=>setShowFeedback(false)} langPref={langPref} currentView="profile"/>}
       </div>
     </div>
   );

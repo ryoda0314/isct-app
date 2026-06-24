@@ -17,6 +17,7 @@ const API = "";
 const tabs = [
   { id: "stats", labelKey: "admin.tab.stats", icon: I.bar },
   { id: "reports", labelKey: "admin.tab.reports", icon: I.flag },
+  { id: "feedback", labelKey: "admin.tab.feedback", icon: I.mail },
   { id: "users", labelKey: "admin.tab.users", icon: I.users },
   { id: "posts", labelKey: "admin.tab.posts", icon: I.feed },
   { id: "comments", labelKey: "admin.tab.comments", icon: I.chat },
@@ -441,6 +442,7 @@ const StatsTab = () => {
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
         <Card label={t("admin.stat.reportsPending")} value={stats?.reportsPending} color={T.red} />
         <Card label={t("admin.stat.reportsTotal")} value={stats?.reportsTotal} color={T.orange} />
+        <Card label={t("admin.stat.feedbackPending")} value={stats?.feedbackPending} color={T.accent} />
         <Card label={t("admin.stat.bannedUsers")} value={stats?.bannedUsers} color={T.red} />
       </div>
       <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "20px 0 12px" }}>{t("admin.stats.activeUsers")}</div>
@@ -566,6 +568,92 @@ const ReportsTab = () => {
           </div>
         ))}
         {!loading && reports.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.report.empty")}</div>}
+      </div>
+      <Pager page={page} total={total} limit={30} onPage={p => load(p, filter)} />
+    </div>
+  );
+};
+
+// ---- Feedback Tab (不具合・お問い合わせ) ----
+const FB_CAT_KEYS = { bug: "admin.fbcat.bug", feature: "admin.fbcat.feature", question: "admin.fbcat.question", account: "admin.fbcat.account", other: "admin.fbcat.other" };
+const FB_STATUS_KEYS = { open: "admin.fbstatus.open", in_progress: "admin.fbstatus.in_progress", resolved: "admin.fbstatus.resolved", closed: "admin.fbstatus.closed" };
+const FB_STATUS_COLORS = { open: T.orange, in_progress: T.accent, resolved: T.green, closed: T.txD };
+const FB_CAT_COLORS = { bug: T.red, feature: T.accent, question: T.yellow, account: T.orange, other: T.txD };
+
+const FeedbackTab = () => {
+  const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [filter, setFilter] = useState("open");
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback((p, f) => {
+    setLoading(true);
+    let qs = `action=feedback&page=${p}`;
+    if (f) qs += `&status=${f}`;
+    fetch(`${API}/api/admin?${qs}`)
+      .then(r => r.json())
+      .then(d => { setItems(d.feedback || []); setTotal(d.total || 0); setPage(d.page || 0); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(0, filter); }, [load, filter]);
+
+  const handleResolve = async (id, status) => {
+    const note = prompt(t("admin.feedback.notePrompt"));
+    if (note === null && (status === "resolved" || status === "closed")) { /* allow empty */ }
+    const r = await fetch(`${API}/api/admin`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "resolve_feedback", feedbackId: id, status, adminNote: note || "" }),
+    });
+    if (r.ok) load(page, filter);
+  };
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.feedback.manage")} ({total})</div>
+        <div style={{ flex: 1 }} />
+        <select value={filter} onChange={e => setFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none" }}>
+          <option value="">{t("admin.all")}</option>
+          <option value="open">{t("admin.fbstatus.open")}</option>
+          <option value="in_progress">{t("admin.fbstatus.in_progress")}</option>
+          <option value="resolved">{t("admin.fbstatus.resolved")}</option>
+          <option value="closed">{t("admin.fbstatus.closed")}</option>
+        </select>
+      </div>
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {items.map(f => (
+          <div key={f.id} style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+              <Badge text={FB_STATUS_KEYS[f.status] ? t(FB_STATUS_KEYS[f.status]) : f.status} color={FB_STATUS_COLORS[f.status] || T.txD} />
+              <Badge text={FB_CAT_KEYS[f.category] ? t(FB_CAT_KEYS[f.category]) : f.category} color={FB_CAT_COLORS[f.category] || T.txD} />
+              <span style={{ fontSize: 11, color: T.txD, marginLeft: "auto" }}>{f.created_at ? new Date(f.created_at).toLocaleString("ja-JP") : ""}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: T.txD }}>{t("admin.feedback.sender")}:</span>
+              <Av u={{ name: f.user?.name, col: f.user?.color, avatar: f.user?.avatar }} sz={20} />
+              <span style={{ fontSize: 13, color: T.txH }}>{f.user?.name || t("admin.unknown")}</span>
+            </div>
+            {f.subject && <div style={{ fontSize: 14, fontWeight: 700, color: T.txH, marginBottom: 4 }}>{f.subject}</div>}
+            <div style={{ fontSize: 13, color: T.tx, marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: T.bg2, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{f.body}</div>
+            {f.contact && <div style={{ fontSize: 12, color: T.txD, marginBottom: 6 }}>{t("admin.feedback.contact")}: {f.contact}</div>}
+            {f.diagnostics && (
+              <div style={{ fontSize: 11, color: T.txD, marginBottom: 6, fontFamily: "monospace", wordBreak: "break-all" }}>
+                {t("admin.feedback.diag")}: {Object.entries(f.diagnostics).map(([k, v]) => `${k}=${v}`).join("  ")}
+              </div>
+            )}
+            {f.admin_note && <div style={{ fontSize: 12, color: T.txD, marginBottom: 8 }}>{t("admin.report.adminNote")}: {f.admin_note}</div>}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {f.status === "open" && <Btn onClick={() => handleResolve(f.id, "in_progress")} color={T.accent}>{t("admin.feedback.markInProgress")}</Btn>}
+              {(f.status === "open" || f.status === "in_progress") && <Btn onClick={() => handleResolve(f.id, "resolved")} color={T.green}>{t("admin.feedback.markResolved")}</Btn>}
+              {f.status !== "closed" && <Btn onClick={() => handleResolve(f.id, "closed")} color={T.txD}>{t("admin.feedback.close")}</Btn>}
+            </div>
+          </div>
+        ))}
+        {!loading && items.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.feedback.empty")}</div>}
       </div>
       <Pager page={page} total={total} limit={30} onPage={p => load(p, filter)} />
     </div>
@@ -4263,6 +4351,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
       <div style={{ flex: 1, overflowY: tab === "map" ? "hidden" : "auto", display: "flex", flexDirection: "column" }}>
         {tab === "stats" && <StatsTab />}
         {tab === "reports" && <ReportsTab />}
+        {tab === "feedback" && <FeedbackTab />}
         {tab === "users" && <UsersTab />}
         {tab === "posts" && <PostsTab courses={courses} schools={schools} depts={depts} />}
         {tab === "comments" && <CommentsTab />}

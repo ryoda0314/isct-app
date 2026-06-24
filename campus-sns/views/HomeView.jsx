@@ -5,7 +5,9 @@ import { t, locName, locCal } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { NOW, uDue, pDone } from "../utils.jsx";
 import { Tag } from "../shared.jsx";
-import { getSpot } from "../hooks/useLocationSharing.js";
+import { getSpot, checkInsideBuilding } from "../hooks/useLocationSharing.js";
+import { getSciSessions } from "../attendanceUtils.js";
+import { showToast } from "../hooks/useToast.js";
 import { getAcademicInfo, getCurrentQuarter } from "../academicCalendar.js";
 import { buildTimetable } from "../../lib/transform/timetable-builder.js";
 import { PERIOD_TIMES } from "../examData.js";
@@ -65,8 +67,9 @@ const getQA=()=>{try{const v=localStorage.getItem("quickAccess");return v?JSON.p
 
 export { QA_ALL, QA_DEFAULT };
 
-export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvents=[],quarter,hiddenSet=new Set(),qd,qDataAll={},goToBuilding,setDid,userDepts=[],userSchools=[],userUnit,medSessions=[],setPendingMat})=>{
+export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvents=[],quarter,hiddenSet=new Set(),qd,qDataAll={},goToBuilding,setDid,userDepts=[],userSchools=[],userUnit,medSessions=[],setPendingMat,records={},setStatus})=>{
   const [qaIds]=useState(getQA);
+  const [attBusy,setAttBusy]=useState(null); // 出席チェック中の course.id
   const isMed=medSessions.length>0;
   const qaItems=qaIds.map(id=>QA_ALL.find(q=>q.id===id)).filter(Boolean).filter(q=>(isNative()||!(q.id==="portal"||q.id==="isctportal"))&&(!isDemoMode()||!(q.id==="portal"||q.id==="isctportal"))&&!(isMed&&q.id==="portal"));
   const [now,setNow]=useState(()=>new Date());
@@ -238,6 +241,31 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
   todayAsgn.forEach(a=>{const d=a.due;const m=d.getHours()*60+d.getMinutes();const co=courses.find(x=>x.id===a.cid);timeline.push({type:"deadline",a,co,sM:m,sortMin:m,st:a.due<NOW?"done":"next"});});
   todayExams.forEach(ex=>{const pt=PERIOD_TIMES[ex.period];if(!pt)return;const [sh,sm]=pt.start.split(":").map(Number);const [eh,em]=pt.end.split(":").map(Number);const sM=sh*60+sm,eM=eh*60+em;const co=courses.find(c=>c.codeRaw===ex.code_raw||(c.code&&c.code===ex.code));timeline.push({type:"exam",ex,co,sM,eM,sortMin:sM,st:nowMin>=eM?"done":nowMin>=sM?"now":"next"});});
   timeline.sort((a,b)=>a.sortMin-b.sortMin);
+
+  // 出席チェックイン: 現在地が授業の校舎範囲内なら present を記録
+  const sciRecords=records.sci||{};
+  const attSession=(co)=>getSciSessions(co).find(s=>s.dateStr===todayDateStr)||null;
+  const isCheckedIn=(co)=>{const s=attSession(co);return s?sciRecords[String(co.id)]?.[s.sessionKey]==="present":false;};
+  const markAttendance=(co)=>{
+    if(attBusy)return;
+    if(!co?.building){showToast(t("toast.attendNoBuilding"));return;}
+    const sess=attSession(co);
+    if(!sess){showToast(t("toast.attendNoSession"));return;}
+    if(!navigator.geolocation){showToast(t("toast.attendNoGps"));return;}
+    setAttBusy(co.id);
+    navigator.geolocation.getCurrentPosition(
+      (pos)=>{
+        const {latitude,longitude,accuracy}=pos.coords;
+        const buf=Math.max(20,Math.min(accuracy||30,50)); // GPS誤差を許容(20〜50m)
+        const {ok,distance}=checkInsideBuilding(latitude,longitude,co.building,buf);
+        if(ok){setStatus?.("sci",co.id,sess,"present");showToast(t("toast.attendOk"),"success");}
+        else showToast(t("toast.attendOutside",{d:Math.round(distance)}));
+        setAttBusy(null);
+      },
+      ()=>{showToast(t("toast.attendNoGps"));setAttBusy(null);},
+      {enableHighAccuracy:true,timeout:10000,maximumAge:5000}
+    );
+  };
 
   const gcol=mob?2:3;
 
@@ -527,7 +555,12 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
                       </span>}
                     </div>
                   </div>
-                  {act&&<span style={{fontSize:8,fontWeight:700,color:co.col,background:`${co.col}20`,padding:"1px 5px",borderRadius:3,alignSelf:"center",flexShrink:0}}>NOW</span>}
+                  {act&&co.building&&(()=>{const done=isCheckedIn(co);const busy=attBusy===co.id;return(
+                    <button onClick={e=>{e.stopPropagation();if(!done&&!busy)markAttendance(co);}} disabled={busy||done}
+                      style={{alignSelf:"center",flexShrink:0,border:"none",borderRadius:6,padding:"5px 9px",fontSize:11,fontWeight:700,cursor:done?"default":"pointer",color:"#fff",background:done?T.green:co.col,opacity:busy?.6:1,display:"inline-flex",alignItems:"center",gap:3,whiteSpace:"nowrap"}}>
+                      {done?`✓ ${t("home.attendDone")}`:busy?t("home.attendChecking"):t("home.attend")}
+                    </button>);})()}
+                  {act&&!co.building&&<span style={{fontSize:8,fontWeight:700,color:co.col,background:`${co.col}20`,padding:"1px 5px",borderRadius:3,alignSelf:"center",flexShrink:0}}>NOW</span>}
                 </div>;
               }
               if(item.type==="med-class"){
