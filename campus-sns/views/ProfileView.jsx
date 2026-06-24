@@ -14,7 +14,7 @@ import { TIMEOUT_OPTIONS } from '../hooks/useAppLock.js';
 import { SCHOOLS, DEPTS, UNIT_COL } from '../data.js';
 import { PrivacyPolicyView } from './PrivacyPolicyView.jsx';
 import { TermsOfServiceView } from './TermsOfServiceView.jsx';
-import { FeedbackModal } from '../FeedbackModal.jsx';
+import { SupportChat } from '../SupportChat.jsx';
 
 /* ─── 画像 → 正方形クロップ → data URI ─── */
 const AV_SZ=160;
@@ -1095,8 +1095,8 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
         <GHead>{t("profile.other")}</GHead>
         <GCard>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>}
-            label={t("feedback.menuLabel")}
-            sub={t("feedback.menuSub")}
+            label={t("support.menuLabel")}
+            sub={t("support.menuSub")}
             onClick={()=>setShowFeedback(true)}/>
           <GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>}
             label={t("profile.termsOfService")}
@@ -1244,8 +1244,8 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             </div>
           </div>
         </div>}
-        {/* ═══ 不具合・お問い合わせ モーダル ═══ */}
-        {showFeedback&&<FeedbackModal onClose={()=>setShowFeedback(false)} langPref={langPref} currentView="profile"/>}
+        {/* ═══ 運営チャット（お問い合わせ） モーダル ═══ */}
+        {showFeedback&&<SupportChat onClose={()=>setShowFeedback(false)} userId={user?.moodleId||user?.id} langPref={langPref} currentView="profile"/>}
       </div>
     </div>
   );

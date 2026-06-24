@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { sendPushToUser } from '../../../lib/push.js';
+import { createNotification } from '../../../lib/notify.js';
+import { broadcast, supportTicketTopic, supportUserTopic, supportAdminTopic } from '../../../lib/realtime.js';
 import { getSyllabusFromDB, getSyllabusStats, fetchDeptSyllabus, getDeptList, getScrapeProgress, fetchDeptTextbooks, fetchDeptGrading, getGradingStats } from '../../../lib/api/syllabus-bulk.js';
 import { fetchMedFacultySyllabus, getMedFacultyList, getMedScrapeProgress } from '../../../lib/api/syllabus-med.js';
 
@@ -63,7 +65,7 @@ export async function GET(request) {
       const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
       const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
       const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const [users, posts, messages, dms, reportsPending, reportsTotal, banned, dau, wau, mau, circles, feedbackPending] = await Promise.all([
+      const [users, posts, messages, dms, reportsPending, reportsTotal, banned, dau, wau, mau, circles, supportPendingRes] = await Promise.all([
         sb.from('profiles').select('*', { count: 'exact', head: true }),
         sb.from('posts').select('*', { count: 'exact', head: true }),
         sb.from('messages').select('*', { count: 'exact', head: true }),
@@ -75,7 +77,7 @@ export async function GET(request) {
         sb.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', weekAgo),
         sb.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', monthAgo),
         sb.from('circles').select('*', { count: 'exact', head: true }),
-        sb.from('feedback').select('*', { count: 'exact', head: true }).eq('status', 'open'),
+        sb.from('support_tickets').select('*', { count: 'exact', head: true }).in('status', ['open', 'in_progress']),
       ]);
       return NextResponse.json({
         users: users.count || 0,
@@ -89,7 +91,7 @@ export async function GET(request) {
         wau: wau.count || 0,
         mau: mau.count || 0,
         circles: circles.count || 0,
-        feedbackPending: feedbackPending.count || 0,
+        supportPending: supportPendingRes.count || 0,
       });
     }
 
@@ -188,21 +190,48 @@ export async function GET(request) {
       return NextResponse.json({ reports: data || [], total: count || 0, page });
     }
 
-    if (action === 'feedback') {
+    if (action === 'support_tickets') {
       const page = parseInt(searchParams.get('page')) || 0;
       const limit = 30;
       const status = searchParams.get('status') || '';
       const category = searchParams.get('category') || '';
       let query = sb
-        .from('feedback')
-        .select('*, user:profiles!feedback_user_id_fkey(name, avatar, color)', { count: 'exact' })
-        .order('created_at', { ascending: false })
+        .from('support_tickets')
+        .select('*, user:profiles!support_tickets_user_id_fkey(name, avatar, color)', { count: 'exact' })
+        .order('last_message_at', { ascending: false })
         .range(page * limit, (page + 1) * limit - 1);
       if (status) query = query.eq('status', status);
       if (category) query = query.eq('category', category);
       const { data, error, count } = await query;
       if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
-      return NextResponse.json({ feedback: data || [], total: count || 0, page });
+
+      // admin unread = user messages newer than admin_last_read_at
+      const tickets = await Promise.all((data || []).map(async t => {
+        let unread = 0;
+        if (t.last_sender_role === 'user' && (!t.admin_last_read_at || t.last_message_at > t.admin_last_read_at)) {
+          const { count: c } = await sb.from('support_messages').select('*', { count: 'exact', head: true })
+            .eq('ticket_id', t.id).eq('sender_role', 'user').gt('created_at', t.admin_last_read_at || '1970-01-01');
+          unread = c || 0;
+        }
+        return { ...t, unread };
+      }));
+      return NextResponse.json({ tickets, total: count || 0, page });
+    }
+
+    if (action === 'support_thread') {
+      const ticketId = searchParams.get('ticketId');
+      if (!ticketId) return NextResponse.json({ error: 'ticketId required' }, { status: 400 });
+      const { data: ticket } = await sb
+        .from('support_tickets')
+        .select('*, user:profiles!support_tickets_user_id_fkey(name, avatar, color)')
+        .eq('id', ticketId).maybeSingle();
+      if (!ticket) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      const { data: messages } = await sb
+        .from('support_messages').select('id, sender_role, sender_id, body, created_at')
+        .eq('ticket_id', ticketId).order('created_at', { ascending: true });
+      // mark read for admin
+      await sb.from('support_tickets').update({ admin_last_read_at: new Date().toISOString() }).eq('id', ticketId);
+      return NextResponse.json({ ticket, messages: messages || [] });
     }
 
     if (action === 'announcements') {
@@ -1007,25 +1036,46 @@ export async function POST(request) {
       return NextResponse.json({ ok: true });
     }
 
-    // --- Feedback (不具合・お問い合わせ) ---
-    if (action === 'resolve_feedback') {
-      const { feedbackId, status, adminNote } = body;
-      if (!feedbackId || !status) return NextResponse.json({ error: 'feedbackId and status required' }, { status: 400 });
+    // --- Support chat (運営チャット) ---
+    if (action === 'support_reply') {
+      const { ticketId, body: text } = body;
+      if (!ticketId || !text?.trim()) return NextResponse.json({ error: 'ticketId and body required' }, { status: 400 });
+      const { data: ticket } = await sb.from('support_tickets').select('id, user_id, status').eq('id', ticketId).maybeSingle();
+      if (!ticket) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      const nowIso = new Date().toISOString();
+      await sb.from('support_messages').insert({
+        ticket_id: ticketId, sender_role: 'admin', sender_id: auth.userid, body: text.trim().slice(0, 4000),
+      });
+      await sb.from('support_tickets').update({
+        last_message_at: nowIso, last_sender_role: 'admin', admin_last_read_at: nowIso,
+        ...(ticket.status === 'open' ? { status: 'in_progress' } : {}),
+      }).eq('id', ticketId);
+      await auditLog(sb, auth.userid, 'support_reply', 'support_ticket', ticketId);
+      broadcast([supportTicketTopic(ticketId), supportUserTopic(ticket.user_id), supportAdminTopic()], 'new');
+      createNotification({
+        userId: ticket.user_id, type: 'support',
+        text: `運営からお問い合わせに返信がありました`,
+        pushTitle: 'お問い合わせ', url: '/?support=' + ticketId,
+        tag: 'support-' + ticketId,
+      }).catch(() => {});
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === 'support_status') {
+      const { ticketId, status } = body;
+      if (!ticketId || !status) return NextResponse.json({ error: 'ticketId and status required' }, { status: 400 });
       if (!['open', 'in_progress', 'resolved', 'closed'].includes(status)) {
         return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
       }
-      const updates = { status, admin_note: adminNote ?? undefined };
-      if (status === 'resolved' || status === 'closed') {
-        updates.resolved_by = auth.userid;
-        updates.resolved_at = new Date().toISOString();
-      } else {
-        updates.resolved_by = null;
-        updates.resolved_at = null;
-      }
-      if (updates.admin_note === undefined) delete updates.admin_note;
-      const { error } = await sb.from('feedback').update(updates).eq('id', feedbackId);
+      const { data: ticket } = await sb.from('support_tickets').select('user_id').eq('id', ticketId).maybeSingle();
+      if (!ticket) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      const updates = { status };
+      if (status === 'resolved' || status === 'closed') { updates.resolved_by = auth.userid; updates.resolved_at = new Date().toISOString(); }
+      else { updates.resolved_by = null; updates.resolved_at = null; }
+      const { error } = await sb.from('support_tickets').update(updates).eq('id', ticketId);
       if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
-      await auditLog(sb, auth.userid, 'resolve_feedback', 'feedback', feedbackId, { status, adminNote });
+      await auditLog(sb, auth.userid, 'support_status', 'support_ticket', ticketId, { status });
+      broadcast([supportTicketTopic(ticketId), supportUserTopic(ticket.user_id), supportAdminTopic()], 'new');
       return NextResponse.json({ ok: true });
     }
 

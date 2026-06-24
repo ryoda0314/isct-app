@@ -9,6 +9,7 @@ import { useMusic } from "../hooks/useMusic.js";
 import { LyricsSyncEditor } from "../components/LyricsSyncEditor.jsx";
 import { showToast } from "../hooks/useToast.js";
 import { t } from "../i18n.js";
+import { getSupabaseClient } from "../../lib/supabase/client.js";
 
 const OnlineContext = createContext(new Set());
 
@@ -17,7 +18,7 @@ const API = "";
 const tabs = [
   { id: "stats", labelKey: "admin.tab.stats", icon: I.bar },
   { id: "reports", labelKey: "admin.tab.reports", icon: I.flag },
-  { id: "feedback", labelKey: "admin.tab.feedback", icon: I.mail },
+  { id: "support", labelKey: "admin.tab.support", icon: I.mail },
   { id: "users", labelKey: "admin.tab.users", icon: I.users },
   { id: "posts", labelKey: "admin.tab.posts", icon: I.feed },
   { id: "comments", labelKey: "admin.tab.comments", icon: I.chat },
@@ -442,7 +443,7 @@ const StatsTab = () => {
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
         <Card label={t("admin.stat.reportsPending")} value={stats?.reportsPending} color={T.red} />
         <Card label={t("admin.stat.reportsTotal")} value={stats?.reportsTotal} color={T.orange} />
-        <Card label={t("admin.stat.feedbackPending")} value={stats?.feedbackPending} color={T.accent} />
+        <Card label={t("admin.stat.supportPending")} value={stats?.supportPending} color={T.accent} />
         <Card label={t("admin.stat.bannedUsers")} value={stats?.bannedUsers} color={T.red} />
       </div>
       <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, margin: "20px 0 12px" }}>{t("admin.stats.activeUsers")}</div>
@@ -574,88 +575,154 @@ const ReportsTab = () => {
   );
 };
 
-// ---- Feedback Tab (不具合・お問い合わせ) ----
+// ---- Support Tab (運営チャット) ----
 const FB_CAT_KEYS = { bug: "admin.fbcat.bug", feature: "admin.fbcat.feature", question: "admin.fbcat.question", account: "admin.fbcat.account", other: "admin.fbcat.other" };
 const FB_STATUS_KEYS = { open: "admin.fbstatus.open", in_progress: "admin.fbstatus.in_progress", resolved: "admin.fbstatus.resolved", closed: "admin.fbstatus.closed" };
 const FB_STATUS_COLORS = { open: T.orange, in_progress: T.accent, resolved: T.green, closed: T.txD };
 const FB_CAT_COLORS = { bug: T.red, feature: T.accent, question: T.yellow, account: T.orange, other: T.txD };
+const fbTime = (iso) => { try { return new Date(iso).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
 
-const FeedbackTab = () => {
-  const [items, setItems] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(0);
-  const [filter, setFilter] = useState("open");
+const SupportTab = () => {
+  const [tickets, setTickets] = useState([]);
+  const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(false);
+  const [activeId, setActiveId] = useState(null);
+  const [ticket, setTicket] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef(null);
+  const scrollDown = () => requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; });
 
-  const load = useCallback((p, f) => {
+  const loadList = useCallback((f) => {
     setLoading(true);
-    let qs = `action=feedback&page=${p}`;
+    let qs = `action=support_tickets`;
     if (f) qs += `&status=${f}`;
     fetch(`${API}/api/admin?${qs}`)
       .then(r => r.json())
-      .then(d => { setItems(d.feedback || []); setTotal(d.total || 0); setPage(d.page || 0); })
+      .then(d => setTickets(d.tickets || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { load(0, filter); }, [load, filter]);
+  const loadThread = useCallback((id) => {
+    fetch(`${API}/api/admin?action=support_thread&ticketId=${id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) { setTicket(d.ticket); setMessages(d.messages || []); scrollDown(); } })
+      .catch(() => {});
+  }, []);
 
-  const handleResolve = async (id, status) => {
-    const note = prompt(t("admin.feedback.notePrompt"));
-    if (note === null && (status === "resolved" || status === "closed")) { /* allow empty */ }
+  useEffect(() => { loadList(filter); }, [loadList, filter]);
+  useEffect(() => { if (activeId) loadThread(activeId); }, [activeId, loadThread]);
+
+  // Realtime: ping on support_admin for any new ticket/message
+  useEffect(() => {
+    const sb = getSupabaseClient();
+    const ch = sb.channel("support_admin")
+      .on("broadcast", { event: "new" }, () => { loadList(filter); if (activeId) loadThread(activeId); })
+      .subscribe();
+    return () => { sb.removeChannel(ch); };
+  }, [filter, activeId, loadList, loadThread]);
+
+  const handleReply = async () => {
+    const text = draft.trim();
+    if (!text || sending || !activeId) return;
+    setSending(true);
+    try {
+      const r = await fetch(`${API}/api/admin`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "support_reply", ticketId: activeId, body: text }),
+      });
+      if (r.ok) { setDraft(""); loadThread(activeId); loadList(filter); }
+    } finally { setSending(false); }
+  };
+
+  const handleStatus = async (status) => {
+    if (!activeId) return;
     const r = await fetch(`${API}/api/admin`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "resolve_feedback", feedbackId: id, status, adminNote: note || "" }),
+      body: JSON.stringify({ action: "support_status", ticketId: activeId, status }),
     });
-    if (r.ok) load(page, filter);
+    if (r.ok) { loadThread(activeId); loadList(filter); }
   };
 
   return (
-    <div style={{ padding: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.feedback.manage")} ({total})</div>
-        <div style={{ flex: 1 }} />
-        <select value={filter} onChange={e => setFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none" }}>
-          <option value="">{t("admin.all")}</option>
-          <option value="open">{t("admin.fbstatus.open")}</option>
-          <option value="in_progress">{t("admin.fbstatus.in_progress")}</option>
-          <option value="resolved">{t("admin.fbstatus.resolved")}</option>
-          <option value="closed">{t("admin.fbstatus.closed")}</option>
-        </select>
+    <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+      {/* ── ticket list ── */}
+      <div style={{ width: 300, flexShrink: 0, borderRight: `1px solid ${T.bd}`, display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <div style={{ padding: 12, borderBottom: `1px solid ${T.bd}`, display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: T.txH, flex: 1 }}>{t("admin.support.manage")}</span>
+          <select value={filter} onChange={e => setFilter(e.target.value)} style={{ padding: "5px 8px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 12, outline: "none" }}>
+            <option value="">{t("admin.all")}</option>
+            <option value="open">{t("admin.fbstatus.open")}</option>
+            <option value="in_progress">{t("admin.fbstatus.in_progress")}</option>
+            <option value="resolved">{t("admin.fbstatus.resolved")}</option>
+            <option value="closed">{t("admin.fbstatus.closed")}</option>
+          </select>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: 8 }}>
+          {loading && <div style={{ color: T.txD, fontSize: 13, padding: 16 }}>{t("common.loading")}</div>}
+          {!loading && tickets.length === 0 && <div style={{ color: T.txD, fontSize: 13, padding: 24, textAlign: "center" }}>{t("admin.support.empty")}</div>}
+          {tickets.map(tk => (
+            <button key={tk.id} onClick={() => setActiveId(tk.id)}
+              style={{ width: "100%", textAlign: "left", padding: "10px 12px", borderRadius: 10, marginBottom: 6, cursor: "pointer", border: `1px solid ${activeId === tk.id ? T.accent : T.bd}`, background: activeId === tk.id ? `${T.accent}12` : T.bg3, display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Badge text={t(FB_STATUS_KEYS[tk.status] || tk.status)} color={FB_STATUS_COLORS[tk.status] || T.txD} />
+                {tk.unread > 0 && <span style={{ minWidth: 16, height: 16, borderRadius: 8, background: T.red, color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{tk.unread}</span>}
+                <span style={{ fontSize: 10, color: T.txD, marginLeft: "auto" }}>{fbTime(tk.last_message_at)}</span>
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 600, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tk.subject}</span>
+              <span style={{ fontSize: 11, color: T.txD }}>{tk.user?.name || t("admin.unknown")}</span>
+            </button>
+          ))}
+        </div>
       </div>
-      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {items.map(f => (
-          <div key={f.id} style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-              <Badge text={FB_STATUS_KEYS[f.status] ? t(FB_STATUS_KEYS[f.status]) : f.status} color={FB_STATUS_COLORS[f.status] || T.txD} />
-              <Badge text={FB_CAT_KEYS[f.category] ? t(FB_CAT_KEYS[f.category]) : f.category} color={FB_CAT_COLORS[f.category] || T.txD} />
-              <span style={{ fontSize: 11, color: T.txD, marginLeft: "auto" }}>{f.created_at ? new Date(f.created_at).toLocaleString("ja-JP") : ""}</span>
+
+      {/* ── conversation ── */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+        {!activeId ? (
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: T.txD, fontSize: 13 }}>{t("admin.support.selectPrompt")}</div>
+        ) : (
+          <>
+            <div style={{ padding: 12, borderBottom: `1px solid ${T.bd}`, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket?.subject}</div>
+                <div style={{ fontSize: 11, color: T.txD, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Av u={{ name: ticket?.user?.name, col: ticket?.user?.color, avatar: ticket?.user?.avatar }} sz={16} />
+                  {ticket?.user?.name || t("admin.unknown")} · {ticket && t(FB_CAT_KEYS[ticket.category] || ticket.category)}
+                </div>
+              </div>
+              <div style={{ flex: 1 }} />
+              {ticket && ticket.status !== "in_progress" && <Btn onClick={() => handleStatus("in_progress")} color={T.accent}>{t("admin.fbstatus.in_progress")}</Btn>}
+              {ticket && ticket.status !== "resolved" && <Btn onClick={() => handleStatus("resolved")} color={T.green}>{t("admin.support.markResolved")}</Btn>}
+              {ticket && ticket.status !== "closed" && <Btn onClick={() => handleStatus("closed")} color={T.txD}>{t("admin.support.close")}</Btn>}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: T.txD }}>{t("admin.feedback.sender")}:</span>
-              <Av u={{ name: f.user?.name, col: f.user?.color, avatar: f.user?.avatar }} sz={20} />
-              <span style={{ fontSize: 13, color: T.txH }}>{f.user?.name || t("admin.unknown")}</span>
-            </div>
-            {f.subject && <div style={{ fontSize: 14, fontWeight: 700, color: T.txH, marginBottom: 4 }}>{f.subject}</div>}
-            <div style={{ fontSize: 13, color: T.tx, marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: T.bg2, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{f.body}</div>
-            {f.contact && <div style={{ fontSize: 12, color: T.txD, marginBottom: 6 }}>{t("admin.feedback.contact")}: {f.contact}</div>}
-            {f.diagnostics && (
-              <div style={{ fontSize: 11, color: T.txD, marginBottom: 6, fontFamily: "monospace", wordBreak: "break-all" }}>
-                {t("admin.feedback.diag")}: {Object.entries(f.diagnostics).map(([k, v]) => `${k}=${v}`).join("  ")}
+            {ticket?.diagnostics && (
+              <div style={{ fontSize: 11, color: T.txD, padding: "6px 12px", fontFamily: "monospace", wordBreak: "break-all", borderBottom: `1px solid ${T.bd}` }}>
+                {Object.entries(ticket.diagnostics).map(([k, v]) => `${k}=${v}`).join("  ")}
               </div>
             )}
-            {f.admin_note && <div style={{ fontSize: 12, color: T.txD, marginBottom: 8 }}>{t("admin.report.adminNote")}: {f.admin_note}</div>}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {f.status === "open" && <Btn onClick={() => handleResolve(f.id, "in_progress")} color={T.accent}>{t("admin.feedback.markInProgress")}</Btn>}
-              {(f.status === "open" || f.status === "in_progress") && <Btn onClick={() => handleResolve(f.id, "resolved")} color={T.green}>{t("admin.feedback.markResolved")}</Btn>}
-              {f.status !== "closed" && <Btn onClick={() => handleResolve(f.id, "closed")} color={T.txD}>{t("admin.feedback.close")}</Btn>}
+            <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+              {messages.map(m => {
+                const admin = m.sender_role === "admin";
+                return (
+                  <div key={m.id} style={{ alignSelf: admin ? "flex-end" : "flex-start", maxWidth: "80%" }}>
+                    <div style={{ fontSize: 10, color: T.txD, marginBottom: 2, textAlign: admin ? "right" : "left" }}>{admin ? t("admin.support.staff") : (ticket?.user?.name || t("admin.support.userSide"))} · {fbTime(m.created_at)}</div>
+                    <div style={{ padding: "9px 13px", borderRadius: 14, background: admin ? T.accent : T.bg3, color: admin ? "#fff" : T.txH, fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word", border: admin ? "none" : `1px solid ${T.bd}` }}>{m.body}</div>
+                  </div>
+                );
+              })}
             </div>
-          </div>
-        ))}
-        {!loading && items.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.feedback.empty")}</div>}
+            <div style={{ display: "flex", gap: 8, padding: 12, borderTop: `1px solid ${T.bd}` }}>
+              <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={1}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && (e.metaKey || e.ctrlKey || true)) { if (!e.shiftKey) { e.preventDefault(); handleReply(); } } }}
+                placeholder={t("admin.support.replyPlaceholder")}
+                style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 14, outline: "none", resize: "none", boxSizing: "border-box", maxHeight: 120 }} />
+              <button onClick={handleReply} disabled={sending || !draft.trim()} style={{ padding: "0 18px", borderRadius: 10, border: "none", background: T.accent, color: "#fff", fontSize: 14, fontWeight: 700, cursor: sending || !draft.trim() ? "default" : "pointer", opacity: sending || !draft.trim() ? 0.5 : 1 }}>{t("support.send")}</button>
+            </div>
+          </>
+        )}
       </div>
-      <Pager page={page} total={total} limit={30} onPage={p => load(p, filter)} />
     </div>
   );
 };
@@ -4348,10 +4415,10 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
           </button>
         ))}
       </div>
-      <div style={{ flex: 1, overflowY: tab === "map" ? "hidden" : "auto", display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, overflowY: (tab === "map" || tab === "support") ? "hidden" : "auto", display: "flex", flexDirection: "column" }}>
         {tab === "stats" && <StatsTab />}
         {tab === "reports" && <ReportsTab />}
-        {tab === "feedback" && <FeedbackTab />}
+        {tab === "support" && <SupportTab />}
         {tab === "users" && <UsersTab />}
         {tab === "posts" && <PostsTab courses={courses} schools={schools} depts={depts} />}
         {tab === "comments" && <CommentsTab />}
