@@ -36,7 +36,7 @@ const fmtTime = (iso) => { try { return new Date(iso).toLocaleString("ja-JP", { 
  * SupportChat — 運営とのお問い合わせチャット（複数チケット制）
  * Props: onClose, userId, langPref, currentView, initialTicketId?
  */
-export const SupportChat = ({ onClose, userId, langPref, currentView, initialTicketId }) => {
+export const SupportChat = ({ onClose, userId, langPref, currentView, initialTicketId, embedded = false }) => {
   const [screen, setScreen] = useState("list"); // list | new | thread
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -135,23 +135,29 @@ export const SupportChat = ({ onClose, userId, langPref, currentView, initialTic
   };
 
   const overlay = { position: "fixed", inset: 0, zIndex: 10002, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 };
-  const card = { width: "100%", maxWidth: 460, height: "85vh", display: "flex", flexDirection: "column", borderRadius: 16, background: T.bg2, border: `1px solid ${T.bd}`, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" };
+  const modalCard = { width: "100%", maxWidth: 460, height: "85vh", display: "flex", flexDirection: "column", borderRadius: 16, background: T.bg2, border: `1px solid ${T.bd}`, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" };
+  const pageCard = { flex: 1, minHeight: 0, width: "100%", display: "flex", flexDirection: "column", background: T.bg2, overflow: "hidden" };
   const headerBtn = { background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", padding: 4 };
 
-  return (
-    <div onClick={onClose} style={overlay}>
-      <div onClick={e => e.stopPropagation()} style={card}>
-        {/* ── Header ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 16px", borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
-          {screen !== "list"
-            ? <button onClick={() => { setScreen("list"); setActiveId(null); fetchTickets(); }} style={headerBtn}>{I.back}</button>
-            : <span style={{ color: T.accent, display: "flex" }}>{I.mail}</span>}
-          <span style={{ fontSize: 15, fontWeight: 700, color: T.txH, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {screen === "list" ? t("support.title") : screen === "new" ? t("support.newTicket") : (ticket?.subject || t("support.title"))}
-          </span>
-          {screen === "thread" && ticket && <Badge text={t(STATUS_KEYS[ticket.status] || ticket.status)} color={STATUS_COLORS[ticket.status] || T.txD} />}
-          <button onClick={onClose} style={headerBtn}>{I.x}</button>
-        </div>
+  // ヘッダー戻る: スレッド/新規 → 一覧へ、一覧 → 画面を閉じる(ページなら前画面へ)
+  const headerBack = () => {
+    if (screen !== "list") { setScreen("list"); setActiveId(null); fetchTickets(); }
+    else onClose?.();
+  };
+
+  const inner = (
+    <>
+      {/* ── Header ── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 16px", borderBottom: `1px solid ${T.bd}`, flexShrink: 0, paddingTop: embedded ? "calc(env(safe-area-inset-top) + 14px)" : 14 }}>
+        {(embedded || screen !== "list")
+          ? <button onClick={headerBack} style={headerBtn}>{I.back}</button>
+          : <span style={{ color: T.accent, display: "flex" }}>{I.mail}</span>}
+        <span style={{ fontSize: 15, fontWeight: 700, color: T.txH, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {screen === "list" ? t("support.title") : screen === "new" ? t("support.newTicket") : (ticket?.subject || t("support.title"))}
+        </span>
+        {screen === "thread" && ticket && <Badge text={t(STATUS_KEYS[ticket.status] || ticket.status)} color={STATUS_COLORS[ticket.status] || T.txD} />}
+        {!embedded && <button onClick={onClose} style={headerBtn}>{I.x}</button>}
+      </div>
 
         {/* ── List ── */}
         {screen === "list" && (
@@ -228,9 +234,12 @@ export const SupportChat = ({ onClose, userId, langPref, currentView, initialTic
             </div>
           </>
         )}
-      </div>
-    </div>
+    </>
   );
+
+  return embedded
+    ? <div style={pageCard}>{inner}</div>
+    : <div onClick={onClose} style={overlay}><div onClick={e => e.stopPropagation()} style={modalCard}>{inner}</div></div>;
 };
 
 const lbl = { fontSize: 12, fontWeight: 600, color: T.txD, marginBottom: 6, display: "block" };
