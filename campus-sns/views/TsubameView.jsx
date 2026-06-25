@@ -161,20 +161,22 @@ export function TsubameView({ mob = false }) {
           {ranking.ranking.length === 0 ? (
             <div style={{ padding: "24px 0", textAlign: "center", color: T.txD, fontSize: 13 }}>{t("tsubame.noRank")}</div>
           ) : (
-            ranking.ranking.map((r) => {
-              const medal = medalColor(r.rank);
-              return (
-                <div key={r.id} style={{
-                  display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 10,
-                  background: r.me ? `${T.accent}10` : "transparent",
-                }}>
-                  <span style={{ width: 26, textAlign: "center", fontWeight: 800, fontSize: 14, color: medal || T.txD, flexShrink: 0 }}>{r.rank}</span>
-                  <Av u={{ av: r.avatar, col: r.color }} sz={30} uid={r.id} />
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: r.me ? 700 : 500, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: T.accent, flexShrink: 0 }}>{r.totalEarned.toLocaleString()}<span style={{ fontSize: 10, color: T.txD, fontWeight: 600 }}> pt</span></span>
-                </div>
-              );
-            })
+            <div style={{ maxHeight: "60vh", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+              {ranking.ranking.map((r) => {
+                const medal = medalColor(r.rank);
+                return (
+                  <div key={r.id} style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 10,
+                    background: r.me ? `${T.accent}10` : "transparent",
+                  }}>
+                    <span style={{ width: 26, textAlign: "center", fontWeight: 800, fontSize: 14, color: medal || T.txD, flexShrink: 0 }}>{r.rank}</span>
+                    <Av u={{ av: r.avatar, col: r.color }} sz={30} uid={r.id} />
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: r.me ? 700 : 500, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: T.accent, flexShrink: 0 }}>{r.totalEarned.toLocaleString()}<span style={{ fontSize: 10, color: T.txD, fontWeight: 600 }}> pt</span></span>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </Card>
       )}
