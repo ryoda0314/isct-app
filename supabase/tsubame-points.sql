@@ -216,3 +216,54 @@ begin
   );
 end;
 $$;
+
+-- 6. RPC: フレンド成立ポイント（双方に冪等付与・1ペア1回・上限なし）
+--    p_amount = 双方それぞれに付与する額（既定 10）
+--    ref_key  = 'friend:<小さいID>_<大きいID>'（ペアで一意。解除→再追加でも再付与しない）
+--    各ユーザーが独立した tsubame_awards 行を持つので、片側だけ未付与なら片側だけ入る。
+--    返り値: { awarded_total }（今回実際に加算した合計。0=両者とも付与済み）
+create or replace function award_friend(p_a bigint, p_b bigint, p_amount int default 10)
+returns jsonb language plpgsql as $$
+declare
+  v_ref    text := 'friend:' || least(p_a, p_b) || '_' || greatest(p_a, p_b);
+  v_total  int  := 0;
+  v_uid    bigint;
+  v_ins    int;
+begin
+  if p_a is null or p_b is null or p_a = p_b then
+    return jsonb_build_object('awarded_total', 0);
+  end if;
+
+  foreach v_uid in array array[p_a, p_b] loop
+    insert into tsubame_awards (moodle_user_id, reason, ref_key, amount)
+      values (v_uid, 'friend_added', v_ref, p_amount)
+      on conflict (moodle_user_id, reason, ref_key) do nothing;
+    get diagnostics v_ins = row_count;
+    if v_ins > 0 then
+      insert into tsubame_points (moodle_user_id) values (v_uid)
+        on conflict (moodle_user_id) do nothing;
+      update tsubame_points set
+        balance      = balance + p_amount,
+        total_earned = total_earned + p_amount,
+        updated_at   = now()
+      where moodle_user_id = v_uid;
+      insert into tsubame_ledger (moodle_user_id, amount, reason, meta)
+        values (v_uid, p_amount, 'friend_added', jsonb_build_object('ref', v_ref));
+      v_total := v_total + p_amount;
+    end if;
+  end loop;
+
+  return jsonb_build_object('awarded_total', v_total);
+end;
+$$;
+
+-- 7. バックフィル: 既存の accepted フレンド全員に遡って +10 を配布（冪等）。
+--    award_friend が tsubame_awards で重複排除するため、再実行しても二重付与されない。
+--    今後の自動付与（/api/friends の承認時）とも ref_key を共有するので衝突しない。
+do $$
+declare r record;
+begin
+  for r in select requester_id, addressee_id from friendships where status = 'accepted' loop
+    perform award_friend(r.requester_id, r.addressee_id, 10);
+  end loop;
+end $$;

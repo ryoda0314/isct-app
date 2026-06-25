@@ -13,6 +13,10 @@ const svg = (children, sz = 18) => (
 const G = {
   flame: (s) => svg(<path d="M12 2s5 4 5 9a5 5 0 01-10 0c0-2 1-3 1-3s0 2 2 2c0-3 2-5 2-8z" />, s),
   history: (s) => svg(<><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 106 5.3L3 8" /><path d="M12 7v5l4 2" /></>, s),
+  info: (s) => svg(<><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></>, s),
+  login: (s) => svg(<><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /></>, s),
+  pin: (s) => svg(<><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></>, s),
+  friend: (s) => svg(<><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" /></>, s),
 };
 
 const Card = ({ children, style }) => (
@@ -137,6 +141,7 @@ export function TsubameView({ mob = false }) {
         {[
           { id: "rank", label: t("tsubame.ranking"), icon: I.trophy },
           { id: "history", label: t("tsubame.history"), icon: G.history(16) },
+          { id: "earn", label: t("tsubame.tabEarn"), icon: G.info(16) },
         ].map((s) => (
           <button key={s.id} onClick={() => setTab(s.id)}
             style={{
@@ -202,6 +207,28 @@ export function TsubameView({ mob = false }) {
               );
             })
           )}
+        </Card>
+      )}
+
+      {tab === "earn" && (
+        <Card style={{ padding: 8 }}>
+          {[
+            { key: "daily", icon: G.login(18), title: t("tsubame.earnDailyTitle"), desc: t("tsubame.earnDailyDesc"), pts: t("tsubame.earnDailyPts") },
+            { key: "attend", icon: G.pin(18), title: t("tsubame.earnAttendTitle"), desc: t("tsubame.earnAttendDesc"), pts: t("tsubame.earnAttendPts") },
+            { key: "friend", icon: G.friend(18), title: t("tsubame.earnFriendTitle"), desc: t("tsubame.earnFriendDesc"), pts: t("tsubame.earnFriendPts") },
+          ].map((m, i, arr) => (
+            <div key={m.key} style={{ display: "flex", gap: 12, padding: "12px 10px", borderBottom: i < arr.length - 1 ? `1px solid ${T.bd}55` : "none" }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: `${T.accent}14`, color: T.accent, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.icon}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>{m.title}</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: T.accent, flexShrink: 0 }}>{m.pts}</span>
+                </div>
+                <div style={{ fontSize: 12, color: T.txD, lineHeight: 1.55, marginTop: 2 }}>{m.desc}</div>
+              </div>
+            </div>
+          ))}
+          <div style={{ padding: "10px 10px 4px", fontSize: 11, color: T.txD, lineHeight: 1.5 }}>{t("tsubame.earnSoon")}</div>
         </Card>
       )}
     </div>

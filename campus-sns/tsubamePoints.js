@@ -25,6 +25,8 @@ export function levelInfo(totalEarned = 0) {
 export const REASON_KEY = {
   daily_login: 'tsubame.reasonDaily',
   streak_milestone: 'tsubame.reasonMilestone',
+  attendance: 'tsubame.reasonAttendance',
+  friend_added: 'tsubame.reasonFriend',
 };
 
 // ストリークのマイルストーン（RPC と一致させる）。次の目標表示に使う。

@@ -12,6 +12,14 @@ function pingFriends(...userIds) {
   broadcast(userIds.filter(Boolean).map(friendsTopic), 'new').catch(() => {});
 }
 
+// フレンド成立時に双方へツバメポイント(+10)を冪等付与。1ペア1回（解除→再追加でも増えない）。
+// 付与失敗でフレンド成立自体は妨げない（fire-and-forget）。
+function awardFriendPoints(sb, a, b) {
+  sb.rpc('award_friend', { p_a: a, p_b: b }).then(({ error }) => {
+    if (error) console.error('[Friends] award_friend error:', error.message);
+  }, () => {});
+}
+
 // 管理者判定（admin route と同じ方式: 環境変数 + admin_users テーブル）
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 async function isAdminUser(sb, userid) {
@@ -537,6 +545,7 @@ export async function POST(request) {
           actor_id: userid,
         });
         sendPushToUser(numTo, { title: '友達', body: acceptText }).catch(() => {});
+        awardFriendPoints(sb, userid, numTo);
         pingFriends(userid, numTo);
         return NextResponse.json({ ok: true, status: 'accepted' });
       }
@@ -627,6 +636,7 @@ export async function PATCH(request) {
         actor_id: userid,
       });
       sendPushToUser(row.requester_id, { title: '友達', body: patchText }).catch(() => {});
+      awardFriendPoints(sb, userid, row.requester_id);
     }
     pingFriends(userid, row.requester_id);
 
