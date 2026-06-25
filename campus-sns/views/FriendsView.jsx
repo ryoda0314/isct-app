@@ -187,9 +187,9 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
             {results.map(r=>{const u={name:r.name,av:r.avatar,col:r.color};const st=friendStatus(r.friendship);return <div key={r.moodleId} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0"}}>
               <Av u={u} sz={40} uid={r.moodleId}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:T.txH}}>{r.name}</div>{r.dept&&<div style={{fontSize:11,color:T.txD}}>{r.dept}</div>}<Mutual n={r.mutual}/></div>
               {st==='friend'&&<span style={{fontSize:11,fontWeight:600,color:T.green,padding:"4px 10px",borderRadius:6,background:`${T.green}12`}}>{t("friends.friend")}</span>}
-              {st==='sent'&&<span style={{fontSize:11,fontWeight:600,color:T.txD,padding:"4px 10px",borderRadius:6,background:T.bg3}}>{t("friends.requesting")}</span>}
+              {(st==='sent'||(!st&&sentRecs.has(r.moodleId)))&&<span style={{fontSize:11,fontWeight:600,color:T.txD,padding:"4px 10px",borderRadius:6,background:T.bg3}}>{t("friends.requesting")}</span>}
               {st==='received'&&<button onClick={()=>doAction(`ac_${r.moodleId}`,()=>acceptRequest(r.friendship.id))} disabled={actionLoading===`ac_${r.moodleId}`} style={{padding:"6px 14px",borderRadius:8,border:"none",background:T.green,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>{t("friends.accept")}</button>}
-              {!st&&<button onClick={()=>doAction(`send_${r.moodleId}`,()=>sendRequest(r.moodleId))} disabled={actionLoading===`send_${r.moodleId}`} style={{padding:"6px 14px",borderRadius:8,border:"none",background:T.accent,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>{t("friends.add")}</button>}
+              {!st&&!sentRecs.has(r.moodleId)&&<button onClick={()=>{setSentRecs(prev=>new Set(prev).add(r.moodleId));doAction(`send_${r.moodleId}`,()=>sendRequest(r.moodleId));}} disabled={actionLoading===`send_${r.moodleId}`} style={{padding:"6px 14px",borderRadius:8,border:"none",background:T.accent,cursor:"pointer",fontSize:12,fontWeight:600,color:"#fff"}}>{t("friends.add")}</button>}
             </div>;})}
             {!searchQ&&<div>
               {recsLoading&&<Loader msg={t("friends.searching")} size="sm"/>}

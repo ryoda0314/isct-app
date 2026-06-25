@@ -140,3 +140,79 @@ begin
   );
 end;
 $$;
+
+-- =============================================================
+-- 4. tsubame_awards: 「対象ごと1回きり」の付与を冪等にするための重複防止台帳。
+--    出席など解除→再登録で稼げてしまう獲得手段は、ここに ref_key を一意登録し、
+--    既に登録済みなら加点しない（解除しても返還しない＝再付与もしない）。
+--    reason: 'attendance' | (将来) 'review_posted' | 'task_complete' ...
+--    ref_key 例: 出席 = 'sci:<course_key>:<session_key>'
+-- =============================================================
+create table if not exists tsubame_awards (
+  moodle_user_id  bigint not null references profiles(moodle_id) on delete cascade,
+  reason          text not null,
+  ref_key         text not null,
+  amount          int  not null,
+  created_at      timestamptz not null default now(),
+  primary key (moodle_user_id, reason, ref_key)   -- ← 冪等の肝（同一対象は二度入らない）
+);
+-- 日次上限チェック用（JST日付での件数カウント）
+create index if not exists idx_tsubame_awards_daily on tsubame_awards(moodle_user_id, reason, created_at);
+alter table tsubame_awards enable row level security;
+-- anon ポリシーなし（付与は service_role の RPC 経由のみ）
+
+-- 5. RPC: 出席チェックインのポイント付与（冪等・1日上限つき）
+--    p_ref      = 'sci:<course_key>:<session_key>'（授業回で一意）
+--    p_amount   = 付与額（既定 5）
+--    p_daily_cap= 当日(JST)の attendance 付与回数の上限（既定 5 ＝ +25/日まで）
+--    返り値: { awarded, reason?, balance?, total_earned? }
+--      awarded=0 かつ reason='already'    → 既に付与済み（再チェックイン）
+--      awarded=0 かつ reason='daily_cap'  → 当日上限に到達
+create or replace function award_attendance(
+  p_uid bigint, p_ref text, p_amount int default 5, p_daily_cap int default 5
+) returns jsonb language plpgsql as $$
+declare
+  v_inserted   int;
+  v_today      date := (now() at time zone 'Asia/Tokyo')::date;
+  v_today_cnt  int;
+  v_balance    int;
+  v_total      int;
+begin
+  -- 当日(JST)の出席付与回数が上限に達していれば付与しない
+  select count(*) into v_today_cnt
+    from tsubame_awards
+    where moodle_user_id = p_uid
+      and reason = 'attendance'
+      and (created_at at time zone 'Asia/Tokyo')::date = v_today;
+  if v_today_cnt >= p_daily_cap then
+    return jsonb_build_object('awarded', 0, 'reason', 'daily_cap');
+  end if;
+
+  -- 重複防止: この授業回が未付与のときだけ行が入る
+  insert into tsubame_awards (moodle_user_id, reason, ref_key, amount)
+    values (p_uid, 'attendance', p_ref, p_amount)
+    on conflict (moodle_user_id, reason, ref_key) do nothing;
+  get diagnostics v_inserted = row_count;
+  if v_inserted = 0 then
+    return jsonb_build_object('awarded', 0, 'reason', 'already');
+  end if;
+
+  -- 残高・累計を加算（行が無ければ作成）
+  insert into tsubame_points (moodle_user_id) values (p_uid)
+    on conflict (moodle_user_id) do nothing;
+  update tsubame_points set
+    balance      = balance + p_amount,
+    total_earned = total_earned + p_amount,
+    updated_at   = now()
+  where moodle_user_id = p_uid
+  returning balance, total_earned into v_balance, v_total;
+
+  -- 台帳に履歴を残す
+  insert into tsubame_ledger (moodle_user_id, amount, reason, meta)
+    values (p_uid, p_amount, 'attendance', jsonb_build_object('ref', p_ref));
+
+  return jsonb_build_object(
+    'awarded', p_amount, 'balance', v_balance, 'total_earned', v_total
+  );
+end;
+$$;

@@ -258,7 +258,13 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
         const {latitude,longitude,accuracy}=pos.coords;
         const buf=Math.max(20,Math.min(accuracy||30,50)); // GPS誤差を許容(20〜50m)
         const {ok,distance}=checkInsideBuilding(latitude,longitude,co.building,buf);
-        if(ok){setStatus?.("sci",co.id,sess,"present");showToast(t("toast.attendOk"),"success");}
+        if(ok){
+          setStatus?.("sci",co.id,sess,"present");showToast(t("toast.attendOk"),"success");
+          // ツバメポイント付与（サーバーがGPSジオフェンスを再検証・授業回ごと1回・1日上限あり）
+          fetch('/api/attendance/checkin',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({kind:"sci",course_key:co.id,session_key:sess.sessionKey,session_date:sess.dateStr||null,building:co.building,lat:latitude,lng:longitude})})
+            .then(r=>r.ok?r.json():null).then(d=>{if(d&&d.awarded>0)showToast(`+${d.awarded} pt`,"success");}).catch(()=>{});
+        }
         else showToast(t("toast.attendOutside",{d:Math.round(distance)}));
         setAttBusy(null);
       },
