@@ -42,12 +42,21 @@ export async function GET(request) {
       }
     }
 
+    // 競技順位（同点は同順位・次は人数ぶんスキップ = 1,2,2,4…）。
+    // 自分の順位 myRank（自分より累計が多い人数+1）と同じ意味づけに揃える。
     const ranking = [];
+    let pos = 0;             // 表示対象の通し位置（同点判定用）
+    let prevTotal = null;    // 直前の累計
+    let prevRank = 0;        // 直前に確定した順位
     for (const r of rows) {
       const p = profMap.get(r.moodle_user_id);
       if (!p) continue; // banned / プロフィール無し は除外
+      pos += 1;
+      const rank = r.total_earned === prevTotal ? prevRank : pos;
+      prevTotal = r.total_earned;
+      prevRank = rank;
       ranking.push({
-        rank: ranking.length + 1,
+        rank,
         id: r.moodle_user_id,
         name: p.name,
         avatar: p.avatar || (p.name ? p.name[0] : '?'),
