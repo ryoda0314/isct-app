@@ -67,6 +67,7 @@ export function useCall(me) {
   const mutedRef = useRef(false);
   const durationRef = useRef(0);
   const endReasonRef = useRef(null);
+  const wasConnectedRef = useRef(false);  // 一度でも接続成立したか（通話履歴の判定用）
 
   const pcRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -115,9 +116,27 @@ export function useCall(me) {
     roleRef.current = null;
   }, []);
 
+  // ── 発信者だけが通話履歴を 1 行 DM として残す（重複防止）。
+  //    sender=発信者なので、閲覧側が発信/着信どちらかで表示を出し分ける。
+  const logCallHistory = useCallback((reason) => {
+    if (roleRef.current !== 'caller') return;          // 着信側はログしない
+    if (reason === 'micDenied' || reason === 'failed') return; // 通話未成立は記録しない
+    const peer = peerRef.current;
+    if (!peer?.id) return;
+    let status, durationSec = 0;
+    if (wasConnectedRef.current) { status = 'completed'; durationSec = durationRef.current; }
+    else if (reason === 'rejected') { status = 'declined'; }
+    else { status = 'missed'; }
+    fetch('/api/dm', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to_user_id: peer.id, call_meta: { status, durationSec } }),
+    }).catch(() => {});
+  }, []);
+
   // ── 通話終了：理由を表示して idle に戻す ──
   const endCall = useCallback((reason) => {
     if (phaseRef.current === 'idle') return;
+    logCallHistory(reason);   // teardown より前（peer/role/duration がまだ生きている間）に記録
     teardown();
     phaseRef.current = 'ended';
     endReasonRef.current = reason || 'ended';
@@ -132,7 +151,7 @@ export function useCall(me) {
         publish();
       }
     }, ENDED_DISPLAY_MS);
-  }, [teardown, publish]);
+  }, [teardown, publish, logCallHistory]);
 
   // ── 任意トピックへ 1 回だけ broadcast を送る（呼び鈴用の使い捨てチャンネル） ──
   // 注意: 同一クライアントで同じトピックに 2 つチャンネルを張ると競合する（lib/realtime.js 参照）。
@@ -179,6 +198,7 @@ export function useCall(me) {
       if (st === 'connected') {
         if (phaseRef.current !== 'connected') {
           phaseRef.current = 'connected';
+          wasConnectedRef.current = true;
           durationRef.current = 0;
           publish();
           durTimerRef.current = setInterval(() => { durationRef.current += 1; publish(); }, 1000);
@@ -261,6 +281,7 @@ export function useCall(me) {
     phaseRef.current = 'outgoing';
     mutedRef.current = false;
     endReasonRef.current = null;
+    wasConnectedRef.current = false;
     publish();
 
     // セッションチャンネルに先に join してから相手の呼び鈴へ invite を送る
@@ -350,6 +371,7 @@ export function useCall(me) {
       phaseRef.current = 'incoming';
       mutedRef.current = false;
       endReasonRef.current = null;
+      wasConnectedRef.current = false;
       publish();
       // セッションチャンネルに join しておく（応答時に accept/offer をやり取りするため）
       joinRtc(payload.callId);

@@ -1077,6 +1077,12 @@ const M = {
   "call.cancel": { ja:"キャンセル", en:"Cancel", zh:"取消", ko:"취소" , tp:"o pini" },
   "call.mute": { ja:"ミュート", en:"Mute", zh:"静音", ko:"음소거" , tp:"o len kalama" },
   "call.unmute": { ja:"ミュート解除", en:"Unmute", zh:"取消静音", ko:"음소거 해제" , tp:"o open kalama" },
+  // 通話履歴（チャット内の吹き出し）
+  "call.log.voice": { ja:"音声通話", en:"Voice call", zh:"语音通话", ko:"음성 통화" , tp:"toki kalama" },
+  "call.log.missedIn": { ja:"不在着信", en:"Missed call", zh:"未接来电", ko:"부재중 전화" , tp:"toki weka" },
+  "call.log.missedOut": { ja:"応答なし", en:"No answer", zh:"无人接听", ko:"응답 없음" , tp:"jan li toki ala" },
+  "call.log.declinedIn": { ja:"通話を拒否", en:"Call declined", zh:"已拒接", ko:"통화 거절" , tp:"mi wile ala" },
+  "call.log.declinedOut": { ja:"拒否されました", en:"Declined", zh:"被拒接", ko:"거절됨" , tp:"jan li wile ala" },
   "event.title": { ja:"イベント", en:"Events", zh:"活动", ko:"이벤트" , tp:"tenpo musi" },
   "event.rsvpGoing": { ja:"参加", en:"Going", zh:"参加", ko:"참가" , tp:"mi kama" },
   "event.rsvpMaybe": { ja:"検討中", en:"Maybe", zh:"考虑中", ko:"검토 중" , tp:"mi pilin" },

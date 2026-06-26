@@ -32,7 +32,7 @@ export async function GET(request) {
       .from('dm_conversations')
       .select(`
         id, user1_id, user2_id, created_at, last_read,
-        dm_messages(id, sender_id, text, stamp_id, created_at)
+        dm_messages(id, sender_id, text, stamp_id, call_meta, created_at)
       `)
       .or(`user1_id.eq.${userid},user2_id.eq.${userid}`)
       .order('created_at', { referencedTable: 'dm_messages', ascending: false })
@@ -73,6 +73,7 @@ export async function GET(request) {
             uid: m.sender_id,
             text: m.text,
             stamp_id: m.stamp_id || null,
+            call_meta: m.call_meta || null,
             ts: m.created_at,
           })),
         };
@@ -139,11 +140,23 @@ export async function POST(request) {
     if (auth.error) return auth.error;
     const { userid, fullname } = auth;
 
-    const { to_user_id, text, stamp_id, conversation_id } = await request.json();
+    const { to_user_id, text, stamp_id, conversation_id, call_meta } = await request.json();
     const hasText = !!text?.trim();
     const hasStamp = !!stamp_id;
-    if (!hasText && !hasStamp) {
-      return NextResponse.json({ error: 'text or stamp_id required' }, { status: 400 });
+    // 通話ログ: {status, durationSec}。クライアントが信頼できない値を送れるので形を厳格に検証する。
+    let callMeta = null;
+    if (call_meta && typeof call_meta === 'object') {
+      const ALLOWED_CALL_STATUS = new Set(['completed', 'missed', 'declined']);
+      if (!ALLOWED_CALL_STATUS.has(call_meta.status)) {
+        return NextResponse.json({ error: 'Invalid call status' }, { status: 400 });
+      }
+      let dur = Number(call_meta.durationSec);
+      if (!Number.isFinite(dur) || dur < 0) dur = 0;
+      callMeta = { status: call_meta.status, durationSec: Math.min(Math.floor(dur), 86400) };
+    }
+    const hasCall = !!callMeta;
+    if (!hasText && !hasStamp && !hasCall) {
+      return NextResponse.json({ error: 'text, stamp_id or call_meta required' }, { status: 400 });
     }
     if (hasText && text.length > 2000) {
       return NextResponse.json({ error: 'Text too long' }, { status: 400 });
@@ -230,6 +243,7 @@ export async function POST(request) {
         sender_id: userid,
         text: hasText ? text.trim() : '',
         stamp_id: hasStamp ? stamp_id : null,
+        call_meta: callMeta,
       })
       .select()
       .single();
@@ -251,13 +265,17 @@ export async function POST(request) {
     if (targetUserId) {
       try {
         const targetMuted = await getMutedIds(targetUserId);
-        if (!targetMuted.has(userid)) {
+        // 通話ログのうち通知すべきは「不在着信」のみ（成立/拒否は相手も状況を知っている）。
+        const skipCallNotify = hasCall && callMeta.status !== 'missed';
+        if (!targetMuted.has(userid) && !skipCallNotify) {
           const senderName = fullname || `User ${userid}`;
-          const preview = hasText ? text.trim().slice(0, 60) : 'スタンプを送信しました';
+          const preview = hasCall
+            ? '📞 不在着信'
+            : (hasText ? text.trim().slice(0, 60) : 'スタンプを送信しました');
           await createNotification({
             userId: targetUserId,
             type: 'dm',
-            text: `${senderName}さんからメッセージ: ${preview}`,
+            text: hasCall ? `${senderName}さんから${preview}` : `${senderName}さんからメッセージ: ${preview}`,
             pushTitle: senderName,
           });
         }

@@ -57,6 +57,17 @@ const STAMP_CATEGORY_BY_ID = (() => {
   for (const g of STAMP_GROUPS) for (const s of g.stamps) map[s.id] = g.category;
   return map;
 })();
+const mmss = (s) => `${Math.floor((s||0)/60)}:${String((s||0)%60).padStart(2,'0')}`;
+
+// 通話履歴の表示ラベルとアイコン色を、閲覧者視点(me=発信者か)で決める。
+const callLogView = (meta, me) => {
+  const status = meta?.status;
+  if (status === 'completed') return { label: t('call.log.voice'), sub: mmss(meta.durationSec), missed: false };
+  if (status === 'declined') return { label: me ? t('call.log.declinedOut') : t('call.log.declinedIn'), sub: null, missed: true };
+  // missed
+  return { label: me ? t('call.log.missedOut') : t('call.log.missedIn'), sub: null, missed: true };
+};
+
 const stampSrc = (id) => {
   const cat = STAMP_CATEGORY_BY_ID[id];
   // Fall back to flat /stamps/<id>.webp if id is unknown (e.g., stamps deprecated
@@ -223,7 +234,19 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
               {!me&&<span className="dmMsgFlag" onClick={()=>setReportTarget({type:isGroup?"message":"dm",id:m.id,userId:m.uid})} style={{cursor:"pointer",color:T.txD,display:"flex",opacity:0,transition:"opacity .15s",alignSelf:"center",flexShrink:0}} title={t("dm.report")}>{I.flag}</span>}
               <div style={{maxWidth:"75%"}}>
                 {isGroup&&!me&&<div style={{fontSize:11,fontWeight:600,color:m.color||T.txD,marginBottom:2,marginLeft:2}}>{m.name}</div>}
-                {m.stamp_id?
+                {m.call_meta?
+                  (()=>{const v=callLogView(m.call_meta,me);return(
+                  <div style={{padding:"8px 12px",borderRadius:me?"14px 14px 4px 14px":"14px 14px 14px 4px",background:me?T.accent:T.bg3,color:me?"#fff":T.txH,fontSize:14,display:"flex",alignItems:"center",gap:9,minWidth:150}}>
+                    <span style={{display:"flex",flexShrink:0,color:v.missed?(me?"#fff":T.red||"#e5484d"):"inherit",opacity:.95}}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.4 0 .8-.3 1l-2.2 2.2z"/></svg>
+                    </span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:600}}>{v.label}</div>
+                      {v.sub&&<div style={{fontSize:11,opacity:.65,marginTop:1}}>{v.sub}</div>}
+                    </div>
+                    <span style={{fontSize:10,color:me?"rgba(255,255,255,.6)":T.txD,alignSelf:"flex-end"}}>{fTs(m.ts)}</span>
+                  </div>);})()
+                :m.stamp_id?
                   <div>
                     <img src={stampSrc(m.stamp_id)} alt="" draggable={false} style={{display:"block",width:160,height:160,objectFit:"contain",userSelect:"none"}}/>
                     <div style={{fontSize:10,color:T.txD,textAlign:"right",marginTop:2,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:3}}>
@@ -380,7 +403,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
         const wu={name:conv.withName||'?',av:conv.withAvatar||'?',col:conv.withColor||'#888'};
         return(
           <div key={conv.id} onClick={()=>{setSel({type:'dm',...conv});markDMSeen?.(conv.id);markRead(conv.id);}} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6,cursor:"pointer"}}>
-            <Av u={wu} sz={36} st uid={conv.withId}/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{wu.name}</div><div style={{fontSize:12,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{last?.stamp_id?t("dm.stampPreview"):last?.text}</div></div>
+            <Av u={wu} sz={36} st uid={conv.withId}/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{wu.name}</div><div style={{fontSize:12,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{last?.call_meta?`📞 ${callLogView(last.call_meta,last.uid===uid).label}`:last?.stamp_id?t("dm.stampPreview"):last?.text}</div></div>
             <span style={{fontSize:10,color:T.txD}}>{last?fT(last.ts):""}</span>
           </div>
         );
