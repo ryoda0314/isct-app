@@ -15,6 +15,7 @@ import { useDeptMembers } from "./hooks/useDeptMembers.js";
 import { resetCourseMaterialsCache } from "./hooks/useCourseMaterials.js";
 import { useMobile, useBreakpoint } from "./utils.jsx";
 import { isNative, clearNativeCookies } from "./capacitor.js";
+import { CallProvider } from "./CallProvider.jsx";
 import { openLmsPage } from "./plugins/portalWebView.js";
 import { saveTimetableToWidget } from "./plugins/timetableWidget.js";
 import { Av, Loader, setProfileOpener } from "./shared.jsx";
@@ -1117,6 +1118,7 @@ export default function App(){
   // --- MOBILE ---
   const mBack=goBack;
   return(
+    <CallProvider me={user}>
     <div ref={el=>{if(!el)return;const pwa=window.matchMedia("(display-mode:standalone)").matches||window.navigator.standalone;const u=()=>{el.style.height=pwa?screen.height+"px":"100dvh";};u();window.addEventListener("resize",u);}} style={{display:"flex",flexDirection:"column",width:"100vw",overflow:"hidden",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0,position:"relative"}}>
         {lmsDownBanner}
@@ -1174,5 +1176,6 @@ export default function App(){
       {themeMode==="mizukumori"&&<FogOverlay/>}
       <style>{`*{box-sizing:border-box;margin:0;padding:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}input,textarea{-webkit-user-select:text;user-select:text}html,body{background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}.sa-bottom{height:env(safe-area-inset-bottom,0px)}@keyframes mnSpin{to{transform:rotate(360deg)}}`}</style>
     </div>
+    </CallProvider>
   );
 }

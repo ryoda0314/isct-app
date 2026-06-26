@@ -9,6 +9,7 @@ import { useDMList, useDMMessages, useDMSend } from '../hooks/useDM.js';
 import { useGroupMessages, useGroupSend } from '../hooks/useGroupChat.js';
 import { useTyping } from '../hooks/useTyping.js';
 import { ReportModal } from '../ReportModal.jsx';
+import { useCallControls } from '../CallProvider.jsx';
 
 // Must match server allowlist in app/api/dm/route.js and public/stamps/manifest.json.
 // Stamps are grouped by category for the picker UI; the on-disk path is
@@ -77,6 +78,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
   const listRef=useRef(null);
   const sendDM=useDMSend();
   const sendGrpMsg=useGroupSend();
+  const {startCall}=useCallControls();
   const typingRoom=sel?(sel.type==='group'?`grp:${sel.id}`:`dm:${sel.id}`):null;
   const {typingUsers,setTyping}=useTyping(typingRoom,{id:user?.moodleId||user?.id,name:user?.name});
 
@@ -179,6 +181,11 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
             <span style={{fontWeight:600,color:T.txH,fontSize:14}}>{headerName}</span>
             {isGroup&&<span style={{fontSize:11,color:T.txD,marginLeft:6}}>{t("dm.memberCount",{n:sel.memberCount})}</span>}
           </div>
+          {!isGroup&&convData.withId&&<button onClick={()=>startCall({id:convData.withId,name:headerName,av:convData.withAvatar,col:convData.withColor})}
+            title={t("call.start")} aria-label={t("call.start")}
+            style={{width:34,height:34,borderRadius:"50%",border:"none",background:"transparent",color:T.accent,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.4 0 .8-.3 1l-2.2 2.2z"/></svg>
+          </button>}
           {isGroup&&leaveGroup&&<button onClick={async()=>{await leaveGroup(sel.id);setSel(null);}}
             style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${T.bd}`,background:"transparent",color:T.txD,fontSize:11,fontWeight:500,cursor:"pointer"}}
             title={t("dm.leaveGroup")}>{t("dm.leave")}</button>}
