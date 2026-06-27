@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, Component } from 'react';
 import { T } from './theme.js';
 import { t } from './i18n.js';
 import { Av } from './shared.jsx';
@@ -141,13 +141,31 @@ function CallOverlay({ call, accept, decline, hangup, toggleMute }) {
   );
 }
 
+// 通話オーバーレイの描画で万一例外が出ても、アプリ全体を巻き込んで落とさないための安全網。
+// 例外時は通話を終了し、オーバーレイを消す（白画面＝アプリクラッシュを防ぐ）。
+class CallErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { failed: false }; }
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(err, info) {
+    try { console.error('[call] overlay render crashed:', err?.message, info?.componentStack); } catch {}
+    this.props.onError?.();
+  }
+  componentDidUpdate(prev) {
+    // 通話が畳まれたら次の通話に備えて復帰
+    if (this.state.failed && !this.props.active && prev.active) this.setState({ failed: false });
+  }
+  render() { return this.state.failed ? null : this.props.children; }
+}
+
 export function CallProvider({ me, children }) {
   const { call, startCall, accept, decline, hangup, toggleMute } = useCall(me);
   const isActive = call.phase !== 'idle';
   return (
     <CallCtx.Provider value={{ startCall, isActive }}>
       {children}
-      <CallOverlay call={call} accept={accept} decline={decline} hangup={hangup} toggleMute={toggleMute} />
+      <CallErrorBoundary active={isActive} onError={hangup}>
+        <CallOverlay call={call} accept={accept} decline={decline} hangup={hangup} toggleMute={toggleMute} />
+      </CallErrorBoundary>
     </CallCtx.Provider>
   );
 }

@@ -26,6 +26,9 @@ const ICE_SERVERS = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
 ];
 
+// 通話トラブル切り分け用ログ。接続周りで落ちる/繋がらない時はコンソール(またはネイティブログ)に [call] で出る。
+const LOG = (...a) => { try { console.log('[call]', ...a); } catch {} };
+
 const RING_TIMEOUT_MS = 30_000;   // 発信側: 応答が無ければ自動キャンセル
 const INCOMING_TIMEOUT_MS = 45_000; // 着信側: 放置されたら自動拒否
 const ENDED_DISPLAY_MS = 2500;    // 終了表示を残す時間
@@ -77,6 +80,7 @@ export function useCall(me) {
   const ringTimerRef = useRef(null);
   const incomingTimerRef = useRef(null);
   const durTimerRef = useRef(null);
+  const disconnectTimerRef = useRef(null);  // 一時切断の猶予タイマー
 
   const publish = useCallback(() => {
     setCall({
@@ -98,7 +102,8 @@ export function useCall(me) {
       localStreamRef.current = null;
     }
     if (remoteAudioRef.current) {
-      try { remoteAudioRef.current.pause(); remoteAudioRef.current.srcObject = null; } catch {}
+      try { remoteAudioRef.current.pause(); remoteAudioRef.current.srcObject = null; remoteAudioRef.current.remove?.(); } catch {}
+      remoteAudioRef.current = null;
     }
     // rtc/呼び鈴チャンネルは、直前に送った bye/cancel が確実に flush されるよう少し遅らせて解放する。
     if (rtcChanRef.current) {
@@ -112,6 +117,7 @@ export function useCall(me) {
     if (ringTimerRef.current) { clearTimeout(ringTimerRef.current); ringTimerRef.current = null; }
     if (incomingTimerRef.current) { clearTimeout(incomingTimerRef.current); incomingTimerRef.current = null; }
     if (durTimerRef.current) { clearInterval(durTimerRef.current); durTimerRef.current = null; }
+    if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
     callIdRef.current = null;
     roleRef.current = null;
   }, []);
@@ -136,6 +142,7 @@ export function useCall(me) {
   // ── 通話終了：理由を表示して idle に戻す ──
   const endCall = useCallback((reason) => {
     if (phaseRef.current === 'idle') return;
+    LOG('endCall reason=', reason, 'role=', roleRef.current, 'wasConnected=', wasConnectedRef.current);
     logCallHistory(reason);   // teardown より前（peer/role/duration がまだ生きている間）に記録
     teardown();
     phaseRef.current = 'ended';
@@ -188,26 +195,56 @@ export function useCall(me) {
     stream.getTracks().forEach(t => pc.addTrack(t, stream));
 
     pc.ontrack = (e) => {
-      let audio = remoteAudioRef.current;
-      if (!audio) { audio = new Audio(); audio.autoplay = true; remoteAudioRef.current = audio; }
-      audio.srcObject = e.streams[0];
-      audio.play?.().catch(() => {});
+      try {
+        LOG('ontrack', e.streams?.length, 'tracks');
+        let audio = remoteAudioRef.current;
+        if (!audio) {
+          audio = new Audio();
+          audio.autoplay = true;
+          audio.setAttribute('playsinline', '');     // iOS でインライン再生
+          audio.style.display = 'none';
+          // 一部の WebView はデタッチされた media 要素を再生できないため DOM に接続する。
+          try { document.body.appendChild(audio); } catch {}
+          remoteAudioRef.current = audio;
+        }
+        audio.srcObject = e.streams[0];
+        audio.play?.().catch((err) => LOG('audio.play rejected', err?.message));
+      } catch (err) { LOG('ontrack error', err?.message); }
     };
+    // 診断ログ（接続トラブルの切り分け用）
+    pc.oniceconnectionstatechange = () => LOG('iceConnectionState', pc.iceConnectionState);
+    pc.onicegatheringstatechange = () => LOG('iceGatheringState', pc.iceGatheringState);
+    pc.onsignalingstatechange = () => LOG('signalingState', pc.signalingState);
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
-      if (st === 'connected') {
-        if (phaseRef.current !== 'connected') {
-          phaseRef.current = 'connected';
-          wasConnectedRef.current = true;
-          durationRef.current = 0;
-          publish();
-          durTimerRef.current = setInterval(() => { durationRef.current += 1; publish(); }, 1000);
+      LOG('connectionState', st);
+      try {
+        if (st === 'connected') {
+          // 一時切断からの復帰なら猶予タイマーを解除
+          if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
+          if (phaseRef.current !== 'connected') {
+            phaseRef.current = 'connected';
+            wasConnectedRef.current = true;
+            durationRef.current = 0;
+            publish();
+            durTimerRef.current = setInterval(() => { durationRef.current += 1; publish(); }, 1000);
+          }
+        } else if (st === 'failed') {
+          endCall('failed');
+        } else if (st === 'disconnected') {
+          // 'disconnected' は一時的なことが多く、数秒で 'connected' に戻る場合がある。
+          // 即終了せず猶予を与え、復帰しなければ終了する（接続直後のフラつきで切れるのを防ぐ）。
+          if (phaseRef.current === 'connected' && !disconnectTimerRef.current) {
+            disconnectTimerRef.current = setTimeout(() => {
+              disconnectTimerRef.current = null;
+              if (phaseRef.current === 'connected' && pc.connectionState !== 'connected') {
+                LOG('disconnected grace expired -> end');
+                endCall('ended');
+              }
+            }, 7000);
+          }
         }
-      } else if (st === 'failed') {
-        endCall('failed');
-      } else if (st === 'disconnected' || st === 'closed') {
-        if (phaseRef.current === 'connected') endCall('ended');
-      }
+      } catch (err) { LOG('onconnectionstatechange error', err?.message); }
     };
     pcRef.current = pc;
     return pc;
@@ -221,6 +258,7 @@ export function useCall(me) {
     ch.on('broadcast', { event: 'accept' }, async () => {
       // 発信側のみ: 相手が応答 → オファー生成
       if (roleRef.current !== 'caller' || phaseRef.current === 'connected') return;
+      LOG('rtc accept recv -> caller builds offer');
       if (ringTimerRef.current) { clearTimeout(ringTimerRef.current); ringTimerRef.current = null; }
       phaseRef.current = 'connecting'; publish();
       try {
@@ -238,6 +276,7 @@ export function useCall(me) {
     ch.on('broadcast', { event: 'offer' }, async ({ payload }) => {
       // 着信側のみ: オファー受信 → アンサー生成
       if (roleRef.current !== 'callee') return;
+      LOG('rtc offer recv -> callee builds answer');
       try {
         const pc = pcRef.current;
         if (!pc) return;
@@ -254,11 +293,12 @@ export function useCall(me) {
 
     ch.on('broadcast', { event: 'answer' }, async ({ payload }) => {
       if (roleRef.current !== 'caller') return;
+      LOG('rtc answer recv -> caller setRemoteDescription');
       try { await pcRef.current?.setRemoteDescription(payload.sdp); }
-      catch { endCall('failed'); }
+      catch (err) { LOG('setRemoteDescription(answer) error', err?.message); endCall('failed'); }
     });
 
-    ch.on('broadcast', { event: 'bye' }, () => { endCall('ended'); });
+    ch.on('broadcast', { event: 'bye' }, () => { LOG('rtc bye recv'); endCall('ended'); });
 
     rtcChanRef.current = ch;
     ch.subscribe((status) => { if (status === 'SUBSCRIBED') onReady?.(ch); });
@@ -275,6 +315,7 @@ export function useCall(me) {
     if (targetId === myUid) return;
 
     const callId = `${myUid}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    LOG('startCall -> target', targetId, 'callId', callId);
     callIdRef.current = callId;
     roleRef.current = 'caller';
     peerRef.current = { id: targetId, name: target.name || '', av: target.av || target.avatar, col: target.col || target.color };
@@ -309,6 +350,7 @@ export function useCall(me) {
   // 着信に応答
   const accept = useCallback(async () => {
     if (phaseRef.current !== 'incoming') return;
+    LOG('accept -> callee builds pc, sends accept');
     if (incomingTimerRef.current) { clearTimeout(incomingTimerRef.current); incomingTimerRef.current = null; }
     phaseRef.current = 'connecting'; publish();
     try {
@@ -360,6 +402,7 @@ export function useCall(me) {
     const bell = sb.channel(callTopic(myUid));
 
     bell.on('broadcast', { event: 'invite' }, ({ payload }) => {
+      LOG('invite recv from', payload?.from, 'callId', payload?.callId);
       // 通話中なら自動的に busy を返す
       if (phaseRef.current !== 'idle') {
         sendToBell(payload.from, 'busy', { callId: payload.callId });
