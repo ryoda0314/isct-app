@@ -37,6 +37,7 @@ const APPS = [
   { id: "pomo",       icon: I.play,      labelKey: "tool.pomo",        color: C.red },
   { id: "music",      icon: I.music,     labelKey: "tool.music",       color: C.pink },
   { id: "bmarks",     icon: I.bmark,     labelKey: "tool.bmarks",      color: C.indigo },
+  { id: "qr",         icon: I.qr,        labelKey: "appgrid.qr",       color: C.gray },
   { id: "search",     icon: I.search,    labelKey: "nav.search",       color: C.gray },
   { id: "profile",    icon: I.user1,     labelKey: "nav.profile",      color: C.teal },
   { id: "courseSelect", icon: I.clip,    labelKey: "appgrid.course",   color: C.purple },
