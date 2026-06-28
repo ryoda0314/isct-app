@@ -283,6 +283,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
       {id:"pdftools",i:I.file,l:t("nav.pdftools")},
       {id:"notes",i:I.pen,l:t("nav.notes")},
       {id:"pomo",i:I.play,l:t("more.pomoTimer")},
+      {id:"qr",i:I.qr,l:t("appgrid.qr")},
     ]},
     {title:t("more.campus"),items:[
       {id:"takiplaza",i:I.clock,l:"Taki Plaza"},
