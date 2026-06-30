@@ -88,29 +88,24 @@ export async function POST(request) {
 
     const courses = transformCourses(rawCourses, scheduleMap, profileRow?.dept || null);
 
-    // Security: Do NOT seed enrollment cache from client-provided rawCourses.
-    // Client data is untrusted — an attacker could inject arbitrary course IDs
-    // to bypass enrollment checks. The enrollment cache is populated only via
-    // server-side Moodle API calls in isEnrolledInCourse().
+    // Seed the in-memory enrollment cache AND persist to Supabase from the SAME
+    // client course list. Both are the same trust level: server-side Moodle calls
+    // get 403 from the LMS, so course_enrollments (written below) is the de-facto
+    // source of truth for isEnrolledInCourse() anyway. Seeding the in-memory cache
+    // from the same data grants no extra trust — it just keeps the two consistent.
     //
-    // However, we still save dept/unit info so dept-room enrollment works.
-    // This only affects dept: rooms, not individual course access.
-    if (profileRow?.dept || profileRow?.unit) {
-      seedEnrollmentCache(userid, [], profileRow.dept || null, profileRow.unit || null);
-    }
-
-    // Save verified course enrollments to Supabase.
-    // These are used as a FALLBACK only when Moodle API is unreachable.
-    // To prevent poisoning, only upsert courses that match the user's
-    // existing server-verified enrollment (or fresh Moodle API data).
-    // For now, we trust rawCourses for DB persistence since the DB fallback
-    // is only used when Moodle is completely down, and enrollment checks
-    // are always re-verified against Moodle on the next warm request.
-    if (rawCourses.length > 0) {
+    // Previously this seeded an EMPTY course list ([]) "for security". That was
+    // ineffective (the same rawCourses were persisted to the DB fallback right
+    // below, so injected IDs were trusted there regardless) AND harmful: a fresh,
+    // non-expired cache entry with zero courseIds made every individual-course
+    // enrollment check return 403 for CACHE_TTL on whichever serverless instance
+    // handled all-meta — the exact "Not enrolled in this course" bug.
+    const visibleCourses = rawCourses.filter(c => c.visible !== 0);
+    seedEnrollmentCache(userid, visibleCourses, profileRow?.dept || null, profileRow?.unit || null);
+    if (visibleCourses.length > 0) {
       // Diff-sync (insert added / delete dropped, write only on change) instead
       // of a blind re-upsert — keeps drops accurate and avoids disk-IO churn.
-      const courseIds = rawCourses.filter(c => c.visible !== 0).map(c => c.id);
-      syncEnrollments(userid, courseIds).catch(() => {});
+      syncEnrollments(userid, visibleCourses.map(c => c.id)).catch(() => {});
     }
 
     // Timetable
