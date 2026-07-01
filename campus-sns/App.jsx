@@ -31,6 +31,7 @@ import { PocketView } from "./views/PocketView.jsx";
 import { MusicView } from "./views/MusicView.jsx";
 import { GymView } from "./views/GymView.jsx";
 import { QRView } from "./views/QRView.jsx";
+import { LectureRecorderView } from "./views/LectureRecorderView.jsx";
 import { TsubameView } from "./views/TsubameView.jsx";
 import { useDailyTsubameClaim } from "./hooks/useTsubamePoints.js";
 import { PdfToolsView } from "./views/PdfToolsView.jsx";
@@ -1093,6 +1094,7 @@ export default function App(){
           {view==="takiplaza"&&(L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob={false} onNavigate={goToBuilding}/>)}
           {view==="gym"&&(L?<LockedView title={t("tool.gym")}/>:<GymView mob={false}/>)}
           {view==="qr"&&<QRView mob={false}/>}
+          {view==="lecrec"&&user.isAdmin&&<LectureRecorderView mob={false}/>}
           {view==="tsubame"&&(L?<LockedView title={t("tool.tsubame")}/>:<TsubameView mob={false}/>)}
           {view==="train"&&(L?<LockedView title={t("nav.train")}/>:<TrainView mob={false}/>)}
           {view==="library"&&<LibraryView mob={false}/>}
@@ -1155,6 +1157,7 @@ export default function App(){
         {view==="takiplaza"&&<><MHdr title="Taki Plaza" back={mBack}/>{L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob onNavigate={goToBuilding}/>}</>}
         {view==="gym"&&<><MHdr title={t("tool.gym")} back={mBack}/>{L?<LockedView title={t("tool.gym")}/>:<GymView mob/>}</>}
         {view==="qr"&&<><MHdr title={t("appgrid.qr")} back={mBack}/><QRView mob/></>}
+        {view==="lecrec"&&user.isAdmin&&<><MHdr title={t("appgrid.lecrec")} back={mBack}/><LectureRecorderView mob/></>}
         {view==="tsubame"&&<><MHdr title={t("tool.tsubame")} back={mBack}/>{L?<LockedView title={t("tool.tsubame")}/>:<TsubameView mob/>}</>}
         {view==="train"&&<><MHdr title={t("nav.train")} back={mBack}/>{L?<LockedView title={t("nav.train")}/>:<TrainView mob/>}</>}
         {view==="library"&&<><MHdr title={t("nav.library")} back={mBack}/><LibraryView mob/></>}

@@ -283,6 +283,8 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
       {id:"pdftools",i:I.file,l:t("nav.pdftools")},
       {id:"notes",i:I.pen,l:t("nav.notes")},
       {id:"pomo",i:I.play,l:t("more.pomoTimer")},
+      // 授業録音・要約は一旦管理者のみ
+      ...(isAdmin?[{id:"lecrec",i:I.mic,l:t("appgrid.lecrec")}]:[]),
       {id:"qr",i:I.qr,l:t("appgrid.qr")},
     ]},
     {title:t("more.campus"),items:[
