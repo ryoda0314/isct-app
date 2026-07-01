@@ -1,12 +1,14 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { T } from "../theme.js";
 import { t } from "../i18n.js";
+import { showToast } from "../hooks/useToast.js";
 
 /* 30秒ごとにセグメントを区切って逐次文字起こしする「準リアルタイム」方式。
    録音を止めずに MediaRecorder を再起動することで、各セグメントを
    単体で完結した音声ファイルにし、そのまま /api/transcribe へ送る。 */
 const SEGMENT_MS = 30_000;
 const MAX_MINUTES = 180; // 安全上限（コスト暴走防止）
+const POCKET_MAX = 10_000; // /api/pocket のテキスト上限に合わせる
 
 /** この環境の MediaRecorder が扱えるmimeTypeを選ぶ */
 function pickMime() {
@@ -182,6 +184,25 @@ export function LectureRecorderView({ mob = false }) {
     } catch { /* ignore */ }
   }, []);
 
+  // メモ（Pocket・端末間同期）に保存。上限を超える場合は切り詰めて保存し警告する。
+  const saveToPocket = useCallback(async (raw) => {
+    const full = (raw || "").trim();
+    if (!full) return;
+    const truncated = full.length > POCKET_MAX;
+    const text = truncated ? full.slice(0, POCKET_MAX) : full;
+    try {
+      const res = await fetch("/api/pocket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) throw new Error();
+      showToast(truncated ? t("lec.savedTruncated") : t("lec.savedToPocket"), "success");
+    } catch {
+      showToast(t("lec.saveFailed"), "error");
+    }
+  }, []);
+
   const reset = useCallback(() => {
     cleanup();
     setPhase("idle"); setSegments([]); setSummary(""); setError(null); setElapsed(0);
@@ -255,9 +276,14 @@ export function LectureRecorderView({ mob = false }) {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: T.txD, letterSpacing: 0.4, textTransform: "uppercase" }}>{t("lec.transcript")}</span>
             {hasText && (
-              <button onClick={() => copy("transcript", transcriptText)} style={{
-                fontSize: 12, color: copied === "transcript" ? T.green : T.accent, background: "none", border: "none", cursor: "pointer", fontWeight: 600,
-              }}>{copied === "transcript" ? t("lec.copied") : t("lec.copy")}</button>
+              <div style={{ display: "flex", gap: 14 }}>
+                <button onClick={() => copy("transcript", transcriptText)} style={{
+                  fontSize: 12, color: copied === "transcript" ? T.green : T.accent, background: "none", border: "none", cursor: "pointer", fontWeight: 600,
+                }}>{copied === "transcript" ? t("lec.copied") : t("lec.copy")}</button>
+                <button onClick={() => saveToPocket(transcriptText)} style={{
+                  fontSize: 12, color: T.accent, background: "none", border: "none", cursor: "pointer", fontWeight: 600,
+                }}>{t("lec.save")}</button>
+              </div>
             )}
           </div>
           <div style={{
@@ -300,9 +326,14 @@ export function LectureRecorderView({ mob = false }) {
         <div style={{ marginTop: 16 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: T.txD, letterSpacing: 0.4, textTransform: "uppercase" }}>{t("lec.summary")}</span>
-            <button onClick={() => copy("summary", summary)} style={{
-              fontSize: 12, color: copied === "summary" ? T.green : T.accent, background: "none", border: "none", cursor: "pointer", fontWeight: 600,
-            }}>{copied === "summary" ? t("lec.copied") : t("lec.copy")}</button>
+            <div style={{ display: "flex", gap: 14 }}>
+              <button onClick={() => copy("summary", summary)} style={{
+                fontSize: 12, color: copied === "summary" ? T.green : T.accent, background: "none", border: "none", cursor: "pointer", fontWeight: 600,
+              }}>{copied === "summary" ? t("lec.copied") : t("lec.copy")}</button>
+              <button onClick={() => saveToPocket(summary)} style={{
+                fontSize: 12, color: T.accent, background: "none", border: "none", cursor: "pointer", fontWeight: 600,
+              }}>{t("lec.save")}</button>
+            </div>
           </div>
           <div style={{
             padding: "14px 16px", borderRadius: 12, background: T.bg2, border: `1px solid ${T.bd}`,

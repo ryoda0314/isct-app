@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { T } from "../theme.js";
 import { t } from "../i18n.js";
-import { getSciSessions, defaultAbsenceLimit } from "../attendanceUtils.js";
+import { getSciSessions, defaultAbsenceLimit, annotateSessions } from "../attendanceUtils.js";
 
 const STATUS = [
   { k: "present", labelKey: "sciatt.present", c: T.green },
@@ -9,9 +9,9 @@ const STATUS = [
   { k: "late", labelKey: "sciatt.late", c: T.orange },
 ];
 
-// 出席/欠席/遅刻 の3トグル（アクティブを再タップで未記録に戻す）
-const Toggle = ({ value, onPick, mob }) => (
-  <div style={{ display: "flex", gap: 4 }}>
+// 出席/欠席/遅刻 の3トグル（アクティブを再タップで未記録に戻す）。休講中は無効化。
+const Toggle = ({ value, onPick, mob, disabled }) => (
+  <div style={{ display: "flex", gap: 4, opacity: disabled ? 0.35 : 1, pointerEvents: disabled ? "none" : "auto" }}>
     {STATUS.map((s) => {
       const on = value === s.k;
       return (
@@ -37,6 +37,27 @@ const Toggle = ({ value, onPick, mob }) => (
   </div>
 );
 
+// 休講ピル（「授業があったか」を表す独立トグル。P/A/Lとは別扱い）
+const CancelPill = ({ on, onToggle, mob }) => (
+  <button
+    onClick={onToggle}
+    style={{
+      border: `1px solid ${on ? T.txD : T.bd}`,
+      background: on ? T.txD : "transparent",
+      color: on ? "#fff" : T.txD,
+      borderRadius: 6,
+      padding: mob ? "3px 8px" : "4px 10px",
+      fontSize: mob ? 11 : 12,
+      fontWeight: 700,
+      cursor: "pointer",
+      flexShrink: 0,
+      transition: "all .12s",
+    }}
+  >
+    {t("sciatt.cancelled")}
+  </button>
+);
+
 const limitKey = (courseKey) => `attLimit:sci:${courseKey}`;
 const loadLimit = (courseKey, fallback) => {
   try {
@@ -49,11 +70,19 @@ const loadLimit = (courseKey, fallback) => {
 
 const CourseCard = ({ co, statuses, setStatus, year, mob }) => {
   const [open, setOpen] = useState(false);
-  const sessions = useMemo(() => getSciSessions({ ...co, year: co.year != null ? co.year : year }), [co, year]);
-  const total = sessions.length;
+  const rawSessions = useMemo(() => getSciSessions({ ...co, year: co.year != null ? co.year : year }), [co, year]);
+  // 休講(cancelled)を考慮して ordinal(実際の第N回)を再計算
+  const sessions = useMemo(() => {
+    const cancelledKeys = new Set(Object.keys(statuses).filter((k) => statuses[k] === "cancelled"));
+    return annotateSessions(rawSessions, cancelledKeys);
+  }, [rawSessions, statuses]);
+  // 開講総数（休講を除く）
+  const total = sessions.filter((s) => !s.cancelled).length;
+  const cancelledCount = sessions.length - total;
 
   let present = 0, absent = 0, late = 0;
   for (const s of sessions) {
+    if (s.cancelled) continue; // 休講回は出欠集計に含めない
     const st = statuses[s.sessionKey];
     if (st === "present") present++;
     else if (st === "absent") absent++;
@@ -87,6 +116,7 @@ const CourseCard = ({ co, statuses, setStatus, year, mob }) => {
             {recorded > 0 && <span style={{ color: T.green }}>{t("sciatt.countPresent", { n: present })}</span>}
             {absent > 0 && <span style={{ color: T.red }}>{t("sciatt.countAbsent", { n: absent })}</span>}
             {late > 0 && <span style={{ color: T.orange }}>{t("sciatt.countLate", { n: late })}</span>}
+            {cancelledCount > 0 && <span style={{ color: T.txD }}>{t("sciatt.countCancelled", { n: cancelledCount })}</span>}
             {rate != null && <span>{t("sciatt.rate", { n: rate })}</span>}
           </div>
         </div>
@@ -114,14 +144,21 @@ const CourseCard = ({ co, statuses, setStatus, year, mob }) => {
             <div style={{ fontSize: 12, color: T.txD, padding: "8px 0" }}>{t("sciatt.noSessions")}</div>
           ) : (
             sessions.map((s) => {
-              const st = statuses[s.sessionKey] || null;
+              const st = s.cancelled ? null : statuses[s.sessionKey] || null;
               return (
                 <div key={s.sessionKey} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: `1px solid ${T.bd}` }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: mob ? 12 : 13, color: T.txH, fontWeight: 600 }}>{s.label}</div>
+                  <div style={{ flex: 1, minWidth: 0, opacity: s.cancelled ? 0.55 : 1 }}>
+                    <div style={{ fontSize: mob ? 12 : 13, color: T.txH, fontWeight: 600 }}>
+                      {s.cancelled
+                        ? <>{s.dow} {t("sciatt.cancelled")} <span style={{ color: T.txD, fontWeight: 400, fontSize: 11 }}>{t("sciatt.origSession", { n: s.n })}</span></>
+                        : <>{s.dow} {t("cal.sessionN", { n: s.ordinal })}{s.sub ? ` ${t("cal.makeup")}` : ""}</>}
+                    </div>
                     <div style={{ fontSize: 11, color: T.txD }}>{s.dateStr}</div>
                   </div>
-                  <Toggle value={st} mob={mob} onPick={(v) => setStatus("sci", co.id, s, v)} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <Toggle value={st} mob={mob} disabled={s.cancelled} onPick={(v) => setStatus("sci", co.id, s, v)} />
+                    <CancelPill on={s.cancelled} mob={mob} onToggle={() => setStatus("sci", co.id, s, s.cancelled ? null : "cancelled")} />
+                  </div>
                 </div>
               );
             })

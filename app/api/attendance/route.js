@@ -3,7 +3,7 @@ import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 const KINDS = new Set(['sci', 'med']);
-const STATUSES = new Set(['present', 'absent', 'late']);
+const STATUSES = new Set(['present', 'absent', 'late', 'cancelled']);
 
 // GET: ユーザーの全出欠記録を { [kind]: { [course_key]: { [session_key]: status } } } で返す
 export async function GET(request) {

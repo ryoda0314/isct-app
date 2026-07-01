@@ -6,6 +6,7 @@ import { Tag } from "../shared.jsx";
 import { getAcademicInfo, getCurrentQuarter } from "../academicCalendar.js";
 import { PERIOD_TIMES } from "../examData.js";
 import { buildTimetable } from "../../lib/transform/timetable-builder.js";
+import { getSciSessions, annotateSessions } from "../attendanceUtils.js";
 import { t, locCal } from "../i18n.js";
 const DAY_KEYS=["cal.sun","cal.mon","cal.tue","cal.wed","cal.thu","cal.fri","cal.sat"];
 const COLORS=["#6375f0","#e5534b","#3dae72","#a855c7","#d4843e","#c6a236","#2d9d8f","#c75d8e"];
@@ -31,7 +32,7 @@ const rangesOverlap=(s1h,s1m,e1h,e1m,s2h,s2m,e2h,e2m)=>{
 
 const getWeekStart=d=>{const dt=new Date(d);dt.setDate(dt.getDate()-dt.getDay());dt.setHours(0,0,0,0);return dt;};
 
-export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:deleteEventApi,asgn,courses=[],qd,qDataAll={},mob,pastTTCache={},fetchPastTimetable,medSessions=[]})=>{
+export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:deleteEventApi,asgn,courses=[],qd,qDataAll={},mob,pastTTCache={},fetchPastTimetable,medSessions=[],records={},setStatus})=>{
   const [viewMode,setViewMode]=useState("month");
   const [calMonth,setCalMonth]=useState(()=>({y:NOW.getFullYear(),m:NOW.getMonth()}));
   const [weekStart,setWeekStart]=useState(()=>getWeekStart(NOW));
@@ -188,10 +189,31 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
       return{type:"class",course:{name:s.name,col:"#e04e6a",room:s.room||null,code:s.code},pd:{l:s.timeStart,s:[sh,sm],e:[eh,em]},pi:null,n:null,sub:false,dow:s.day};
     });
   };
+  // 休講(cancelled)注釈マップ: courseId → ゼロ埋めISO日付 → {cancelled, ordinal, sessionKey}
+  const sciAnnot=useMemo(()=>{
+    const sci=records.sci||{};
+    const map={};
+    for(const co of courses){
+      if(!co?.quarter)continue; // sci のみ（medは別扱い）
+      const statuses=sci[String(co.id)]||{};
+      const keys=new Set(Object.keys(statuses).filter(k=>statuses[k]==="cancelled"));
+      const byDate={};
+      for(const s of annotateSessions(getSciSessions(co),keys))byDate[s.dateStr]={cancelled:s.cancelled,ordinal:s.ordinal,sessionKey:s.sessionKey};
+      map[String(co.id)]=byDate;
+    }
+    return map;
+  },[courses,records]);
+  // getSciSessions().dateStr はゼロ埋め "YYYY-MM-DD"。dKey(ゼロ埋め無し)は流用不可。
+  const isoOf=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
   const getClasses=date=>{
     const yr=dateToAY(date);
+    const iso=isoOf(date);
     const info=getAcademicInfo(date);
     const hasAcad=info.items.length>0||info.period;
+    const withAnnot=(co,base)=>{
+      const ann=sciAnnot[String(co.id)]?.[iso];
+      return {...base,dispN:(ann&&ann.ordinal!=null)?ann.ordinal:base.n,cancelled:!!ann?.cancelled,sessionKey:ann?.sessionKey,dateStr:iso};
+    };
     let results=[];
     if(hasAcad){
       const classItems=info.items.filter(it=>it.type==="class");
@@ -200,7 +222,7 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
           const di=DOW_MAP[item.dow];
           if(di===undefined) continue;
           const tt=getTT(item.q,yr);
-          PD.forEach((pd,pi)=>{const co=tt[pi]?.[di];if(co) results.push({type:"class",course:co,pd,pi,n:item.n,sub:item.sub,dow:item.dow});});
+          PD.forEach((pd,pi)=>{const co=tt[pi]?.[di];if(co) results.push(withAnnot(co,{type:"class",course:co,pd,pi,n:item.n,sub:item.sub,dow:item.dow}));});
         }
       }
     } else {
@@ -208,7 +230,7 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
       if(dow>=1&&dow<=5){
         const di=dow-1;
         const tt=getTT(getCurrentQuarter(date),yr);
-        results=PD.map((pd,pi)=>{const co=tt[pi]?.[di];if(!co)return null;return{type:"class",course:co,pd,pi,n:null,sub:false};}).filter(Boolean);
+        results=PD.map((pd,pi)=>{const co=tt[pi]?.[di];if(!co)return null;return withAnnot(co,{type:"class",course:co,pd,pi,n:null,sub:false});}).filter(Boolean);
       }
     }
     // Append med sessions (date-based, not timetable grid)
@@ -259,7 +281,7 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
       const eh=ev.end?ev.end.getHours():sh+1,em=ev.end?ev.end.getMinutes():sm;
       ranges.push({sh,sm,eh,em,label:ev.title,color:ev.color});
     });
-    data.classes.forEach(c=>{
+    data.classes.filter(c=>!c.cancelled).forEach(c=>{
       ranges.push({sh:c.pd.s[0],sm:c.pd.s[1],eh:c.pd.e[0],em:c.pd.e[1],label:c.course.name,color:c.course.col});
     });
     (data.exams||[]).forEach(ex=>{
@@ -426,15 +448,18 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
         </div>}
         {cls.length>0&&<>
           <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.4}}>{t("cal.typeClass")}</div>
-          {cls.map((c,i)=><div key={`c${i}`} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:`${c.course.col}10`,borderLeft:`3px solid ${c.course.col}`}}>
+          {cls.map((c,i)=><div key={`c${i}`} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:`${c.course.col}10`,borderLeft:`3px solid ${c.course.col}`,opacity:c.cancelled?0.6:1}}>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:4}}>
-                <span style={{fontSize:13,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.course.name}</span>
-                {c.n!=null&&<span style={{fontSize:9,fontWeight:700,color:c.course.col,background:`${c.course.col}18`,padding:"1px 5px",borderRadius:4,flexShrink:0}}>{t("cal.sessionN",{n:c.n})}</span>}
-                {c.sub&&<span style={{fontSize:9,fontWeight:700,color:"#d97706",background:"#d9770618",padding:"1px 5px",borderRadius:4,flexShrink:0}}>{t("cal.makeup")}</span>}
+                <span style={{fontSize:13,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:c.cancelled?"line-through":"none"}}>{c.course.name}</span>
+                {c.cancelled
+                  ?<span style={{fontSize:9,fontWeight:700,color:"#6b7280",background:"#6b728018",padding:"1px 5px",borderRadius:4,flexShrink:0}}>{t("cal.tagCancel")}</span>
+                  :c.dispN!=null&&<span style={{fontSize:9,fontWeight:700,color:c.course.col,background:`${c.course.col}18`,padding:"1px 5px",borderRadius:4,flexShrink:0}}>{t("cal.sessionN",{n:c.dispN})}</span>}
+                {c.sub&&!c.cancelled&&<span style={{fontSize:9,fontWeight:700,color:"#d97706",background:"#d9770618",padding:"1px 5px",borderRadius:4,flexShrink:0}}>{t("cal.makeup")}</span>}
               </div>
               <div style={{fontSize:11,color:T.txD}}>{c.pd.l} · {c.course.room}{c.sub?` ${t("cal.makeupOf",{d:t("dow.s."+c.dow)})}`:""}</div>
             </div>
+            {setStatus&&c.sessionKey&&<button onClick={()=>setStatus("sci",c.course.id,{sessionKey:c.sessionKey,dateStr:c.dateStr},c.cancelled?null:"cancelled")} style={{fontSize:10,fontWeight:700,padding:"3px 7px",borderRadius:6,border:`1px solid ${c.cancelled?"#6b7280":T.bd}`,background:c.cancelled?"#6b7280":"transparent",color:c.cancelled?"#fff":T.txD,cursor:"pointer",flexShrink:0}}>{c.cancelled?t("cal.unmarkCancel"):t("cal.markCancel")}</button>}
             <div style={{fontSize:11,color:T.txD,flexShrink:0}}>{c.pd.s[0]}:{String(c.pd.s[1]).padStart(2,"0")}–{c.pd.e[0]}:{String(c.pd.e[1]).padStart(2,"0")}</div>
           </div>)}
         </>}
@@ -494,7 +519,7 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
             const data=getDayData(d);
             const isT=isSameDay(d,NOW);
             const items=[];
-            data.classes.forEach((c,ci)=>{items.push({type:"cls",sh:c.pd.s[0],sm:c.pd.s[1],eh:c.pd.e[0],em:c.pd.e[1],label:c.course.name,sub:`${c.pd.l} · ${c.course.room}${c.n!=null?` · ${t("cal.sessionN",{n:c.n})}`:""}${c.sub?` (${t("cal.makeup")})`:""}`,col:c.course.col,id:`cls${di}_${ci}`});});
+            data.classes.forEach((c,ci)=>{items.push({type:"cls",sh:c.pd.s[0],sm:c.pd.s[1],eh:c.pd.e[0],em:c.pd.e[1],label:c.course.name,cancelled:c.cancelled,sub:`${c.pd.l} · ${c.course.room}${c.cancelled?` · ${t("cal.tagCancel")}`:c.dispN!=null?` · ${t("cal.sessionN",{n:c.dispN})}`:""}${c.sub&&!c.cancelled?` (${t("cal.makeup")})`:""}`,col:c.course.col,id:`cls${di}_${ci}`});});
             data.events.forEach(ev=>{const sh=ev.date.getHours(),sm=ev.date.getMinutes();const eh=ev.end?ev.end.getHours():sh+1,em=ev.end?ev.end.getMinutes():sm;items.push({type:"ev",sh,sm,eh,em,label:ev.title,sub:ev.memo||"",col:ev.color,id:ev.id,ev});});
             data.asgns.forEach(a=>{const h=a.due.getHours(),m=a.due.getMinutes();const co=courses.find(x=>x.id===a.cid);items.push({type:"asgn",sh:h,sm:m,eh:h,em:m+30,label:a.title,sub:co?.code||"",col:co?.col||T.orange,id:`a${a.id}`});});
             (data.exams||[]).forEach((ex,ei)=>{const pt=PERIOD_TIMES[ex.period];if(pt){const [sh,sm]=pt.start.split(":").map(Number);const [eh,em]=pt.end.split(":").map(Number);items.push({type:"exam",sh,sm,eh,em,label:ex.name,sub:`${t("cal.periodN",{n:ex.period})} · ${ex.room}`,col:"#d97706",id:`ex${di}_${ei}`});}});
@@ -517,7 +542,7 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
                     const endStr=`${it.eh}:${String(it.em).padStart(2,"0")}`;
                     const dur=((it.eh*60+it.em)-(it.sh*60+it.sm));
                     const durStr=dur>=60?`${Math.floor(dur/60)}h${dur%60?String(dur%60).padStart(2,"0")+"m":""}`:`${dur}m`;
-                    return <div key={it.id} onClick={isEv?()=>openEdit(it.ev):undefined} style={{display:"flex",alignItems:"center",gap:mob?8:12,padding:mob?"6px 8px":"5px 10px",borderRadius:6,background:`${it.col}08`,borderLeft:`3px solid ${it.col}`,cursor:isEv?"pointer":"default"}}>
+                    return <div key={it.id} onClick={isEv?()=>openEdit(it.ev):undefined} style={{display:"flex",alignItems:"center",gap:mob?8:12,padding:mob?"6px 8px":"5px 10px",borderRadius:6,background:`${it.col}08`,borderLeft:`3px solid ${it.col}`,cursor:isEv?"pointer":"default",opacity:it.cancelled?0.6:1}}>
                       <div style={{width:mob?52:60,flexShrink:0,textAlign:"right"}}>
                         <div style={{fontSize:mob?11:13,fontWeight:600,color:T.txH,fontVariantNumeric:"tabular-nums",lineHeight:"16px"}}>{timeStr}</div>
                         <div style={{fontSize:mob?9:10,color:T.txD,lineHeight:"14px"}}>{endStr}</div>
@@ -525,7 +550,7 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
                       <div style={{width:1,height:mob?24:28,background:`${it.col}40`,flexShrink:0}}/>
                       <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:mob?6:10}}>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:mob?12:14,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"18px"}}>{it.label}</div>
+                          <div style={{fontSize:mob?12:14,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"18px",textDecoration:it.cancelled?"line-through":"none"}}>{it.label}</div>
                           {it.sub&&<div style={{fontSize:mob?10:11,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"14px"}}>{it.sub}</div>}
                         </div>
                         {!mob&&<>
@@ -574,13 +599,13 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
             {wDays.map((d,di)=>{
               const data=getDayData(d);
               const items=[];
-              data.classes.forEach(c=>{items.push({y:toY(c.pd.s[0],c.pd.s[1]),h:toH(c.pd.s[0],c.pd.s[1],c.pd.e[0],c.pd.e[1]),label:mob?c.course.code.split(".")[1]:c.course.name,sub:`${c.pd.l}${c.n!=null?` #${c.n}`:""}`,col:c.course.col,type:"cls"});});
+              data.classes.forEach(c=>{items.push({y:toY(c.pd.s[0],c.pd.s[1]),h:toH(c.pd.s[0],c.pd.s[1],c.pd.e[0],c.pd.e[1]),label:mob?c.course.code.split(".")[1]:c.course.name,sub:`${c.pd.l}${c.cancelled?` ${t("cal.tagCancel")}`:c.dispN!=null?` #${c.dispN}`:""}`,col:c.course.col,type:"cls",cancelled:c.cancelled});});
               data.events.forEach(ev=>{const sh=ev.date.getHours(),sm=ev.date.getMinutes();const eh=ev.end?ev.end.getHours():sh+1,em=ev.end?ev.end.getMinutes():sm;items.push({y:toY(sh,sm),h:toH(sh,sm,eh,em),label:ev.title,sub:`${fTs(ev.date)}`,col:ev.color,type:"ev"});});
               data.asgns.forEach(a=>{const h=a.due.getHours(),m=a.due.getMinutes();items.push({y:toY(h,m),h:HH/2,label:mob?a.title.slice(0,4):a.title,sub:t("cal.deadline"),col:courses.find(x=>x.id===a.cid)?.col||T.orange,type:"asgn"});});
               (data.exams||[]).forEach(ex=>{const pt=PERIOD_TIMES[ex.period];if(pt){const [sh,sm]=pt.start.split(":").map(Number);const [eh,em]=pt.end.split(":").map(Number);items.push({y:toY(sh,sm),h:toH(sh,sm,eh,em),label:mob?ex.code.split(".")[1]:ex.name,sub:t("cal.periodN",{n:ex.period}),col:"#d97706",type:"exam"});}});
               return <div key={di} style={{position:"relative",height:(EH-SH)*HH,borderLeft:`1px solid transparent`}}>
-                {items.map((it,ii)=><div key={ii} style={{position:"absolute",top:it.y,left:1,right:1,height:it.h,borderRadius:4,background:`${it.col}20`,borderLeft:`2px solid ${it.col}`,padding:"2px 3px",overflow:"hidden",cursor:"pointer",zIndex:1}} onClick={()=>setSelDay(d)}>
-                  <div style={{fontSize:mob?7:9,fontWeight:600,color:it.col,lineHeight:"12px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.label}</div>
+                {items.map((it,ii)=><div key={ii} style={{position:"absolute",top:it.y,left:1,right:1,height:it.h,borderRadius:4,background:`${it.col}20`,borderLeft:`2px solid ${it.col}`,padding:"2px 3px",overflow:"hidden",cursor:"pointer",zIndex:1,opacity:it.cancelled?0.55:1}} onClick={()=>setSelDay(d)}>
+                  <div style={{fontSize:mob?7:9,fontWeight:600,color:it.col,lineHeight:"12px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:it.cancelled?"line-through":"none"}}>{it.label}</div>
                   {it.h>HH/2&&<div style={{fontSize:mob?6:8,color:T.txD,lineHeight:"10px"}}>{it.sub}</div>}
                 </div>)}
               </div>;

@@ -96,3 +96,19 @@ export function medDateToISO(d) {
 export function defaultAbsenceLimit(total) {
   return Math.floor((total || 0) / 3);
 }
+
+/**
+ * 臨時休講(cancelled)を考慮して授業回に「実際の第N回(ordinal)」と cancelled を付与する。
+ * sessions: getSciSessions の返り値（日付昇順であることが前提）。
+ * cancelledKeys: 休講指定された sessionKey の Set。
+ * ordinal = その回までの「休講でない」授業の通し番号（休講回は ordinal=null）。
+ * 週複数回科目でも sessionKey が日付順に並ぶため、ordinal は科目全体の通し回数になる。
+ */
+export function annotateSessions(sessions = [], cancelledKeys = new Set()) {
+  let held = 0;
+  return sessions.map((s) => {
+    const cancelled = cancelledKeys.has(s.sessionKey);
+    if (!cancelled) held += 1;
+    return { ...s, cancelled, ordinal: cancelled ? null : held };
+  });
+}
