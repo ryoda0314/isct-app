@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { T } from '../theme.js';
 import { t } from "../i18n.js";
 import { I } from '../icons.jsx';
-import { Av, Tx, Loader } from '../shared.jsx';
+import { Av, Tx, Loader, msgPreview } from '../shared.jsx';
 import { fT, fTs } from '../utils.jsx';
 import { useCurrentUser } from '../hooks/useCurrentUser.js';
 import { useDMList, useDMMessages, useDMSend } from '../hooks/useDM.js';
@@ -392,7 +392,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontWeight:600,color:T.txH,fontSize:14}}>{g.name}</div>
                 <div style={{fontSize:12,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                  {g.lastMessage?`${g.lastMessage.senderName}: ${g.lastMessage.text}`:t("dm.memberGroup",{n:g.memberCount})}
+                  {g.lastMessage?`${g.lastMessage.senderName}: ${msgPreview(g.lastMessage.text)}`:t("dm.memberGroup",{n:g.memberCount})}
                 </div>
               </div>
               {g.lastMessage&&<span style={{fontSize:10,color:T.txD}}>{fT(new Date(g.lastMessage.ts))}</span>}
@@ -403,7 +403,7 @@ export const DMView=({mob,setView,friends=[],groups=[],leaveGroup,markDMSeen,cre
         const wu={name:conv.withName||'?',av:conv.withAvatar||'?',col:conv.withColor||'#888'};
         return(
           <div key={conv.id} onClick={()=>{setSel({type:'dm',...conv});markDMSeen?.(conv.id);markRead(conv.id);}} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:6,cursor:"pointer"}}>
-            <Av u={wu} sz={36} st uid={conv.withId}/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{wu.name}</div><div style={{fontSize:12,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{last?.call_meta?`📞 ${callLogView(last.call_meta,last.uid===uid).label}`:last?.stamp_id?t("dm.stampPreview"):last?.text}</div></div>
+            <Av u={wu} sz={36} st uid={conv.withId}/><div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:T.txH,fontSize:14}}>{wu.name}</div><div style={{fontSize:12,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{last?.call_meta?`📞 ${callLogView(last.call_meta,last.uid===uid).label}`:last?.stamp_id?t("dm.stampPreview"):msgPreview(last?.text)}</div></div>
             <span style={{fontSize:10,color:T.txD}}>{last?fT(last.ts):""}</span>
           </div>
         );

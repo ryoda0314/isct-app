@@ -214,4 +214,12 @@ const Loader=({msg,size="md"})=>{
   );
 };
 
-export { useKatex, useHighlight, useLeaflet, useQRCode, Tx, Av, Tag, Bar, Btn, Loader, setProfileOpener, openProfileFor };
+// Chat message preview: collapse whitespace and hard-cap length so a single
+// pathological unbroken token (e.g. a pasted base64 blob) can't sprawl across
+// wide viewports where CSS ellipsis won't engage.
+const msgPreview = (txt, max = 48) => {
+  const s = String(txt || "").replace(/\s+/g, " ").trim();
+  return s.length > max ? s.slice(0, max) + "…" : s;
+};
+
+export { useKatex, useHighlight, useLeaflet, useQRCode, Tx, Av, Tag, Bar, Btn, Loader, setProfileOpener, openProfileFor, msgPreview };

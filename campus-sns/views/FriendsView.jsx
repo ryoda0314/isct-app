@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { T } from '../theme.js';
 import { t } from "../i18n.js";
 import { I } from '../icons.jsx';
-import { Av, Loader, useQRCode } from '../shared.jsx';
+import { Av, Loader, useQRCode, msgPreview } from '../shared.jsx';
 import { SocialGraphView } from './SocialGraphView.jsx';
 import { QRScanner } from '../components/QRScanner.jsx';
 
@@ -418,7 +418,7 @@ export const FriendsView=({mob,setView,friends,pending,sent,loading,pendingCount
               <GroupAv g={g} sz={44}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:14,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{g.name}</div>
-                <div style={{fontSize:12,color:T.txD,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t("friends.memberCount",{n:g.memberCount})}{g.lastMessage?` · ${g.lastMessage.senderName}: ${g.lastMessage.text}`:''}</div>
+                <div style={{fontSize:12,color:T.txD,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t("friends.memberCount",{n:g.memberCount})}{g.lastMessage?` · ${g.lastMessage.senderName}: ${msgPreview(g.lastMessage.text)}`:''}</div>
               </div>
               <span style={{color:T.txD,display:"flex",flexShrink:0}}>{I.arr}</span>
             </div>
