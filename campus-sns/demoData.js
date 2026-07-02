@@ -61,6 +61,7 @@ const DEMO_ASGN = [
   { id: "da_11", moodleId: 211, cid: "mc_106", title: "確率統計 レポート2", desc: "最尤推定量とベイズ推定の比較について論ぜよ。", due: d(-1), type: "assignment", st: "not_started", pri: 2, subs: [] },
   { id: "da_12", moodleId: 212, cid: "mc_103", title: "論理と形式言語 演習3", desc: "正規表現からNFAへの変換。", due: d(-3), type: "assignment", st: "in_progress", pri: 2, subs: [{ id: "s7", t: "正規表現→NFA", d: true }, { id: "s8", t: "NFA→DFA", d: false }, { id: "s9", t: "最小化", d: false }] },
   { id: "da_13", moodleId: 213, cid: "mc_107", title: "CA レポート1: キャッシュメモリ", desc: "キャッシュの連想度とヒット率の関係をシミュレーションで検証せよ。", due: d(-7), type: "assignment", st: "not_started", pri: 3, subs: [] },
+  { id: "da_14", moodleId: 214, cid: "mc_104", title: "任意課題: 発展演習（提出期限なし）", desc: "興味のある人向けの発展問題。提出はいつでも可。", due: null, type: "problem_set", st: "not_started", pri: "low", subs: [] },
   // Q1 完了済み
   { id: "da_q1_1", moodleId: 1201, cid: "mc_q1_101", title: "プログラミング基礎 期末課題", desc: "Pythonで簡易データベースを実装せよ。", due: d(-45), type: "assignment", st: "completed", sub: d(-46), pri: 1, subs: [] },
   { id: "da_q1_2", moodleId: 1202, cid: "mc_q1_102", title: "微分積分学第一 問題セット8", desc: "重積分に関する演習問題。", due: d(-42), type: "assignment", st: "completed", sub: d(-43), pri: 1, subs: [] },

@@ -260,7 +260,7 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
         while(d<=last){ensure(dKey(d)).events.push(ev);d.setDate(d.getDate()+1);}
       }
     });
-    asgn.filter(a=>a.st!=="completed").forEach(a=>{ensure(dKey(a.due)).asgns.push(a);});
+    asgn.filter(a=>a.st!=="completed"&&a.due).forEach(a=>{ensure(dKey(a.due)).asgns.push(a);});
     myExams.forEach(ex=>{const d=new Date(ex.date+"T00:00:00");ensure(dKey(d)).exams.push(ex);});
     return map;
   },[myEvents,asgn,myExams]);

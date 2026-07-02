@@ -52,7 +52,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
   const showTabs=!course;
   const qCids=showTabs&&quarter?new Set(courses.filter(c=>c.quarter===quarter&&(!academicYear||!c.year||c.year===academicYear)).map(c=>c.id)):null;
   const items=course?asgn.filter(a=>a.cid===course.id):qCids?asgn.filter(a=>qCids.has(a.cid)):asgn;
-  const allActive=items.filter(a=>a.st!=="completed").sort((a,b)=>a.due-b.due);
+  const allActive=items.filter(a=>a.st!=="completed").sort((a,b)=>{if(!a.due&&!b.due)return 0;if(!a.due)return 1;if(!b.due)return -1;return a.due-b.due;});
   const active=hiddenAsgn?allActive.filter(a=>!hiddenAsgn.has(a.id)):allActive;
   const hidden=hiddenAsgn?allActive.filter(a=>hiddenAsgn.has(a.id)):[];
   const done=items.filter(a=>a.st==="completed");
@@ -223,7 +223,8 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
         </>}
         {showTabs&&(tab==="active"||tab==="done")&&calMode==="month"&&(()=>{
           const calItems=tab==="done"?done:active;
-          const byDay={};calItems.forEach(a=>{const k=dKey(a.due);(byDay[k]=byDay[k]||[]).push(a);});
+          const noDue=calItems.filter(a=>!a.due);
+          const byDay={};calItems.forEach(a=>{if(!a.due)return;const k=dKey(a.due);(byDay[k]=byDay[k]||[]).push(a);});
           // My Tasks with a due date show on the calendar too (pending only).
           const calTasks=(myTasks||[]).filter(tk=>!tk.d&&tk.due);
           const tByDay={};calTasks.forEach(tk=>{const k=dKey(tk.due);(tByDay[k]=tByDay[k]||[]).push(tk);});
@@ -233,7 +234,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
           const weeks=Math.ceil((startOff+daysInMonth)/7);
           const prevM=()=>setCalMonth(p=>p.m===0?{y:p.y-1,m:11}:{y:p.y,m:p.m-1});
           const nextM=()=>setCalMonth(p=>p.m===11?{y:p.y+1,m:0}:{y:p.y,m:p.m+1});
-          const selDayItems=selDay?calItems.filter(a=>isSameDay(a.due,selDay)):[];
+          const selDayItems=selDay?calItems.filter(a=>a.due&&isSameDay(a.due,selDay)):[];
           const selDayTasks=selDay?calTasks.filter(tk=>isSameDay(tk.due,selDay)):[];
           const maxShow=mob?1:2;
           return <>
@@ -266,6 +267,23 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
                 </div>;
               })}
             </div>
+            {noDue.length>0&&<div style={{marginTop:12}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                <span style={{fontSize:13,fontWeight:700,color:T.txD}}>{t("asgn.noDeadlineSection")}</span>
+                <span style={{fontSize:11,fontWeight:600,padding:"1px 7px",borderRadius:10,background:T.bg3,color:T.txD}}>{noDue.length}</span>
+                <div style={{flex:1,height:1,background:T.bd}}/>
+              </div>
+              {noDue.map(a=>{const co=courses.find(x=>x.id===a.cid),at=aMap()[a.type],si=sMap()[a.st];return(
+                <div key={a.id} onClick={()=>setSel(a)} style={{padding:10,borderRadius:8,background:tab==="done"?`${T.green}06`:T.bg2,border:`1px solid ${tab==="done"?`${T.green}16`:T.bd}`,marginBottom:4,borderLeft:`3px solid ${tab==="done"?T.green:(co?.col||T.accent)}`,cursor:"pointer"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"start"}}>
+                    <div style={{display:"flex",gap:4,marginBottom:3}}><Tag color={co?.col}>{co?.code}</Tag><Tag color={at?.c}>{at?.l}</Tag><Tag color={si.c}>{si.l}</Tag></div>
+                    {tab==="active"&&saveHidden&&<button onClick={e=>hideA(e,a.id)} title={t("common.delete")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:2,borderRadius:4,opacity:.5}}>{I.x}</button>}
+                  </div>
+                  <div style={{fontSize:13,fontWeight:600,color:T.txH}}>{a.title}</div>
+                  <div style={{display:"flex",gap:8,marginTop:2,fontSize:11,color:T.txD}}><span>{t("asgn.points",{n:a.pts})}</span></div>
+                </div>
+              );})}
+            </div>}
             {mob&&selDay&&<div style={{marginTop:10,padding:10,borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
                 <span style={{fontSize:13,fontWeight:700,color:T.txH}}>{selDay.getMonth()+1}/{selDay.getDate()} ({t(`asgn.weekdayShort.${(selDay.getDay()+6)%7}`)})</span>
@@ -290,8 +308,10 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
         })()}
         {showTabs&&(tab==="active"||tab==="done")&&calMode==="timeline"&&(()=>{
           const calItems=tab==="done"?done:active;
-          const overdue=tab==="active"?calItems.filter(a=>a.due<NOW):[];
-          const upcoming=tab==="active"?calItems.filter(a=>a.due>=NOW):calItems;
+          const withDue=calItems.filter(a=>a.due);
+          const noDue=calItems.filter(a=>!a.due);
+          const overdue=tab==="active"?withDue.filter(a=>a.due<NOW):[];
+          const upcoming=tab==="active"?withDue.filter(a=>a.due>=NOW):withDue;
           const makeDates=list=>[...new Set(list.map(a=>dKey(a.due)))].sort((a,b)=>{const[ay,am,ad]=a.split("-").map(Number);const[by,bm,bd]=b.split("-").map(Number);return new Date(ay,am,ad)-new Date(by,bm,bd);});
           const upDates=makeDates(upcoming);
           const renderItems=(list)=>makeDates(list).map(dk=>{const[y,m,dd]=dk.split("-").map(Number);const date=new Date(y,m,dd);const dayItems=list.filter(a=>isSameDay(a.due,date));const dl=uDue(new Date(Math.max(...dayItems.map(a=>a.due))));return(
@@ -328,6 +348,23 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
             </div>}
             {calItems.length===0&&<div style={{textAlign:"center",color:T.txD,padding:20,fontSize:13}}>{tab==="done"?t("asgn.emptySubmitted"):t("asgn.emptyActive")}</div>}
             {renderItems(upcoming)}
+            {noDue.length>0&&<div style={{marginBottom:12}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                <span style={{fontSize:13,fontWeight:700,color:T.txD}}>{t("asgn.noDeadlineSection")}</span>
+                <span style={{fontSize:11,fontWeight:600,padding:"1px 7px",borderRadius:10,background:T.bg3,color:T.txD}}>{noDue.length}</span>
+                <div style={{flex:1,height:1,background:T.bd}}/>
+              </div>
+              {noDue.map(a=>{const co=courses.find(x=>x.id===a.cid),at=aMap()[a.type],si=sMap()[a.st];return(
+                <div key={a.id} onClick={()=>setSel(a)} style={{padding:10,borderRadius:8,background:tab==="done"?`${T.green}06`:T.bg2,border:`1px solid ${tab==="done"?`${T.green}16`:T.bd}`,marginBottom:4,borderLeft:`3px solid ${tab==="done"?T.green:(co?.col||T.accent)}`,cursor:"pointer"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"start"}}>
+                    <div style={{display:"flex",gap:4,marginBottom:3}}><Tag color={co?.col}>{co?.code}</Tag><Tag color={at?.c}>{at?.l}</Tag><Tag color={si.c}>{si.l}</Tag></div>
+                    {tab==="active"&&saveHidden&&<button onClick={e=>hideA(e,a.id)} title={t("common.delete")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:2,borderRadius:4,opacity:.5}}>{I.x}</button>}
+                  </div>
+                  <div style={{fontSize:13,fontWeight:600,color:T.txH}}>{a.title}</div>
+                  <div style={{display:"flex",gap:8,marginTop:2,fontSize:11,color:T.txD}}><span>{t("asgn.points",{n:a.pts})}</span></div>
+                </div>
+              );})}
+            </div>}
           </>;
         })()}
         {showTabs&&tab==="active"&&hidden.length>0&&<div style={{marginTop:4}}>
@@ -448,7 +485,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
             </>;
           })():calMode==="month"&&selDay?(()=>{
             const calItems=tab==="done"?done:active;
-            const selDayItems=calItems.filter(a=>isSameDay(a.due,selDay));
+            const selDayItems=calItems.filter(a=>a.due&&isSameDay(a.due,selDay));
             const selDayTasks=(myTasks||[]).filter(tk=>!tk.d&&tk.due&&isSameDay(tk.due,selDay));
             return <>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>

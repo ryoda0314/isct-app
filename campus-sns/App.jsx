@@ -341,7 +341,7 @@ export default function App(){
   const applyData=(d)=>{
     if(d.qData) setQDataLive(d.qData);
     if(d.courses){setAllCourses(d.courses);if(d.courses[0]&&!cid)setCid(d.courses[0].id);}
-    const asnList=d.assignments?d.assignments.map(a=>({...a,due:new Date(a.due),st:'loading'})):[];
+    const asnList=d.assignments?d.assignments.map(a=>({...a,due:a.due?new Date(a.due):null,st:'loading'})):[];
     if(d.assignments) setAsgn(prev=>{
       if(!prev||prev.length===0) return asnList;
       const m={};prev.forEach(p=>{if(p.st&&p.st!=='loading') m[p.id]=p;});

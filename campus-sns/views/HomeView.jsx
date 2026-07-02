@@ -230,7 +230,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
   const todayKey=`${NOW.getFullYear()}-${NOW.getMonth()}-${NOW.getDate()}`;
   const todayDateStr=`${NOW.getFullYear()}-${String(NOW.getMonth()+1).padStart(2,"0")}-${String(NOW.getDate()).padStart(2,"0")}`;
   const todayEvents=myEvents.filter(e=>{const d=e.date instanceof Date?e.date:new Date(e.date);return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`===todayKey;});
-  const todayAsgn=vis.filter(a=>{const d=a.due;return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`===todayKey&&a.st!=="completed";});
+  const todayAsgn=vis.filter(a=>{const d=a.due;return d&&`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`===todayKey&&a.st!=="completed";});
   const todayExams=myExams.filter(e=>e.date===todayDateStr);
 
   // 全アイテムを統合して時刻ソート
