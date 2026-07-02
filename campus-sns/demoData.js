@@ -43,7 +43,12 @@ const DEMO_QDATA = {
 
 // ── 課題 ──
 const DEMO_ASGN = [
-  { id: "da_1", moodleId: 201, cid: "mc_101", title: "第3回レポート: ソートアルゴリズムの比較", desc: "クイックソート・マージソート・ヒープソートの計算量を比較し、実験結果とともにレポートを提出せよ。", due: d(2), type: "assignment", st: "not_started", pri: 2, subs: [] },
+  { id: "da_1", moodleId: 201, cid: "mc_101", title: "第3回レポート: ソートアルゴリズムの比較", desc: "クイックソート・マージソート・ヒープソートの計算量を比較し、実験結果とともにレポートを提出せよ。", due: d(2), type: "assignment", st: "not_started", pri: 2, attachments: [
+    // デモは同一オリジンの画像を使い、プレビュー動作をそのまま確認できるようにしている。
+    // 本番は Moodle introattachments の PDF 等が同じ経路（教材と同じ PdfViewer）で開く。
+    { id: "att_da_1_1", filename: "参考図_計算量グラフ.png", name: "参考図_計算量グラフ.png", fileurl: "/guide/step1.png", filesize: 245760, filesizeFormatted: "240 KB", mimetype: "image/png", fileType: "image", timemodified: 0 },
+    { id: "att_da_1_2", filename: "提出テンプレート.png", name: "提出テンプレート.png", fileurl: "/guide/step2.png", filesize: 51200, filesizeFormatted: "50 KB", mimetype: "image/png", fileType: "image", timemodified: 0 },
+  ], subs: [] },
   { id: "da_2", moodleId: 202, cid: "mc_101", title: "演習4: 二分探索木の実装", desc: "二分探索木の挿入・検索・削除を実装し、テストケースとともに提出。", due: d(5), type: "assignment", st: "in_progress", pri: 1, subs: [{ id: "s1", t: "挿入の実装", d: true }, { id: "s2", t: "検索の実装", d: true }, { id: "s3", t: "削除の実装", d: false }] },
   { id: "da_3", moodleId: 203, cid: "mc_102", title: "線形代数 問題セット5", desc: "固有値・固有ベクトルに関する演習問題。", due: d(3), type: "assignment", st: "not_started", pri: 1, subs: [] },
   { id: "da_4", moodleId: 204, cid: "mc_103", title: "論理回路 中間レポート", desc: "ブール代数を用いた論理回路の最適化について述べよ。", due: d(7), type: "assignment", st: "not_started", pri: 1, subs: [] },

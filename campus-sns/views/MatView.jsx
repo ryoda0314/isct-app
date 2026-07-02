@@ -14,14 +14,14 @@ const tLblKey={pdf:'mat.ft.pdf',slide:'mat.ft.slide',document:'mat.ft.document',
 const fmtD=ts=>{if(!ts)return'';const d=new Date(ts*1000);return`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;};
 const fmtDt=d=>{if(!d)return'';return`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;};
 const fmtSize=b=>{if(!b)return'';if(b<1024)return`${b} B`;if(b<1048576)return`${(b/1024).toFixed(1)} KB`;return`${(b/1048576).toFixed(1)} MB`;};
-const PREVIEWABLE=new Set(['pdf','image','video','audio']);
+export const PREVIEWABLE=new Set(['pdf','image','video','audio']);
 /* .docx は docx-preview でプレビューできる(.doc 旧形式は非対応→DL)。 */
 const isDocx=m=>{if(!m)return false;const f=(m.filename||m.name||'').toLowerCase();return f.endsWith('.docx')||(m.mimetype||'').toLowerCase().includes('wordprocessingml');};
-const canPreviewType=(m,ft)=>PREVIEWABLE.has(ft)||(ft==='document'&&isDocx(m));
-const canPreview=m=>m&&m.fileurl&&canPreviewType(m,m.fileType);
+export const canPreviewType=(m,ft)=>PREVIEWABLE.has(ft)||(ft==='document'&&isDocx(m));
+export const canPreview=m=>m&&m.fileurl&&canPreviewType(m,m.fileType);
 
 /* Detect file type from mimetype */
-const detectType=mime=>{
+export const detectType=mime=>{
   if(!mime)return'file';
   if(mime==='application/pdf')return'pdf';
   if(mime.startsWith('image/'))return'image';
@@ -517,7 +517,7 @@ const FsIcon=({active})=>active
    Preview component (PDF / image / video / audio)
    Works for both Moodle materials and shared files
    ────────────────────────────────────────────── */
-const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote,session,sessionOrder})=>{
+export const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote,session,sessionOrder})=>{
   const ft=m.fileType||detectType(m.mimetype);
   const c=tCol[ft]||T.txD;
   // 教材→ノート（PDFのみ）。既存ノートがあれば「開く」、無ければ取得して「書き込む」

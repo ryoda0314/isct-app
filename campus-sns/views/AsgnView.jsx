@@ -6,6 +6,13 @@ import { NOW, uDue, pDone, tMap, aMap, sMap, pCol, fT, fDS, fDF } from "../utils
 import { Av, Tag, Bar, Btn, Tx } from "../shared.jsx";
 import { isNative } from "../capacitor.js";
 import { openLmsPage } from "../plugins/portalWebView.js";
+import { Preview, canPreview } from "./MatView.jsx";
+import { openMaterial } from "../openMaterial.js";
+import { getClientToken } from "../moodleClient.js";
+import { isDemoMode } from "../demoMode.js";
+
+/* 添付ファイルタイプ別の色（教材ビューと同じパレット） */
+const attCol={pdf:'#e5534b',slide:'#d4843e',document:'#6375f0',spreadsheet:'#3dae72',image:'#a855c7',video:'#2d9d8f',audio:'#c6a236',archive:'#68687a',code:'#3dae72',text:'#68687a',link:'#6375f0',file:'#68687a'};
 
 const DAYS=["月","火","水","木","金","土","日"];
 const dKey=d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -73,6 +80,70 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
     setLmsLoading(false);
   };
 
+  // ── 課題の添付ファイル（Moodle introattachments）────────────────────
+  // fileurl はサーバー変換のため token 無し。開く直前に fresh token を付与
+  // （教材と同じ自己認証URL方式。token 陳腐化にも強い）。
+  const [attPrev,setAttPrev]=useState(null);   // プレビュー中の添付（token付きURL）
+  const [attLoading,setAttLoading]=useState(null); // 準備中の添付id
+  const withToken=(fileurl,wstoken)=>{
+    const base=fileurl.replace(/([?&])token=[^&]*/,'$1').replace(/[?&]$/,'');
+    return base+(base.includes('?')?'&':'?')+'token='+encodeURIComponent(wstoken);
+  };
+  const openAtt=async(att)=>{
+    if(attLoading)return;
+    setAttLoading(att.id);
+    try{
+      let url=att.fileurl;
+      if(!isDemoMode()){
+        const{wstoken}=await getClientToken();
+        url=withToken(att.fileurl,wstoken);
+      }
+      const m={...att,fileurl:url};
+      if(canPreview(m)) setAttPrev(m);
+      else await openMaterial(m);
+    }catch(e){console.error('[asgn att]',e);}
+    finally{setAttLoading(null);}
+  };
+  // filenotfound / token失効時: 新しい token で URL を作り直して再試行。
+  const refreshAtt=async()=>{
+    if(isDemoMode())return;
+    try{
+      const{wstoken}=await getClientToken();
+      setAttPrev(p=>p?{...p,fileurl:withToken(p.fileurl,wstoken)}:p);
+    }catch{}
+  };
+  const renderAtts=(a)=>{
+    if(!a.attachments||a.attachments.length===0)return null;
+    return(
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:11,fontWeight:700,color:T.txD,marginBottom:6,display:"flex",alignItems:"center",gap:4}}>
+          <span style={{display:"flex"}}>{I.clip}</span>{t("asgn.attachments",{n:a.attachments.length})}
+        </div>
+        {a.attachments.map(att=>{
+          const c=attCol[att.fileType]||T.txD;
+          const busy=attLoading===att.id;
+          const prev=canPreview(att);
+          return(
+            <div key={att.id} onClick={()=>openAtt(att)} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 10px",borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:4,cursor:busy?"wait":"pointer"}}>
+              <span style={{color:c,display:"flex",flexShrink:0}}>{I.file}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,color:T.txH,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{att.filename}</div>
+                {att.filesizeFormatted&&<div style={{fontSize:11,color:T.txD}}>{att.filesizeFormatted}</div>}
+              </div>
+              <Tag color={c}>{(att.fileType||'file').toUpperCase()}</Tag>
+              <span style={{color:T.txD,display:"flex",flexShrink:0,opacity:busy?.5:1}}>{prev?I.arr:I.dl}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+  const attOverlay=attPrev&&(
+    <div style={{position:"fixed",inset:0,zIndex:1500,background:T.bg,display:"flex",flexDirection:"column"}}>
+      <Preview m={attPrev} mob={mob} onClose={()=>setAttPrev(null)} onStale={refreshAtt}/>
+    </div>
+  );
+
   // Detail (mobile: full page)
   if(sel&&mob){
     const a=sel,co=courses.find(x=>x.id===a.cid),at=aMap()[a.type],dl=uDue(a.due),si=sMap()[a.st],p=pDone(a.subs);
@@ -82,6 +153,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
         <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}><Tag color={co?.col}>{co?.code}</Tag><Tag color={at?.c}>{at?.l}</Tag><Tag color={si.c}>{si.l}</Tag><span style={{width:7,height:7,borderRadius:4,background:pCol()[a.pri],alignSelf:"center"}}/></div>
         <h2 style={{color:T.txH,margin:"0 0 4px",fontSize:mob?18:20,fontWeight:700}}>{a.title}</h2>
         <div style={{color:T.tx,fontSize:13,lineHeight:1.6,margin:"0 0 14px"}}><Tx>{a.desc}</Tx></div>
+        {renderAtts(a)}
         <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(3,1fr)",gap:8,marginBottom:14}}>
           <div style={{padding:10,borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`}}><div style={{fontSize:10,color:T.txD}}>{t("asgn.deadline")}</div><div style={{fontSize:15,fontWeight:700,color:dl.c}}>{fDF(a.due)}</div><div style={{fontSize:11,color:dl.c}}>{dl.t}</div></div>
           <div style={{padding:10,borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`}}><div style={{fontSize:10,color:T.txD}}>{t("asgn.pointsProgress")}</div><div style={{fontSize:15,fontWeight:700,color:T.accent}}>{t("asgn.points",{n:a.pts})} · {p}%</div></div>
@@ -98,6 +170,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
           {lmsLoading?t("asgn.loggingIn"):t("asgn.openInLms")}
         </button>}
         {navCourse&&<button onClick={()=>navCourse(a.cid)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 14px",borderRadius:8,border:`1px solid ${co?.col}33`,background:`${co?.col}08`,color:co?.col,fontSize:13,fontWeight:500,cursor:"pointer",width:"100%",justifyContent:"center"}}>{t("asgn.toCourseChannel",{code:co?.code})} {I.arr}</button>}
+        {attOverlay}
       </div>
     );
   }
@@ -355,6 +428,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
               <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}><Tag color={co?.col}>{co?.code}</Tag><Tag color={at?.c}>{at?.l}</Tag><Tag color={si.c}>{si.l}</Tag><span style={{width:7,height:7,borderRadius:4,background:pCol()[a.pri],alignSelf:"center"}}/></div>
               <h3 style={{color:T.txH,margin:"0 0 4px",fontSize:17,fontWeight:700}}>{a.title}</h3>
               <div style={{color:T.tx,fontSize:13,lineHeight:1.6,margin:"0 0 12px"}}><Tx>{a.desc}</Tx></div>
+              {renderAtts(a)}
               <div style={{display:"grid",gridTemplateColumns:"1fr",gap:8,marginBottom:12}}>
                 <div style={{padding:10,borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`}}><div style={{fontSize:10,color:T.txD}}>{t("asgn.deadline")}</div><div style={{fontSize:14,fontWeight:700,color:dl.c}}>{fDF(a.due)}</div><div style={{fontSize:11,color:dl.c}}>{dl.t}</div></div>
                 <div style={{padding:10,borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`}}><div style={{fontSize:10,color:T.txD}}>{t("asgn.pointsProgress")}</div><div style={{fontSize:14,fontWeight:700,color:T.accent}}>{t("asgn.points",{n:a.pts})} · {p}%</div></div>
@@ -402,6 +476,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
           </div>}
         </div>}
       </div>
+      {attOverlay}
     </div>
   );
 };

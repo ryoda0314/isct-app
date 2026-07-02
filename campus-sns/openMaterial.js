@@ -48,10 +48,23 @@ export async function openMaterial(m, onStale, opts = {}) {
     try {
       const resp = await fetch(url);
       const ct = (resp.headers.get('content-type') || '').toLowerCase();
-      const buf = await resp.arrayBuffer();
-      if (!resp.ok || ct.includes('application/json') || new Uint8Array(buf)[0] === 0x7b /* { */) {
+      // Sniff only the first chunk — the system browser (below) does the actual
+      // download, so buffering the whole body here is pure waste and OOM-crashes
+      // the WebView on large files (big PDFs / videos). We only need the
+      // content-type + first bytes to detect Moodle's JSON filenotfound envelope.
+      let head = new Uint8Array();
+      const reader = resp.body?.getReader?.();
+      if (reader) {
+        try {
+          const { value } = await reader.read();
+          if (value) head = value;
+        } finally {
+          try { await reader.cancel(); } catch {}
+        }
+      }
+      if (!resp.ok || ct.includes('application/json') || head[0] === 0x7b /* { */) {
         let code = null;
-        try { code = JSON.parse(new TextDecoder().decode(buf)).errorcode; } catch {}
+        try { code = JSON.parse(new TextDecoder().decode(head)).errorcode; } catch {}
         if (code) {
           onStale?.();
           alert('資料が見つかりませんでした。更新された可能性があります。一覧を更新したので、もう一度お試しください。');

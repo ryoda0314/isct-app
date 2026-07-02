@@ -605,6 +605,7 @@ const M = {
   "asgn.weekdayShort.6": { ja:"日", en:"Sun", zh:"日", ko:"일" , tp:"suno luka tu" },
   "asgn.withinDeadlineDivider": { ja:"これより先は期限内", en:"Within deadline below", zh:"以下为期限内", ko:"이 아래는 기한 내" , tp:"ijo anpa li lon tenpo pini" },
   "asgn.deadline": { ja:"締切", en:"Deadline", zh:"截止", ko:"마감" , tp:"tenpo pini" },
+  "asgn.attachments": { ja:"添付ファイル ({n})", en:"Attachments ({n})", zh:"附件 ({n})", ko:"첨부 파일 ({n})" , tp:"lipu poki ({n})" },
   "asgn.pointsProgress": { ja:"配点 / 進捗", en:"Points / Progress", zh:"配分 / 进度", ko:"배점 / 진행" , tp:"nanpa / tawa pini" },
   "asgn.points": { ja:"{n}点", en:"{n} pts", zh:"{n}分", ko:"{n}점" , tp:"nanpa {n}" },
   "asgn.statusNotStarted": { ja:"未着手", en:"Not started", zh:"未开始", ko:"미착수" , tp:"open ala" },
