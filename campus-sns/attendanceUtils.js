@@ -33,21 +33,32 @@ export function getCourseDays(course) {
  * 週複数回授業は曜日ごとに回が積まれるため自然に複数回ぶん生成される。
  */
 export function getSciSessions(course) {
-  if (!course || !course.quarter) return [];
+  const qs = (course?.quarters && course.quarters.length) ? course.quarters
+    : (course?.quarter ? [course.quarter] : []);
+  if (!course || qs.length === 0) return [];
   const days = getCourseDays(course);
   if (days.length === 0) return [];
   const ay = course.year != null ? Number(course.year) : currentAcademicYear();
-  const all = getClassDates(ay, course.quarter);
-  return all
-    .filter((c) => days.includes(c.dow))
-    .map((c) => ({
-      sessionKey: `${c.dow}${c.n}${c.sub ? "s" : ""}`,
-      dateStr: c.dateStr,
-      dow: c.dow,
-      n: c.n,
-      sub: c.sub,
-      label: `${c.dow} 第${c.n}回${c.sub ? "(振替)" : ""}`,
-    }));
+  // 複数クォーター科目(例:1-2Q)は 1Q/2Q で回番号(第N回)が重複するため、
+  // sessionKey に qN を付けて衝突を防ぐ。単一クォーター科目は従来キーのまま
+  // (保存済み出欠レコードを壊さないため)。
+  const multi = qs.length > 1;
+  const out = [];
+  for (const q of qs) {
+    for (const c of getClassDates(ay, q)) {
+      if (!days.includes(c.dow)) continue;
+      out.push({
+        sessionKey: `${multi ? `q${q}` : ""}${c.dow}${c.n}${c.sub ? "s" : ""}`,
+        dateStr: c.dateStr,
+        dow: c.dow,
+        n: c.n,
+        sub: c.sub,
+        label: `${c.dow} 第${c.n}回${c.sub ? "(振替)" : ""}`,
+      });
+    }
+  }
+  out.sort((a, b) => (a.dateStr < b.dateStr ? -1 : a.dateStr > b.dateStr ? 1 : 0));
+  return out;
 }
 
 /**

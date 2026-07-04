@@ -50,7 +50,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
   const [calMonth,setCalMonth]=useState(()=>({y:NOW.getFullYear(),m:NOW.getMonth()}));
   const [selDay,setSelDay]=useState(null);
   const showTabs=!course;
-  const qCids=showTabs&&quarter?new Set(courses.filter(c=>c.quarter===quarter&&(!academicYear||!c.year||c.year===academicYear)).map(c=>c.id)):null;
+  const qCids=showTabs&&quarter?new Set(courses.filter(c=>(c.quarters?.length?c.quarters.includes(quarter):c.quarter===quarter)&&(!academicYear||!c.year||c.year===academicYear)).map(c=>c.id)):null;
   const items=course?asgn.filter(a=>a.cid===course.id):qCids?asgn.filter(a=>qCids.has(a.cid)):asgn;
   const allActive=items.filter(a=>a.st!=="completed").sort((a,b)=>{if(!a.due&&!b.due)return 0;if(!a.due)return 1;if(!b.due)return -1;return a.due-b.due;});
   const active=hiddenAsgn?allActive.filter(a=>!hiddenAsgn.has(a.id)):allActive;

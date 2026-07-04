@@ -185,7 +185,7 @@ export const SciAttendanceView = ({ courses = [], records = {}, setStatus, quart
   const yrOpts = [_cAY - 2, _cAY - 1, _cAY];
   // 年度＋クォーターで絞り込み（年度未設定の科目は表示）
   const list = useMemo(
-    () => courses.filter((c) => c.quarter === quarter && (c.year == null || Number(c.year) === yr)),
+    () => courses.filter((c) => (c.quarters?.length ? c.quarters.includes(quarter) : c.quarter === quarter) && (c.year == null || Number(c.year) === yr)),
     [courses, quarter, yr]
   );
 

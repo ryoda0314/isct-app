@@ -44,7 +44,11 @@ const matchCourseYQ = (c, year, quarter) => {
   const ny = year == null ? null : String(year);
   const nq = normQ(quarter);
   if (ny && (!c.year || String(c.year) !== ny)) return false;
-  if (nq && (c.quarter == null || normQ(c.quarter) !== nq)) return false;
+  if (nq) {
+    // 複数クォーター科目(例:1-2Q)は該当する全クォーターの試験にマッチ
+    const qs = (c.quarters && c.quarters.length) ? c.quarters.map(String) : (c.quarter == null ? [] : [normQ(c.quarter)]);
+    if (!qs.includes(nq)) return false;
+  }
   return true;
 };
 

@@ -232,6 +232,8 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
         .map(c => ({
           code: c.code, section: c.section || null,
           name: c.name || c.code, quarter: c.quarter || null,
+          // 複数クォーター科目(例:1-2Q)がクォーター絞り込みで消えないよう全クォーターを送る
+          quarters: (c.quarters?.length ? c.quarters : (c.quarter ? [c.quarter] : [])),
         }));
 
       const r = await fetch('/api/data/my-textbooks', {

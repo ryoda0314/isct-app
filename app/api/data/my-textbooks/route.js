@@ -35,7 +35,7 @@ export async function POST(request) {
     const keysToCourse = new Map();
     for (const c of courses) {
       if (!c?.code || typeof c.code !== 'string') continue;
-      const meta = { code: c.code, section: c.section || null, name: c.name || c.code, quarter: c.quarter || null };
+      const meta = { code: c.code, section: c.section || null, name: c.name || c.code, quarter: c.quarter || null, quarters: Array.isArray(c.quarters) ? c.quarters : (c.quarter ? [c.quarter] : []) };
       if (meta.section) {
         const k = `${meta.code}:${meta.section}`;
         if (!keysToCourse.has(k)) keysToCourse.set(k, meta);
@@ -81,7 +81,11 @@ export async function POST(request) {
     for (const row of (data || [])) {
       const meta = keysToCourse.get(row.course_code);
       if (!meta) continue;
-      if (quarterFilter && meta.quarter && String(meta.quarter) !== quarterFilter) continue;
+      // 複数クォーター科目(例:1-2Q)は該当する全クォーターの絞り込みに残す
+      if (quarterFilter) {
+        const qs = (meta.quarters && meta.quarters.length) ? meta.quarters.map(String) : (meta.quarter != null ? [String(meta.quarter)] : []);
+        if (qs.length && !qs.includes(quarterFilter)) continue;
+      }
       const key = row.course_code;
       if (!byCourse.has(key)) byCourse.set(key, { course_code: key, course: meta, items: [] });
       byCourse.get(key).items.push({

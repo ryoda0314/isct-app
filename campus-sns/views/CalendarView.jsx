@@ -55,7 +55,11 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
     const examAY=ds=>{const [y,m]=ds.split("-").map(Number);return (m-1)>=3?y:y-1;};
     const matchYQ=(c,ey,eq)=>{
       if(ey&&(!c.year||String(c.year)!==ey))return false;
-      if(eq&&(c.quarter==null||normQ(c.quarter)!==eq))return false;
+      if(eq){
+        // 複数クォーター科目(例:1-2Q)は該当する全クォーターの試験にマッチ
+        const qs=(c.quarters&&c.quarters.length)?c.quarters.map(String):(c.quarter==null?[]:[normQ(c.quarter)]);
+        if(!qs.includes(eq))return false;
+      }
       return true;
     };
     return exams.filter(e=>{

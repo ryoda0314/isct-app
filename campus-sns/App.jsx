@@ -772,7 +772,7 @@ export default function App(){
   const [deptModalDone,setDeptModalDone]=useState(false);
   const showDeptModal=!deptModalDone&&!user.myDept;
   const cd=did===SANDBOX.prefix?SANDBOX:userDepts.find(d=>d.prefix===did)||userSchools.find(s=>s.prefix===did)||(userUnit&&did===userUnit.prefix?userUnit:null);
-  const qCourseIds=useMemo(()=>new Set(allCourses.filter(c=>c.quarter===quarter&&(!_selY||!c.year||c.year===_selY)).map(c=>c.id)),[allCourses,quarter,_selY]);
+  const qCourseIds=useMemo(()=>new Set(allCourses.filter(c=>(c.quarters?.length?c.quarters.includes(quarter):c.quarter===quarter)&&(!_selY||!c.year||c.year===_selY)).map(c=>c.id)),[allCourses,quarter,_selY]);
   const hiddenSet=useMemo(()=>new Set(hiddenAsgn),[hiddenAsgn]);
   const asgnLoading=asgn.some(a=>a.st==='loading');
   const ac=asgnLoading?null:asgn.filter(a=>a.st!=="completed"&&qCourseIds.has(a.cid)&&!hiddenSet.has(a.id)).length;

@@ -88,12 +88,16 @@ export async function saveTimetableToWidget({
     slots.push(s);
   };
 
-  // Loaded courses carry their own year + quarter.
+  // Loaded courses carry their own year + quarter. Multi-quarter courses
+  // (e.g. 1-2Q) must emit slots for every quarter they span.
   for (const c of allCourses) {
-    const q = Number(c.quarter) || 0;
-    if (!q) continue;
     const y = Number(c.year) || Number(defaultYear) || 0;
-    for (const s of courseToSlots(c, y, q)) add(s);
+    const qs = (Array.isArray(c.quarters) && c.quarters.length) ? c.quarters : [c.quarter];
+    for (const rawQ of qs) {
+      const q = Number(rawQ) || 0;
+      if (!q) continue;
+      for (const s of courseToSlots(c, y, q)) add(s);
+    }
   }
 
   // Past years fetched on demand: pastTTCache[year] = { qData: { 1:{C}, ... } }.
