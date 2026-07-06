@@ -83,6 +83,7 @@ import { useAttendance } from "./hooks/useAttendance.js";
 import { useUnreadDM } from "./hooks/useUnreadDM.js";
 import { useAppLock } from "./hooks/useAppLock.js";
 import { installFetchInterceptor, updateStatusBarTheme } from "./capacitor.js";
+import { track as trackUsage, setAnalyticsEnabled } from "./analytics.js";
 
 installFetchInterceptor();
 
@@ -207,8 +208,8 @@ export default function App(){
   const [view,setViewRaw]=useState(()=>{try{return localStorage.getItem("lastView")||"home";}catch{return "home";}});
   const viewHistRef=useRef([]);
   const guestSessionRef=useRef(null);
-  const setView=useCallback((v)=>{setShowMembers(false);setViewRaw(prev=>{if(prev&&prev!==v)viewHistRef.current.push(prev);return v;});},[]);
-  const goBack=useCallback(()=>{const h=viewHistRef.current;const prev=h.pop()||"home";setViewRaw(prev);},[]);
+  const setView=useCallback((v)=>{setShowMembers(false);setViewRaw(prev=>{if(prev&&prev!==v){viewHistRef.current.push(prev);trackUsage("feature_open",v);}return v;});},[]);
+  const goBack=useCallback(()=>{const h=viewHistRef.current;const prev=h.pop()||"home";trackUsage("feature_open",prev);setViewRaw(prev);},[]);
 
   // Android hardware back button (native)
   useEffect(()=>{
@@ -703,6 +704,7 @@ export default function App(){
       bgTime=null;
       if(sec<5) return;
       if(startupBusyRef.current){console.log('[App] resume skipped — startup still in progress');return;}
+      trackUsage("resume");
       console.log(`[App] resume after ${sec.toFixed(0)}s — re-fetching data`);
       const r=await fetchData();
       if(r) fetchSubmissionStatuses(r);
@@ -725,6 +727,18 @@ export default function App(){
     })();
     return()=>{cancelled=true;cleanup.fn?.();};
   },[appState]);
+
+  // Usage analytics: 実ログイン時のみ有効化し、起動を 1 回だけ記録する。
+  // demo / guest は集計対象外（サーバー側も認証必須で弾かれる）。
+  const analyticsStartedRef=useRef(false);
+  useEffect(()=>{
+    if(appState!=="ready"||analyticsStartedRef.current) return;
+    if(isDemoMode()||isScreenshotMode()||guestMode) return;
+    analyticsStartedRef.current=true;
+    setAnalyticsEnabled(true);
+    trackUsage("app_open");
+    trackUsage("feature_open",view);   // 起動時に開いていた画面も 1 回分カウント
+  },[appState,guestMode,view]);
 
   useEffect(()=>{
     if(appState!=="loading"&&splashPhase==="show") setSplashPhase("fade");
@@ -809,7 +823,7 @@ export default function App(){
   const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,fetchGraph,fetchRecommendations,openProfile,isAdmin:!!user?.isAdmin,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat,blockUser,unblockUser,isBlocked,blocks:blockList,muteUser,unmuteUser,isMuted,mutes:muteList,refetch:refetchFriends};
   const profileProps={userId:profileId,user,lookupById,onStartDM:startDMFromFriend,sendRequest,acceptRequest,unfriend,blockUser,muteUser,unmuteUser,isMuted,onEditProfile:()=>setView("profile"),goBack,refetch:refetchFriends};
   const togTheme=()=>setThemePref(p=>p==="dark"?"light":"dark");
-  const onLogout=async()=>{setDemoMode(false);clearClientToken();try{await fetch("/api/auth/logout",{method:"POST"});}catch{}await clearNativeCookies();try{const{clearCreds}=await import("./secureCreds.js");await clearCreds();}catch{}if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
+  const onLogout=async()=>{setAnalyticsEnabled(false);analyticsStartedRef.current=false;setDemoMode(false);clearClientToken();try{await fetch("/api/auth/logout",{method:"POST"});}catch{}await clearNativeCookies();try{const{clearCreds}=await import("./secureCreds.js");await clearCreds();}catch{}if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
 
   // Telecom restriction overlay — shown when regulated features are disabled
   const TelecomBlockView=({title,onBack})=><div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,gap:16}}>
@@ -926,7 +940,7 @@ export default function App(){
         </div>
       </div>
       <div style={{display:"flex",background:T.bg2,borderBottom:`1px solid ${T.bd}`}}>
-        {cTabs.map(tab=><button key={tab.id} onClick={()=>setCh(tab.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"8px 4px",border:"none",borderBottom:ch===tab.id?`2px solid ${cc.col}`:"2px solid transparent",background:"transparent",color:ch===tab.id?cc.col:T.txD,fontSize:10,fontWeight:ch===tab.id?600:400,cursor:"pointer"}}><span style={{display:"flex",transform:ch===tab.id?"scale(1.15)":"scale(1)",transition:"transform .15s"}}>{tab.i}</span><span>{tab.l}</span></button>)}
+        {cTabs.map(tab=><button key={tab.id} onClick={()=>{setCh(tab.id);trackUsage("feature_open","course:"+tab.id);}} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"8px 4px",border:"none",borderBottom:ch===tab.id?`2px solid ${cc.col}`:"2px solid transparent",background:"transparent",color:ch===tab.id?cc.col:T.txD,fontSize:10,fontWeight:ch===tab.id?600:400,cursor:"pointer"}}><span style={{display:"flex",transform:ch===tab.id?"scale(1.15)":"scale(1)",transition:"transform .15s"}}>{tab.i}</span><span>{tab.l}</span></button>)}
       </div>
     </div>;
   };
@@ -1133,7 +1147,7 @@ export default function App(){
         {view==="tasks"&&(L?<><MHdr title={t("header.taskMgmt")}/><LockedView title={t("header.taskMgmt")}/></>:<><MHdr title={t("header.taskMgmt")}/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} addTask={addTaskFn} toggleTask={toggleTaskFn} deleteTask={deleteTaskFn} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/></>)}
         {view==="courseSelect"&&(L?<><MHdr title={t("header.courseSelect")}/><LockedView title={t("header.course")}/></>:<><MHdr title={t("header.courseSelect")}/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={allCourses} depts={userDepts} schools={userSchools} setDid={setDid} userUnit={userUnit} medSessions={medSessions}/></>)}
         {view==="course"&&(L?<><MHdr title={t("header.course")} back={goBack}/><LockedView title={t("header.course")}/></>:cc&&<><CourseHdr/>{courseContent()}</>)}
-        {view==="dept"&&(L?<><MHdr title={t("sidebar.depts")} back={goBack}/><LockedView title={t("sidebar.depts")}/></>:cd&&<><MHdr title={<>{(()=>{const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?locName(cd):cd.prefix}</span>{!nameOnly&&<span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{locName(cd)}</span>}</>;})()}</>} back={goBack} right={<button onClick={()=>setShowMembers(true)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.users}{deptMembers.length>0&&<span style={{position:"absolute",top:-4,right:-6,minWidth:14,height:14,borderRadius:7,background:cd.col||T.accent,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{deptMembers.length}</span>}</button>}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:t("chan.timeline"),i:I.feed},{id:"chat",l:t("chan.chat"),i:I.chat}].map(tab=><button key={tab.id} onClick={()=>setCh(tab.id)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===tab.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===tab.id?T.txH:T.txD,fontSize:13,fontWeight:ch===tab.id?600:400,cursor:"pointer"}}>{tab.i}<span>{tab.l}</span></button>)}</div>{deptContent()}</>)}
+        {view==="dept"&&(L?<><MHdr title={t("sidebar.depts")} back={goBack}/><LockedView title={t("sidebar.depts")}/></>:cd&&<><MHdr title={<>{(()=>{const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?locName(cd):cd.prefix}</span>{!nameOnly&&<span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{locName(cd)}</span>}</>;})()}</>} back={goBack} right={<button onClick={()=>setShowMembers(true)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.users}{deptMembers.length>0&&<span style={{position:"absolute",top:-4,right:-6,minWidth:14,height:14,borderRadius:7,background:cd.col||T.accent,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{deptMembers.length}</span>}</button>}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:t("chan.timeline"),i:I.feed},{id:"chat",l:t("chan.chat"),i:I.chat}].map(tab=><button key={tab.id} onClick={()=>{setCh(tab.id);trackUsage("feature_open","dept:"+tab.id);}} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===tab.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===tab.id?T.txH:T.txD,fontSize:13,fontWeight:ch===tab.id?600:400,cursor:"pointer"}}>{tab.i}<span>{tab.l}</span></button>)}</div>{deptContent()}</>)}
         {view==="moreMenu"&&<><MHdr title={t("nav.more")}/><MoreMenu setView={setView} unreadN={unreadN} pendingFriendCount={pendingFriendCount} dmUnread={dmUnread} isAdmin={!!user.isAdmin}/></>}
         {view==="friends"&&(L?<><MHdr title={t("nav.friends")} back={mBack}/><LockedView title={t("nav.friends")}/></>:<><MHdr title={t("nav.friends")} back={mBack}/><FriendsView mob setView={setView} {...friendProps}/></>)}
         {view==="user"&&(L?<><MHdr title={t("profile.viewTitle")} back={mBack}/><LockedView title={t("profile.viewTitle")}/></>:<UserProfileView mob {...profileProps}/>)}

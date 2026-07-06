@@ -246,6 +246,45 @@ const ChartLegend = ({ items }) => (
   </div>
 );
 
+// view id → 表示名。主要機能だけ日本語化し、未知の id は生のまま出す。
+const FEATURE_LABELS = {
+  home: "ホーム", timetable: "時間割", "med-tt": "時間割(医)", attendance: "出欠", notes: "ノート",
+  tasks: "課題", dm: "DM", friends: "フレンド", circles: "サークル", notif: "通知",
+  navigation: "マップ", library: "図書館", takiplaza: "Taki予約", gym: "ジム", tsubame: "ツバメP",
+  train: "電車", freshman: "新入生", calendar: "カレンダー", pocket: "ポケット", search: "検索",
+  bmarks: "ブックマーク", support: "サポート", exams: "試験", freeroom: "空き教室", reg: "履修",
+  textbooks: "教科書", grading: "成績評価", grades: "成績", reviews: "レビュー", pomo: "ポモドーロ",
+  events: "イベント", acadCal: "学年暦", pdftools: "PDFツール", qr: "QR連携", lecrec: "授業録音",
+  music: "音楽", admin: "管理", profile: "プロフィール", user: "他人プロフィール",
+  dept: "学系掲示板", course: "科目", courseSelect: "科目選択", moreMenu: "その他",
+  "course:materials": "科目/教材", "course:assignments": "科目/課題", "course:timeline": "科目/タイムライン",
+  "course:chat": "科目/チャット", "course:reviews": "科目/レビュー",
+  "dept:timeline": "学系/タイムライン", "dept:chat": "学系/チャット",
+};
+const featureLabel = (id) => FEATURE_LABELS[id] || id;
+
+// 機能別 利用ランキング（横棒）。data = [{feature, opens, users}]
+const FeatureBars = ({ data, max = 20 }) => {
+  const rows = (data || []).slice(0, max);
+  const peak = rows.reduce((m, r) => Math.max(m, r.opens), 0) || 1;
+  if (!rows.length) return <div style={{ fontSize: 12, color: T.txD }}>{t("admin.an.usageEmpty")}</div>;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {rows.map((r, i) => (
+        <div key={r.feature} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 96, fontSize: 12, color: T.txH, textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={r.feature}>{featureLabel(r.feature)}</div>
+          <div style={{ flex: 1, height: 18, borderRadius: 5, background: T.bg2, overflow: "hidden" }}>
+            <div style={{ width: `${Math.max(2, (r.opens / peak) * 100)}%`, height: "100%", borderRadius: 5, background: i === 0 ? T.accent : `${T.accent}99` }} />
+          </div>
+          <div style={{ width: 96, fontSize: 11, color: T.txD, whiteSpace: "nowrap" }}>
+            {r.opens.toLocaleString()}{r.users != null && <span style={{ opacity: 0.6 }}> / {r.users}{t("admin.an.usersSuffix")}</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // ---- Analytics Tab (growth & activity time-series) ----
 const AnalyticsTab = () => {
   const [range, setRange] = useState(90);
@@ -273,6 +312,18 @@ const AnalyticsTab = () => {
     const sn = data.snapshot || {};
     const stickiness = sn.mau > 0 ? (sn.dau / sn.mau) * 100 : null;
     return { newInPeriod, growthRate, peakReg, avgActive, totalContent, stickiness };
+  }, [data]);
+
+  const usageStats = useMemo(() => {
+    const u = data?.usage || [];
+    if (!u.length) return null;
+    const totalOpens = u.reduce((s, r) => s + r.opens, 0);
+    const daysWithData = u.filter(r => r.activeUsers > 0);
+    const avgOpensPerUser = daysWithData.length
+      ? daysWithData.reduce((s, r) => s + r.opensPerUser, 0) / daysWithData.length : 0;
+    const avgOpensPerDay = totalOpens / u.length;
+    const peak = u.reduce((m, r) => (r.opens > m.opens ? r : m), u[0]);
+    return { totalOpens, avgOpensPerUser, avgOpensPerDay, peak };
   }, [data]);
 
   const sn = data?.snapshot || {};
@@ -336,6 +387,33 @@ const AnalyticsTab = () => {
             <ChartLegend items={contentKeys} />
           </ChartCard>
 
+          {/* --- 利用状況（画面切り替え = 開いた回数） --- */}
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.txH, margin: "26px 0 12px" }}>{t("admin.an.usageSection")}</div>
+          {!usageStats ? (
+            <div style={{ fontSize: 12, color: T.txD, padding: "8px 0 16px" }}>{t("admin.an.usageEmpty")}</div>
+          ) : (
+            <>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+                <Card label={t("admin.an.totalOpens")} value={usageStats.totalOpens.toLocaleString()} color={T.accent} />
+                <Card label={t("admin.an.avgOpensPerDay")} value={usageStats.avgOpensPerDay.toFixed(0)} color={T.green} />
+                <Card label={t("admin.an.avgOpensPerUser")} value={usageStats.avgOpensPerUser.toFixed(1)} color={T.orange} />
+                <Card label={t("admin.an.peakOpens")} value={usageStats.peak ? `${usageStats.peak.opens.toLocaleString()}` : "-"} color="#c6a236" />
+              </div>
+
+              <ChartCard title={t("admin.an.opensDaily")} desc={t("admin.an.opensDailyDesc")}>
+                <LineChart data={data.usage} valueKey="opens" color={T.accent} height={150} />
+              </ChartCard>
+
+              <ChartCard title={t("admin.an.opensPerUserDaily")} desc={t("admin.an.opensPerUserDailyDesc")}>
+                <LineChart data={data.usage} valueKey="opensPerUser" color={T.orange} height={130} fmt={(v) => v.toFixed(1)} />
+              </ChartCard>
+
+              <ChartCard title={t("admin.an.featureRanking")} desc={t("admin.an.featureRankingDesc")}>
+                <FeatureBars data={data.features} />
+              </ChartCard>
+            </>
+          )}
+
           {data.source === "fallback" && (
             <div style={{ fontSize: 11, color: T.txD, marginTop: -6 }}>{t("admin.an.fallbackNote")}</div>
           )}
@@ -388,6 +466,12 @@ const UserDetailModal = ({ userId, onClose }) => {
               <Card label={t("admin.stat.reportsMade")} value={data.reportsMadeTotal} color={T.yellow} />
               <Card label={t("admin.stat.reportsReceived")} value={data.reportsReceivedTotal} color={T.red} />
             </div>
+            {data.featureUsage?.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>{t("admin.an.userFeatureUsage")}</div>
+                <FeatureBars data={data.featureUsage} max={12} />
+              </div>
+            )}
             {data.posts.length > 0 && (
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 8 }}>{t("admin.recentPosts")}</div>

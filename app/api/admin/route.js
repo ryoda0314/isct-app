@@ -339,14 +339,17 @@ export async function GET(request) {
     if (action === 'user_detail') {
       const uid = parseInt(searchParams.get('user_id'));
       if (!uid) return NextResponse.json({ error: 'user_id required' }, { status: 400 });
-      const [profile, posts, comments, reportsBy, reportsAgainst, dmCount] = await Promise.all([
+      const [profile, posts, comments, reportsBy, reportsAgainst, dmCount, featRpc] = await Promise.all([
         sb.from('profiles').select('*').eq('moodle_id', uid).maybeSingle(),
         sb.from('posts').select('id, text, type, course_id, created_at', { count: 'exact' }).eq('moodle_user_id', uid).order('created_at', { ascending: false }).limit(20),
         sb.from('comments').select('id, text, post_id, created_at', { count: 'exact' }).eq('moodle_user_id', uid).order('created_at', { ascending: false }).limit(20),
         sb.from('reports').select('id, target_type, reason, status, created_at', { count: 'exact' }).eq('reporter_id', uid),
         sb.from('reports').select('id, target_type, reason, status, created_at', { count: 'exact' }).eq('target_user_id', uid),
         sb.from('dm_messages').select('*', { count: 'exact', head: true }).eq('sender_id', uid),
+        sb.rpc('admin_user_feature_usage', { p_user: uid, p_days: 90 }),  // usage-analytics.sql; empty until applied
       ]);
+      const featureUsage = (!featRpc.error && featRpc.data)
+        ? featRpc.data.map(r => ({ feature: r.feature, opens: Number(r.opens), lastAt: r.last_at })) : [];
       return NextResponse.json({
         profile: profile.data,
         posts: posts.data || [], postsTotal: posts.count || 0,
@@ -354,6 +357,7 @@ export async function GET(request) {
         reportsMade: reportsBy.data || [], reportsMadeTotal: reportsBy.count || 0,
         reportsReceived: reportsAgainst.data || [], reportsReceivedTotal: reportsAgainst.count || 0,
         dmsSent: dmCount.count || 0,
+        featureUsage,
       });
     }
 
@@ -836,14 +840,30 @@ export async function GET(request) {
       const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
 
       // Live snapshot (DAU/WAU/MAU + total) — cheap count(head) queries.
-      const [totalUsers, dau, wau, mau, gRpc, aRpc] = await Promise.all([
+      // uRpc/fRpc come from usage-analytics.sql (usage_events); absent until applied.
+      const [totalUsers, dau, wau, mau, gRpc, aRpc, uRpc, fRpc] = await Promise.all([
         sb.from('profiles').select('*', { count: 'exact', head: true }),
         sb.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', dayAgo),
         sb.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', weekAgo),
         sb.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', monthAgo),
         sb.rpc('admin_growth_daily', { p_days: range }),
         sb.rpc('admin_activity_daily', { p_days: range }),
+        sb.rpc('admin_usage_daily', { p_days: range }),
+        sb.rpc('admin_feature_usage', { p_days: range }),
       ]);
+
+      // Usage (screen-open) time-series + feature ranking. Empty if the SQL
+      // isn't applied yet — the UI just hides those charts (no JS fallback:
+      // there's no raw source to aggregate from other than usage_events).
+      const usage = (!uRpc.error && uRpc.data)
+        ? uRpc.data.map(r => ({
+            day: r.day, activeUsers: Number(r.active_users), opens: Number(r.opens),
+            opensPerUser: Number(r.opens_per_user), appOpens: Number(r.app_opens), resumes: Number(r.resumes),
+          }))
+        : [];
+      const features = (!fRpc.error && fRpc.data)
+        ? fRpc.data.map(r => ({ feature: r.feature, opens: Number(r.opens), users: Number(r.users) }))
+        : [];
 
       let growth, activity, source = 'rpc';
       if (!gRpc.error && !aRpc.error && gRpc.data && aRpc.data) {
@@ -906,7 +926,7 @@ export async function GET(request) {
       return NextResponse.json({
         range, source,
         snapshot: { total: totalUsers.count || 0, dau: dau.count || 0, wau: wau.count || 0, mau: mau.count || 0 },
-        growth, activity,
+        growth, activity, usage, features,
       });
     }
 
