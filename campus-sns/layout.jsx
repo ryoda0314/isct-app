@@ -258,10 +258,6 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
   const otherItems=[{id:"bmarks",i:I.bmark,l:t("tool.bmarks")}];
   if(isAdmin) otherItems.push({id:"admin",i:I.shield,l:t("nav.admin")});
   const sections=[
-    {title:t("store.myApps"),items:[
-      {id:"myapps",i:I.tgt,l:t("store.myApps")},
-      {id:"store",i:I.plus,l:t("store.title")},
-    ]},
     {title:t("more.account"),items:[
       {id:"profile",i:I.user1,l:t("more.profileSettings")},
     ]},

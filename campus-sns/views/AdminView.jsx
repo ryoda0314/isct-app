@@ -26,7 +26,6 @@ const tabs = [
   { id: "dms", labelKey: "admin.tab.dms", icon: I.mail },
   { id: "circles", labelKey: "admin.tab.circles", icon: I.circle },
   { id: "announce", labelKey: "admin.tab.announce", icon: I.mega },
-  { id: "store", labelKey: "admin.tab.store", icon: I.plus },
   { id: "music", labelKey: "admin.tab.music", icon: I.music },
   { id: "audit", labelKey: "admin.tab.audit", icon: I.clock },
   { id: "map", labelKey: "admin.tab.map", icon: I.pin },
@@ -1314,150 +1313,6 @@ const AnnouncementsTab = () => {
   );
 };
 
-// ---- Store apps (アプリストア) Tab ----
-const STORE_CATS = ["learning", "campus", "social", "tools", "other"];
-const BLANK_APP = {
-  slug: "", title: "", subtitle: "", description: "", icon: "", color: "#007AFF",
-  category: "other", target_type: "url", target: "", screenshots: "",
-  featured: false, badge: "", sort_order: 0, admin_only: false, enabled: true, sso_enabled: false,
-};
-const storeInput = { width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", boxSizing: "border-box" };
-const storeLabel = { fontSize: 11, fontWeight: 600, color: T.txD, marginBottom: 4, display: "block" };
-
-const StoreTab = () => {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState(null); // null | 'new' | id
-  const [form, setForm] = useState(BLANK_APP);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    fetch(`${API}/api/admin?action=store_apps`).then(r => r.json()).then(d => setItems(d.apps || [])).catch(() => {}).finally(() => setLoading(false));
-  }, []);
-  useEffect(() => { load(); }, [load]);
-
-  const openNew = () => { setForm(BLANK_APP); setEditing("new"); };
-  const openEdit = (a) => {
-    setForm({ ...BLANK_APP, ...a, screenshots: Array.isArray(a.screenshots) ? a.screenshots.join("\n") : "" });
-    setEditing(a.id);
-  };
-  const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const save = async () => {
-    if (!form.slug.trim() || !form.title.trim() || !form.target.trim()) {
-      showToast(t("admin.store.reqFields"), "error"); return;
-    }
-    setSaving(true);
-    const app = {
-      ...form,
-      slug: form.slug.trim(), title: form.title.trim(), target: form.target.trim(),
-      sort_order: parseInt(form.sort_order) || 0,
-      screenshots: String(form.screenshots || "").split(/[\n,]/).map(s => s.trim()).filter(Boolean),
-    };
-    const payload = editing === "new"
-      ? { action: "create_store_app", app }
-      : { action: "update_store_app", storeAppId: editing, app };
-    const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    setSaving(false);
-    if (r.ok) { setEditing(null); load(); showToast(t("admin.store.saved"), "success"); }
-    else { const e = await r.json().catch(() => ({})); showToast(e.error || t("admin.store.saveFailed"), "error"); }
-  };
-
-  const toggle = async (a, field) => {
-    await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_store_app", storeAppId: a.id, app: { [field]: !a[field] } }) });
-    load();
-  };
-  const del = async (a) => {
-    if (!confirm(t("admin.store.confirmDelete"))) return;
-    await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_store_app", storeAppId: a.id }) });
-    load();
-  };
-
-  if (editing !== null) {
-    return (
-      <div style={{ padding: 16, maxWidth: 640 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{editing === "new" ? t("admin.store.new") : t("admin.store.edit")}</div>
-          <div style={{ flex: 1 }} />
-          <Btn onClick={() => setEditing(null)} color={T.txD}>{t("common.cancel")}</Btn>
-          <Btn onClick={save} color={T.accent} disabled={saving}>{saving ? t("admin.sending") : t("common.save")}</Btn>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ display: "flex", gap: 10 }}>
-            <div style={{ flex: 1 }}><label style={storeLabel}>{t("admin.store.slug")} *</label><input value={form.slug} onChange={e => setF("slug", e.target.value)} placeholder="music" style={storeInput} /></div>
-            <div style={{ flex: 1 }}><label style={storeLabel}>{t("admin.store.titleF")} *</label><input value={form.title} onChange={e => setF("title", e.target.value)} style={storeInput} /></div>
-          </div>
-          <div><label style={storeLabel}>{t("admin.store.subtitle")}</label><input value={form.subtitle} onChange={e => setF("subtitle", e.target.value)} style={storeInput} /></div>
-          <div><label style={storeLabel}>{t("admin.store.description")}</label><textarea value={form.description} onChange={e => setF("description", e.target.value)} rows={3} style={{ ...storeInput, resize: "vertical" }} /></div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <div style={{ flex: 1 }}><label style={storeLabel}>{t("admin.store.icon")}</label><input value={form.icon} onChange={e => setF("icon", e.target.value)} placeholder="music / 📦" style={storeInput} /></div>
-            <div style={{ width: 110 }}><label style={storeLabel}>{t("admin.store.color")}</label><input type="color" value={form.color} onChange={e => setF("color", e.target.value)} style={{ ...storeInput, padding: 4, height: 36 }} /></div>
-            <div style={{ width: 110 }}><label style={storeLabel}>{t("admin.store.sort")}</label><input type="number" value={form.sort_order} onChange={e => setF("sort_order", e.target.value)} style={storeInput} /></div>
-          </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <div style={{ flex: 1 }}><label style={storeLabel}>{t("admin.store.category")}</label>
-              <select value={form.category} onChange={e => setF("category", e.target.value)} style={storeInput}>
-                {STORE_CATS.map(c => <option key={c} value={c}>{t(`store.cat.${c}`)}</option>)}
-              </select>
-            </div>
-            <div style={{ flex: 1 }}><label style={storeLabel}>{t("admin.store.targetType")}</label>
-              <select value={form.target_type} onChange={e => setF("target_type", e.target.value)} style={storeInput}>
-                <option value="view">{t("admin.store.tView")}</option>
-                <option value="url">{t("admin.store.tUrl")}</option>
-              </select>
-            </div>
-            <div style={{ width: 110 }}><label style={storeLabel}>{t("admin.store.badge")}</label><input value={form.badge} onChange={e => setF("badge", e.target.value)} placeholder="new" style={storeInput} /></div>
-          </div>
-          <div><label style={storeLabel}>{form.target_type === "url" ? t("admin.store.targetUrl") : t("admin.store.targetView")} *</label><input value={form.target} onChange={e => setF("target", e.target.value)} placeholder={form.target_type === "url" ? "https://…" : "music"} style={storeInput} /></div>
-          <div><label style={storeLabel}>{t("admin.store.screenshots")}</label><textarea value={form.screenshots} onChange={e => setF("screenshots", e.target.value)} rows={2} placeholder={t("admin.store.screenshotsPh")} style={{ ...storeInput, resize: "vertical" }} /></div>
-          <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: T.txH, cursor: "pointer" }}><input type="checkbox" checked={form.featured} onChange={e => setF("featured", e.target.checked)} />{t("admin.store.featured")}</label>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: T.txH, cursor: "pointer" }}><input type="checkbox" checked={form.enabled} onChange={e => setF("enabled", e.target.checked)} />{t("admin.store.enabled")}</label>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: T.txH, cursor: "pointer" }}><input type="checkbox" checked={form.admin_only} onChange={e => setF("admin_only", e.target.checked)} />{t("admin.store.adminOnly")}</label>
-            {form.target_type === "url" && <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: T.txH, cursor: "pointer" }}><input type="checkbox" checked={form.sso_enabled} onChange={e => setF("sso_enabled", e.target.checked)} />{t("admin.store.sso")}</label>}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ padding: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.store.title")} ({items.length})</div>
-        <div style={{ flex: 1 }} />
-        <Btn onClick={openNew} color={T.accent}>{I.plus} {t("admin.store.new")}</Btn>
-      </div>
-      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {items.map(a => (
-          <div key={a.id} style={{ padding: 12, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}`, opacity: a.enabled ? 1 : 0.5, display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, background: `linear-gradient(145deg, ${a.color}ee, ${a.color}bb)`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 18 }}>
-              {I[a.icon] || a.icon || "📦"}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{a.title}</span>
-                {a.featured && <Badge text={t("admin.store.featured")} color={T.accent} />}
-                {a.admin_only && <Badge text={t("admin.store.adminOnly")} color={T.orange} />}
-                {!a.enabled && <Badge text={t("admin.unpublished")} color={T.txD} />}
-              </div>
-              <div style={{ fontSize: 11, color: T.txD, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {a.slug} · {t(`store.cat.${a.category}`)} · {a.target_type}:{a.target}
-              </div>
-            </div>
-            <Btn onClick={() => toggle(a, "enabled")} color={a.enabled ? T.orange : T.green} small>{a.enabled ? t("admin.announce.makeUnpublished") : t("admin.announce.makePublished")}</Btn>
-            <Btn onClick={() => openEdit(a)} color={T.accent} small>{t("common.edit")}</Btn>
-            <Btn onClick={() => del(a)} color={T.red} small>{I.trash}</Btn>
-          </div>
-        ))}
-        {!loading && items.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.store.empty")}</div>}
-      </div>
-    </div>
-  );
-};
-
 // ---- Music (配信) Tab ----
 // 管理者がアップロードした曲は is_public=true で全ユーザーのミュージック画面に配信される。
 // ミュージック画面側は全員同一表示（聴くだけ）。管理はこのタブで行う。
@@ -1676,7 +1531,6 @@ const ACTION_LABEL_KEYS = {
   enable_maintenance: "admin.act.maintOn", disable_maintenance: "admin.act.maintOff",
   enable_registration_limit: "admin.act.regLimitOn", disable_registration_limit: "admin.act.regLimitOff",
   toggle_feature: "admin.act.toggleFeature", bulk_update_profiles: "admin.act.bulkUpdate",
-  create_store_app: "admin.act.createStoreApp", update_store_app: "admin.act.updateStoreApp", delete_store_app: "admin.act.deleteStoreApp",
 };
 
 const AuditLogTab = () => {
@@ -4663,7 +4517,6 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "dms" && <DMsTab />}
         {tab === "circles" && <CirclesTab />}
         {tab === "announce" && <AnnouncementsTab />}
-        {tab === "store" && <StoreTab />}
         {tab === "music" && <MusicTab />}
         {tab === "audit" && <AuditLogTab />}
         {tab === "map" && <MapEditorView mob={mob} />}
