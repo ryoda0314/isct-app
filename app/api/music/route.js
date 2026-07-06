@@ -24,34 +24,48 @@ async function isAdmin(sb, userid) {
   return !!data;
 }
 
+// 曲に紐づけるアルバムIDを検証。自分が所有するアルバムのみ許可（存在しなければ null=シングル扱い）。
+// music_albums 未作成(42P01)でも安全に null を返す。
+async function resolveAlbumId(sb, rawId, userid) {
+  if (!rawId || typeof rawId !== 'string') return null;
+  const { data, error } = await sb
+    .from('music_albums')
+    .select('id, owner_id')
+    .eq('id', rawId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return String(data.owner_id) === String(userid) ? data.id : null;
+}
+
+// 単一 path に URL を付与するヘルパ。
+//   公式(is_public): 公開バケットの安定 getPublicUrl（CDNキャッシュが効き egress を抑える）
+//   個人          : 非公開バケットの署名URL（6時間有効・取得のたびに再署名）
+async function signOne(sb, obj, isPublic) {
+  if (!obj?.path) return obj || null;
+  if (isPublic) {
+    const { data } = sb.storage.from(PUBLIC_BUCKET).getPublicUrl(obj.path);
+    return { ...obj, url: data?.publicUrl || '' };
+  }
+  const { data } = await sb.storage.from(BUCKET).createSignedUrl(obj.path, SIGN_TTL);
+  return { ...obj, url: data?.signedUrl || '' };
+}
+
 // 音源・カバーのURLを付与。
-//   公式曲(is_public): 公開バケットの安定 getPublicUrl（CDNキャッシュが効き egress を抑える）
-//   個人曲          : 非公開バケットの署名URL（取得のたびに再署名・6時間有効）
 async function signTrack(sb, row) {
   const out = { ...row };
-  if (row.is_public) {
-    if (row.audio?.path) {
-      const { data } = sb.storage.from(PUBLIC_BUCKET).getPublicUrl(row.audio.path);
-      out.audio = { ...row.audio, url: data?.publicUrl || '' };
-    }
-    if (row.cover?.path) {
-      const { data } = sb.storage.from(PUBLIC_BUCKET).getPublicUrl(row.cover.path);
-      out.cover = { ...row.cover, url: data?.publicUrl || '' };
-    }
-    return out;
-  }
-  if (row.audio?.path) {
-    const { data } = await sb.storage.from(BUCKET).createSignedUrl(row.audio.path, SIGN_TTL);
-    out.audio = { ...row.audio, url: data?.signedUrl || '' };
-  }
-  if (row.cover?.path) {
-    const { data } = await sb.storage.from(BUCKET).createSignedUrl(row.cover.path, SIGN_TTL);
-    out.cover = { ...row.cover, url: data?.signedUrl || '' };
-  }
+  out.audio = await signOne(sb, row.audio, row.is_public);
+  out.cover = await signOne(sb, row.cover, row.is_public);
   return out;
 }
 
-// GET: 自分のライブラリ一覧
+// アルバムのカバーURLを付与。
+async function signAlbum(sb, row) {
+  return { ...row, cover: await signOne(sb, row.cover, row.is_public) };
+}
+
+// GET: 自分のライブラリ一覧（曲 + アルバム）
+// 後方互換: 旧クライアントは配列を期待するので、Accept ではなく shape で判別できるよう
+// { tracks, albums } を返す（useMusic は両形に対応済み）。
 export async function GET(request) {
   try {
     const auth = await requireAuth(request);
@@ -62,7 +76,7 @@ export async function GET(request) {
     // 自分の曲 + 管理者が全員へ配信した公式曲（is_public）の両方を返す
     const { data, error } = await sb
       .from('music_tracks')
-      .select('id, title, artist, audio, cover, duration, lyrics, is_public, owner_id, sort_order, created_at')
+      .select('id, title, artist, audio, cover, duration, lyrics, is_public, owner_id, sort_order, created_at, album_id')
       .or(`owner_id.eq.${userid},is_public.eq.true`)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: false })
@@ -71,12 +85,37 @@ export async function GET(request) {
     // テーブル未作成（supabase/music.sql 未実行）の場合は空一覧として扱う
     if (error?.code === '42P01') {
       console.warn('[Music] music_tracks テーブルが未作成です。supabase/music.sql を実行してください。');
-      return NextResponse.json([]);
+      return NextResponse.json({ tracks: [], albums: [] });
+    }
+    // album_id 列が無い（music-albums.sql 未実行）場合は album 抜きで再取得してフォールバック
+    if (error?.code === '42703') {
+      console.warn('[Music] album_id 列がありません。supabase/music-albums.sql を実行してください。');
+      const { data: legacy } = await sb
+        .from('music_tracks')
+        .select('id, title, artist, audio, cover, duration, lyrics, is_public, owner_id, sort_order, created_at')
+        .or(`owner_id.eq.${userid},is_public.eq.true`)
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: false })
+        .limit(500);
+      const tracks = await Promise.all((legacy || []).map((t) => signTrack(sb, t)));
+      return NextResponse.json({ tracks, albums: [] });
     }
     if (error) throw error;
 
+    // アルバム（自分 + 公式）。未作成なら空配列。
+    let albums = [];
+    const { data: albumRows, error: albErr } = await sb
+      .from('music_albums')
+      .select('id, title, artist, cover, is_public, owner_id, sort_order, created_at')
+      .or(`owner_id.eq.${userid},is_public.eq.true`)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (albErr && albErr.code !== '42P01') throw albErr;
+    if (albumRows?.length) albums = await Promise.all(albumRows.map((a) => signAlbum(sb, a)));
+
     const tracks = await Promise.all((data || []).map((t) => signTrack(sb, t)));
-    return NextResponse.json(tracks);
+    return NextResponse.json({ tracks, albums });
   } catch (err) {
     console.error('[Music] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
@@ -178,6 +217,8 @@ export async function POST(request) {
     const artist = body.artist ? body.artist.toString().trim().slice(0, MAX_TITLE) : null;
     const duration = Number.isFinite(Number(body.duration)) ? Number(body.duration) : null;
     const lyrics = typeof body.lyrics === 'string' ? (body.lyrics.slice(0, MAX_LYRICS).trim() || null) : null;
+    // アルバム紐づけ（任意）。指定時は自分の or 公式アルバムのみ許可。
+    const album_id = await resolveAlbumId(sb, body.album_id, userid);
 
     const { data, error } = await sb
       .from('music_tracks')
@@ -190,8 +231,9 @@ export async function POST(request) {
         duration,
         lyrics,
         is_public: wantPublic,
+        ...(album_id ? { album_id } : {}),
       })
-      .select('id, title, artist, audio, cover, duration, lyrics, is_public, owner_id, sort_order, created_at')
+      .select('id, title, artist, audio, cover, duration, lyrics, is_public, owner_id, sort_order, created_at, album_id')
       .single();
     if (error) throw error;
     return NextResponse.json(await signTrack(sb, data));
@@ -228,6 +270,8 @@ export async function PATCH(request) {
     if (typeof body.title === 'string') patch.title = body.title.trim().slice(0, MAX_TITLE) || '無題';
     if (typeof body.artist === 'string') patch.artist = body.artist.trim().slice(0, MAX_TITLE) || null;
     if (typeof body.lyrics === 'string') patch.lyrics = body.lyrics.slice(0, MAX_LYRICS).trim() || null;
+    // album_id が本文にあればアルバム移動（null 指定でシングルへ戻す）
+    if ('album_id' in body) patch.album_id = await resolveAlbumId(sb, body.album_id, userid);
     if (!Object.keys(patch).length) return NextResponse.json({ error: 'nothing to update' }, { status: 400 });
 
     // 権限: 自分の曲、または 公式曲(is_public)なら管理者

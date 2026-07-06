@@ -246,6 +246,16 @@ export async function GET(request) {
       return NextResponse.json({ announcements: data || [], total: count || 0, page });
     }
 
+    if (action === 'store_apps') {
+      const { data, error } = await sb
+        .from('store_apps')
+        .select('*')
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true });
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
+      return NextResponse.json({ apps: data || [] });
+    }
+
     if (action === 'audit_log') {
       const page = parseInt(searchParams.get('page')) || 0;
       const limit = 50;
@@ -1117,6 +1127,60 @@ export async function POST(request) {
       const { error } = await sb.from('announcements').delete().eq('id', announcementId);
       if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'delete_announcement', 'announcement', announcementId);
+      return NextResponse.json({ ok: true });
+    }
+
+    // --- Store apps CRUD ---
+    if (action === 'create_store_app' || action === 'update_store_app') {
+      const { storeAppId, app } = body;
+      if (!app || typeof app !== 'object') return NextResponse.json({ error: 'app required' }, { status: 400 });
+      const validCats = ['learning', 'campus', 'social', 'tools', 'other'];
+      const validTargets = ['view', 'url'];
+      const clean = {};
+      // 文字列フィールド
+      for (const k of ['slug', 'title', 'subtitle', 'description', 'icon', 'color', 'target', 'badge']) {
+        if (app[k] !== undefined) clean[k] = String(app[k]).trim();
+      }
+      if (app.category !== undefined) clean.category = validCats.includes(app.category) ? app.category : 'other';
+      if (app.target_type !== undefined) clean.target_type = validTargets.includes(app.target_type) ? app.target_type : 'view';
+      if (app.screenshots !== undefined) clean.screenshots = Array.isArray(app.screenshots) ? app.screenshots.map(String).filter(Boolean) : [];
+      if (app.featured !== undefined) clean.featured = !!app.featured;
+      if (app.admin_only !== undefined) clean.admin_only = !!app.admin_only;
+      if (app.sso_enabled !== undefined) clean.sso_enabled = !!app.sso_enabled;
+      if (app.enabled !== undefined) clean.enabled = !!app.enabled;
+      if (app.sort_order !== undefined) clean.sort_order = parseInt(app.sort_order) || 0;
+
+      if (action === 'create_store_app') {
+        if (!clean.slug || !clean.title || !clean.target) {
+          return NextResponse.json({ error: 'slug, title, target required' }, { status: 400 });
+        }
+        clean.created_by = auth.userid;
+        const { data, error } = await sb.from('store_apps').insert(clean).select().single();
+        if (error) {
+          if (error.code === '23505') return NextResponse.json({ error: 'slug already exists' }, { status: 409 });
+          console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+        }
+        await auditLog(sb, auth.userid, 'create_store_app', 'store_app', data.id, { slug: clean.slug });
+        return NextResponse.json({ ok: true, app: data });
+      } else {
+        if (!storeAppId) return NextResponse.json({ error: 'storeAppId required' }, { status: 400 });
+        clean.updated_at = new Date().toISOString();
+        const { error } = await sb.from('store_apps').update(clean).eq('id', storeAppId);
+        if (error) {
+          if (error.code === '23505') return NextResponse.json({ error: 'slug already exists' }, { status: 409 });
+          console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+        }
+        await auditLog(sb, auth.userid, 'update_store_app', 'store_app', storeAppId, clean);
+        return NextResponse.json({ ok: true });
+      }
+    }
+
+    if (action === 'delete_store_app') {
+      const { storeAppId } = body;
+      if (!storeAppId) return NextResponse.json({ error: 'storeAppId required' }, { status: 400 });
+      const { error } = await sb.from('store_apps').delete().eq('id', storeAppId);
+      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
+      await auditLog(sb, auth.userid, 'delete_store_app', 'store_app', storeAppId);
       return NextResponse.json({ ok: true });
     }
 

@@ -203,7 +203,59 @@ const Pill = ({ value, label, current, onClick }) => (
     }}>{label}</button>
 );
 
-export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) => {
+// スライドトグル: 選択中の項目へインジケータが滑るセグメント型スイッチ (GradingView と同型)
+const SlideToggle = ({ options, value, onChange }) => {
+  const idx = Math.max(0, options.findIndex(o => o.value === value));
+  return (
+    <div style={{
+      position: 'relative', display: 'inline-flex',
+      background: T.bg3, border: `1px solid ${T.bd}`,
+      borderRadius: 14, padding: 2,
+    }}>
+      <div style={{
+        position: 'absolute', top: 2, bottom: 2, left: 2,
+        width: `calc((100% - 4px) / ${options.length})`,
+        transform: `translateX(${idx * 100}%)`,
+        background: T.accent, borderRadius: 12,
+        transition: 'transform .18s ease',
+      }} />
+      {options.map(o => (
+        <button
+          key={o.value}
+          onClick={() => onChange(o.value)}
+          style={{
+            position: 'relative', zIndex: 1, flex: 1,
+            border: 'none', background: 'none', cursor: 'pointer',
+            padding: '4px 14px', fontSize: 11, fontWeight: 700,
+            color: value === o.value ? '#fff' : T.txD,
+            transition: 'color .18s', whiteSpace: 'nowrap',
+          }}>{o.label}</button>
+      ))}
+    </div>
+  );
+};
+
+// アクティブ時にアクセントカラーで縁取りされるコンパクトなセレクトボックス
+const FilterSelect = ({ value, onChange, active, children }) => (
+  <select
+    value={value}
+    onChange={e => onChange(e.target.value)}
+    style={{
+      padding: '5px 8px', borderRadius: 6, fontSize: 12, fontWeight: active ? 700 : 500,
+      cursor: 'pointer',
+      background: active ? `${T.accent}1a` : T.bg3,
+      color: active ? T.accent : T.txH,
+      border: `1px solid ${active ? T.accent : T.bd}`,
+      maxWidth: 180,
+    }}>
+    {children}
+  </select>
+);
+
+// =============================================================
+// マイ教科書タブ (履修中の講義の教科書のみ)
+// =============================================================
+const MyTextbooksPanel = ({ courses = [], academicYear, setAcademicYear }) => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [data, setData] = useState({ courses: [], books: [], summary: {} });
@@ -298,7 +350,7 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
   };
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto' }}>
+    <div>
       {/* Sticky header */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 5,
@@ -306,10 +358,6 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
         borderBottom: `1px solid ${T.bd}`,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: T.accent, display: 'flex' }}>{I.book}</span>
-            <span style={{ fontSize: 17, fontWeight: 800, color: T.txH, letterSpacing: 0.3 }}>{t('nav.textbooks')}</span>
-          </div>
           {availableYears.length > 1 && setAcademicYear ? (
             <select value={year} onChange={(e) => setAcademicYear(Number(e.target.value))}
               style={{
@@ -438,3 +486,261 @@ export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) =
     </div>
   );
 };
+
+// =============================================================
+// 全科目検索タブ (DB全件から学系/学年/Quarter/種別で絞り込み)
+//   成績割合の SearchGradingPanel と同型。学系メタは grading-search?meta=1 を再利用。
+// =============================================================
+const SearchTextbooksPanel = () => {
+  const [meta, setMeta] = useState({ depts: [] });
+  const [metaLoading, setMetaLoading] = useState(true);
+  const year = '2026'; // 教科書DBは当面2026年度のみ
+  const [deptCat, setDeptCat] = useState('senmon'); // 'senmon' | 'kyoyo'
+  const [dept, setDept] = useState('');
+  const [quarter, setQuarter] = useState('');
+  const [level, setLevel] = useState('');
+  const [kind, setKind] = useState(''); // '' | 'textbook' | 'reference'
+  const [search, setSearch] = useState('');
+  const [searchDeferred, setSearchDeferred] = useState('');
+  const [page, setPage] = useState(0);
+
+  const [data, setData] = useState({ books: [], total: 0, hasMore: false });
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState(null);
+
+  // 学系リストは成績割合と同じ syllabus_courses 由来なので meta エンドポイントを共用
+  useEffect(() => {
+    (async () => {
+      setMetaLoading(true);
+      try {
+        const r = await fetch('/api/data/grading-search?meta=1', { credentials: 'include' });
+        const j = await r.json();
+        if (r.ok) setMeta(j);
+      } catch (e) { console.error('[TextbooksView/meta]', e); }
+      setMetaLoading(false);
+    })();
+  }, []); // eslint-disable-line
+
+  // debounce search
+  useEffect(() => {
+    const tm = setTimeout(() => setSearchDeferred(search), 250);
+    return () => clearTimeout(tm);
+  }, [search]);
+
+  const load = React.useCallback(async () => {
+    setLoading(true); setErr(null);
+    try {
+      const params = new URLSearchParams({ year });
+      if (dept) params.set('dept', dept);
+      if (quarter) params.set('quarter', quarter);
+      if (level) params.set('level', level);
+      if (kind) params.set('kind', kind);
+      if (searchDeferred) params.set('search', searchDeferred);
+      params.set('page', String(page));
+      const r = await fetch(`/api/data/textbook-search?${params}`, { credentials: 'include' });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      setData(j);
+    } catch (e) {
+      console.error('[TextbooksView/search]', e);
+      setErr(e.message || t('textbook.loadFailed'));
+    }
+    setLoading(false);
+  }, [year, dept, quarter, level, kind, searchDeferred, page]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // フィルタ変更時はページを先頭に戻す
+  useEffect(() => { setPage(0); }, [dept, deptCat, quarter, level, kind, searchDeferred]);
+
+  // school 名に「教養」を含むものを教養カテゴリとみなす
+  const isKyoyoSchool = (school) => (school || '').includes('教養');
+
+  const deptsBySchool = useMemo(() => {
+    const m = {};
+    for (const d of (meta.depts || [])) {
+      const kyoyo = isKyoyoSchool(d.school);
+      if ((deptCat === 'kyoyo') !== kyoyo) continue;
+      const s = d.school || 'その他';
+      if (!m[s]) m[s] = [];
+      m[s].push(d);
+    }
+    return m;
+  }, [meta.depts, deptCat]);
+
+  // カテゴリ切替時、選択中の学系が新カテゴリに属さなければクリア
+  useEffect(() => {
+    if (!dept) return;
+    const d = (meta.depts || []).find(x => x.key === dept);
+    if (d && (deptCat === 'kyoyo') !== isKyoyoSchool(d.school)) setDept('');
+  }, [deptCat]); // eslint-disable-line
+
+  const books = data.books || [];
+
+  return (
+    <div>
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 5,
+        background: T.bg, padding: '10px 14px',
+        borderBottom: `1px solid ${T.bd}`,
+      }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 12, color: T.txD, background: T.bg3, padding: '5px 10px', borderRadius: 6, border: `1px solid ${T.bd}` }}>{t('textbook.yearLabel', { year })}</div>
+          <SlideToggle
+            value={deptCat}
+            onChange={setDeptCat}
+            options={[
+              { value: 'senmon', label: t('grading.senmon') },
+              { value: 'kyoyo', label: t('grading.kyoyo') },
+            ]}
+          />
+          <FilterSelect value={dept} onChange={setDept} active={!!dept}>
+            <option value="">{deptCat === 'kyoyo' ? t('grading.allKyoyo') : t('grading.allDepts')}</option>
+            {Object.entries(deptsBySchool).map(([school, ds]) => (
+              <optgroup key={school} label={school === 'その他' ? t('grading.otherSchool') : school}>
+                {ds.map(d => (
+                  <option key={d.key} value={d.key}>
+                    {d.label ? `${d.label} (${d.key})` : d.key}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </FilterSelect>
+          <FilterSelect value={level} onChange={setLevel} active={!!level}>
+            <option value="">{t('grading.allLevels')}</option>
+            <option value="1">{t('grading.level100Year')}</option>
+            <option value="2">{t('grading.level200Year')}</option>
+            <option value="3">{t('grading.level300Year')}</option>
+            <option value="4">{t('grading.level400Year')}</option>
+            <option value="5">{t('grading.level500Year')}</option>
+            <option value="6">{t('grading.level600Year')}</option>
+          </FilterSelect>
+          <FilterSelect value={quarter} onChange={setQuarter} active={!!quarter}>
+            <option value="">{t('grading.allQuarters')}</option>
+            <option value="1Q">1Q</option>
+            <option value="2Q">2Q</option>
+            <option value="3Q">3Q</option>
+            <option value="4Q">4Q</option>
+          </FilterSelect>
+          <input
+            type="text" placeholder={t('textbook.searchPlaceholder')}
+            value={search} onChange={e => setSearch(e.target.value)}
+            style={{
+              flex: 1, minWidth: 140, padding: '5px 10px', borderRadius: 6,
+              background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH, fontSize: 12,
+            }}/>
+        </div>
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
+          <Pill value="" label={t('textbook.filterAll')} current={kind} onClick={setKind} />
+          <Pill value="textbook" label={t('textbook.filterTextbook')} current={kind} onClick={setKind} />
+          <Pill value="reference" label={t('textbook.filterReference')} current={kind} onClick={setKind} />
+        </div>
+      </div>
+
+      <div style={{ padding: '12px 14px 16px' }}>
+        {metaLoading && <div style={{ padding: 20 }}><Loader msg={t('grading.loadingMeta')} size="sm" /></div>}
+        {loading && <div style={{ padding: 20 }}><Loader msg={t('textbook.searching')} size="sm" /></div>}
+        {err && <div style={{ padding: 16, color: T.red, fontSize: 13 }}>{t('textbook.errorPrefix')}{err}</div>}
+
+        {!loading && !err && (
+          <>
+            <div style={{ fontSize: 11, color: T.txD, marginBottom: 8 }}>
+              {t('textbook.hitCount', { total: data.total })} {data.hasMore && t('grading.hasMore')}
+            </div>
+
+            {books.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: T.txD, fontSize: 13 }}>
+                <div style={{ color: T.bd, display: 'flex', justifyContent: 'center', marginBottom: 10, transform: 'scale(2)' }}>{I.book}</div>
+                {t('textbook.noSearchResults')}
+                <div style={{ fontSize: 11, marginTop: 8 }}>{t('textbook.searchHint')}</div>
+              </div>
+            ) : (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                gap: 8,
+              }}>
+                {books.map((entry, idx) => (
+                  <BookCard
+                    key={`sr-${entry.book?.isbn13 || entry.book?.id}-${idx}`}
+                    entry={entry}
+                    kindAccent={entry.isTextbook ? T.accent : T.txD}
+                  />
+                ))}
+              </div>
+            )}
+
+            {data.total > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 16 }}>
+                <button
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  style={{
+                    padding: '6px 14px', borderRadius: 8,
+                    background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH,
+                    cursor: page === 0 ? 'default' : 'pointer', fontSize: 12,
+                    opacity: page === 0 ? 0.4 : 1,
+                  }}>{t('grading.prevPage')}</button>
+                <span style={{ alignSelf: 'center', fontSize: 11, color: T.txD }}>
+                  {t('grading.pageNum', { page: page + 1 })}
+                </span>
+                <button
+                  onClick={() => setPage(p => p + 1)}
+                  disabled={!data.hasMore}
+                  style={{
+                    padding: '6px 14px', borderRadius: 8,
+                    background: T.bg3, border: `1px solid ${T.bd}`, color: T.txH,
+                    cursor: !data.hasMore ? 'default' : 'pointer', fontSize: 12,
+                    opacity: !data.hasMore ? 0.4 : 1,
+                  }}>{t('grading.nextPage')}</button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// =============================================================
+// 親コンポーネント (タブ切替)
+// =============================================================
+export const TextbooksView = ({ courses = [], academicYear, setAcademicYear }) => {
+  const [tab, setTab] = useState('my'); // 'my' | 'search'
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{
+        padding: '12px 14px 0',
+        borderBottom: `1px solid ${T.bd}`, background: T.bg,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <span style={{ color: T.accent, display: 'flex' }}>{I.book}</span>
+          <span style={{ fontSize: 17, fontWeight: 800, color: T.txH, letterSpacing: 0.3 }}>{t('nav.textbooks')}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {[
+            { id: 'my', labelKey: 'textbook.tabMy' },
+            { id: 'search', labelKey: 'textbook.tabSearch' },
+          ].map(tabItem => (
+            <button key={tabItem.id} onClick={() => setTab(tabItem.id)}
+              style={{
+                padding: '8px 16px',
+                background: 'none', border: 'none', cursor: 'pointer',
+                borderBottom: tab === tabItem.id ? `2px solid ${T.accent}` : '2px solid transparent',
+                color: tab === tabItem.id ? T.txH : T.txD,
+                fontSize: 13, fontWeight: tab === tabItem.id ? 700 : 500,
+                transition: 'color .12s',
+              }}>{t(tabItem.labelKey)}</button>
+          ))}
+        </div>
+      </div>
+
+      {tab === 'my'
+        ? <MyTextbooksPanel courses={courses} academicYear={academicYear} setAcademicYear={setAcademicYear} />
+        : <SearchTextbooksPanel />}
+    </div>
+  );
+};
+
+export default TextbooksView;

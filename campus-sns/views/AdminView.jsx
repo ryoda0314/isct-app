@@ -26,6 +26,7 @@ const tabs = [
   { id: "dms", labelKey: "admin.tab.dms", icon: I.mail },
   { id: "circles", labelKey: "admin.tab.circles", icon: I.circle },
   { id: "announce", labelKey: "admin.tab.announce", icon: I.mega },
+  { id: "store", labelKey: "admin.tab.store", icon: I.plus },
   { id: "music", labelKey: "admin.tab.music", icon: I.music },
   { id: "audit", labelKey: "admin.tab.audit", icon: I.clock },
   { id: "map", labelKey: "admin.tab.map", icon: I.pin },
@@ -1313,27 +1314,181 @@ const AnnouncementsTab = () => {
   );
 };
 
+// ---- Store apps (アプリストア) Tab ----
+const STORE_CATS = ["learning", "campus", "social", "tools", "other"];
+const BLANK_APP = {
+  slug: "", title: "", subtitle: "", description: "", icon: "", color: "#007AFF",
+  category: "other", target_type: "url", target: "", screenshots: "",
+  featured: false, badge: "", sort_order: 0, admin_only: false, enabled: true, sso_enabled: false,
+};
+const storeInput = { width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", boxSizing: "border-box" };
+const storeLabel = { fontSize: 11, fontWeight: 600, color: T.txD, marginBottom: 4, display: "block" };
+
+const StoreTab = () => {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(null); // null | 'new' | id
+  const [form, setForm] = useState(BLANK_APP);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch(`${API}/api/admin?action=store_apps`).then(r => r.json()).then(d => setItems(d.apps || [])).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const openNew = () => { setForm(BLANK_APP); setEditing("new"); };
+  const openEdit = (a) => {
+    setForm({ ...BLANK_APP, ...a, screenshots: Array.isArray(a.screenshots) ? a.screenshots.join("\n") : "" });
+    setEditing(a.id);
+  };
+  const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const save = async () => {
+    if (!form.slug.trim() || !form.title.trim() || !form.target.trim()) {
+      showToast(t("admin.store.reqFields"), "error"); return;
+    }
+    setSaving(true);
+    const app = {
+      ...form,
+      slug: form.slug.trim(), title: form.title.trim(), target: form.target.trim(),
+      sort_order: parseInt(form.sort_order) || 0,
+      screenshots: String(form.screenshots || "").split(/[\n,]/).map(s => s.trim()).filter(Boolean),
+    };
+    const payload = editing === "new"
+      ? { action: "create_store_app", app }
+      : { action: "update_store_app", storeAppId: editing, app };
+    const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    setSaving(false);
+    if (r.ok) { setEditing(null); load(); showToast(t("admin.store.saved"), "success"); }
+    else { const e = await r.json().catch(() => ({})); showToast(e.error || t("admin.store.saveFailed"), "error"); }
+  };
+
+  const toggle = async (a, field) => {
+    await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update_store_app", storeAppId: a.id, app: { [field]: !a[field] } }) });
+    load();
+  };
+  const del = async (a) => {
+    if (!confirm(t("admin.store.confirmDelete"))) return;
+    await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_store_app", storeAppId: a.id }) });
+    load();
+  };
+
+  if (editing !== null) {
+    return (
+      <div style={{ padding: 16, maxWidth: 640 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{editing === "new" ? t("admin.store.new") : t("admin.store.edit")}</div>
+          <div style={{ flex: 1 }} />
+          <Btn onClick={() => setEditing(null)} color={T.txD}>{t("common.cancel")}</Btn>
+          <Btn onClick={save} color={T.accent} disabled={saving}>{saving ? t("admin.sending") : t("common.save")}</Btn>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: 1 }}><label style={storeLabel}>{t("admin.store.slug")} *</label><input value={form.slug} onChange={e => setF("slug", e.target.value)} placeholder="music" style={storeInput} /></div>
+            <div style={{ flex: 1 }}><label style={storeLabel}>{t("admin.store.titleF")} *</label><input value={form.title} onChange={e => setF("title", e.target.value)} style={storeInput} /></div>
+          </div>
+          <div><label style={storeLabel}>{t("admin.store.subtitle")}</label><input value={form.subtitle} onChange={e => setF("subtitle", e.target.value)} style={storeInput} /></div>
+          <div><label style={storeLabel}>{t("admin.store.description")}</label><textarea value={form.description} onChange={e => setF("description", e.target.value)} rows={3} style={{ ...storeInput, resize: "vertical" }} /></div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: 1 }}><label style={storeLabel}>{t("admin.store.icon")}</label><input value={form.icon} onChange={e => setF("icon", e.target.value)} placeholder="music / 📦" style={storeInput} /></div>
+            <div style={{ width: 110 }}><label style={storeLabel}>{t("admin.store.color")}</label><input type="color" value={form.color} onChange={e => setF("color", e.target.value)} style={{ ...storeInput, padding: 4, height: 36 }} /></div>
+            <div style={{ width: 110 }}><label style={storeLabel}>{t("admin.store.sort")}</label><input type="number" value={form.sort_order} onChange={e => setF("sort_order", e.target.value)} style={storeInput} /></div>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: 1 }}><label style={storeLabel}>{t("admin.store.category")}</label>
+              <select value={form.category} onChange={e => setF("category", e.target.value)} style={storeInput}>
+                {STORE_CATS.map(c => <option key={c} value={c}>{t(`store.cat.${c}`)}</option>)}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}><label style={storeLabel}>{t("admin.store.targetType")}</label>
+              <select value={form.target_type} onChange={e => setF("target_type", e.target.value)} style={storeInput}>
+                <option value="view">{t("admin.store.tView")}</option>
+                <option value="url">{t("admin.store.tUrl")}</option>
+              </select>
+            </div>
+            <div style={{ width: 110 }}><label style={storeLabel}>{t("admin.store.badge")}</label><input value={form.badge} onChange={e => setF("badge", e.target.value)} placeholder="new" style={storeInput} /></div>
+          </div>
+          <div><label style={storeLabel}>{form.target_type === "url" ? t("admin.store.targetUrl") : t("admin.store.targetView")} *</label><input value={form.target} onChange={e => setF("target", e.target.value)} placeholder={form.target_type === "url" ? "https://…" : "music"} style={storeInput} /></div>
+          <div><label style={storeLabel}>{t("admin.store.screenshots")}</label><textarea value={form.screenshots} onChange={e => setF("screenshots", e.target.value)} rows={2} placeholder={t("admin.store.screenshotsPh")} style={{ ...storeInput, resize: "vertical" }} /></div>
+          <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: T.txH, cursor: "pointer" }}><input type="checkbox" checked={form.featured} onChange={e => setF("featured", e.target.checked)} />{t("admin.store.featured")}</label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: T.txH, cursor: "pointer" }}><input type="checkbox" checked={form.enabled} onChange={e => setF("enabled", e.target.checked)} />{t("admin.store.enabled")}</label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: T.txH, cursor: "pointer" }}><input type="checkbox" checked={form.admin_only} onChange={e => setF("admin_only", e.target.checked)} />{t("admin.store.adminOnly")}</label>
+            {form.target_type === "url" && <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: T.txH, cursor: "pointer" }}><input type="checkbox" checked={form.sso_enabled} onChange={e => setF("sso_enabled", e.target.checked)} />{t("admin.store.sso")}</label>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.store.title")} ({items.length})</div>
+        <div style={{ flex: 1 }} />
+        <Btn onClick={openNew} color={T.accent}>{I.plus} {t("admin.store.new")}</Btn>
+      </div>
+      {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {items.map(a => (
+          <div key={a.id} style={{ padding: 12, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}`, opacity: a.enabled ? 1 : 0.5, display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, background: `linear-gradient(145deg, ${a.color}ee, ${a.color}bb)`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 18 }}>
+              {I[a.icon] || a.icon || "📦"}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{a.title}</span>
+                {a.featured && <Badge text={t("admin.store.featured")} color={T.accent} />}
+                {a.admin_only && <Badge text={t("admin.store.adminOnly")} color={T.orange} />}
+                {!a.enabled && <Badge text={t("admin.unpublished")} color={T.txD} />}
+              </div>
+              <div style={{ fontSize: 11, color: T.txD, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {a.slug} · {t(`store.cat.${a.category}`)} · {a.target_type}:{a.target}
+              </div>
+            </div>
+            <Btn onClick={() => toggle(a, "enabled")} color={a.enabled ? T.orange : T.green} small>{a.enabled ? t("admin.announce.makeUnpublished") : t("admin.announce.makePublished")}</Btn>
+            <Btn onClick={() => openEdit(a)} color={T.accent} small>{t("common.edit")}</Btn>
+            <Btn onClick={() => del(a)} color={T.red} small>{I.trash}</Btn>
+          </div>
+        ))}
+        {!loading && items.length === 0 && <div style={{ padding: 32, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.store.empty")}</div>}
+      </div>
+    </div>
+  );
+};
+
 // ---- Music (配信) Tab ----
 // 管理者がアップロードした曲は is_public=true で全ユーザーのミュージック画面に配信される。
 // ミュージック画面側は全員同一表示（聴くだけ）。管理はこのタブで行う。
 const MusicTab = () => {
-  const { tracks, loading, addTrack, removeTrack, renameTrack } = useMusic();
+  const { tracks, albums, loading, addTrack, removeTrack, renameTrack, moveTrack, addAlbum, removeAlbum } = useMusic();
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
   const [lyrics, setLyrics] = useState("");
+  const [albumId, setAlbumId] = useState("");
   const [audioFile, setAudioFile] = useState(null);
   const [coverFile, setCoverFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const audioRef = useRef(null);
   const coverRef = useRef(null);
   const published = tracks.filter(tr => tr.is_public);
+  const publicAlbums = albums.filter(a => a.is_public);
+
+  // アルバム作成フォーム
+  const [showAlbumForm, setShowAlbumForm] = useState(false);
+  const [albName, setAlbName] = useState("");
+  const [albArtist, setAlbArtist] = useState("");
+  const [albCoverFile, setAlbCoverFile] = useState(null);
+  const [albSaving, setAlbSaving] = useState(false);
+  const albCoverRef = useRef(null);
 
   // 既存曲の歌詞同期エディタを開いているトラックID
   const [editId, setEditId] = useState(null);
 
   const reset = () => {
-    setShowForm(false); setTitle(""); setArtist(""); setLyrics(""); setAudioFile(null); setCoverFile(null);
+    setShowForm(false); setTitle(""); setArtist(""); setLyrics(""); setAlbumId(""); setAudioFile(null); setCoverFile(null);
     if (audioRef.current) audioRef.current.value = "";
     if (coverRef.current) coverRef.current.value = "";
   };
@@ -1341,7 +1496,7 @@ const MusicTab = () => {
     if (!audioFile) { showToast(t("admin.music.selectAudio"), "error"); return; }
     setSaving(true);
     try {
-      await addTrack({ audioFile, coverFile, title: title.trim(), artist: artist.trim(), lyrics: lyrics.trim(), isPublic: true });
+      await addTrack({ audioFile, coverFile, title: title.trim(), artist: artist.trim(), lyrics: lyrics.trim(), isPublic: true, albumId: albumId || null });
       showToast(t("admin.music.published"), "success");
       reset();
     } catch (e) {
@@ -1359,12 +1514,79 @@ const MusicTab = () => {
     showToast(t("admin.music.lyricsSaved"), "success");
   };
 
+  const resetAlbum = () => {
+    setShowAlbumForm(false); setAlbName(""); setAlbArtist(""); setAlbCoverFile(null);
+    if (albCoverRef.current) albCoverRef.current.value = "";
+  };
+  const createAlbum = async () => {
+    if (!albName.trim()) { showToast(t("admin.music.albumName"), "error"); return; }
+    setAlbSaving(true);
+    try {
+      await addAlbum({ title: albName.trim(), artist: albArtist.trim(), coverFile: albCoverFile });
+      showToast(t("admin.music.albumCreated"), "success");
+      resetAlbum();
+    } catch (e) {
+      showToast(e.message || t("admin.music.uploadFailed"), "error");
+    } finally { setAlbSaving(false); }
+  };
+  const delAlbum = async (a) => {
+    if (!confirm(t("admin.music.confirmDeleteAlbum", { title: a.title }))) return;
+    await removeAlbum(a.id);
+    showToast(t("admin.deleted"), "success");
+  };
+
   const lyricsArea = { width: "100%", minHeight: 120, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "inherit", resize: "vertical", lineHeight: 1.5 };
 
   const fileInput = { flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" };
+  const selectInput = { ...fileInput, width: "100%", boxSizing: "border-box", marginTop: 4 };
 
   return (
     <div style={{ padding: 16 }}>
+      {/* ── アルバム管理 ── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.music.albumsHeading")} ({publicAlbums.length})</div>
+        <div style={{ flex: 1 }} />
+        <Btn onClick={() => setShowAlbumForm(!showAlbumForm)} color={T.accent}>{I.plus} {t("admin.music.newAlbum")}</Btn>
+      </div>
+
+      {showAlbumForm && (
+        <div style={{ padding: 16, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <input value={albName} onChange={e => setAlbName(e.target.value)} placeholder={t("admin.music.albumName")} style={fileInput} />
+            <input value={albArtist} onChange={e => setAlbArtist(e.target.value)} placeholder={t("admin.music.artistName")} style={fileInput} />
+            <label style={{ fontSize: 12, color: T.txD }}>{t("admin.music.albumCoverOptional")}
+              <input ref={albCoverRef} type="file" accept="image/*" onChange={e => setAlbCoverFile(e.target.files?.[0] || null)} style={{ ...fileInput, width: "100%", marginTop: 4, boxSizing: "border-box" }} />
+            </label>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+            <Btn onClick={resetAlbum} color={T.txD} disabled={albSaving}>{t("common.cancel")}</Btn>
+            <Btn onClick={createAlbum} color={T.accent} disabled={albSaving || !albName.trim()}>{albSaving ? t("admin.music.uploading") : t("admin.music.createAlbum")}</Btn>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
+        {publicAlbums.map(a => {
+          const count = published.filter(tr => tr.album_id === a.id).length;
+          return (
+            <div key={a.id} style={{ padding: 12, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}`, display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, overflow: "hidden", background: `linear-gradient(145deg, ${T.accent}, ${T.accent}99)`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                {a.cover?.url ? <img src={a.cover.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : I.music}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: T.txH, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.title}</div>
+                <div style={{ fontSize: 12, color: T.txD, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {a.artist || "ScienceTokyo Music"} · {t("admin.music.trackCount", { n: count })}
+                </div>
+              </div>
+              <Btn onClick={() => delAlbum(a)} color={T.red} small>{I.trash} {t("common.delete")}</Btn>
+            </div>
+          );
+        })}
+        {!loading && publicAlbums.length === 0 && <div style={{ padding: 20, textAlign: "center", color: T.txD, fontSize: 13 }}>{t("admin.music.albumEmpty")}</div>}
+      </div>
+
+      {/* ── 曲の配信 ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.music.title")} ({published.length})</div>
         <div style={{ flex: 1 }} />
@@ -1383,6 +1605,12 @@ const MusicTab = () => {
             </label>
             <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t("admin.music.songName")} style={fileInput} />
             <input value={artist} onChange={e => setArtist(e.target.value)} placeholder={t("admin.music.artistName")} style={fileInput} />
+            <label style={{ fontSize: 12, color: T.txD }}>{t("admin.music.albumField")}
+              <select value={albumId} onChange={e => setAlbumId(e.target.value)} style={selectInput}>
+                <option value="">{t("admin.music.noAlbum")}</option>
+                {publicAlbums.map(a => <option key={a.id} value={a.id}>{a.title}</option>)}
+              </select>
+            </label>
             <label style={{ fontSize: 12, color: T.txD }}>{t("admin.music.lyrics")}
               <textarea value={lyrics} onChange={e => setLyrics(e.target.value)} placeholder={t("admin.music.lyricsPlaceholder")} style={{ ...lyricsArea, marginTop: 4 }} />
             </label>
@@ -1412,6 +1640,14 @@ const MusicTab = () => {
               <Btn onClick={() => setEditId(editId === tr.id ? null : tr.id)} color={T.accent} small>{I.lyrics} {t("admin.music.editLyrics")}</Btn>
               <Btn onClick={() => del(tr)} color={T.red} small>{I.trash} {t("common.delete")}</Btn>
             </div>
+            {/* 所属アルバムの変更 */}
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 12, color: T.txD }}>
+              {t("admin.music.albumField")}
+              <select value={tr.album_id || ""} onChange={e => moveTrack(tr.id, e.target.value || null)} style={{ ...fileInput, flex: 1 }}>
+                <option value="">{t("admin.music.noAlbum")}</option>
+                {publicAlbums.map(a => <option key={a.id} value={a.id}>{a.title}</option>)}
+              </select>
+            </label>
             {editId === tr.id && (
               tr.audio?.url
                 ? <LyricsSyncEditor track={tr} onSave={(lrc) => saveLyrics(tr.id, lrc)} onClose={() => setEditId(null)} />
@@ -1440,6 +1676,7 @@ const ACTION_LABEL_KEYS = {
   enable_maintenance: "admin.act.maintOn", disable_maintenance: "admin.act.maintOff",
   enable_registration_limit: "admin.act.regLimitOn", disable_registration_limit: "admin.act.regLimitOff",
   toggle_feature: "admin.act.toggleFeature", bulk_update_profiles: "admin.act.bulkUpdate",
+  create_store_app: "admin.act.createStoreApp", update_store_app: "admin.act.updateStoreApp", delete_store_app: "admin.act.deleteStoreApp",
 };
 
 const AuditLogTab = () => {
@@ -4426,6 +4663,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "dms" && <DMsTab />}
         {tab === "circles" && <CirclesTab />}
         {tab === "announce" && <AnnouncementsTab />}
+        {tab === "store" && <StoreTab />}
         {tab === "music" && <MusicTab />}
         {tab === "audit" && <AuditLogTab />}
         {tab === "map" && <MapEditorView mob={mob} />}
