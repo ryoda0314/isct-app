@@ -130,12 +130,98 @@ as $$
   order by opens desc;
 $$;
 
+-- ── ページ内ユーザーの開いた回数（一覧の合計回数列用） ─────────────
+-- 管理画面ユーザー一覧の現在ページに載っている moodle_id 群について、
+-- 期間内の feature_open 回数をまとめて引く（登録順表示のときの列埋め用）。
+create or replace function admin_opens_for_ids(p_ids bigint[], p_days int)
+returns table(moodle_id bigint, opens bigint)
+language sql
+security definer
+set search_path = public
+as $$
+  with bounds as (
+    select (now() at time zone 'Asia/Tokyo')::date - (greatest(p_days, 1) - 1) as start_day
+  )
+  select moodle_id, count(*) as opens
+  from usage_events
+  where event = 'feature_open'
+    and moodle_id = any(p_ids)
+    and (ts at time zone 'Asia/Tokyo')::date >= (select start_day from bounds)
+  group by moodle_id;
+$$;
+
+-- ── 利用回数順のユーザー一覧（＝Top ランキングにも流用） ──────────────
+-- profiles に期間内 opens を左結合して opens 降順に並べ、ページングして返す。
+-- 管理画面の「利用回数順」ソートと、分析タブの「アクティブユーザー Top20」の両方で使う
+-- （Top20 は p_limit=20, p_offset=0 で呼ぶだけ）。total_count は検索一致の総件数。
+create or replace function admin_users_by_opens(p_days int, p_search text, p_limit int, p_offset int)
+returns table(
+  moodle_id bigint, name text, dept text, year_group text, banned boolean,
+  created_at timestamptz, avatar text, color text, student_id text,
+  opens bigint, total_count bigint
+)
+language sql
+security definer
+set search_path = public
+as $$
+  with bounds as (
+    select (now() at time zone 'Asia/Tokyo')::date - (greatest(p_days, 1) - 1) as start_day
+  ),
+  op as (
+    select moodle_id, count(*) as opens
+    from usage_events
+    where event = 'feature_open'
+      and (ts at time zone 'Asia/Tokyo')::date >= (select start_day from bounds)
+    group by moodle_id
+  ),
+  filtered as (
+    select p.moodle_id, p.name, p.dept, p.year_group, p.banned, p.created_at,
+           p.avatar, p.color, p.student_id, coalesce(o.opens, 0) as opens
+    from profiles p
+    left join op o on o.moodle_id = p.moodle_id
+    where coalesce(p_search, '') = '' or p.name ilike '%' || p_search || '%'
+  )
+  select f.moodle_id, f.name, f.dept, f.year_group, f.banned, f.created_at,
+         f.avatar, f.color, f.student_id, f.opens,
+         count(*) over() as total_count
+  from filtered f
+  order by f.opens desc, f.created_at desc
+  limit greatest(p_limit, 1) offset greatest(p_offset, 0);
+$$;
+
+-- ── 特定の日にアクティブだったユーザー一覧（「誰が見たか」＝日別足あと） ──
+-- 指定日(Asia/Tokyo, 'YYYY-MM-DD')に何らかのイベントを出したユーザーを、
+-- その日の開いた回数(opens)・起動回数(app_opens)・最終時刻とともに返す。
+create or replace function admin_active_users_on_day(p_day text)
+returns table(moodle_id bigint, name text, opens bigint, app_opens bigint, last_at timestamptz)
+language sql
+security definer
+set search_path = public
+as $$
+  select u.moodle_id,
+         p.name,
+         count(*) filter (where u.event = 'feature_open') as opens,
+         count(*) filter (where u.event = 'app_open')     as app_opens,
+         max(u.ts)                                        as last_at
+  from usage_events u
+  left join profiles p on p.moodle_id = u.moodle_id
+  where (u.ts at time zone 'Asia/Tokyo')::date = p_day::date
+  group by u.moodle_id, p.name
+  order by opens desc, last_at desc;
+$$;
+
 revoke execute on function admin_usage_daily(int)             from anon, authenticated;
 revoke execute on function admin_feature_usage(int)           from anon, authenticated;
 revoke execute on function admin_user_feature_usage(bigint,int) from anon, authenticated;
+revoke execute on function admin_opens_for_ids(bigint[],int)  from anon, authenticated;
+revoke execute on function admin_users_by_opens(int,text,int,int) from anon, authenticated;
+revoke execute on function admin_active_users_on_day(text)    from anon, authenticated;
 grant  execute on function admin_usage_daily(int)             to service_role;
 grant  execute on function admin_feature_usage(int)           to service_role;
 grant  execute on function admin_user_feature_usage(bigint,int) to service_role;
+grant  execute on function admin_opens_for_ids(bigint[],int)  to service_role;
+grant  execute on function admin_users_by_opens(int,text,int,int) to service_role;
+grant  execute on function admin_active_users_on_day(text)    to service_role;
 
 -- ── 生ログの保持期間（任意・推奨） ───────────────────────────────
 -- 90 日より古い生イベントを日次で削除して肥大化を防ぐ。

@@ -99,31 +99,77 @@ export async function GET(request) {
       const page = parseInt(searchParams.get('page')) || 0;
       const search = searchParams.get('search') || '';
       const filter = searchParams.get('filter') || ''; // banned
+      const sort = searchParams.get('sort') || ''; // '' = registration order, 'opens' = usage order
+      const opensDays = Math.min(365, Math.max(1, parseInt(searchParams.get('opensDays')) || 30));
       const limit = 50;
-      let query = sb
-        .from('profiles')
-        .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range(page * limit, (page + 1) * limit - 1);
-      if (filter === 'banned') query = query.eq('banned', true);
-      if (search) query = query.ilike('name', `%${search}%`);
-      const { data, error, count } = await query;
-      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
+
+      let data, count, opensByUser = {};
+
+      if (sort === 'opens') {
+        // 利用回数順: usage-analytics.sql の RPC で opens 降順に並べてページング。
+        const { data: rows, error } = await sb.rpc('admin_users_by_opens', {
+          p_days: opensDays, p_search: search, p_limit: limit, p_offset: page * limit,
+        });
+        if (error) {
+          // RPC 未適用時は登録順にフォールバック（利用回数列は空）。
+          console.warn('[Admin] admin_users_by_opens unavailable, falling back:', error.message);
+        } else {
+          data = rows || [];
+          count = data.length ? Number(data[0].total_count) : 0;
+          data.forEach(u => { opensByUser[u.moodle_id] = Number(u.opens); });
+        }
+      }
+
+      if (!data) {
+        // 登録順（既定）: profiles をそのまま引き、ページ分の opens を別途まとめて取得。
+        let query = sb
+          .from('profiles')
+          .select('*', { count: 'exact' })
+          .order('created_at', { ascending: false })
+          .range(page * limit, (page + 1) * limit - 1);
+        if (filter === 'banned') query = query.eq('banned', true);
+        if (search) query = query.ilike('name', `%${search}%`);
+        const res = await query;
+        if (res.error) { console.error('[Admin]', res.error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
+        data = res.data || [];
+        count = res.count || 0;
+        const ids = data.map(u => u.moodle_id).filter(v => v != null);
+        if (ids.length) {
+          const { data: op } = await sb.rpc('admin_opens_for_ids', { p_ids: ids, p_days: opensDays });
+          (op || []).forEach(r => { opensByUser[r.moodle_id] = Number(r.opens); });
+        }
+      }
 
       // Determine ISCT auth status via user_tokens table
-      const moodleIds = (data || []).map(u => u.moodle_id);
+      const moodleIds = data.map(u => u.moodle_id);
       let isctSet = new Set();
       if (moodleIds.length > 0) {
         const { data: tokens } = await sb.from('user_tokens').select('moodle_user_id').in('moodle_user_id', moodleIds);
         isctSet = new Set((tokens || []).map(t => t.moodle_user_id));
       }
 
-      const users = (data || []).map(u => ({
+      const users = data.map(u => ({
         ...u,
         isct_verified: isctSet.has(u.moodle_id),
         portal_verified: !!u.student_id,
+        opens: opensByUser[u.moodle_id] || 0,
       }));
-      return NextResponse.json({ users, total: count || 0, page });
+      return NextResponse.json({ users, total: count || 0, page, opensDays });
+    }
+
+    // --- Active users on a specific day (who was active that day) ---
+    if (action === 'active_users_on_day') {
+      const day = searchParams.get('day') || '';
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return NextResponse.json({ error: 'day (YYYY-MM-DD) required' }, { status: 400 });
+      const { data, error } = await sb.rpc('admin_active_users_on_day', { p_day: day });
+      if (error) return NextResponse.json({ day, users: [], unavailable: true });
+      return NextResponse.json({
+        day,
+        users: (data || []).map(r => ({
+          moodleId: r.moodle_id, name: r.name, opens: Number(r.opens),
+          appOpens: Number(r.app_opens), lastAt: r.last_at,
+        })),
+      });
     }
 
     if (action === 'posts') {
@@ -852,6 +898,14 @@ export async function GET(request) {
         sb.rpc('admin_feature_usage', { p_days: range }),
       ]);
 
+      // Most active users (top 20 by opens in the period). Reuses admin_users_by_opens.
+      const tRpc = await sb.rpc('admin_users_by_opens', { p_days: range, p_search: '', p_limit: 20, p_offset: 0 });
+      const topUsers = (!tRpc.error && tRpc.data)
+        ? tRpc.data.filter(r => Number(r.opens) > 0).map(r => ({
+            moodleId: r.moodle_id, name: r.name, dept: r.dept, opens: Number(r.opens),
+          }))
+        : [];
+
       // Usage (screen-open) time-series + feature ranking. Empty if the SQL
       // isn't applied yet — the UI just hides those charts (no JS fallback:
       // there's no raw source to aggregate from other than usage_events).
@@ -926,7 +980,7 @@ export async function GET(request) {
       return NextResponse.json({
         range, source,
         snapshot: { total: totalUsers.count || 0, dau: dau.count || 0, wau: wau.count || 0, mau: mau.count || 0 },
-        growth, activity, usage, features,
+        growth, activity, usage, features, topUsers,
       });
     }
 

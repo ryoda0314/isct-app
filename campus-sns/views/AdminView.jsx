@@ -263,6 +263,9 @@ const FEATURE_LABELS = {
 };
 const featureLabel = (id) => FEATURE_LABELS[id] || id;
 
+// 今日の日付（Asia/Tokyo, YYYY-MM-DD）
+const tokyoToday = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+
 // 機能別 利用ランキング（横棒）。data = [{feature, opens, users}]
 const FeatureBars = ({ data, max = 20 }) => {
   const rows = (data || []).slice(0, max);
@@ -290,6 +293,10 @@ const AnalyticsTab = () => {
   const [range, setRange] = useState(90);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [detailUser, setDetailUser] = useState(null);
+  const [selDay, setSelDay] = useState(() => tokyoToday());
+  const [dayData, setDayData] = useState(null);
+  const [dayLoading, setDayLoading] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -299,6 +306,17 @@ const AnalyticsTab = () => {
       .catch(() => setData(null))
       .finally(() => setLoading(false));
   }, [range]);
+
+  // 指定日にアクティブだったユーザー一覧
+  useEffect(() => {
+    if (!data?.usage?.length || !selDay) return;
+    setDayLoading(true);
+    fetch(`${API}/api/admin?action=active_users_on_day&day=${selDay}`)
+      .then(r => r.json())
+      .then(setDayData)
+      .catch(() => setDayData(null))
+      .finally(() => setDayLoading(false));
+  }, [selDay, data]);
 
   const stats = useMemo(() => {
     if (!data?.growth?.length) return null;
@@ -411,12 +429,57 @@ const AnalyticsTab = () => {
               <ChartCard title={t("admin.an.featureRanking")} desc={t("admin.an.featureRankingDesc")}>
                 <FeatureBars data={data.features} />
               </ChartCard>
+
+              {/* アクティブユーザー Top20 */}
+              <ChartCard title={t("admin.an.topUsers")} desc={t("admin.an.topUsersDesc", { n: range })}>
+                {(data.topUsers || []).length === 0 ? (
+                  <div style={{ fontSize: 12, color: T.txD }}>{t("admin.an.usageEmpty")}</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    {data.topUsers.map((u, i) => (
+                      <div key={u.moodleId} onClick={() => setDetailUser(u.moodleId)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 4px", borderBottom: i < data.topUsers.length - 1 ? `1px solid ${T.bd}` : "none", cursor: "pointer" }}>
+                        <div style={{ width: 24, textAlign: "right", fontSize: 12, fontWeight: 700, color: i < 3 ? T.accent : T.txD }}>{i + 1}</div>
+                        <div style={{ flex: 1, fontSize: 13, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {u.name || t("admin.unknown")}
+                          {u.dept && <span style={{ fontSize: 11, color: T.txD, marginLeft: 6 }}>{u.dept}</span>}
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{u.opens.toLocaleString()}<span style={{ fontSize: 11, color: T.txD, fontWeight: 400 }}>{t("admin.an.opensSuffix")}</span></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ChartCard>
+
+              {/* 日別アクティブユーザー一覧（誰が見たか） */}
+              <ChartCard title={t("admin.an.dayUsers")} desc={t("admin.an.dayUsersDesc")}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+                  <input type="date" value={selDay} max={tokyoToday()} onChange={e => setSelDay(e.target.value)}
+                    style={{ padding: "5px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" }} />
+                  {dayData?.users && <span style={{ fontSize: 12, color: T.txD }}>{t("admin.an.dayUsersCount", { n: dayData.users.length })}</span>}
+                </div>
+                {dayLoading && <div style={{ fontSize: 12, color: T.txD }}>{t("common.loading")}</div>}
+                {!dayLoading && (!dayData?.users || dayData.users.length === 0) && (
+                  <div style={{ fontSize: 12, color: T.txD }}>{t("admin.an.dayUsersEmpty")}</div>
+                )}
+                {!dayLoading && dayData?.users?.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", maxHeight: 360, overflowY: "auto" }}>
+                    {dayData.users.map((u, i) => (
+                      <div key={u.moodleId} onClick={() => setDetailUser(u.moodleId)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 4px", borderBottom: i < dayData.users.length - 1 ? `1px solid ${T.bd}` : "none", cursor: "pointer" }}>
+                        <div style={{ flex: 1, fontSize: 13, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name || t("admin.unknown")}</div>
+                        <div style={{ fontSize: 12, color: T.txD, whiteSpace: "nowrap" }}>{u.opens.toLocaleString()}{t("admin.an.opensSuffix")}</div>
+                        <div style={{ fontSize: 11, color: T.txD, whiteSpace: "nowrap", width: 62, textAlign: "right" }}>{u.lastAt ? new Date(u.lastAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) : ""}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ChartCard>
             </>
           )}
 
           {data.source === "fallback" && (
             <div style={{ fontSize: 11, color: T.txD, marginTop: -6 }}>{t("admin.an.fallbackNote")}</div>
           )}
+          {detailUser && <UserDetailModal userId={detailUser} onClose={() => setDetailUser(null)} />}
         </>
       )}
     </div>
@@ -460,6 +523,7 @@ const UserDetailModal = ({ userId, onClose }) => {
               </div>
             </div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+              <Card label={t("admin.an.userTotalOpens")} value={(data.featureUsage || []).reduce((s, r) => s + r.opens, 0).toLocaleString()} color={T.accent} />
               <Card label={t("admin.stat.posts")} value={data.postsTotal} color={T.accent} />
               <Card label={t("admin.stat.comments")} value={data.commentsTotal} color={T.green} />
               <Card label={t("admin.stat.dmsSent")} value={data.dmsSent} color={T.orange} />
@@ -820,13 +884,15 @@ const UsersTab = () => {
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [detailUser, setDetailUser] = useState(null);
+  const [sort, setSort] = useState(""); // "" = 登録順, "opens" = 利用回数順
   const onlineIds = useContext(OnlineContext);
 
-  const load = useCallback((p, q, f) => {
+  const load = useCallback((p, q, f, s) => {
     setLoading(true);
     let qs = `action=users&page=${p}`;
     if (q) qs += `&search=${encodeURIComponent(q)}`;
     if (f) qs += `&filter=${f}`;
+    if (s) qs += `&sort=${s}`;
     fetch(`${API}/api/admin?${qs}`)
       .then(r => r.json())
       .then(d => { setUsers(d.users || []); setTotal(d.total || 0); setPage(d.page || 0); })
@@ -834,7 +900,7 @@ const UsersTab = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { load(0, "", ""); }, [load]);
+  useEffect(() => { load(0, "", "", ""); }, [load]);
 
   const handleBan = async (userId, name) => {
     const reason = prompt(t("admin.user.banReasonPrompt", { name: name || t("admin.user.thisUser") }));
@@ -843,7 +909,7 @@ const UsersTab = () => {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "ban_user", moodleUserId: userId, reason }),
     });
-    if (r.ok) load(page, search, filter);
+    if (r.ok) load(page, search, filter, sort);
   };
 
   const handleEditName = async (userId, currentName) => {
@@ -853,7 +919,7 @@ const UsersTab = () => {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "edit_profile", moodleUserId: userId, name: newName }),
     });
-    if (r.ok) load(page, search, filter);
+    if (r.ok) load(page, search, filter, sort);
   };
 
   const handleUnban = async (userId) => {
@@ -862,7 +928,7 @@ const UsersTab = () => {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "unban_user", moodleUserId: userId }),
     });
-    if (r.ok) load(page, search, filter);
+    if (r.ok) load(page, search, filter, sort);
   };
 
   return (
@@ -871,13 +937,17 @@ const UsersTab = () => {
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: T.txH }}>{t("admin.user.manage")} ({total})</div>
         <div style={{ flex: 1 }} />
-        <select value={filter} onChange={e => { setFilter(e.target.value); load(0, search, e.target.value); }} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none" }}>
+        <select value={filter} onChange={e => { setFilter(e.target.value); load(0, search, e.target.value, sort); }} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none" }}>
           <option value="">{t("admin.all")}</option>
           <option value="online">{t("admin.user.onlineOnly")}</option>
           <option value="offline">{t("admin.user.offlineOnly")}</option>
           <option value="banned">{t("admin.user.bannedOnly")}</option>
         </select>
-        <SearchBar value={search} onChange={setSearch} onSearch={() => load(0, search, filter)} placeholder={t("admin.user.searchByName")} />
+        <select value={sort} onChange={e => { setSort(e.target.value); load(0, search, filter, e.target.value); }} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txH, fontSize: 13, outline: "none" }}>
+          <option value="">{t("admin.user.sortRegDate")}</option>
+          <option value="opens">{t("admin.user.sortOpens")}</option>
+        </select>
+        <SearchBar value={search} onChange={setSearch} onSearch={() => load(0, search, filter, sort)} placeholder={t("admin.user.searchByName")} />
       </div>
       {loading && <div style={{ color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>}
       <div style={{ borderRadius: 12, border: `1px solid ${T.bd}`, overflow: "hidden" }}>
@@ -892,6 +962,7 @@ const UsersTab = () => {
               <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>{t("admin.col.isctAuth")}</th>
               <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>{t("admin.col.titechAuth")}</th>
               <th style={{ padding: "10px 12px", textAlign: "left", color: T.txD, fontWeight: 600 }}>{t("admin.col.regDate")}</th>
+              <th style={{ padding: "10px 12px", textAlign: "right", color: T.txD, fontWeight: 600 }} title={t("admin.col.opensHint")}>{t("admin.col.opens")}</th>
               <th style={{ padding: "10px 12px", textAlign: "right", color: T.txD, fontWeight: 600 }}>{t("admin.col.actions")}</th>
             </tr>
           </thead>
@@ -923,6 +994,7 @@ const UsersTab = () => {
                   {u.portal_verified ? <Badge text={t("admin.verified")} color={T.green} /> : <Badge text={t("admin.unverified")} color={T.txD} />}
                 </td>
                 <td style={{ padding: "8px 12px", color: T.txD, fontSize: 12 }}>{u.created_at ? new Date(u.created_at).toLocaleDateString("ja-JP") : "-"}</td>
+                <td style={{ padding: "8px 12px", textAlign: "right", color: u.opens > 0 ? T.txH : T.txD, fontWeight: u.opens > 0 ? 600 : 400 }}>{(u.opens || 0).toLocaleString()}</td>
                 <td style={{ padding: "8px 12px", textAlign: "right" }}>
                   <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
                     <Btn onClick={() => setDetailUser(u.moodle_id)} color={T.accent} small>{I.eye}</Btn>
@@ -939,7 +1011,7 @@ const UsersTab = () => {
           </tbody>
         </table>
       </div>
-      <Pager page={page} total={total} limit={50} onPage={p => load(p, search, filter)} />
+      <Pager page={page} total={total} limit={50} onPage={p => load(p, search, filter, sort)} />
     </div>
   );
 };
