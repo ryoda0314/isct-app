@@ -3,6 +3,7 @@ import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { isEnrolledInCourse } from '../../../lib/auth/course-enrollment.js';
 import { notifyMentions } from '../../../lib/mentions.js';
+import { notifyCoursePost } from '../../../lib/course-notify.js';
 import { checkNgWords } from '../../../lib/ng-filter.js';
 import { getBlockedIds } from '../../../lib/blocks.js';
 import { getMutedIds } from '../../../lib/mutes.js';
@@ -283,6 +284,12 @@ export async function POST(request) {
     if (type !== 'anon') {
       try { await notifyMentions(text, userid, fullname, course_id, '投稿'); } catch (e) { console.error('[Posts POST] mentions:', e); }
     }
+
+    // Notify enrolled course members of the new post (real courses only, respects mutes).
+    // Best-effort: a notification failure must never fail the post itself.
+    try {
+      await notifyCoursePost({ courseId: course_id, authorId: userid, authorName: fullname, anon: type === 'anon' });
+    } catch (e) { console.error('[Posts POST] course notify:', e); }
 
     return NextResponse.json(data);
   } catch (err) {

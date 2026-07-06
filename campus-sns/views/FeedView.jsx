@@ -8,6 +8,7 @@ import { useCurrentUser } from "../hooks/useCurrentUser.js";
 import { useFeed } from "../hooks/useFeed.js";
 import { useComments } from "../hooks/useComments.js";
 import { useCourseMembers } from "../hooks/useCourseMembers.js";
+import { useCourseMute } from "../hooks/useCourseMute.js";
 import { showToast } from "../hooks/useToast.js";
 import { isDemoMode } from "../demoMode.js";
 import { DEMO_POSTS } from "../demoData.js";
@@ -223,6 +224,9 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
   const roomId=course?.id||`dept:${dept?.prefix}`;
   const {posts,pinnedPosts,loading,loadingMore,hasMore,sendPost,loadMore,toggleLike,deletePost,editPost,votePoll,reactPost,pinPost,updateCommentCount}=useFeed(roomId);
   const members=useCourseMembers(course?.moodleId);
+  // 新規投稿通知のミュート（実科目のみ。仮想ルームは通知を出さないので非表示）
+  const isRealCourse=!!course?.moodleId;
+  const {muted:notifMuted,toggle:toggleNotifMute}=useCourseMute(isRealCourse?roomId:null);
   const [txt,setTxt]=useState("");
   const [type,setType]=useState("discussion");
   const [composing,setComposing]=useState(false);
@@ -577,6 +581,12 @@ export const FeedView=({course,dept,mob,bmarks=[],togBmark,courses=[],onOfflineQ
             {v.l}
           </div>
         )}
+        {isRealCourse&&<div onClick={toggleNotifMute} title={notifMuted?t("feed.notifMuted"):t("feed.notifOn")}
+          style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",
+            width:26,height:26,borderRadius:8,color:notifMuted?T.txD:T.accent,flexShrink:0}}>
+          <span style={{display:"flex",transform:"scale(.8)"}}>{I.bell}</span>
+          {notifMuted&&<span style={{position:"absolute",width:22,height:1.5,background:T.txD,transform:"rotate(-45deg)",borderRadius:2}}/>}
+        </div>}
       </div>}
 
       {/* Sticky back bar for profile view */}

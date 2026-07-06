@@ -493,6 +493,8 @@ const M = {
   "notif.sentStamp":      { ja:"スタンプを送信しました", en:"Sent a sticker", zh:"发送了贴纸", ko:"스티커를 보냈습니다" , tp:"sina pana e sitelen" },
   "notif.mention":        { ja:"{name}さんが{context}であなたをメンションしました", en:"{name} mentioned you in {context}", zh:"{name}在{context}提到了你", ko:"{name}님이 {context}에서 당신을 멘션했습니다" , tp:"jan {name} li toki e nimi sina lon {context}" },
   "notif.deadline":       { ja:"「{title}」の提出期限が{label}です", en:"\"{title}\" is due {label}", zh:"“{title}”的提交期限为{label}", ko:"\"{title}\" 제출 기한이 {label}입니다" , tp:"\"{title}\" li wile pini lon {label}" },
+  "notif.coursePost":     { ja:"{name}さんがタイムラインに投稿しました", en:"{name} posted to the timeline", zh:"{name}在时间线发布了帖子", ko:"{name}님이 타임라인에 게시했습니다" , tp:"jan {name} li pana e toki sin" },
+  "notif.coursePostAnon": { ja:"タイムラインに新しい匿名投稿があります", en:"New anonymous post on the timeline", zh:"时间线有新的匿名帖子", ko:"타임라인에 새 익명 게시물이 있습니다" , tp:"toki sin pi jan len li lon" },
 
   // ── 学院・学系名(locName(obj)=t("sname."+obj.name) で表示時に解決, 未登録は原文) ──
   "sname.理学院":         { ja:"理学院", en:"School of Science", zh:"理学院", ko:"이학원" , tp:"tomo sona pi sona kon" },
@@ -1227,6 +1229,8 @@ const M = {
   "feed.postAs": { ja:"{group}として投稿", en:"Post as {group}", zh:"以 {group} 身份发布", ko:"{group}(으)로 게시" , tp:"o pana sama {group}" },
   "feed.post": { ja:"投稿", en:"Post", zh:"发布", ko:"게시" , tp:"o pana" },
   "feed.searchPlaceholder": { ja:"投稿を検索...", en:"Search posts...", zh:"搜索帖子...", ko:"게시물 검색..." , tp:"o alasa e toki…" },
+  "feed.notifOn": { ja:"新規投稿の通知: オン（タップでミュート）", en:"New post notifications: on (tap to mute)", zh:"新帖子通知：开（点按静音）", ko:"새 게시물 알림: 켜짐 (탭하여 음소거)" , tp:"o kute e toki sin (o luka o len)" },
+  "feed.notifMuted": { ja:"新規投稿の通知: ミュート中（タップで解除）", en:"New post notifications: muted (tap to unmute)", zh:"新帖子通知：已静音（点按取消）", ko:"새 게시물 알림: 음소거됨 (탭하여 해제)" , tp:"o kute ala e toki sin (o luka o open)" },
   "feed.postCount": { ja:"{n}件の投稿", en:"{n} posts", zh:"{n} 条帖子", ko:"게시물 {n}개" , tp:"toki {n}" },
   "feed.totalPostCount": { ja:"全{n}件の投稿", en:"{n} posts total", zh:"共 {n} 条帖子", ko:"전체 게시물 {n}개" , tp:"toki ale {n}" },
   "feed.tabThisCourse": { ja:"この科目", en:"This course", zh:"本课程", ko:"이 과목" , tp:"kulupu sona ni" },
@@ -3247,6 +3251,8 @@ export const formatNotif = (text) => {
   }
   if ((m = /^(.+)さんが([\s\S]+)であなたをメンションしました$/.exec(text))) return t("notif.mention", { name: m[1], context: m[2] });
   if ((m = /^「([\s\S]+)」の提出期限が(.+)です$/.exec(text))) return t("notif.deadline", { title: m[1], label: m[2] });
+  if (text === "タイムラインに新しい匿名投稿があります") return t("notif.coursePostAnon");
+  if ((m = /^(.+)さんがタイムラインに投稿しました$/.exec(text))) return t("notif.coursePost", { name: m[1] });
   return text;
 };
 
