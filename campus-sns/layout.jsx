@@ -44,6 +44,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
       <SideItem icon={I.mail} label="DM" on={view==="dm"} click={()=>setView("dm")} badge={dmUnread} compact={cp}/>
       <SideItem icon={I.users} label={t("nav.friends")} on={view==="friends"} click={()=>setView("friends")} badge={pendingFriendCount} compact={cp}/>
       <SideItem icon={I.circle} label={t("nav.circles")} on={view==="circles"} click={()=>setView("circles")} compact={cp}/>
+      <SideItem icon={I.globe} label={t("nav.languages")} on={view==="languages"} click={()=>setView("languages")} compact={cp}/>
       <SideItem icon={I.bell} label={t("nav.notif")} on={view==="notif"} click={()=>setView("notif")} badge={unreadN} compact={cp}/>
 
       {secHdr(t("sidebar.campus"))}
@@ -240,7 +241,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
 // ============================================================
 
 const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false})=>{
-  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket","takiplaza","gym","tsubame","train","library","pdftools","notes"];
+  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","languages","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket","takiplaza","gym","tsubame","train","library","pdftools","notes"];
   const ttId=hasMed?"med-tt":"timetable";
   const isMore=moreViews.includes(view)&&view!==ttId;
   return(
@@ -263,6 +264,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
     ]},
     {title:t("more.communication"),items:[
       {id:"friends",i:I.users,l:t("nav.friends"),b:pendingFriendCount},
+      {id:"languages",i:I.globe,l:t("nav.languages")},
       {id:"pocket",i:I.clip,l:t("more.pocketDesc")},
       {id:"music",i:I.music,l:t("tool.music")},
     ]},

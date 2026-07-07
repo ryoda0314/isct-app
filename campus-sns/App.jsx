@@ -55,6 +55,7 @@ import { LibraryView } from "./views/LibraryView.jsx";
 import { FriendsView } from "./views/FriendsView.jsx";
 import { UserProfileView } from "./views/UserProfileView.jsx";
 import { CircleView } from "./views/CircleView.jsx";
+import { LanguagesView } from "./views/LanguagesView.jsx";
 import { AdminView } from "./views/AdminView.jsx";
 import { TextbooksView } from "./views/TextbooksView.jsx";
 import { GradingView } from "./views/GradingView.jsx";
@@ -1064,7 +1065,7 @@ export default function App(){
 
   // --- DESKTOP ---
   if(!mob){
-    const titles={home:t("nav.home"),timetable:t("nav.timetable"),tasks:t("header.taskMgmt"),calendar:t("nav.calendar"),acadCal:t("tool.acadCal"),exams:t("tool.exams"),dm:t("common.dm"),notif:t("nav.notif"),grades:t("tool.grades"),pomo:t("tool.pomo"),events:t("tool.events"),reviews:t("tool.reviews"),bmarks:t("tool.bmarks"),search:t("nav.search"),profile:t("nav.profile"),navigation:t("nav.navigation"),friends:t("nav.friends"),circles:t("nav.circles"),admin:t("nav.admin"),freshman:t("nav.freshman"),reg:t("more.regAssist"),freeroom:t("tool.freeroom"),attendance:t("nav.attendance"),music:t("tool.music"),pdftools:t("nav.pdftools"),notes:t("nav.notes")};
+    const titles={home:t("nav.home"),timetable:t("nav.timetable"),tasks:t("header.taskMgmt"),calendar:t("nav.calendar"),acadCal:t("tool.acadCal"),exams:t("tool.exams"),dm:t("common.dm"),notif:t("nav.notif"),grades:t("tool.grades"),pomo:t("tool.pomo"),events:t("tool.events"),reviews:t("tool.reviews"),bmarks:t("tool.bmarks"),search:t("nav.search"),profile:t("nav.profile"),navigation:t("nav.navigation"),friends:t("nav.friends"),circles:t("nav.circles"),languages:t("nav.languages"),admin:t("nav.admin"),freshman:t("nav.freshman"),reg:t("more.regAssist"),freeroom:t("tool.freeroom"),attendance:t("nav.attendance"),music:t("tool.music"),pdftools:t("nav.pdftools"),notes:t("nav.notes")};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:t("chan.timeline"),chat:t("chan.chat"),assignments:t("chan.assignments"),materials:t("chan.materials"),reviews:t("chan.reviews")}[ch]}</>;
       if(view==="dept"&&cd){const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?locName(cd):cd.prefix}</span> {nameOnly?"":`${locName(cd)} `}— {{timeline:t("chan.timeline"),chat:t("chan.chat")}[ch]||""}</>;}
@@ -1113,6 +1114,7 @@ export default function App(){
           {view==="train"&&(L?<LockedView title={t("nav.train")}/>:<TrainView mob={false}/>)}
           {view==="library"&&<LibraryView mob={false}/>}
           {view==="circles"&&(TR?<TelecomBlockView title={t("telecom.circlesUnavailable")}/>:<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs}/>)}
+          {view==="languages"&&(L?<LockedView title={t("nav.languages")}/>:TR?<TelecomBlockView title={t("telecom.languagesUnavailable")}/>:<LanguagesView mob={false}/>)}
           {view==="acadCal"&&<AcademicCalendarView mob={false}/>}
           {view==="exams"&&(L?<LockedView title={t("tool.exams")}/>:<ExamView courses={allCourses} mob={false} goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/>)}
           {view==="freeroom"&&(L?<LockedView title={t("tool.freeroom")}/>:<FreeRoomView mob={false} goToBuilding={goToBuilding}/>)}
@@ -1176,6 +1178,7 @@ export default function App(){
         {view==="train"&&<><MHdr title={t("nav.train")} back={mBack}/>{L?<LockedView title={t("nav.train")}/>:<TrainView mob/>}</>}
         {view==="library"&&<><MHdr title={t("nav.library")} back={mBack}/><LibraryView mob/></>}
         {view==="circles"&&(TR?<><MHdr title={t("nav.circles")} back={mBack}/><TelecomBlockView title={t("telecom.circlesUnavailable")} onBack={goBack}/></>:<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs} onBack={mBack}/>)}
+        {view==="languages"&&(L?<><MHdr title={t("nav.languages")} back={mBack}/><LockedView title={t("nav.languages")}/></>:TR?<><MHdr title={t("nav.languages")} back={mBack}/><TelecomBlockView title={t("telecom.languagesUnavailable")} onBack={goBack}/></>:<LanguagesView mob onBack={mBack}/>)}
         {view==="acadCal"&&<AcademicCalendarView mob/>}
         {view==="exams"&&(L?<><MHdr title={t("tool.exams")} back={mBack}/><LockedView title={t("tool.exams")}/></>:<><MHdr title={t("tool.exams")} back={mBack}/><ExamView courses={allCourses} mob goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/></>)}
         {view==="freeroom"&&(L?<><MHdr title={t("tool.freeroom")} back={mBack}/><LockedView title={t("tool.freeroom")}/></>:<><MHdr title={t("tool.freeroom")} back={mBack}/><FreeRoomView mob goToBuilding={goToBuilding}/></>)}

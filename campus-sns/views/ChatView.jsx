@@ -93,9 +93,17 @@ const ChatPoll=({options,votes,userId,onVote,settings,profiles})=>{
   );
 };
 
-export const ChatView=({course,dept,mob})=>{
+// 語学コミュニティ用のロールバッジ（roleMap 指定時のみ表示）
+const RoleBadge=({role})=>{
+  if(role!=="learner"&&role!=="native")return null;
+  const native=role==="native";
+  const col=native?T.green:T.accent;
+  return <span style={{fontSize:9,fontWeight:700,color:col,background:`${col}18`,border:`1px solid ${col}44`,borderRadius:4,padding:"0 5px",lineHeight:"14px",flexShrink:0}}>{native?t("lang.native"):t("lang.learner")}</span>;
+};
+
+export const ChatView=({course,dept,roomId:roomIdProp,roleMap,mob})=>{
   const user=useCurrentUser();
-  const roomId=course?.id||`dept:${dept?.prefix}`;
+  const roomId=roomIdProp||course?.id||`dept:${dept?.prefix}`;
   const {messages,loading,sendMessage,votePoll}=useChat(roomId);
   const {typingUsers,setTyping}=useTyping(roomId,{id:user?.moodleId||user?.id,name:user?.name});
   const [inp,setInp]=useState("");
@@ -198,7 +206,7 @@ export const ChatView=({course,dept,mob})=>{
           );
           const u=resolveUser(m);const userId=user?.moodleId||user?.id;const own=m.uid===userId;const poll=m.pollOptions?<ChatPoll options={m.pollOptions} votes={m.pollVotes||{}} userId={userId} onVote={opt=>votePoll(m.id,opt,userId)} settings={m.pollSettings} profiles={profileMap}/>:null;return(
           <div key={m.id} className="chatMsg" style={{padding:m.hdr?"5px 14px 2px":"1px 14px 1px 56px",maxWidth:"100%",overflow:"hidden"}}>
-            {m.hdr?<div style={{display:"flex",gap:8}}><Av u={u} sz={32} uid={m.uid}/><div style={{flex:1,minWidth:0}}><div style={{display:"flex",alignItems:"baseline",gap:4}}><span style={{fontWeight:600,color:u?.col,fontSize:13}}>{u?.name}</span><span style={{fontSize:10,color:T.txD}}>{fTs(m.ts)}</span>{!own&&<span className="chatMsgFlag" onClick={()=>setReportTarget({type:"message",id:m.id,userId:m.uid})} style={{cursor:"pointer",color:T.txD,display:"flex",opacity:0,transition:"opacity .15s",marginLeft:2}} title={t("chat.report")}>{I.flag}</span>}</div><div style={{margin:"2px 0 0",color:T.tx,fontSize:14,lineHeight:1.5}}><Tx>{m.text}</Tx></div>{poll}</div></div>
+            {m.hdr?<div style={{display:"flex",gap:8}}><Av u={u} sz={32} uid={m.uid}/><div style={{flex:1,minWidth:0}}><div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontWeight:600,color:u?.col,fontSize:13}}>{u?.name}</span>{roleMap&&<RoleBadge role={roleMap[m.uid]}/>}<span style={{fontSize:10,color:T.txD}}>{fTs(m.ts)}</span>{!own&&<span className="chatMsgFlag" onClick={()=>setReportTarget({type:"message",id:m.id,userId:m.uid})} style={{cursor:"pointer",color:T.txD,display:"flex",opacity:0,transition:"opacity .15s",marginLeft:2}} title={t("chat.report")}>{I.flag}</span>}</div><div style={{margin:"2px 0 0",color:T.tx,fontSize:14,lineHeight:1.5}}><Tx>{m.text}</Tx></div>{poll}</div></div>
             :<><div style={{margin:0,color:T.tx,fontSize:14,lineHeight:1.5}}><Tx>{m.text}</Tx></div>{poll}</>}
           </div>
         );})}
