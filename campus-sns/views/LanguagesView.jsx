@@ -152,10 +152,47 @@ const LangCard = ({ meta, count, myRole, onOpen, onJoin }) => {
   );
 };
 
+// 言語を追加するピッカー（未参加の言語一覧）
+const AddPicker = ({ counts, mine, onPick, onClose }) => {
+  const available = LANG_COMMUNITIES.filter((l) => !mine[l.code]);
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: T.bg2, borderTopLeftRadius: 18, borderTopRightRadius: 18, width: "100%", maxWidth: 480, maxHeight: "80vh", display: "flex", flexDirection: "column", border: `1px solid ${T.bdL}` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${T.bd}` }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: T.txH }}>{t("lang.addTitle")}</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex" }}>{I.x}</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px 20px" }}>
+          {available.length === 0
+            ? <div style={{ textAlign: "center", color: T.txD, fontSize: 13, padding: "30px 0" }}>{t("lang.allJoined")}</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {available.map((meta) => {
+                  const c = counts[meta.code];
+                  const learners = c?.learner || 0, natives = c?.native || 0;
+                  return (
+                    <button key={meta.code} onClick={() => onPick(meta.code)}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 12px", borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg3, cursor: "pointer", textAlign: "left" }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 11, background: `${meta.col}20`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{meta.flag}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>{meta.name}</div>
+                        <div style={{ fontSize: 11, color: T.txD, marginTop: 2 }}>{t("lang.learners")} {learners} · {t("lang.natives")} {natives}</div>
+                      </div>
+                      <span style={{ color: meta.col, display: "flex", flexShrink: 0 }}>{I.plus}</span>
+                    </button>
+                  );
+                })}
+              </div>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const LanguagesView = ({ mob, onBack }) => {
   const { counts, mine, join, leave } = useLanguages();
   const [open, setOpen] = useState(null);      // 開いている言語コード
   const [joinTarget, setJoinTarget] = useState(null); // ロール選択中の言語コード
+  const [adding, setAdding] = useState(false); // 言語追加ピッカー表示中
 
   const openMeta = open ? LANG_COMMUNITIES.find((l) => l.code === open) : null;
   const joinMeta = joinTarget ? LANG_COMMUNITIES.find((l) => l.code === joinTarget) : null;
@@ -188,30 +225,51 @@ export const LanguagesView = ({ mob, onBack }) => {
     );
   }
 
-  // ── 一覧画面 ──
-  const joinedCount = Object.keys(mine).length;
+  // ── 一覧画面（参加中のみ表示＋「言語を追加」）──
+  const joinedList = LANG_COMMUNITIES.filter((l) => mine[l.code]);
+  const addBtn = (block) => (
+    <button onClick={() => setAdding(true)}
+      style={block
+        ? { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: 12, borderRadius: 12, border: `1px dashed ${T.bd}`, background: "transparent", color: T.txD, fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 2, width: "100%" }
+        : { display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap" }}>
+      {I.plus}{t("lang.add")}
+    </button>
+  );
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
-      {mob && <Bar title={t("nav.languages")} onBack={onBack} />}
+      {mob && <Bar title={t("nav.languages")} onBack={onBack} right={
+        <button onClick={() => setAdding(true)} title={t("lang.add")} style={{ background: "none", border: "none", color: T.accent, cursor: "pointer", display: "flex", padding: 4 }}>{I.plus}</button>
+      } />}
       <div style={{ flex: 1, overflowY: "auto", padding: mob ? "12px 12px 24px" : "16px 18px 28px" }}>
         <div style={{ maxWidth: 620, margin: "0 auto" }}>
-          <div style={{ fontSize: 13, color: T.txD, lineHeight: 1.6, marginBottom: 16 }}>{t("lang.subtitle")}</div>
-          {joinedCount > 0 && <div style={{ fontSize: 10, fontWeight: 700, color: T.txD, letterSpacing: .5, textTransform: "uppercase", margin: "4px 2px 8px" }}>{t("lang.joined")}</div>}
-          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-            {LANG_COMMUNITIES.filter((l) => mine[l.code]).map((meta) => (
-              <LangCard key={meta.code} meta={meta} count={counts[meta.code]} myRole={mine[meta.code]}
-                onOpen={() => setOpen(meta.code)} onJoin={() => setJoinTarget(meta.code)} />
-            ))}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, color: T.txD, lineHeight: 1.6, flex: 1 }}>{t("lang.subtitle")}</div>
+            {!mob && joinedList.length > 0 && addBtn(false)}
           </div>
-          {joinedCount > 0 && <div style={{ fontSize: 10, fontWeight: 700, color: T.txD, letterSpacing: .5, textTransform: "uppercase", margin: "18px 2px 8px" }}>{t("lang.discover")}</div>}
-          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-            {LANG_COMMUNITIES.filter((l) => !mine[l.code]).map((meta) => (
-              <LangCard key={meta.code} meta={meta} count={counts[meta.code]} myRole={null}
-                onOpen={() => setOpen(meta.code)} onJoin={() => setJoinTarget(meta.code)} />
-            ))}
-          </div>
+          {joinedList.length === 0
+            ? <div style={{ textAlign: "center", padding: "36px 20px", color: T.txD }}>
+                <div style={{ fontSize: 38, marginBottom: 10 }}>🌐</div>
+                <div style={{ fontSize: 14, color: T.txH, fontWeight: 600, marginBottom: 6 }}>{t("lang.emptyTitle")}</div>
+                <div style={{ fontSize: 12.5, lineHeight: 1.6, marginBottom: 18, maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>{t("lang.emptyDesc")}</div>
+                <div style={{ display: "inline-flex" }}>{addBtn(false)}</div>
+              </div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                {joinedList.map((meta) => (
+                  <LangCard key={meta.code} meta={meta} count={counts[meta.code]} myRole={mine[meta.code]}
+                    onOpen={() => setOpen(meta.code)} onJoin={() => setJoinTarget(meta.code)} />
+                ))}
+                {mob && addBtn(true)}
+              </div>}
         </div>
       </div>
+      {adding && (
+        <AddPicker
+          counts={counts}
+          mine={mine}
+          onClose={() => setAdding(false)}
+          onPick={(code) => { setAdding(false); setJoinTarget(code); }}
+        />
+      )}
       {joinMeta && (
         <JoinModal
           meta={joinMeta}
