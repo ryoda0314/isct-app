@@ -1401,17 +1401,49 @@ const AnnouncementsTab = () => {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [type, setType] = useState("info");
+  const [popup, setPopup] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
   const [saving, setSaving] = useState(false);
+  const fileRef = useRef(null);
   const load = useCallback((p) => {
     setLoading(true);
     fetch(`${API}/api/admin?action=announcements&page=${p}`).then(r => r.json()).then(d => { setItems(d.announcements || []); setTotal(d.total || 0); setPage(d.page || 0); }).catch(() => {}).finally(() => setLoading(false));
   }, []);
   useEffect(() => { load(0); }, [load]);
+  const resetForm = () => {
+    setTitle(""); setBody(""); setType("info"); setPopup(false);
+    setImageFile(null); setImagePreview(prev => { if (prev) URL.revokeObjectURL(prev); return ""; });
+    if (fileRef.current) fileRef.current.value = "";
+  };
+  const pickImage = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (!f.type.startsWith("image/")) { showToast(t("admin.announce.imageOnly")); return; }
+    if (f.size > 5 * 1024 * 1024) { showToast(t("admin.announce.imageTooLarge")); return; }
+    setImagePreview(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(f); });
+    setImageFile(f);
+  };
+  // 署名URLを取得して announcement-assets バケットへ直接アップロード → path を返す
+  const uploadImage = async (file) => {
+    const signRes = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "sign_announcement_image", name: file.name, type: file.type, size: file.size }) });
+    if (!signRes.ok) { const e = await signRes.json().catch(() => ({})); throw new Error(e.error || t("admin.announce.uploadFailed")); }
+    const { path, token, bucket } = await signRes.json();
+    const sb = getSupabaseClient();
+    const { error: upErr } = await sb.storage.from(bucket).uploadToSignedUrl(path, token, file, { contentType: file.type || undefined, cacheControl: "31536000" });
+    if (upErr) throw new Error(upErr.message || t("admin.announce.uploadFailed"));
+    return path;
+  };
   const handleCreate = async () => {
-    if (!title.trim() || !body.trim()) return;
+    if (!title.trim() && !body.trim() && !imageFile) return;
     setSaving(true);
-    const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create_announcement", title, announcementBody: body, type }) });
-    if (r.ok) { setShowForm(false); setTitle(""); setBody(""); setType("info"); load(0); }
+    try {
+      let imagePath = null;
+      if (imageFile) imagePath = await uploadImage(imageFile);
+      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create_announcement", title, announcementBody: body, type, popup, imagePath }) });
+      if (r.ok) { setShowForm(false); resetForm(); load(0); }
+      else { const e = await r.json().catch(() => ({})); showToast(e.error || t("admin.announce.uploadFailed")); }
+    } catch (e) { showToast(e.message || t("admin.announce.uploadFailed")); }
     setSaving(false);
   };
   const handleToggle = async (id, active) => {
@@ -1439,9 +1471,25 @@ const AnnouncementsTab = () => {
             </select>
           </div>
           <textarea value={body} onChange={e => setBody(e.target.value)} placeholder={t("admin.announce.bodyPh")} rows={4} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, cursor: "pointer", fontSize: 13, color: T.txH }}>
+            <input type="checkbox" checked={popup} onChange={e => setPopup(e.target.checked)} style={{ accentColor: T.accent, width: 16, height: 16, cursor: "pointer" }} />
+            {t("admin.announce.popupLabel")}
+          </label>
+          <input ref={fileRef} type="file" accept="image/*" onChange={pickImage} style={{ display: "none" }} />
+          <div style={{ marginTop: 10 }}>
+            {imagePreview ? (
+              <div style={{ position: "relative", display: "inline-block" }}>
+                <img src={imagePreview} alt="" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, border: `1px solid ${T.bd}`, display: "block" }} />
+                <button onClick={() => { setImageFile(null); setImagePreview(prev => { if (prev) URL.revokeObjectURL(prev); return ""; }); if (fileRef.current) fileRef.current.value = ""; }}
+                  style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: 12, border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{I.x}</button>
+              </div>
+            ) : (
+              <Btn onClick={() => fileRef.current?.click()} color={T.txD}>{I.image || I.plus} {t("admin.announce.attachImage")}</Btn>
+            )}
+          </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
-            <Btn onClick={() => setShowForm(false)} color={T.txD}>{t("common.cancel")}</Btn>
-            <Btn onClick={handleCreate} color={T.accent} disabled={saving || !title.trim() || !body.trim()}>{saving ? t("admin.sending") : t("admin.announce.publish")}</Btn>
+            <Btn onClick={() => { setShowForm(false); resetForm(); }} color={T.txD}>{t("common.cancel")}</Btn>
+            <Btn onClick={handleCreate} color={T.accent} disabled={saving || (!title.trim() && !body.trim() && !imageFile)}>{saving ? t("admin.sending") : t("admin.announce.publish")}</Btn>
           </div>
         </div>
       )}
@@ -1451,11 +1499,13 @@ const AnnouncementsTab = () => {
           <div key={a.id} style={{ padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}`, opacity: a.active ? 1 : 0.5 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <Badge text={t(typeInfo.labelKey)} color={typeInfo.color} />
+              {a.popup && <Badge text={t("admin.announce.popupBadge")} color={T.accent} />}
               {!a.active && <Badge text={t("admin.unpublished")} color={T.txD} />}
               <span style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{a.title}</span>
               <span style={{ fontSize: 11, color: T.txD, marginLeft: "auto" }}>{a.created_at ? new Date(a.created_at).toLocaleString("ja-JP") : ""}</span>
             </div>
-            <div style={{ fontSize: 13, color: T.tx, lineHeight: 1.6, marginBottom: 8, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{a.body}</div>
+            {a.body && <div style={{ fontSize: 13, color: T.tx, lineHeight: 1.6, marginBottom: 8, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{a.body}</div>}
+            {a.image_url && <img src={a.image_url} alt="" style={{ maxWidth: "100%", maxHeight: 160, borderRadius: 8, border: `1px solid ${T.bd}`, marginBottom: 8, display: "block" }} />}
             <div style={{ display: "flex", gap: 8 }}>
               <Btn onClick={() => handleToggle(a.id, a.active)} color={a.active ? T.orange : T.green} small>{a.active ? t("admin.announce.makeUnpublished") : t("admin.announce.makePublished")}</Btn>
               <Btn onClick={() => handleDeleteAnnouncement(a.id)} color={T.red} small>{I.trash} {t("common.delete")}</Btn>

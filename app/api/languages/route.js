@@ -7,14 +7,17 @@ import { isLangCode, isLangRole } from '../../../campus-sns/languages.js';
 // → { counts: { <code>: { learner, native } }, mine: { <code>: role } }
 export async function GET(request) {
   try {
+    const t0 = Date.now();
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
+    const tAuth = Date.now();
 
     const sb = getSupabaseAdmin();
     const { data, error } = await sb
       .from('language_members')
       .select('lang_code, role, user_id');
+    const tQuery = Date.now();
 
     if (error) {
       console.error('[Languages GET]', error.message);
@@ -28,6 +31,7 @@ export async function GET(request) {
       if (row.role === 'native') c.native++; else c.learner++;
       if (Number(row.user_id) === Number(userid)) mine[row.lang_code] = row.role;
     }
+    console.log(`[Languages GET] rows=${(data||[]).length} auth=${tAuth-t0}ms query=${tQuery-tAuth}ms total=${Date.now()-t0}ms`);
     return NextResponse.json({ counts, mine });
   } catch (err) {
     console.error('[Languages GET]', err);

@@ -1154,31 +1154,76 @@ export async function POST(request) {
     }
 
     // --- Announcements ---
+    // 添付画像の署名アップロードURLを発行（クライアントが直接 announcement-assets バケットへPUTする）
+    if (action === 'sign_announcement_image') {
+      const { name, type: fileType, size } = body;
+      if (fileType && !String(fileType).startsWith('image/')) {
+        return NextResponse.json({ error: '画像ファイルを選択してください' }, { status: 400 });
+      }
+      if (size && Number(size) > 5 * 1024 * 1024) {
+        return NextResponse.json({ error: '画像が大きすぎます（最大5MB）' }, { status: 400 });
+      }
+      // Storageキーは ASCII安全な文字のみ（日本語等は InvalidKey になる）
+      const rawName = (name || 'image').toString();
+      const dot = rawName.lastIndexOf('.');
+      const ext = dot > 0 ? rawName.slice(dot).replace(/[^A-Za-z0-9.]/g, '') : '';
+      const base = (dot > 0 ? rawName.slice(0, dot) : rawName).replace(/[^A-Za-z0-9._-]/g, '_') || 'image';
+      const path = `announcements/${Date.now()}_${base}${ext}`;
+      const { data, error } = await sb.storage.from('announcement-assets').createSignedUploadUrl(path);
+      if (error) { console.error('[Admin] sign announcement image:', error.message); return NextResponse.json({ error: 'sign failed' }, { status: 500 }); }
+      return NextResponse.json({ path, token: data.token, bucket: 'announcement-assets' });
+    }
+
     if (action === 'create_announcement') {
-      const { title, announcementBody, type } = body;
-      if (!title?.trim() || !announcementBody?.trim()) {
-        return NextResponse.json({ error: 'title and body required' }, { status: 400 });
+      const { title, announcementBody, type, popup, imagePath } = body;
+      const cleanTitle = title?.trim() || null;
+      const cleanBody = announcementBody?.trim() || null;
+      // imagePath（announcements/ 配下のみ受理）→ 安定した公開URLを保存
+      let image_url = null;
+      if (imagePath) {
+        if (typeof imagePath !== 'string' || !imagePath.startsWith('announcements/')) {
+          return NextResponse.json({ error: 'invalid image path' }, { status: 400 });
+        }
+        const { data: pub } = sb.storage.from('announcement-assets').getPublicUrl(imagePath);
+        image_url = pub?.publicUrl || null;
+      }
+      if (!cleanTitle && !cleanBody && !image_url) {
+        return NextResponse.json({ error: 'title, body, or image required' }, { status: 400 });
       }
       const validTypes = ['info', 'maintenance', 'update', 'urgent'];
       const { data, error } = await sb.from('announcements').insert({
-        title: title.trim(),
-        body: announcementBody.trim(),
+        title: cleanTitle,
+        body: cleanBody,
         type: validTypes.includes(type) ? type : 'info',
+        popup: !!popup,
+        image_url,
         created_by: auth.userid,
       }).select().single();
       if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
-      await auditLog(sb, auth.userid, 'create_announcement', 'announcement', data.id, { title });
+      await auditLog(sb, auth.userid, 'create_announcement', 'announcement', data.id, { title: cleanTitle });
       return NextResponse.json({ ok: true, announcement: data });
     }
 
     if (action === 'update_announcement') {
-      const { announcementId, title, announcementBody, type, active } = body;
+      const { announcementId, title, announcementBody, type, active, popup, imagePath } = body;
       if (!announcementId) return NextResponse.json({ error: 'announcementId required' }, { status: 400 });
       const updates = { updated_at: new Date().toISOString() };
-      if (title !== undefined) updates.title = title.trim();
-      if (announcementBody !== undefined) updates.body = announcementBody.trim();
+      if (title !== undefined) updates.title = title?.trim() || null;
+      if (announcementBody !== undefined) updates.body = announcementBody?.trim() || null;
       if (type !== undefined) updates.type = type;
       if (active !== undefined) updates.active = active;
+      if (popup !== undefined) updates.popup = !!popup;
+      // imagePath: null/'' で画像解除、announcements/ 配下の新パスで差し替え
+      if (imagePath !== undefined) {
+        if (!imagePath) {
+          updates.image_url = null;
+        } else if (typeof imagePath === 'string' && imagePath.startsWith('announcements/')) {
+          const { data: pub } = sb.storage.from('announcement-assets').getPublicUrl(imagePath);
+          updates.image_url = pub?.publicUrl || null;
+        } else {
+          return NextResponse.json({ error: 'invalid image path' }, { status: 400 });
+        }
+      }
       const { error } = await sb.from('announcements').update(updates).eq('id', announcementId);
       if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'update_announcement', 'announcement', announcementId, updates);

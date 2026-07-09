@@ -31,16 +31,31 @@ alter table reports enable row level security;
 -- 3. announcements: 運営からのお知らせ
 create table if not exists announcements (
   id              bigint generated always as identity primary key,
-  title           text not null,
-  body            text not null,
+  title           text,                           -- 画像のみのお知らせでは任意
+  body            text,                           -- 画像のみのお知らせでは任意
   type            text not null default 'info',  -- info, maintenance, update, urgent
   active          boolean default true,
+  popup           boolean not null default false, -- true: 起動時にモーダルで表示（バナーには出さない）
+  image_url       text,                           -- 添付画像の公開URL（任意 / 画像のみのお知らせも可）
   created_by      bigint not null references profiles(moodle_id),
   created_at      timestamptz default now(),
   updated_at      timestamptz default now()
 );
+-- 既存DB向け: popup / image_url カラム追加、title/body を任意化（画像のみのお知らせ対応）
+alter table announcements add column if not exists popup boolean not null default false;
+alter table announcements add column if not exists image_url text;
+alter table announcements alter column title drop not null;
+alter table announcements alter column body drop not null;
 alter table announcements enable row level security;
 create policy "anon_select_announcements" on announcements for select to anon using (true);
+
+-- announcement-assets: お知らせ添付画像の公開バケット（安定 getPublicUrl で配信し CDN キャッシュを効かせる）。
+-- 書き込みは service_role（/api/admin 経由の署名アップロード）のみ。公開読取のため storage.objects ポリシーは不要。
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('announcement-assets', 'announcement-assets', true, 5242880)  -- 5MB/ファイル
+on conflict (id) do update
+  set public = excluded.public,
+      file_size_limit = excluded.file_size_limit;
 
 -- 4. admin_audit_log: 管理者操作ログ
 create table if not exists admin_audit_log (

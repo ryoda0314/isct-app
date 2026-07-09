@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { T } from "../theme.js";
 import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
-import { Av } from "../shared.jsx";
+import { Av, Loader } from "../shared.jsx";
 import { ChatView } from "./ChatView.jsx";
 import { useLanguages, useLanguageMembers } from "../hooks/useLanguages.js";
 import { LANG_COMMUNITIES, roomIdForLang } from "../languages.js";
@@ -189,7 +189,7 @@ const AddPicker = ({ counts, mine, onPick, onClose }) => {
 };
 
 export const LanguagesView = ({ mob, onBack }) => {
-  const { counts, mine, join, leave } = useLanguages();
+  const { counts, mine, loading, join, leave } = useLanguages();
   const [open, setOpen] = useState(null);      // 開いている言語コード
   const [joinTarget, setJoinTarget] = useState(null); // ロール選択中の言語コード
   const [adding, setAdding] = useState(false); // 言語追加ピッカー表示中
@@ -246,7 +246,9 @@ export const LanguagesView = ({ mob, onBack }) => {
             <div style={{ fontSize: 13, color: T.txD, lineHeight: 1.6, flex: 1 }}>{t("lang.subtitle")}</div>
             {!mob && joinedList.length > 0 && addBtn(false)}
           </div>
-          {joinedList.length === 0
+          {loading
+            ? <Loader size="sm" />
+            : joinedList.length === 0
             ? <div style={{ textAlign: "center", padding: "36px 20px", color: T.txD }}>
                 <div style={{ fontSize: 38, marginBottom: 10 }}>🌐</div>
                 <div style={{ fontSize: 14, color: T.txH, fontWeight: 600, marginBottom: 6 }}>{t("lang.emptyTitle")}</div>

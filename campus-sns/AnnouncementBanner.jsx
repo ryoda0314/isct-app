@@ -51,14 +51,15 @@ export const AnnouncementBanner = () => {
 
   const toggle = (id) => setExpanded(p => ({ ...p, [id]: !p[id] }));
 
-  const visible = items.filter(a => !dismissed.includes(a.id));
+  // popup=true のお知らせはモーダル(AnnouncementModal)専用。バナーには出さない
+  const visible = items.filter(a => !a.popup && !dismissed.includes(a.id));
   if (visible.length === 0) return null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "0 0 8px" }}>
       {visible.map(a => {
         const s = TYPE_STYLES[a.type] || TYPE_STYLES.info;
-        const long = isLong(a.body);
+        const long = isLong(a.body || "");
         const open = !!expanded[a.id];
         const collapsed = long && !open;
         return (
@@ -69,10 +70,12 @@ export const AnnouncementBanner = () => {
                 <span style={{ fontSize: 12, fontWeight: 600, color: s.color }}>{t(s.labelKey)}</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: T.txH }}>{a.title}</span>
               </div>
-              <div style={{
-                fontSize: 12, color: T.tx, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word",
-                ...(collapsed ? { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" } : {}),
-              }}>{a.body}</div>
+              {a.body && (
+                <div style={{
+                  fontSize: 12, color: T.tx, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word",
+                  ...(collapsed ? { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" } : {}),
+                }}>{a.body}</div>
+              )}
               {long && (
                 <button onClick={() => toggle(a.id)} style={{
                   marginTop: 6, background: "none", border: "none", color: s.color, fontSize: 12, fontWeight: 600,
@@ -80,6 +83,12 @@ export const AnnouncementBanner = () => {
                 }}>
                   {open ? t("announce.collapse") : t("announce.readMore")}<Chevron open={open} color={s.color} />
                 </button>
+              )}
+              {a.image_url && (
+                <img src={a.image_url} alt="" style={{
+                  marginTop: 8, maxWidth: "100%", maxHeight: 240, objectFit: "contain",
+                  borderRadius: 8, display: "block",
+                }} />
               )}
             </div>
             <button onClick={() => dismiss(a.id)} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", flexShrink: 0, padding: 2 }}>{I.x}</button>

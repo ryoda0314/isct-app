@@ -68,6 +68,7 @@ import { MedTTView } from "./views/MedTTView.jsx";
 import { SciAttendanceView } from "./views/SciAttendanceView.jsx";
 import { MedAttendanceView } from "./views/MedAttendanceView.jsx";
 import { DeptModal } from "./components/DeptModal.jsx";
+import { AnnouncementModal } from "./AnnouncementModal.jsx";
 import { ACADEMIC_EVENTS, getCurrentQuarter } from "./academicCalendar.js";
 import { useFriends } from "./hooks/useFriends.js";
 import { useBlocks } from "./hooks/useBlocks.js";
@@ -1126,6 +1127,7 @@ export default function App(){
         </div>
         {showDeptModal&&<DeptModal user={user} onClose={()=>setDeptModalDone(true)}/>}
         {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
+        {!showDeptModal&&!appLock.locked&&!guestMode&&<AnnouncementModal/>}
         <DemoBanner/>
         <Toasts/>
         <MiniPlayer mob={false} view={view} ch={ch} onOpen={()=>setView("music")}/>
@@ -1194,6 +1196,7 @@ export default function App(){
       {showMembers&&(view==="course"&&cc?<MemberPanel mList={members} onlineList={online} col={cc.col} onClose={()=>setShowMembers(false)}/>:view==="dept"&&cd?<MemberPanel mList={deptMembers} onlineList={online} col={cd.col||T.accent} onClose={()=>setShowMembers(false)}/>:null)}
       {showDeptModal&&<DeptModal user={user} onClose={()=>setDeptModalDone(true)}/>}
       {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
+      {!showDeptModal&&!appLock.locked&&!guestMode&&<AnnouncementModal/>}
       <DemoBanner/>
       <Toasts/>
       {themeMode==="mizukumori"&&<FogOverlay/>}
