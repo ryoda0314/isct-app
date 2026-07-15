@@ -7,6 +7,7 @@ import { useCourseMaterials } from "../hooks/useCourseMaterials.js";
 import { useSharedMaterials } from "../hooks/useSharedMaterials.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
 import { openMaterial } from "../openMaterial.js";
+import { bulkDownloadMaterials } from "../bulkDownload.js";
 import { findMaterialNote } from "./NotesView.jsx";
 
 const tCol={pdf:'#e5534b',slide:'#d4843e',document:'#6375f0',spreadsheet:'#3dae72',image:'#a855c7',video:'#2d9d8f',audio:'#c6a236',archive:'#68687a',code:'#3dae72',text:'#68687a',link:'#6375f0',file:'#68687a'};
@@ -508,6 +509,9 @@ const DocxViewer=({url,mob,onStale,onOpen})=>{
   );
 };
 
+/* Split-view icon (2 columns) */
+const SplitIcon=()=><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="12" y1="4" x2="12" y2="20"/></svg>;
+
 /* Fullscreen icon */
 const FsIcon=({active})=>active
   ?<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
@@ -595,20 +599,26 @@ export const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote,sessio
 
 /* ──────────────────────────────────────────────
    File list row (Moodle materials)
+   selMode 中は開く代わりにチェック選択(一括DL用)。link はDL対象外なので薄く表示
    ────────────────────────────────────────────── */
-const FileRow=({m,onClick,onStale})=>{
+const isDownloadable=m=>m.fileType!=="link"&&!!m.fileurl;
+const FileRow=({m,onClick,onStale,selMode,checked,onToggle})=>{
   const c=tCol[m.fileType]||T.txD;
   const preview=canPreview(m);
-  const handle=preview?()=>onClick(m):()=>openMaterial(m,onStale);
+  const selectable=isDownloadable(m);
+  const handle=selMode
+    ?()=>{if(selectable)onToggle(m);}
+    :preview?()=>onClick(m):()=>openMaterial(m,onStale);
   return(
-    <div onClick={handle} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:6,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:3,textDecoration:"none",cursor:"pointer"}}>
+    <div onClick={handle} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:6,background:selMode&&checked?`${T.accent}0d`:T.bg2,border:`1px solid ${selMode&&checked?T.accent+'60':T.bd}`,marginBottom:3,textDecoration:"none",cursor:selMode&&!selectable?"default":"pointer",opacity:selMode&&!selectable?0.45:1}}>
+      {selMode&&<input type="checkbox" readOnly checked={!!checked} disabled={!selectable} style={{accentColor:T.accent,width:15,height:15,flexShrink:0,margin:0,pointerEvents:"none"}}/>}
       <span style={{color:c,display:"flex",flexShrink:0}}>{m.fileType==="link"?I.arr:I.file}</span>
       <div style={{flex:1,minWidth:0}}>
         <div style={{color:T.txH,fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.filename||m.name}</div>
         <div style={{fontSize:11,color:T.txD}}>{[m.filesizeFormatted,fmtD(m.timemodified)].filter(Boolean).join(" · ")}</div>
       </div>
       <Tag color={c}>{t(tLblKey[m.fileType]||'mat.ft.file')}</Tag>
-      {m.fileType!=="link"&&<span style={{color:T.txD,display:"flex",flexShrink:0}}>{preview?I.arr:I.dl}</span>}
+      {!selMode&&m.fileType!=="link"&&<span style={{color:T.txD,display:"flex",flexShrink:0}}>{preview?I.arr:I.dl}</span>}
     </div>
   );
 };
@@ -644,15 +654,60 @@ const SharedFileRow=({m,onClick,myId,onDelete})=>{
 
 /* ──────────────────────────────────────────────
    Tab: 講義資料 (Moodle materials)
+   一括DL: 選択モード(全選択/授業回ごと/個別) → ZIP 生成 → 全環境保存
    ────────────────────────────────────────────── */
-const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect,onRefresh})=>{
+const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect,onRefresh,course})=>{
   const [collapsed,setCollapsed]=useState({});
   const [search,setSearch]=useState("");
+  const [selMode,setSelMode]=useState(false);
+  const [checked,setChecked]=useState(()=>new Set());
+  const [dl,setDl]=useState(null); // {phase:'fetch',done,total} | {phase:'zip',pct}
   const togSec=id=>setCollapsed(p=>({...p,[id]:!p[id]}));
 
   const filtered=search.trim()
     ?sections.map(s=>({...s,materials:s.materials.filter(m=>(m.name||'').toLowerCase().includes(search.toLowerCase())||(m.filename||'').toLowerCase().includes(search.toLowerCase()))})).filter(s=>s.materials.length>0)
     :sections;
+
+  /* 選択対象 = 検索で表示中の DL 可能ファイル */
+  const visibleDl=filtered.flatMap(s=>s.materials.filter(isDownloadable));
+  const allChecked=visibleDl.length>0&&visibleDl.every(m=>checked.has(m.id));
+  let checkedSize=0;
+  for(const s of sections)for(const m of s.materials)if(checked.has(m.id))checkedSize+=m.filesize||0;
+
+  const enterSel=()=>{setSelMode(true);setChecked(new Set(visibleDl.map(m=>m.id)));};
+  const exitSel=()=>{if(dl)return;setSelMode(false);setChecked(new Set());};
+  const togOne=m=>setChecked(p=>{const n=new Set(p);if(n.has(m.id))n.delete(m.id);else n.add(m.id);return n;});
+  const togAll=()=>setChecked(allChecked?new Set():new Set(visibleDl.map(m=>m.id)));
+  const togSecSel=sec=>{
+    const ms=sec.materials.filter(isDownloadable);
+    const all=ms.length>0&&ms.every(m=>checked.has(m.id));
+    setChecked(p=>{const n=new Set(p);ms.forEach(m=>{if(all)n.delete(m.id);else n.add(m.id);});return n;});
+  };
+
+  const runBulkDl=async()=>{
+    console.log('[bulkDl] runBulkDl clicked, checked=',checked.size,'dl=',dl);
+    if(dl)return;
+    const items=[];
+    for(const s of sections)for(const m of s.materials)if(checked.has(m.id)&&isDownloadable(m))items.push({m,section:sections.length>1?s.name:""});
+    console.log('[bulkDl] items to download=',items.length);
+    if(!items.length){alert(t("mat.dlAllFailed"));return;}
+    setDl({phase:'fetch',done:0,total:items.length});
+    try{
+      const zipName=`${(course?.name||'').replace(/[\\/:*?"<>|]/g,'_').trim()||'materials'}.zip`;
+      const res=await bulkDownloadMaterials({items,zipName,mob,onProgress:p=>setDl(p)});
+      if(res.stale)onRefresh?.();
+      if(!res.saved){alert(t("mat.dlAllFailed"));}
+      else{
+        if(res.failed.length)alert(t("mat.dlFailedSome",{count:res.failed.length}));
+        setSelMode(false);setChecked(new Set());
+      }
+    }catch(e){
+      console.error("[mat] bulk dl",e);
+      alert(t("mat.dlSaveFailed"));
+    }finally{setDl(null);}
+  };
+  /* 進捗: 取得 0-80% + ZIP化 80-100% */
+  const dlPct=dl?(dl.phase==='fetch'?(dl.total?dl.done/dl.total*80:0):80+(dl.pct||0)*0.2):0;
 
   if(loading) return <Loader msg={t("mat.loadingMaterials")}/>;
   if(error==='LMS_UNAVAILABLE') return <div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{t("mat.lmsUnavailable")}</div>;
@@ -660,27 +715,48 @@ const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect,onRefres
 
   return(
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:12}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-        <span style={{fontSize:12,color:T.txD,fontWeight:600}}>{t("mat.materialCount",{count:totalFiles})}</span>
-        {onRefresh&&<button onClick={onRefresh} title={t("mat.refresh")} style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txD,cursor:"pointer",flexShrink:0}}>{I.reset}</button>}
-        <div style={{flex:1,display:"flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:6,background:T.bg3,border:`1px solid ${T.bd}`,minWidth:mob?"100%":140,maxWidth:240}}>
-          <span style={{color:T.txD,display:"flex"}}>{I.search}</span>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t("mat.searchMaterials")} style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
-          {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:0}}>{I.x}</button>}
+      {selMode?(
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+          <button onClick={togAll} disabled={!!dl} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:12,fontWeight:600,cursor:dl?"default":"pointer",flexShrink:0,opacity:dl?0.5:1}}>{allChecked?t("mat.deselectAll"):t("mat.selectAll")}</button>
+          <span style={{fontSize:12,color:T.txD,fontWeight:600}}>{t("mat.selectedCount",{count:checked.size})}{checkedSize>0?` · ${fmtSize(checkedSize)}`:''}</span>
+          <div style={{flex:1}}/>
+          <button onClick={runBulkDl} disabled={!checked.size||!!dl} style={{display:"flex",alignItems:"center",gap:4,padding:"5px 12px",borderRadius:6,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:(!checked.size||dl)?"default":"pointer",flexShrink:0,opacity:(!checked.size||dl)?0.5:1}}>{I.dl} {t("mat.dlZip")}</button>
+          <button onClick={exitSel} disabled={!!dl} style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${T.bd}`,background:"transparent",color:T.txD,fontSize:12,fontWeight:600,cursor:dl?"default":"pointer",flexShrink:0,opacity:dl?0.5:1}}>{t("common.cancel")}</button>
         </div>
-      </div>
-      {filtered.map(sec=>(
+      ):(
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+          <span style={{fontSize:12,color:T.txD,fontWeight:600}}>{t("mat.materialCount",{count:totalFiles})}</span>
+          {onRefresh&&<button onClick={onRefresh} title={t("mat.refresh")} style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txD,cursor:"pointer",flexShrink:0}}>{I.reset}</button>}
+          {totalFiles>0&&<button onClick={enterSel} title={t("mat.bulkDl")} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txD,fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0}}>{I.dl} {t("mat.bulkDl")}</button>}
+          <div style={{flex:1,display:"flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:6,background:T.bg3,border:`1px solid ${T.bd}`,minWidth:mob?"100%":140,maxWidth:240}}>
+            <span style={{color:T.txD,display:"flex"}}>{I.search}</span>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t("mat.searchMaterials")} style={{flex:1,border:"none",background:"transparent",color:T.txH,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
+            {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:0}}>{I.x}</button>}
+          </div>
+        </div>
+      )}
+      {dl&&(
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:12,color:T.txD,marginBottom:4}}>{dl.phase==='fetch'?t("mat.dlFetching",{done:dl.done,total:dl.total}):t("mat.dlZipping")}</div>
+          <div style={{height:6,background:T.bg3,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${dlPct}%`,background:T.accent,transition:"width .2s"}}/></div>
+        </div>
+      )}
+      {filtered.map(sec=>{
+        const secDl=sec.materials.filter(isDownloadable);
+        const secAll=secDl.length>0&&secDl.every(m=>checked.has(m.id));
+        return(
         <div key={sec.id}>
           {sections.length>1&&(
             <div onClick={()=>togSec(sec.id)} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 4px 4px",cursor:"pointer",userSelect:"none"}}>
+              {selMode&&secDl.length>0&&<input type="checkbox" checked={secAll} onChange={()=>{}} onClick={e=>{e.stopPropagation();togSecSel(sec);}} style={{accentColor:T.accent,width:14,height:14,margin:0,cursor:"pointer",flexShrink:0}}/>}
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2.5" style={{transform:collapsed[sec.id]?"none":"rotate(90deg)",transition:"transform .15s"}}><path d="M9 18l6-6-6-6"/></svg>
               <span style={{fontSize:13,fontWeight:700,color:T.txD}}>{sec.name}</span>
               <span style={{fontSize:11,color:T.txD}}>{sec.materials.length}</span>
             </div>
           )}
-          {!collapsed[sec.id]&&sec.materials.map(m=><FileRow key={m.id} m={m} onClick={onSelect} onStale={onRefresh}/>)}
+          {!collapsed[sec.id]&&sec.materials.map(m=><FileRow key={m.id} m={m} onClick={onSelect} onStale={onRefresh} selMode={selMode} checked={checked.has(m.id)} onToggle={togOne}/>)}
         </div>
-      ))}
+      );})}
       {filtered.length===0&&!loading&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{search?t("mat.noSearchResults"):t("mat.noMaterialsYet")}</div>}
     </div>
   );
@@ -784,10 +860,32 @@ const SharedMaterials=({courseId,mob,onSelect})=>{
 /* ──────────────────────────────────────────────
    Main MatView — 2-tab layout
    ────────────────────────────────────────────── */
+const MAX_PANES=4; // PC分割表示の最大ペイン数
+
 export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOpenNote})=>{
   const {sections,totalFiles,loading,error,refresh}=useCourseMaterials(course?.moodleId);
   const [tab,setTab]=useState(0); // 0=講義資料, 1=みんなの共有
-  const [sel,setSel]=useState(null);
+  /* プレビュー中の教材。モバイルは先頭のみ全画面、PCは最大 MAX_PANES 面まで並べる */
+  const [panes,setPanes]=useState([]);
+  const [activeIdx,setActiveIdx]=useState(0); // リストクリックの差し替え先ペイン
+
+  const openPane=m=>{setPanes([m]);setActiveIdx(0);};
+  const replaceActive=m=>{
+    if(!panes.length){openPane(m);return;}
+    const i=Math.min(activeIdx,panes.length-1);
+    setPanes(panes.map((p,j)=>j===i?m:p));
+    setActiveIdx(i);
+  };
+  const addPane=m=>{
+    if(panes.length>=MAX_PANES)return;
+    setPanes([...panes,m]);
+    setActiveIdx(panes.length);
+  };
+  const closePane=i=>{
+    const n=panes.filter((_,j)=>j!==i);
+    setPanes(n);
+    setActiveIdx(a=>{const na=i<a?a-1:a;return Math.max(0,Math.min(na,n.length-1));});
+  };
 
   // ホーム「今日の教材」から特定教材を開いた場合、教材一覧ロード後に自動選択
   const initialConsumedRef=useRef(false);
@@ -797,7 +895,7 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
       const m=sec.materials.find(x=>x.id===initialMatId);
       if(m){
         initialConsumedRef.current=true;
-        if(canPreview(m)) setSel(m);
+        if(canPreview(m)) openPane(m);
         else openMaterial(m,refresh);
         onInitialConsumed?.();
         return;
@@ -805,17 +903,22 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
     }
   },[initialMatId,sections,onInitialConsumed]);
 
-  /* 選択教材が属する section（授業回。例: 第1回）を引く。並び順は section インデックス */
-  const selSecIdx=sel?sections.findIndex(s=>s.materials.some(mm=>mm.id===sel.id)):-1;
-  const selSession=selSecIdx>=0?(sections[selSecIdx].name||null):null;
-  const selSessionOrder=selSecIdx>=0?selSecIdx:null;
+  /* 教材が属する section（授業回。例: 第1回）を引く。並び順は section インデックス */
+  const matSession=m=>{
+    const i=m?sections.findIndex(s=>s.materials.some(mm=>mm.id===m.id)):-1;
+    return i>=0?{session:sections[i].name||null,sessionOrder:i}:{session:null,sessionOrder:null};
+  };
 
   /* Mobile: full-screen preview */
-  if(sel&&mob) return <Preview m={sel} mob onClose={()=>setSel(null)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={selSession} sessionOrder={selSessionOrder}/>;
+  if(panes.length&&mob){
+    const m=panes[0],ss=matSession(m);
+    return <Preview m={m} mob onClose={()=>setPanes([])} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={ss.session} sessionOrder={ss.sessionOrder}/>;
+  }
 
-  /* Desktop: split view when previewing */
-  if(sel&&!mob){
-    const isShared=!!sel.storagePath;
+  /* Desktop: split view when previewing (複数ペイン可) */
+  if(panes.length&&!mob){
+    const isShared=!!panes[0].storagePath;
+    const canSplit=!isShared&&panes.length<MAX_PANES;
     return(
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         <div style={{width:280,flexShrink:0,borderRight:`1px solid ${T.bd}`,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:10}}>
@@ -823,25 +926,39 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
             ? <div style={{padding:8}}>
                 <div style={{fontSize:11,fontWeight:700,color:T.txD,marginBottom:8}}>{t("mat.tabShared")}</div>
                 <div style={{padding:"7px 8px",borderRadius:6,background:`${T.accent}14`,border:`1px solid ${T.accent}40`}}>
-                  <div style={{color:T.accent,fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sel.filename}</div>
+                  <div style={{color:T.accent,fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{panes[0].filename}</div>
                 </div>
               </div>
             : sections.map(sec=>(
                 <div key={sec.id} style={{marginBottom:8}}>
                   <div style={{fontSize:11,fontWeight:700,color:T.txD,padding:"4px 6px",marginBottom:2}}>{sec.name}</div>
-                  {sec.materials.map(m=>{const c=tCol[m.fileType]||T.txD;const active=sel.id===m.id;return(
-                    <div key={m.id} onClick={()=>canPreview(m)?setSel(m):openMaterial(m,refresh)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 8px",borderRadius:6,background:active?`${T.accent}14`:T.bg2,border:`1px solid ${active?T.accent+'40':T.bd}`,marginBottom:2,cursor:"pointer"}}>
+                  {sec.materials.map(m=>{
+                    const c=tCol[m.fileType]||T.txD;
+                    const openIdx=panes.findIndex(p=>p.id===m.id);
+                    const open=openIdx!==-1;
+                    const active=openIdx===activeIdx&&open;
+                    return(
+                    <div key={m.id} onClick={()=>canPreview(m)?replaceActive(m):openMaterial(m,refresh)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 8px",borderRadius:6,background:open?`${T.accent}14`:T.bg2,border:`1px solid ${active?T.accent:open?T.accent+'40':T.bd}`,marginBottom:2,cursor:"pointer"}}>
                       <span style={{color:c,display:"flex",flexShrink:0}}>{I.file}</span>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{color:active?T.accent:T.txH,fontSize:12,fontWeight:active?600:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.filename||m.name}</div>
+                        <div style={{color:open?T.accent:T.txH,fontSize:12,fontWeight:open?600:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.filename||m.name}</div>
                       </div>
+                      {canSplit&&canPreview(m)&&(
+                        <button onClick={e=>{e.stopPropagation();addPane(m);}} title={t("mat.openSplit")} style={{display:"flex",alignItems:"center",justifyContent:"center",width:20,height:20,borderRadius:4,border:"none",background:"transparent",color:T.txD,cursor:"pointer",flexShrink:0,padding:0}}><SplitIcon/></button>
+                      )}
                     </div>
                   );})}
                 </div>
               ))
           }
         </div>
-        <Preview m={sel} mob={false} onClose={()=>setSel(null)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={selSession} sessionOrder={selSessionOrder}/>
+        {panes.map((p,i)=>{
+          const ss=matSession(p);
+          return(
+          <div key={`${p.id}_${i}`} onMouseDownCapture={()=>setActiveIdx(i)} style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",overflow:"hidden",borderLeft:i>0?`1px solid ${T.bd}`:"none",borderTop:`2px solid ${panes.length>1&&i===activeIdx?T.accent:"transparent"}`}}>
+            <Preview m={p} mob={false} onClose={()=>closePane(i)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={ss.session} sessionOrder={ss.sessionOrder}/>
+          </div>
+        );})}
       </div>
     );
   }
@@ -865,11 +982,11 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
       </div>
 
       {/* Tab content */}
-      {tab===0&&<LectureMaterials sections={sections} totalFiles={totalFiles} loading={loading} error={error} mob={mob} onSelect={setSel} onRefresh={refresh}/>}
+      {tab===0&&<LectureMaterials sections={sections} totalFiles={totalFiles} loading={loading} error={error} mob={mob} onSelect={openPane} onRefresh={refresh} course={course}/>}
       {tab===1&&<SharedMaterials courseId={course?.moodleId} mob={mob} onSelect={m=>{
         const ft=detectType(m.mimetype);
         if(m.url&&PREVIEWABLE.has(ft)){
-          setSel({...m,fileType:ft});
+          openPane({...m,fileType:ft});
         }else if(m.url){
           window.open(m.url,'_blank');
         }

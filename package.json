@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "trace-sso": "node lib/auth/trace-sso.js",
+    "trace-okta": "node lib/auth/trace-okta.js",
     "cap:sync": "npx cap sync",
     "cap:ios": "npx cap sync ios && npx cap open ios",
     "cap:android": "npx cap sync android && npx cap open android",

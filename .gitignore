@@ -60,3 +60,5 @@ promo-video/public/screens/*.jpg
 promo-video/public/screens/*.jpeg
 data/trace-portal-*
 data/trace-*.png
+# Okta trace output (may contain student ID in screenshots; secrets are masked)
+data/okta-trace/
