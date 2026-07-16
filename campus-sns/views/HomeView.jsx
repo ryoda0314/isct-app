@@ -525,7 +525,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
       </div>}
 
       {/* ── お知らせバナー ── */}
-      <div style={{padding:"0 16px"}}><AnnouncementBanner/></div>
+      <div style={{padding:"0 16px"}}><AnnouncementBanner setView={setView}/></div>
 
       {/* ── 電車（ホームに追加したルート） ── */}
       <HomeTrainWidget setView={setView}/>

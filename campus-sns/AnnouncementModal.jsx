@@ -3,6 +3,7 @@ import { T } from "./theme.js";
 import { I } from "./icons.jsx";
 import { t } from "./i18n.js";
 import { isDemoMode } from "./demoMode.js";
+import { announceLinkLabelKey } from "./announceLinks.js";
 
 const TYPE_STYLES = {
   info: { color: T.accent, icon: I.bell, labelKey: "announce.typeInfo" },
@@ -21,7 +22,7 @@ const readSeen = () => {
  * 一度「確認」したものは localStorage(seen_announcement_popups) に記録し、二度と表示しない。
  * 未読が複数ある場合は 1 件ずつ順番に表示する。
  */
-export const AnnouncementModal = () => {
+export const AnnouncementModal = ({ setView }) => {
   const [queue, setQueue] = useState([]);
   const [idx, setIdx] = useState(0);
 
@@ -40,18 +41,23 @@ export const AnnouncementModal = () => {
   const current = queue[idx];
   if (!current) return null;
 
-  const confirm = () => {
+  const markSeen = () => {
     try {
       const seen = readSeen();
       if (!seen.includes(current.id)) {
         localStorage.setItem(SEEN_KEY, JSON.stringify([...seen, current.id]));
       }
     } catch {}
-    setIdx(i => i + 1);
   };
+
+  const confirm = () => { markSeen(); setIdx(i => i + 1); };
+  // CTA: このお知らせを既読にしてポップアップを閉じ、対象画面へ遷移
+  const goLink = () => { markSeen(); setQueue([]); setView?.(current.link); };
 
   const s = TYPE_STYLES[current.type] || TYPE_STYLES.info;
   const multiple = queue.length > 1;
+  const linkLabelKey = current.link ? announceLinkLabelKey(current.link) : null;
+  const showCta = !!(current.link && setView && linkLabelKey);
 
   return (
     <div style={{
@@ -103,11 +109,23 @@ export const AnnouncementModal = () => {
           )}
         </div>
 
-        {/* フッター: 確認ボタン */}
-        <div style={{ padding: "12px 20px 20px", flexShrink: 0 }}>
+        {/* フッター: CTA(任意) + 確認ボタン */}
+        <div style={{ padding: "12px 20px 20px", flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+          {showCta && (
+            <button onClick={goLink} style={{
+              width: "100%", padding: "12px 0", borderRadius: 10, border: "none",
+              background: s.color, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer",
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+            }}>
+              {t(linkLabelKey)}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+            </button>
+          )}
           <button onClick={confirm} style={{
-            width: "100%", padding: "12px 0", borderRadius: 10, border: "none",
-            background: s.color, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer",
+            width: "100%", padding: "12px 0", borderRadius: 10,
+            border: showCta ? `1px solid ${T.bd}` : "none",
+            background: showCta ? "transparent" : s.color,
+            color: showCta ? T.txD : "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer",
           }}>{t("announce.gotIt")}</button>
         </div>
       </div>

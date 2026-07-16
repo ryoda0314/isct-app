@@ -23,9 +23,25 @@ function createWindow() {
 
   // 外部リンクはデフォルトブラウザで開く
   win.webContents.setWindowOpenHandler(({ url }) => {
-    // アプリ内URLはアプリ内で開く
-    if (url.startsWith(APP_URL) || url.includes("sciencetokyo.app")) {
-      return { action: "allow" };
+    // 教材ポップアップ(blob:)・空ウィンドウ・アプリ内URLは新規ウィンドウで開く。
+    // blob:https://sciencetokyo.app/… は sciencetokyo.app を含むため従来も allow
+    // されていたが、PDF 比較用に読みやすいサイズを明示指定する。
+    if (
+      url.startsWith("blob:") ||
+      url === "about:blank" ||
+      url.startsWith(APP_URL) ||
+      url.includes("sciencetokyo.app")
+    ) {
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          width: 900,
+          height: 1000,
+          minWidth: 400,
+          minHeight: 400,
+          autoHideMenuBar: true,
+        },
+      };
     }
     shell.openExternal(url);
     return { action: "deny" };

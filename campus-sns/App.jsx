@@ -1127,7 +1127,7 @@ export default function App(){
         </div>
         {showDeptModal&&<DeptModal user={user} onClose={()=>setDeptModalDone(true)}/>}
         {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
-        {!showDeptModal&&!appLock.locked&&!guestMode&&<AnnouncementModal/>}
+        {!showDeptModal&&!appLock.locked&&!guestMode&&<AnnouncementModal setView={setView}/>}
         <DemoBanner/>
         <Toasts/>
         <MiniPlayer mob={false} view={view} ch={ch} onOpen={()=>setView("music")}/>
@@ -1196,7 +1196,7 @@ export default function App(){
       {showMembers&&(view==="course"&&cc?<MemberPanel mList={members} onlineList={online} col={cc.col} onClose={()=>setShowMembers(false)}/>:view==="dept"&&cd?<MemberPanel mList={deptMembers} onlineList={online} col={cd.col||T.accent} onClose={()=>setShowMembers(false)}/>:null)}
       {showDeptModal&&<DeptModal user={user} onClose={()=>setDeptModalDone(true)}/>}
       {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
-      {!showDeptModal&&!appLock.locked&&!guestMode&&<AnnouncementModal/>}
+      {!showDeptModal&&!appLock.locked&&!guestMode&&<AnnouncementModal setView={setView}/>}
       <DemoBanner/>
       <Toasts/>
       {themeMode==="mizukumori"&&<FogOverlay/>}

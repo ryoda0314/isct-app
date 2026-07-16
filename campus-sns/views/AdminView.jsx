@@ -10,6 +10,7 @@ import { LyricsSyncEditor } from "../components/LyricsSyncEditor.jsx";
 import { showToast } from "../hooks/useToast.js";
 import { t } from "../i18n.js";
 import { getSupabaseClient } from "../../lib/supabase/client.js";
+import { ANNOUNCE_LINKS, announceLinkLabelKey } from "../announceLinks.js";
 
 const OnlineContext = createContext(new Set());
 
@@ -1402,6 +1403,7 @@ const AnnouncementsTab = () => {
   const [body, setBody] = useState("");
   const [type, setType] = useState("info");
   const [popup, setPopup] = useState(false);
+  const [link, setLink] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [saving, setSaving] = useState(false);
@@ -1412,7 +1414,7 @@ const AnnouncementsTab = () => {
   }, []);
   useEffect(() => { load(0); }, [load]);
   const resetForm = () => {
-    setTitle(""); setBody(""); setType("info"); setPopup(false);
+    setTitle(""); setBody(""); setType("info"); setPopup(false); setLink("");
     setImageFile(null); setImagePreview(prev => { if (prev) URL.revokeObjectURL(prev); return ""; });
     if (fileRef.current) fileRef.current.value = "";
   };
@@ -1440,7 +1442,7 @@ const AnnouncementsTab = () => {
     try {
       let imagePath = null;
       if (imageFile) imagePath = await uploadImage(imageFile);
-      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create_announcement", title, announcementBody: body, type, popup, imagePath }) });
+      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create_announcement", title, announcementBody: body, type, popup, imagePath, link: link || null }) });
       if (r.ok) { setShowForm(false); resetForm(); load(0); }
       else { const e = await r.json().catch(() => ({})); showToast(e.error || t("admin.announce.uploadFailed")); }
     } catch (e) { showToast(e.message || t("admin.announce.uploadFailed")); }
@@ -1475,6 +1477,13 @@ const AnnouncementsTab = () => {
             <input type="checkbox" checked={popup} onChange={e => setPopup(e.target.checked)} style={{ accentColor: T.accent, width: 16, height: 16, cursor: "pointer" }} />
             {t("admin.announce.popupLabel")}
           </label>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, color: T.txH, flexWrap: "wrap" }}>
+            <span>{t("admin.announce.linkLabel")}</span>
+            <select value={link} onChange={e => setLink(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, outline: "none" }}>
+              <option value="">{t("admin.announce.linkNone")}</option>
+              {ANNOUNCE_LINKS.map(l => <option key={l.key} value={l.key}>{t(l.labelKey)}</option>)}
+            </select>
+          </div>
           <input ref={fileRef} type="file" accept="image/*" onChange={pickImage} style={{ display: "none" }} />
           <div style={{ marginTop: 10 }}>
             {imagePreview ? (
@@ -1500,6 +1509,7 @@ const AnnouncementsTab = () => {
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <Badge text={t(typeInfo.labelKey)} color={typeInfo.color} />
               {a.popup && <Badge text={t("admin.announce.popupBadge")} color={T.accent} />}
+              {a.link && announceLinkLabelKey(a.link) && <Badge text={t(announceLinkLabelKey(a.link))} color={T.green} />}
               {!a.active && <Badge text={t("admin.unpublished")} color={T.txD} />}
               <span style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{a.title}</span>
               <span style={{ fontSize: 11, color: T.txD, marginLeft: "auto" }}>{a.created_at ? new Date(a.created_at).toLocaleString("ja-JP") : ""}</span>

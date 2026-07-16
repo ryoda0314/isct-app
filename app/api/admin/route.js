@@ -18,6 +18,15 @@ async function isAdmin(userid) {
   return !!data;
 }
 
+// お知らせの遷移先ボタン: 許可するビューキー（campus-sns/announceLinks.js と同期）
+const ANN_LINK_KEYS = ['exams', 'timetable', 'calendar', 'attendance', 'grades', 'tasks', 'events', 'train'];
+// 受理: 許可キー→そのまま / null・''→null（ボタン解除） / それ以外→undefined（不正）
+const normalizeAnnLink = (v) => {
+  if (v === null || v === '') return null;
+  if (typeof v === 'string' && ANN_LINK_KEYS.includes(v)) return v;
+  return undefined;
+};
+
 // Audit log helper
 async function auditLog(sb, adminId, action, targetType, targetId, detail) {
   try {
@@ -1175,7 +1184,9 @@ export async function POST(request) {
     }
 
     if (action === 'create_announcement') {
-      const { title, announcementBody, type, popup, imagePath } = body;
+      const { title, announcementBody, type, popup, imagePath, link } = body;
+      const cleanLink = normalizeAnnLink(link);
+      if (cleanLink === undefined) return NextResponse.json({ error: 'invalid link' }, { status: 400 });
       const cleanTitle = title?.trim() || null;
       const cleanBody = announcementBody?.trim() || null;
       // imagePath（announcements/ 配下のみ受理）→ 安定した公開URLを保存
@@ -1197,6 +1208,7 @@ export async function POST(request) {
         type: validTypes.includes(type) ? type : 'info',
         popup: !!popup,
         image_url,
+        link: cleanLink,
         created_by: auth.userid,
       }).select().single();
       if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
@@ -1205,7 +1217,7 @@ export async function POST(request) {
     }
 
     if (action === 'update_announcement') {
-      const { announcementId, title, announcementBody, type, active, popup, imagePath } = body;
+      const { announcementId, title, announcementBody, type, active, popup, imagePath, link } = body;
       if (!announcementId) return NextResponse.json({ error: 'announcementId required' }, { status: 400 });
       const updates = { updated_at: new Date().toISOString() };
       if (title !== undefined) updates.title = title?.trim() || null;
@@ -1213,6 +1225,11 @@ export async function POST(request) {
       if (type !== undefined) updates.type = type;
       if (active !== undefined) updates.active = active;
       if (popup !== undefined) updates.popup = !!popup;
+      if (link !== undefined) {
+        const cleanLink = normalizeAnnLink(link);
+        if (cleanLink === undefined) return NextResponse.json({ error: 'invalid link' }, { status: 400 });
+        updates.link = cleanLink;
+      }
       // imagePath: null/'' で画像解除、announcements/ 配下の新パスで差し替え
       if (imagePath !== undefined) {
         if (!imagePath) {

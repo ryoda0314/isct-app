@@ -3,6 +3,7 @@ import { T } from "./theme.js";
 import { I } from "./icons.jsx";
 import { t } from "./i18n.js";
 import { isDemoMode } from "./demoMode.js";
+import { announceLinkLabelKey } from "./announceLinks.js";
 
 const TYPE_STYLES = {
   info: { color: T.accent, icon: I.bell, labelKey: "announce.typeInfo" },
@@ -28,7 +29,7 @@ const Chevron = ({ open, color }) => (
  * AnnouncementBanner — アクティブなお知らせを表示するバナー
  * ホーム画面などに配置。長文は折りたたみ、「続きを読む」で展開。
  */
-export const AnnouncementBanner = () => {
+export const AnnouncementBanner = ({ setView }) => {
   const [items, setItems] = useState([]);
   const [expanded, setExpanded] = useState({});
   const [dismissed, setDismissed] = useState(() => {
@@ -89,6 +90,16 @@ export const AnnouncementBanner = () => {
                   marginTop: 8, maxWidth: "100%", maxHeight: 240, objectFit: "contain",
                   borderRadius: 8, display: "block",
                 }} />
+              )}
+              {a.link && setView && announceLinkLabelKey(a.link) && (
+                <button onClick={() => setView(a.link)} style={{
+                  marginTop: 10, display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "7px 14px", borderRadius: 8, border: "none",
+                  background: s.color, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                }}>
+                  {t(announceLinkLabelKey(a.link))}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+                </button>
               )}
             </div>
             <button onClick={() => dismiss(a.id)} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", flexShrink: 0, padding: 2 }}>{I.x}</button>

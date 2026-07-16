@@ -6,7 +6,7 @@ import { Tag, Loader } from "../shared.jsx";
 import { useCourseMaterials } from "../hooks/useCourseMaterials.js";
 import { useSharedMaterials } from "../hooks/useSharedMaterials.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
-import { openMaterial } from "../openMaterial.js";
+import { openMaterial, openMaterialWindow } from "../openMaterial.js";
 import { bulkDownloadMaterials } from "../bulkDownload.js";
 import { findMaterialNote } from "./NotesView.jsx";
 
@@ -20,6 +20,9 @@ export const PREVIEWABLE=new Set(['pdf','image','video','audio']);
 const isDocx=m=>{if(!m)return false;const f=(m.filename||m.name||'').toLowerCase();return f.endsWith('.docx')||(m.mimetype||'').toLowerCase().includes('wordprocessingml');};
 export const canPreviewType=(m,ft)=>PREVIEWABLE.has(ft)||(ft==='document'&&isDocx(m));
 export const canPreview=m=>m&&m.fileurl&&canPreviewType(m,m.fileType);
+/* 別ウィンドウにポップアウト可能な種別 = ブラウザ/Electron がネイティブ描画できるもの。
+   docx は新ウィンドウでは描画されずDLになるので除外(アプリ内 DocxViewer 専用)。 */
+export const canPopOut=m=>!!m&&!!m.fileurl&&PREVIEWABLE.has(m.fileType);
 
 /* Detect file type from mimetype */
 export const detectType=mime=>{
@@ -509,8 +512,8 @@ const DocxViewer=({url,mob,onStale,onOpen})=>{
   );
 };
 
-/* Split-view icon (2 columns) */
-const SplitIcon=()=><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="12" y1="4" x2="12" y2="20"/></svg>;
+/* Pop-out icon (open in a separate window) */
+const PopOutIcon=()=><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>;
 
 /* Fullscreen icon */
 const FsIcon=({active})=>active
@@ -521,7 +524,7 @@ const FsIcon=({active})=>active
    Preview component (PDF / image / video / audio)
    Works for both Moodle materials and shared files
    ────────────────────────────────────────────── */
-export const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote,session,sessionOrder})=>{
+export const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote,session,sessionOrder,onPopOut})=>{
   const ft=m.fileType||detectType(m.mimetype);
   const c=tCol[ft]||T.txD;
   // 教材→ノート（PDFのみ）。既存ノートがあれば「開く」、無ければ取得して「書き込む」
@@ -573,6 +576,7 @@ export const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote,sessio
         <button onClick={onClose} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",color:T.txD,fontSize:13,cursor:"pointer",padding:0}}>{I.back} {t("common.back")}</button>
         <div style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:13,fontWeight:600,color:T.txH}}>{m.filename||m.name}</div>
         <Tag color={c}>{t(tLblKey[ft]||'mat.ft.file')}</Tag>
+        {onPopOut&&<button onClick={onPopOut} title={t("mat.openWindow")} style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txD,cursor:"pointer",flexShrink:0}}><PopOutIcon/></button>}
         <button onClick={toggleFs} title={fs?t("mat.exitFullscreen"):t("mat.fullscreen")} style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,borderRadius:6,border:`1px solid ${T.bd}`,background:fs?`${T.accent}18`:T.bg3,color:fs?T.accent:T.txD,cursor:"pointer",flexShrink:0}}><FsIcon active={fs}/></button>
         {ft==="pdf"&&onAnnotate&&<button onClick={annotate} disabled={prepNote} title={existingNote?t("mat.openNote"):t("mat.annotate")} style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,border:`1px solid ${T.accent}`,background:`${T.accent}14`,color:T.accent,fontSize:12,fontWeight:600,cursor:prepNote?"default":"pointer",opacity:prepNote?0.6:1,flexShrink:0}}>{I.pen} {prepNote?t("mat.preparingNote"):existingNote?t("mat.openNote"):t("mat.annotate")}</button>}
         {dlUrl&&(m.fileurl
@@ -602,13 +606,14 @@ export const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote,sessio
    selMode 中は開く代わりにチェック選択(一括DL用)。link はDL対象外なので薄く表示
    ────────────────────────────────────────────── */
 const isDownloadable=m=>m.fileType!=="link"&&!!m.fileurl;
-const FileRow=({m,onClick,onStale,selMode,checked,onToggle})=>{
+const FileRow=({m,onClick,onStale,selMode,checked,onToggle,onPopOut})=>{
   const c=tCol[m.fileType]||T.txD;
   const preview=canPreview(m);
   const selectable=isDownloadable(m);
   const handle=selMode
     ?()=>{if(selectable)onToggle(m);}
     :preview?()=>onClick(m):()=>openMaterial(m,onStale);
+  const canPop=onPopOut&&canPopOut(m);
   return(
     <div onClick={handle} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:6,background:selMode&&checked?`${T.accent}0d`:T.bg2,border:`1px solid ${selMode&&checked?T.accent+'60':T.bd}`,marginBottom:3,textDecoration:"none",cursor:selMode&&!selectable?"default":"pointer",opacity:selMode&&!selectable?0.45:1}}>
       {selMode&&<input type="checkbox" readOnly checked={!!checked} disabled={!selectable} style={{accentColor:T.accent,width:15,height:15,flexShrink:0,margin:0,pointerEvents:"none"}}/>}
@@ -618,6 +623,7 @@ const FileRow=({m,onClick,onStale,selMode,checked,onToggle})=>{
         <div style={{fontSize:11,color:T.txD}}>{[m.filesizeFormatted,fmtD(m.timemodified)].filter(Boolean).join(" · ")}</div>
       </div>
       <Tag color={c}>{t(tLblKey[m.fileType]||'mat.ft.file')}</Tag>
+      {!selMode&&canPop&&<button onClick={e=>{e.stopPropagation();onPopOut(m);}} title={t("mat.openWindow")} style={{display:"flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:4,border:"none",background:"transparent",color:T.txD,cursor:"pointer",flexShrink:0,padding:0}}><PopOutIcon/></button>}
       {!selMode&&m.fileType!=="link"&&<span style={{color:T.txD,display:"flex",flexShrink:0}}>{preview?I.arr:I.dl}</span>}
     </div>
   );
@@ -656,7 +662,7 @@ const SharedFileRow=({m,onClick,myId,onDelete})=>{
    Tab: 講義資料 (Moodle materials)
    一括DL: 選択モード(全選択/授業回ごと/個別) → ZIP 生成 → 全環境保存
    ────────────────────────────────────────────── */
-const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect,onRefresh,course})=>{
+const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect,onRefresh,course,onPopOut})=>{
   const [collapsed,setCollapsed]=useState({});
   const [search,setSearch]=useState("");
   const [selMode,setSelMode]=useState(false);
@@ -754,7 +760,7 @@ const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect,onRefres
               <span style={{fontSize:11,color:T.txD}}>{sec.materials.length}</span>
             </div>
           )}
-          {!collapsed[sec.id]&&sec.materials.map(m=><FileRow key={m.id} m={m} onClick={onSelect} onStale={onRefresh} selMode={selMode} checked={checked.has(m.id)} onToggle={togOne}/>)}
+          {!collapsed[sec.id]&&sec.materials.map(m=><FileRow key={m.id} m={m} onClick={onSelect} onStale={onRefresh} selMode={selMode} checked={checked.has(m.id)} onToggle={togOne} onPopOut={onPopOut}/>)}
         </div>
       );})}
       {filtered.length===0&&!loading&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{search?t("mat.noSearchResults"):t("mat.noMaterialsYet")}</div>}
@@ -859,33 +865,16 @@ const SharedMaterials=({courseId,mob,onSelect})=>{
 
 /* ──────────────────────────────────────────────
    Main MatView — 2-tab layout
+   PC: 左リスト + プレビュー1枚。複数を見比べるときは各教材を別ウィンドウに
+   ポップアウト(openMaterialWindow)する。ペインを増やして潰すより OS ウィンドウ
+   として自由に並べられる方が読みやすいため。
    ────────────────────────────────────────────── */
-const MAX_PANES=4; // PC分割表示の最大ペイン数
-
 export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOpenNote})=>{
   const {sections,totalFiles,loading,error,refresh}=useCourseMaterials(course?.moodleId);
   const [tab,setTab]=useState(0); // 0=講義資料, 1=みんなの共有
-  /* プレビュー中の教材。モバイルは先頭のみ全画面、PCは最大 MAX_PANES 面まで並べる */
-  const [panes,setPanes]=useState([]);
-  const [activeIdx,setActiveIdx]=useState(0); // リストクリックの差し替え先ペイン
-
-  const openPane=m=>{setPanes([m]);setActiveIdx(0);};
-  const replaceActive=m=>{
-    if(!panes.length){openPane(m);return;}
-    const i=Math.min(activeIdx,panes.length-1);
-    setPanes(panes.map((p,j)=>j===i?m:p));
-    setActiveIdx(i);
-  };
-  const addPane=m=>{
-    if(panes.length>=MAX_PANES)return;
-    setPanes([...panes,m]);
-    setActiveIdx(panes.length);
-  };
-  const closePane=i=>{
-    const n=panes.filter((_,j)=>j!==i);
-    setPanes(n);
-    setActiveIdx(a=>{const na=i<a?a-1:a;return Math.max(0,Math.min(na,n.length-1));});
-  };
+  const [sel,setSel]=useState(null);
+  /* 別ウィンドウにポップアウト(PDF/画像等のプレビュー可能物のみ。desktop 専用) */
+  const popOut=m=>openMaterialWindow(m,refresh);
 
   // ホーム「今日の教材」から特定教材を開いた場合、教材一覧ロード後に自動選択
   const initialConsumedRef=useRef(false);
@@ -895,7 +884,7 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
       const m=sec.materials.find(x=>x.id===initialMatId);
       if(m){
         initialConsumedRef.current=true;
-        if(canPreview(m)) openPane(m);
+        if(canPreview(m)) setSel(m);
         else openMaterial(m,refresh);
         onInitialConsumed?.();
         return;
@@ -903,22 +892,17 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
     }
   },[initialMatId,sections,onInitialConsumed]);
 
-  /* 教材が属する section（授業回。例: 第1回）を引く。並び順は section インデックス */
-  const matSession=m=>{
-    const i=m?sections.findIndex(s=>s.materials.some(mm=>mm.id===m.id)):-1;
-    return i>=0?{session:sections[i].name||null,sessionOrder:i}:{session:null,sessionOrder:null};
-  };
+  /* 選択教材が属する section（授業回。例: 第1回）を引く。並び順は section インデックス */
+  const selSecIdx=sel?sections.findIndex(s=>s.materials.some(mm=>mm.id===sel.id)):-1;
+  const selSession=selSecIdx>=0?(sections[selSecIdx].name||null):null;
+  const selSessionOrder=selSecIdx>=0?selSecIdx:null;
 
   /* Mobile: full-screen preview */
-  if(panes.length&&mob){
-    const m=panes[0],ss=matSession(m);
-    return <Preview m={m} mob onClose={()=>setPanes([])} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={ss.session} sessionOrder={ss.sessionOrder}/>;
-  }
+  if(sel&&mob) return <Preview m={sel} mob onClose={()=>setSel(null)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={selSession} sessionOrder={selSessionOrder}/>;
 
-  /* Desktop: split view when previewing (複数ペイン可) */
-  if(panes.length&&!mob){
-    const isShared=!!panes[0].storagePath;
-    const canSplit=!isShared&&panes.length<MAX_PANES;
+  /* Desktop: split view when previewing (list + 1 preview / 追加はポップアウト) */
+  if(sel&&!mob){
+    const isShared=!!sel.storagePath;
     return(
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         <div style={{width:280,flexShrink:0,borderRight:`1px solid ${T.bd}`,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:10}}>
@@ -926,25 +910,20 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
             ? <div style={{padding:8}}>
                 <div style={{fontSize:11,fontWeight:700,color:T.txD,marginBottom:8}}>{t("mat.tabShared")}</div>
                 <div style={{padding:"7px 8px",borderRadius:6,background:`${T.accent}14`,border:`1px solid ${T.accent}40`}}>
-                  <div style={{color:T.accent,fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{panes[0].filename}</div>
+                  <div style={{color:T.accent,fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sel.filename}</div>
                 </div>
               </div>
             : sections.map(sec=>(
                 <div key={sec.id} style={{marginBottom:8}}>
                   <div style={{fontSize:11,fontWeight:700,color:T.txD,padding:"4px 6px",marginBottom:2}}>{sec.name}</div>
-                  {sec.materials.map(m=>{
-                    const c=tCol[m.fileType]||T.txD;
-                    const openIdx=panes.findIndex(p=>p.id===m.id);
-                    const open=openIdx!==-1;
-                    const active=openIdx===activeIdx&&open;
-                    return(
-                    <div key={m.id} onClick={()=>canPreview(m)?replaceActive(m):openMaterial(m,refresh)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 8px",borderRadius:6,background:open?`${T.accent}14`:T.bg2,border:`1px solid ${active?T.accent:open?T.accent+'40':T.bd}`,marginBottom:2,cursor:"pointer"}}>
+                  {sec.materials.map(m=>{const c=tCol[m.fileType]||T.txD;const active=sel.id===m.id;const canPop=canPopOut(m);return(
+                    <div key={m.id} onClick={()=>canPreview(m)?setSel(m):openMaterial(m,refresh)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 8px",borderRadius:6,background:active?`${T.accent}14`:T.bg2,border:`1px solid ${active?T.accent+'40':T.bd}`,marginBottom:2,cursor:"pointer"}}>
                       <span style={{color:c,display:"flex",flexShrink:0}}>{I.file}</span>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{color:open?T.accent:T.txH,fontSize:12,fontWeight:open?600:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.filename||m.name}</div>
+                        <div style={{color:active?T.accent:T.txH,fontSize:12,fontWeight:active?600:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.filename||m.name}</div>
                       </div>
-                      {canSplit&&canPreview(m)&&(
-                        <button onClick={e=>{e.stopPropagation();addPane(m);}} title={t("mat.openSplit")} style={{display:"flex",alignItems:"center",justifyContent:"center",width:20,height:20,borderRadius:4,border:"none",background:"transparent",color:T.txD,cursor:"pointer",flexShrink:0,padding:0}}><SplitIcon/></button>
+                      {canPop&&(
+                        <button onClick={e=>{e.stopPropagation();popOut(m);}} title={t("mat.openWindow")} style={{display:"flex",alignItems:"center",justifyContent:"center",width:22,height:22,borderRadius:4,border:"none",background:"transparent",color:T.txD,cursor:"pointer",flexShrink:0,padding:0}}><PopOutIcon/></button>
                       )}
                     </div>
                   );})}
@@ -952,13 +931,7 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
               ))
           }
         </div>
-        {panes.map((p,i)=>{
-          const ss=matSession(p);
-          return(
-          <div key={`${p.id}_${i}`} onMouseDownCapture={()=>setActiveIdx(i)} style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",overflow:"hidden",borderLeft:i>0?`1px solid ${T.bd}`:"none",borderTop:`2px solid ${panes.length>1&&i===activeIdx?T.accent:"transparent"}`}}>
-            <Preview m={p} mob={false} onClose={()=>closePane(i)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={ss.session} sessionOrder={ss.sessionOrder}/>
-          </div>
-        );})}
+        <Preview m={sel} mob={false} onClose={()=>setSel(null)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={selSession} sessionOrder={selSessionOrder} onPopOut={canPopOut(sel)?()=>popOut(sel):null}/>
       </div>
     );
   }
@@ -982,11 +955,11 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
       </div>
 
       {/* Tab content */}
-      {tab===0&&<LectureMaterials sections={sections} totalFiles={totalFiles} loading={loading} error={error} mob={mob} onSelect={openPane} onRefresh={refresh} course={course}/>}
+      {tab===0&&<LectureMaterials sections={sections} totalFiles={totalFiles} loading={loading} error={error} mob={mob} onSelect={setSel} onRefresh={refresh} course={course} onPopOut={!mob?popOut:null}/>}
       {tab===1&&<SharedMaterials courseId={course?.moodleId} mob={mob} onSelect={m=>{
         const ft=detectType(m.mimetype);
         if(m.url&&PREVIEWABLE.has(ft)){
-          openPane({...m,fileType:ft});
+          setSel({...m,fileType:ft});
         }else if(m.url){
           window.open(m.url,'_blank');
         }

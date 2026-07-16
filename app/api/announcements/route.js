@@ -11,7 +11,7 @@ export async function GET(request) {
     const sb = getSupabaseAdmin();
     const { data, error } = await sb
       .from('announcements')
-      .select('id, title, body, type, popup, image_url, created_at, updated_at')
+      .select('id, title, body, type, popup, image_url, link, created_at, updated_at')
       .eq('active', true)
       .order('created_at', { ascending: false })
       .limit(20);

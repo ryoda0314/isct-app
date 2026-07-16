@@ -37,6 +37,7 @@ create table if not exists announcements (
   active          boolean default true,
   popup           boolean not null default false, -- true: 起動時にモーダルで表示（バナーには出さない）
   image_url       text,                           -- 添付画像の公開URL（任意 / 画像のみのお知らせも可）
+  link            text,                           -- 遷移先ボタンのビューキー（例 'exams'）。null=ボタン無し
   created_by      bigint not null references profiles(moodle_id),
   created_at      timestamptz default now(),
   updated_at      timestamptz default now()
@@ -44,9 +45,12 @@ create table if not exists announcements (
 -- 既存DB向け: popup / image_url カラム追加、title/body を任意化（画像のみのお知らせ対応）
 alter table announcements add column if not exists popup boolean not null default false;
 alter table announcements add column if not exists image_url text;
+-- link: 遷移先ボタンのビューキー（例 'exams'）。null=ボタン無し。App.jsx の view キーと一致させる
+alter table announcements add column if not exists link text;
 alter table announcements alter column title drop not null;
 alter table announcements alter column body drop not null;
 alter table announcements enable row level security;
+drop policy if exists "anon_select_announcements" on announcements;
 create policy "anon_select_announcements" on announcements for select to anon using (true);
 
 -- announcement-assets: お知らせ添付画像の公開バケット（安定 getPublicUrl で配信し CDN キャッシュを効かせる）。
@@ -84,6 +88,7 @@ create table if not exists site_settings (
   updated_at  timestamptz default now()
 );
 alter table site_settings enable row level security;
+drop policy if exists "anon_select_site_settings" on site_settings;
 create policy "anon_select_site_settings" on site_settings for select to anon using (true);
 
 -- 7. ng_words: NGワードフィルター
