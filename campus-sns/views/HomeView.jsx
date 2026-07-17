@@ -657,8 +657,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
             {upcoming.map(a=>{const co=courses.find(x=>x.id===a.cid),dl=uDue(a.due),p=pDone(a.subs);return(
               <div key={a.id} onClick={()=>setView("tasks")} style={{padding:"8px 10px",borderRadius:8,background:dl.u?`${dl.c}08`:T.bg2,border:`1px solid ${dl.u?`${dl.c}20`:T.bd}`,borderLeft:`3px solid ${dl.c}`,cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}>
-                  <Tag color={co?.col}>{co?.code}</Tag>
-                  {a.subs.length>0&&<span style={{fontSize:9,color:T.txD,marginLeft:"auto"}}>{p}%</span>}
+                  <span style={{fontSize:10,fontWeight:700,color:co?.col||T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>{co?.name||co?.code||""}</span>
+                  {a.subs.length>0&&<span style={{fontSize:9,color:T.txD,flexShrink:0}}>{p}%</span>}
                 </div>
                 <div style={{fontSize:12,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.title}</div>
                 <div style={{fontSize:11,fontWeight:700,color:dl.c,marginTop:3}}>{dl.t}</div>
