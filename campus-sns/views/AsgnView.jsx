@@ -6,7 +6,7 @@ import { NOW, uDue, pDone, tMap, aMap, sMap, pCol, fT, fDS, fDF } from "../utils
 import { Av, Tag, Bar, Btn, Tx } from "../shared.jsx";
 import { isNative } from "../capacitor.js";
 import { openLmsPage } from "../plugins/portalWebView.js";
-import { Preview, canPreview } from "./MatView.jsx";
+import { Preview, canPreview, canPreviewType, detectType } from "./MatView.jsx";
 import { openMaterial } from "../openMaterial.js";
 import { getClientToken, fetchSubmissionStatus, uploadDraftFiles, saveFileSubmission, submitForGrading } from "../moodleClient.js";
 import { isDemoMode } from "../demoMode.js";
@@ -17,7 +17,10 @@ const fmtBytes=(b)=>{if(!b)return"";const u=["B","KB","MB","GB"];let i=0,n=b;whi
 /* filetypeslist から明示的な拡張子だけ取り出す（"document","image" 等のグループは
    クライアントで確実に判定できないのでサーバー検証に委ねる） */
 const parseExts=(s)=>(s||"").split(/[\s,;]+/).map(x=>x.trim().toLowerCase()).filter(x=>x.startsWith("."));
-const fileExt=(name)=>{const i=name.lastIndexOf(".");return i<0?"":name.slice(i).toLowerCase();};
+const fileExt=(name)=>{const i=(name||"").lastIndexOf(".");return i<0?"":name.slice(i).toLowerCase();};
+
+/* Moodleの自己認証URL(?token=)を付け直す（教材/添付と同じ方式・token陳腐化に強い） */
+const withTokenUrl=(fileurl,wstoken)=>{const base=(fileurl||"").replace(/([?&])token=[^&]*/,'$1').replace(/[?&]$/,'');return base+(base.includes('?')?'&':'?')+'token='+encodeURIComponent(wstoken);};
 
 /* ── 課題をアプリから直接提出するシート（ファイル提出専用）──────────────
    Moodle upload.php にドラフトとしてアップ → mod_assign_save_submission。
@@ -31,6 +34,8 @@ function SubmitSheet({a,mob,onClose,onSubmitted}){
   const [busy,setBusy]=useState(false);
   const [phase,setPhase]=useState("");
   const [done,setDone]=useState(false);
+  const [preview,setPreview]=useState(null);       // プレビュー中の提出済みファイル（token付きURL）
+  const [prevLoading,setPrevLoading]=useState(null); // 準備中ファイル名
   const inputRef=useRef(null);
 
   useEffect(()=>{
@@ -59,6 +64,35 @@ function SubmitSheet({a,mob,onClose,onSubmitted}){
   const cannotEdit=last&&last.canedit===false;
   const blocked=cutoffPassed||locked||disabled||cannotEdit;
   const pastDue=a.due&&a.due<NOW;
+
+  // 提出済みファイルをダウンロードせずその場でプレビュー（添付と同じ自己認証URL方式）
+  const previewType=(f)=>{
+    let ft=detectType(f.mimetype||"");
+    if(ft==="file"){
+      const e=fileExt(f.filename||"");
+      if(e===".pdf")ft="pdf";
+      else if([".png",".jpg",".jpeg",".gif",".webp",".bmp",".heic"].includes(e))ft="image";
+      else if([".mp4",".mov",".webm",".m4v"].includes(e))ft="video";
+      else if([".mp3",".wav",".m4a",".aac",".ogg"].includes(e))ft="audio";
+      else if(e===".docx")ft="document";
+    }
+    return ft;
+  };
+  const canPrev=(f)=>canPreviewType({filename:f.filename,mimetype:f.mimetype},previewType(f));
+  const openSubmitted=async(f)=>{
+    if(prevLoading||!f?.fileurl)return;
+    setPrevLoading(f.filename);
+    try{
+      const {wstoken}=await getClientToken();
+      const m={fileurl:withTokenUrl(f.fileurl,wstoken),filename:f.filename,name:f.filename,mimetype:f.mimetype||"",fileType:previewType(f)};
+      if(canPreview(m))setPreview(m);
+      else await openMaterial(m);
+    }catch(e){console.error("[submitted preview]",e);}
+    finally{setPrevLoading(null);}
+  };
+  const refreshPreview=async()=>{
+    try{const {wstoken}=await getClientToken();setPreview(p=>p?{...p,fileurl:withTokenUrl(p.fileurl,wstoken)}:p);}catch{}
+  };
 
   const exts=parseExts(cfg.fileTypes);
   const acceptAttr=exts.length?exts.join(","):undefined;
@@ -112,7 +146,7 @@ function SubmitSheet({a,mob,onClose,onSubmitted}){
   };
 
   const row={padding:"10px 12px",borderRadius:8,background:T.bg3,border:`1px solid ${T.bd}`,marginBottom:6};
-  return(
+  return(<>
     <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:1600,background:"rgba(0,0,0,.5)",display:"flex",alignItems:mob?"flex-end":"center",justifyContent:"center"}}>
       <div onClick={e=>e.stopPropagation()} style={{background:T.bg2,borderRadius:mob?"16px 16px 0 0":12,width:mob?"100%":460,maxWidth:"100%",maxHeight:"88vh",overflowY:"auto",WebkitOverflowScrolling:"touch",border:`1px solid ${T.bd}`,padding:mob?"18px 18px calc(env(safe-area-inset-bottom, 0px) + 62px)":18,boxShadow:"0 -4px 24px rgba(0,0,0,.4)"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
@@ -128,14 +162,14 @@ function SubmitSheet({a,mob,onClose,onSubmitted}){
             <div style={{display:"inline-flex",width:48,height:48,borderRadius:24,background:`${T.green}18`,color:T.green,alignItems:"center",justifyContent:"center",marginBottom:10}}>{I.chk}</div>
             <div style={{fontSize:15,fontWeight:700,color:T.txH,marginBottom:4}}>{t("asgn.submitDone")}</div>
             <div style={{fontSize:12,color:T.txD,marginBottom:14}}>{t("asgn.submitDoneHint")}</div>
-            {submittedFiles.map((f,i)=><div key={i} style={{...row,display:"flex",alignItems:"center",gap:8}}><span style={{color:T.green,display:"flex"}}>{I.file}</span><span style={{flex:1,fontSize:13,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.filename}</span>{f.filesize?<span style={{fontSize:11,color:T.txD}}>{fmtBytes(f.filesize)}</span>:null}</div>)}
+            {submittedFiles.map((f,i)=><div key={i} onClick={()=>openSubmitted(f)} style={{...row,display:"flex",alignItems:"center",gap:8,cursor:prevLoading===f.filename?"wait":"pointer",textAlign:"left"}}><span style={{color:T.green,display:"flex",flexShrink:0}}>{I.file}</span><span style={{flex:1,fontSize:13,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.filename}</span>{f.filesize?<span style={{fontSize:11,color:T.txD,flexShrink:0}}>{fmtBytes(f.filesize)}</span>:null}<span style={{color:T.txD,display:"flex",flexShrink:0,opacity:prevLoading===f.filename?.5:1}}>{canPrev(f)?I.arr:I.dl}</span></div>)}
             <button onClick={onClose} style={{marginTop:10,width:"100%",padding:"11px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer"}}>{t("common.close")}</button>
           </div>
         ):(<>
           {/* 現在の提出状況 */}
           <div style={{...row,marginBottom:12}}>
             <div style={{fontSize:11,color:T.txD,marginBottom:submittedFiles.length?6:0}}>{submittedFiles.length?t("asgn.submitStatusSubmitted"):t("asgn.submitStatusNone")}</div>
-            {submittedFiles.map((f,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:6,marginTop:i?4:0}}><span style={{color:T.green,display:"flex"}}>{I.chk}</span><span style={{flex:1,fontSize:12.5,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.filename}</span></div>)}
+            {submittedFiles.map((f,i)=><div key={i} onClick={()=>openSubmitted(f)} style={{display:"flex",alignItems:"center",gap:6,marginTop:i?4:0,cursor:prevLoading===f.filename?"wait":"pointer"}}><span style={{color:T.green,display:"flex",flexShrink:0}}>{I.chk}</span><span style={{flex:1,fontSize:12.5,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.filename}</span><span style={{color:T.txD,display:"flex",flexShrink:0,opacity:prevLoading===f.filename?.5:1}}>{canPrev(f)?I.arr:I.dl}</span></div>)}
             {submittedFiles.length>0&&!blocked&&<div style={{fontSize:11,color:T.txD,marginTop:6}}>{t("asgn.submitCanOverwrite")}</div>}
           </div>
 
@@ -181,7 +215,10 @@ function SubmitSheet({a,mob,onClose,onSubmitted}){
         </>)}
       </div>
     </div>
-  );
+    {preview&&<div style={{position:"fixed",inset:0,zIndex:1700,background:T.bg,display:"flex",flexDirection:"column"}}>
+      <Preview m={preview} mob={mob} onClose={()=>setPreview(null)} onStale={refreshPreview}/>
+    </div>}
+  </>);
 }
 
 /* 添付ファイルタイプ別の色（教材ビューと同じパレット） */
