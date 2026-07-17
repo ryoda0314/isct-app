@@ -1659,6 +1659,7 @@ const M = {
   "mat.searchMaterials": { ja:"教材を検索...", en:"Search materials...", zh:"搜索教材...", ko:"교재 검색..." , tp:"o alasa e lipu sona..." },
   "mat.noSearchResults": { ja:"検索結果がありません", en:"No search results", zh:"没有搜索结果", ko:"검색 결과가 없습니다" , tp:"alasa li jo ala e ijo" },
   "mat.noMaterialsYet": { ja:"教材はまだありません", en:"No materials yet", zh:"还没有教材", ko:"아직 교재가 없습니다" , tp:"lipu sona li lon ala" },
+  "mat.notAvailableYet": { ja:"まだ利用できません", en:"Not available yet", zh:"尚不可用", ko:"아직 이용할 수 없습니다" , tp:"ken ala open" },
   "mat.loadingShared": { ja:"共有資料を読み込み中", en:"Loading shared materials", zh:"正在加载共享资料", ko:"공유 자료 불러오는 중" , tp:"o awen e lipu pi jan ale" },
   "mat.fileCount": { ja:"{count}件", en:"{count} files", zh:"{count} 个", ko:"{count}건" , tp:"{count} lipu" },
   "mat.uploading": { ja:"送信中...", en:"Uploading...", zh:"上传中...", ko:"업로드 중..." , tp:"pana..." },

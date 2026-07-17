@@ -605,9 +605,21 @@ export const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote,sessio
    File list row (Moodle materials)
    selMode 中は開く代わりにチェック選択(一括DL用)。link はDL対象外なので薄く表示
    ────────────────────────────────────────────── */
-const isDownloadable=m=>m.fileType!=="link"&&!!m.fileurl;
+const isDownloadable=m=>!m.locked&&m.fileType!=="link"&&!!m.fileurl;
+const LockIcon=()=><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>;
 const FileRow=({m,onClick,onStale,selMode,checked,onToggle,onPopOut})=>{
   const c=tCol[m.fileType]||T.txD;
+  // 利用可能日待ち等でまだ開けない資料: グレー表示・タップ不可・利用可能日を表示
+  if(m.locked)return(
+    <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:6,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:3,opacity:.6,cursor:"default"}}>
+      <span style={{color:T.txD,display:"flex",flexShrink:0}}><LockIcon/></span>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{color:T.txH,fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.name||m.filename}</div>
+        <div style={{fontSize:11,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.availabilityInfo||t("mat.notAvailableYet")}</div>
+      </div>
+      <Tag color={c}>{t(tLblKey[m.fileType]||'mat.ft.file')}</Tag>
+    </div>
+  );
   const preview=canPreview(m);
   const selectable=isDownloadable(m);
   const handle=selMode
@@ -916,7 +928,17 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
             : sections.map(sec=>(
                 <div key={sec.id} style={{marginBottom:8}}>
                   <div style={{fontSize:11,fontWeight:700,color:T.txD,padding:"4px 6px",marginBottom:2}}>{sec.name}</div>
-                  {sec.materials.map(m=>{const c=tCol[m.fileType]||T.txD;const active=sel.id===m.id;const canPop=canPopOut(m);return(
+                  {sec.materials.map(m=>{const c=tCol[m.fileType]||T.txD;const active=sel.id===m.id;const canPop=canPopOut(m);
+                    if(m.locked)return(
+                      <div key={m.id} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 8px",borderRadius:6,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:2,opacity:.6,cursor:"default"}}>
+                        <span style={{color:T.txD,display:"flex",flexShrink:0}}><LockIcon/></span>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{color:T.txH,fontSize:12,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.name||m.filename}</div>
+                          <div style={{fontSize:10,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.availabilityInfo||t("mat.notAvailableYet")}</div>
+                        </div>
+                      </div>
+                    );
+                    return(
                     <div key={m.id} onClick={()=>canPreview(m)?setSel(m):openMaterial(m,refresh)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 8px",borderRadius:6,background:active?`${T.accent}14`:T.bg2,border:`1px solid ${active?T.accent+'40':T.bd}`,marginBottom:2,cursor:"pointer"}}>
                       <span style={{color:c,display:"flex",flexShrink:0}}>{I.file}</span>
                       <div style={{flex:1,minWidth:0}}>
