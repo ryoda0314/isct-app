@@ -8,8 +8,169 @@ import { isNative } from "../capacitor.js";
 import { openLmsPage } from "../plugins/portalWebView.js";
 import { Preview, canPreview } from "./MatView.jsx";
 import { openMaterial } from "../openMaterial.js";
-import { getClientToken } from "../moodleClient.js";
+import { getClientToken, fetchSubmissionStatus, uploadDraftFiles, saveFileSubmission, submitForGrading } from "../moodleClient.js";
 import { isDemoMode } from "../demoMode.js";
+
+/* バイト数を人間可読に */
+const fmtBytes=(b)=>{if(!b)return"";const u=["B","KB","MB","GB"];let i=0,n=b;while(n>=1024&&i<u.length-1){n/=1024;i++;}return`${n>=10||i===0?Math.round(n):n.toFixed(1)}${u[i]}`;};
+
+/* filetypeslist から明示的な拡張子だけ取り出す（"document","image" 等のグループは
+   クライアントで確実に判定できないのでサーバー検証に委ねる） */
+const parseExts=(s)=>(s||"").split(/[\s,;]+/).map(x=>x.trim().toLowerCase()).filter(x=>x.startsWith("."));
+const fileExt=(name)=>{const i=name.lastIndexOf(".");return i<0?"":name.slice(i).toLowerCase();};
+
+/* ── 課題をアプリから直接提出するシート（ファイル提出専用）──────────────
+   Moodle upload.php にドラフトとしてアップ → mod_assign_save_submission。
+   ISCT は submissiondrafts=0 なので保存＝提出（締切まで上書き可）。 */
+function SubmitSheet({a,mob,onClose,onSubmitted}){
+  const cfg=a.subCfg||{};
+  const [status,setStatus]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [err,setErr]=useState(null);
+  const [files,setFiles]=useState([]);
+  const [busy,setBusy]=useState(false);
+  const [phase,setPhase]=useState("");
+  const [done,setDone]=useState(false);
+  const inputRef=useRef(null);
+
+  useEffect(()=>{
+    let alive=true;
+    (async()=>{
+      try{
+        const {wstoken}=await getClientToken();
+        const st=await fetchSubmissionStatus(wstoken,a.moodleId);
+        if(alive)setStatus(st);
+      }catch(e){ if(alive)setErr(e.message||t("asgn.submitStatusErr")); }
+      finally{ if(alive)setLoading(false); }
+    })();
+    return()=>{alive=false;};
+  },[a.moodleId]);
+
+  const last=status?.lastattempt;
+  const submittedFiles=(()=>{
+    const plugins=last?.submission?.plugins||last?.teamsubmission?.submission?.plugins||[];
+    const fp=plugins.find(p=>p.type==="file");
+    const area=fp?.fileareas?.find(x=>x.area==="submission_files")||fp?.fileareas?.[0];
+    return area?.files||[];
+  })();
+  const cutoffPassed=cfg.cutoff&&Date.now()/1000>cfg.cutoff;
+  const locked=!!last?.locked;
+  const disabled=last&&last.submissionsenabled===false;
+  const cannotEdit=last&&last.canedit===false;
+  const blocked=cutoffPassed||locked||disabled||cannotEdit;
+  const pastDue=a.due&&a.due<NOW;
+
+  const exts=parseExts(cfg.fileTypes);
+  const acceptAttr=exts.length?exts.join(","):undefined;
+  const validate=(fl)=>{
+    if(cfg.maxFiles&&fl.length>cfg.maxFiles)return t("asgn.submitErrTooMany",{n:cfg.maxFiles});
+    for(const f of fl){
+      if(cfg.maxBytes&&f.size>cfg.maxBytes)return t("asgn.submitErrTooBig",{name:f.name,size:fmtBytes(cfg.maxBytes)});
+      if(exts.length&&!exts.includes(fileExt(f.name)))return t("asgn.submitErrType",{types:cfg.fileTypes,name:f.name});
+    }
+    return null;
+  };
+  const vErr=files.length?validate(files):null;
+
+  const pick=(e)=>{
+    const fl=Array.from(e.target.files||[]);
+    setFiles(cfg.maxFiles===1?fl.slice(0,1):fl);
+    setErr(null);
+    e.target.value="";
+  };
+  const removeFile=(i)=>setFiles(p=>p.filter((_,x)=>x!==i));
+
+  const doSubmit=async()=>{
+    if(!files.length||busy||vErr)return;
+    if(isDemoMode()){setErr(t("asgn.submitDemo"));return;}
+    const names=files.map(f=>f.name).join("\n");
+    if(!window.confirm(t("asgn.submitConfirm",{files:names})))return;
+    setBusy(true);setErr(null);
+    try{
+      setPhase(t("asgn.submitUploading"));
+      const {wstoken}=await getClientToken();
+      const {itemid}=await uploadDraftFiles(wstoken,files);
+      setPhase(t("asgn.submitSending"));
+      await saveFileSubmission(wstoken,a.moodleId,itemid);
+      if(cfg.drafts)await submitForGrading(wstoken,a.moodleId,false);
+      setPhase(t("asgn.submitVerifying"));
+      try{const fresh=await fetchSubmissionStatus(wstoken,a.moodleId);setStatus(fresh);}catch{}
+      setDone(true);
+      onSubmitted?.();
+    }catch(e){
+      console.error("[submit]",e);
+      setErr(e.message||t("asgn.submitFailed"));
+    }finally{ setBusy(false);setPhase(""); }
+  };
+
+  const row={padding:"10px 12px",borderRadius:8,background:T.bg3,border:`1px solid ${T.bd}`,marginBottom:6};
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:1600,background:"rgba(0,0,0,.5)",display:"flex",alignItems:mob?"flex-end":"center",justifyContent:"center"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:T.bg2,borderRadius:mob?"16px 16px 0 0":12,width:mob?"100%":460,maxWidth:"100%",maxHeight:"88vh",overflowY:"auto",WebkitOverflowScrolling:"touch",border:`1px solid ${T.bd}`,padding:18,boxShadow:"0 -4px 24px rgba(0,0,0,.4)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+          <span style={{fontSize:15,fontWeight:700,color:T.txH}}>{t("asgn.submitTitle")}</span>
+          <button onClick={onClose} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:2}}>{I.x}</button>
+        </div>
+        <div style={{fontSize:13,fontWeight:600,color:T.txH,marginBottom:12,lineHeight:1.5}}>{a.title}</div>
+
+        {loading?(
+          <div style={{padding:"24px 0",textAlign:"center",color:T.txD,fontSize:13}}>{t("asgn.submitLoadingStatus")}</div>
+        ):done?(
+          <div style={{textAlign:"center",padding:"12px 0"}}>
+            <div style={{display:"inline-flex",width:48,height:48,borderRadius:24,background:`${T.green}18`,color:T.green,alignItems:"center",justifyContent:"center",marginBottom:10}}>{I.chk}</div>
+            <div style={{fontSize:15,fontWeight:700,color:T.txH,marginBottom:4}}>{t("asgn.submitDone")}</div>
+            <div style={{fontSize:12,color:T.txD,marginBottom:14}}>{t("asgn.submitDoneHint")}</div>
+            {submittedFiles.map((f,i)=><div key={i} style={{...row,display:"flex",alignItems:"center",gap:8}}><span style={{color:T.green,display:"flex"}}>{I.file}</span><span style={{flex:1,fontSize:13,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.filename}</span>{f.filesize?<span style={{fontSize:11,color:T.txD}}>{fmtBytes(f.filesize)}</span>:null}</div>)}
+            <button onClick={onClose} style={{marginTop:10,width:"100%",padding:"11px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer"}}>{t("common.close")}</button>
+          </div>
+        ):(<>
+          {/* 現在の提出状況 */}
+          <div style={{...row,marginBottom:12}}>
+            <div style={{fontSize:11,color:T.txD,marginBottom:submittedFiles.length?6:0}}>{submittedFiles.length?t("asgn.submitStatusSubmitted"):t("asgn.submitStatusNone")}</div>
+            {submittedFiles.map((f,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:6,marginTop:i?4:0}}><span style={{color:T.green,display:"flex"}}>{I.chk}</span><span style={{flex:1,fontSize:12.5,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.filename}</span></div>)}
+            {submittedFiles.length>0&&!blocked&&<div style={{fontSize:11,color:T.txD,marginTop:6}}>{t("asgn.submitCanOverwrite")}</div>}
+          </div>
+
+          {blocked?(
+            <div style={{padding:"10px 12px",borderRadius:8,background:`${T.red}10`,border:`1px solid ${T.red}22`,color:T.red,fontSize:12.5,lineHeight:1.5,marginBottom:12}}>
+              {cutoffPassed?t("asgn.submitBlockedCutoff"):locked?t("asgn.submitBlockedLocked"):t("asgn.submitBlockedDisabled")}
+            </div>
+          ):(<>
+            {pastDue&&<div style={{padding:"8px 12px",borderRadius:8,background:`${T.orange||T.accent}12`,border:`1px solid ${T.orange||T.accent}28`,color:T.orange||T.accent,fontSize:12,marginBottom:10}}>{t("asgn.submitPastDue")}</div>}
+
+            {/* 受付形式の案内 */}
+            <div style={{fontSize:11,color:T.txD,marginBottom:8}}>
+              {t("asgn.submitAcceptHint",{types:cfg.fileTypes?cfg.fileTypes:t("asgn.submitAnyType")})}
+              {cfg.maxBytes?` · ${t("asgn.submitMaxSize",{size:fmtBytes(cfg.maxBytes)})}`:""}
+              {cfg.maxFiles>1?` · ${t("asgn.submitMaxFiles",{n:cfg.maxFiles})}`:""}
+            </div>
+
+            <input ref={inputRef} type="file" accept={acceptAttr} multiple={cfg.maxFiles!==1} onChange={pick} style={{display:"none"}}/>
+            <button onClick={()=>inputRef.current?.click()} disabled={busy} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"11px 0",borderRadius:8,border:`1.5px dashed ${T.bdL}`,background:"transparent",color:T.accent,fontSize:13,fontWeight:600,cursor:busy?"wait":"pointer",marginBottom:files.length?8:12}}>
+              {I.clip}{t("asgn.submitPickFile")}
+            </button>
+
+            {files.map((f,i)=><div key={i} style={{...row,display:"flex",alignItems:"center",gap:8}}>
+              <span style={{color:T.accent,display:"flex",flexShrink:0}}>{I.file}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
+                <div style={{fontSize:11,color:T.txD}}>{fmtBytes(f.size)}</div>
+              </div>
+              {!busy&&<button onClick={()=>removeFile(i)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:2,flexShrink:0}}>{I.x}</button>}
+            </div>)}
+
+            {vErr&&<div style={{fontSize:12,color:T.red,margin:"2px 0 10px"}}>{vErr}</div>}
+            {err&&<div style={{fontSize:12,color:T.red,margin:"2px 0 10px",lineHeight:1.5}}>{err}</div>}
+
+            <button onClick={doSubmit} disabled={!files.length||!!vErr||busy} style={{width:"100%",padding:"12px 0",borderRadius:8,border:"none",background:(!files.length||vErr||busy)?T.bg3:T.accent,color:(!files.length||vErr||busy)?T.txD:"#fff",fontSize:14,fontWeight:700,cursor:(!files.length||vErr||busy)?"default":"pointer",marginTop:4}}>
+              {busy?(phase||t("asgn.submitButton")):t("asgn.submitButton")}
+            </button>
+          </>)}
+        </>)}
+      </div>
+    </div>
+  );
+}
 
 /* 添付ファイルタイプ別の色（教材ビューと同じパレット） */
 const attCol={pdf:'#e5534b',slide:'#d4843e',document:'#6375f0',spreadsheet:'#3dae72',image:'#a855c7',video:'#2d9d8f',audio:'#c6a236',archive:'#68687a',code:'#3dae72',text:'#68687a',link:'#6375f0',file:'#68687a'};
@@ -39,6 +200,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
 
   const [tab,setTab]=useState("active");
   const [sel,setSel]=useState(null);
+  const [submitFor,setSubmitFor]=useState(null);   // アプリ内提出シート対象の課題
   const [ntxt,setNtxt]=useState("");
   const [ndue,setNdue]=useState("");
   const [addExpand,setAddExpand]=useState(false);
@@ -64,6 +226,8 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
   const delTk=id=>deleteTask?.(id);
   const addTk=()=>{if(!ntxt.trim()||!addTask)return;const due=ndue?new Date(ndue+"T23:59:00").toISOString():null;addTask(ntxt.trim(),due);setNtxt("");setNdue("");setAddExpand(false);};
   const [lmsLoading,setLmsLoading]=useState(false);
+  // アプリ内提出はファイル提出課題のみ対応（グループ提出は未対応→LMSへ）。
+  const canAppSubmit=(a)=>!!a?.subCfg?.file&&!a.subCfg.team;
   const goLms=async(url)=>{
     if(!url)return;
     setLmsLoading(true);
@@ -165,12 +329,17 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}><Bar p={p} h={6}/><span style={{fontSize:12,fontWeight:600,color:p>=100?T.green:T.accent}}>{p}%</span></div>
           {a.subs.map(s=><div key={s.id} onClick={()=>togSub(a.id,s.id)} style={{display:"flex",alignItems:"center",gap:10,padding:mob?"10px":"8px 10px",borderRadius:8,marginBottom:3,background:s.d?`${T.green}06`:T.bg2,border:`1px solid ${s.d?`${T.green}16`:T.bd}33`,cursor:"pointer"}}><div style={{width:20,height:20,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",background:s.d?T.green:"transparent",border:s.d?"none":`2px solid ${T.bdL}`,color:"#fff",flexShrink:0}}>{s.d&&I.chk}</div><span style={{fontSize:14,color:s.d?T.txD:T.txH,textDecoration:s.d?"line-through":"none"}}>{s.t}</span></div>)}
         </div>}
+        {canAppSubmit(a)&&<button onClick={()=>setSubmitFor(a)} style={{display:"flex",alignItems:"center",gap:6,padding:"11px 14px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",width:"100%",justifyContent:"center",marginBottom:6}}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          {t("asgn.submitInApp")}
+        </button>}
         {a.url&&<button onClick={()=>goLms(a.url)} disabled={lmsLoading} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 14px",borderRadius:8,border:`1px solid ${T.accent}33`,background:`${T.accent}08`,color:T.accent,fontSize:13,fontWeight:500,cursor:lmsLoading?"wait":"pointer",width:"100%",justifyContent:"center",marginBottom:6,opacity:lmsLoading?.6:1}}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           {lmsLoading?t("asgn.loggingIn"):t("asgn.openInLms")}
         </button>}
         {navCourse&&<button onClick={()=>navCourse(a.cid)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 14px",borderRadius:8,border:`1px solid ${co?.col}33`,background:`${co?.col}08`,color:co?.col,fontSize:13,fontWeight:500,cursor:"pointer",width:"100%",justifyContent:"center"}}>{t("asgn.toCourseChannel",{code:co?.code})} {I.arr}</button>}
         {attOverlay}
+        {submitFor&&<SubmitSheet a={submitFor} mob={mob} onClose={()=>setSubmitFor(null)} onSubmitted={()=>chSt(submitFor.id,"completed")}/>}
       </div>
     );
   }
@@ -477,6 +646,10 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
                 <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}><Bar p={p} h={6}/><span style={{fontSize:12,fontWeight:600,color:p>=100?T.green:T.accent}}>{p}%</span></div>
                 {a.subs.map(s=><div key={s.id} onClick={()=>togSub(a.id,s.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:8,marginBottom:3,background:s.d?`${T.green}06`:T.bg2,border:`1px solid ${s.d?`${T.green}16`:T.bd}33`,cursor:"pointer"}}><div style={{width:18,height:18,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",background:s.d?T.green:"transparent",border:s.d?"none":`2px solid ${T.bdL}`,color:"#fff",flexShrink:0}}>{s.d&&I.chk}</div><span style={{fontSize:13,color:s.d?T.txD:T.txH,textDecoration:s.d?"line-through":"none"}}>{s.t}</span></div>)}
               </div>}
+              {canAppSubmit(a)&&<button onClick={()=>setSubmitFor(a)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 12px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",width:"100%",justifyContent:"center",marginBottom:6}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                {t("asgn.submitInApp")}
+              </button>}
               {a.url&&<button onClick={()=>goLms(a.url)} disabled={lmsLoading} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 12px",borderRadius:8,border:`1px solid ${T.accent}33`,background:`${T.accent}08`,color:T.accent,fontSize:12,fontWeight:500,cursor:lmsLoading?"wait":"pointer",width:"100%",justifyContent:"center",marginBottom:6,opacity:lmsLoading?.6:1}}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                 {lmsLoading?t("asgn.loggingIn"):t("asgn.openInLms")}
@@ -514,6 +687,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
         </div>}
       </div>
       {attOverlay}
+      {submitFor&&<SubmitSheet a={submitFor} mob={mob} onClose={()=>setSubmitFor(null)} onSubmitted={()=>chSt(submitFor.id,"completed")}/>}
     </div>
   );
 };

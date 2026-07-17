@@ -13,6 +13,7 @@
 import { isNative } from './capacitor.js';
 
 const LMS_API = 'https://lms.s.isct.ac.jp/2025/webservice/rest/server.php';
+const LMS_UPLOAD = 'https://lms.s.isct.ac.jp/2025/webservice/upload.php';
 
 // In-memory token cache (never persisted to storage)
 let _cachedToken = null;
@@ -262,6 +263,101 @@ export function fetchAssignments(wstoken, courseIds) {
 /** Fetch submission status for a specific assignment */
 export function fetchSubmissionStatus(wstoken, assignmentId) {
   return callMoodleAPI(wstoken, 'mod_assign_get_submission_status', { assignid: assignmentId });
+}
+
+/**
+ * Upload one or more files to the user's Moodle *draft* file area (upload.php).
+ * All files land in a SINGLE draft area so they submit together: the first
+ * upload gets an itemid assigned by Moodle, and every later file reuses it.
+ * Nothing is submitted here — the draft area is just staging (Moodle GCs it if
+ * never referenced by a save_submission).
+ *
+ * upload.php is a separate endpoint from the REST server, so it does NOT share
+ * callMoodleAPI's invalidtoken auto-refresh; call getClientToken() right before
+ * uploading so the token is fresh (10-min client TTL).
+ *
+ * @param {string} wstoken
+ * @param {File|File[]|FileList} files
+ * @param {number} [itemid=0]  existing draft itemid to append to (0 = new area)
+ * @returns {Promise<{itemid:number, files:Array}>}
+ */
+export async function uploadDraftFiles(wstoken, files, itemid = 0) {
+  const list = files == null ? [] : (files instanceof File ? [files] : Array.from(files));
+  if (!list.length) throw new Error('No files to upload');
+
+  let curItem = itemid;
+  const uploaded = [];
+  for (const f of list) {
+    const fd = new FormData();
+    fd.set('token', wstoken);
+    fd.set('filearea', 'draft');
+    fd.set('itemid', String(curItem));
+    fd.set('file', f, f.name);
+
+    let resp;
+    try {
+      resp = await fetch(LMS_UPLOAD, { method: 'POST', body: fd });
+    } catch (e) {
+      console.error(`[MoodleUpload] network error name=${e.name} msg=${e.message}`);
+      const err = new Error(`Moodle upload network error: ${e.message}`);
+      err.code = 'MOODLE_NETWORK_ERROR';
+      throw err;
+    }
+
+    const text = await resp.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      console.error(`[MoodleUpload] non-JSON status=${resp.status} preview=${text.slice(0, 200)}`);
+      throw new Error(`upload.php returned non-JSON (status=${resp.status}): ${text.slice(0, 120)}`);
+    }
+
+    // Success is an array of file descriptors; errors come as an object
+    // ({ error } or { exception, errorcode, message }).
+    if (!Array.isArray(data)) {
+      const msg = data?.error || data?.message || 'upload rejected';
+      console.error(`[MoodleUpload] rejected errorcode=${data?.errorcode || data?.error} msg=${msg}`);
+      const err = new Error(`Moodle upload error: ${msg}`);
+      err.errorcode = data?.errorcode || data?.error;
+      throw err;
+    }
+
+    for (const item of data) {
+      if (item?.itemid != null) curItem = item.itemid; // reuse the assigned draft area
+      uploaded.push(item);
+    }
+  }
+  return { itemid: curItem, files: uploaded };
+}
+
+/**
+ * Submit a FILE submission for an assignment, referencing files already staged
+ * in a draft area by uploadDraftFiles(). With submissiondrafts disabled (the
+ * ISCT default) this counts as submitted immediately — no submit_for_grading
+ * step needed. Auto-refreshes the wstoken once on invalidtoken.
+ *
+ * @param {string} wstoken
+ * @param {number} assignmentId  Moodle assignment id (asgn.moodleId)
+ * @param {number} draftItemId   itemid from uploadDraftFiles()
+ */
+export function saveFileSubmission(wstoken, assignmentId, draftItemId) {
+  return callMoodleAPI(wstoken, 'mod_assign_save_submission', {
+    assignmentid: assignmentId,
+    'plugindata[files_filemanager]': draftItemId,
+  });
+}
+
+/**
+ * Finalize a submission ("submit for grading"). Only needed when the assignment
+ * has submissiondrafts enabled (require-submit-button). ISCT assignments don't,
+ * but this keeps the flow correct if one ever does.
+ */
+export function submitForGrading(wstoken, assignmentId, acceptStatement = false) {
+  return callMoodleAPI(wstoken, 'mod_assign_submit_for_grading', {
+    assignmentid: assignmentId,
+    acceptsubmissionstatement: acceptStatement ? 1 : 0,
+  });
 }
 
 /** Fetch enrolled users for a course */
