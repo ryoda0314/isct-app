@@ -276,23 +276,29 @@ export function fetchSubmissionStatus(wstoken, assignmentId) {
  * callMoodleAPI's invalidtoken auto-refresh; call getClientToken() right before
  * uploading so the token is fresh (10-min client TTL).
  *
+ * Accepts plain File objects, or `{ file, name }` wrappers to submit a file
+ * under a custom filename (the name the instructor sees in Moodle).
+ *
  * @param {string} wstoken
- * @param {File|File[]|FileList} files
+ * @param {File|File[]|FileList|Array<{file:File,name?:string}>} files
  * @param {number} [itemid=0]  existing draft itemid to append to (0 = new area)
  * @returns {Promise<{itemid:number, files:Array}>}
  */
 export async function uploadDraftFiles(wstoken, files, itemid = 0) {
-  const list = files == null ? [] : (files instanceof File ? [files] : Array.from(files));
+  const raw = files == null ? [] : (files instanceof File ? [files] : Array.from(files));
+  const list = raw
+    .map(x => (x instanceof File ? { file: x, name: x.name } : { file: x?.file, name: x?.name || x?.file?.name }))
+    .filter(x => x.file);
   if (!list.length) throw new Error('No files to upload');
 
   let curItem = itemid;
   const uploaded = [];
-  for (const f of list) {
+  for (const { file, name } of list) {
     const fd = new FormData();
     fd.set('token', wstoken);
     fd.set('filearea', 'draft');
     fd.set('itemid', String(curItem));
-    fd.set('file', f, f.name);
+    fd.set('file', file, name || file.name);
 
     let resp;
     try {

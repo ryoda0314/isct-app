@@ -62,34 +62,42 @@ function SubmitSheet({a,mob,onClose,onSubmitted}){
 
   const exts=parseExts(cfg.fileTypes);
   const acceptAttr=exts.length?exts.join(","):undefined;
+  // 提出時の最終ファイル名（編集した基本名＋元の拡張子）。拡張子は固定なので
+  // リネームで形式チェックが崩れることはない。
+  const finalName=(f)=>`${f.base.trim()}${f.ext}`;
   const validate=(fl)=>{
     if(cfg.maxFiles&&fl.length>cfg.maxFiles)return t("asgn.submitErrTooMany",{n:cfg.maxFiles});
     for(const f of fl){
-      if(cfg.maxBytes&&f.size>cfg.maxBytes)return t("asgn.submitErrTooBig",{name:f.name,size:fmtBytes(cfg.maxBytes)});
-      if(exts.length&&!exts.includes(fileExt(f.name)))return t("asgn.submitErrType",{types:cfg.fileTypes,name:f.name});
+      if(!f.base.trim())return t("asgn.submitErrNoName");
+      if(cfg.maxBytes&&f.file.size>cfg.maxBytes)return t("asgn.submitErrTooBig",{name:finalName(f),size:fmtBytes(cfg.maxBytes)});
+      if(exts.length&&!exts.includes(f.ext))return t("asgn.submitErrType",{types:cfg.fileTypes,name:finalName(f)});
     }
     return null;
   };
   const vErr=files.length?validate(files):null;
 
   const pick=(e)=>{
-    const fl=Array.from(e.target.files||[]);
+    const fl=Array.from(e.target.files||[]).map(file=>{
+      const ext=fileExt(file.name);
+      return {file,base:file.name.slice(0,file.name.length-ext.length),ext};
+    });
     setFiles(cfg.maxFiles===1?fl.slice(0,1):fl);
     setErr(null);
     e.target.value="";
   };
+  const renameFile=(i,v)=>setFiles(p=>p.map((f,x)=>x===i?{...f,base:v}:f));
   const removeFile=(i)=>setFiles(p=>p.filter((_,x)=>x!==i));
 
   const doSubmit=async()=>{
     if(!files.length||busy||vErr)return;
     if(isDemoMode()){setErr(t("asgn.submitDemo"));return;}
-    const names=files.map(f=>f.name).join("\n");
+    const names=files.map(finalName).join("\n");
     if(!window.confirm(t("asgn.submitConfirm",{files:names})))return;
     setBusy(true);setErr(null);
     try{
       setPhase(t("asgn.submitUploading"));
       const {wstoken}=await getClientToken();
-      const {itemid}=await uploadDraftFiles(wstoken,files);
+      const {itemid}=await uploadDraftFiles(wstoken,files.map(f=>({file:f.file,name:finalName(f)})));
       setPhase(t("asgn.submitSending"));
       await saveFileSubmission(wstoken,a.moodleId,itemid);
       if(cfg.drafts)await submitForGrading(wstoken,a.moodleId,false);
@@ -150,13 +158,17 @@ function SubmitSheet({a,mob,onClose,onSubmitted}){
               {I.clip}{t("asgn.submitPickFile")}
             </button>
 
-            {files.map((f,i)=><div key={i} style={{...row,display:"flex",alignItems:"center",gap:8}}>
-              <span style={{color:T.accent,display:"flex",flexShrink:0}}>{I.file}</span>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
-                <div style={{fontSize:11,color:T.txD}}>{fmtBytes(f.size)}</div>
+            {files.length>0&&<div style={{fontSize:11,color:T.txD,marginBottom:6}}>{t("asgn.submitRenameHint")}</div>}
+            {files.map((f,i)=><div key={i} style={{...row}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{color:T.accent,display:"flex",flexShrink:0}}>{I.file}</span>
+                <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",background:T.bg2,border:`1px solid ${T.bd}`,borderRadius:6,padding:"6px 8px"}}>
+                  <input value={f.base} onChange={e=>renameFile(i,e.target.value)} disabled={busy} placeholder={t("asgn.submitFileNamePlaceholder")} style={{flex:1,minWidth:0,border:"none",background:"transparent",color:T.txH,fontSize:13,outline:"none",fontFamily:"inherit",padding:0}}/>
+                  {f.ext&&<span style={{fontSize:13,color:T.txD,flexShrink:0}}>{f.ext}</span>}
+                </div>
+                {!busy&&<button onClick={()=>removeFile(i)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:2,flexShrink:0}}>{I.x}</button>}
               </div>
-              {!busy&&<button onClick={()=>removeFile(i)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:2,flexShrink:0}}>{I.x}</button>}
+              <div style={{fontSize:11,color:T.txD,marginTop:4,paddingLeft:26}}>{fmtBytes(f.file.size)}</div>
             </div>)}
 
             {vErr&&<div style={{fontSize:12,color:T.red,margin:"2px 0 10px"}}>{vErr}</div>}
