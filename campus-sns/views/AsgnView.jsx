@@ -106,7 +106,7 @@ function SubmitSheet({a,mob,onClose,onSubmitted}){
   const row={padding:"10px 12px",borderRadius:8,background:T.bg3,border:`1px solid ${T.bd}`,marginBottom:6};
   return(
     <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:1600,background:"rgba(0,0,0,.5)",display:"flex",alignItems:mob?"flex-end":"center",justifyContent:"center"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:T.bg2,borderRadius:mob?"16px 16px 0 0":12,width:mob?"100%":460,maxWidth:"100%",maxHeight:"88vh",overflowY:"auto",WebkitOverflowScrolling:"touch",border:`1px solid ${T.bd}`,padding:18,boxShadow:"0 -4px 24px rgba(0,0,0,.4)"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:T.bg2,borderRadius:mob?"16px 16px 0 0":12,width:mob?"100%":460,maxWidth:"100%",maxHeight:"88vh",overflowY:"auto",WebkitOverflowScrolling:"touch",border:`1px solid ${T.bd}`,padding:mob?"18px 18px calc(env(safe-area-inset-bottom, 0px) + 62px)":18,boxShadow:"0 -4px 24px rgba(0,0,0,.4)"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
           <span style={{fontSize:15,fontWeight:700,color:T.txH}}>{t("asgn.submitTitle")}</span>
           <button onClick={onClose} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:2}}>{I.x}</button>
