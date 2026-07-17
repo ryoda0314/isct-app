@@ -366,6 +366,22 @@ export function submitForGrading(wstoken, assignmentId, acceptStatement = false)
   });
 }
 
+/**
+ * Remove (withdraw) the current user's submission entirely → back to "not
+ * submitted". Destructive: the submitted files are deleted. Params confirmed by
+ * probe: this function takes `assignid` (NOT assignmentid) + `userid`.
+ *
+ * @param {string} wstoken
+ * @param {number} assignmentId  Moodle assignment id (asgn.moodleId)
+ * @param {number} userid        the current user's Moodle userid (from getClientToken)
+ */
+export function removeSubmission(wstoken, assignmentId, userid) {
+  return callMoodleAPI(wstoken, 'mod_assign_remove_submission', {
+    assignid: assignmentId,
+    userid,
+  });
+}
+
 /** Fetch enrolled users for a course */
 export function fetchEnrolledUsers(wstoken, courseid) {
   return callMoodleAPI(wstoken, 'core_enrol_get_enrolled_users', { courseid });

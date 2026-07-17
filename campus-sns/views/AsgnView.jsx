@@ -8,7 +8,7 @@ import { isNative } from "../capacitor.js";
 import { openLmsPage } from "../plugins/portalWebView.js";
 import { Preview, canPreview, canPreviewType, detectType } from "./MatView.jsx";
 import { openMaterial } from "../openMaterial.js";
-import { getClientToken, fetchSubmissionStatus, uploadDraftFiles, saveFileSubmission, submitForGrading } from "../moodleClient.js";
+import { getClientToken, fetchSubmissionStatus, uploadDraftFiles, saveFileSubmission, submitForGrading, removeSubmission } from "../moodleClient.js";
 import { isDemoMode } from "../demoMode.js";
 
 /* バイト数を人間可読に */
@@ -25,7 +25,7 @@ const withTokenUrl=(fileurl,wstoken)=>{const base=(fileurl||"").replace(/([?&])t
 /* ── 課題をアプリから直接提出するシート（ファイル提出専用）──────────────
    Moodle upload.php にドラフトとしてアップ → mod_assign_save_submission。
    ISCT は submissiondrafts=0 なので保存＝提出（締切まで上書き可）。 */
-function SubmitSheet({a,mob,onClose,onSubmitted}){
+function SubmitSheet({a,mob,onClose,onSubmitted,onRemoved}){
   const cfg=a.subCfg||{};
   const [status,setStatus]=useState(null);
   const [loading,setLoading]=useState(true);
@@ -34,6 +34,7 @@ function SubmitSheet({a,mob,onClose,onSubmitted}){
   const [busy,setBusy]=useState(false);
   const [phase,setPhase]=useState("");
   const [done,setDone]=useState(false);
+  const [removing,setRemoving]=useState(false);
   const [preview,setPreview]=useState(null);       // プレビュー中の提出済みファイル（token付きURL）
   const [prevLoading,setPrevLoading]=useState(null); // 準備中ファイル名
   const inputRef=useRef(null);
@@ -145,6 +146,23 @@ function SubmitSheet({a,mob,onClose,onSubmitted}){
     }finally{ setBusy(false);setPhase(""); }
   };
 
+  const doRemove=async()=>{
+    if(removing||busy)return;
+    if(isDemoMode()){setErr(t("asgn.submitDemo"));return;}
+    if(!window.confirm(t("asgn.removeConfirm")))return;
+    setRemoving(true);setErr(null);
+    try{
+      const {wstoken,userid}=await getClientToken();
+      await removeSubmission(wstoken,a.moodleId,userid);
+      try{const fresh=await fetchSubmissionStatus(wstoken,a.moodleId);setStatus(fresh);}catch{}
+      setFiles([]);setDone(false);
+      onRemoved?.();
+    }catch(e){
+      console.error("[remove]",e);
+      setErr(e.message||t("asgn.removeFailed"));
+    }finally{ setRemoving(false); }
+  };
+
   const row={padding:"10px 12px",borderRadius:8,background:T.bg3,border:`1px solid ${T.bd}`,marginBottom:6};
   return(<>
     <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:1600,background:"rgba(0,0,0,.5)",display:"flex",alignItems:mob?"flex-end":"center",justifyContent:"center"}}>
@@ -208,9 +226,12 @@ function SubmitSheet({a,mob,onClose,onSubmitted}){
             {vErr&&<div style={{fontSize:12,color:T.red,margin:"2px 0 10px"}}>{vErr}</div>}
             {err&&<div style={{fontSize:12,color:T.red,margin:"2px 0 10px",lineHeight:1.5}}>{err}</div>}
 
-            <button onClick={doSubmit} disabled={!files.length||!!vErr||busy} style={{width:"100%",padding:"12px 0",borderRadius:8,border:"none",background:(!files.length||vErr||busy)?T.bg3:T.accent,color:(!files.length||vErr||busy)?T.txD:"#fff",fontSize:14,fontWeight:700,cursor:(!files.length||vErr||busy)?"default":"pointer",marginTop:4}}>
+            <button onClick={doSubmit} disabled={!files.length||!!vErr||busy||removing} style={{width:"100%",padding:"12px 0",borderRadius:8,border:"none",background:(!files.length||vErr||busy||removing)?T.bg3:T.accent,color:(!files.length||vErr||busy||removing)?T.txD:"#fff",fontSize:14,fontWeight:700,cursor:(!files.length||vErr||busy||removing)?"default":"pointer",marginTop:4}}>
               {busy?(phase||t("asgn.submitButton")):t("asgn.submitButton")}
             </button>
+            {submittedFiles.length>0&&<button onClick={doRemove} disabled={busy||removing} style={{width:"100%",marginTop:8,padding:"9px 0",borderRadius:8,border:`1px solid ${T.red}40`,background:"transparent",color:T.red,fontSize:12.5,fontWeight:600,cursor:(busy||removing)?"wait":"pointer",opacity:(busy||removing)?.6:1}}>
+              {removing?t("asgn.removing"):t("asgn.removeSubmission")}
+            </button>}
           </>)}
         </>)}
       </div>
@@ -388,7 +409,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
         </button>}
         {navCourse&&<button onClick={()=>navCourse(a.cid)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 14px",borderRadius:8,border:`1px solid ${co?.col}33`,background:`${co?.col}08`,color:co?.col,fontSize:13,fontWeight:500,cursor:"pointer",width:"100%",justifyContent:"center"}}>{t("asgn.toCourseChannel",{code:co?.code})} {I.arr}</button>}
         {attOverlay}
-        {submitFor&&<SubmitSheet a={submitFor} mob={mob} onClose={()=>setSubmitFor(null)} onSubmitted={()=>chSt(submitFor.id,"completed")}/>}
+        {submitFor&&<SubmitSheet a={submitFor} mob={mob} onClose={()=>setSubmitFor(null)} onSubmitted={()=>chSt(submitFor.id,"completed")} onRemoved={()=>chSt(submitFor.id,"not_started")}/>}
       </div>
     );
   }
@@ -736,7 +757,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
         </div>}
       </div>
       {attOverlay}
-      {submitFor&&<SubmitSheet a={submitFor} mob={mob} onClose={()=>setSubmitFor(null)} onSubmitted={()=>chSt(submitFor.id,"completed")}/>}
+      {submitFor&&<SubmitSheet a={submitFor} mob={mob} onClose={()=>setSubmitFor(null)} onSubmitted={()=>chSt(submitFor.id,"completed")} onRemoved={()=>chSt(submitFor.id,"not_started")}/>}
     </div>
   );
 };
