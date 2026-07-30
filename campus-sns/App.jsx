@@ -16,7 +16,7 @@ import { resetCourseMaterialsCache } from "./hooks/useCourseMaterials.js";
 import { useMobile, useBreakpoint } from "./utils.jsx";
 import { isNative, clearNativeCookies } from "./capacitor.js";
 import { CallProvider } from "./CallProvider.jsx";
-import { openLmsPage } from "./plugins/portalWebView.js";
+import { openLmsUrl } from "./openLms.js";
 import { saveTimetableToWidget } from "./plugins/timetableWidget.js";
 import { Av, Loader, setProfileOpener } from "./shared.jsx";
 import { DSide, DChan, MNav, MoreMenu } from "./layout.jsx";
@@ -909,17 +909,9 @@ export default function App(){
   const cTabs=[{id:"materials",l:t("chan.materials"),i:I.clip},{id:"assignments",l:t("chan.assignments"),i:I.tasks},{id:"timeline",l:t("chan.feed"),i:I.feed},{id:"chat",l:t("chan.chat"),i:I.chat},{id:"reviews",l:t("chan.reviews"),i:I.star}];
   const openLms=async()=>{
     if(!cc?.moodleId||lmsLoading) return;
-    const url=`https://lms.s.isct.ac.jp/2025/course/view.php?id=${cc.moodleId}`;
     setLmsLoading(true);
     try{
-      if(isNative()){
-        const r=await fetch("/api/auth/credentials?type=isct",{headers:{"x-app-platform":"capacitor"}});
-        if(!r.ok)throw new Error(t("app.credFetchFailed"));
-        const{userId,password,totpCode}=await r.json();
-        await openLmsPage(url,{userId,password,totpCode});
-      }else{
-        window.open(url,"_blank","noopener");
-      }
+      await openLmsUrl(`https://lms.s.isct.ac.jp/2025/course/view.php?id=${cc.moodleId}`);
     }catch(e){console.error('[LMS]',e);}
     setLmsLoading(false);
   };

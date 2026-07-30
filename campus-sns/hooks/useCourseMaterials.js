@@ -8,7 +8,7 @@ import { transformCourseMaterials } from '../../lib/transform/material-transform
 // stale list; invalidateCourseMaterials() forces an immediate refetch when the
 // client actually hits a filenotfound.
 const cache = {};
-const EMPTY = { sections: [], totalFiles: 0, error: null };
+const EMPTY = { sections: [], totalFiles: 0, totalActivities: 0, error: null };
 const TTL = 10 * 60 * 1000; // 10 minutes
 
 function getCached(id) {
@@ -51,9 +51,9 @@ export function useCourseMaterials(moodleCourseId) {
       try {
         const { wstoken } = await getClientToken();
         const raw = await fetchCourseContents(wstoken, moodleCourseId);
-        const { sections, totalFiles } = transformCourseMaterials(raw, wstoken);
+        const { sections, totalFiles, totalActivities } = transformCourseMaterials(raw, wstoken);
         if (!cancelled) {
-          const result = { sections, totalFiles, error: null };
+          const result = { sections, totalFiles, totalActivities, error: null };
           cache[moodleCourseId] = { data: result, ts: Date.now() };
           setData(result);
         }
@@ -62,7 +62,7 @@ export function useCourseMaterials(moodleCourseId) {
         if (!cancelled) {
           const error = err.code === 'MOODLE_HTML_RESPONSE' ? 'LMS_UNAVAILABLE'
             : err.code === 'AUTH_REQUIRED' ? 'AUTH_REQUIRED' : 'NETWORK';
-          setData({ sections: [], totalFiles: 0, error });
+          setData({ sections: [], totalFiles: 0, totalActivities: 0, error });
         }
       } finally {
         if (!cancelled) setLoading(false);

@@ -14,7 +14,9 @@ const canPrevType=(m,ft)=>PREVIEWABLE.has(ft)||(ft==='document'&&isDocx(m));
 const CourseMatCard=({course,mob,setCid,setView,setCh,setPendingMat})=>{
   const {sections,totalFiles,loading,error,refresh}=useCourseMaterials(course.moodleId);
   const [open,setOpen]=useState(false);
-  const allMats=sections.flatMap(s=>s.materials);
+  /* ここは「今日の教材」= 実ファイル/リンクのみ。お知らせやフォーラム等の LMS 活動は
+     教材タブ側で表示するので、ホームの短いリストには混ぜない。 */
+  const allMats=sections.flatMap(s=>s.materials).filter(m=>m.kind!=="activity"&&m.kind!=="notice");
 
   return(
     <div style={{borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden",marginBottom:4}}>

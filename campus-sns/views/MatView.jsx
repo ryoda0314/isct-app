@@ -7,11 +7,17 @@ import { useCourseMaterials } from "../hooks/useCourseMaterials.js";
 import { useSharedMaterials } from "../hooks/useSharedMaterials.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
 import { openMaterial, openMaterialWindow } from "../openMaterial.js";
+import { openLmsUrl } from "../openLms.js";
 import { bulkDownloadMaterials } from "../bulkDownload.js";
 import { findMaterialNote } from "./NotesView.jsx";
 
-const tCol={pdf:'#e5534b',slide:'#d4843e',document:'#6375f0',spreadsheet:'#3dae72',image:'#a855c7',video:'#2d9d8f',audio:'#c6a236',archive:'#68687a',code:'#3dae72',text:'#68687a',link:'#6375f0',file:'#68687a'};
-const tLblKey={pdf:'mat.ft.pdf',slide:'mat.ft.slide',document:'mat.ft.document',spreadsheet:'mat.ft.spreadsheet',image:'mat.ft.image',video:'mat.ft.video',audio:'mat.ft.audio',archive:'mat.ft.archive',code:'mat.ft.code',text:'mat.ft.text',link:'mat.ft.link',file:'mat.ft.file'};
+const tCol={pdf:'#e5534b',slide:'#d4843e',document:'#6375f0',spreadsheet:'#3dae72',image:'#a855c7',video:'#2d9d8f',audio:'#c6a236',archive:'#68687a',code:'#3dae72',text:'#68687a',link:'#6375f0',file:'#68687a',forum:'#7c5cd6',survey:'#c6a236',quiz:'#e5534b',page:'#2d9d8f',notice:'#68687a',activity:'#68687a'};
+const tLblKey={pdf:'mat.ft.pdf',slide:'mat.ft.slide',document:'mat.ft.document',spreadsheet:'mat.ft.spreadsheet',image:'mat.ft.image',video:'mat.ft.video',audio:'mat.ft.audio',archive:'mat.ft.archive',code:'mat.ft.code',text:'mat.ft.text',link:'mat.ft.link',file:'mat.ft.file',forum:'mat.ft.forum',survey:'mat.ft.survey',quiz:'mat.ft.quiz',page:'mat.ft.page',notice:'mat.ft.notice',activity:'mat.ft.activity'};
+/* ファイルを持たない LMS 活動(お知らせ/フォーラム/アンケート等)の行アイコン。
+   icons.jsx の svg は 16〜20px と幅がまちまちなので、行がずれないよう
+   18px の箱に入れて中央寄せする(I.file と同じ見え幅にそろえる)。 */
+const ACT_ICON={forum:I.mega,survey:I.poll,quiz:I.question,page:I.book,notice:I.bell,activity:I.clip};
+const ActIcon=({type,color})=><span style={{color,display:"flex",alignItems:"center",justifyContent:"center",width:18,height:18,flexShrink:0}}>{ACT_ICON[type]||I.clip}</span>;
 const fmtD=ts=>{if(!ts)return'';const d=new Date(ts*1000);return`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;};
 const fmtDt=d=>{if(!d)return'';return`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;};
 const fmtSize=b=>{if(!b)return'';if(b<1024)return`${b} B`;if(b<1048576)return`${(b/1024).toFixed(1)} KB`;return`${(b/1048576).toFixed(1)} MB`;};
@@ -606,9 +612,41 @@ export const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote,sessio
    selMode 中は開く代わりにチェック選択(一括DL用)。link はDL対象外なので薄く表示
    ────────────────────────────────────────────── */
 const isDownloadable=m=>!m.locked&&m.fileType!=="link"&&!!m.fileurl;
+/* ファイルを持たない LMS 活動 = お知らせ(label)/フォーラム/アンケート等 */
+const isActivity=m=>m.kind==="activity"||m.kind==="notice";
 const LockIcon=()=><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>;
+const ExtIcon=()=><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>;
+
+/* ──────────────────────────────────────────────
+   LMS 活動の行 (お知らせ / フォーラム / アンケート / 小テスト …)
+   ファイルが無いので DL もプレビューもできない。説明文をそのまま表示し、
+   タップで LMS の該当ページを開く。label は本文そのものが中身なので
+   タイトル(Moodle が本文から自動生成)は出さず全文を表示する。
+   ────────────────────────────────────────────── */
+const ActivityRow=({m,dim})=>{
+  const c=tCol[m.fileType]||T.txD;
+  const notice=m.kind==="notice";
+  const body=(m.description||"").trim();
+  const title=notice&&body?null:(m.name||"");
+  const open=()=>{if(!dim&&m.lmsUrl)openLmsUrl(m.lmsUrl);};
+  const clickable=!dim&&!!m.lmsUrl;
+  return(
+    <div onClick={open} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",borderRadius:6,background:notice?T.bg3:T.bg2,border:`1px solid ${T.bd}`,marginBottom:3,cursor:clickable?"pointer":"default",opacity:dim?0.45:1}}>
+      <ActIcon type={m.fileType} color={c}/>
+      <div style={{flex:1,minWidth:0}}>
+        {title&&<div style={{color:T.txH,fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title}</div>}
+        {body&&<div style={{fontSize:11.5,color:title?T.txD:T.txH,whiteSpace:"pre-wrap",wordBreak:"break-word",lineHeight:1.5,marginTop:title?2:0,...(title?{display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"}:{})}}>{body}</div>}
+      </div>
+      <Tag color={c}>{t(tLblKey[m.fileType]||'mat.ft.activity')}</Tag>
+      {clickable&&<span style={{color:T.txD,display:"flex",flexShrink:0,marginTop:2}}><ExtIcon/></span>}
+    </div>
+  );
+};
+
 const FileRow=({m,onClick,onStale,selMode,checked,onToggle,onPopOut})=>{
   const c=tCol[m.fileType]||T.txD;
+  /* 一括DL選択中は選択できないので薄く表示 */
+  if(isActivity(m)&&!m.locked)return <ActivityRow m={m} dim={selMode}/>;
   // 利用可能日待ち等でまだ開けない資料: グレー表示・タップ不可・利用可能日を表示
   if(m.locked)return(
     <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:6,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:3,opacity:.6,cursor:"default"}}>
@@ -674,7 +712,7 @@ const SharedFileRow=({m,onClick,myId,onDelete})=>{
    Tab: 講義資料 (Moodle materials)
    一括DL: 選択モード(全選択/授業回ごと/個別) → ZIP 生成 → 全環境保存
    ────────────────────────────────────────────── */
-const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect,onRefresh,course,onPopOut})=>{
+const LectureMaterials=({sections,totalFiles,totalActivities,loading,error,mob,onSelect,onRefresh,course,onPopOut})=>{
   const [collapsed,setCollapsed]=useState({});
   const [search,setSearch]=useState("");
   const [selMode,setSelMode]=useState(false);
@@ -682,8 +720,10 @@ const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect,onRefres
   const [dl,setDl]=useState(null); // {phase:'fetch',done,total} | {phase:'zip',pct}
   const togSec=id=>setCollapsed(p=>({...p,[id]:!p[id]}));
 
-  const filtered=search.trim()
-    ?sections.map(s=>({...s,materials:s.materials.filter(m=>(m.name||'').toLowerCase().includes(search.toLowerCase())||(m.filename||'').toLowerCase().includes(search.toLowerCase()))})).filter(s=>s.materials.length>0)
+  /* 検索は説明文も対象 — お知らせ(label)はタイトルを持たず本文しかない */
+  const q=search.trim().toLowerCase();
+  const filtered=q
+    ?sections.map(s=>({...s,materials:s.materials.filter(m=>(m.name||'').toLowerCase().includes(q)||(m.filename||'').toLowerCase().includes(q)||(m.description||'').toLowerCase().includes(q))})).filter(s=>s.materials.length>0)
     :sections;
 
   /* 選択対象 = 検索で表示中の DL 可能ファイル */
@@ -743,7 +783,7 @@ const LectureMaterials=({sections,totalFiles,loading,error,mob,onSelect,onRefres
         </div>
       ):(
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-          <span style={{fontSize:12,color:T.txD,fontWeight:600}}>{t("mat.materialCount",{count:totalFiles})}</span>
+          <span style={{fontSize:12,color:T.txD,fontWeight:600}}>{t("mat.materialCount",{count:totalFiles})}{totalActivities>0?` · ${t("mat.activityCount",{count:totalActivities})}`:''}</span>
           {onRefresh&&<button onClick={onRefresh} title={t("mat.refresh")} style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txD,cursor:"pointer",flexShrink:0}}>{I.reset}</button>}
           {totalFiles>0&&<button onClick={enterSel} title={t("mat.bulkDl")} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:6,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txD,fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0}}>{I.dl} {t("mat.bulkDl")}</button>}
           <div style={{flex:1,display:"flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:6,background:T.bg3,border:`1px solid ${T.bd}`,minWidth:mob?"100%":140,maxWidth:240}}>
@@ -882,7 +922,7 @@ const SharedMaterials=({courseId,mob,onSelect})=>{
    として自由に並べられる方が読みやすいため。
    ────────────────────────────────────────────── */
 export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOpenNote})=>{
-  const {sections,totalFiles,loading,error,refresh}=useCourseMaterials(course?.moodleId);
+  const {sections,totalFiles,totalActivities,loading,error,refresh}=useCourseMaterials(course?.moodleId);
   const [tab,setTab]=useState(0); // 0=講義資料, 1=みんなの共有
   const [sel,setSel]=useState(null);
   /* 別ウィンドウにポップアウト(PDF/画像等のプレビュー可能物のみ。desktop 専用) */
@@ -897,6 +937,7 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
       if(m){
         initialConsumedRef.current=true;
         if(canPreview(m)) setSel(m);
+        else if(isActivity(m)) openLmsUrl(m.lmsUrl);
         else openMaterial(m,refresh);
         onInitialConsumed?.();
         return;
@@ -929,6 +970,18 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
                 <div key={sec.id} style={{marginBottom:8}}>
                   <div style={{fontSize:11,fontWeight:700,color:T.txD,padding:"4px 6px",marginBottom:2}}>{sec.name}</div>
                   {sec.materials.map(m=>{const c=tCol[m.fileType]||T.txD;const active=sel.id===m.id;const canPop=canPopOut(m);
+                    /* 活動(お知らせ/フォーラム等)は開いてもプレビューが変わらないので
+                       一覧では 1 行に畳んで LMS リンクとして残す */
+                    if(isActivity(m)&&!m.locked){
+                      const label=(m.name||"").trim()||(m.description||"").split("\n")[0];
+                      return(
+                        <div key={m.id} onClick={()=>{if(m.lmsUrl)openLmsUrl(m.lmsUrl);}} title={label} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 8px",borderRadius:6,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:2,cursor:m.lmsUrl?"pointer":"default"}}>
+                          <ActIcon type={m.fileType} color={c}/>
+                          <div style={{flex:1,minWidth:0,color:T.txD,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{label}</div>
+                          {m.lmsUrl&&<span style={{color:T.txD,display:"flex",flexShrink:0}}><ExtIcon/></span>}
+                        </div>
+                      );
+                    }
                     if(m.locked)return(
                       <div key={m.id} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 8px",borderRadius:6,background:T.bg2,border:`1px solid ${T.bd}`,marginBottom:2,opacity:.6,cursor:"default"}}>
                         <span style={{color:T.txD,display:"flex",flexShrink:0}}><LockIcon/></span>
@@ -977,7 +1030,7 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
       </div>
 
       {/* Tab content */}
-      {tab===0&&<LectureMaterials sections={sections} totalFiles={totalFiles} loading={loading} error={error} mob={mob} onSelect={setSel} onRefresh={refresh} course={course} onPopOut={!mob?popOut:null}/>}
+      {tab===0&&<LectureMaterials sections={sections} totalFiles={totalFiles} totalActivities={totalActivities} loading={loading} error={error} mob={mob} onSelect={setSel} onRefresh={refresh} course={course} onPopOut={!mob?popOut:null}/>}
       {tab===1&&<SharedMaterials courseId={course?.moodleId} mob={mob} onSelect={m=>{
         const ft=detectType(m.mimetype);
         if(m.url&&PREVIEWABLE.has(ft)){

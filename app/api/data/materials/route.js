@@ -21,15 +21,15 @@ export async function GET(request) {
     console.log('[materials] fetching courseContents for courseid=', courseid);
     const raw = await fetchCourseContents(wstoken, Number(courseid));
     console.log('[materials] raw response type=%s length=%s', typeof raw, Array.isArray(raw) ? raw.length : 'N/A', Array.isArray(raw) ? '' : JSON.stringify(raw).slice(0, 200));
-    const { sections, totalFiles } = transformCourseMaterials(raw, wstoken);
-    console.log('[materials] transformed: sections=%d totalFiles=%d', sections.length, totalFiles);
+    const { sections, totalFiles, totalActivities } = transformCourseMaterials(raw, wstoken);
+    console.log('[materials] transformed: sections=%d totalFiles=%d totalActivities=%d', sections.length, totalFiles, totalActivities);
 
-    return NextResponse.json({ sections, totalFiles });
+    return NextResponse.json({ sections, totalFiles, totalActivities });
   } catch (err) {
     console.error('[materials] ERROR:', err.message, err.code || '');
     if (err.code === 'MOODLE_HTML_RESPONSE') {
       return NextResponse.json(
-        { error: 'LMS_UNAVAILABLE', sections: [], totalFiles: 0 },
+        { error: 'LMS_UNAVAILABLE', sections: [], totalFiles: 0, totalActivities: 0 },
         { status: 200 },
       );
     }
