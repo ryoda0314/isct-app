@@ -3,12 +3,14 @@ import { T } from "../theme.js";
 import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { isNative } from "../capacitor.js";
+import { loadPdfLib } from "../bulkDownload.js";
 
 /* ──────────────────────────────────────────────
    CDN loaders (jsdelivr — already allowed by CSP)
    ・pdf.js v3 legacy UMD … MatView と同じ理由で jsdelivr の cmaps を使う
      (cdnjs は cmaps/ 未配信で日本語が空白になる)
-   ・pdf-lib v1.17.1 UMD … 結合(ページコピー→保存)用
+   ・pdf-lib v1.17.1 UMD … 結合(ページコピー→保存)用。ローダーは
+     bulkDownload.js の loadPdfLib と共有 (教材の一括PDF結合と同じ)。
    どちらもクライアント完結。ファイルはサーバーに送られない。
    ────────────────────────────────────────────── */
 const PDFJS_VER = "3.11.174";
@@ -32,20 +34,7 @@ function loadPdfjs() {
   return pdfjsLoading;
 }
 
-const PDFLIB_CDN = "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js";
-let pdflibLoading = null;
-function loadPdfLib() {
-  if (window.PDFLib) return Promise.resolve(window.PDFLib);
-  if (pdflibLoading) return pdflibLoading;
-  pdflibLoading = new Promise((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = PDFLIB_CDN;
-    s.onload = () => (window.PDFLib ? resolve(window.PDFLib) : reject(new Error("PDFLib not found")));
-    s.onerror = reject;
-    document.head.appendChild(s);
-  });
-  return pdflibLoading;
-}
+/* pdf-lib のローダーは教材の一括PDF結合と共有 (bulkDownload.js) */
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 const MAX_SIZE = 50 * 1024 * 1024; // 50MB / file
