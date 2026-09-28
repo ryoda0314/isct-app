@@ -206,6 +206,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   const [portalMsg,setPortalMsg]=useState(null);
   const [portalDeleting,setPortalDeleting]=useState(false);
   const [showPortalPw,setShowPortalPw]=useState(false);
+  const [portalMatrixEdit,setPortalMatrixEdit]=useState(false);
 
   // メールアドレス連携
   const [emailOpen,setEmailOpen]=useState(false);
@@ -287,7 +288,32 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
     setCredDeleting(false);
   };
 
+  // 設定済みの場合: 入力した項目だけ更新（空欄は現状維持）
+  const handlePortalUpdate=async()=>{
+    const {userId,password,matrix}=portalForm;
+    const body={};
+    if(userId.trim())body.portalUserId=userId.trim();
+    if(password)body.portalPassword=password;
+    if(portalMatrixEdit){
+      if(!COLS.every(c=>ROWS.every(r=>matrix[c]?.[r]))){setPortalMsg({type:"err",text:t("profile.errMatrixIncomplete")});return;}
+      body.matrix=matrix;
+    }
+    if(!Object.keys(body).length){setPortalMsg({type:"err",text:t("profile.errNothingToUpdate")});return;}
+    setPortalSaving(true);setPortalMsg(null);
+    try{
+      const r=await fetch("/api/auth/credentials",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(d.error||t("profile.errSaveFail"));
+      setPortalMsg({type:"ok",text:t("profile.portalCredUpdated")});
+      setPortalForm({userId:"",password:"",matrix:{}});
+      setPortalMatrixEdit(false);
+      setCredStatus(p=>({...p,_portalEditing:false}));
+    }catch(e){setPortalMsg({type:"err",text:e.message});}
+    setPortalSaving(false);
+  };
+
   const handlePortalSave=async()=>{
+    if(credStatus?.hasPortal)return handlePortalUpdate();
     const {userId,password,matrix}=portalForm;
     const hasMatrix=COLS.every(c=>ROWS.every(r=>matrix[c]?.[r]));
     if(!userId||!password||!hasMatrix){setPortalMsg({type:"err",text:t("profile.errAllFields")});return;}
@@ -566,13 +592,21 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             </div>
           </div>:<>
             {credStatus?.hasPortal&&<div style={{padding:"10px 14px 0"}}>
-              <button onClick={()=>setCredStatus(p=>({...p,_portalEditing:false}))}
+              <button onClick={()=>{setCredStatus(p=>({...p,_portalEditing:false}));setPortalMatrixEdit(false);setPortalForm({userId:"",password:"",matrix:{}});setPortalMsg(null);}}
                 style={{background:"none",border:"none",color:T.txD,fontSize:12,cursor:"pointer",padding:0}}>← {t("common.back")}</button>
             </div>}
             <div style={{display:"grid",gap:10,padding:"12px 14px"}}>
-              <Inp label={t("profile.portalAccount")} value={portalForm.userId} onChange={e=>setPortalForm(p=>({...p,userId:e.target.value}))} placeholder={t("profile.studentId")}/>
-              <PwInp label={t("profile.portalPassword")} value={portalForm.password} onChange={e=>setPortalForm(p=>({...p,password:e.target.value}))} placeholder={t("profile.portalPwPlaceholder")} show={showPortalPw} onTogShow={()=>setShowPortalPw(p=>!p)}/>
-              <MatrixInput matrix={portalForm.matrix} setMatrix={m=>setPortalForm(p=>({...p,matrix:typeof m==='function'?m(p.matrix):m}))}/>
+              {credStatus?.hasPortal&&<div style={{fontSize:11,color:T.txD,lineHeight:1.5}}>{t("profile.portalPartialNote")}</div>}
+              <Inp label={t("profile.portalAccount")} value={portalForm.userId} onChange={e=>setPortalForm(p=>({...p,userId:e.target.value}))} placeholder={credStatus?.hasPortal?t("profile.keepBlankPlaceholder"):t("profile.studentId")}/>
+              <PwInp label={t("profile.portalPassword")} value={portalForm.password} onChange={e=>setPortalForm(p=>({...p,password:e.target.value}))} placeholder={credStatus?.hasPortal?t("profile.newPwPlaceholder"):t("profile.portalPwPlaceholder")} show={showPortalPw} onTogShow={()=>setShowPortalPw(p=>!p)}/>
+              {credStatus?.hasPortal&&!portalMatrixEdit
+                ?<button onClick={()=>setPortalMatrixEdit(true)}
+                  style={{padding:"8px 0",borderRadius:8,border:`1px dashed ${T.bd}`,background:"transparent",color:T.txD,fontSize:12,cursor:"pointer"}}>
+                  {t("profile.changeMatrix")}
+                </button>
+                :<MatrixInput matrix={portalForm.matrix} setMatrix={m=>setPortalForm(p=>({...p,matrix:typeof m==='function'?m(p.matrix):m}))}/>}
+              {credStatus?.hasPortal&&portalMatrixEdit&&<button onClick={()=>{setPortalMatrixEdit(false);setPortalForm(p=>({...p,matrix:{}}));}}
+                style={{background:"none",border:"none",color:T.txD,fontSize:11,cursor:"pointer",padding:0,justifySelf:"start"}}>{t("profile.keepMatrix")}</button>}
               <button onClick={handlePortalSave} disabled={portalSaving}
                 style={{padding:"10px 0",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:portalSaving?"wait":"pointer",opacity:portalSaving?.6:1,transition:"opacity .15s"}}>
                 {portalSaving?t("profile.connecting"):(credStatus?.hasPortal?t("profile.updateCred"):t("profile.loginConnect"))}

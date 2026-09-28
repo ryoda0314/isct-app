@@ -78,6 +78,59 @@ export async function GET(request) {
   }
 }
 
+const MATRIX_COLS = ['A','B','C','D','E','F','G','H','I','J'];
+const MATRIX_ROWS = ['1','2','3','4','5','6','7'];
+const isFullMatrix = (m) => !!m && typeof m === 'object' &&
+  MATRIX_COLS.every(c => MATRIX_ROWS.every(r => typeof m[c]?.[r] === 'string' && /^\S$/.test(m[c][r])));
+
+/**
+ * PATCH /api/auth/credentials
+ * Body: { portalUserId?, portalPassword?, matrix? }
+ * Partially updates existing portal credentials (e.g. password only).
+ * Omitted / empty fields keep their stored values.
+ */
+export async function PATCH(request) {
+  const auth = await requireAuth(request);
+  if (auth.error) return auth.error;
+
+  let body;
+  try { body = await request.json(); } catch { body = null; }
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
+  }
+
+  const updates = {};
+  if (typeof body.portalUserId === 'string' && body.portalUserId.trim()) updates.portalUserId = body.portalUserId.trim();
+  if (typeof body.portalPassword === 'string' && body.portalPassword) updates.portalPassword = body.portalPassword;
+  if (body.matrix !== undefined && body.matrix !== null) {
+    if (!isFullMatrix(body.matrix)) {
+      return NextResponse.json({ error: 'マトリクスが不完全です' }, { status: 400 });
+    }
+    updates.matrix = body.matrix;
+  }
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: '変更する項目がありません' }, { status: 400 });
+  }
+
+  let existing = {};
+  try { existing = await loadCredentials(auth.loginId); } catch {}
+  const merged = {
+    portalUserId: existing.portalUserId, portalPassword: existing.portalPassword, matrix: existing.matrix,
+    ...updates,
+  };
+  if (!merged.portalUserId || !merged.portalPassword || !merged.matrix) {
+    return NextResponse.json({ error: 'ポータル認証情報が未設定です。全ての項目を入力してください' }, { status: 400 });
+  }
+
+  try {
+    await saveCredentials(auth.loginId, updates);
+  } catch (e) {
+    console.error('[Credentials] PATCH error:', e.message);
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+  return NextResponse.json({ success: true, updated: Object.keys(updates) });
+}
+
 /**
  * DELETE /api/auth/credentials
  * Body: { type?: 'portal' | 'all' }
