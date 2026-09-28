@@ -2,7 +2,8 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { T } from "../theme.js";
 import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
-import { REQ_1Q, REQ_2Q, CAT_COLORS, UNIT_OPT, LAB_OPT, SCHOOLS, SHARED_DEPTS, DEPT_LABELS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
+import { getCurrentQuarter } from "../academicCalendar.js";
+import { REQ_BY_Q, QUARTERS, siblingQ, isSemesterSpan, academicYearOf, CAT_COLORS, UNIT_OPT, LAB_OPT, SCHOOLS, SHARED_DEPTS, DEPT_LABELS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
 
 // Per year-level + quarter localStorage
 const lsKey=(yr,q)=>`reg_${yr}_${q}`;
@@ -35,12 +36,39 @@ const saveQ=(yr,q,d)=>{try{localStorage.setItem(lsKey(yr,q),JSON.stringify(d));}
 
 const initQ=(yr,q)=>{const s=loadQ(yr,q);return{req:s.req||{},reqSec:s.reqSec||{},sci:s.sci||{},opt:s.opt||{},optInfo:s.optInfo||{},unit:s.unit||""};};
 
+// 1-2Q / 3-4Q 開講科目は同じ学期のもう一方のクオーターにも反映する
+const spanOf=(info)=>info&&isSemesterSpan(info.span);
+const syncSpan=(yr,q,next)=>{
+  const sq=siblingQ(q);
+  if(!sq) return;
+  const sib=initQ(yr,sq);
+  let changed=false;
+  for(const [code,slots] of Object.entries(next.opt)){
+    const info=next.optInfo?.[code];
+    if(!spanOf(info)||!slots?.length) continue;
+    const sec=next.reqSec?.[code];
+    if(JSON.stringify(sib.opt[code])===JSON.stringify(slots)&&sib.reqSec[code]===sec) continue;
+    sib.opt[code]=slots;sib.optInfo[code]=info;sib.reqSec[code]=sec;changed=true;
+  }
+  for(const code of Object.keys(sib.opt)){
+    if(!spanOf(sib.optInfo[code])||next.opt[code]?.length) continue;
+    delete sib.opt[code];delete sib.optInfo[code];delete sib.reqSec[code];changed=true;
+  }
+  if(changed) saveQ(yr,sq,sib);
+};
+
+const REG_YEAR=academicYearOf();
+const loadPrefs=()=>{try{return JSON.parse(localStorage.getItem("reg_prefs"))||{};}catch{return{};}};
+const savePrefs=(p)=>{try{localStorage.setItem("reg_prefs",JSON.stringify(p));}catch{}};
+const defaultQ=()=>{try{return `${getCurrentQuarter(new Date())||1}Q`;}catch{return "1Q";}};
+
 // ── Main View ──────────────────────────────────────
 export const RegView=({mob})=>{
-  const [browseLevel,setBrowseLevel]=useState(1);
-  const [quarter,setQuarter]=useState("1Q");
-  const [data,setData]=useState(()=>initQ(1,"1Q"));
-  const curReq=quarter==="1Q"?REQ_1Q:REQ_2Q;
+  const [browseLevel,setBrowseLevel]=useState(()=>{const l=loadPrefs().level;return l>=1&&l<=4?l:1;});
+  const [quarter,setQuarter]=useState(defaultQ);
+  const [data,setData]=useState(()=>initQ(browseLevel,quarter));
+  const curReq=REQ_BY_Q[quarter];
+  const [copied,setCopied]=useState(false);
 
   // DB state
   const [sectionData,setSectionData]=useState(null);
@@ -90,12 +118,13 @@ export const RegView=({mob})=>{
     saveQ(browseLevel,quarter,data);
     setData(initQ(yr,quarter));
     setBrowseLevel(yr);
+    savePrefs({...loadPrefs(),level:yr});
     setDbCats([]);setDbLoading(true);
     setOpenCats({});setSearch("");
     if(yr>=2){/* keep school/dept filter */} else {setSelSchool(null);setSelDept(null);}
   };
 
-  const up=useCallback((fn)=>setData(prev=>{const next=fn(prev);saveQ(browseLevel,quarter,next);return next;}),[browseLevel,quarter]);
+  const up=useCallback((fn)=>setData(prev=>{const next=fn(prev);saveQ(browseLevel,quarter,next);syncSpan(browseLevel,quarter,next);return next;}),[browseLevel,quarter]);
 
   const {req,reqSec,sci,opt,optInfo,unit}=data;
 
@@ -104,7 +133,7 @@ export const RegView=({mob})=>{
     if(browseLevel!==1){setSecLoading(false);setSectionData(null);return;}
     setSecLoading(true);
     const names=[...curReq.common,...curReq.science].map(c=>c.name);
-    fetch(`/api/data/reg-sections?year=2026&quarter=${quarter}&names=${encodeURIComponent(names.join(','))}`)
+    fetch(`/api/data/reg-sections?year=${REG_YEAR}&quarter=${quarter}&names=${encodeURIComponent(names.join(','))}`)
       .then(r=>r.json()).then(d=>{setSectionData(d.courses||{});setSecLoading(false);})
       .catch(()=>setSecLoading(false));
   },[quarter,browseLevel]);
@@ -116,7 +145,7 @@ export const RegView=({mob})=>{
     if(browseLevel===1&&curReq){
       excludeNames=[...curReq.common,...curReq.science].map(c=>c.name).join(',');
     }
-    const params=new URLSearchParams({year:'2026',quarter,level});
+    const params=new URLSearchParams({year:String(REG_YEAR),quarter,level});
     if(excludeNames) params.set('exclude',excludeNames);
     if(browseLevel>=2&&deptParam) params.set('dept',deptParam);
     fetch(`/api/data/reg-courses?${params}`)
@@ -129,7 +158,7 @@ export const RegView=({mob})=>{
     if(search.length<2){setSearchCats(null);setSearchLoading(false);return;}
     setSearchLoading(true);
     const timer=setTimeout(()=>{
-      fetch(`/api/data/reg-courses?year=2026&quarter=${quarter}&search=${encodeURIComponent(search)}`)
+      fetch(`/api/data/reg-courses?year=${REG_YEAR}&quarter=${quarter}&search=${encodeURIComponent(search)}`)
         .then(r=>r.json()).then(d=>{setSearchCats(d.categories||[]);setSearchLoading(false);})
         .catch(()=>{setSearchCats([]);setSearchLoading(false);});
     },300);
@@ -173,7 +202,7 @@ export const RegView=({mob})=>{
       list.push({id:code,name:info.name||code,cr:info.cr||0,col:catCol(info.cat||''),sel:slots,type:"opt"});
     }
     return list;
-  },[req,sci,opt,optInfo,quarter]);
+  },[req,sci,opt,optInfo,quarter,browseLevel]);
 
   // ── Grid ──
   const grid=useMemo(()=>{
@@ -209,18 +238,22 @@ export const RegView=({mob})=>{
   const credits=active.reduce((s,c)=>s+c.cr,0);
   const slotCount=active.reduce((s,c)=>s+(c.sel?.length||0),0);
 
-  // Total credits across both quarters for current year level
+  // Total credits across all quarters for current year level (semester-long courses counted once)
   const totalCredits=useMemo(()=>{
     let total=0;
-    for(const q of["1Q","2Q"]){
+    const seen=new Set();
+    for(const q of QUARTERS){
       const d=q===quarter?data:loadQ(browseLevel,q);
-      const cReq=q==="1Q"?REQ_1Q:REQ_2Q;
+      const cReq=REQ_BY_Q[q];
       if(browseLevel===1&&cReq){
         for(const c of cReq.common) if((d.req?.[c.id]||[]).length) total+=c.cr;
         for(const c of cReq.science) if(d.sci?.[c.id]&&(d.req?.[c.id]||[]).length) total+=c.cr;
       }
       if(d.opt) for(const[code,slots] of Object.entries(d.opt)){
-        if(slots?.length) total+=(d.optInfo?.[code]?.cr||0);
+        if(!slots?.length) continue;
+        const info=d.optInfo?.[code];
+        if(spanOf(info)){const k=`${info.span}:${code}`;if(seen.has(k))continue;seen.add(k);}
+        total+=(info?.cr||0);
       }
     }
     return total;
@@ -269,7 +302,7 @@ export const RegView=({mob})=>{
       ...p,
       reqSec:{...(p.reqSec||{}),[code]:secObj.section},
       opt:{...p.opt,[code]:slots},
-      optInfo:{...(p.optInfo||{}),[code]:{name:courseName,cat,cr}},
+      optInfo:{...(p.optInfo||{}),[code]:{name:courseName,cat,cr,span:secObj.quarter}},
     };
   });
 
@@ -294,21 +327,23 @@ export const RegView=({mob})=>{
         return m&&mn>=parseInt(m[1])&&mn<=parseInt(m[2]);
       };
       for(const c of curReq.common){
-        if(c.id==='risshi') continue; // 立志は手動選択
+        if(c.auto===false) continue; // 立志・英語第三/第四は手動選択
         const sections=sectionData[c.name]||[];
         const mn=(c.id==='eng1'||c.id==='eng2')?Math.ceil(num/2):num;
         const sec=sections.find(s=>secMatchNum(s.section,mn));
         if(sec){ nReq[c.id]=sec.slots.flatMap(toGridSlots); nSec[c.id]=sec.section; }
       }
       for(const c of curReq.science){
-        const letter=unitToSection(c.id,num);
-        if(letter){
-          const sections=sectionData[c.name]||[];
-          const sec=sections.find(s=>s.section===letter);
-          if(sec){
-            const slots=sec.slots.flatMap(toGridSlots);
-            if(slots.length){ nSci[c.id]=true; nReq[c.id]=slots; nSec[c.id]=letter; }
-          }
+        const sections=sectionData[c.name]||[];
+        let sec=null;
+        if(c.auto==="range") sec=sections.find(s=>secMatchNum(s.section,num));
+        else{
+          const letter=unitToSection(c.id,num);
+          if(letter) sec=sections.find(s=>s.section===letter);
+        }
+        if(sec){
+          const slots=sec.slots.flatMap(toGridSlots);
+          if(slots.length){ nSci[c.id]=true; nReq[c.id]=slots; nSec[c.id]=sec.section; }
         }
       }
       for(const cat of dbCats){
@@ -320,7 +355,7 @@ export const RegView=({mob})=>{
               const sec=course.sections.find(s=>s.section===letter);
               if(sec){
                 const slots=sec.slots.flatMap(toGridSlots);
-                if(slots.length){ nOpt[course.code]=slots; nSec[course.code]=sec.section; nOptInfo[course.code]={name:course.name,cat:cat.name,cr:1}; }
+                if(slots.length){ nOpt[course.code]=slots; nSec[course.code]=sec.section; nOptInfo[course.code]={name:course.name,cat:cat.name,cr:course.credits||1,span:sec.quarter}; }
               }
             }
           }
@@ -330,7 +365,7 @@ export const RegView=({mob})=>{
               const sec=course.sections.find(s=>s.slots.some(sl=>sl.day===day));
               if(sec){
                 const slots=sec.slots.flatMap(toGridSlots);
-                if(slots.length){ nOpt[course.code]=slots; nSec[course.code]=sec.section; nOptInfo[course.code]={name:course.name,cat:cat.name,cr:1}; }
+                if(slots.length){ nOpt[course.code]=slots; nSec[course.code]=sec.section; nOptInfo[course.code]={name:course.name,cat:cat.name,cr:course.credits||1,span:sec.quarter}; }
               }
             }
           }
@@ -346,12 +381,24 @@ export const RegView=({mob})=>{
     return {...p,sci:{...p.sci,[cid]:!off},req:off?{...p.req,[cid]:[]}:p.req,reqSec:ns};
   });
 
+  // ── Registration list (code / section to enter into the registration system) ──
+  const regList=useMemo(()=>active.map(c=>{
+    const sec=(reqSec||{})[c.id]||"";
+    const code=c.type==="opt"?c.id:((sectionData?.[c.name]||[]).find(x=>x.section===sec)?.code||"");
+    return {id:c.id,name:c.name,code,sec,cr:c.cr,col:c.col};
+  }),[active,reqSec,sectionData]);
+
+  const copyRegList=async()=>{
+    const lines=regList.map(r=>[r.code||"-",r.name,r.sec?`[${r.sec}]`:"",`${r.cr}${t("reg.creditsSuffix")}`].filter(Boolean).join(" "));
+    try{await navigator.clipboard.writeText([`${REG_YEAR} ${quarter}`,...lines].join("\n"));setCopied(true);setTimeout(()=>setCopied(false),2000);}catch{}
+  };
+
   const resetAll=()=>{if(confirm(t("reg.resetConfirm"))){up(()=>({req:{},reqSec:{},sci:{},opt:{},optInfo:{},unit:data.unit}));}};
 
   const fetchSyllabus=async(name)=>{
     setDetailCourse(name);setSyllabusLoading(true);setSyllabusData(null);
     try{
-      const r=await fetch(`/api/data/syllabus-search?q=${encodeURIComponent(name)}&year=2026&quarter=${quarter}`);
+      const r=await fetch(`/api/data/syllabus-search?q=${encodeURIComponent(name)}&year=${REG_YEAR}&quarter=${quarter}`);
       if(r.ok){const d=await r.json();setSyllabusData(d.courses||[]);}
       else setSyllabusData([]);
     }catch{setSyllabusData([]);}
@@ -548,7 +595,7 @@ export const RegView=({mob})=>{
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <div>
           <div style={{fontSize:mob?18:22,fontWeight:800,color:T.txH,letterSpacing:-.3}}>{t("reg.title")}</div>
-          <div style={{fontSize:12,color:T.txD,marginTop:2}}>{t("reg.academicYear",{year:2026})}</div>
+          <div style={{fontSize:12,color:T.txD,marginTop:2}}>{t("reg.academicYear",{year:REG_YEAR})}</div>
         </div>
         <button onClick={resetAll} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${T.bd}`,
           background:T.bg3,color:T.txD,fontSize:11,cursor:"pointer"}}>{t("reg.reset")}</button>
@@ -569,7 +616,7 @@ export const RegView=({mob})=>{
 
       {/* Quarter tabs */}
       <div style={{display:"flex",gap:4,marginBottom:16}}>
-        {["1Q","2Q"].map(q=>(
+        {QUARTERS.map(q=>(
           <button key={q} onClick={()=>switchQ(q)}
             style={{flex:1,padding:"10px 0",borderRadius:10,fontSize:14,fontWeight:700,cursor:"pointer",
               border:`2px solid ${q===quarter?T.accent:T.bd}`,
@@ -676,6 +723,30 @@ export const RegView=({mob})=>{
           ))}
         </div>
       </div>
+
+      {/* Registration list */}
+      {regList.length>0&&(
+        <div style={{background:T.bg2,borderRadius:14,border:`1px solid ${T.bd}`,padding:mob?12:16,marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",marginBottom:8}}>
+            <span style={{fontSize:14,fontWeight:700,color:T.txH,flex:1}}>{t("reg.regList",{quarter})}</span>
+            <button onClick={copyRegList}
+              style={{padding:"4px 12px",borderRadius:6,border:`1px solid ${copied?T.green:T.accent}40`,
+                background:`${copied?T.green:T.accent}10`,color:copied?T.green:T.accent,fontSize:11,fontWeight:600,cursor:"pointer"}}>
+              {copied?t("reg.copied"):t("reg.copyList")}
+            </button>
+          </div>
+          {regList.map(r=>(
+            <div key={r.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:`1px solid ${T.bd}08`}}>
+              <div style={{width:6,height:6,borderRadius:3,background:r.col,flexShrink:0}}/>
+              <span style={{fontSize:10,color:T.txD,fontFamily:"monospace",minWidth:mob?64:72,flexShrink:0}}>{r.code||"—"}</span>
+              <span style={{fontSize:12,color:T.txH,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</span>
+              {r.sec&&<span style={{fontSize:10,color:T.accent,background:`${T.accent}12`,padding:"1px 6px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{r.sec}</span>}
+              <span style={{fontSize:10,color:T.txD,flexShrink:0}}>{r.cr}{t("reg.creditsSuffix")}</span>
+            </div>
+          ))}
+          <div style={{fontSize:9,color:T.txD,marginTop:6,opacity:.8}}>{t("reg.regListNote")}</div>
+        </div>
+      )}
 
       {/* Required courses (1年 browsing only) */}
       {browseLevel===1&&curReq&&(

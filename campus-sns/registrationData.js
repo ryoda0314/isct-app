@@ -15,7 +15,7 @@ const COMMON_1Q = [
   { id:"la1", name:"線形代数学第一・演習", cr:2, col:"#6375f0",
     slots:[[0,0],[0,1],[1,1],[2,0],[2,1],[3,0],[3,1],[4,0],[4,1]] },
   { id:"risshi", name:"立志プロジェクト", cr:1, col:"#8b5cf6",
-    slots:[[0,2],[3,1],[3,2]] },
+    slots:[[0,2],[3,1],[3,2]], auto:false },
   { id:"info1", name:"情報リテラシ第一", cr:2, col:"#a855c7",
     slots:[[0,1],[2,0],[2,1],[3,0],[3,1]] },
 ];
@@ -56,8 +56,74 @@ const SCIENCE_2Q = [
     slots:[[1,0],[1,1],[4,0],[4,1]] },
 ];
 
+// ── 3Q/4Q 必修科目 ────────────────────────────
+// 英語第三/第四はクラス分け(LS/RW)で決まるためユニット一括設定の対象外
+const COMMON_3Q = [
+  { id:"eng3", name:"英語第三", cr:1, col:"#4a9ae0",
+    slots:[[0,0],[3,0]], auto:false },
+];
+const COMMON_4Q = [
+  { id:"eng4", name:"英語第四", cr:1, col:"#4a9ae0",
+    slots:[[0,0],[3,0]], auto:false },
+];
+
+// ── 3Q/4Q 理工系基礎 ──────────────────────────
+// auto:"range" → セクション名の (1～10) 等のユニット範囲で一括設定
+// 微積第二: ユニット1-40→4Q(M-P), 41-80→3Q(Q-T) / 線形第二: 1-40→3Q(M-P), 41-80→4Q(Q-T)
+// 化学: 量子化学基礎・化学熱力学基礎を3Q/4Qで1つずつ（手動選択）
+const SCIENCE_3Q = [
+  { id:"em1", name:"電磁気学基礎1", cr:1, col:"#e5534b",
+    slots:[[1,0],[1,1],[4,0],[4,1]] },
+  { id:"calc2", name:"微分積分学第二", cr:2, col:"#4f8cd6",
+    slots:[[0,0],[4,1],[1,0],[3,1]], auto:"range" },
+  { id:"calc2ex", name:"微分積分学演習第二", cr:1, col:"#4f8cd6",
+    slots:[[2,0],[2,1]], auto:"range" },
+  { id:"la2", name:"線形代数学第二", cr:2, col:"#6375f0",
+    slots:[[0,1],[4,0],[1,1],[3,0]], auto:"range" },
+  { id:"la2ex", name:"線形代数学演習第二", cr:1, col:"#6375f0",
+    slots:[[2,0],[2,1]], auto:"range" },
+  { id:"qchem", name:"量子化学基礎", cr:1, col:"#3dae72",
+    slots:[[1,0],[4,1]] },
+  { id:"thermo", name:"化学熱力学基礎", cr:1, col:"#2d9d8f",
+    slots:[[1,1],[4,0]] },
+  { id:"life21", name:"生命科学基礎第二1", cr:1, col:"#d4843e",
+    slots:[[1,0],[1,1],[4,0],[4,1]] },
+  { id:"cs1", name:"コンピュータサイエンス第一", cr:1, col:"#a855c7",
+    slots:[[0,0],[0,1],[2,0],[2,1],[3,0],[3,1]] },
+];
+const SCIENCE_4Q = [
+  { id:"em2", name:"電磁気学基礎2", cr:1, col:"#e5534b",
+    slots:[[1,0],[1,1],[4,0],[4,1]] },
+  { id:"calc2", name:"微分積分学第二", cr:2, col:"#4f8cd6",
+    slots:[[0,1],[4,0],[1,1],[3,0]], auto:"range" },
+  { id:"calc2ex", name:"微分積分学演習第二", cr:1, col:"#4f8cd6",
+    slots:[[2,0],[2,1]], auto:"range" },
+  { id:"la2", name:"線形代数学第二", cr:2, col:"#6375f0",
+    slots:[[0,0],[4,1],[1,0],[3,1]], auto:"range" },
+  { id:"la2ex", name:"線形代数学演習第二", cr:1, col:"#6375f0",
+    slots:[[2,0],[2,1]], auto:"range" },
+  { id:"qchem", name:"量子化学基礎", cr:1, col:"#3dae72",
+    slots:[[1,1],[4,0]] },
+  { id:"thermo", name:"化学熱力学基礎", cr:1, col:"#2d9d8f",
+    slots:[[1,0],[4,1]] },
+  { id:"life22", name:"生命科学基礎第二2", cr:1, col:"#d4843e",
+    slots:[[1,0],[1,1],[4,0],[4,1]] },
+  { id:"cs2", name:"コンピュータサイエンス第二", cr:1, col:"#a855c7",
+    slots:[[0,0],[0,1],[2,0],[2,1],[3,0],[3,1]] },
+];
+
 export const REQ_1Q = { common: COMMON_1Q, science: SCIENCE_1Q };
 export const REQ_2Q = { common: COMMON_2Q, science: SCIENCE_2Q };
+export const REQ_3Q = { common: COMMON_3Q, science: SCIENCE_3Q };
+export const REQ_4Q = { common: COMMON_4Q, science: SCIENCE_4Q };
+export const REQ_BY_Q = { "1Q":REQ_1Q, "2Q":REQ_2Q, "3Q":REQ_3Q, "4Q":REQ_4Q };
+export const QUARTERS = ["1Q","2Q","3Q","4Q"];
+/** 同じ学期のもう一方のクオーター (1Q↔2Q, 3Q↔4Q) */
+export const siblingQ = (q) => ({ "1Q":"2Q", "2Q":"1Q", "3Q":"4Q", "4Q":"3Q" })[q];
+/** "1-2Q"/"3-4Q" のように学期を通して開講されるか */
+export const isSemesterSpan = (q) => q === "1-2Q" || q === "3-4Q";
+/** 学年度（4月始まり） */
+export const academicYearOf = (d = new Date()) => d.getMonth() < 3 ? d.getFullYear() - 1 : d.getFullYear();
 
 // カテゴリ別カラー（選択科目表示用）
 export const CAT_COLORS = {
@@ -108,8 +174,10 @@ export const DEPT_LABELS = {
 export const UNIT_OPT = {
   'LAS.P105': 'phyex1',  // 物理学演習第一
   'LAS.P107': 'phylab',  // 物理学実験第一
+  'LAS.P106': 'phyex2',  // 物理学演習第二
+  'LAS.P108': 'phylab2', // 物理学実験第二
 };
-export const LAB_OPT = ['LAS.C110']; // 化学実験第一（曜日マッチ）
+export const LAB_OPT = ['LAS.C110','LAS.C112']; // 化学実験第一・第二（曜日マッチ）
 
 // ── ユニット番号 → セクション対応表 ──────────────
 // 16グループ（各5ユニット: 1-5, 6-10, ..., 76-80）
@@ -117,9 +185,12 @@ const MECH_SEC = ['A','B','C','D','I','J','K','L','E','F','G','H','M','N','O','P
 const PHYEX_SEC= ['a','b','c','d','i','j','k','l','e','f','g','h','m','n','o','p'];
 // 物理学実験: phyex a,b→Mon1Q / c,d→Tue1Q / i,j→Fri1Q / k,l→Thu1Q / e,f→Mon2Q / g,h→Tue2Q / m,n→Fri2Q / o,p→Thu2Q
 const PHYLAB_SEC=['Mon1Q','Mon1Q','Tue1Q','Tue1Q','Fri1Q','Fri1Q','Thu1Q','Thu1Q','Mon2Q','Mon2Q','Tue2Q','Tue2Q','Fri2Q','Fri2Q','Thu2Q','Thu2Q'];
+// 物理学実験第二は第一と同じ曜日パターンで 1Q→3Q / 2Q→4Q
+const PHYLAB2_SEC=PHYLAB_SEC.map(s=>s.replace('1Q','3Q').replace('2Q','4Q'));
 const LAB_DAYS = ['月','月','火','火','木','木','金','金','月','月','火','火','木','木','金','金'];
 
-export const UNIT_MAP = { mech1: MECH_SEC, mech2: MECH_SEC, phyex1: PHYEX_SEC, phylab: PHYLAB_SEC };
+// 電磁気学基礎は力学基礎と同じクラス(A-P)割り当て
+export const UNIT_MAP = { mech1: MECH_SEC, mech2: MECH_SEC, em1: MECH_SEC, em2: MECH_SEC, phyex1: PHYEX_SEC, phyex2: PHYEX_SEC, phylab: PHYLAB_SEC, phylab2: PHYLAB2_SEC };
 
 /** courseId + unitNum → セクション名 (A-P / a-p) or null */
 export function unitToSection(courseId, unitNum) {
