@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { verifySession, COOKIE_NAME } from '../../../../../lib/auth/session.js';
 import { getSupabaseAdmin } from '../../../../../lib/supabase/server.js';
 import { sendVerificationCode } from '../../../../../lib/email.js';
+import { consumeRateLimit } from '../../../../../lib/rate-limit.js';
 
 const scrypt = promisify(crypto.scrypt);
 
@@ -36,6 +37,12 @@ export async function POST(request) {
     }
     if (!password || password.length < 8) {
       return NextResponse.json({ error: 'パスワードは8文字以上にしてください' }, { status: 400 });
+    }
+
+    // Each send resets the verify-attempt counter, so cap sends per account —
+    // otherwise resend + 5 guesses could be repeated to brute-force the code.
+    if (!(await consumeRateLimit(`email-link:${session.loginId}`, { max: 5, windowSec: 60 * 60 }))) {
+      return NextResponse.json({ error: '確認コードの送信回数が上限に達しました。1時間ほど待ってから再度お試しください', code: 'email_send_limit' }, { status: 429 });
     }
 
     const sb = getSupabaseAdmin();

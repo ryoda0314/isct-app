@@ -62,3 +62,10 @@ data/trace-portal-*
 data/trace-*.png
 # Okta trace output (may contain student ID in screenshots; secrets are masked)
 data/okta-trace/
+
+# Device logs (Capacitor bridge logs may contain plugin arguments such as credentials)
+logcat*.txt
+*.logcat
+# SSO / portal / grades debug screenshots (student ID, 2FA, grades)
+data/sso-debug-*.png
+data/grades-*.png

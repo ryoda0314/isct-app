@@ -11,6 +11,66 @@ import { TermsOfServiceView } from "./TermsOfServiceView.jsx";
 
 const API = "";
 
+/* ── 認証APIの呼び出し ──
+   SSO/ポータル検証はサーバー側で Puppeteer を動かすため数十秒かかる。
+   タイムアウトやHTMLの障害ページが返っても JSON 解析エラーをそのまま見せず、
+   サーバーが返す code を原因別の翻訳済みメッセージに変換する。 */
+const REQUEST_TIMEOUT_MS = 90_000;
+const ERROR_CODE_KEYS = {
+  isct_password: "setup.errIsctPassword",
+  isct_totp: "setup.errIsctTotp",
+  isct_connect: "setup.errUpstream",
+  isct_network: "setup.errTimeout",
+  isct_unknown: "setup.isctAuthFailed",
+  portal_password: "setup.errPortalPassword",
+  portal_matrix: "setup.errPortalMatrix",
+  portal_connect: "setup.errUpstream",
+  portal_network: "setup.errTimeout",
+  portal_unknown: "setup.portalAuthFailed",
+  rate_limited: "setup.errRateLimited",
+  email_send_limit: "setup.errEmailSendLimit",
+  timeout: "setup.errTimeout",
+  network: "setup.errNetwork",
+  server: "setup.errServer",
+};
+// 入力を直しても解決しない（時間をおく/後で設定する）種類の失敗
+const TRANSIENT_CODES = new Set(["isct_connect", "isct_network", "isct_unknown", "portal_connect", "portal_network", "portal_unknown", "timeout", "network", "server", "rate_limited"]);
+
+class SetupError extends Error {
+  constructor(message, code) { super(message); this.code = code || null; }
+}
+
+async function postJson(url, body, fallbackMsg) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+  } catch (e) {
+    const code = e.name === "AbortError" ? "timeout" : "network";
+    throw new SetupError(t(ERROR_CODE_KEYS[code]), code);
+  } finally {
+    clearTimeout(timer);
+  }
+  let data = null;
+  try { data = await resp.json(); } catch {}
+  if (!resp.ok) {
+    const code = data?.code
+      || (resp.status === 429 ? "rate_limited"
+        : resp.status === 504 ? "timeout"
+        : (resp.status >= 500 || !data) ? "server" : null);
+    const key = ERROR_CODE_KEYS[code];
+    throw new SetupError(key ? t(key) : (data?.detail || data?.error || fallbackMsg), code);
+  }
+  if (!data) throw new SetupError(t("setup.errServer"), "server");
+  return data;
+}
+
 /* ─── 学籍番号パーサー ─── */
 // 新形式: "24B00001" → { year:"24", degree:"B", schoolNum:"0", yearGroup:"24B", schoolKey:"science" }
 // 旧医歯学系(〜23年度): "11220001" → 8桁数字, 先頭2桁が学科コード, 3-4桁目が入学年度
@@ -474,7 +534,7 @@ function ErrorBanner({ error }) {
    SetupView
    mode=null  → Welcome（新規登録 or ログイン を選択）
    mode="login"  → ログイン（ISCT資格情報のみ）
-   mode="signup" → 新規登録ウィザード（step 0〜2）
+   mode="signup" → 新規登録ウィザード（step 0〜4: ISCT → ポータル/学籍番号 → プロフィール・登録 → 学系・ユニット → メール連携）
    ================================================================ */
 export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, backLabel }) => {
   const [mode, setMode] = useState(null);
@@ -506,6 +566,9 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
   const [showYG, setShowYG] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [error, setError] = useState(null);
+  const [errorCode, setErrorCode] = useState(null);
+  const [portalSkipped, setPortalSkipped] = useState(false);
+  const showError = (err) => { setError(err.message); setErrorCode(err.code || null); };
 
   // Step 3: 学系・ユニット
   const [setupDeptSchool, setSetupDeptSchool] = useState(null);
@@ -575,12 +638,14 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
 
   const hasIsct = isctId && isctPw && totpSecret;
   const hasMatrix = COLS.every(c => ROWS.every(r => matrix[c]?.[r]));
-  const hasPortal = portalId && portalPw && hasMatrix;
+  const hasPortal = portalId && portalPw && hasMatrix && !portalSkipped;
   const hasMedId = isMedRoute && medStudentId && medFaculty && medDept;
   const hasAny = hasIsct || hasPortal || hasMedId;
 
   const goBack = () => {
     setError(null);
+    setErrorCode(null);
+    setPortalSkipped(false);
     if (mode === "login") { setMode(null); setLoginTab("isct"); return; }
     if (mode === "signup" && step === 0) { setMode(null); return; }
     if (mode === "signup" && step >= 3) return; // 完了後の画面からは戻れない
@@ -588,22 +653,18 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
   };
   const nextStep = async () => {
     setError(null);
+    setErrorCode(null);
 
     // Step 0: validate ISCT credentials via SSO
     if (step === 0 && hasIsct) {
       setConnecting(true);
       setConnectingMsg(t("setup.connectingIsct"));
       try {
-        const resp = await fetch(`${API}/api/auth/validate/isct`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: isctId, password: isctPw, totpSecret }),
-        });
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || t("setup.isctAuthFailed"));
+        await postJson(`${API}/api/auth/validate/isct`,
+          { userId: isctId, password: isctPw, totpSecret }, t("setup.isctAuthFailed"));
         setIsctValidated(true);
       } catch (err) {
-        setError(err.message);
+        showError(err);
         setConnecting(false);
         setConnectingMsg("");
         return;
@@ -617,15 +678,10 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
       setConnecting(true);
       setConnectingMsg(t("setup.connectingPortal"));
       try {
-        const resp = await fetch(`${API}/api/auth/validate/portal`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ portalUserId: portalId, portalPassword: portalPw, matrix }),
-        });
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || t("setup.portalAuthFailed"));
+        await postJson(`${API}/api/auth/validate/portal`,
+          { portalUserId: portalId, portalPassword: portalPw, matrix }, t("setup.portalAuthFailed"));
       } catch (err) {
-        setError(err.message);
+        showError(err);
         setConnecting(false);
         setConnectingMsg("");
         return;
@@ -657,18 +713,12 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
       if (hasPortal) { body.portalUserId = portalId; body.portalPassword = portalPw; body.matrix = matrix; }
       // 医歯学系: 学籍番号のみ
       if (hasMedId) body.studentId = medStudentId;
-      const resp = await fetch(`${API}/api/auth/setup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.detail || data.error);
+      await postJson(`${API}/api/auth/setup`, body, t("setup.loginFailed"));
       if (yearGroup) updateUserPref({ yearGroup, ...(school ? { school } : {}) });
       // Show post-registration guidance instead of going directly to main app
       setStep(3);
     } catch (err) {
-      setError(err.message);
+      showError(err);
     } finally {
       setConnecting(false);
       setConnectingMsg("");
@@ -680,16 +730,11 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
     setConnecting(true);
     setError(null);
     try {
-      const resp = await fetch(`${API}/api/auth/email/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailLogin, password: emailPw }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || t("setup.loginFailed"));
+      await postJson(`${API}/api/auth/email/login`,
+        { email: emailLogin, password: emailPw }, t("setup.loginFailed"));
       await onComplete();
     } catch (err) {
-      setError(err.message);
+      showError(err);
     } finally {
       setConnecting(false);
     }
@@ -1010,8 +1055,15 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
               </div>
               {hasPortal && <DoneBanner />}
               <div style={{ marginTop: 24 }}>
-                <button onClick={nextStep} disabled={!hasPortal} style={primaryBtnStyle(hasPortal)}>{t("setup.next")}</button>
+                <button onClick={nextStep} disabled={!hasPortal} style={primaryBtnStyle(hasPortal)}>{error && TRANSIENT_CODES.has(errorCode) ? t("setup.retry") : t("setup.next")}</button>
               </div>
+              {/* 大学側の障害・タイムアウト時はポータル連携を後回しにして先へ進める */}
+              {error && TRANSIENT_CODES.has(errorCode) && (
+                <div style={{ marginTop: 10 }}>
+                  <button onClick={() => { setPortalSkipped(true); setError(null); setErrorCode(null); setStep(s => s + 1); }} style={mutedBtnStyle}>{t("setup.setupPortalLater")}</button>
+                  <p style={{ fontSize: 12, color: T.txD, margin: "8px 2px 0", lineHeight: 1.5 }}>{t("setup.setupPortalLaterHint")}</p>
+                </div>
+              )}
             </>}
 
             {/* ── 医歯学系: 学籍番号 + 学部学科選択 ── */}
@@ -1418,15 +1470,10 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                   if (setupEmailPw.length < 8) { setError(t("setup.errPwMin8")); return; }
                   setEmailSaving(true); setError(null);
                   try {
-                    const r = await fetch(`${API}/api/auth/email/link`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ email: setupEmail, password: setupEmailPw }),
-                    });
-                    const d = await r.json();
-                    if (!r.ok) throw new Error(d.error || t("setup.errSendFailed"));
+                    await postJson(`${API}/api/auth/email/link`,
+                      { email: setupEmail, password: setupEmailPw }, t("setup.errSendFailed"));
                     setEmailPending(true);
-                  } catch (e) { setError(e.message); }
+                  } catch (e) { showError(e); }
                   setEmailSaving(false);
                 }} disabled={emailSaving || !setupEmail || !setupEmailPw}
                   style={{
@@ -1448,15 +1495,10 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                   if (emailCode.length !== 6) { setError(t("setup.errCode6")); return; }
                   setEmailSaving(true); setError(null);
                   try {
-                    const r = await fetch(`${API}/api/auth/email/verify`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ email: setupEmail, code: emailCode }),
-                    });
-                    const d = await r.json();
-                    if (!r.ok) throw new Error(d.error || t("setup.errVerifyFailed"));
+                    await postJson(`${API}/api/auth/email/verify`,
+                      { email: setupEmail, code: emailCode }, t("setup.errVerifyFailed"));
                     setEmailVerified(true);
-                  } catch (e) { setError(e.message); }
+                  } catch (e) { showError(e); }
                   setEmailSaving(false);
                 }} disabled={emailSaving || emailCode.length !== 6}
                   style={{

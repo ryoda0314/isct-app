@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { performPortalLogin } from '../../../../../lib/auth/portal-login.js';
 import { verifySession, COOKIE_NAME } from '../../../../../lib/auth/session.js';
 
+export const maxDuration = 60;
+
 export async function POST(request) {
   try {
     // Require a valid session — prevents unauthenticated abuse of Puppeteer resources
@@ -51,7 +53,7 @@ export async function POST(request) {
       unknown:  '認証に失敗しました。入力内容を確認してから再度お試しください。',
     };
     return NextResponse.json(
-      { valid: false, error: stepMessages[failedStep], failedStep },
+      { valid: false, error: stepMessages[failedStep] || stepMessages.unknown, code: `portal_${stepMessages[failedStep] ? failedStep : 'unknown'}`, failedStep },
       { status: 401 }
     );
   } catch (err) {

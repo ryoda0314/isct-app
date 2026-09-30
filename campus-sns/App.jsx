@@ -336,6 +336,10 @@ export default function App(){
   const [telecomMsg,setTelecomMsg]=useState("");
   const [lmsDown,setLmsDown]=useState(false);
   const [refreshing,setRefreshing]=useState(false);
+  // オフライン/古いデータの表示用: 端末のオンライン状態と、表示中データの取得時刻
+  const [netOnline,setNetOnline]=useState(()=>typeof navigator==="undefined"||navigator.onLine!==false);
+  const [dataAt,setDataAt]=useState(()=>{try{return Number(localStorage.getItem('dataAllCacheAt'))||null;}catch{return null;}});
+  const saveDataCache=(d)=>{const now=Date.now();try{localStorage.setItem('dataAllCache',JSON.stringify(d));localStorage.setItem('dataAllCacheAt',String(now));}catch{}setDataAt(now);};
 
   const lastAsnErrorRef=useRef(false);
   const startupBusyRef=useRef(true);
@@ -362,6 +366,7 @@ export default function App(){
       if(!raw) return false;
       const d=JSON.parse(raw);
       console.log('[App] loading cached data from localStorage');
+      setDataAt(Number(localStorage.getItem('dataAllCacheAt'))||null);
       const asnList=applyData(d);
       setLmsDown(true);
       return asnList;
@@ -442,7 +447,7 @@ export default function App(){
       }
       tag('parse');
       const d=await metaR.json();
-      try{localStorage.setItem('dataAllCache',JSON.stringify(d));}catch{}
+      saveDataCache(d);
       setLmsDown(false);
       const asnList=applyData(d);
       console.log(`[Timing] client-side total: ${(performance.now()-t0).toFixed(0)}ms`);
@@ -467,7 +472,7 @@ export default function App(){
     }
     if(!r.ok){console.error(`[App] /api/data/all failed: ${r.status} ${r.statusText}`);return loadCachedData();}
     const d=await r.json();
-    try{localStorage.setItem('dataAllCache',JSON.stringify(d));}catch{}
+    saveDataCache(d);
     setLmsDown(false);
     const asnList=applyData(d);
     console.log(`[Timing] /api/data/all total: ${(performance.now()-t0).toFixed(0)}ms${d.assignmentError?' [assignmentError]':''}`);
@@ -758,6 +763,38 @@ export default function App(){
   useEffect(()=>{if(allCourses&&allCourses.length)saveTimetableToWidget({allCourses,pastTTCache,defaultYear:_selY,defaultQuarter:quarter});},[allCourses,pastTTCache,quarter,_selY]);
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
   useEffect(()=>{try{localStorage.setItem("notifSettings",JSON.stringify(notifSettings));}catch{}},[notifSettings]);
+  // オンライン復帰時、前回データ（キャッシュ）表示中なら自動で取り直す
+  useEffect(()=>{
+    const goOnline=()=>{setNetOnline(true);if(appState==="ready"&&lmsDown&&!isDemoMode())fetchData({silentAuth:true}).then(r=>{if(r)setLmsDown(false);});};
+    const goOffline=()=>setNetOnline(false);
+    window.addEventListener("online",goOnline);window.addEventListener("offline",goOffline);
+    return()=>{window.removeEventListener("online",goOnline);window.removeEventListener("offline",goOffline);};
+  },[appState,lmsDown]);// eslint-disable-line react-hooks/exhaustive-deps
+  // 通知設定をサーバーへ同期する。プッシュ(Web Push/APNs)はサーバーが送るので、
+  // localStorageだけではアプリを閉じている間のプッシュを止められない。
+  // 初回: サーバーに保存済みならそれを採用、未保存なら端末の設定をアップロード。
+  const notifSyncRef=useRef({hydrated:false,last:null,timer:null});
+  const putNotifPrefs=(prefs)=>{const body=JSON.stringify(prefs);notifSyncRef.current.last=body;return fetch("/api/notifications/prefs",{method:"PUT",headers:{"Content-Type":"application/json"},body}).catch(()=>{});};
+  useEffect(()=>{
+    const s=notifSyncRef.current;
+    if(appState!=="ready"||isDemoMode()||s.hydrated)return;
+    let cancelled=false;
+    (async()=>{try{
+      const r=await fetch("/api/notifications/prefs");if(!r.ok||cancelled)return;
+      const d=await r.json();if(cancelled)return;
+      s.hydrated=true;
+      if(d.stored){const{enabled,course,deadline,dm,event}=d.prefs;s.last=JSON.stringify({enabled,course,deadline,dm,event});setNotifEnabled(enabled);setNotifSettings({course,deadline,dm,event});}
+      else putNotifPrefs({enabled:notifEnabled,...notifSettings});
+    }catch{}})();
+    return()=>{cancelled=true;};
+  },[appState]);// eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>{
+    const s=notifSyncRef.current;
+    if(!s.hydrated||isDemoMode())return;
+    const prefs={enabled:notifEnabled,course:notifSettings.course,deadline:notifSettings.deadline,dm:notifSettings.dm,event:notifSettings.event};
+    if(JSON.stringify(prefs)===s.last)return;
+    clearTimeout(s.timer);s.timer=setTimeout(()=>putNotifPrefs(prefs),600);
+  },[notifEnabled,notifSettings]);// eslint-disable-line react-hooks/exhaustive-deps
   const onSetupComplete=async()=>{try{const sr=await fetchT(`${API}/api/auth/status`);const sd=await sr.json();if(sd.loginId==="apple-review"){console.log("[App] review account detected, loading demo");onDemo("ss");return;}}catch{}const MAX=4;const attempt=async(n)=>{console.log(`[App] onSetupComplete: fetchData attempt ${n}/${MAX}`);const r=await fetchData();if(r){console.log(`[App] onSetupComplete: fetchData OK — ${r.length} assignments`);setAppState("ready");refreshRef.current=setInterval(async()=>{const r2=await fetchData();if(r2)fetchSubmissionStatuses(r2);},15*60*1000);fetchSiteSettings();fetchSubmissionStatuses(r);return;}if(n<MAX){const delay=n*2;console.warn(`[App] onSetupComplete: fetchData attempt ${n} failed, retrying in ${delay}s...`);await new Promise(r=>setTimeout(r,delay*1000));return attempt(n+1);}console.error(`[App] onSetupComplete: fetchData failed after ${MAX} attempts, returning to setup`);setAppState("setup");};await attempt(1);};
   const onDemo=(personaId)=>{const pd=buildDemoDataForPersona(personaId);setDemoMode(true);setScreenshotMode(personaId==="ss");setAllCourses(pd.courses);setQDataLive(pd.qdata);setAsgn(pd.asgn.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setCurrentUserFromAPI(pd.user);const medRaw=DEMO_MED_RAW_COURSES[personaId];if(medRaw){setMedRawCourses(medRaw);setDemoMedKey(personaId);const ms=buildDemoMedSessions(personaId);setMedSessions(ms.sessions||[]);}else{setMedRawCourses([]);setDemoMedKey(null);setMedSessions([]);}const q2c=pd.courses.find(c=>c.quarter===2);setCid(q2c?q2c.id:pd.courses[0].id);setQuarter(2);circleInit();try{localStorage.setItem("myLocation","lib");}catch{}setAppState("ready");};
 
@@ -825,7 +862,7 @@ export default function App(){
   const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,fetchGraph,fetchRecommendations,openProfile,isAdmin:!!user?.isAdmin,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat,blockUser,unblockUser,isBlocked,blocks:blockList,muteUser,unmuteUser,isMuted,mutes:muteList,refetch:refetchFriends};
   const profileProps={userId:profileId,user,lookupById,onStartDM:startDMFromFriend,sendRequest,acceptRequest,unfriend,blockUser,muteUser,unmuteUser,isMuted,onEditProfile:()=>setView("profile"),goBack,refetch:refetchFriends};
   const togTheme=()=>setThemePref(p=>p==="dark"?"light":"dark");
-  const onLogout=async()=>{setAnalyticsEnabled(false);analyticsStartedRef.current=false;setDemoMode(false);clearClientToken();try{await fetch("/api/auth/logout",{method:"POST"});}catch{}await clearNativeCookies();try{const{clearCreds}=await import("./secureCreds.js");await clearCreds();}catch{}if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
+  const onLogout=async()=>{notifSyncRef.current.hydrated=false;notifSyncRef.current.last=null;setDataAt(null);setAnalyticsEnabled(false);analyticsStartedRef.current=false;setDemoMode(false);clearClientToken();try{await fetch("/api/auth/logout",{method:"POST"});}catch{}await clearNativeCookies();try{const{clearCreds}=await import("./secureCreds.js");await clearCreds();}catch{}if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
 
   // Telecom restriction overlay — shown when regulated features are disabled
   const TelecomBlockView=({title,onBack})=><div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,gap:16}}>
@@ -947,14 +984,19 @@ export default function App(){
   const hasMed=medRawCourses.length>0||isMedDentalUser||!!user?.isAdmin;
   // 下部ナビの「時間割」を「医歯学時間割」に置き換える条件（admin単独では置き換えない）
   const medPrimary=medRawCourses.length>0||isMedDentalUser;
-  const lmsDownBanner=(lmsDown&&!isMedDentalUser&&!isFreshman26B)?<div style={{padding:"8px 16px",background:"#fef3cd",color:"#856404",fontSize:13,fontWeight:500,textAlign:"center",borderBottom:"1px solid #ffc107",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-    <span style={{fontSize:16}}>!</span>
-    <span>T2SCHOLAに接続できないため、前回のデータを表示しています</span>
+  // 表示中データの取得時刻（「◯分前」）。取得時刻が不明なら空文字
+  const dataAgo=(()=>{if(!dataAt)return"";const m=Math.floor((Date.now()-dataAt)/60000);if(m<1)return t("app.agoNow");if(m<60)return t("app.agoMin",{n:m});const h=Math.floor(m/60);if(h<24)return t("app.agoHour",{n:h});const d=new Date(dataAt);return t("app.agoDate",{d:`${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,"0")}`});})();
+  const offlineBanner=(!netOnline&&appState==="ready"&&!isDemoMode())?<div role="status" style={{padding:"8px 16px",background:"rgba(127,127,127,0.14)",color:T.txH,fontSize:13,fontWeight:500,textAlign:"center",borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>
+    {dataAgo?t("app.offlineShowingAt",{ago:dataAgo}):t("app.offlineNotice")}
+  </div>:null;
+  const lmsDownBanner=(netOnline&&lmsDown&&!isMedDentalUser&&!isFreshman26B)?<div role="status" style={{padding:"8px 16px",background:"#fef3cd",color:"#856404",fontSize:13,fontWeight:500,textAlign:"center",borderBottom:"1px solid #ffc107",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+    <span style={{fontSize:16}} aria-hidden="true">!</span>
+    <span>{dataAgo?t("app.lmsDownShowingAt",{ago:dataAgo}):t("app.lmsDown")}</span>
     <button onClick={async()=>{const r=await fetchData();if(r)setLmsDown(false);}} style={{marginLeft:8,padding:"3px 10px",borderRadius:6,border:"1px solid #856404",background:"transparent",color:"#856404",fontSize:12,cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}}>{t("app.retry")}</button>
   </div>:null;
-  const refreshingBanner=(refreshing&&!lmsDown)?<div style={{padding:"5px 14px",background:"rgba(127,127,127,0.10)",color:T.txD,fontSize:12,fontWeight:500,textAlign:"center",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+  const refreshingBanner=(refreshing&&!lmsDown&&netOnline)?<div style={{padding:"5px 14px",background:"rgba(127,127,127,0.10)",color:T.txD,fontSize:12,fontWeight:500,textAlign:"center",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
     <span style={{width:11,height:11,border:`2px solid ${T.txD}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"mnSpin .7s linear infinite"}}/>
-    <span>{langPref==="ja"?"最新の情報に更新中…":"Refreshing…"}</span>
+    <span>{t("app.refreshing")}</span>
   </div>:null;
   const TR=telecomRestricted;
   const courseContent=()=>{
@@ -1072,7 +1114,7 @@ export default function App(){
         {bp!=="mobile"&&view==="dept"&&cd&&<DChan dept={cd} ch={ch} setCh={setCh} online={online} members={deptMembers} compact={bp==="tablet"}/>}
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
           <DTop title={dTitle()} color={view==="course"&&cc?cc.col:view==="dept"&&cd?cd.col:undefined}/>
-          {lmsDownBanner}
+          {offlineBanner}{lmsDownBanner}
           {refreshingBanner}
           {view==="home"&&<HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit} medSessions={medSessions} setPendingMat={setPendingMat} records={attRecords} setStatus={setAttStatus}/>}
   {view==="timetable"&&(L?<LockedView title={t("nav.timetable")}/>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob={false} quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
@@ -1135,7 +1177,7 @@ export default function App(){
     <CallProvider me={user}>
     <div ref={el=>{if(!el)return;const pwa=window.matchMedia("(display-mode:standalone)").matches||window.navigator.standalone;const u=()=>{el.style.height=pwa?screen.height+"px":"100dvh";};u();window.addEventListener("resize",u);}} style={{display:"flex",flexDirection:"column",width:"100vw",overflow:"hidden",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif"}}>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0,position:"relative"}}>
-        {lmsDownBanner}
+        {offlineBanner}{lmsDownBanner}
         {refreshingBanner}
         {view==="home"&&<><MHdr title="ScienceTokyo App" right={<div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>setView("notif")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</button><button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button><button onClick={()=>openProfile(user?.moodleId||user?.id)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",padding:0}}><Av u={user} sz={26}/></button></div>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} setPendingMat={setPendingMat} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit} medSessions={medSessions} records={attRecords} setStatus={setAttStatus}/></>}
         {view==="timetable"&&(L?<><MHdr title={t("nav.timetable")}/><LockedView title={t("nav.timetable")}/></>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={fetchData} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}

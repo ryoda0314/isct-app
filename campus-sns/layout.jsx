@@ -241,7 +241,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
 // ============================================================
 
 const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false})=>{
-  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","languages","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket","takiplaza","gym","tsubame","train","library","pdftools","notes"];
+  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","languages","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket","takiplaza","gym","tsubame","train","library","pdftools","notes","music","grading","qr","attendance","textbooks","lecrec"];
   const ttId=hasMed?"med-tt":"timetable";
   const isMore=moreViews.includes(view)&&view!==ttId;
   return(
@@ -256,16 +256,20 @@ const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false})=>{
 // --- More Menu (mobile) ---
 
 const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})=>{
-  const otherItems=[{id:"bmarks",i:I.bmark,l:t("tool.bmarks")}];
+  const [q,setQ]=useState("");
+  const otherItems=[{id:"search",i:I.search,l:t("nav.search")},{id:"bmarks",i:I.bmark,l:t("tool.bmarks")}];
   if(isAdmin) otherItems.push({id:"admin",i:I.shield,l:t("nav.admin")});
   const sections=[
     {title:t("more.account"),items:[
       {id:"profile",i:I.user1,l:t("more.profileSettings")},
+      {id:"notif",i:I.bell,l:t("nav.notif"),b:unreadN},
     ]},
     {title:t("more.communication"),items:[
       {id:"friends",i:I.users,l:t("nav.friends"),b:pendingFriendCount},
+      {id:"circles",i:I.circle,l:t("nav.circles")},
+      {id:"events",i:I.event,l:t("tool.events")},
       {id:"languages",i:I.globe,l:t("nav.languages")},
-      {id:"pocket",i:I.clip,l:t("more.pocketDesc")},
+      {id:"pocket",i:I.inbox,l:t("more.pocketDesc")},
       {id:"music",i:I.music,l:t("tool.music")},
     ]},
     {title:t("more.gradesEval"),items:[
@@ -274,8 +278,9 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
       {id:"reviews",i:I.star,l:t("tool.reviews")},
     ]},
     {title:t("more.courses"),items:[
-      {id:"reg",i:I.pen,l:t("more.regAssist")},
-      {id:"acadCal",i:I.cal,l:t("tool.acadCal")},
+      {id:"calendar",i:I.cal,l:t("nav.calendar")},
+      {id:"reg",i:I.chk,l:t("more.regAssist")},
+      {id:"acadCal",i:I.flag,l:t("tool.acadCal")},
       {id:"exams",i:I.clip,l:t("tool.exams")},
       {id:"freeroom",i:I.pin,l:t("tool.freeroom")},
       {id:"attendance",i:I.attend,l:t("nav.attendance")},
@@ -294,29 +299,40 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
       {id:"gym",i:I.dumbbell,l:t("tool.gym")},
       {id:"tsubame",i:I.swallow,l:t("tool.tsubame")},
       {id:"train",i:I.train,l:t("nav.train")},
-      {id:"library",i:I.book,l:t("nav.library")},
-      {id:"freshman",i:I.grad,l:t("nav.freshman")},
+      {id:"library",i:I.tgt,l:t("nav.library")},
+      {id:"freshman",i:I.userPlus,l:t("nav.freshman")},
     ]},
     {title:t("more.other"),items:otherItems},
   ];
-  const Item=({n})=>(
-    <div onClick={()=>setView(n.id)} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",cursor:"pointer"}}>
-      <span style={{color:T.txD,display:"flex"}}>{n.i}</span>
+  // 絞り込み: ラベル(表示言語) と id の部分一致
+  const needle=q.trim().toLowerCase();
+  const shown=needle
+    ?sections.map(s=>({...s,items:s.items.filter(n=>String(n.l).toLowerCase().includes(needle)||n.id.toLowerCase().includes(needle))})).filter(s=>s.items.length)
+    :sections;
+  const renderItem=(n)=>(
+    <button onClick={()=>setView(n.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"11px 14px",cursor:"pointer",border:"none",background:"transparent",textAlign:"left",font:"inherit"}}>
+      <span style={{color:T.txD,display:"flex"}} aria-hidden="true">{n.i}</span>
       <span style={{flex:1,fontSize:14,color:T.txH,fontWeight:500}}>{n.l}</span>
       {n.b>0&&<span style={{minWidth:18,height:18,borderRadius:9,background:T.red,color:"#fff",fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px"}}>{n.b}</span>}
-      <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
-    </div>
+      <span style={{color:T.txD,display:"flex"}} aria-hidden="true">{I.arr}</span>
+    </button>
   );
   return(
     <div style={{flex:1,overflowY:"auto",padding:12}}>
-      {sections.map((s,si)=>(
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",marginBottom:14,borderRadius:10,background:T.bg2,border:`1px solid ${T.bd}`}}>
+        <span style={{color:T.txD,display:"flex"}} aria-hidden="true">{I.search}</span>
+        <input type="search" value={q} onChange={e=>setQ(e.target.value)} placeholder={t("more.searchPh")} aria-label={t("more.searchPh")}
+          style={{flex:1,minWidth:0,border:"none",outline:"none",background:"transparent",color:T.txH,fontSize:14}}/>
+      </div>
+      {shown.length===0&&<div style={{padding:"24px 8px",textAlign:"center",fontSize:13,color:T.txD}}>{t("more.noResults")}</div>}
+      {shown.map((s,si)=>(
         <div key={si} style={{marginBottom:16}}>
           <div style={{fontSize:11,fontWeight:700,color:T.txD,letterSpacing:.3,padding:"0 6px 6px",textTransform:"uppercase"}}>{s.title}</div>
           <div style={{borderRadius:12,background:T.bg2,border:`1px solid ${T.bd}`,overflow:"hidden"}}>
             {s.items.map((n,ni)=>(
               <div key={n.id}>
                 {ni>0&&<div style={{height:1,background:T.bd,margin:"0 14px"}}/>}
-                <Item n={n}/>
+                {renderItem(n)}
               </div>
             ))}
           </div>

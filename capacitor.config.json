@@ -2,6 +2,7 @@
   "appId": "ac.isct.campus",
   "appName": "ScienceTokyo",
   "webDir": "www",
+  "loggingBehavior": "none",
   "server": {
     "url": "https://sciencetokyo.app",
     "androidScheme": "https",

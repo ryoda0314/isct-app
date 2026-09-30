@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
-import { saveCredentials, deleteCredentials, hasCredentials } from '../../../../lib/credentials.js';
-import { getToken, invalidateToken } from '../../../../lib/auth/token-manager.js';
+import { saveCredentials } from '../../../../lib/credentials.js';
+import { loginWithCredentials } from '../../../../lib/auth/token-manager.js';
 import { createSessionToken, sessionCookieOptions, COOKIE_NAME, verifySession } from '../../../../lib/auth/session.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
+import { consumeRateLimit, clientIp } from '../../../../lib/rate-limit.js';
+
+export const maxDuration = 60;
 
 export async function POST(request) {
   try {
@@ -16,26 +19,21 @@ export async function POST(request) {
       return NextResponse.json({ error: 'ISCT または Portal の認証情報が必要です' }, { status: 400 });
     }
 
-    // 既存セッションがあればそのloginIdを優先（後からPortalを追加する場合に
-    // portalUserIdで別ファイルに保存してしまうのを防ぐ）
-    const cookieEarly = request.cookies.get(COOKIE_NAME)?.value;
-    const sessionEarly = verifySession(cookieEarly);
-    const loginId = sessionEarly?.loginId || userId || portalUserId;
+    const cookie = request.cookies.get(COOKIE_NAME)?.value;
+    const session = verifySession(cookie);
 
-    const hadCreds = await hasCredentials(loginId);
-
-    // Build credential object — only set fields that were actually provided
-    // so saveCredentials can merge with existing without clobbering.
-    const credData = {};
-    if (password) credData.password = password;
-    if (totpSecret) credData.totpSecret = totpSecret;
-    if (hasPortal) {
-      credData.portalUserId = portalUserId;
-      credData.portalPassword = portalPassword;
-      credData.matrix = matrix;
+    // Which account the credentials belong to:
+    //  - ISCT credentials present → that ISCT account (a stale session for a
+    //    different account must not receive them)
+    //  - Portal only → only allowed on top of an existing session, so nobody can
+    //    attach / overwrite portal credentials on an account they don't own
+    if (!hasIsct && !session) {
+      return NextResponse.json({ error: 'ログインが必要です', code: 'not_authenticated' }, { status: 401 });
     }
+    const loginId = hasIsct ? userId : session.loginId;
+    const sessionOwnsAccount = session?.loginId === loginId;
 
-    await saveCredentials(loginId, credData);
+    const portalData = hasPortal ? { portalUserId, portalPassword, matrix } : {};
 
     // portalUserId or studentId (学籍番号) を profiles に保存
     const saveStudentId = async (moodleId) => {
@@ -57,53 +55,57 @@ export async function POST(request) {
     };
 
     if (hasIsct) {
-      // If already validated in Step 0, use existing session instead of re-doing SSO
-      const cookie = request.cookies.get(COOKIE_NAME)?.value;
-      const existingSession = isctValidated ? verifySession(cookie) : null;
-
-      if (existingSession?.loginId === loginId) {
-        // Already authenticated — just save portal credentials and student_id
-        saveStudentId(existingSession.moodleUserId);
-        const response = NextResponse.json({ success: true, moodleUserId: existingSession.moodleUserId });
-        return response;
+      // Already validated in Step 0 (validate/isct saved the verified ISCT
+      // credentials and issued this session) — only add portal data / student_id.
+      if (isctValidated && sessionOwnsAccount) {
+        if (hasPortal) await saveCredentials(loginId, portalData);
+        saveStudentId(session.moodleUserId);
+        return NextResponse.json({ success: true, moodleUserId: session.moodleUserId });
       }
 
-      // Full SSO login (not pre-validated)
-      invalidateToken(loginId);
+      const ipOk = await consumeRateLimit(`setup:ip:${clientIp(request)}`, { max: 10, windowSec: 60 * 60 });
+      const accountOk = ipOk && await consumeRateLimit(`setup:id:${loginId}`, { max: 3, windowSec: 15 * 60 });
+      if (!ipOk || !accountOk) {
+        return NextResponse.json(
+          { error: '試行回数が上限に達しました。しばらく待ってから再試行してください', code: 'rate_limited' },
+          { status: 429 }
+        );
+      }
+
+      // Verify with a fresh SSO login BEFORE touching stored credentials
+      let userid, fullname;
       try {
-        const { userid, fullname } = await getToken(loginId);
-
-        // Ensure profile exists in DB
-        try {
-          const sb = getSupabaseAdmin();
-          await sb.from('profiles').upsert(
-            { moodle_id: userid, name: fullname || `User ${userid}` },
-            { onConflict: 'moodle_id', ignoreDuplicates: false }
-          );
-        } catch (e) {
-          console.error('[AuthSetup] profile upsert:', e.message);
-        }
-
-        saveStudentId(userid);
-        const token = createSessionToken(loginId, userid);
-        const response = NextResponse.json({ success: true, moodleUserId: userid });
-        response.cookies.set(COOKIE_NAME, token, sessionCookieOptions());
-        return response;
+        ({ userid, fullname } = await loginWithCredentials(loginId, { password, totpSecret }));
       } catch (loginErr) {
-        if (!hadCreds) await deleteCredentials(loginId);
-        invalidateToken(loginId);
-        return NextResponse.json({ error: 'LMS login failed' }, { status: 401 });
+        console.error('[AuthSetup] SSO failed:', loginErr.message);
+        const step = loginErr.failedStep || 'unknown';
+        return NextResponse.json({ error: 'LMS login failed', code: `isct_${step}`, failedStep: step }, { status: 401 });
       }
+
+      await saveCredentials(loginId, { password, totpSecret, ...portalData });
+
+      try {
+        const sb = getSupabaseAdmin();
+        await sb.from('profiles').upsert(
+          { moodle_id: userid, name: fullname || `User ${userid}` },
+          { onConflict: 'moodle_id', ignoreDuplicates: false }
+        );
+      } catch (e) {
+        console.error('[AuthSetup] profile upsert:', e.message);
+      }
+
+      saveStudentId(userid);
+      const token = createSessionToken(loginId, userid);
+      const response = NextResponse.json({ success: true, moodleUserId: userid });
+      response.cookies.set(COOKIE_NAME, token, sessionCookieOptions());
+      return response;
     }
 
-    // Portal only — save credentials but skip LMS login
-    // 既存セッションがあれば student_id を保存
-    const cookie = request.cookies.get(COOKIE_NAME)?.value;
-    const session = verifySession(cookie);
-    if (session?.moodleUserId) saveStudentId(session.moodleUserId);
+    // Portal only (authenticated): add portal credentials to the session's account
+    await saveCredentials(loginId, portalData);
+    if (session.moodleUserId) saveStudentId(session.moodleUserId);
 
-    const response = NextResponse.json({ success: true, portalOnly: true });
-    return response;
+    return NextResponse.json({ success: true, portalOnly: true });
   } catch (err) {
     console.error('[AuthSetup] POST error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });

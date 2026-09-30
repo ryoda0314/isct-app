@@ -4,9 +4,9 @@ import { NextResponse } from 'next/server';
 // WARNING: In-memory rate limiting is ineffective on Vercel serverless.
 // Each cold start creates a fresh Map, so attackers can bypass limits by
 // waiting for instance recycling or hitting different edge functions.
-// TODO: Migrate to Vercel KV, Upstash Redis, or Supabase-based rate limiting
-// for production-grade protection. The login brute force protection in
-// auth/login/route.js has the same limitation.
+// This layer is only a cheap coarse throttle (a DB round-trip per request would
+// be too costly). Security-relevant limits — login / email login / credential
+// validation / setup — use the shared Supabase counters in lib/rate-limit.js.
 const hits = new Map();
 const TIERS = {
   auth:   { window: 60_000, max: 10 },   // 認証系: 10 req/min

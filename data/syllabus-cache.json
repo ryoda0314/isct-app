@@ -1,5 +1,5 @@
 {
-  "timestamp": 1784097580917,
+  "timestamp": 1790749504343,
   "courses": {
     "@202601913": [
       {
@@ -124,9 +124,9 @@
         "day": "火",
         "periodStart": 5,
         "periodEnd": 8,
-        "room": "W3-201",
+        "room": "I1-256",
         "quarter": "2Q",
-        "building": "W3",
+        "building": "I1",
         "dept": "MEC",
         "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601870"
       }
@@ -137,9 +137,9 @@
         "day": "火",
         "periodStart": 5,
         "periodEnd": 8,
-        "room": "W3-201",
+        "room": "I1-256",
         "quarter": "2Q",
-        "building": "W3",
+        "building": "I1",
         "dept": "MEC",
         "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/2/0-902-321500-0-0/202601870"
       }
@@ -259,6 +259,45 @@
         "building": "W3",
         "dept": "LAL",
         "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110300-0/202601569"
+      }
+    ],
+    "@202600827": [
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "WL2-201",
+        "quarter": "4Q",
+        "building": "WL2",
+        "dept": "LAH",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110100-0/202600827"
+      }
+    ],
+    "LAH.C301:20": [
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "WL2-201",
+        "quarter": "4Q",
+        "building": "WL2",
+        "dept": "LAH",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110100-0/202600827"
+      }
+    ],
+    "LAH.C301": [
+      {
+        "per": "月3-4",
+        "day": "月",
+        "periodStart": 3,
+        "periodEnd": 4,
+        "room": "WL2-201",
+        "quarter": "4Q",
+        "building": "WL2",
+        "dept": "LAH",
+        "syllabusUrl": "https://syllabus.s.isct.ac.jp/courses/2026/7/0-907-0-110100-0/202600827"
       }
     ],
     "@202501822": [

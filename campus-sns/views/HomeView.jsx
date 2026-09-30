@@ -272,7 +272,11 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
         else showToast(t("toast.attendOutside",{d:Math.round(distance)}));
         setAttBusy(null);
       },
-      ()=>{showToast(t("toast.attendNoGps"));setAttBusy(null);},
+      (err)=>{
+        // 拒否(1)は設定で許可が必要、タイムアウト(3)は屋内などで再試行を促す
+        showToast(t(err?.code===1?"toast.attendGpsDenied":err?.code===3?"toast.attendGpsTimeout":"toast.attendNoGps"));
+        setAttBusy(null);
+      },
       {enableHighAccuracy:true,timeout:10000,maximumAge:5000}
     );
   };

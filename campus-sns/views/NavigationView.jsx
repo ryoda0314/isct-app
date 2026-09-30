@@ -246,9 +246,38 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const fittedDetailRef=useRef(null);
   const fittedRouteRef=useRef(null);
 
-  // マップ表示用の常時GPS更新（案内中はstartWatchが担当するのでスキップ）
+  // 位置情報の利用同意。地図を開いた瞬間にOSの許可ダイアログを出さず、用途を説明してから求める。
+  // 位置は端末内の地図表示・ルート案内にのみ使い、このビューからサーバーへは送信しない。
+  const [locConsent,setLocConsent]=useState(()=>{try{return localStorage.getItem("mapLocConsent");}catch{return null;}}); // "granted" | "declined" | null
+  const [locDenied,setLocDenied]=useState(false);   // OS/ブラウザ側でブロックされている
+  const [locDeniedMsg,setLocDeniedMsg]=useState(false); // ユーザー操作で取得を試みて拒否された
+  const [pageVisible,setPageVisible]=useState(()=>typeof document==="undefined"||document.visibilityState!=="hidden");
+  const saveLocConsent=(v)=>{setLocConsent(v);try{localStorage.setItem("mapLocConsent",v);}catch{}};
   useEffect(()=>{
-    if(guiding||!navigator.geolocation)return;
+    // すでにOS側で許可済みなら説明は省略、ブロック済みなら案内を出さない
+    if(locConsent||!navigator.permissions?.query)return;
+    navigator.permissions.query({name:"geolocation"}).then(p=>{
+      if(p.state==="granted")saveLocConsent("granted");
+      else if(p.state==="denied")setLocDenied(true);
+    }).catch(()=>{});
+  },[]);// eslint-disable-line react-hooks/exhaustive-deps
+  // バックグラウンド中はGPSを止めて電池消費を抑える
+  useEffect(()=>{
+    const on=()=>setPageVisible(document.visibilityState!=="hidden");
+    document.addEventListener("visibilitychange",on);
+    return()=>document.removeEventListener("visibilitychange",on);
+  },[]);
+  const onGeoOk=()=>{if(locConsent!=="granted")saveLocConsent("granted");setLocDenied(false);setLocDeniedMsg(false);};
+  const onGeoErr=(err,userInitiated)=>{if(err?.code===1){setLocDenied(true);if(userInitiated)setLocDeniedMsg(true);}};
+  const requestLocation=()=>{
+    if(!navigator.geolocation)return;
+    navigator.geolocation.getCurrentPosition(onGeoOk,(e)=>onGeoErr(e,true),{enableHighAccuracy:true,timeout:10000,maximumAge:30000});
+  };
+
+  // マップ表示用の常時GPS更新（案内中はstartWatchが担当するのでスキップ）
+  // 同意済みかつ画面表示中のときだけ動かす
+  useEffect(()=>{
+    if(guiding||!navigator.geolocation||locConsent!=="granted"||!pageVisible)return;
     const id=navigator.geolocation.watchPosition(
       (pos)=>{
         const {latitude:rawLat,longitude:rawLng,accuracy}=pos.coords;
@@ -264,11 +293,11 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
           mapInst.current.flyTo([lat,lng],CAMPUS_ZOOM,{duration:0.6});
         }
       },
-      ()=>{},
+      (e)=>onGeoErr(e,false),
       {enableHighAccuracy:true,timeout:10000,maximumAge:2000}
     );
     return ()=>{navigator.geolocation.clearWatch(id);prevGpsRef.current=null;};
-  },[guiding]);
+  },[guiding,locConsent,pageVisible]);// eslint-disable-line react-hooks/exhaustive-deps
 
   // ルート座標をrefに同期（watchPositionコールバック内で参照するため）
   useEffect(()=>{routeCoordsRef.current=route?.coords||null;},[route]);
@@ -320,7 +349,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
           setOrigin("__gps__");setGpsOriginPos({lat,lng});setOriginFromGps(true);
         }
       },
-      ()=>{},
+      (e)=>onGeoErr(e,true),
       {enableHighAccuracy:true,timeout:10000,maximumAge:2000}
     );
     watchIdRef.current=id;
@@ -494,12 +523,12 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         const {latitude:lat,longitude:lng,accuracy}=pos.coords;
         setGpsPos({lat,lng,accuracy});
         setOrigin("__gps__");setGpsOriginPos({lat,lng});setOriginFromGps(true);
-        setGpsLoading(false);
+        setGpsLoading(false);onGeoOk();
       },
-      ()=>setGpsLoading(false),
+      (e)=>{setGpsLoading(false);onGeoErr(e,true);},
       {enableHighAccuracy:true,timeout:10000,maximumAge:30000}
     );
-  },[setOrigin,setGpsOriginPos]);
+  },[setOrigin,setGpsOriginPos,locConsent]);// eslint-disable-line react-hooks/exhaustive-deps
 
   // Accept initial origin+destination from external navigation (e.g. TTView/HomeView building click)
   useEffect(()=>{
@@ -1108,6 +1137,23 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     {routeCard}
     {routePill}
     {noRouteCard}
+    {/* 位置情報: 事前説明（未同意時のみ・検索画面のとき） / 拒否時の案内 */}
+    {!guiding&&navPhase==="search"&&((locConsent==null&&!locDenied)||locDeniedMsg)&&!!navigator.geolocation&&<div role="dialog" aria-live="polite" style={{position:"absolute",left:mob?10:14,right:mob?10:"auto",bottom:mob?16:20,width:mob?"auto":cardW,zIndex:1000,padding:"12px 14px",background:T.bg2,borderRadius:14,boxShadow:"0 4px 20px rgba(0,0,0,.35)",border:`1px solid ${T.bd}`}}>
+      {locDeniedMsg?<>
+        <div style={{fontSize:13,fontWeight:700,color:T.txH}}>{t("navi.locDeniedTitle")}</div>
+        <div style={{fontSize:12,color:T.txD,marginTop:4,lineHeight:1.5}}>{t("navi.locDeniedBody")}</div>
+        <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}>
+          <button onClick={()=>setLocDeniedMsg(false)} style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:600,color:T.txD}}>{t("navi.locClose")}</button>
+        </div>
+      </>:<>
+        <div style={{fontSize:13,fontWeight:700,color:T.txH}}>{t("navi.locPromptTitle")}</div>
+        <div style={{fontSize:12,color:T.txD,marginTop:4,lineHeight:1.5}}>{t("navi.locPromptBody")}</div>
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
+          <button onClick={()=>saveLocConsent("declined")} style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:600,color:T.txD}}>{t("navi.locNotNow")}</button>
+          <button onClick={requestLocation} style={{padding:"6px 14px",borderRadius:8,border:"none",background:"#4285f4",cursor:"pointer",fontSize:12,fontWeight:700,color:"#fff"}}>{t("navi.locAllow")}</button>
+        </div>
+      </>}
+    </div>}
     {/* 案内中: 終了ボタン（searchCardが非表示のため） */}
     {guiding&&<div style={{position:"absolute",top:mob?10:14,left:mob?10:14,right:mob?10:"auto",width:cardW,zIndex:1000}}>
       <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:T.bg2,borderRadius:14,boxShadow:"0 4px 20px rgba(0,0,0,.4)",border:`1px solid #4de8b060`}}>

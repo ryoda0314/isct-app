@@ -4,35 +4,14 @@ import { promisify } from 'node:util';
 import { createSessionToken, sessionCookieOptions, COOKIE_NAME } from '../../../../../lib/auth/session.js';
 import { getSupabaseAdmin } from '../../../../../lib/supabase/server.js';
 import { resetCircuitBreaker } from '../../../../../lib/auth/token-manager.js';
+import { isRateLimited, recordAttempt, clearRateLimit, clientIp } from '../../../../../lib/rate-limit.js';
 
 const scrypt = promisify(crypto.scrypt);
 
-// Brute force protection (mirrors auth/login pattern)
-// WARNING: In-memory — resets on serverless cold starts. See auth/login for details.
-const loginAttempts = new Map();
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_MS = 15 * 60 * 1000;
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of loginAttempts) {
-    if (now - v.first > LOCKOUT_MS) loginAttempts.delete(k);
-  }
-}, 5 * 60 * 1000);
-
-function checkLoginRate(email) {
-  const now = Date.now();
-  const rec = loginAttempts.get(email);
-  if (!rec) return true;
-  if (now - rec.first > LOCKOUT_MS) { loginAttempts.delete(email); return true; }
-  return rec.count < MAX_ATTEMPTS;
-}
-function recordFailed(email) {
-  const now = Date.now();
-  const rec = loginAttempts.get(email);
-  if (!rec || now - rec.first > LOCKOUT_MS) {
-    loginAttempts.set(email, { count: 1, first: now });
-  } else { rec.count++; }
-}
+// Brute force protection — failed attempts are counted per email and per IP
+// in Supabase (supabase/rate-limits.sql) so limits hold across instances.
+const PER_EMAIL = { max: 5, windowSec: 15 * 60 };
+const PER_IP = { max: 30, windowSec: 60 * 60 };
 
 async function verifyPassword(password, hash) {
   const [salt, key] = hash.split(':');
@@ -52,7 +31,17 @@ export async function POST(request) {
     const normalizedEmail = email.toLowerCase();
 
     // Brute force protection
-    if (!checkLoginRate(normalizedEmail)) {
+    const emailKey = `email-login:${normalizedEmail}`;
+    const ipKey = `email-login:ip:${clientIp(request)}`;
+    const recordFailed = () => Promise.all([
+      recordAttempt(emailKey, PER_EMAIL),
+      recordAttempt(ipKey, PER_IP),
+    ]);
+    const [emailLimited, ipLimited] = await Promise.all([
+      isRateLimited(emailKey, PER_EMAIL),
+      isRateLimited(ipKey, PER_IP),
+    ]);
+    if (emailLimited || ipLimited) {
       return NextResponse.json(
         { error: 'ログイン試行回数が上限に達しました。しばらく待ってから再試行してください' },
         { status: 429 }
@@ -67,15 +56,17 @@ export async function POST(request) {
       .single();
 
     if (error || !auth) {
-      recordFailed(normalizedEmail);
+      await recordFailed();
       return NextResponse.json({ error: 'メールアドレスまたはパスワードが正しくありません' }, { status: 401 });
     }
 
     const valid = await verifyPassword(password, auth.pw_hash);
     if (!valid) {
-      recordFailed(normalizedEmail);
+      await recordFailed();
       return NextResponse.json({ error: 'メールアドレスまたはパスワードが正しくありません' }, { status: 401 });
     }
+
+    await clearRateLimit(emailKey);
 
     // Upsert profile name (in case it's missing)
     try {
