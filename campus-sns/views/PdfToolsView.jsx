@@ -4,6 +4,8 @@ import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { isNative } from "../capacitor.js";
 import { loadPdfLib } from "../bulkDownload.js";
+import { hasEncryption, decryptPdf, preloadQpdf, PdfPasswordError } from "../pdfUnlock.js";
+import { PdfPasswordPrompt } from "../components/PdfPasswordPrompt.jsx";
 
 /* ──────────────────────────────────────────────
    CDN loaders (jsdelivr — already allowed by CSP)
@@ -182,10 +184,13 @@ export function PdfToolsView({ mob = false }) {
   const [dragId, setDragId] = useState(null);
   const [overId, setOverId] = useState(null);
   const [dropActive, setDropActive] = useState(false);
+  /* パスワード入力待ち: { name, incorrect, resolve } — resolve(pw|null) */
+  const [pwAsk, setPwAsk] = useState(null);
   const fileRef = useRef(null);
   const camRef = useRef(null);
   const pdfCache = useRef({}); // docId -> Promise<pdf proxy>
   // getPdf が常に最新の docs を参照できるよう ref を保持
+  useEffect(() => { const id = setTimeout(preloadQpdf, 1500); return () => clearTimeout(id); }, []);
   const docsRef = useRef(docs);
   useEffect(() => { docsRef.current = docs; }, [docs]);
 
@@ -207,7 +212,7 @@ export function PdfToolsView({ mob = false }) {
   }, []);
 
   // bytes(=PDF) を doc として登録し、全ページを pagePlan に追加する共通処理
-  const registerDocFromBytes = useCallback(async (bytes, name, lib) => {
+  const registerDocFromBytes = useCallback(async (bytes, name, lib, unlocked = false) => {
     const proxy = await lib.getDocument({
       data: bytes.slice(),
       cMapUrl: `${PDFJS_CDN}/cmaps/`,
@@ -217,12 +222,39 @@ export function PdfToolsView({ mob = false }) {
     const docId = uid();
     pdfCache.current[docId] = Promise.resolve(proxy);
     const n = proxy.numPages;
-    setDocs(prev => ({ ...prev, [docId]: { id: docId, name, pageCount: n, bytes } }));
+    setDocs(prev => ({ ...prev, [docId]: { id: docId, name, pageCount: n, bytes, unlocked } }));
     setPages(prev => [
       ...prev,
       ...Array.from({ length: n }, (_, i) => ({ id: `${docId}-${i}-${uid()}`, docId, pageIndex: i })),
     ]);
   }, []);
+
+  /* パスワード入力をモーダルで待つ。キャンセルで null */
+  const askPassword = (name, incorrect) => new Promise(resolve => {
+    setBusy(false);
+    setPwAsk({ name, incorrect, resolve });
+  });
+
+  /* 暗号化を外したバイト列を返す。権限パスワードのみなら入力不要。キャンセル/失敗は null */
+  const unlockPdf = async (bytes, name) => {
+    setBusyMsg(t("pdf.unlocking"));
+    try {
+      return await decryptPdf(bytes); // 権限パスワードのみ(印刷・コピー禁止等)ならこれで外れる
+    } catch (e) {
+      if (!(e instanceof PdfPasswordError)) { console.error("[pdftools] unlock", e?.message); setErr(t("pdf.unlockFailed", { name })); return null; }
+    }
+    let incorrect = false;
+    for (;;) {
+      const pw = await askPassword(name, incorrect);
+      if (pw == null) return null;
+      setBusy(true); setBusyMsg(t("pdf.unlocking"));
+      try { return await decryptPdf(bytes, pw); }
+      catch (e) {
+        if (e instanceof PdfPasswordError) { incorrect = true; continue; }
+        console.error("[pdftools] unlock", e?.message); setErr(t("pdf.unlockFailed", { name })); return null;
+      }
+    }
+  };
 
   const addFiles = useCallback(async (fileList) => {
     const files = Array.from(fileList || []).filter(f => f.type === "application/pdf" || /\.pdf$/i.test(f.name));
@@ -235,7 +267,10 @@ export function PdfToolsView({ mob = false }) {
       for (const file of files) {
         if (file.size > MAX_SIZE) { setErr(t("pdf.tooLarge", { name: file.name })); continue; }
         const buf = new Uint8Array(await file.arrayBuffer());
-        await registerDocFromBytes(buf, file.name, lib);
+        if (!hasEncryption(buf)) { await registerDocFromBytes(buf, file.name, lib); continue; }
+        // 暗号化PDF: 結合・保存(pdf-lib)には復号が必要なので qpdf で暗号化を外してから取り込む
+        const plain = await unlockPdf(buf, file.name);
+        if (plain) await registerDocFromBytes(plain, file.name, lib, true);
       }
     } catch (e) {
       console.error("[pdftools] addFiles", e);
@@ -330,7 +365,11 @@ export function PdfToolsView({ mob = false }) {
       }
       const bytes = await out.save();
       const blob = new Blob([bytes], { type: "application/pdf" });
-      const fname = `merged-${new Date().toISOString().slice(0, 10)}.pdf`;
+      const srcIds = [...new Set(pages.map(p => p.docId))];
+      const one = srcIds.length === 1 ? docs[srcIds[0]] : null;
+      const fname = one
+        ? `${(one.name || "document").replace(/\.pdf$/i, "")}${one.unlocked ? "_unlocked" : ""}.pdf`
+        : `merged-${new Date().toISOString().slice(0, 10)}.pdf`;
       await saveBlob(blob, fname);
     } catch (e) {
       console.error("[pdftools] export", e);
@@ -466,7 +505,8 @@ export function PdfToolsView({ mob = false }) {
             <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 6 }}>{t("pdf.emptyTitle")}</div>
             <div style={{ fontSize: 13, color: T.txD, lineHeight: 1.6 }}>
               {mob ? t("pdf.tapToSelect") : t("pdf.clickOrDrop")}<br />
-              {t("pdf.multiHint")}
+              {t("pdf.multiHint")}<br />
+              {t("pdf.passwordHint")}
             </div>
           </div>
           <button onClick={pickCamera} style={{ ...btnGhost, marginTop: 16, padding: "10px 18px", fontSize: 13.5 }}>
@@ -479,6 +519,11 @@ export function PdfToolsView({ mob = false }) {
           {err && <div style={{ marginTop: 14, fontSize: 12.5, color: T.red, fontWeight: 600 }}>{err}</div>}
         </div>
         {busy && <BusyOverlay msg={busyMsg} />}
+        {pwAsk && (
+          <PdfPasswordPrompt overlay fileName={pwAsk.name} incorrect={pwAsk.incorrect}
+            onSubmit={pw => { const r = pwAsk.resolve; setPwAsk(null); r(pw); }}
+            onCancel={() => { const r = pwAsk.resolve; setPwAsk(null); r(null); }} />
+        )}
       </div>
     );
   }
@@ -544,6 +589,12 @@ export function PdfToolsView({ mob = false }) {
                   title={t("pdf.deletePage")}
                   style={{ position: "absolute", top: 5, right: 5, zIndex: 2, padding: 5, borderRadius: 6, border: "none", background: "rgba(0,0,0,.55)", color: "#fff", cursor: "pointer", display: "flex" }}
                 >{I.trash}</button>
+                {docs[p.docId]?.unlocked && (
+                  <div title={t("pdf.unlocked")} style={{ position: "absolute", bottom: 38, left: 6, zIndex: 2, display: "flex", alignItems: "center", gap: 3, background: "rgba(0,0,0,.6)", color: "#fff", fontSize: 9.5, fontWeight: 700, padding: "2px 6px", borderRadius: 5 }}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 019.9-1" /></svg>
+                    {t("pdf.unlocked")}
+                  </div>
+                )}
                 {/* thumbnail */}
                 <div style={{ aspectRatio: "3 / 4", background: T.bg3, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                   <PageThumb getPdf={getPdf} docId={p.docId} pageIndex={p.pageIndex} />
@@ -570,6 +621,11 @@ export function PdfToolsView({ mob = false }) {
         <PreviewOverlay getPdf={getPdf} pages={pages} docs={docs} startId={previewId} onClose={() => setPreviewId(null)} />
       )}
       {busy && <BusyOverlay msg={busyMsg} />}
+      {pwAsk && (
+        <PdfPasswordPrompt overlay fileName={pwAsk.name} incorrect={pwAsk.incorrect}
+          onSubmit={pw => { const r = pwAsk.resolve; setPwAsk(null); r(pw); }}
+          onCancel={() => { const r = pwAsk.resolve; setPwAsk(null); r(null); }} />
+      )}
     </div>
   );
 }

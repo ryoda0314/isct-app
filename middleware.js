@@ -121,7 +121,8 @@ export function middleware(request) {
   // M1: Content-Security-Policy with nonce for inline scripts
   const cspValue = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
+    // 'wasm-unsafe-eval': PDFツールのパスワード解除(qpdf WebAssembly)用。wasmのコンパイルのみ許可し、JSのevalは許可しない
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
     "img-src 'self' https: data: blob:",
     // 音楽機能: Supabase Storage の署名URLから音声を再生（media-src 未指定だと default-src にフォールバックしてブロックされる）

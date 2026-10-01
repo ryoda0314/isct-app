@@ -10,6 +10,7 @@ import { openMaterial, openMaterialWindow } from "../openMaterial.js";
 import { openLmsUrl } from "../openLms.js";
 import { bulkDownloadMaterials, bulkMergeMaterialsToPdf } from "../bulkDownload.js";
 import { findMaterialNote } from "./NotesView.jsx";
+import { PdfPasswordPrompt, extractPasswordHints, passwordCandidates, savePdfPassword } from "../components/PdfPasswordPrompt.jsx";
 
 const tCol={pdf:'#e5534b',slide:'#d4843e',document:'#6375f0',spreadsheet:'#3dae72',image:'#a855c7',video:'#2d9d8f',audio:'#c6a236',archive:'#68687a',code:'#3dae72',text:'#68687a',link:'#6375f0',file:'#68687a',forum:'#7c5cd6',survey:'#c6a236',quiz:'#e5534b',page:'#2d9d8f',notice:'#68687a',activity:'#68687a'};
 const tLblKey={pdf:'mat.ft.pdf',slide:'mat.ft.slide',document:'mat.ft.document',spreadsheet:'mat.ft.spreadsheet',image:'mat.ft.image',video:'mat.ft.video',audio:'mat.ft.audio',archive:'mat.ft.archive',code:'mat.ft.code',text:'mat.ft.text',link:'mat.ft.link',file:'mat.ft.file',forum:'mat.ft.forum',survey:'mat.ft.survey',quiz:'mat.ft.quiz',page:'mat.ft.page',notice:'mat.ft.notice',activity:'mat.ft.activity'};
@@ -83,11 +84,35 @@ function loadPdfjs(){
   return pdfjsLoading;
 }
 
+/* bytes(原本)のコピーで開く。password 指定時はそのパスワードで開く。
+   パスワード不足/違いは pdf.js が name==="PasswordException" で reject する */
+function openPdfBytes(lib,bytes,password){
+  return lib.getDocument({data:bytes.slice(),...(password?{password}:{}),cMapUrl:`${PDFJS_CDN}/cmaps/`,cMapPacked:true,standardFontDataUrl:`${PDFJS_CDN}/standard_fonts/`}).promise;
+}
+
+/* 資料の説明文(「パスワード：xxx」等の注意書き)。長いものは折りたたむ */
+const MatNote=({text,clamp=2,style})=>{
+  const [open,setOpen]=useState(false);
+  const body=(text||"").trim();
+  if(!body)return null;
+  const long=body.length>80||body.split("\n").length>clamp;
+  return(
+    <div onClick={long?e=>{e.stopPropagation();setOpen(o=>!o);}:undefined}
+      style={{fontSize:11.5,color:T.txH,background:T.bg3,borderRadius:6,padding:"6px 9px",whiteSpace:"pre-wrap",wordBreak:"break-word",lineHeight:1.5,cursor:long?"pointer":"default",...(!open&&long?{display:"-webkit-box",WebkitLineClamp:clamp,WebkitBoxOrient:"vertical",overflow:"hidden"}:{}),...style}}>
+      {body}
+    </div>
+  );
+};
+
 /* ──────────────────────────────────────────────
    Custom PDF Viewer
    ────────────────────────────────────────────── */
-const PdfViewer=({url,dlUrl,mob,onStale,onOpen})=>{
+const PdfViewer=({url,dlUrl,mob,onStale,onOpen,pwHints=[],pwKey=null,fileName="",note=""})=>{
   const [pdf,setPdf]=useState(null);
+  /* パスワード付きPDF: null | {incorrect:boolean} */
+  const [needPw,setNeedPw]=useState(null);
+  const pdfBytesRef=useRef(null);
+  const pwHintsRef=useRef(pwHints);pwHintsRef.current=pwHints;
   const [pages,setPages]=useState([]);
   const [zoom,setZoom]=useState(0.75);
   const [curPage,setCurPage]=useState(1);
@@ -102,7 +127,7 @@ const PdfViewer=({url,dlUrl,mob,onStale,onOpen})=>{
   /* Load PDF: fetch as ArrayBuffer first, then pass data to PDF.js */
   useEffect(()=>{
     let cancelled=false;
-    setPdf(null);setPages([]);setCurPage(1);setErr(null);setLoadMsg(t("mat.loadingPdfjs"));
+    setPdf(null);setPages([]);setCurPage(1);setErr(null);setNeedPw(null);pdfBytesRef.current=null;setLoadMsg(t("mat.loadingPdfjs"));
     (async()=>{
       try{
         const lib=await loadPdfjs();
@@ -126,7 +151,21 @@ const PdfViewer=({url,dlUrl,mob,onStale,onOpen})=>{
         }
         if(cancelled)return;
         setLoadMsg(t("mat.parsingPdf"));
-        const doc=await lib.getDocument({data:buf,cMapUrl:`${PDFJS_CDN}/cmaps/`,cMapPacked:true,standardFontDataUrl:`${PDFJS_CDN}/standard_fonts/`}).promise;
+        // pdf.js は渡した buffer を worker へ転送(detach)するので、再試行用に原本を残して毎回コピーを渡す
+        const bytes=new Uint8Array(buf);
+        pdfBytesRef.current=bytes;
+        let doc;
+        try{doc=await openPdfBytes(lib,bytes);}
+        catch(e){
+          if(e?.name!=="PasswordException")throw e;
+          // パスワード付き: 覚えているもの → 資料説明の候補 の順に自動で試す
+          for(const cand of passwordCandidates(pwKey,pwHintsRef.current)){
+            if(cancelled)return;
+            try{doc=await openPdfBytes(lib,bytes,cand);savePdfPassword(pwKey,cand);break;}
+            catch(e2){if(e2?.name!=="PasswordException")throw e2;}
+          }
+          if(!doc){if(!cancelled)setNeedPw({incorrect:false});return;}
+        }
         if(cancelled)return;
         setPdf(doc);
         setPages(Array.from({length:doc.numPages},(_,i)=>i+1));
@@ -326,6 +365,18 @@ const PdfViewer=({url,dlUrl,mob,onStale,onOpen})=>{
     };
   },[zoom,pdf]);
 
+  if(needPw&&!pdf) return <PdfPasswordPrompt fileName={fileName} note={note} hints={pwHints} incorrect={needPw.incorrect}
+    onSubmit={async pw=>{
+      try{
+        const lib=await loadPdfjs();
+        const doc=await openPdfBytes(lib,pdfBytesRef.current,pw);
+        savePdfPassword(pwKey,pw);
+        setNeedPw(null);setPdf(doc);setPages(Array.from({length:doc.numPages},(_,i)=>i+1));
+      }catch(e){
+        if(e?.name==="PasswordException")setNeedPw({incorrect:true});
+        else{setNeedPw(null);setErr(e?.message||t("mat.pdfLoadFailed"));}
+      }
+    }}/>;
   if(err) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40}}><div>{err}</div>{onOpen
     ?<button onClick={onOpen} style={{padding:"8px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>{t("mat.openInNewTab")}</button>
     :dlUrl&&<a href={dlUrl} target="_blank" rel="noopener noreferrer" style={{padding:"8px 16px",borderRadius:8,background:T.accent,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none"}}>{t("mat.openInNewTab")}</a>}</div>;
@@ -530,8 +581,10 @@ const FsIcon=({active})=>active
    Preview component (PDF / image / video / audio)
    Works for both Moodle materials and shared files
    ────────────────────────────────────────────── */
-export const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote,session,sessionOrder,onPopOut})=>{
+export const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote,session,sessionOrder,onPopOut,pwHints=[]})=>{
   const ft=m.fileType||detectType(m.mimetype);
+  // パスワード候補: この資料の説明文 → 同じコースの他の資料の説明文
+  const pdfPwHints=[...new Set([...extractPasswordHints(m.description),...pwHints])];
   const c=tCol[ft]||T.txD;
   // 教材→ノート（PDFのみ）。既存ノートがあれば「開く」、無ければ取得して「書き込む」
   const [existingNote,setExistingNote]=useState(null);
@@ -589,7 +642,10 @@ export const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote,sessio
           ?<button onClick={()=>openMaterial(m,onStale,{download:true,mob})} style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0}}>{I.dl} DL</button>
           :<a href={dlUrl} target="_blank" rel="noopener noreferrer" download style={{display:"flex",alignItems:"center",gap:3,padding:"5px 10px",borderRadius:6,background:T.accent,color:"#fff",fontSize:12,fontWeight:600,textDecoration:"none",flexShrink:0}}>{I.dl} DL</a>)}
       </div>
-      {ft==="pdf"&&<PdfViewer url={previewUrl} dlUrl={dlUrl} mob={mob} onStale={onStale} onOpen={m.fileurl?()=>openMaterial(m,onStale):null}/>}
+      {/* LMS で資料の下に出ている説明文(パスワード・注意書き等) */}
+      {m.description&&<div style={{padding:mob?"6px 12px":"6px 14px",borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}><MatNote text={m.description} clamp={3}/></div>}
+      {ft==="pdf"&&<PdfViewer url={previewUrl} dlUrl={dlUrl} mob={mob} onStale={onStale} onOpen={m.fileurl?()=>openMaterial(m,onStale):null}
+        pwHints={pdfPwHints} pwKey={course?.moodleId||course?.id||null} fileName={m.filename||m.name} note={m.description||""}/>}
       {ft==="document"&&isDocx(m)&&<DocxViewer url={previewUrl} mob={mob} onStale={onStale} onOpen={m.fileurl?()=>openMaterial(m,onStale):null}/>}
       {ft!=="pdf"&&ft!=="document"&&mediaErr&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:T.txD,fontSize:13,padding:40,textAlign:"center"}}><div>{t("mat.notFoundRefreshed")}</div>{m.fileurl
         ?<button onClick={()=>openMaterial(m,onStale)} style={{padding:"8px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>{t("mat.openInNewTab")}</button>
@@ -658,6 +714,7 @@ const FileRow=({m,onClick,onStale,selMode,checked,onToggle,onPopOut})=>{
       <div style={{flex:1,minWidth:0}}>
         <div style={{color:T.txH,fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.name||m.filename}</div>
         <div style={{fontSize:11,color:T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.availabilityInfo||t("mat.notAvailableYet")}</div>
+        {m.description&&<MatNote text={m.description} style={{marginTop:5}}/>}
       </div>
       <Tag color={c}>{t(tLblKey[m.fileType]||'mat.ft.file')}</Tag>
     </div>
@@ -675,6 +732,7 @@ const FileRow=({m,onClick,onStale,selMode,checked,onToggle,onPopOut})=>{
       <div style={{flex:1,minWidth:0}}>
         <div style={{color:T.txH,fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.filename||m.name}</div>
         <div style={{fontSize:11,color:T.txD}}>{[m.filesizeFormatted,fmtD(m.timemodified)].filter(Boolean).join(" · ")}</div>
+        {m.description&&<MatNote text={m.description} style={{marginTop:5}}/>}
       </div>
       <Tag color={c}>{t(tLblKey[m.fileType]||'mat.ft.file')}</Tag>
       {!selMode&&canPop&&<button onClick={e=>{e.stopPropagation();onPopOut(m);}} title={t("mat.openWindow")} style={{display:"flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:4,border:"none",background:"transparent",color:T.txD,cursor:"pointer",flexShrink:0,padding:0}}><PopOutIcon/></button>}
@@ -964,9 +1022,11 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
   const selSecIdx=sel?sections.findIndex(s=>s.materials.some(mm=>mm.id===sel.id)):-1;
   const selSession=selSecIdx>=0?(sections[selSecIdx].name||null):null;
   const selSessionOrder=selSecIdx>=0?selSecIdx:null;
+  /* 「毎回の配布資料のパスワード：xxx」のように1か所にだけ書かれることが多いので、コース全体の説明文から候補を集める */
+  const coursePwHints=extractPasswordHints(...sections.flatMap(s=>s.materials.map(mm=>mm.description)));
 
   /* Mobile: full-screen preview */
-  if(sel&&mob) return <Preview m={sel} mob onClose={()=>setSel(null)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={selSession} sessionOrder={selSessionOrder}/>;
+  if(sel&&mob) return <Preview m={sel} mob onClose={()=>setSel(null)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={selSession} sessionOrder={selSessionOrder} pwHints={coursePwHints}/>;
 
   /* Desktop: split view when previewing (list + 1 preview / 追加はポップアウト) */
   if(sel&&!mob){
@@ -1021,7 +1081,7 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
               ))
           }
         </div>
-        <Preview m={sel} mob={false} onClose={()=>setSel(null)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={selSession} sessionOrder={selSessionOrder} onPopOut={canPopOut(sel)?()=>popOut(sel):null}/>
+        <Preview m={sel} mob={false} onClose={()=>setSel(null)} onStale={refresh} course={course} onAnnotate={onAnnotate} onOpenNote={onOpenNote} session={selSession} sessionOrder={selSessionOrder} onPopOut={canPopOut(sel)?()=>popOut(sel):null} pwHints={coursePwHints}/>
       </div>
     );
   }
