@@ -11,6 +11,8 @@ import { openLmsUrl } from "../openLms.js";
 import { bulkDownloadMaterials, bulkMergeMaterialsToPdf } from "../bulkDownload.js";
 import { findMaterialNote } from "./NotesView.jsx";
 import { PdfPasswordPrompt, extractPasswordHints, passwordCandidates, savePdfPassword } from "../components/PdfPasswordPrompt.jsx";
+import { decryptPdf } from "../pdfUnlock.js";
+import { savePdfBlob } from "../savePdf.js";
 
 const tCol={pdf:'#e5534b',slide:'#d4843e',document:'#6375f0',spreadsheet:'#3dae72',image:'#a855c7',video:'#2d9d8f',audio:'#c6a236',archive:'#68687a',code:'#3dae72',text:'#68687a',link:'#6375f0',file:'#68687a',forum:'#7c5cd6',survey:'#c6a236',quiz:'#e5534b',page:'#2d9d8f',notice:'#68687a',activity:'#68687a'};
 const tLblKey={pdf:'mat.ft.pdf',slide:'mat.ft.slide',document:'mat.ft.document',spreadsheet:'mat.ft.spreadsheet',image:'mat.ft.image',video:'mat.ft.video',audio:'mat.ft.audio',archive:'mat.ft.archive',code:'mat.ft.code',text:'mat.ft.text',link:'mat.ft.link',file:'mat.ft.file',forum:'mat.ft.forum',survey:'mat.ft.survey',quiz:'mat.ft.quiz',page:'mat.ft.page',notice:'mat.ft.notice',activity:'mat.ft.activity'};
@@ -113,6 +115,11 @@ const PdfViewer=({url,dlUrl,mob,onStale,onOpen,pwHints=[],pwKey=null,fileName=""
   const [needPw,setNeedPw]=useState(null);
   const pdfBytesRef=useRef(null);
   const pwHintsRef=useRef(pwHints);pwHintsRef.current=pwHints;
+  /* パスワードで開けたら、そのパスワードを外した版を裏で作っておく（保存ボタンを押した
+     瞬間に共有シートを出すため。iOS は操作直後でないと共有シートを開けない） */
+  const [openedPw,setOpenedPw]=useState(null);
+  const [plainPdf,setPlainPdf]=useState(null); // null | "making" | "error" | Uint8Array
+  const [saveNote,setSaveNote]=useState("");
   const [pages,setPages]=useState([]);
   const [zoom,setZoom]=useState(0.75);
   const [curPage,setCurPage]=useState(1);
@@ -127,7 +134,7 @@ const PdfViewer=({url,dlUrl,mob,onStale,onOpen,pwHints=[],pwKey=null,fileName=""
   /* Load PDF: fetch as ArrayBuffer first, then pass data to PDF.js */
   useEffect(()=>{
     let cancelled=false;
-    setPdf(null);setPages([]);setCurPage(1);setErr(null);setNeedPw(null);pdfBytesRef.current=null;setLoadMsg(t("mat.loadingPdfjs"));
+    setPdf(null);setPages([]);setCurPage(1);setErr(null);setNeedPw(null);pdfBytesRef.current=null;setOpenedPw(null);setPlainPdf(null);setSaveNote("");setLoadMsg(t("mat.loadingPdfjs"));
     (async()=>{
       try{
         const lib=await loadPdfjs();
@@ -161,7 +168,7 @@ const PdfViewer=({url,dlUrl,mob,onStale,onOpen,pwHints=[],pwKey=null,fileName=""
           // パスワード付き: 覚えているもの → 資料説明の候補 の順に自動で試す
           for(const cand of passwordCandidates(pwKey,pwHintsRef.current)){
             if(cancelled)return;
-            try{doc=await openPdfBytes(lib,bytes,cand);savePdfPassword(pwKey,cand);break;}
+            try{doc=await openPdfBytes(lib,bytes,cand);savePdfPassword(pwKey,cand);setOpenedPw(cand);break;}
             catch(e2){if(e2?.name!=="PasswordException")throw e2;}
           }
           if(!doc){if(!cancelled)setNeedPw({incorrect:false});return;}
@@ -173,6 +180,22 @@ const PdfViewer=({url,dlUrl,mob,onStale,onOpen,pwHints=[],pwKey=null,fileName=""
     })();
     return()=>{cancelled=true;};
   },[url,onStale]);
+
+  useEffect(()=>{
+    if(!openedPw||!pdfBytesRef.current)return;
+    let alive=true;
+    setPlainPdf("making");
+    decryptPdf(pdfBytesRef.current,openedPw)
+      .then(b=>{if(alive)setPlainPdf(b);})
+      .catch(e=>{console.error("[mat] unlock",e?.message);if(alive)setPlainPdf("error");});
+    return()=>{alive=false;};
+  },[openedPw]);
+  const saveUnlocked=async()=>{
+    if(!(plainPdf instanceof Uint8Array))return;
+    const base=(fileName||"document").replace(/\.pdf$/i,"");
+    const r=await savePdfBlob(new Blob([plainPdf],{type:"application/pdf"}),`${base}_unlocked.pdf`,{mob});
+    setSaveNote(r==="needsUpdate"?t("pdf.saveNeedsUpdate"):"");
+  };
 
   /* Render a single page to canvas */
   const renderPage=useCallback(async(pageNum)=>{
@@ -370,7 +393,7 @@ const PdfViewer=({url,dlUrl,mob,onStale,onOpen,pwHints=[],pwKey=null,fileName=""
       try{
         const lib=await loadPdfjs();
         const doc=await openPdfBytes(lib,pdfBytesRef.current,pw);
-        savePdfPassword(pwKey,pw);
+        savePdfPassword(pwKey,pw);setOpenedPw(pw);
         setNeedPw(null);setPdf(doc);setPages(Array.from({length:doc.numPages},(_,i)=>i+1));
       }catch(e){
         if(e?.name==="PasswordException")setNeedPw({incorrect:true});
@@ -396,7 +419,17 @@ const PdfViewer=({url,dlUrl,mob,onStale,onOpen,pwHints=[],pwKey=null,fileName=""
         <button onClick={zoomOut} style={{background:"none",border:"none",color:T.txH,cursor:"pointer",display:"flex",padding:4,borderRadius:4,fontSize:16,fontWeight:700,lineHeight:1}}>−</button>
         <span style={{fontSize:12,color:T.txH,fontWeight:600,minWidth:40,textAlign:"center"}}>{Math.round(zoom*100)}%</span>
         <button onClick={zoomIn} style={{background:"none",border:"none",color:T.txH,cursor:"pointer",display:"flex",padding:4,borderRadius:4,fontSize:16,fontWeight:700,lineHeight:1}}>+</button>
+        {openedPw&&<>
+          <div style={{flex:1}}/>
+          <button onClick={saveUnlocked} disabled={!(plainPdf instanceof Uint8Array)}
+            title={plainPdf==="error"?t("mat.unlockSaveFailed"):t("mat.saveUnlocked")}
+            style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:6,border:`1px solid ${T.accent}`,background:`${T.accent}14`,color:plainPdf==="error"?T.txD:T.accent,fontSize:12,fontWeight:600,cursor:plainPdf instanceof Uint8Array?"pointer":"default",opacity:plainPdf instanceof Uint8Array?1:.6,whiteSpace:"nowrap"}}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 019.9-1"/></svg>
+            {plainPdf==="making"?t("mat.preparingUnlocked"):plainPdf==="error"?t("mat.unlockSaveFailed"):t(mob?"mat.saveUnlockedShort":"mat.saveUnlocked")}
+          </button>
+        </>}
       </div>
+      {saveNote&&<div style={{padding:"6px 12px",fontSize:12,color:T.red,background:`${T.red}12`,borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>{saveNote}</div>}
       {/* Pages */}
       <div ref={containerRef} style={{flex:1,overflow:"auto",WebkitOverflowScrolling:"touch",background:T.bg,padding:mob?8:16,touchAction:"pan-x pan-y"}}>
         <div ref={pagesWrapRef} style={{width:"fit-content",display:"flex",flexDirection:"column",alignItems:"center",gap:mob?8:12,willChange:"transform"}}>
