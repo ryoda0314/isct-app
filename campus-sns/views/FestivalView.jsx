@@ -71,6 +71,58 @@ const BoothCard=({b,onOpen,onLike})=>{
   );
 };
 
+// ── メニュー ──
+const MAX_MENU=30;
+const yen=(p)=>p===0?t("festival.free"):`${Number(p).toLocaleString()}円`;
+const menuFromBooth=(m)=>(m||[]).map(x=>({name:x.name||"",description:x.description||"",price:x.price!=null?String(x.price):""}));
+
+// フォーム用: 1品ずつ「名前・価格・説明」を入力。並べ替え・削除できる
+const MenuEditor=({items,onChange})=>{
+  const upd=(i,k,v)=>onChange(items.map((x,j)=>j===i?{...x,[k]:v}:x));
+  const move=(i,d)=>{const j=i+d;if(j<0||j>=items.length)return;const n=[...items];[n[i],n[j]]=[n[j],n[i]];onChange(n);};
+  const iconBtn={color:T.txD,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,fontSize:13,userSelect:"none"};
+  return(
+    <div>
+      {items.map((it,i)=>(
+        <div key={i} style={{padding:10,borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,marginBottom:8}}>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <input value={it.name} onChange={e=>upd(i,"name",e.target.value)} maxLength={40} placeholder={t("festival.phMenuName")} style={{...inputSt(),flex:1,minWidth:0}}/>
+            <div style={{position:"relative",width:104,flexShrink:0}}>
+              <input value={it.price} onChange={e=>upd(i,"price",e.target.value.replace(/[^0-9]/g,""))} inputMode="numeric" maxLength={6} placeholder={t("festival.phMenuPrice")} style={{...inputSt(),paddingRight:26,textAlign:"right"}}/>
+              <span style={{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",fontSize:12,color:T.txD}}>円</span>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:6,alignItems:"center",marginTop:6}}>
+            <input value={it.description} onChange={e=>upd(i,"description",e.target.value)} maxLength={120} placeholder={t("festival.phMenuDesc")} style={{...inputSt(),flex:1,minWidth:0,fontSize:13,padding:"7px 10px"}}/>
+            <span onClick={()=>move(i,-1)} style={{...iconBtn,opacity:i===0?.3:1}} aria-label="up">▲</span>
+            <span onClick={()=>move(i,1)} style={{...iconBtn,opacity:i===items.length-1?.3:1}} aria-label="down">▼</span>
+            <span onClick={()=>onChange(items.filter((_,j)=>j!==i))} style={iconBtn}>{I.x}</span>
+          </div>
+        </div>
+      ))}
+      {items.length<MAX_MENU&&<div onClick={()=>onChange([...items,{name:"",description:"",price:""}])} style={{fontSize:13,color:T.accent,fontWeight:600,cursor:"pointer",padding:"4px 0"}}>{t("festival.addMenuItem")}</div>}
+    </div>
+  );
+};
+
+// 詳細・審査用: メニュー表
+export const MenuList=({items,compact})=>{
+  if(!items?.length) return null;
+  return(
+    <div style={{borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg2,overflow:"hidden"}}>
+      {items.map((m,i)=>(
+        <div key={i} style={{padding:compact?"7px 10px":"10px 14px",borderTop:i?`1px solid ${T.bd}`:"none"}}>
+          <div style={{display:"flex",alignItems:"baseline",gap:10}}>
+            <span style={{flex:1,fontSize:compact?13:15,fontWeight:700,color:T.txH}}>{m.name}</span>
+            {m.price!=null&&<span style={{fontSize:compact?13:15,fontWeight:700,color:T.txH,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>{yen(m.price)}</span>}
+          </div>
+          {m.description&&<div style={{fontSize:compact?11:12,color:T.txD,marginTop:2,lineHeight:1.5}}>{m.description}</div>}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // ── 登録・編集フォーム ──
 // 申請モード（apply）では下書きをサーバーに自動保存し、メンバーは代表者の確認済み名簿（期限なし）を使う。
 const EMPTY={name:"",org:"",category:"food",description:"",building:"",location:"",hours:"",link:""};
@@ -93,20 +145,21 @@ const BoothForm=({initial,onSave,onCancel,apply,draft,onSaveDraft,onDiscardDraft
   const [preview,setPreview]=useState(d?.image?.url||(d?.removeImage?null:initial?.imageUrl)||null);
   const [removeImage,setRemoveImage]=useState(!!d?.removeImage);
   const [couponOn,setCouponOn]=useState(d?d.couponOn:!!initial?.coupon);
+  const [menu,setMenu]=useState(()=>d?.menu||menuFromBooth(initial?.menu));
   const [cp,setCp]=useState(()=>d?.cp||{title:initial?.coupon?.title||"",detail:initial?.coupon?.detail||"",limit:initial?.coupon?.limit?String(initial.coupon.limit):""});
   const [saving,setSaving]=useState(false);
   const [draftSaving,setDraftSaving]=useState(false);
   const [savedAt,setSavedAt]=useState(draft?.updatedAt||null);
 
   // 入力のたびにサーバーへ自動保存（画像ファイルは「一時保存」ボタンで上げるまで含めない）
-  const snapshot=(img=draftImage)=>({f,couponOn,cp,image:img,removeImage});
+  const snapshot=(img=draftImage)=>({f,menu,couponOn,cp,image:img,removeImage});
   const firstRun=useRef(true);
   useEffect(()=>{
     if(!useDraft) return;
     if(firstRun.current){firstRun.current=false;return;} // 開いただけでは保存しない
     const id=setTimeout(()=>{onSaveDraft(snapshot()).then(setSavedAt).catch(()=>{});},1500);
     return()=>clearTimeout(id);
-  },[f,couponOn,cp,draftImage,removeImage]);// eslint-disable-line react-hooks/exhaustive-deps
+  },[f,menu,couponOn,cp,draftImage,removeImage]);// eslint-disable-line react-hooks/exhaustive-deps
 
   const saveDraft=async()=>{
     setDraftSaving(true);
@@ -138,8 +191,10 @@ const BoothForm=({initial,onSave,onCancel,apply,draft,onSaveDraft,onDiscardDraft
     if(!f.name.trim()){showToast(t("festival.nameRequired"));return;}
     if(couponOn&&!cp.title.trim()){showToast(t("festival.couponTitleRequired"));return;}
     if(needMembers&&activeMembers.length+1<MIN_MEMBERS){showToast(t("festival.applyNeedMembers",{n:MIN_MEMBERS-1-activeMembers.length}));return;}
+    const named=menu.filter(m=>m.name.trim());
+    if(menu.some(m=>!m.name.trim()&&(m.price||m.description.trim()))){showToast(t("festival.menuNameRequired"));return;}
     setSaving(true);
-    try{await onSave({...f,coupon:couponOn?{title:cp.title,detail:cp.detail,limit:cp.limit.trim()||null}:null,imagePath:!file&&draftImage?draftImage.path:undefined},file,removeImage);}
+    try{await onSave({...f,menu:named.map(m=>({name:m.name,description:m.description,price:m.price===""?null:Number(m.price)})),coupon:couponOn?{title:cp.title,detail:cp.detail,limit:cp.limit.trim()||null}:null,imagePath:!file&&draftImage?draftImage.path:undefined},file,removeImage);}
     catch(e){showToast(e.message||t("toast.saveFailed"));setSaving(false);}
   };
   const label=(k,req)=><div style={{fontSize:12,fontWeight:600,color:T.txH,margin:"12px 0 5px"}}>{t(k)}{req&&<span style={{color:T.red}}> *</span>}</div>;
@@ -195,7 +250,10 @@ const BoothForm=({initial,onSave,onCancel,apply,draft,onSaveDraft,onDiscardDraft
       </div>
 
       {label("festival.fDesc")}
-      <textarea value={f.description} onChange={set("description")} maxLength={2000} rows={5} placeholder={t("festival.phDesc")} style={{...inputSt(),resize:"vertical",lineHeight:1.6}}/>
+      <textarea value={f.description} onChange={set("description")} maxLength={2000} rows={4} placeholder={t("festival.phDesc")} style={{...inputSt(),resize:"vertical",lineHeight:1.6}}/>
+
+      {label("festival.fMenu")}
+      <MenuEditor items={menu} onChange={setMenu}/>
 
       {label("festival.fBuilding")}
       <select value={f.building} onChange={set("building")} style={inputSt()}>
@@ -337,6 +395,10 @@ const BoothDetail=({b,mob,loggedIn,onLogin,couponOpen,onRedeem,onRequestChange,o
             {row(I.clock,b.hours)}
             <CouponPanel b={b} loggedIn={loggedIn} onLogin={onLogin} couponOpen={couponOpen} onRedeem={onRedeem}/>
             {b.description&&<div style={{fontSize:15,color:T.tx,lineHeight:1.75,whiteSpace:"pre-wrap",marginTop:14}}><Tx>{b.description}</Tx></div>}
+            {b.menu?.length>0&&<div style={{marginTop:18}}>
+              <div style={{fontSize:13,fontWeight:700,color:T.txH,marginBottom:8}}>{t("festival.menuTitle")}</div>
+              <MenuList items={b.menu}/>
+            </div>}
 
             <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginTop:18,paddingTop:14,borderTop:`1px solid ${T.bd}`}}>
               <LikeBtn b={b} onLike={onLike}/>

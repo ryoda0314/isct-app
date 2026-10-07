@@ -25,7 +25,12 @@ export const DEMO_FESTIVAL_BOOTHS = [
   {
     id: "test-1", isMine: true, category: "food", name: "【テスト】ソース焼きそば屋", org: "テスト団体A（料理サークル）",
     coupon: { title: "【テスト】50円引き", detail: "ソース焼きそば1皿につき1回。他の割引との併用不可。", limit: 100, used: 37, myUsedAt: null },
-    description: "特製ソースの焼きそばを鉄板で焼きます。\n・ソース焼きそば 400円\n・目玉焼きのせ +100円" + NOTE,
+    description: "特製ソースの焼きそばを鉄板で焼きます。" + NOTE,
+    menu: [
+      { name: "【テスト】ソース焼きそば", description: "定番。キャベツ多め", price: 400 },
+      { name: "【テスト】目玉焼きのせ焼きそば", description: "半熟の目玉焼きをのせます", price: 500 },
+      { name: "【テスト】お茶", description: null, price: 100 },
+    ],
     building: "main", location: "正面玄関前 3番テント", hours: "両日 10:00–16:00（売り切れ次第終了）",
     link: "https://example.com", likeCount: 42, liked: true,
     imageUrl: poster({ bg: "#c2410c", accent: "#fbbf24", title: "ソース焼きそば", sub: "本館 正面玄関前 3番テント", price: "400円" }),
@@ -40,7 +45,11 @@ export const DEMO_FESTIVAL_BOOTHS = [
   {
     id: "test-3", category: "drink", name: "【テスト】タピオカミルクティー", org: "テスト団体C",
     coupon: { title: "【テスト】トッピング1つ無料", detail: "黒糖タピオカ・ナタデココから1つ。", limit: null, used: 12, myUsedAt: null },
-    description: "黒糖タピオカのミルクティーです。\n・ミルクティー 350円\n・抹茶ラテ 400円" + NOTE,
+    description: "黒糖タピオカのミルクティーです。" + NOTE,
+    menu: [
+      { name: "【テスト】タピオカミルクティー", description: "黒糖タピオカ入り", price: 350 },
+      { name: "【テスト】タピオカ抹茶ラテ", description: null, price: 400 },
+    ],
     building: "", location: "芝生広場 7番テント", hours: "両日 11:00–15:00",
     link: "https://example.com", likeCount: 27, liked: false,
     imageUrl: poster({ bg: "#3f2a1d", accent: "#d6a46b", title: "タピオカ", sub: "芝生広場 7番テント", price: "350円〜" }),
@@ -54,7 +63,12 @@ export const DEMO_FESTIVAL_BOOTHS = [
   },
   {
     id: "test-5", category: "game", name: "【テスト】射的・スーパーボールすくい", org: "テスト団体E",
-    description: "小さなお子さんも楽しめる縁日コーナーです。1回 200円。" + NOTE,
+    description: "小さなお子さんも楽しめる縁日コーナーです。" + NOTE,
+    menu: [
+      { name: "【テスト】射的", description: "5発", price: 200 },
+      { name: "【テスト】スーパーボールすくい", description: null, price: 200 },
+      { name: "【テスト】未就学児", description: "保護者同伴で1回", price: 0 },
+    ],
     building: "s3", location: "1階 ロビー", hours: "両日 10:00–16:00",
     link: null, likeCount: 12, liked: false,
     imageUrl: null,
@@ -70,7 +84,11 @@ export const DEMO_FESTIVAL_BOOTHS = [
   {
     id: "test-7", category: "food", name: "【テスト】チュロス", org: "テスト団体G",
     coupon: { title: "【テスト】シナモン増量", detail: "注文時に画面を見せてください。", limit: 50, used: 21, myUsedAt: new Date(Date.now() - 25 * 60e3).toISOString() },
-    description: "揚げたてのチュロスです。シナモン・チョコの2種類。" + NOTE,
+    description: "揚げたてのチュロスです。" + NOTE,
+    menu: [
+      { name: "【テスト】チュロス（シナモン）", description: null, price: 250 },
+      { name: "【テスト】チュロス（チョコ）", description: null, price: 300 },
+    ],
     building: "", location: "正門付近 2番テント", hours: "両日 10:30–16:00",
     link: null, likeCount: 6, liked: false,
     imageUrl: null,
@@ -82,7 +100,7 @@ export const DEMO_FESTIVAL_BOOTHS = [
     link: null, likeCount: 4, liked: false,
     imageUrl: null,
   },
-].map((b, i) => ({ coupon: null, ...b, ownerId: 900000 + i, createdAt: new Date(Date.now() - i * 3600e3).toISOString() }));
+].map((b, i) => ({ coupon: null, menu: [], ...b, ownerId: 900000 + i, createdAt: new Date(Date.now() - i * 3600e3).toISOString() }));
 
 // 自分の申請のテストデータ（審査中・却下の表示例）
 export const DEMO_FESTIVAL_APPS = [

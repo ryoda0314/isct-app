@@ -3,7 +3,7 @@ import { T } from "../theme.js";
 import { t } from "../i18n.js";
 import { Tag, Loader } from "../shared.jsx";
 import { showToast } from "../hooks/useToast.js";
-import { CAT_MAP, SPOT_MAP } from "./FestivalView.jsx";
+import { CAT_MAP, SPOT_MAP, MenuList } from "./FestivalView.jsx";
 
 // 管理画面「工大祭」タブ: 出店の掲載・変更申請を審査する
 const FILTERS=[
@@ -49,6 +49,7 @@ const AppCard=({a,onApprove,onReject})=>{
             {b.coupon_title&&<div>{t("festival.couponTag")}: {b.coupon_title}{b.coupon_detail?`（${b.coupon_detail}）`:""}{b.coupon_limit?` / ${t("festival.admCouponLimit",{n:b.coupon_limit})}`:""}</div>}
           </div>
           {b.description&&<div style={{fontSize:12,color:T.tx,marginTop:6,whiteSpace:"pre-wrap",lineHeight:1.6,maxHeight:120,overflowY:"auto",padding:8,borderRadius:6,background:T.bg3}}>{b.description}</div>}
+          {b.menu?.length>0&&<div style={{marginTop:8,maxWidth:420}}><MenuList items={b.menu} compact/></div>}
         </div>
       </div>
 

@@ -154,3 +154,8 @@ create table if not exists festival_drafts (
 );
 alter table festival_drafts enable row level security;
 -- どちらも anon ポリシーは作らない（/api/festival/* 経由のみ）
+
+-- =============================================================
+-- メニュー（項目ごと）: [{ name, description, price }]  price は円の整数（null = 表示しない）
+-- =============================================================
+alter table festival_booths add column if not exists menu jsonb not null default '[]';
