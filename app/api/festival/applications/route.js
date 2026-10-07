@@ -4,12 +4,13 @@ import { isAdmin } from '../../../../lib/auth/is-admin.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { createNotification } from '../../../../lib/notify.js';
 import {
-  TABLE, BUCKET, CURRENT_FESTIVAL, COLS, APP_TABLE, MIN_MEMBERS, MAX_MEMBERS,
-  buildRow, normalizeLogin, isValidLogin, lookupMembers,
+  TABLE, BUCKET, CURRENT_FESTIVAL, COLS, APP_TABLE, MIN_MEMBERS, MAX_MEMBERS, MEMBER_QR_TTL,
+  buildRow, makeMemberQr, readMemberQr, makeMemberProof, readMemberProof,
 } from '../../../../lib/festival.js';
 
 // 出店の掲載申請。代表者が申請し、運営（管理者）が承認すると festival_booths に掲載される。
-// 条件: 代表者を含むメンバー MIN_MEMBERS 人以上がアプリに登録済み（Science Tokyo ID で確認）。
+// 条件: 代表者を含むメンバー MIN_MEMBERS 人以上がアプリに登録済み。
+//       メンバーは代表者が対面でメンバー用QRを読み取って追加する（lib/festival.js 参照）。
 
 const MAX_PENDING = 3;
 const ADMIN_ENV_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => Number(s.trim())).filter(Boolean);
@@ -45,11 +46,10 @@ export async function GET(request) {
       const apps = data || [];
       const applicantIds = [...new Set(apps.map(a => a.applicant_id))];
       const boothIds = [...new Set(apps.map(a => a.booth_id).filter(Boolean))];
-      const allLogins = [...new Set(apps.flatMap(a => a.member_logins || []))];
-      const [profiles, booths, members] = await Promise.all([
-        applicantIds.length ? sb.from('profiles').select('moodle_id, name, avatar, color').in('moodle_id', applicantIds) : { data: [] },
+      const userIds = [...new Set([...applicantIds, ...apps.flatMap(a => a.member_ids || [])])];
+      const [profiles, booths] = await Promise.all([
+        userIds.length ? sb.from('profiles').select('moodle_id, name, avatar, color, banned').in('moodle_id', userIds) : { data: [] },
         boothIds.length ? sb.from(TABLE).select('id, name').in('id', boothIds) : { data: [] },
-        allLogins.length ? lookupMembers(sb, allLogins) : new Map(),
       ]);
       const pMap = new Map((profiles.data || []).map(p => [p.moodle_id, p]));
       const bMap = new Map((booths.data || []).map(b => [b.id, b]));
@@ -60,12 +60,15 @@ export async function GET(request) {
           createdAt: a.created_at,
           reviewedAt: a.reviewed_at,
           rejectReason: a.reject_reason,
-          applicant: { id: a.applicant_id, login: a.applicant_login, ...(pMap.get(a.applicant_id) || {}) },
+          applicant: { id: a.applicant_id, login: a.applicant_login, name: pMap.get(a.applicant_id)?.name || null, avatar: pMap.get(a.applicant_id)?.avatar || null, color: pMap.get(a.applicant_id)?.color || null },
           boothId: a.booth_id,
           currentBoothName: a.booth_id ? bMap.get(a.booth_id)?.name || null : null,
           booth: { ...a.payload, imageUrl: imageUrl(sb, a.payload?.image) },
-          // 審査時点の登録状況（申請後にアカウント削除された場合も分かるよう毎回確認）
-          members: (a.member_logins || []).map(l => ({ login: l, ...(members.get(l) || { registered: false }) })),
+          // 審査時点の状態（申請後にアカウント削除・停止された場合も分かるよう毎回確認）
+          members: (a.member_ids || []).map(id => {
+            const p = pMap.get(id);
+            return { id, name: p?.name || null, avatar: p?.avatar || null, color: p?.color || null, registered: !!p && !p.banned };
+          }),
         })),
       });
     }
@@ -100,6 +103,24 @@ export async function POST(request) {
     const body = await request.json();
     const sb = getSupabaseAdmin();
 
+    // メンバー用QRを発行（表示中は端末側で定期的に取り直す）
+    if (body.action === 'member-qr') {
+      return NextResponse.json({ code: makeMemberQr(userid), ttl: MEMBER_QR_TTL });
+    }
+
+    // 代表者がメンバーのQRを読み取った
+    if (body.action === 'scan-member') {
+      const { userid: memberId, error } = readMemberQr(body.code);
+      if (error) return NextResponse.json({ error }, { status: 400 });
+      if (memberId === userid) return NextResponse.json({ error: '自分のQRは読み取れません。メンバーのQRを読み取ってください' }, { status: 400 });
+      const { data: p } = await sb.from('profiles').select('name, avatar, color, banned').eq('moodle_id', memberId).maybeSingle();
+      if (!p || p.banned) return NextResponse.json({ error: 'このメンバーは追加できません' }, { status: 400 });
+      return NextResponse.json({
+        proof: makeMemberProof(userid, memberId),
+        member: { id: memberId, name: p.name, avatar: p.avatar, color: p.color },
+      });
+    }
+
     const { row, error: vErr } = await buildRow(body, userid);
     if (vErr) return NextResponse.json({ error: vErr }, { status: 400 });
 
@@ -111,19 +132,13 @@ export async function POST(request) {
       boothId = booth.id;
     }
 
-    // メンバー（代表者以外）の Science Tokyo ID
-    const self = normalizeLogin(loginId);
-    const logins = [...new Set((Array.isArray(body.members) ? body.members : []).map(normalizeLogin).filter(Boolean))].filter(l => l !== self);
-    const bad = logins.filter(l => !isValidLogin(l));
-    if (bad.length) return NextResponse.json({ error: `Science Tokyo ID の形式が正しくありません: ${bad.join(', ')}` }, { status: 400 });
-    if (logins.length > MAX_MEMBERS) return NextResponse.json({ error: `メンバーは${MAX_MEMBERS}人までです` }, { status: 400 });
-    if (logins.length + 1 < MIN_MEMBERS) {
-      return NextResponse.json({ error: `代表者を含めて${MIN_MEMBERS}人以上のメンバーが必要です（あと${MIN_MEMBERS - 1 - logins.length}人）` }, { status: 400 });
-    }
-    const found = await lookupMembers(sb, logins);
-    const unregistered = logins.filter(l => !found.get(l)?.registered);
-    if (unregistered.length) {
-      return NextResponse.json({ error: `アプリへの登録が確認できないメンバーがいます: ${unregistered.join(', ')}`, unregistered }, { status: 400 });
+    // メンバー（代表者以外）: QR読み取りで得た証明を検証。変更申請では不要（掲載時に確認済み）。
+    const proofs = Array.isArray(body.memberProofs) ? body.memberProofs.slice(0, MAX_MEMBERS * 2) : [];
+    const memberIds = [...new Set(proofs.map(p => readMemberProof(p, userid)).filter(id => id && id !== userid))];
+    if (memberIds.length < proofs.length) return NextResponse.json({ error: 'メンバーの確認が期限切れです。QRを読み取り直してください' }, { status: 400 });
+    if (memberIds.length > MAX_MEMBERS) return NextResponse.json({ error: `メンバーは${MAX_MEMBERS}人までです` }, { status: 400 });
+    if (!boothId && memberIds.length + 1 < MIN_MEMBERS) {
+      return NextResponse.json({ error: `代表者を含めて${MIN_MEMBERS}人以上のメンバーが必要です（あと${MIN_MEMBERS - 1 - memberIds.length}人）` }, { status: 400 });
     }
 
     // 審査待ちが溜まりすぎないように
@@ -134,10 +149,10 @@ export async function POST(request) {
     const { data, error } = await sb.from(APP_TABLE).insert({
       festival: CURRENT_FESTIVAL,
       applicant_id: userid,
-      applicant_login: self,
+      applicant_login: loginId,
       booth_id: boothId,
       payload: row,
-      member_logins: logins,
+      member_ids: memberIds,
     }).select('id, status, booth_id, payload, created_at').single();
     if (error) {
       console.error('[FestivalApps POST]', error.message);

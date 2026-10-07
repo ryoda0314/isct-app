@@ -137,21 +137,45 @@ export function useFestival() {
     return usedAt;
   }, [booths]);
 
-  // 掲載申請（boothId があれば掲載中の出店の変更申請）
-  const apply = useCallback(async (form, imageFile, removeImage, members, boothId) => {
+  // 掲載申請（boothId があれば掲載中の出店の変更申請）。memberProofs は scanMember で得た証明。
+  const apply = useCallback(async (form, imageFile, removeImage, memberProofs, boothId) => {
     if (isDemoMode()) {
-      const filled = members.map(m => m.trim()).filter(Boolean);
-      if (filled.length + 1 < 3) throw new Error(t("festival.applyNeedMembers", { n: 3 - 1 - filled.length }));
+      if (!boothId && memberProofs.length + 1 < 3) throw new Error(t("festival.applyNeedMembers", { n: 3 - 1 - memberProofs.length }));
       const a = { id: `test-app-${Date.now()}`, status: 'pending', boothId: boothId || null, name: form.name, createdAt: new Date().toISOString() };
       setMyApps(prev => [a, ...prev]);
       return a;
     }
-    const body = { ...form, members, boothId: boothId || undefined };
+    const { imagePath, ...rest } = form;
+    const body = { ...rest, memberProofs, boothId: boothId || undefined };
     if (imageFile) body.image = await uploadImage(imageFile);
+    else if (imagePath) body.image = { path: imagePath }; // 一時保存の時点で上げ済み
     else if (removeImage) body.image = null;
     const a = await api('POST', body, '/api/festival/applications');
     setMyApps(prev => [a, ...prev]);
     return a;
+  }, []);
+
+  // 一時保存用に画像を先に上げる → { path, url }
+  const uploadDraftImage = useCallback(async (file) => {
+    if (isDemoMode()) return { path: `demo/${Date.now()}`, url: URL.createObjectURL(file) };
+    const { path } = await uploadImage(file);
+    const { data } = getSupabaseClient().storage.from('festival-public').getPublicUrl(path);
+    return { path, url: data.publicUrl };
+  }, []);
+
+  // メンバー用QR（自分を代表者に読み取ってもらう）
+  const getMemberQr = useCallback(async () => {
+    if (isDemoMode()) return { code: `ISCTFEST1:demo.${Date.now()}`, ttl: 90 };
+    return api('POST', { action: 'member-qr' }, '/api/festival/applications');
+  }, []);
+
+  // 代表者がメンバーのQRを読み取る → { proof, member }
+  const scanMember = useCallback(async (code) => {
+    if (isDemoMode()) {
+      const n = Math.floor(Math.random() * 900) + 100;
+      return { proof: `demo-${n}`, member: { id: 900200 + n, name: `テスト メンバー${n}` } };
+    }
+    return api('POST', { action: 'scan-member', code }, '/api/festival/applications');
   }, []);
 
   const withdraw = useCallback(async (id) => {
@@ -166,5 +190,5 @@ export function useFestival() {
   // デモモードは開催前でも試せるよう、期間制限なし
   const couponOpen = isDemoMode() || (couponWindow && Date.now() >= couponWindow.start && Date.now() < couponWindow.end);
 
-  return { booths, isAdmin, myApps, apply, withdraw, loading, refresh, save, toggleLike, remove, toggleHidden, redeemCoupon, couponOpen, couponWindow };
+  return { booths, isAdmin, myApps, apply, withdraw, getMemberQr, scanMember, uploadDraftImage, loading, refresh, save, toggleLike, remove, toggleHidden, redeemCoupon, couponOpen, couponWindow };
 }

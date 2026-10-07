@@ -23,7 +23,7 @@ const AppCard=({a,onApprove,onReject})=>{
   const c=CAT_MAP[b.category]||CAT_MAP.other;
   const place=[SPOT_MAP[b.building]?.label,b.location].filter(Boolean).join(" ");
   const registered=a.members.filter(m=>m.registered).length+1; // +1 = 代表者
-  const enough=registered>=MIN_MEMBERS;
+  const enough=!!a.boothId||registered>=MIN_MEMBERS; // 変更申請はメンバー確認なし（掲載時に確認済み）
   const run=async(fn)=>{setBusy(true);try{await fn();}catch(e){showToast(e.message);}setBusy(false);};
   const btn=(bg,fg)=>({padding:"8px 16px",borderRadius:8,border:bg===T.bg3?`1px solid ${T.bd}`:"none",background:bg,color:fg,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:busy?.6:1});
   return(
@@ -58,11 +58,12 @@ const AppCard=({a,onApprove,onReject})=>{
         </div>
         <div style={{flex:1,minWidth:220}}>
           <div style={{fontWeight:700,color:enough?T.green:T.red,marginBottom:4}}>{t("festival.admMembers",{n:registered,min:MIN_MEMBERS})}</div>
+          {a.members.length===0&&<div style={{color:T.txD}}>{a.boothId?t("festival.admNoMembersChange"):"—"}</div>}
           {a.members.map(m=>(
-            <div key={m.login} style={{display:"flex",gap:6,color:m.registered?T.tx:T.red}}>
+            <div key={m.id} style={{display:"flex",gap:6,color:m.registered?T.tx:T.red}}>
               <span style={{width:14}}>{m.registered?"✓":"✗"}</span>
-              <span>{m.login}</span>
-              <span style={{color:T.txD}}>{m.registered?(m.name||t("festival.admRegistered")):t("festival.admNotRegistered")}</span>
+              <span>{m.name||`#${m.id}`}</span>
+              {!m.registered&&<span style={{color:T.txD}}>{t("festival.admNotRegistered")}</span>}
             </div>
           ))}
         </div>

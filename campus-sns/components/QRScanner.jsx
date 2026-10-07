@@ -29,8 +29,10 @@ function decodeQR(imageData) {
  * @param {Function} [onResult] - generic mode: called with the raw decoded string;
  *                                return truthy if it was a valid/handled code, falsy to show an error
  * @param {Function} onClose - called to close the scanner
+ * @param {string} [title] - heading override (defaults to the TOTP wording)
+ * @param {string} [desc] - description override
  */
-export function QRScanner({ onSecret, onResult, onClose }) {
+export function QRScanner({ onSecret, onResult, onClose, title, desc }) {
   const [mode, setMode] = useState(null); // null | "camera" | "file"
   const [error, setError] = useState(null);
   const [scanning, setScanning] = useState(false);
@@ -147,10 +149,10 @@ export function QRScanner({ onSecret, onResult, onClose }) {
     return (
       <div style={{ marginTop: 10, padding: 14, borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg3 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>
-          {t("qr.title")}
+          {title || t("qr.title")}
         </div>
         <p style={{ fontSize: 11, color: T.txD, marginBottom: 12, lineHeight: 1.5 }}>
-          {t("qr.desc")}
+          {desc || t("qr.desc")}
         </p>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={startCamera} style={{

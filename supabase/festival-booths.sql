@@ -100,7 +100,7 @@ $$;
 -- =============================================================
 -- 掲載申請（代表者が申請 → 運営が承認すると festival_booths に掲載）
 -- 条件: 団体メンバー3人以上（代表者を含む）がアプリに登録済みであること。
---       メンバーは Science Tokyo ID で指定し、登録済みかをサーバーで確認する。
+--       メンバーは対面でQRを読み取って追加する（本人がその場で同意したことの確認を兼ねる）。
 -- =============================================================
 
 create table if not exists festival_applications (
@@ -110,7 +110,7 @@ create table if not exists festival_applications (
   applicant_login   text not null,                   -- 代表者の Science Tokyo ID
   booth_id          uuid references festival_booths(id) on delete cascade,  -- null = 新規、値あり = 掲載中の出店の変更申請
   payload           jsonb not null,                  -- 検証済みの出店内容（festival_booths の列と同じ形）
-  member_logins     text[] not null default '{}',    -- 代表者以外のメンバーの Science Tokyo ID
+  member_ids        bigint[] not null default '{}',  -- 代表者以外のメンバーの moodle user id（QRで確認済み）
   status            text not null default 'pending', -- pending / approved / rejected / withdrawn
   reject_reason     text,
   reviewed_by       bigint,
@@ -119,6 +119,10 @@ create table if not exists festival_applications (
 );
 create index if not exists festival_applications_status_idx on festival_applications (festival, status, created_at desc);
 create index if not exists festival_applications_applicant_idx on festival_applications (applicant_id, created_at desc);
+
+-- 旧版（Science Tokyo ID を手入力していた版）を実行済みの場合に備える
+alter table festival_applications add column if not exists member_ids bigint[] not null default '{}';
+alter table festival_applications drop column if exists member_logins;
 
 alter table festival_applications enable row level security;
 -- anon ポリシーは作らない（/api/festival/applications 経由のみ）
