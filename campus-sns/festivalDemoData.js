@@ -23,7 +23,7 @@ const NOTE = "\n\n※これはテスト用のダミーデータです。実在�
 
 export const DEMO_FESTIVAL_BOOTHS = [
   {
-    id: "test-1", category: "food", name: "【テスト】ソース焼きそば屋", org: "テスト団体A（料理サークル）",
+    id: "test-1", isMine: true, category: "food", name: "【テスト】ソース焼きそば屋", org: "テスト団体A（料理サークル）",
     coupon: { title: "【テスト】50円引き", detail: "ソース焼きそば1皿につき1回。他の割引との併用不可。", limit: 100, used: 37, myUsedAt: null },
     description: "特製ソースの焼きそばを鉄板で焼きます。\n・ソース焼きそば 400円\n・目玉焼きのせ +100円" + NOTE,
     building: "main", location: "正面玄関前 3番テント", hours: "両日 10:00–16:00（売り切れ次第終了）",
@@ -83,3 +83,9 @@ export const DEMO_FESTIVAL_BOOTHS = [
     imageUrl: null,
   },
 ].map((b, i) => ({ coupon: null, ...b, ownerId: 900000 + i, createdAt: new Date(Date.now() - i * 3600e3).toISOString() }));
+
+// 自分の申請のテストデータ（審査中・却下の表示例）
+export const DEMO_FESTIVAL_APPS = [
+  { id: "test-app-1", status: "pending", boothId: null, name: "【テスト】フランクフルト", createdAt: new Date(Date.now() - 2 * 3600e3).toISOString() },
+  { id: "test-app-2", status: "rejected", boothId: null, name: "【テスト】クレープ", rejectReason: "写真が出店の内容と関係ないため（テスト）", createdAt: new Date(Date.now() - 26 * 3600e3).toISOString() },
+];

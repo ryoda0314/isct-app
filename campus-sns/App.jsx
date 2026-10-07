@@ -1160,7 +1160,7 @@ export default function App(){
           {view==="grading"&&(L?<LockedView title={t("nav.grading")}/>:<GradingView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/>)}
           {view==="admin"&&<AdminView mob={false} courses={allCourses} depts={userDepts} schools={userSchools}/>}
           {view==="freshman"&&<FreshmanBoardView mob={false} loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/>}
-          {view==="festival"&&<FestivalView mob={false} loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}} goToBuilding={goToBuilding} onContact={c=>startDMFromFriend(c.id,c.name,c.avatar,c.color)}/>}
+          {view==="festival"&&<FestivalView mob={false} loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}} goToBuilding={goToBuilding}/>}
         </div>
         {showDeptModal&&<DeptModal user={user} onClose={()=>setDeptModalDone(true)}/>}
         {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
@@ -1226,7 +1226,7 @@ export default function App(){
         {view==="grading"&&(L?<><MHdr title={t("nav.grading")} back={mBack}/><LockedView title={t("nav.grading")}/></>:<><MHdr title={t("nav.grading")} back={mBack}/><GradingView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/></>)}
         {view==="admin"&&<><MHdr title={t("nav.admin")} back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
         {view==="freshman"&&<><MHdr title={t("nav.freshman")} back={mBack}/><FreshmanBoardView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/></>}
-        {view==="festival"&&<><MHdr title={t("festival.title")} back={mBack}/><FestivalView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}} goToBuilding={goToBuilding} onContact={c=>startDMFromFriend(c.id,c.name,c.avatar,c.color)}/></>}
+        {view==="festival"&&<><MHdr title={t("festival.title")} back={mBack}/><FestivalView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}} goToBuilding={goToBuilding}/></>}
       </div>
       <MiniPlayer mob view={view} ch={ch} onOpen={()=>setView("music")}/>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread} hasMed={medPrimary}/>

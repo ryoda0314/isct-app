@@ -3,6 +3,7 @@ import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { Av } from "../shared.jsx";
 import { MapEditorView } from "./MapEditorView.jsx";
+import { FestivalAdminTab } from "./FestivalAdminTab.jsx";
 import { usePresence } from "../hooks/usePresence.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
 import { useMusic } from "../hooks/useMusic.js";
@@ -19,6 +20,7 @@ const API = "";
 const tabs = [
   { id: "stats", labelKey: "admin.tab.stats", icon: I.bar },
   { id: "reports", labelKey: "admin.tab.reports", icon: I.flag },
+  { id: "festival", labelKey: "admin.tab.festival", icon: I.star },
   { id: "support", labelKey: "admin.tab.support", icon: I.mail },
   { id: "users", labelKey: "admin.tab.users", icon: I.users },
   { id: "posts", labelKey: "admin.tab.posts", icon: I.feed },
@@ -4725,6 +4727,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
       <div style={{ flex: 1, overflowY: (tab === "map" || tab === "support") ? "hidden" : "auto", display: "flex", flexDirection: "column" }}>
         {tab === "stats" && <StatsTab />}
         {tab === "reports" && <ReportsTab />}
+        {tab === "festival" && <FestivalAdminTab />}
         {tab === "support" && <SupportTab />}
         {tab === "users" && <UsersTab />}
         {tab === "posts" && <PostsTab courses={courses} schools={schools} depts={depts} />}

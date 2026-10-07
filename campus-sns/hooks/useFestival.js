@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { t } from "../i18n.js";
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { isDemoMode } from '../demoMode.js';
-import { DEMO_FESTIVAL_BOOTHS } from '../festivalDemoData.js';
+import { DEMO_FESTIVAL_BOOTHS, DEMO_FESTIVAL_APPS } from '../festivalDemoData.js';
 
 const MAX_EDGE = 1200;
 
@@ -40,8 +40,8 @@ async function uploadImage(file) {
   return { path: sign.path };
 }
 
-async function api(method, body) {
-  const r = await fetch('/api/festival', {
+async function api(method, body, url = '/api/festival') {
+  const r = await fetch(url, {
     method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -56,20 +56,22 @@ export function useFestival() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [couponWindow, setCouponWindow] = useState(null);
-  const [contact, setContact] = useState(null);
+  const [myApps, setMyApps] = useState([]);
 
   const refresh = useCallback(async () => {
     // デモモードはテストデータを表示し、以降の操作もすべて端末内だけで行う
-    if (isDemoMode()) { setBooths(prev => prev.length ? prev : DEMO_FESTIVAL_BOOTHS); setContact({ id: 900100, name: '運営（テスト）' }); setLoading(false); return; }
+    if (isDemoMode()) { setBooths(prev => prev.length ? prev : DEMO_FESTIVAL_BOOTHS); setMyApps(prev => prev.length ? prev : DEMO_FESTIVAL_APPS); setLoading(false); return; }
     try {
       const r = await fetch('/api/festival');
       if (r.ok) {
         const d = await r.json();
         setBooths(d.booths || []);
         setIsAdmin(!!d.isAdmin);
-        setContact(d.contact || null);
         if (d.couponWindow) setCouponWindow({ start: new Date(d.couponWindow.start), end: new Date(d.couponWindow.end) });
       }
+      // 自分の申請（未ログインなら 401 で空のまま）
+      const ra = await fetch('/api/festival/applications');
+      if (ra.ok) setMyApps((await ra.json()).applications || []);
     } catch (e) { console.error('[useFestival]', e); }
     setLoading(false);
   }, []);
@@ -135,6 +137,28 @@ export function useFestival() {
     return usedAt;
   }, [booths]);
 
+  // 掲載申請（boothId があれば掲載中の出店の変更申請）
+  const apply = useCallback(async (form, imageFile, removeImage, members, boothId) => {
+    if (isDemoMode()) {
+      const filled = members.map(m => m.trim()).filter(Boolean);
+      if (filled.length + 1 < 3) throw new Error(t("festival.applyNeedMembers", { n: 3 - 1 - filled.length }));
+      const a = { id: `test-app-${Date.now()}`, status: 'pending', boothId: boothId || null, name: form.name, createdAt: new Date().toISOString() };
+      setMyApps(prev => [a, ...prev]);
+      return a;
+    }
+    const body = { ...form, members, boothId: boothId || undefined };
+    if (imageFile) body.image = await uploadImage(imageFile);
+    else if (removeImage) body.image = null;
+    const a = await api('POST', body, '/api/festival/applications');
+    setMyApps(prev => [a, ...prev]);
+    return a;
+  }, []);
+
+  const withdraw = useCallback(async (id) => {
+    if (!isDemoMode()) await api('PATCH', { id, action: 'withdraw' }, '/api/festival/applications');
+    setMyApps(prev => prev.map(a => a.id === id ? { ...a, status: 'withdrawn' } : a));
+  }, []);
+
   const toggleHidden = useCallback(async (id) => {
     replace(await api('PATCH', { id, action: 'hide' }));
   }, []);
@@ -142,5 +166,5 @@ export function useFestival() {
   // デモモードは開催前でも試せるよう、期間制限なし
   const couponOpen = isDemoMode() || (couponWindow && Date.now() >= couponWindow.start && Date.now() < couponWindow.end);
 
-  return { booths, isAdmin, contact, loading, refresh, save, toggleLike, remove, toggleHidden, redeemCoupon, couponOpen, couponWindow };
+  return { booths, isAdmin, myApps, apply, withdraw, loading, refresh, save, toggleLike, remove, toggleHidden, redeemCoupon, couponOpen, couponWindow };
 }

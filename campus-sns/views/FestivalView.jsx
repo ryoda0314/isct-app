@@ -21,9 +21,9 @@ const CATEGORIES=[
   {id:"goods",labelKey:"festival.catGoods",color:"#f59e0b"},
   {id:"other",labelKey:"festival.catOther",color:"#64748b"},
 ];
-const CAT_MAP=Object.fromEntries(CATEGORIES.map(c=>[c.id,c]));
+export const CAT_MAP=Object.fromEntries(CATEGORIES.map(c=>[c.id,c]));
 const SPOT_LIST=SPOTS.filter(s=>s.id);
-const SPOT_MAP=Object.fromEntries(SPOT_LIST.map(s=>[s.id,s]));
+export const SPOT_MAP=Object.fromEntries(SPOT_LIST.map(s=>[s.id,s]));
 
 const inputSt=()=>({width:"100%",boxSizing:"border-box",padding:"9px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",fontFamily:"inherit"});
 const btnSt=(primary)=>({display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,padding:"8px 14px",borderRadius:8,border:primary?"none":`1px solid ${T.bd}`,background:primary?T.accent:T.bg3,color:primary?"#fff":T.txH,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"});
@@ -72,7 +72,9 @@ const BoothCard=({b,onOpen,onLike})=>{
 
 // ── 登録・編集フォーム ──
 const EMPTY={name:"",org:"",category:"food",description:"",building:"",location:"",hours:"",link:""};
-const BoothForm=({initial,onSave,onCancel})=>{
+const BoothForm=({initial,onSave,onCancel,apply})=>{
+  // apply: 掲載申請モード（代表者以外のメンバーの Science Tokyo ID を入力）
+  const [members,setMembers]=useState(["",""]);
   const [f,setF]=useState(()=>initial?{...EMPTY,...Object.fromEntries(Object.keys(EMPTY).map(k=>[k,initial[k]||EMPTY[k]]))}:EMPTY);
   const [file,setFile]=useState(null);
   const [preview,setPreview]=useState(initial?.imageUrl||null);
@@ -96,15 +98,28 @@ const BoothForm=({initial,onSave,onCancel})=>{
     if(!f.name.trim()){showToast(t("festival.nameRequired"));return;}
     if(couponOn&&!cp.title.trim()){showToast(t("festival.couponTitleRequired"));return;}
     setSaving(true);
-    try{await onSave({...f,coupon:couponOn?{title:cp.title,detail:cp.detail,limit:cp.limit.trim()||null}:null},file,removeImage);}
+    try{await onSave({...f,coupon:couponOn?{title:cp.title,detail:cp.detail,limit:cp.limit.trim()||null}:null},file,removeImage,members.map(m=>m.trim()).filter(Boolean));}
     catch(e){showToast(e.message||t("toast.saveFailed"));setSaving(false);}
   };
   const label=(k,req)=><div style={{fontSize:12,fontWeight:600,color:T.txH,margin:"12px 0 5px"}}>{t(k)}{req&&<span style={{color:T.red}}> *</span>}</div>;
 
   return(
     <div style={{maxWidth:560,margin:"0 auto",padding:16}}>
-      <div style={{fontSize:17,fontWeight:700,color:T.txH,marginBottom:4}}>{initial?t("festival.editTitle"):t("festival.newTitle")}</div>
-      <div style={{fontSize:12,color:T.txD}}>{t("festival.formNote")}</div>
+      <div style={{fontSize:17,fontWeight:700,color:T.txH,marginBottom:4}}>{apply?(initial?t("festival.changeTitle"):t("festival.applyTitle")):initial?t("festival.editTitle"):t("festival.newTitle")}</div>
+      <div style={{fontSize:12,color:T.txD,lineHeight:1.6}}>{apply?t("festival.applyNote"):t("festival.formNote")}</div>
+
+      {apply&&<div style={{marginTop:16,padding:14,borderRadius:10,border:`1px solid ${T.accent}40`,background:T.accent+"0a"}}>
+        <div style={{fontSize:14,fontWeight:700,color:T.txH}}>{t("festival.membersTitle")}</div>
+        <div style={{fontSize:12,color:T.txD,marginTop:4,lineHeight:1.6}}>{t("festival.membersNote")}</div>
+        {members.map((m,i)=>(
+          <div key={i} style={{display:"flex",gap:6,alignItems:"center",marginTop:8}}>
+            <span style={{width:20,fontSize:12,color:T.txD,textAlign:"right",flexShrink:0}}>{i+1}</span>
+            <input value={m} onChange={e=>{const v=e.target.value;setMembers(p=>p.map((x,j)=>j===i?v:x));}} placeholder="abcd1234" autoCapitalize="off" autoCorrect="off" spellCheck={false} style={{...inputSt(),flex:1}}/>
+            {members.length>2&&<span onClick={()=>setMembers(p=>p.filter((_,j)=>j!==i))} style={{color:T.txD,cursor:"pointer",display:"flex",padding:4}}>{I.x}</span>}
+          </div>
+        ))}
+        {members.length<20&&<div onClick={()=>setMembers(p=>[...p,""])} style={{fontSize:12,color:T.accent,fontWeight:600,cursor:"pointer",marginTop:10}}>{t("festival.addMember")}</div>}
+      </div>}
 
       {label("festival.fImage")}
       <div onClick={()=>fileRef.current?.click()} style={{borderRadius:10,overflow:"hidden",border:`1px dashed ${T.bd}`,cursor:"pointer",background:T.bg3}}>
@@ -161,7 +176,7 @@ const BoothForm=({initial,onSave,onCancel})=>{
 
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:20}}>
         <button onClick={onCancel} disabled={saving} style={btnSt(false)}>{t("common.cancel")}</button>
-        <button onClick={submit} disabled={saving} style={{...btnSt(true),opacity:saving?.6:1}}>{saving?t("festival.saving"):initial?t("festival.update"):t("festival.publish")}</button>
+        <button onClick={submit} disabled={saving} style={{...btnSt(true),opacity:saving?.6:1}}>{saving?t("festival.saving"):apply?t("festival.submitApply"):initial?t("festival.update"):t("festival.publish")}</button>
       </div>
     </div>
   );
@@ -208,7 +223,7 @@ const CouponPanel=({b,loggedIn,onLogin,couponOpen,onRedeem})=>{
   const sub={...big,background:T.bg3,color:T.txH,border:`1px solid ${T.bd}`};
   const off={...big,background:T.bg3,color:T.txD,cursor:"default"};
   let action;
-  if(b.canEdit) action=<div style={{fontSize:13,color:T.txD}}>{t("festival.couponOwnerStats",{n:c.used})}{c.limit!=null?` / ${c.limit}`:""}</div>;
+  if(b.canEdit||b.isMine) action=<div style={{fontSize:13,color:T.txD}}>{t("festival.couponOwnerStats",{n:c.used})}{c.limit!=null?` / ${c.limit}`:""}</div>;
   else if(!loggedIn) action=<button onClick={onLogin} style={sub}>{t("festival.couponLogin")}</button>;
   else if(c.myUsedAt) action=<button onClick={()=>setShowUsed(true)} style={sub}>{t("festival.couponShowUsed")}</button>;
   else if(soldOut) action=<button disabled style={off}>{t("festival.couponSoldOut")}</button>;
@@ -223,14 +238,14 @@ const CouponPanel=({b,loggedIn,onLogin,couponOpen,onRedeem})=>{
       <div style={{fontSize:20,fontWeight:800,color:T.txH,marginTop:6,lineHeight:1.3}}>{c.title}</div>
       {c.detail&&<div style={{fontSize:13,color:T.tx,marginTop:4,lineHeight:1.6}}>{c.detail}</div>}
       <div style={{marginTop:12}}>{action}</div>
-      {!b.canEdit&&loggedIn&&!c.myUsedAt&&!soldOut&&<div style={{fontSize:11,color:T.txD,marginTop:8,textAlign:"center"}}>{t("festival.couponHowTo")}</div>}
+      {!b.canEdit&&!b.isMine&&loggedIn&&!c.myUsedAt&&!soldOut&&<div style={{fontSize:11,color:T.txD,marginTop:8,textAlign:"center"}}>{t("festival.couponHowTo")}</div>}
       {showUsed&&c.myUsedAt&&<UsedOverlay b={b} usedAt={c.myUsedAt} onClose={()=>setShowUsed(false)}/>}
     </div>
   );
 };
 
 // ── 詳細 ──
-const BoothDetail=({b,mob,loggedIn,onLogin,couponOpen,onRedeem,isAdmin,onBack,onLike,onEdit,onDelete,onHide,onReport,goToBuilding})=>{
+const BoothDetail=({b,mob,loggedIn,onLogin,couponOpen,onRedeem,onRequestChange,isAdmin,onBack,onLike,onEdit,onDelete,onHide,onReport,goToBuilding})=>{
   const c=CAT_MAP[b.category]||CAT_MAP.other;
   const place=placeText(b);
   const row=(icon,text)=>text&&<div style={{display:"flex",gap:8,alignItems:"flex-start",fontSize:14,color:T.tx,marginTop:8}}><span style={{display:"flex",color:T.txD,transform:"scale(.85)"}}>{icon}</span><span style={{flex:1}}>{text}</span></div>;
@@ -262,10 +277,11 @@ const BoothDetail=({b,mob,loggedIn,onLogin,couponOpen,onRedeem,isAdmin,onBack,on
             </div>
 
             <div style={{display:"flex",gap:14,flexWrap:"wrap",marginTop:18,fontSize:12}}>
+              {b.isMine&&!b.canEdit&&<span onClick={onRequestChange} style={{color:T.accent,cursor:"pointer",fontWeight:600}}>{t("festival.requestChange")}</span>}
               {b.canEdit&&<span onClick={onEdit} style={{color:T.accent,cursor:"pointer",fontWeight:600}}>{t("festival.edit")}</span>}
               {b.canEdit&&<span onClick={onDelete} style={{color:T.red,cursor:"pointer",fontWeight:600}}>{t("festival.delete")}</span>}
               {isAdmin&&<span onClick={onHide} style={{color:T.txD,cursor:"pointer",fontWeight:600}}>{b.hidden?t("festival.unhide"):t("festival.hide")}</span>}
-              {loggedIn&&!b.canEdit&&<span onClick={onReport} style={{color:T.txD,cursor:"pointer"}}>{t("festival.report")}</span>}
+              {loggedIn&&!b.canEdit&&!b.isMine&&<span onClick={onReport} style={{color:T.txD,cursor:"pointer"}}>{t("festival.report")}</span>}
             </div>
           </div>
         </div>
@@ -275,27 +291,56 @@ const BoothDetail=({b,mob,loggedIn,onLogin,couponOpen,onRedeem,isAdmin,onBack,on
 };
 
 // ── 「出店を宣伝しませんか？」 ──
-const PromoCard=({mob,loggedIn,onLogin,onContact})=>(
+const PromoCard=({mob,loggedIn,onLogin,onApply})=>(
   <div style={{marginTop:12,borderRadius:14,padding:mob?14:18,border:`1px solid ${T.bd}`,background:T.bg2,display:"flex",flexDirection:mob?"column":"row",alignItems:mob?"stretch":"center",gap:12}}>
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontSize:15,fontWeight:800,color:T.txH}}>{t("festival.promoTitle")}</div>
       <div style={{fontSize:12,color:T.txD,marginTop:4,lineHeight:1.7}}>{t("festival.promoBody")}</div>
     </div>
     {loggedIn
-      ?(onContact&&<button onClick={onContact} style={{...btnSt(true),flexShrink:0}}><span style={{display:"flex",transform:"scale(.8)"}}>{I.mail}</span>{t("festival.promoDM")}</button>)
+      ?<button onClick={onApply} style={{...btnSt(true),flexShrink:0}}>{t("festival.promoApply")}</button>
       :<button onClick={onLogin} style={{...btnSt(false),flexShrink:0}}>{t("festival.promoLogin")}</button>}
   </div>
 );
 
+// ── 自分の申請 ──
+const APP_STATUS={
+  pending:{key:"festival.stPending",color:"#f59e0b"},
+  approved:{key:"festival.stApproved",color:"#10b981"},
+  rejected:{key:"festival.stRejected",color:"#e11d48"},
+  withdrawn:{key:"festival.stWithdrawn",color:"#64748b"},
+};
+const MyApplications=({apps,onWithdraw})=>{
+  const shown=apps.filter(a=>a.status!=="withdrawn");
+  if(!shown.length) return null;
+  return(
+    <div style={{marginTop:12,borderRadius:14,border:`1px solid ${T.bd}`,background:T.bg2,padding:"12px 14px"}}>
+      <div style={{fontSize:13,fontWeight:700,color:T.txH,marginBottom:4}}>{t("festival.myApps")}</div>
+      {shown.map(a=>{const st=APP_STATUS[a.status]||APP_STATUS.pending;return(
+        <div key={a.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"8px 0",borderTop:`1px solid ${T.bd}`}}>
+          <Tag color={st.color}>{t(st.key)}</Tag>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:600,color:T.txH}}>{a.name}{a.boothId&&a.status!=="approved"?<span style={{fontSize:11,color:T.txD,fontWeight:400}}> {t("festival.changeSuffix")}</span>:null}</div>
+            {a.status==="pending"&&<div style={{fontSize:11,color:T.txD,marginTop:2}}>{t("festival.pendingNote")}</div>}
+            {a.status==="rejected"&&a.rejectReason&&<div style={{fontSize:11,color:T.txD,marginTop:2}}>{t("festival.rejectReason",{r:a.rejectReason})}</div>}
+          </div>
+          {a.status==="pending"&&<span onClick={()=>onWithdraw(a.id)} style={{fontSize:12,color:T.txD,cursor:"pointer",whiteSpace:"nowrap"}}>{t("festival.withdraw")}</span>}
+        </div>
+      );})}
+    </div>
+  );
+};
+
 // ── Main View ──
-export const FestivalView=({mob,loggedIn,onLogin,goToBuilding,onContact})=>{
-  const {booths,isAdmin,contact,loading,save,toggleLike,remove,toggleHidden,redeemCoupon,couponOpen}=useFestival();
+export const FestivalView=({mob,loggedIn,onLogin,goToBuilding})=>{
+  const {booths,isAdmin,myApps,apply,withdraw,loading,save,toggleLike,remove,toggleHidden,redeemCoupon,couponOpen}=useFestival();
   const [couponOnly,setCouponOnly]=useState(false);
   const [cat,setCat]=useState(null);
   const [q,setQ]=useState("");
   const [sortBy,setSortBy]=useState("new");
   const [openId,setOpenId]=useState(null);
-  const [editing,setEditing]=useState(null); // null | "new" | booth
+  const [editing,setEditing]=useState(null); // null | "new" | booth（運営の直接編集）
+  const [applying,setApplying]=useState(null); // null | "new" | booth（代表者の掲載・変更申請）
   const [reporting,setReporting]=useState(null);
 
   const like=(id)=>{if(!loggedIn){showToast(t("festival.loginToLike"));return;}toggleLike(id);};
@@ -319,11 +364,20 @@ export const FestivalView=({mob,loggedIn,onLogin,goToBuilding,onContact})=>{
     }}/></div>;
   }
 
+  if(applying){
+    const initial=applying==="new"?null:applying;
+    return <div style={{flex:1,overflowY:"auto"}}><BoothForm apply initial={initial} onCancel={()=>setApplying(null)} onSave={async(f,file,rm,members)=>{
+      await apply(f,file,rm,members,initial?.id);
+      showToast(t("festival.applied"));
+      setApplying(null);setOpenId(null);
+    }}/></div>;
+  }
+
   const open=openId?booths.find(b=>b.id===openId):null;
   if(open){
     return <>
       <BoothDetail b={open} mob={mob} loggedIn={loggedIn} onLogin={onLogin} couponOpen={couponOpen} onRedeem={redeemCoupon} isAdmin={isAdmin} goToBuilding={goToBuilding}
-        onBack={()=>setOpenId(null)} onLike={like} onEdit={()=>setEditing(open)}
+        onBack={()=>setOpenId(null)} onLike={like} onEdit={()=>setEditing(open)} onRequestChange={()=>setApplying(open)}
         onDelete={async()=>{if(!confirm(t("festival.confirmDelete")))return;try{await remove(open.id);setOpenId(null);showToast(t("festival.deleted"));}catch(e){showToast(e.message);}}}
         onHide={()=>toggleHidden(open.id).catch(e=>showToast(e.message))}
         onReport={()=>setReporting(open)}/>
@@ -347,7 +401,8 @@ export const FestivalView=({mob,loggedIn,onLogin,goToBuilding,onContact})=>{
         </div>
 
         {/* 出店の宣伝を受け付ける（登録は運営が代行） */}
-        {!isAdmin&&<PromoCard mob={mob} loggedIn={loggedIn} onLogin={onLogin} onContact={contact&&onContact?()=>onContact(contact):null}/>}
+        {!isAdmin&&<PromoCard mob={mob} loggedIn={loggedIn} onLogin={onLogin} onApply={()=>setApplying("new")}/>}
+        {loggedIn&&<MyApplications apps={myApps} onWithdraw={id=>{if(confirm(t("festival.confirmWithdraw")))withdraw(id).catch(e=>showToast(e.message));}}/>}
 
         {/* 検索・絞り込み */}
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder={t("festival.search")} style={{...inputSt(),marginTop:14,background:T.bg2}}/>

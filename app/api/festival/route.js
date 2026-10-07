@@ -3,101 +3,14 @@ import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { COOKIE_NAME } from '../../../lib/auth/session.js';
 import { isAdmin } from '../../../lib/auth/is-admin.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
-import { checkNgWords } from '../../../lib/ng-filter.js';
+import { TABLE, BUCKET, CURRENT_FESTIVAL, MAX_IMAGE_SIZE, COUPON_START, COUPON_END, COLS, toClient, buildRow } from '../../../lib/festival.js';
 
-// 学園祭の出店・展示の宣伝。閲覧は来場者（未ログイン）にも公開、投稿は学生のみ。
-const TABLE = 'festival_booths';
-const BUCKET = 'festival-public';
-const CURRENT_FESTIVAL = 'koudaisai2026';
-const VALID_CATEGORIES = ['food', 'drink', 'exhibit', 'game', 'stage', 'goods', 'other'];
-// 出店の登録・編集は運営（管理者）のみ。出店者は運営にDMで依頼する。
-// 連絡先は FESTIVAL_CONTACT_ID、なければ ADMIN_IDS の先頭。
-const CONTACT_ID = Number(process.env.FESTIVAL_CONTACT_ID || (process.env.ADMIN_IDS || '').split(',')[0]) || null;
-const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
-const LIMITS = { name: 60, org: 60, description: 2000, location: 100, hours: 100, link: 300, building: 40, couponTitle: 40, couponDetail: 200 };
-// クーポンを使える期間（工大祭の2日間, JST）
-const COUPON_START = new Date('2026-10-10T00:00:00+09:00');
-const COUPON_END = new Date('2026-10-12T00:00:00+09:00');
-
-const COLS = 'id, festival, owner_id, name, org, category, description, building, location, hours, link, image, likes, hidden, coupon_title, coupon_detail, coupon_limit, coupon_used, created_at, updated_at';
-
+// 学園祭の出店・展示の宣伝。閲覧は来場者（未ログイン）にも公開。掲載は代表者の申請 → 運営の承認で行う。
 // ログインしていれば auth を返し、未ログイン（またはセッション無効）なら null。
 async function optionalAuth(request) {
   if (!request.cookies.get(COOKIE_NAME)?.value) return null;
   const auth = await requireAuth(request);
   return auth.error ? null : auth;
-}
-
-const clean = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '') || null;
-
-function toClient(sb, b, userid, admin, myUses) {
-  const likes = b.likes || [];
-  return {
-    id: b.id,
-    name: b.name,
-    org: b.org,
-    category: b.category,
-    description: b.description,
-    building: b.building,
-    location: b.location,
-    hours: b.hours,
-    link: b.link,
-    imageUrl: b.image?.path ? sb.storage.from(BUCKET).getPublicUrl(b.image.path).data.publicUrl : null,
-    likeCount: likes.length,
-    liked: userid ? likes.includes(userid) : false,
-    canEdit: !!admin,
-    hidden: admin ? b.hidden : undefined,
-    coupon: b.coupon_title ? {
-      title: b.coupon_title,
-      detail: b.coupon_detail,
-      limit: b.coupon_limit,
-      used: b.coupon_used || 0,
-      myUsedAt: myUses?.get(b.id) || null,
-    } : null,
-    createdAt: b.created_at,
-    updatedAt: b.updated_at,
-  };
-}
-
-// 入力のバリデーション。成功時は { row }、失敗時は { error }。
-async function buildRow(body, userid) {
-  const name = clean(body.name, LIMITS.name);
-  if (!name) return { error: '出店名を入力してください' };
-  if (!VALID_CATEGORIES.includes(body.category)) return { error: 'カテゴリが不正です' };
-
-  const row = {
-    name,
-    category: body.category,
-    org: clean(body.org, LIMITS.org),
-    description: clean(body.description, LIMITS.description),
-    building: clean(body.building, LIMITS.building),
-    location: clean(body.location, LIMITS.location),
-    hours: clean(body.hours, LIMITS.hours),
-    link: clean(body.link, LIMITS.link),
-  };
-  if (row.link && !/^https?:\/\/[^\s]+$/i.test(row.link)) return { error: 'リンクは http(s):// から始まるURLにしてください' };
-
-  // クーポン: null / 未指定ならなし。上限は 1〜10000 の整数か null（上限なし）。
-  const c = body.coupon;
-  row.coupon_title = c ? clean(c.title, LIMITS.couponTitle) : null;
-  row.coupon_detail = row.coupon_title ? clean(c.detail, LIMITS.couponDetail) : null;
-  row.coupon_limit = null;
-  if (row.coupon_title && c.limit != null && c.limit !== '') {
-    const n = Number(c.limit);
-    if (!Number.isInteger(n) || n < 1 || n > 10000) return { error: 'クーポンの枚数は1〜10000で入力してください' };
-    row.coupon_limit = n;
-  }
-
-  const ng = await checkNgWords([row.name, row.org, row.description, row.location, row.hours, row.coupon_title, row.coupon_detail].filter(Boolean).join('\n'), { userId: userid, type: 'festival_booth' });
-  if (ng.blocked) return { error: '禁止ワードが含まれています' };
-
-  // 画像: 自分のプレフィックス配下のパスのみ受理。null 指定で削除。
-  if (body.image === null) row.image = null;
-  else if (body.image?.path) {
-    if (typeof body.image.path !== 'string' || !body.image.path.startsWith(`festival/${userid}/`)) return { error: 'invalid image path' };
-    row.image = { path: body.image.path };
-  }
-  return { row };
 }
 
 export async function GET(request) {
@@ -123,16 +36,9 @@ export async function GET(request) {
       const uses = await sb.from('festival_coupon_uses').select('booth_id, used_at').eq('user_id', userid);
       myUses = new Map((uses.data || []).map(u => [u.booth_id, u.used_at]));
     }
-    // 「出店を宣伝しませんか？」のDM先
-    let contact = null;
-    if (CONTACT_ID) {
-      const { data: p } = await sb.from('profiles').select('name, avatar, color').eq('moodle_id', CONTACT_ID).maybeSingle();
-      contact = { id: CONTACT_ID, name: p?.name || '運営', avatar: p?.avatar || null, color: p?.color || null };
-    }
     return NextResponse.json({
       booths: list.map(b => toClient(sb, b, userid, admin, myUses)),
       isAdmin: admin,
-      contact,
       couponWindow: { start: COUPON_START.toISOString(), end: COUPON_END.toISOString() },
     });
   } catch (err) {
@@ -149,9 +55,8 @@ export async function POST(request) {
     const body = await request.json();
     const sb = getSupabaseAdmin();
 
-    // 1) 画像アップロード用の署名URL（運営のみ）
+    // 1) 画像アップロード用の署名URL（掲載申請・運営の登録の両方で使う）
     if (body.action === 'sign-upload') {
-      if (!(await isAdmin(userid))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       const { type, size } = body;
       if (!['image/jpeg', 'image/png', 'image/webp'].includes(type)) return NextResponse.json({ error: '画像ファイル（JPEG/PNG/WebP）を選択してください' }, { status: 400 });
       if (!(size > 0) || size > MAX_IMAGE_SIZE) return NextResponse.json({ error: '画像が大きすぎます（最大2MB）' }, { status: 400 });
@@ -186,7 +91,7 @@ export async function POST(request) {
     }
 
     // 3) 出店の登録（運営のみ）
-    if (!(await isAdmin(userid))) return NextResponse.json({ error: '出店の登録は運営が行います。運営にDMで連絡してください' }, { status: 403 });
+    if (!(await isAdmin(userid))) return NextResponse.json({ error: '出店の掲載は申請フォームから申請してください' }, { status: 403 });
 
     const { row, error: vErr } = await buildRow(body, userid);
     if (vErr) return NextResponse.json({ error: vErr }, { status: 400 });

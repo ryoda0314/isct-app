@@ -96,3 +96,29 @@ begin
   return query select 'ok'::text, t, b.coupon_used + 1;
 end;
 $$;
+
+-- =============================================================
+-- 掲載申請（代表者が申請 → 運営が承認すると festival_booths に掲載）
+-- 条件: 団体メンバー3人以上（代表者を含む）がアプリに登録済みであること。
+--       メンバーは Science Tokyo ID で指定し、登録済みかをサーバーで確認する。
+-- =============================================================
+
+create table if not exists festival_applications (
+  id                uuid primary key default gen_random_uuid(),
+  festival          text not null default 'koudaisai2026',
+  applicant_id      bigint not null,                 -- 代表者の moodle user id
+  applicant_login   text not null,                   -- 代表者の Science Tokyo ID
+  booth_id          uuid references festival_booths(id) on delete cascade,  -- null = 新規、値あり = 掲載中の出店の変更申請
+  payload           jsonb not null,                  -- 検証済みの出店内容（festival_booths の列と同じ形）
+  member_logins     text[] not null default '{}',    -- 代表者以外のメンバーの Science Tokyo ID
+  status            text not null default 'pending', -- pending / approved / rejected / withdrawn
+  reject_reason     text,
+  reviewed_by       bigint,
+  reviewed_at       timestamptz,
+  created_at        timestamptz not null default now()
+);
+create index if not exists festival_applications_status_idx on festival_applications (festival, status, created_at desc);
+create index if not exists festival_applications_applicant_idx on festival_applications (applicant_id, created_at desc);
+
+alter table festival_applications enable row level security;
+-- anon ポリシーは作らない（/api/festival/applications 経由のみ）
