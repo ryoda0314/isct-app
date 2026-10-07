@@ -59,7 +59,6 @@ const BoothCard=({b,onOpen,onLike})=>{
         <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
           <Tag color={c.color}>{t(c.labelKey)}</Tag>
           {b.coupon&&<Tag color={COUPON_COLOR}>{t("festival.couponTag")}</Tag>}
-          {b.isMine&&<Tag color={T.accent}>{t("festival.mine")}</Tag>}
           {b.hidden&&<Tag color={T.red}>{t("festival.hiddenTag")}</Tag>}
         </div>
         <div style={{fontWeight:700,fontSize:15,color:T.txH,lineHeight:1.3}}>{b.name}</div>
@@ -209,7 +208,7 @@ const CouponPanel=({b,loggedIn,onLogin,couponOpen,onRedeem})=>{
   const sub={...big,background:T.bg3,color:T.txH,border:`1px solid ${T.bd}`};
   const off={...big,background:T.bg3,color:T.txD,cursor:"default"};
   let action;
-  if(b.isMine) action=<div style={{fontSize:13,color:T.txD}}>{t("festival.couponOwnerStats",{n:c.used})}{c.limit!=null?` / ${c.limit}`:""}</div>;
+  if(b.canEdit) action=<div style={{fontSize:13,color:T.txD}}>{t("festival.couponOwnerStats",{n:c.used})}{c.limit!=null?` / ${c.limit}`:""}</div>;
   else if(!loggedIn) action=<button onClick={onLogin} style={sub}>{t("festival.couponLogin")}</button>;
   else if(c.myUsedAt) action=<button onClick={()=>setShowUsed(true)} style={sub}>{t("festival.couponShowUsed")}</button>;
   else if(soldOut) action=<button disabled style={off}>{t("festival.couponSoldOut")}</button>;
@@ -224,7 +223,7 @@ const CouponPanel=({b,loggedIn,onLogin,couponOpen,onRedeem})=>{
       <div style={{fontSize:20,fontWeight:800,color:T.txH,marginTop:6,lineHeight:1.3}}>{c.title}</div>
       {c.detail&&<div style={{fontSize:13,color:T.tx,marginTop:4,lineHeight:1.6}}>{c.detail}</div>}
       <div style={{marginTop:12}}>{action}</div>
-      {!b.isMine&&loggedIn&&!c.myUsedAt&&!soldOut&&<div style={{fontSize:11,color:T.txD,marginTop:8,textAlign:"center"}}>{t("festival.couponHowTo")}</div>}
+      {!b.canEdit&&loggedIn&&!c.myUsedAt&&!soldOut&&<div style={{fontSize:11,color:T.txD,marginTop:8,textAlign:"center"}}>{t("festival.couponHowTo")}</div>}
       {showUsed&&c.myUsedAt&&<UsedOverlay b={b} usedAt={c.myUsedAt} onClose={()=>setShowUsed(false)}/>}
     </div>
   );
@@ -263,10 +262,10 @@ const BoothDetail=({b,mob,loggedIn,onLogin,couponOpen,onRedeem,isAdmin,onBack,on
             </div>
 
             <div style={{display:"flex",gap:14,flexWrap:"wrap",marginTop:18,fontSize:12}}>
-              {b.isMine&&<span onClick={onEdit} style={{color:T.accent,cursor:"pointer",fontWeight:600}}>{t("festival.edit")}</span>}
-              {(b.isMine||isAdmin)&&<span onClick={onDelete} style={{color:T.red,cursor:"pointer",fontWeight:600}}>{t("festival.delete")}</span>}
+              {b.canEdit&&<span onClick={onEdit} style={{color:T.accent,cursor:"pointer",fontWeight:600}}>{t("festival.edit")}</span>}
+              {b.canEdit&&<span onClick={onDelete} style={{color:T.red,cursor:"pointer",fontWeight:600}}>{t("festival.delete")}</span>}
               {isAdmin&&<span onClick={onHide} style={{color:T.txD,cursor:"pointer",fontWeight:600}}>{b.hidden?t("festival.unhide"):t("festival.hide")}</span>}
-              {loggedIn&&!b.isMine&&<span onClick={onReport} style={{color:T.txD,cursor:"pointer"}}>{t("festival.report")}</span>}
+              {loggedIn&&!b.canEdit&&<span onClick={onReport} style={{color:T.txD,cursor:"pointer"}}>{t("festival.report")}</span>}
             </div>
           </div>
         </div>
@@ -275,14 +274,26 @@ const BoothDetail=({b,mob,loggedIn,onLogin,couponOpen,onRedeem,isAdmin,onBack,on
   );
 };
 
+// ── 「出店を宣伝しませんか？」 ──
+const PromoCard=({mob,loggedIn,onLogin,onContact})=>(
+  <div style={{marginTop:12,borderRadius:14,padding:mob?14:18,border:`1px solid ${T.bd}`,background:T.bg2,display:"flex",flexDirection:mob?"column":"row",alignItems:mob?"stretch":"center",gap:12}}>
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{fontSize:15,fontWeight:800,color:T.txH}}>{t("festival.promoTitle")}</div>
+      <div style={{fontSize:12,color:T.txD,marginTop:4,lineHeight:1.7}}>{t("festival.promoBody")}</div>
+    </div>
+    {loggedIn
+      ?(onContact&&<button onClick={onContact} style={{...btnSt(true),flexShrink:0}}><span style={{display:"flex",transform:"scale(.8)"}}>{I.mail}</span>{t("festival.promoDM")}</button>)
+      :<button onClick={onLogin} style={{...btnSt(false),flexShrink:0}}>{t("festival.promoLogin")}</button>}
+  </div>
+);
+
 // ── Main View ──
-export const FestivalView=({mob,loggedIn,onLogin,goToBuilding})=>{
-  const {booths,isAdmin,loading,save,toggleLike,remove,toggleHidden,redeemCoupon,couponOpen}=useFestival();
+export const FestivalView=({mob,loggedIn,onLogin,goToBuilding,onContact})=>{
+  const {booths,isAdmin,contact,loading,save,toggleLike,remove,toggleHidden,redeemCoupon,couponOpen}=useFestival();
   const [couponOnly,setCouponOnly]=useState(false);
   const [cat,setCat]=useState(null);
   const [q,setQ]=useState("");
   const [sortBy,setSortBy]=useState("new");
-  const [mineOnly,setMineOnly]=useState(false);
   const [openId,setOpenId]=useState(null);
   const [editing,setEditing]=useState(null); // null | "new" | booth
   const [reporting,setReporting]=useState(null);
@@ -291,14 +302,13 @@ export const FestivalView=({mob,loggedIn,onLogin,goToBuilding})=>{
 
   const shown=useMemo(()=>{
     let r=booths;
-    if(mineOnly) r=r.filter(b=>b.isMine);
     if(couponOnly) r=r.filter(b=>b.coupon);
     if(cat) r=r.filter(b=>b.category===cat);
     const n=q.trim().toLowerCase();
     if(n) r=r.filter(b=>[b.name,b.org,b.description,b.location,SPOT_MAP[b.building]?.label].some(s=>(s||"").toLowerCase().includes(n)));
     if(sortBy==="popular") r=[...r].sort((a,b)=>b.likeCount-a.likeCount);
     return r;
-  },[booths,cat,q,sortBy,mineOnly,couponOnly]);
+  },[booths,cat,q,sortBy,couponOnly]);
 
   if(editing){
     const initial=editing==="new"?null:editing;
@@ -317,11 +327,10 @@ export const FestivalView=({mob,loggedIn,onLogin,goToBuilding})=>{
         onDelete={async()=>{if(!confirm(t("festival.confirmDelete")))return;try{await remove(open.id);setOpenId(null);showToast(t("festival.deleted"));}catch(e){showToast(e.message);}}}
         onHide={()=>toggleHidden(open.id).catch(e=>showToast(e.message))}
         onReport={()=>setReporting(open)}/>
-      {reporting&&<ReportModal targetType="festival_booth" targetId={reporting.id} targetUserId={reporting.ownerId} onClose={()=>setReporting(null)}/>}
+      {reporting&&<ReportModal targetType="festival_booth" targetId={reporting.id} onClose={()=>setReporting(null)}/>}
     </>;
   }
 
-  const myCount=booths.filter(b=>b.isMine).length;
   const chip=(on,color,onClick,children,key)=><span key={key} onClick={onClick} style={{flexShrink:0,padding:"5px 11px",borderRadius:16,fontSize:12,fontWeight:600,cursor:"pointer",border:`1px solid ${on?color:T.bd}`,background:on?color+"20":T.bg2,color:on?color:T.txD,whiteSpace:"nowrap"}}>{children}</span>;
 
   return(
@@ -332,12 +341,13 @@ export const FestivalView=({mob,loggedIn,onLogin,goToBuilding})=>{
           <div style={{fontSize:mob?19:22,fontWeight:800,color:T.txH}}>{t(FESTIVAL.nameKey)}</div>
           <div style={{fontSize:13,color:T.tx,marginTop:6,lineHeight:1.7}}>{FESTIVAL.dates}　{FESTIVAL.place}<br/><span style={{color:T.txD,fontSize:12}}>{FESTIVAL.hours}</span></div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}>
-            {loggedIn
-              ?<button onClick={()=>setEditing("new")} style={btnSt(true)}><span style={{display:"flex",transform:"scale(.8)"}}>{I.plus}</span>{t("festival.add")}</button>
-              :<button onClick={onLogin} style={btnSt(true)}>{t("festival.loginToAdd")}</button>}
+            {isAdmin&&<button onClick={()=>setEditing("new")} style={btnSt(true)}><span style={{display:"flex",transform:"scale(.8)"}}>{I.plus}</span>{t("festival.add")}</button>}
             <a href={FESTIVAL.url} target="_blank" rel="noopener noreferrer" style={{...btnSt(false),textDecoration:"none"}}>{t("festival.officialSite")}</a>
           </div>
         </div>
+
+        {/* 出店の宣伝を受け付ける（登録は運営が代行） */}
+        {!isAdmin&&<PromoCard mob={mob} loggedIn={loggedIn} onLogin={onLogin} onContact={contact&&onContact?()=>onContact(contact):null}/>}
 
         {/* 検索・絞り込み */}
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder={t("festival.search")} style={{...inputSt(),marginTop:14,background:T.bg2}}/>
@@ -349,7 +359,6 @@ export const FestivalView=({mob,loggedIn,onLogin,goToBuilding})=>{
           {chip(sortBy==="new",T.accent,()=>setSortBy("new"),t("festival.sortNew"),"new")}
           {chip(sortBy==="popular",T.accent,()=>setSortBy("popular"),t("festival.sortPopular"),"pop")}
           {booths.some(b=>b.coupon)&&chip(couponOnly,COUPON_COLOR,()=>setCouponOnly(v=>!v),t("festival.couponFilter"),"coupon")}
-          {myCount>0&&chip(mineOnly,T.accent,()=>setMineOnly(v=>!v),t("festival.mineOnly",{n:myCount}),"mine")}
           <span style={{marginLeft:"auto",fontSize:12,color:T.txD}}>{t("festival.count",{n:shown.length})}</span>
         </div>
 

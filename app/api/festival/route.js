@@ -4,15 +4,15 @@ import { COOKIE_NAME } from '../../../lib/auth/session.js';
 import { isAdmin } from '../../../lib/auth/is-admin.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { checkNgWords } from '../../../lib/ng-filter.js';
-import { getBlockedIds } from '../../../lib/blocks.js';
-import { getMutedIds } from '../../../lib/mutes.js';
 
 // 学園祭の出店・展示の宣伝。閲覧は来場者（未ログイン）にも公開、投稿は学生のみ。
 const TABLE = 'festival_booths';
 const BUCKET = 'festival-public';
 const CURRENT_FESTIVAL = 'koudaisai2026';
 const VALID_CATEGORIES = ['food', 'drink', 'exhibit', 'game', 'stage', 'goods', 'other'];
-const MAX_PER_USER = 5;
+// 出店の登録・編集は運営（管理者）のみ。出店者は運営にDMで依頼する。
+// 連絡先は FESTIVAL_CONTACT_ID、なければ ADMIN_IDS の先頭。
+const CONTACT_ID = Number(process.env.FESTIVAL_CONTACT_ID || (process.env.ADMIN_IDS || '').split(',')[0]) || null;
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
 const LIMITS = { name: 60, org: 60, description: 2000, location: 100, hours: 100, link: 300, building: 40, couponTitle: 40, couponDetail: 200 };
 // クーポンを使える期間（工大祭の2日間, JST）
@@ -45,9 +45,7 @@ function toClient(sb, b, userid, admin, myUses) {
     imageUrl: b.image?.path ? sb.storage.from(BUCKET).getPublicUrl(b.image.path).data.publicUrl : null,
     likeCount: likes.length,
     liked: userid ? likes.includes(userid) : false,
-    isMine: !!userid && b.owner_id === userid,
-    // 投稿者IDは通報・管理用にログイン中のみ返す
-    ownerId: userid ? b.owner_id : undefined,
+    canEdit: !!admin,
     hidden: admin ? b.hidden : undefined,
     coupon: b.coupon_title ? {
       title: b.coupon_title,
@@ -121,17 +119,20 @@ export async function GET(request) {
     let list = data || [];
     let myUses = null;
     if (userid) {
-      const [blockedIds, mutedIds, uses] = await Promise.all([
-        getBlockedIds(userid),
-        getMutedIds(userid),
-        sb.from('festival_coupon_uses').select('booth_id, used_at').eq('user_id', userid),
-      ]);
-      if (blockedIds.size || mutedIds.size) list = list.filter(b => !blockedIds.has(b.owner_id) && !mutedIds.has(b.owner_id));
+      // 出店は運営が登録するので、ブロック・ミュートでの除外はしない
+      const uses = await sb.from('festival_coupon_uses').select('booth_id, used_at').eq('user_id', userid);
       myUses = new Map((uses.data || []).map(u => [u.booth_id, u.used_at]));
+    }
+    // 「出店を宣伝しませんか？」のDM先
+    let contact = null;
+    if (CONTACT_ID) {
+      const { data: p } = await sb.from('profiles').select('name, avatar, color').eq('moodle_id', CONTACT_ID).maybeSingle();
+      contact = { id: CONTACT_ID, name: p?.name || '運営', avatar: p?.avatar || null, color: p?.color || null };
     }
     return NextResponse.json({
       booths: list.map(b => toClient(sb, b, userid, admin, myUses)),
       isAdmin: admin,
+      contact,
       couponWindow: { start: COUPON_START.toISOString(), end: COUPON_END.toISOString() },
     });
   } catch (err) {
@@ -148,8 +149,9 @@ export async function POST(request) {
     const body = await request.json();
     const sb = getSupabaseAdmin();
 
-    // 1) 画像アップロード用の署名URL
+    // 1) 画像アップロード用の署名URL（運営のみ）
     if (body.action === 'sign-upload') {
+      if (!(await isAdmin(userid))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       const { type, size } = body;
       if (!['image/jpeg', 'image/png', 'image/webp'].includes(type)) return NextResponse.json({ error: '画像ファイル（JPEG/PNG/WebP）を選択してください' }, { status: 400 });
       if (!(size > 0) || size > MAX_IMAGE_SIZE) return NextResponse.json({ error: '画像が大きすぎます（最大2MB）' }, { status: 400 });
@@ -169,7 +171,7 @@ export async function POST(request) {
       if (now < COUPON_START || now >= COUPON_END) return NextResponse.json({ error: 'クーポンは工大祭の開催期間中のみ使えます' }, { status: 400 });
       const { data: booth } = await sb.from(TABLE).select('owner_id').eq('id', body.id).maybeSingle();
       if (!booth) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-      if (booth.owner_id === userid) return NextResponse.json({ error: '自分の出店のクーポンは使えません' }, { status: 400 });
+      if (booth.owner_id === userid) return NextResponse.json({ error: '登録した出店のクーポンは使えません' }, { status: 400 });
 
       const { data, error } = await sb.rpc('use_festival_coupon', { p_booth_id: body.id, p_user_id: userid });
       if (error) {
@@ -183,9 +185,8 @@ export async function POST(request) {
       return NextResponse.json({ usedAt: r.r_used_at, used: r.r_used_count, already: r.r_status === 'already' });
     }
 
-    // 3) 出店の登録
-    const { count } = await sb.from(TABLE).select('id', { count: 'exact', head: true }).eq('festival', CURRENT_FESTIVAL).eq('owner_id', userid);
-    if ((count || 0) >= MAX_PER_USER) return NextResponse.json({ error: `登録できるのは1人${MAX_PER_USER}件までです` }, { status: 400 });
+    // 3) 出店の登録（運営のみ）
+    if (!(await isAdmin(userid))) return NextResponse.json({ error: '出店の登録は運営が行います。運営にDMで連絡してください' }, { status: 403 });
 
     const { row, error: vErr } = await buildRow(body, userid);
     if (vErr) return NextResponse.json({ error: vErr }, { status: 400 });
@@ -195,7 +196,7 @@ export async function POST(request) {
       console.error('[Festival POST]', error.message);
       return NextResponse.json({ error: 'Internal error' }, { status: 500 });
     }
-    return NextResponse.json(toClient(sb, data, userid, false));
+    return NextResponse.json(toClient(sb, data, userid, true));
   } catch (err) {
     console.error('[Festival POST]', err);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
@@ -226,7 +227,7 @@ export async function PATCH(request) {
     }
 
     if (action === 'edit') {
-      if (booth.owner_id !== userid) return NextResponse.json({ error: 'Not your booth' }, { status: 403 });
+      if (!(await isAdmin(userid))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       const { row, error: vErr } = await buildRow(body, userid);
       if (vErr) return NextResponse.json({ error: vErr }, { status: 400 });
       const { data, error } = await sb.from(TABLE).update({ ...row, updated_at: new Date().toISOString() }).eq('id', id).select(COLS).single();
@@ -236,7 +237,7 @@ export async function PATCH(request) {
       }
       // 差し替えた古い画像は消す
       if (booth.image?.path && booth.image.path !== data.image?.path) await sb.storage.from(BUCKET).remove([booth.image.path]).catch(() => {});
-      return NextResponse.json(toClient(sb, data, userid, false));
+      return NextResponse.json(toClient(sb, data, userid, true));
     }
 
     if (action === 'hide') {
@@ -264,7 +265,7 @@ export async function DELETE(request) {
     const sb = getSupabaseAdmin();
     const { data: booth } = await sb.from(TABLE).select('owner_id, image').eq('id', id).maybeSingle();
     if (!booth) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (booth.owner_id !== userid && !(await isAdmin(userid))) return NextResponse.json({ error: 'Not your booth' }, { status: 403 });
+    if (!(await isAdmin(userid))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const { error } = await sb.from(TABLE).delete().eq('id', id);
     if (error) {

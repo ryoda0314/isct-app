@@ -56,16 +56,18 @@ export function useFestival() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [couponWindow, setCouponWindow] = useState(null);
+  const [contact, setContact] = useState(null);
 
   const refresh = useCallback(async () => {
     // デモモードはテストデータを表示し、以降の操作もすべて端末内だけで行う
-    if (isDemoMode()) { setBooths(prev => prev.length ? prev : DEMO_FESTIVAL_BOOTHS); setLoading(false); return; }
+    if (isDemoMode()) { setBooths(prev => prev.length ? prev : DEMO_FESTIVAL_BOOTHS); setContact({ id: 900100, name: '運営（テスト）' }); setLoading(false); return; }
     try {
       const r = await fetch('/api/festival');
       if (r.ok) {
         const d = await r.json();
         setBooths(d.booths || []);
         setIsAdmin(!!d.isAdmin);
+        setContact(d.contact || null);
         if (d.couponWindow) setCouponWindow({ start: new Date(d.couponWindow.start), end: new Date(d.couponWindow.end) });
       }
     } catch (e) { console.error('[useFestival]', e); }
@@ -85,7 +87,7 @@ export function useFestival() {
         ...prev, ...form, id: id || `test-local-${Date.now()}`,
         coupon: form.coupon ? { ...form.coupon, limit: form.coupon.limit ? Number(form.coupon.limit) : null, used: prev?.coupon?.used || 0, myUsedAt: null } : null,
         imageUrl: imageFile ? URL.createObjectURL(imageFile) : removeImage ? null : prev?.imageUrl || null,
-        likeCount: prev?.likeCount || 0, liked: prev?.liked || false, isMine: true, createdAt: prev?.createdAt || new Date().toISOString(),
+        likeCount: prev?.likeCount || 0, liked: prev?.liked || false, canEdit: true, createdAt: prev?.createdAt || new Date().toISOString(),
       };
       setBooths(list => id ? list.map(x => x.id === id ? b : x) : [b, ...list]);
       return b;
@@ -140,5 +142,5 @@ export function useFestival() {
   // デモモードは開催前でも試せるよう、期間制限なし
   const couponOpen = isDemoMode() || (couponWindow && Date.now() >= couponWindow.start && Date.now() < couponWindow.end);
 
-  return { booths, isAdmin, loading, refresh, save, toggleLike, remove, toggleHidden, redeemCoupon, couponOpen, couponWindow };
+  return { booths, isAdmin, contact, loading, refresh, save, toggleLike, remove, toggleHidden, redeemCoupon, couponOpen, couponWindow };
 }
