@@ -17,7 +17,8 @@ export async function GET(request) {
   try {
     const auth = await optionalAuth(request);
     const userid = auth?.userid || null;
-    const admin = userid ? await isAdmin(userid) : false;
+    // 出店ページは管理者も一般と同じ表示。管理画面（scope=admin）のときだけ非表示の出店や管理用の情報を返す
+    const admin = userid && new URL(request.url).searchParams.get('scope') === 'admin' ? await isAdmin(userid) : false;
     const sb = getSupabaseAdmin();
 
     let query = sb.from(TABLE).select(COLS).eq('festival', CURRENT_FESTIVAL).order('created_at', { ascending: false }).limit(500);

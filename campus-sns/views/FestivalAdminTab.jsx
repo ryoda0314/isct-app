@@ -11,6 +11,7 @@ const FILTERS=[
   {id:"approved",key:"festival.stApproved"},
   {id:"rejected",key:"festival.stRejected"},
   {id:"all",key:"festival.all"},
+  {id:"listed",key:"festival.admListed"}, // 掲載中の出店（非表示・削除）
 ];
 const STATUS_COLOR={pending:"#f59e0b",approved:"#10b981",rejected:"#e11d48",withdrawn:"#64748b"};
 const MIN_MEMBERS=3;
@@ -79,11 +80,48 @@ const AppCard=({a,onApprove,onReject})=>{
   );
 };
 
+// 掲載中の出店の1行（非表示・削除）
+const BoothRow=({b,onHide,onDelete})=>{
+  const c=CAT_MAP[b.category]||CAT_MAP.other;
+  const place=[SPOT_MAP[b.building]?.label,b.location].filter(Boolean).join(" ");
+  const small={padding:"6px 12px",borderRadius:8,border:`1px solid ${T.bd}`,background:T.bg3,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"};
+  return(
+    <div style={{display:"flex",gap:12,alignItems:"center",padding:12,border:`1px solid ${T.bd}`,borderRadius:12,background:T.bg2,opacity:b.hidden?.6:1,flexWrap:"wrap"}}>
+      {b.imageUrl?<img src={b.imageUrl} alt="" style={{width:72,height:48,objectFit:"cover",borderRadius:6,flexShrink:0}}/>:<div style={{width:72,height:48,borderRadius:6,background:c.color+"20",flexShrink:0}}/>}
+      <div style={{flex:1,minWidth:200}}>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+          <Tag color={c.color}>{t(c.labelKey)}</Tag>
+          {b.hidden&&<Tag color={T.red}>{t("festival.hiddenTag")}</Tag>}
+          {b.coupon&&<Tag color="#e11d48">{t("festival.admCouponUsed",{n:b.coupon.used,limit:b.coupon.limit??"∞"})}</Tag>}
+          <span style={{fontSize:11,color:T.txD}}>♡ {b.likeCount}</span>
+        </div>
+        <div style={{fontSize:14,fontWeight:700,color:T.txH,marginTop:4}}>{b.name}</div>
+        <div style={{fontSize:11,color:T.txD}}>{[b.org,place].filter(Boolean).join(" ・ ")}</div>
+      </div>
+      <div style={{display:"flex",gap:6}}>
+        <button onClick={()=>onHide(b)} style={{...small,color:T.txH}}>{b.hidden?t("festival.unhide"):t("festival.hide")}</button>
+        <button onClick={()=>onDelete(b)} style={{...small,color:T.red}}>{t("festival.delete")}</button>
+      </div>
+    </div>
+  );
+};
+
 export const FestivalAdminTab=()=>{
   const [status,setStatus]=useState("pending");
   const [apps,setApps]=useState(null);
+  const [booths,setBooths]=useState(null);
 
   const load=useCallback(async()=>{
+    if(status==="listed"){
+      setBooths(null);
+      try{
+        const r=await fetch("/api/festival?scope=admin");
+        const d=await r.json();
+        if(!r.ok) throw new Error(d.error);
+        setBooths(d.booths||[]);
+      }catch(e){showToast(e.message||t("toast.saveFailed"));setBooths([]);}
+      return;
+    }
     setApps(null);
     try{
       const r=await fetch(`/api/festival/applications?scope=admin&status=${status}`);
@@ -92,6 +130,22 @@ export const FestivalAdminTab=()=>{
       setApps(d.applications||[]);
     }catch(e){showToast(e.message||t("toast.saveFailed"));setApps([]);}
   },[status]);
+
+  const boothApi=async(method,body)=>{
+    const r=await fetch("/api/festival",{method,headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(d.error||t("toast.saveFailed"));
+    return d;
+  };
+  const hideBooth=async(b)=>{
+    try{const nb=await boothApi("PATCH",{id:b.id,action:"hide"});setBooths(prev=>prev.map(x=>x.id===b.id?nb:x));}
+    catch(e){showToast(e.message);}
+  };
+  const deleteBooth=async(b)=>{
+    if(!confirm(t("festival.admConfirmDelete",{name:b.name}))) return;
+    try{await boothApi("DELETE",{id:b.id});setBooths(prev=>prev.filter(x=>x.id!==b.id));showToast(t("festival.deleted"));}
+    catch(e){showToast(e.message);}
+  };
   useEffect(()=>{load();},[load]);
 
   const act=async(id,action,reason)=>{
@@ -112,7 +166,11 @@ export const FestivalAdminTab=()=>{
         {FILTERS.map(f=><span key={f.id} onClick={()=>setStatus(f.id)} style={{padding:"5px 11px",borderRadius:16,fontSize:12,fontWeight:600,cursor:"pointer",border:`1px solid ${status===f.id?T.accent:T.bd}`,background:status===f.id?T.accent+"20":T.bg2,color:status===f.id?T.accent:T.txD}}>{t(f.key)}</span>)}
         <span onClick={load} style={{marginLeft:"auto",fontSize:12,color:T.accent,cursor:"pointer",fontWeight:600}}>{t("festival.admReload")}</span>
       </div>
-      {apps===null?<Loader size="sm"/>:apps.length===0
+      {status==="listed"
+        ?(booths===null?<Loader size="sm"/>:booths.length===0
+          ?<div style={{textAlign:"center",padding:32,color:T.txD,fontSize:13}}>{t("festival.admNoBooths")}</div>
+          :booths.map(b=><BoothRow key={b.id} b={b} onHide={hideBooth} onDelete={deleteBooth}/>))
+      :apps===null?<Loader size="sm"/>:apps.length===0
         ?<div style={{textAlign:"center",padding:32,color:T.txD,fontSize:13}}>{t("festival.admEmpty")}</div>
         :apps.map(a=><AppCard key={a.id} a={a} onApprove={id=>act(id,"approve")} onReject={(id,r)=>act(id,"reject",r)}/>)}
     </div>
