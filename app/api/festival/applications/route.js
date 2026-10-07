@@ -4,13 +4,13 @@ import { isAdmin } from '../../../../lib/auth/is-admin.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { createNotification } from '../../../../lib/notify.js';
 import {
-  TABLE, BUCKET, CURRENT_FESTIVAL, COLS, APP_TABLE, MIN_MEMBERS, MAX_MEMBERS, MEMBER_QR_TTL,
-  buildRow, makeMemberQr, readMemberQr, makeMemberProof, readMemberProof,
+  TABLE, BUCKET, CURRENT_FESTIVAL, COLS, APP_TABLE, LINK_TABLE, DRAFT_TABLE, MIN_MEMBERS, MAX_MEMBERS, MEMBER_QR_TTL,
+  buildRow, makeMemberQr, readMemberQr, draftFromPayload,
 } from '../../../../lib/festival.js';
 
 // 出店の掲載申請。代表者が申請し、運営（管理者）が承認すると festival_booths に掲載される。
 // 条件: 代表者を含むメンバー MIN_MEMBERS 人以上がアプリに登録済み。
-//       メンバーは代表者が対面でメンバー用QRを読み取って追加する（lib/festival.js 参照）。
+//       メンバーは代表者が対面でメンバー用QRを読み取り、代表者の確認済みメンバー名簿に入る（期限なし）。
 
 const MAX_PENDING = 3;
 const ADMIN_ENV_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => Number(s.trim())).filter(Boolean);
@@ -108,17 +108,37 @@ export async function POST(request) {
       return NextResponse.json({ code: makeMemberQr(userid), ttl: MEMBER_QR_TTL });
     }
 
-    // 代表者がメンバーのQRを読み取った
+    // 代表者がメンバーのQRを読み取った → 確認済みメンバー名簿に登録
     if (body.action === 'scan-member') {
       const { userid: memberId, error } = readMemberQr(body.code);
       if (error) return NextResponse.json({ error }, { status: 400 });
       if (memberId === userid) return NextResponse.json({ error: '自分のQRは読み取れません。メンバーのQRを読み取ってください' }, { status: 400 });
       const { data: p } = await sb.from('profiles').select('name, avatar, color, banned').eq('moodle_id', memberId).maybeSingle();
       if (!p || p.banned) return NextResponse.json({ error: 'このメンバーは追加できません' }, { status: 400 });
-      return NextResponse.json({
-        proof: makeMemberProof(userid, memberId),
-        member: { id: memberId, name: p.name, avatar: p.avatar, color: p.color },
-      });
+      const { count } = await sb.from(LINK_TABLE).select('member_id', { count: 'exact', head: true }).eq('rep_id', userid);
+      if ((count || 0) >= MAX_MEMBERS) return NextResponse.json({ error: `メンバーは${MAX_MEMBERS}人までです` }, { status: 400 });
+      const verifiedAt = new Date().toISOString();
+      const { error: lErr } = await sb.from(LINK_TABLE).upsert({ rep_id: userid, member_id: memberId, verified_at: verifiedAt }, { onConflict: 'rep_id,member_id' });
+      if (lErr) { console.error('[FestivalApps scan]', lErr.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
+      return NextResponse.json({ member: { id: memberId, name: p.name, avatar: p.avatar, color: p.color, active: true, verifiedAt } });
+    }
+
+    // 名簿からメンバーを外す
+    if (body.action === 'remove-member') {
+      await sb.from(LINK_TABLE).delete().eq('rep_id', userid).eq('member_id', Number(body.memberId));
+      return NextResponse.json({ ok: true });
+    }
+
+    // 見送り・取り下げた申請を下書きに戻して直せるようにする
+    if (body.action === 'redraft') {
+      const { data: app } = await sb.from(APP_TABLE).select('applicant_id, booth_id, payload, status').eq('id', body.id).maybeSingle();
+      if (!app || app.applicant_id !== userid) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      if (!['rejected', 'withdrawn'].includes(app.status)) return NextResponse.json({ error: 'この申請は下書きに戻せません' }, { status: 400 });
+      const key = app.booth_id || 'new';
+      const updated_at = new Date().toISOString();
+      const { error } = await sb.from(DRAFT_TABLE).upsert({ applicant_id: userid, draft_key: key, form: draftFromPayload(sb, app.payload || {}), updated_at }, { onConflict: 'applicant_id,draft_key' });
+      if (error) { console.error('[FestivalApps redraft]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
+      return NextResponse.json({ key, updatedAt: updated_at });
     }
 
     const { row, error: vErr } = await buildRow(body, userid);
@@ -132,11 +152,18 @@ export async function POST(request) {
       boothId = booth.id;
     }
 
-    // メンバー（代表者以外）: QR読み取りで得た証明を検証。変更申請では不要（掲載時に確認済み）。
-    const proofs = Array.isArray(body.memberProofs) ? body.memberProofs.slice(0, MAX_MEMBERS * 2) : [];
-    const memberIds = [...new Set(proofs.map(p => readMemberProof(p, userid)).filter(id => id && id !== userid))];
-    if (memberIds.length < proofs.length) return NextResponse.json({ error: 'メンバーの確認が期限切れです。QRを読み取り直してください' }, { status: 400 });
-    if (memberIds.length > MAX_MEMBERS) return NextResponse.json({ error: `メンバーは${MAX_MEMBERS}人までです` }, { status: 400 });
+    // メンバー（代表者以外）: 代表者の確認済みメンバー名簿から引く（停止中のアカウントは数えない）。
+    // 変更申請では不要（掲載時に確認済み）。
+    let memberIds = [];
+    if (!boothId) {
+      const { data: links } = await sb.from(LINK_TABLE).select('member_id').eq('rep_id', userid);
+      const ids = (links || []).map(l => l.member_id).filter(id => id !== userid);
+      if (ids.length) {
+        const { data: ps } = await sb.from('profiles').select('moodle_id, banned').in('moodle_id', ids);
+        const active = new Set((ps || []).filter(p => !p.banned).map(p => p.moodle_id));
+        memberIds = ids.filter(id => active.has(id)).slice(0, MAX_MEMBERS);
+      }
+    }
     if (!boothId && memberIds.length + 1 < MIN_MEMBERS) {
       return NextResponse.json({ error: `代表者を含めて${MIN_MEMBERS}人以上のメンバーが必要です（あと${MIN_MEMBERS - 1 - memberIds.length}人）` }, { status: 400 });
     }
@@ -158,6 +185,9 @@ export async function POST(request) {
       console.error('[FestivalApps POST]', error.message);
       return NextResponse.json({ error: 'Internal error' }, { status: 500 });
     }
+
+    // 申請したら下書きは消す（画像は申請側で使うので残す）
+    await sb.from(DRAFT_TABLE).delete().eq('applicant_id', userid).eq('draft_key', boothId || 'new');
 
     for (const adminId of ADMIN_ENV_IDS) {
       createNotification({

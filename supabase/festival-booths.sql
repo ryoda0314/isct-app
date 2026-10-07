@@ -126,3 +126,31 @@ alter table festival_applications drop column if exists member_logins;
 
 alter table festival_applications enable row level security;
 -- anon ポリシーは作らない（/api/festival/applications 経由のみ）
+
+-- =============================================================
+-- 確認済みメンバー名簿（代表者ごと・期限なし）
+-- 代表者がメンバー用QRを読み取ると登録される。申請時はこの名簿のメンバーを使う。
+-- =============================================================
+
+create table if not exists festival_member_links (
+  rep_id       bigint not null,                    -- 代表者の moodle user id
+  member_id    bigint not null,                    -- メンバーの moodle user id
+  verified_at  timestamptz not null default now(), -- QRを読み取った日時
+  primary key (rep_id, member_id)
+);
+alter table festival_member_links enable row level security;
+
+-- =============================================================
+-- 申請の下書き（サーバー保存。端末をまたいで再開できる）
+-- draft_key: 'new' = 新規申請、出店の uuid = その出店の変更申請
+-- =============================================================
+
+create table if not exists festival_drafts (
+  applicant_id  bigint not null,
+  draft_key     text not null,
+  form          jsonb not null,     -- フォームの入力内容（未検証）。画像は {path,url} で保持
+  updated_at    timestamptz not null default now(),
+  primary key (applicant_id, draft_key)
+);
+alter table festival_drafts enable row level security;
+-- どちらも anon ポリシーは作らない（/api/festival/* 経由のみ）
