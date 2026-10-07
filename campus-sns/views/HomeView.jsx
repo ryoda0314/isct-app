@@ -61,7 +61,10 @@ const QA_ALL=[
   {id:"search",icon:I.search,labelKey:"nav.search"},
   {id:"gym",icon:I.dumbbell,labelKey:"tool.gym"},
   {id:"tsubame",icon:I.swallow,labelKey:"tool.tsubame"},
+  {id:"festival",icon:I.star,labelKey:"nav.festival"},
 ];
+// 工大祭2026 最終日の終了時刻（これを過ぎたらホームのバナーを消す）
+const FESTIVAL_END=new Date("2026-10-11T18:00:00+09:00");
 const QA_DEFAULT=["portal","isctportal","calendar","events"];
 const getQA=()=>{try{const v=localStorage.getItem("quickAccess");return v?JSON.parse(v):QA_DEFAULT;}catch{return QA_DEFAULT;}};
 
@@ -285,6 +288,20 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
 
   return(
     <><div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+      {/* ── 工大祭バナー（開催終了まで） ── */}
+      {now<FESTIVAL_END&&<div style={{padding:"10px 16px 0"}}>
+        <div onClick={()=>setView("festival")} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,cursor:"pointer",background:"linear-gradient(135deg,#f59e0b22,#ec489922,#6366f122)",border:`1px solid ${T.bd}`}}>
+          <div style={{flexShrink:0,width:40,height:40,borderRadius:10,background:"#ec4899",color:"#fff",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",lineHeight:1.1}}>
+            <span style={{fontSize:9,fontWeight:700,opacity:.85}}>OCT</span>
+            <span style={{fontSize:14,fontWeight:800}}>10</span>
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:700,color:T.txH}}>{t("festival.homeBanner")}</div>
+            <div style={{fontSize:11,color:T.txD,marginTop:2}}>{t("festival.homeBannerSub")}</div>
+          </div>
+          <span style={{color:T.txD,display:"flex",transform:"rotate(180deg)"}}>{I.back}</span>
+        </div>
+      </div>}
       {/* ── Hero: 挨拶 + 天気 ── */}
       <div style={{padding:"10px 16px 6px"}}>
         {/* 日時 + 天気カード */}

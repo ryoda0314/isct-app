@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
-const VALID_MODES = ['freshman', 'navi', 'reg'];
+const VALID_MODES = ['freshman', 'navi', 'reg', 'festival'];
 
 // Simple in-memory rate limit for unauthenticated endpoint (10 req/min per session)
 const guestHits = new Map();

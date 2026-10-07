@@ -60,6 +60,7 @@ import { AdminView } from "./views/AdminView.jsx";
 import { TextbooksView } from "./views/TextbooksView.jsx";
 import { GradingView } from "./views/GradingView.jsx";
 import { FreshmanBoardView } from "./views/FreshmanBoardView.jsx";
+import { FestivalView } from "./views/FestivalView.jsx";
 import { AcademicCalendarView } from "./views/AcademicCalendarView.jsx";
 import { ExamView } from "./views/ExamView.jsx";
 import { FreeRoomView } from "./views/FreeRoomView.jsx";
@@ -188,7 +189,7 @@ export default function App(){
   updateStatusBarTheme(T.bg2);
   useEffect(()=>{document.documentElement.style.background=T.bg;document.body.style.background=T.bg;},[themeMode,accentPref]);
   const [mockMode,setMockMode]=useState(false);
-  const [guestMode,setGuestMode]=useState(()=>{if(typeof window==="undefined")return null;const h=window.location.hash;if(h==="#freshman")return "freshman";if(h==="#navi")return "navi";if(h==="#reg")return "reg";return null;});
+  const [guestMode,setGuestMode]=useState(()=>{if(typeof window==="undefined")return null;const h=window.location.hash;if(h==="#freshman")return "freshman";if(h==="#navi")return "navi";if(h==="#reg")return "reg";if(h==="#festival")return "festival";return null;});
   const [fromGuest,setFromGuest]=useState(null);
   // ツバメポイント: 起動時に当日分を自動受け取り（View を開かなくても貯まる）。
   //   demo/guest では付与しない（本人セッションのみ）。
@@ -615,13 +616,13 @@ export default function App(){
     console.log(`[Timing] === startup begin ===`);
     const wasLoggedIn=!!localStorage.getItem("userPref");
     const goSetupOrGuest=()=>{
-      if(guestMode){setAppState("ready");setViewRaw(guestMode==="navi"?"navigation":"freshman");}
+      if(guestMode){setAppState("ready");setViewRaw(guestMode==="navi"?"navigation":guestMode==="festival"?"festival":"freshman");}
       else setAppState("setup");
     };
     const goReady=(asnList)=>{
       setAppState("ready");
       console.log(`[Timing] appState → ready: ${(performance.now()-tStart).toFixed(0)}ms`);
-      if(guestMode) setGuestMode(null);
+      if(guestMode){if(guestMode==="festival")setViewRaw("festival");setGuestMode(null);}
       refreshRef.current=setInterval(async()=>{const r2=await fetchData();if(r2)fetchSubmissionStatuses(r2);},15*60*1000);
       fetchSiteSettings();
       fetchSubmissionStatuses(asnList);
@@ -640,7 +641,7 @@ export default function App(){
     // so a slow token recovery (on-device SSO) never freezes the splash.
     const goReadyFromCache=(cachedAsn)=>{
       setAppState("ready");
-      if(guestMode) setGuestMode(null);
+      if(guestMode){if(guestMode==="festival")setViewRaw("festival");setGuestMode(null);}
       fetchSiteSettings();
       refreshRef.current=setInterval(async()=>{const r2=await fetchData();if(r2)fetchSubmissionStatuses(r2);},15*60*1000);
       setRefreshing(true);
@@ -1079,7 +1080,7 @@ export default function App(){
   const guestLogin=()=>{
     if(guestSessionRef.current){fetch("/api/guest-track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:guestSessionRef.current,mode:guestMode||"freshman",action:"convert"})}).catch(()=>{});}
     setFromGuest(guestMode);setGuestMode(null);window.location.hash="";setMockMode(false);setAppState("setup");};
-  const backToGuest=()=>{const mode=fromGuest||"freshman";setFromGuest(null);setGuestMode(mode);window.location.hash=mode==="navi"?"navi":mode==="reg"?"reg":"freshman";setAppState("ready");setViewRaw(mode==="navi"?"navigation":mode==="reg"?"reg":"freshman");};
+  const backToGuest=()=>{const mode=fromGuest||"freshman";setFromGuest(null);setGuestMode(mode);window.location.hash=mode==="navi"?"navi":mode==="reg"?"reg":mode==="festival"?"festival":"freshman";setAppState("ready");setViewRaw(mode==="navi"?"navigation":mode==="reg"?"reg":mode==="festival"?"festival":"freshman");};
 
   if(appState==="setup") return <SetupView onComplete={onSetupComplete} onSkip={onDemo} personas={DEMO_PERSONAS} mob={mob} dark={dark} onBackToBoard={fromGuest?backToGuest:null} backLabel={fromGuest==="navi"?t("app.backToNavi"):fromGuest==="reg"?t("app.backToReg"):undefined}/>;
 
@@ -1088,19 +1089,20 @@ export default function App(){
       <div style={{display:"flex",flexDirection:"column",height:"100dvh",maxHeight:"100vh",background:T.bg,color:T.tx,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
         {/* Guest header */}
         <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:10,padding:"0 16px",height:48,borderBottom:`1px solid ${T.bd}`,background:T.bg2}}>
-          <div style={{fontWeight:700,fontSize:15,color:T.txH,flex:1}}>{guestMode==="navi"?t("nav.navigation"):guestMode==="reg"?t("more.regAssist"):t("nav.freshman")}</div>
+          <div style={{fontWeight:700,fontSize:15,color:T.txH,flex:1}}>{guestMode==="navi"?t("nav.navigation"):guestMode==="reg"?t("more.regAssist"):guestMode==="festival"?t("festival.title"):t("nav.freshman")}</div>
           <button onClick={guestLogin} style={{padding:"6px 16px",borderRadius:8,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>{t("app.loginSignup")}</button>
         </div>
         {guestMode==="freshman"&&<FreshmanBoardView mob={mob} loggedIn={false} onLogin={guestLogin}/>}
         {guestMode==="navi"&&<NavigationView mob={mob} initialDest={null} initialOrig={null} onDestUsed={()=>{}}/>}
         {guestMode==="reg"&&<RegView mob={mob}/>}
+        {guestMode==="festival"&&<FestivalView mob={mob} loggedIn={false} onLogin={guestLogin}/>}
       </div>
     );
   }
 
   // --- DESKTOP ---
   if(!mob){
-    const titles={home:t("nav.home"),timetable:t("nav.timetable"),tasks:t("header.taskMgmt"),calendar:t("nav.calendar"),acadCal:t("tool.acadCal"),exams:t("tool.exams"),dm:t("common.dm"),notif:t("nav.notif"),grades:t("tool.grades"),pomo:t("tool.pomo"),events:t("tool.events"),reviews:t("tool.reviews"),bmarks:t("tool.bmarks"),search:t("nav.search"),profile:t("nav.profile"),navigation:t("nav.navigation"),friends:t("nav.friends"),circles:t("nav.circles"),languages:t("nav.languages"),admin:t("nav.admin"),freshman:t("nav.freshman"),reg:t("more.regAssist"),freeroom:t("tool.freeroom"),attendance:t("nav.attendance"),music:t("tool.music"),pdftools:t("nav.pdftools"),notes:t("nav.notes")};
+    const titles={home:t("nav.home"),timetable:t("nav.timetable"),tasks:t("header.taskMgmt"),calendar:t("nav.calendar"),acadCal:t("tool.acadCal"),exams:t("tool.exams"),dm:t("common.dm"),notif:t("nav.notif"),grades:t("tool.grades"),pomo:t("tool.pomo"),events:t("tool.events"),reviews:t("tool.reviews"),bmarks:t("tool.bmarks"),search:t("nav.search"),profile:t("nav.profile"),navigation:t("nav.navigation"),friends:t("nav.friends"),circles:t("nav.circles"),languages:t("nav.languages"),admin:t("nav.admin"),freshman:t("nav.freshman"),festival:t("festival.title"),reg:t("more.regAssist"),freeroom:t("tool.freeroom"),attendance:t("nav.attendance"),music:t("tool.music"),pdftools:t("nav.pdftools"),notes:t("nav.notes")};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:t("chan.timeline"),chat:t("chan.chat"),assignments:t("chan.assignments"),materials:t("chan.materials"),reviews:t("chan.reviews")}[ch]}</>;
       if(view==="dept"&&cd){const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?locName(cd):cd.prefix}</span> {nameOnly?"":`${locName(cd)} `}— {{timeline:t("chan.timeline"),chat:t("chan.chat")}[ch]||""}</>;}
@@ -1140,7 +1142,7 @@ export default function App(){
           {view==="search"&&(L?<LockedView title={t("nav.search")}/>:<SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses}/>)}
           {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} sitelenPref={sitelenPref} setSitelenPref={setSitelenPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser} setView={setView}/>}
           {view==="support"&&<SupportChat embedded userId={user?.moodleId||user?.id} langPref={langPref} currentView="support" onClose={goBack}/>}
-          {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/>}
+          {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}} qDataAll={qDataLive||QData}/>}
           {view==="takiplaza"&&(L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob={false} onNavigate={goToBuilding}/>)}
           {view==="gym"&&(L?<LockedView title={t("tool.gym")}/>:<GymView mob={false}/>)}
           {view==="qr"&&<QRView mob={false}/>}
@@ -1158,6 +1160,7 @@ export default function App(){
           {view==="grading"&&(L?<LockedView title={t("nav.grading")}/>:<GradingView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/>)}
           {view==="admin"&&<AdminView mob={false} courses={allCourses} depts={userDepts} schools={userSchools}/>}
           {view==="freshman"&&<FreshmanBoardView mob={false} loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/>}
+          {view==="festival"&&<FestivalView mob={false} loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}} goToBuilding={goToBuilding}/>}
         </div>
         {showDeptModal&&<DeptModal user={user} onClose={()=>setDeptModalDone(true)}/>}
         {appLock.locked&&<LockScreen appLock={appLock} onLogout={onLogout}/>}
@@ -1205,7 +1208,7 @@ export default function App(){
         {view==="search"&&(L?<><MHdr title={t("nav.search")} back={mBack}/><LockedView title={t("nav.search")}/></>:<><MHdr title={t("nav.search")} back={mBack}/><SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses}/></>)}
         {view==="profile"&&<><MHdr title={t("nav.profile")} back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} sitelenPref={sitelenPref} setSitelenPref={setSitelenPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser} setView={setView}/></>}
         {view==="support"&&<SupportChat embedded mob userId={user?.moodleId||user?.id} langPref={langPref} currentView="support" onClose={mBack}/>}
-        {view==="navigation"&&<><MHdr title={t("nav.navigation")} back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}}/></>}
+        {view==="navigation"&&<><MHdr title={t("nav.navigation")} back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}} qDataAll={qDataLive||QData}/></>}
         {view==="takiplaza"&&<><MHdr title="Taki Plaza" back={mBack}/>{L?<LockedView title="Taki Plaza"/>:<FacilityReservationView mob onNavigate={goToBuilding}/>}</>}
         {view==="gym"&&<><MHdr title={t("tool.gym")} back={mBack}/>{L?<LockedView title={t("tool.gym")}/>:<GymView mob/>}</>}
         {view==="qr"&&<><MHdr title={t("appgrid.qr")} back={mBack}/><QRView mob/></>}
@@ -1223,6 +1226,7 @@ export default function App(){
         {view==="grading"&&(L?<><MHdr title={t("nav.grading")} back={mBack}/><LockedView title={t("nav.grading")}/></>:<><MHdr title={t("nav.grading")} back={mBack}/><GradingView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/></>)}
         {view==="admin"&&<><MHdr title={t("nav.admin")} back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
         {view==="freshman"&&<><MHdr title={t("nav.freshman")} back={mBack}/><FreshmanBoardView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}}/></>}
+        {view==="festival"&&<><MHdr title={t("festival.title")} back={mBack}/><FestivalView mob loggedIn={!!user.moodleId} onLogin={()=>{setGuestMode(null);setMockMode(false);setAppState("setup");}} goToBuilding={goToBuilding}/></>}
       </div>
       <MiniPlayer mob view={view} ch={ch} onOpen={()=>setView("music")}/>
       <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread} hasMed={medPrimary}/>

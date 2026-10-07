@@ -10,7 +10,10 @@
     "studio": "remotion studio src/index.js",
     "render": "remotion render src/index.js PromoVideo out/video.mp4",
     "render:test": "remotion render src/index.js PromoVideo out/test.mp4 --props=./sample-timeline.json",
-    "all": "npm run voices && npm run render"
+    "all": "npm run voices && npm run render",
+    "promo:sfx": "python make_promo_sfx.py",
+    "promo:frames": "node preview_frames.mjs",
+    "promo:render": "remotion render src/index.js AppPromo out/app-promo.mp4 --color-space=bt709 --timeout=180000"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.0",

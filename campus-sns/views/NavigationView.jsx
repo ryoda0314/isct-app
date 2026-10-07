@@ -1,10 +1,16 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { T } from "../theme.js";
 import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { useLeaflet, Loader } from "../shared.jsx";
-import { CAMPUS_CENTER, CAMPUS_ZOOM, SPOTS, SPOT_CATS, ENTRANCES, AREAS } from "../hooks/useLocationSharing.js";
+import { CAMPUS_CENTER, CAMPUS_ZOOM, SPOTS, SPOT_CATS, ENTRANCES, AREAS, roomToSpot } from "../hooks/useLocationSharing.js";
 import { useNavigation, NAV_SPOTS } from "../hooks/useNavigation.js";
+import { createCampusBasemap, isDarkColor } from "../campusBasemap.js";
+import { getNextClass } from "../todayClasses.js";
+
+const ROUTE_COL="#1a8ef0"; // ルート線（地図アプリの慣例どおり青）
+const PIN_SVG=(col)=>`<svg width="36" height="46" viewBox="0 0 36 46"><path d="M18 44C18 44 3 29.5 3 18a15 15 0 0130 0c0 11.5-15 26-15 26z" fill="${col}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><circle cx="18" cy="18" r="5.5" fill="#fff"/></svg>`;
+const hm=([h,m])=>`${h}:${String(m).padStart(2,"0")}`;
 
 const NAV_QUICK_DEFAULT=["taki","eki","lib","main","coop","gym","w5"];
 // Returns raw IDs including cat: and grp: prefixes
@@ -75,145 +81,286 @@ export const SPOT_GROUPS=[
 const getGroupPrefix=(id)=>{const g=SPOT_GROUPS.find(g=>id.startsWith(g.prefix+"_"));return g?g.prefix:null;};
 const isGroupableSpot=(s)=>(s.cat==="outdoor"||s.cat==="restaurant")&&getGroupPrefix(s.id)!=null;
 
-const buildSearchResults=(spots)=>{
-  const nonGroupable=spots.filter(s=>!isGroupableSpot(s));
-  const groupable=spots.filter(s=>isGroupableSpot(s));
-  const groups=[];
-  SPOT_GROUPS.forEach(g=>{
-    const members=groupable.filter(s=>s.id.startsWith(g.prefix+"_"));
-    if(members.length>0)groups.push({...g,spots:members,isGroup:true});
+/* ── スポット選択シート（検索・出発地・目的地で共通） ── */
+const RECENT_KEY="navRecentSpots";
+const getRecent=()=>{try{const v=JSON.parse(localStorage.getItem(RECENT_KEY)||"[]");return Array.isArray(v)?v:[];}catch{return [];}};
+const pushRecent=(id)=>{if(!id)return;try{localStorage.setItem(RECENT_KEY,JSON.stringify([id,...getRecent().filter(x=>x!==id)].slice(0,6)));}catch{}};
+const normQ=(s)=>String(s||"").normalize("NFKC").toLowerCase().replace(/\s+/g,"");
+const catLabelOf=(id)=>SPOT_CATS.find(c=>c.id===id)?.label||"";
+const fmtDist=(m)=>m<1000?`${Math.max(10,Math.round(m/10)*10)}m`:`${(m/1000).toFixed(1)}km`;
+// 教室番号（W9-311 / S2-203 / WL1-301 / 西9号館311 など）から建物を引く
+const roomHit=(q)=>{
+  const raw=String(q||"").normalize("NFKC").trim().toUpperCase();
+  if(raw.length<3||!/\d/.test(raw)||!/-|号館/.test(raw))return null;
+  const sp=roomToSpot(raw);
+  const s=sp&&NAV_SPOTS.find(x=>x.id===sp.id);
+  return s?{s,room:raw}:null;
+};
+// 略称・名前・IDの一致度で並べる（「W9」「図書」「taki」など）
+const rankSpots=(q)=>{
+  const nq=normQ(q);
+  if(!nq)return [];
+  const scored=[];
+  NAV_SPOTS.forEach(s=>{
+    const label=normQ(s.label),short=normQ(s.short),id=s.id.toLowerCase();
+    const score=short===nq||id===nq?100:label.startsWith(nq)?80:short.startsWith(nq)?70:label.includes(nq)?60:id.includes(nq)?40:-1;
+    if(score>=0)scored.push({s,score});
   });
-  return {singles:nonGroupable,groups};
+  return scored.sort((a,b)=>b.score-a.score||a.s.label.length-b.s.label.length).map(x=>x.s);
 };
 
-/* ── SpotSelector (search-first, category tabs) ── */
-const SpotSelector=({value,onChange,onSelectGroup,placeholder,accent,onGps,gpsLoading,initialOpen})=>{
-  const [open,setOpen]=useState(!!initialOpen);
+const SpotBadge=({s,size=36,on})=>(
+  <div style={{width:size,height:size,borderRadius:Math.round(size*0.3),background:on?s.col:`${s.col}22`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+    {s.cat==="restaurant"
+      ?<svg width={Math.round(size*0.46)} height={Math.round(size*0.46)} viewBox="0 0 24 24" fill={on?"#fff":s.col}><path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/></svg>
+      :<span style={{fontSize:size<30?(s.short.length>=3?8.5:10):(s.short.length>=3?10:12),fontWeight:800,color:on?"#fff":s.col,letterSpacing:"-.02em",lineHeight:1}}>{s.short}</span>}
+  </div>
+);
+const GroupBadge=({col,size=36})=>(
+  <div style={{width:size,height:size,borderRadius:Math.round(size*0.3),background:`${col}26`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+    <svg width={Math.round(size*0.42)} height={Math.round(size*0.42)} viewBox="0 0 24 24" fill={col}><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+  </div>
+);
+const ellipsis={overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"};
+
+/**
+ * mode: "search"（スポットを探す）| "origin"（出発地）| "destination"（目的地）
+ * refPos: 「ベンチ」などのグループを選んだとき、ここから一番近いものを選ぶ（出発地/目的地モード）
+ */
+const SpotPicker=({mode,value,mob,gpsPos,refPos,nextCls,nextClsSpot,gpsLoading,onPick,onPickGroup,onGps,onPickOnMap,onClear,onClose})=>{
+  const accent=T.accent;
   const [q,setQ]=useState("");
   const [openCat,setOpenCat]=useState(null);
-  const sel=value==="__gps__"?{id:"__gps__",label:t("navi.currentLocation"),col:"#4285f4",short:"GPS"}:NAV_SPOTS.find(s=>s.id===value);
-
+  const [active,setActive]=useState(0);
+  const inputRef=useRef(null);
+  const listRef=useRef(null);
   const searching=q.trim().length>0;
-  const filtered=searching?NAV_SPOTS.filter(s=>s.label.includes(q)||s.short.includes(q)||s.id.includes(q.toLowerCase())):[];
-  const searchResults=searching?buildSearchResults(filtered):null;
-  const searchGrouped=searching?SPOT_CATS.map(cat=>({...cat,spots:filtered.filter(s=>s.cat===cat.id&&!isGroupableSpot(s))})).filter(g=>g.spots.length>0):[];
-  const catSpots=openCat?NAV_SPOTS.filter(s=>s.cat===openCat):[];
-  const rawQuick=getNavQuickRaw();
-  // Build mixed list: spots + category entries + group entries
-  const quickItems=rawQuick.map(id=>{
-    if(id.startsWith("cat:")){const catId=id.slice(4);const cat=SPOT_CATS.find(c=>c.id===catId);return cat?{type:"cat",catId,label:cat.label,count:NAV_SPOTS.filter(s=>s.cat===catId).length}:null;}
-    if(id.startsWith("grp:")){const pfx=id.slice(4);const g=SPOT_GROUPS.find(x=>x.prefix===pfx);return g?{type:"grp",prefix:pfx,label:t(g.labelKey),col:g.col,count:NAV_SPOTS.filter(s=>s.id.startsWith(pfx+"_")).length}:null;}
-    const s=NAV_SPOTS.find(s=>s.id===id);return s?{type:"spot",...s}:null;
-  }).filter(Boolean);
+  const placeholder=t(mode==="origin"?"navi.searchOrigin":mode==="destination"?"navi.searchDest":"navi.searchAny");
+  const distOf=(s)=>gpsPos&&s.lat!=null?haversineNav(gpsPos.lat,gpsPos.lng,s.lat,s.lng):null;
+  const subOf=(s,extra)=>{const d=distOf(s);return [extra,catLabelOf(s.cat),d!=null?fmtDist(d):null].filter(Boolean).join(" · ");};
+  const pick=(s,extra)=>{pushRecent(s.id);onPick(s,extra);};
+  const pickGroup=(prefix)=>{
+    if(mode==="search"){onPickGroup?.(prefix);return;}
+    const members=NAV_SPOTS.filter(s=>s.id.startsWith(prefix+"_"));
+    const ref=refPos||gpsPos;
+    const best=ref?members.reduce((b,s)=>{const d=haversineNav(ref.lat,ref.lng,s.lat,s.lng);return !b||d<b.d?{s,d}:b;},null)?.s:members[0];
+    if(best)pick(best);
+  };
 
-  return <div style={{position:"relative",flex:1,minWidth:0}}>
-    <div style={{position:"relative",width:"100%"}} onMouseEnter={e=>{const x=e.currentTarget.querySelector('[data-clear]');if(x)x.style.opacity='1';}} onMouseLeave={e=>{const x=e.currentTarget.querySelector('[data-clear]');if(x)x.style.opacity='0';}}>
-      <button onClick={()=>{setOpen(p=>!p);setQ("");setOpenCat(null);}} style={{width:"100%",display:"flex",alignItems:"center",gap:6,padding:"9px 10px",paddingRight:sel?30:10,borderRadius:8,border:"none",background:open?T.bg3:"transparent",cursor:"pointer",textAlign:"left",transition:"background .12s"}} onMouseEnter={e=>{if(!open)e.currentTarget.style.background=T.bg3}} onMouseLeave={e=>{if(!open)e.currentTarget.style.background="transparent"}}>
-        {sel?<span style={{fontSize:13,fontWeight:600,color:T.txH,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sel.label}</span>
-        :<span style={{fontSize:13,color:T.txD,flex:1}}>{placeholder}</span>}
-      </button>
-      {sel&&<button data-clear onClick={e=>{e.stopPropagation();onChange(null);setOpen(false);}} style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",display:"flex",alignItems:"center",justifyContent:"center",width:20,height:20,borderRadius:"50%",border:"none",background:`${T.red}18`,cursor:"pointer",opacity:0,transition:"opacity .15s",padding:0}}>
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.red} strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>}
+  // 検索結果（キーボードで上下できるよう平らな配列にする）
+  const results=useMemo(()=>{
+    if(!searching)return [];
+    const nq=normQ(q);
+    const out=[];
+    const rh=roomHit(q);
+    if(rh)out.push({kind:"room",s:rh.s,room:rh.room});
+    const ranked=rankSpots(q).filter(s=>!(rh&&s.id===rh.s.id));
+    const members={};
+    ranked.forEach(s=>{if(isGroupableSpot(s)){const p=getGroupPrefix(s.id);(members[p]=members[p]||[]).push(s);}});
+    // ベンチ・自販機などは、グループ名に当たったか4件以上ならまとめて1行に
+    const collapsed=new Set(SPOT_GROUPS.filter(g=>normQ(t(g.labelKey)).includes(nq)||(members[g.prefix]||[]).length>3).map(g=>g.prefix));
+    SPOT_GROUPS.forEach(g=>{if(collapsed.has(g.prefix))out.push({kind:"group",g,count:NAV_SPOTS.filter(s=>s.id.startsWith(g.prefix+"_")).length});});
+    ranked.forEach(s=>{if(!(isGroupableSpot(s)&&collapsed.has(getGroupPrefix(s.id))))out.push({kind:"spot",s});});
+    return out.slice(0,60);
+  },[q,searching]);
+  useEffect(()=>{setActive(0);},[q]);
+  useEffect(()=>{listRef.current?.querySelector(`[data-idx="${active}"]`)?.scrollIntoView({block:"nearest"});},[active]);
+  const choose=(r)=>{if(!r)return;if(r.kind==="group")pickGroup(r.g.prefix);else pick(r.s,r.kind==="room"?{room:r.room}:undefined);};
+  const onKey=(e)=>{
+    e.stopPropagation();
+    if(e.key==="Escape"){e.preventDefault();if(openCat&&!searching)setOpenCat(null);else onClose();return;}
+    if(!searching||!results.length)return;
+    if(e.key==="ArrowDown"){e.preventDefault();setActive(a=>Math.min(results.length-1,a+1));}
+    else if(e.key==="ArrowUp"){e.preventDefault();setActive(a=>Math.max(0,a-1));}
+    else if(e.key==="Enter"){e.preventDefault();choose(results[active]||results[0]);}
+  };
+  const hl=(text)=>{
+    const nq=q.normalize("NFKC").toLowerCase().trim();
+    const i=nq?text.normalize("NFKC").toLowerCase().indexOf(nq):-1;
+    if(i<0)return text;
+    return <>{text.slice(0,i)}<span style={{color:accent,fontWeight:800}}>{text.slice(i,i+nq.length)}</span>{text.slice(i+nq.length)}</>;
+  };
+
+  const row=(key,{idx,title,sub,on,icon,onClick})=>{
+    const isActive=searching&&idx===active;
+    return <button key={key} data-idx={idx} onClick={onClick} onMouseEnter={()=>{if(idx!=null)setActive(idx);}} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"8px 10px",minHeight:54,borderRadius:14,border:"none",background:isActive?T.bg3:on?`${accent}14`:"transparent",cursor:"pointer",textAlign:"left",boxSizing:"border-box",transition:"background .12s"}}>
+      {icon}
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:14.5,fontWeight:on?800:600,color:T.txH,...ellipsis}}>{title}</div>
+        {sub&&<div style={{fontSize:11.5,color:T.txD,marginTop:2,...ellipsis}}>{sub}</div>}
+      </div>
+      {on&&<span style={{display:"flex",color:accent,flexShrink:0}}>{I.chk}</span>}
+    </button>;
+  };
+  const chip=(key,{s,label,col,count,on,onClick})=>(
+    <button key={key} onClick={onClick} style={{display:"inline-flex",alignItems:"center",gap:7,padding:s?"4px 12px 4px 4px":"7px 12px",borderRadius:22,border:`1px solid ${on?accent:T.bd}`,background:on?`${accent}14`:T.bg2,cursor:"pointer",maxWidth:"100%",boxSizing:"border-box"}}>
+      {s?<SpotBadge s={s} size={28} on={on}/>:<span style={{width:9,height:9,borderRadius:3,background:col||T.txD,flexShrink:0}}/>}
+      <span style={{fontSize:13,fontWeight:700,color:T.txH,...ellipsis}}>{label}</span>
+      {count!=null&&<span style={{fontSize:11.5,color:T.txD,flexShrink:0}}>{count}</span>}
+    </button>
+  );
+  const section=(title,children)=>(
+    <div style={{marginTop:16}}>
+      <div style={{fontSize:11,fontWeight:800,color:T.txD,letterSpacing:".06em",padding:"0 4px 8px"}}>{title}</div>
+      {children}
     </div>
-    {open&&<>
-      <div onClick={()=>setOpen(false)} style={{position:"fixed",inset:0,zIndex:2000}}/>
-      <div style={{position:"absolute",top:"100%",left:-44,right:-12,marginTop:6,background:T.bg2,border:`1px solid ${T.bdL}`,borderRadius:14,boxShadow:"0 16px 48px rgba(0,0,0,.55)",zIndex:2001,overflow:"hidden"}}>
-        <div style={{padding:"10px 10px 6px"}}>
-          <div style={{position:"relative"}}>
-            <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",display:"flex",color:T.txD,pointerEvents:"none"}}>{I.search}</span>
-            <input value={q} onChange={e=>{setQ(e.target.value);setOpenCat(null);}} placeholder={t("navi.searchBuilding")} autoFocus style={{width:"100%",padding:"9px 10px 9px 34px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:13,outline:"none",boxSizing:"border-box"}}/>
+  );
+  const action=(key,{col,icon,label,onClick,disabled})=>(
+    <button key={key} onClick={onClick} disabled={disabled} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 13px",borderRadius:20,border:`1px solid ${col}45`,background:`${col}12`,color:col,fontSize:12.5,fontWeight:700,cursor:disabled?"wait":"pointer",opacity:disabled?.6:1}}>
+      <span style={{display:"flex"}}>{icon}</span>{label}
+    </button>
+  );
+
+  const recent=getRecent().map(id=>NAV_SPOTS.find(s=>s.id===id)).filter(Boolean);
+  const quick=getNavQuickRaw().map(id=>{
+    if(id.startsWith("cat:")){const catId=id.slice(4);const cat=SPOT_CATS.find(c=>c.id===catId);return cat?{type:"cat",key:id,label:cat.label,count:NAV_SPOTS.filter(s=>s.cat===catId).length,go:()=>setOpenCat(catId)}:null;}
+    if(id.startsWith("grp:")){const pfx=id.slice(4);const g=SPOT_GROUPS.find(x=>x.prefix===pfx);return g?{type:"grp",key:id,label:t(g.labelKey),col:g.col,count:NAV_SPOTS.filter(s=>s.id.startsWith(pfx+"_")).length,go:()=>pickGroup(pfx)}:null;}
+    const s=NAV_SPOTS.find(x=>x.id===id);return s?{type:"spot",key:id,s}:null;
+  }).filter(Boolean);
+  const cats=SPOT_CATS.filter(c=>NAV_SPOTS.some(s=>s.cat===c.id));
+  const byDistance=(a,b)=>{const da=distOf(a),db=distOf(b);return da!=null&&db!=null?da-db:a.label.localeCompare(b.label,"ja");};
+
+  let body;
+  if(searching){
+    body=results.length?results.map((r,idx)=>{
+      if(r.kind==="group")return row(`g:${r.g.prefix}`,{idx,title:hl(t(r.g.labelKey)),sub:mode==="search"?t("navi.itemsCount",{n:r.count}):t("navi.nearestPick"),icon:<GroupBadge col={r.g.col}/>,onClick:()=>pickGroup(r.g.prefix)});
+      const on=r.s.id===value;
+      return row(`${r.kind}:${r.s.id}`,{idx,title:r.kind==="room"?r.s.label:hl(r.s.label),sub:subOf(r.s,r.kind==="room"?t("navi.roomIn",{room:r.room}):null),on,icon:<SpotBadge s={r.s} on={on}/>,onClick:()=>choose(r)});
+    }):<div style={{padding:"36px 12px",textAlign:"center"}}>
+      <div style={{fontSize:14,fontWeight:700,color:T.txH}}>{t("navi.notFound")}</div>
+      <div style={{fontSize:12,color:T.txD,marginTop:6}}>{t("navi.searchHint")}</div>
+    </div>;
+  }else if(openCat){
+    const catGroups=SPOT_GROUPS.filter(g=>NAV_SPOTS.some(s=>s.cat===openCat&&s.id.startsWith(g.prefix+"_")));
+    const catSpots=NAV_SPOTS.filter(s=>s.cat===openCat&&!isGroupableSpot(s)).sort(byDistance);
+    body=<>
+      <button onClick={()=>setOpenCat(null)} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 6px",border:"none",background:"transparent",cursor:"pointer",color:T.txH,fontSize:15,fontWeight:800}}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        {catLabelOf(openCat)}
+        <span style={{fontSize:12,fontWeight:600,color:T.txD}}>{t("navi.itemsCount",{n:catSpots.length+catGroups.length})}</span>
+      </button>
+      {catGroups.map(g=>row(g.prefix,{title:t(g.labelKey),sub:mode==="search"?t("navi.itemsCount",{n:NAV_SPOTS.filter(s=>s.id.startsWith(g.prefix+"_")).length}):t("navi.nearestPick"),icon:<GroupBadge col={g.col}/>,onClick:()=>pickGroup(g.prefix)}))}
+      {catSpots.map(s=>{const on=s.id===value;return row(s.id,{title:s.label,sub:subOf(s),on,icon:<SpotBadge s={s} on={on}/>,onClick:()=>pick(s)});})}
+    </>;
+  }else{
+    body=<>
+      {mode!=="search"&&(onGps||onPickOnMap||(value&&onClear))&&<div style={{display:"flex",flexWrap:"wrap",gap:8,padding:"4px 2px 0"}}>
+        {onGps&&action("gps",{col:ROUTE_COL,disabled:gpsLoading,onClick:onGps,label:gpsLoading?t("navi.locating"):t("navi.currentLocation"),icon:<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><circle cx="12" cy="12" r="8"/></svg>})}
+        {onPickOnMap&&action("map",{col:T.tx,onClick:onPickOnMap,label:t("navi.pickOnMap"),icon:<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>})}
+        {value&&onClear&&action("clear",{col:T.red,onClick:onClear,label:t("navi.clearSelection"),icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>})}
+      </div>}
+      {mode!=="origin"&&nextCls&&nextClsSpot&&section(t(nextCls.st==="now"?"navi.nowClass":"navi.nextClass"),
+        <button onClick={()=>pick(nextClsSpot)} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:14,border:`1px solid ${accent}40`,background:`${accent}10`,cursor:"pointer",textAlign:"left",boxSizing:"border-box"}}>
+          <div style={{width:36,height:36,borderRadius:11,background:`${accent}22`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:11.5,fontWeight:800,color:accent}}>{nextCls.pd.l} {hm(nextCls.pd.s)}〜</div>
+            <div style={{fontSize:14.5,fontWeight:800,color:T.txH,marginTop:1,...ellipsis}}>{nextCls.co.name}</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:3,flexShrink:0,fontSize:12.5,fontWeight:800,color:T.txH}}>
+            {nextClsSpot.label.replace(/・.*$/,"")}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </button>
+      )}
+      {recent.length>0&&section(t("navi.recent"),
+        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>{recent.map(s=>chip(s.id,{s,label:s.label.replace(/・.*$/,""),on:s.id===value,onClick:()=>pick(s)}))}</div>
+      )}
+      {section(t("navi.frequentlyUsed"),
+        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>{quick.map(it=>it.type==="spot"
+          ?chip(it.key,{s:it.s,label:it.s.label.replace(/・.*$/,""),on:it.s.id===value,onClick:()=>pick(it.s)})
+          :chip(it.key,{label:it.label,col:it.col,count:it.count,onClick:it.go}))}</div>
+      )}
+      {section(t("navi.browseByArea"),
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {cats.map(c=><button key={c.id} onClick={()=>setOpenCat(c.id)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,padding:"12px 12px 12px 14px",borderRadius:14,border:`1px solid ${T.bd}`,background:T.bg2,cursor:"pointer",textAlign:"left",minWidth:0}}>
+            <span style={{fontSize:13.5,fontWeight:700,color:T.txH,...ellipsis}}>{c.label}</span>
+            <span style={{display:"flex",alignItems:"center",gap:2,fontSize:12,color:T.txD,flexShrink:0}}>{NAV_SPOTS.filter(s=>s.cat===c.id).length}<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          </button>)}
         </div>
-        <div style={{maxHeight:280,overflowY:"auto",padding:"0 6px 6px"}}>
-          {value&&<button onClick={()=>{onChange(null);setOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,border:"none",background:`${T.red}10`,cursor:"pointer",textAlign:"left",marginBottom:4}}>
-            <span style={{display:"flex",color:T.red}}>{I.x}</span>
-            <span style={{fontSize:12,fontWeight:500,color:T.red}}>{t("navi.clearSelection")}</span>
+      )}
+    </>;
+  }
+
+  return <>
+    <div onClick={onClose} style={{position:"absolute",inset:0,zIndex:1000,background:mob?"rgba(10,20,30,.2)":"transparent"}}/>
+    <div onMouseDown={e=>e.stopPropagation()} onDoubleClick={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()} onKeyUp={e=>e.stopPropagation()} style={{position:"absolute",top:mob?10:14,left:mob?10:14,right:mob?10:"auto",bottom:mob?10:"auto",width:mob?"auto":440,maxHeight:mob?undefined:"calc(100% - 28px)",zIndex:1001,display:"flex",flexDirection:"column",background:T.bg2,borderRadius:22,border:`1px solid ${T.bdL}`,boxShadow:"0 28px 60px -24px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.12)",overflow:"hidden",animation:"navPickerIn .18s ease-out"}}>
+      <div style={{display:"flex",alignItems:"center",gap:4,padding:"10px 12px 10px 6px",borderBottom:`1px solid ${T.bd}`,flexShrink:0}}>
+        <button onClick={onClose} aria-label={t("common.back")} style={{width:38,height:38,borderRadius:19,border:"none",background:"transparent",color:T.tx,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div style={{flex:1,position:"relative",minWidth:0}}>
+          <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",display:"flex",color:T.txD,pointerEvents:"none"}}>
+            {mode==="origin"
+              ?<span style={{width:12,height:12,borderRadius:6,border:`2.5px solid ${T.txD}`,boxSizing:"border-box"}}/>
+              :mode==="destination"
+                ?<svg width="16" height="16" viewBox="0 0 24 24" fill={accent}><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+                :I.search}
+          </span>
+          <input ref={inputRef} autoFocus value={q} onChange={e=>{setQ(e.target.value);if(openCat)setOpenCat(null);}} onKeyDown={onKey} placeholder={placeholder} enterKeyHint="search" autoComplete="off" spellCheck={false}
+            style={{width:"100%",padding:"11px 38px 11px 38px",borderRadius:14,border:`1.5px solid ${accent}`,background:T.bg3,color:T.txH,fontSize:mob?16:15,outline:"none",boxSizing:"border-box"}}/>
+          {q&&<button onClick={()=>{setQ("");inputRef.current?.focus();}} aria-label={t("navi.clearSelection")} style={{position:"absolute",right:7,top:"50%",transform:"translateY(-50%)",width:26,height:26,borderRadius:13,border:"none",background:T.bg4,color:T.tx,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",padding:0}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>}
-          {searching?<>
-            {/* Grouped outdoor spots */}
-            {searchResults.groups.map(g=>(
-              <button key={g.prefix} onClick={()=>{if(onSelectGroup){onSelectGroup(g.prefix);setOpen(false);}}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                <div style={{width:24,height:24,borderRadius:6,background:`${g.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill={g.col} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
-                </div>
-                <span style={{fontSize:13,fontWeight:600,color:T.txH,flex:1}}>{t(g.labelKey)}</span>
-                <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:g.spots.length})} ›</span>
-              </button>
-            ))}
-            {/* Non-groupable spots */}
-            {searchGrouped.map(g=><div key={g.id}>
-              <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5,padding:"8px 10px 3px"}}>{g.label}</div>
-              {g.spots.map(s=>{
-                const on=s.id===value;
-                return <button key={s.id} onClick={()=>{onChange(s.id);setOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:on?`${accent}18`:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>{if(!on)e.currentTarget.style.background=T.hover}} onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent"}}>
-                  <div style={{width:20,height:20,borderRadius:5,background:on?s.col:`${s.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:on?"#fff":s.col}}>{s.short}</span></div>
-                  <span style={{fontSize:12,fontWeight:on?600:400,color:on?T.txH:T.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{s.label}</span>
-                  {on&&<span style={{display:"flex",color:accent,flexShrink:0}}>{I.chk}</span>}
-                </button>;
-              })}
-            </div>)}
-            {searchResults.groups.length===0&&searchGrouped.length===0&&<div style={{padding:"16px 0",fontSize:12,color:T.txD,textAlign:"center"}}>{t("navi.notFound")}</div>}
-          </>:openCat?<>
-            <button onClick={()=>setOpenCat(null)} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",color:T.txD,fontSize:11,marginBottom:2}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-              {t("common.back")}
-            </button>
-            {catSpots.map(s=>{
-              const on=s.id===value;
-              return <button key={s.id} onClick={()=>{onChange(s.id);setOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:on?`${accent}18`:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>{if(!on)e.currentTarget.style.background=T.hover}} onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent"}}>
-                <div style={{width:20,height:20,borderRadius:5,background:on?s.col:`${s.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:on?"#fff":s.col}}>{s.short}</span></div>
-                <span style={{fontSize:12,fontWeight:on?600:400,color:on?T.txH:T.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{s.label}</span>
-                {on&&<span style={{display:"flex",color:accent,flexShrink:0}}>{I.chk}</span>}
-              </button>;
-            })}
-          </>:<>
-            {onGps&&<button onClick={()=>{onGps();setOpen(false);}} disabled={gpsLoading} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"#4285f410",cursor:gpsLoading?"wait":"pointer",textAlign:"left",marginBottom:4}} onMouseEnter={e=>e.currentTarget.style.background="#4285f420"} onMouseLeave={e=>e.currentTarget.style.background="#4285f410"}>
-              <div style={{width:20,height:20,borderRadius:5,background:"#4285f430",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{I.tgt}</div>
-              <span style={{fontSize:12,fontWeight:500,color:"#4285f4"}}>{gpsLoading?t("navi.locating"):t("navi.currentLocation")}</span>
-            </button>}
-            <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5,padding:"6px 10px 3px"}}>{t("navi.frequentlyUsed")}</div>
-            {quickItems.map((item,i)=>{
-              if(item.type==="cat") return <button key={"cat:"+item.catId} onClick={()=>setOpenCat(item.catId)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                <span style={{fontSize:12,fontWeight:500,color:T.txH}}>{item.label}</span>
-                <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:item.count})} ›</span>
-              </button>;
-              if(item.type==="grp") return <button key={"grp:"+item.prefix} onClick={()=>{if(onSelectGroup){onSelectGroup(item.prefix);setOpen(false);}}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                <div style={{width:20,height:20,borderRadius:5,background:`${item.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                  <div style={{width:8,height:8,borderRadius:2,background:item.col}}/>
-                </div>
-                <span style={{fontSize:12,fontWeight:500,color:T.txH,flex:1}}>{item.label}</span>
-                <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:item.count})} ›</span>
-              </button>;
-              const on=item.id===value;
-              return <button key={item.id} onClick={()=>{onChange(item.id);setOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:on?`${accent}18`:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>{if(!on)e.currentTarget.style.background=T.hover}} onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent"}}>
-                <div style={{width:20,height:20,borderRadius:5,background:on?item.col:`${item.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:on?"#fff":item.col}}>{item.short}</span></div>
-                <span style={{fontSize:12,fontWeight:on?600:400,color:on?T.txH:T.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{item.label}</span>
-                {on&&<span style={{display:"flex",color:accent,flexShrink:0}}>{I.chk}</span>}
-              </button>;
-            })}
-            <div style={{height:1,background:T.bd,margin:"6px 10px"}}/>
-            {SPOT_CATS.filter(cat=>NAV_SPOTS.some(s=>s.cat===cat.id)).map(cat=>{
-              const count=NAV_SPOTS.filter(s=>s.cat===cat.id).length;
-              return <button key={cat.id} onClick={()=>setOpenCat(cat.id)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"10px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                <span style={{fontSize:13,fontWeight:500,color:T.txH}}>{cat.label}</span>
-                <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:count})} ›</span>
-              </button>;
-            })}
-          </>}
         </div>
       </div>
-    </>}
-  </div>;
+      <div ref={listRef} style={{flex:mob?1:"0 1 auto",overflowY:"auto",padding:"6px 10px 16px",WebkitOverflowScrolling:"touch",maxHeight:mob?undefined:560,overscrollBehavior:"contain"}}>
+        {body}
+      </div>
+    </div>
+  </>;
+};
+
+/* ── ルート線（白い縁取り＋青い線＋流れる点） ── */
+const drawRouteLine=(L,map,latlngs)=>{
+  const casing=L.polyline(latlngs,{color:"#ffffff",weight:12,opacity:0.95,lineCap:"round",lineJoin:"round",interactive:false}).addTo(map);
+  const line=L.polyline(latlngs,{color:ROUTE_COL,weight:6.5,opacity:1,lineCap:"round",lineJoin:"round",interactive:false}).addTo(map);
+  const flow=L.polyline(latlngs,{color:"#ffffff",weight:2.6,opacity:0.95,lineCap:"round",dashArray:"0.1 16",className:"nav-route-flow",interactive:false}).addTo(map);
+  // GPS更新で描き直しても流れが途切れないよう、アニメーションの位相を時刻に合わせる
+  const el=flow.getElement?.();
+  if(el)el.style.animationDelay=`-${Math.round(performance.now()%800)}ms`;
+  return [casing,line,flow];
+};
+// ルートが新しく出たときに、出発地から線を引いていく
+const drawRouteIn=(map,lines)=>{
+  let done=false;
+  const run=()=>{
+    if(done)return;
+    done=true;
+    lines.forEach(l=>{
+      const el=l.getElement?.();
+      if(!el||!el.getTotalLength)return;
+      const len=el.getTotalLength();
+      el.style.transition="none";
+      el.style.strokeDasharray=`${len} ${len}`;
+      el.style.strokeDashoffset=`${len}`;
+      el.getBoundingClientRect();
+      el.style.transition="stroke-dashoffset .9s cubic-bezier(.65,0,.35,1)";
+      el.style.strokeDashoffset="0";
+      setTimeout(()=>{el.style.transition="";el.style.strokeDasharray="";el.style.strokeDashoffset="";},1000);
+    });
+  };
+  map.once("moveend",run);
+  setTimeout(run,400);
 };
 
 /* ── NavigationView ── */
-export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
+export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=>{
   const leafletReady=useLeaflet();
   const mapRef=useRef(null);
   const mapInst=useRef(null);
   const layersRef=useRef([]);
   const overlayRef=useRef(null);
+  // 地図の見た目: "illust"（イラスト地図・既定）| "photo"（航空写真）
+  const [basemap,setBasemap]=useState(()=>{try{return localStorage.getItem("navBasemap")==="photo"?"photo":"illust";}catch{return "illust";}});
+  const [bmData,setBmData]=useState(null);
+  const [bmVersion,setBmVersion]=useState(0); // イラスト地図を作り直したら増やす（マーカーの描き直し用）
+  const [outOfRegion,setOutOfRegion]=useState(false);
+  const photoLayersRef=useRef([]);
+  const basemapRef=useRef(null);
+  const spotTapRef=useRef(null);
+  const animatedDestRef=useRef(null);
   const gpsMarkerRef=useRef(null);
   const gpsCircleRef=useRef(null);
   const {origin,setOrigin,destination,setDestination,route,swap,gpsOriginPos,setGpsOriginPos}=useNavigation();
@@ -565,14 +712,45 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     if(!leafletReady||!mapRef.current||mapInst.current)return;
     const L=window.L;
     const map=L.map(mapRef.current,{center:[CAMPUS_CENTER.lat,CAMPUS_CENTER.lng],zoom:CAMPUS_ZOOM,zoomControl:false,attributionControl:false,rotate:true,touchRotate:true,bearing:0});
-    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:22,maxNativeZoom:19}).addTo(map);
-    overlayRef.current=L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:22,maxNativeZoom:19,pane:"overlayPane",opacity:0.35}).addTo(map);
+    // 航空写真（切り替え用）。どちらを表示するかは下の basemap の effect が決める
+    const imagery=L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:22,maxNativeZoom:19,attribution:"Imagery © Esri"});
+    overlayRef.current=L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:22,maxNativeZoom:19,pane:"overlayPane",opacity:0.35,attribution:"© OpenStreetMap contributors"});
+    photoLayersRef.current=[imagery,overlayRef.current];
     L.control.zoom({position:"bottomright"}).addTo(map);
+    L.control.attribution({position:"bottomright",prefix:false}).addTo(map);
     mapInst.current=map;
     map.on("click",()=>{if(navPhaseRef.current==="search")setSearchMin(true);});
     map.on("dragstart",()=>{if(guidingRef.current)setFollowing(false);});
     return()=>{map.remove();mapInst.current=null;gpsMarkerRef.current=null;gpsCircleRef.current=null;};
   },[leafletReady]);
+
+  // イラスト地図のデータ（約50KB）は地図を開いたときだけ読む
+  useEffect(()=>{
+    if(basemap!=="illust"||bmData)return;
+    let alive=true;
+    import("../campusBasemapData.js").then(m=>{if(alive)setBmData(m.BASEMAP);}).catch(()=>{if(alive)setBasemap("photo");});
+    return()=>{alive=false;};
+  },[basemap,bmData]);
+
+  // 地図の見た目（イラスト / 航空写真）を切り替える
+  useEffect(()=>{
+    const map=mapInst.current;
+    if(!leafletReady||!map)return;
+    try{localStorage.setItem("navBasemap",basemap);}catch{}
+    if(basemap!=="illust"){
+      photoLayersRef.current.forEach(l=>{if(!map.hasLayer(l))l.addTo(map);});
+      return;
+    }
+    photoLayersRef.current.forEach(l=>{if(map.hasLayer(l))map.removeLayer(l);});
+    if(!bmData)return;
+    const ctl=createCampusBasemap(window.L,map,bmData,{dark:isDarkColor(T.bg),accent:T.accent,onSpotClick:id=>spotTapRef.current?.(id)});
+    basemapRef.current=ctl;
+    setBmVersion(v=>v+1);
+    const onMove=()=>setOutOfRegion(!ctl.regionBounds.contains(map.getCenter()));
+    map.on("moveend",onMove);
+    onMove();
+    return()=>{map.off("moveend",onMove);ctl.remove();basemapRef.current=null;setOutOfRegion(false);setBmVersion(v=>v+1);};
+  },[leafletReady,basemap,bmData]);
 
   // refs for click handler
   const selectModeRef=useRef(selectMode);
@@ -585,6 +763,15 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   useEffect(()=>{navPhaseRef.current=navPhase;},[navPhase]);
   const spotGroupRef=useRef(spotGroup);
   useEffect(()=>{spotGroupRef.current=spotGroup;},[spotGroup]);
+  // 建物（イラスト地図の建物の面・地図上の点）をタップしたとき
+  spotTapRef.current=(id)=>{
+    const mode=selectModeRef.current;
+    const phase=navPhaseRef.current;
+    if(mode==="origin"){setOrigin(id);setGpsOriginPos(null);setOriginFromGps(false);setSelectMode(null);}
+    else if(mode==="destination"){setDestination(id);setSelectMode(null);if(phase!=="route")setNavPhase("detail");}
+    else if(phase==="search"||phase==="detail"||phase==="group"){setDestination(id);setSpotGroup(null);setNavPhase("detail");}
+    else if(phase==="route"&&!originRef.current){setOrigin(id);setGpsOriginPos(null);setOriginFromGps(false);}
+  };
 
   // update markers/route
   useEffect(()=>{
@@ -620,18 +807,12 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
         layersRef.current.push(m);
         groupBounds.push([s.lat,s.lng]);
       } else {
+        if(basemapRef.current?.hasSpot(s.id))return; // イラスト地図では建物そのものをタップする
         const opacity=isGroupPhase?"20":"55";
         const borderOp=isGroupPhase?"40":"80";
-        const icon=L.divIcon({className:"",html:`<div style="width:10px;height:10px;border-radius:50%;background:${s.col}${opacity};border:1.5px solid ${s.col}${borderOp};cursor:pointer;transition:transform .15s" onmouseover="this.style.transform='scale(1.6)'" onmouseout="this.style.transform='scale(1)'"></div>`,iconSize:[10,10],iconAnchor:[5,5]});
+        const icon=L.divIcon({className:"",html:`<div class="nav-dot" style="width:10px;height:10px;border-radius:50%;background:${s.col}${opacity};border:1.5px solid ${s.col}${borderOp};cursor:pointer;transition:transform .15s,opacity .2s" onmouseover="this.style.transform='scale(1.6)'" onmouseout="this.style.transform='scale(1)'"></div>`,iconSize:[10,10],iconAnchor:[5,5]});
         const m=L.marker([s.lat,s.lng],{icon,interactive:true}).addTo(map);
-        m.on("click",()=>{
-          const mode=selectModeRef.current;
-          const phase=navPhaseRef.current;
-          if(mode==="origin"){setOrigin(s.id);setGpsOriginPos(null);setOriginFromGps(false);setSelectMode(null);}
-          else if(mode==="destination"){setDestination(s.id);setSelectMode(null);setNavPhase("detail");}
-          else if(phase==="search"||phase==="detail"||phase==="group"){setDestination(s.id);setSpotGroup(null);setNavPhase("detail");}
-          else if(phase==="route"&&!originRef.current){setOrigin(s.id);setGpsOriginPos(null);setOriginFromGps(false);}
-        });
+        m.on("click",()=>spotTapRef.current?.(s.id));
         m.bindTooltip(s.label,{direction:"top",offset:[0,-8],className:"nav-tip"});
         layersRef.current.push(m);
       }
@@ -687,21 +868,16 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
           const pg=L.polyline(passed,{color:"#888",weight:5,opacity:0.4,lineCap:"round",lineJoin:"round",dashArray:"6 8"}).addTo(map);
           layersRef.current.push(pg);
         }
-        if(remaining.length>1){
-          const rGlow=L.polyline(remaining,{color:"#4de8b0",weight:12,opacity:0.15,lineCap:"round",lineJoin:"round"}).addTo(map);
-          const rShadow=L.polyline(remaining,{color:"#000",weight:7,opacity:0.3,lineCap:"round",lineJoin:"round"}).addTo(map);
-          const rLine=L.polyline(remaining,{color:"#4de8b0",weight:5,opacity:0.95,lineCap:"round",lineJoin:"round"}).addTo(map);
-          layersRef.current.push(rGlow,rShadow,rLine);
-        }
+        if(remaining.length>1)layersRef.current.push(...drawRouteLine(L,map,remaining));
       }else{
         // 通常表示
-        const glow=L.polyline(latlngs,{color:"#4de8b0",weight:12,opacity:0.15,lineCap:"round",lineJoin:"round"}).addTo(map);
-        const shadow=L.polyline(latlngs,{color:"#000",weight:7,opacity:0.3,lineCap:"round",lineJoin:"round"}).addTo(map);
-        const line=L.polyline(latlngs,{color:"#4de8b0",weight:5,opacity:0.95,lineCap:"round",lineJoin:"round"}).addTo(map);
-        layersRef.current.push(glow,shadow,line);
+        const lines=drawRouteLine(L,map,latlngs);
+        layersRef.current.push(...lines);
         if(fittedRouteRef.current!==route){
           fittedRouteRef.current=route;
-          map.fitBounds(line.getBounds().pad(0.25));
+          // 上の出発地/目的地カードと下の到着予測カードに隠れないよう余白を取る（PCはカードが左側）
+          map.fitBounds(lines[1].getBounds(),{paddingTopLeft:[mob?24:480,mob?150:40],paddingBottomRight:[mob?24:60,mob?260:60],maxZoom:19});
+          drawRouteIn(map,lines.slice(0,2));
         }
       }
     }
@@ -717,16 +893,15 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
 
     // Destination marker — accent pin style
     if(destSpot){
-      const icon=L.divIcon({className:"",html:`
-        <div style="position:relative;width:32px;height:42px">
-          <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:10px;height:10px;border-radius:50%;background:rgba(0,0,0,.2);filter:blur(3px)"></div>
-          <div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:28px;height:28px;border-radius:50%;background:${T.accent};border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
-          </div>
-        </div>`,iconSize:[32,42],iconAnchor:[16,42]});
+      // 目的地が変わったときだけピンを落とす（GPS更新のたびに再生しない）
+      const drop=animatedDestRef.current!==destSpot.id;
+      animatedDestRef.current=destSpot.id;
+      const icon=L.divIcon({className:"",html:`<div class="nav-pin"><div class="nav-pin-shadow"></div><div class="${drop?"nav-pin-body nav-pin-drop":"nav-pin-body"}">${PIN_SVG(T.accent)}</div></div>`,iconSize:[36,46],iconAnchor:[18,44]});
       const m=L.marker([destSpot.lat,destSpot.lng],{icon,zIndexOffset:1000}).addTo(map);
-      m.bindTooltip(t("navi.destLabel",{name:destSpot.label}),{direction:"top",offset:[0,-44],className:"nav-tip"});
+      m.bindTooltip(t("navi.destLabel",{name:destSpot.label}),{direction:"top",offset:[0,-46],className:"nav-tip"});
       layersRef.current.push(m);
+    }else{
+      animatedDestRef.current=null;
     }
 
     // detailフェーズ: 目的地にズーム — destination/origin変更時のみ
@@ -741,7 +916,10 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     }
     if(route||(!destSpot&&!originSpot))fittedDetailRef.current=null;
     if(!route)fittedRouteRef.current=null;
-  },[leafletReady,origin,destination,route,gpsPos,gpsOriginPos,guiding,navPhase,spotGroup]);
+  },[leafletReady,origin,destination,route,gpsPos,gpsOriginPos,guiding,navPhase,spotGroup,bmVersion]);
+
+  // 目的地の建物を塗る（イラスト地図）
+  useEffect(()=>{basemapRef.current?.setHighlight(destination||null);},[destination,bmVersion]);
 
   // GPS位置マーカー — 永続refでスムーズ移動
   useEffect(()=>{
@@ -756,7 +934,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     if(gpsMarkerRef.current){
       gpsMarkerRef.current.setLatLng([gpsPos.lat,gpsPos.lng]);
     }else{
-      const gpsDot=L.divIcon({className:"gps-smooth",html:`<div style="position:relative"><div class="gps-arrow" style="display:none;position:absolute;top:-18px;left:50%;transform-origin:center 24px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:14px solid #4285f4;filter:drop-shadow(0 0 3px rgba(66,133,244,.6));z-index:2;transition:transform .15s ease-out"></div><div style="position:absolute;inset:-10px;border-radius:50%;background:#4285f420;border:1.5px solid #4285f440;animation:locPulse 2s ease-in-out infinite"></div><div style="width:12px;height:12px;border-radius:50%;background:#4285f4;border:2.5px solid #fff;box-shadow:0 0 6px rgba(66,133,244,.5)"></div></div>`,iconSize:[12,12],iconAnchor:[6,6]});
+      const gpsDot=L.divIcon({className:"gps-smooth",html:`<div style="position:relative"><div class="gps-arrow" style="display:none;position:absolute;top:-18px;left:50%;transform-origin:center 25px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:14px solid ${ROUTE_COL};filter:drop-shadow(0 0 3px rgba(26,142,240,.6));z-index:2;transition:transform .15s ease-out"></div><div style="position:absolute;inset:-12px;border-radius:50%;background:rgba(26,142,240,.25);animation:navHalo 2s ease-out infinite"></div><div style="width:14px;height:14px;border-radius:50%;background:${ROUTE_COL};border:3px solid #fff;box-shadow:0 1px 6px rgba(26,142,240,.55)"></div><div class="nav-here">${t("navi.currentLocation")}</div></div>`,iconSize:[14,14],iconAnchor:[10,10]});
       const gm=L.marker([gpsPos.lat,gpsPos.lng],{icon:gpsDot,zIndexOffset:900}).addTo(map);
       gm.bindTooltip(`<b>${t("navi.currentLocation")}</b>`,{direction:"top",offset:[0,-10],className:"nav-tip"});
       gpsMarkerRef.current=gm;
@@ -774,8 +952,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   },[leafletReady,gpsPos]);
 
   /* ── Inline search for search phase ── */
-  const [searchQ,setSearchQ]=useState("");
-  const [openCatInline,setOpenCatInline]=useState(null);
+  const [pickerFor,setPickerFor]=useState(null); // ルート画面で開いている選択シート: "origin" | "destination" | null
   const [tipsOpen,setTipsOpen]=useState(false);
 
   if(!leafletReady)return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><Loader msg={t("navi.loadingMap")} size="md"/></div>;
@@ -785,8 +962,32 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
   const hasRoute=!!route;
   const noRoute=origin&&destination&&origin!==destination&&!route;
 
-  /* ── helper: destination spot ── */
+  // 目的地を決めてルート表示へ（出発地は現在地）
+  const navigateTo=(destId)=>{
+    if(destId){setDestination(destId);setSpotGroup(null);}
+    setNavPhase("route");
+    if(navigator.geolocation){
+      setGpsLoading(true);
+      navigator.geolocation.getCurrentPosition(
+        pos=>{
+          const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+          setGpsPos({lat,lng,accuracy});
+          setOrigin("__gps__");setGpsOriginPos({lat,lng});setOriginFromGps(true);
+          setGpsLoading(false);
+        },
+        ()=>setGpsLoading(false),
+        {enableHighAccuracy:true,timeout:10000,maximumAge:30000}
+      );
+    }
+  };
+  // 今日の次の授業（時間割と学年暦から）。目的地カードと検索画面のショートカットに使う
+  const nextCls=getNextClass(qDataAll);
+  const nextClsSpot=nextCls?NAV_SPOTS.find(s=>s.id===nextCls.co.building):null;
+  const destIsNextCls=!!(nextClsSpot&&destination===nextClsSpot.id);
+
+  /* ── helper: destination / origin spot ── */
   const destSpotInfo=NAV_SPOTS.find(s=>s.id===destination);
+  const originSpotInfo=origin&&origin!=="__gps__"?NAV_SPOTS.find(s=>s.id===origin):null;
 
   /* ── Floating search card ── */
   const cardW=mob?"auto":440;
@@ -794,114 +995,17 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
 
   const groupInfo=spotGroup?SPOT_GROUPS.find(g=>g.prefix===spotGroup):null;
   const groupSpots=spotGroup?NAV_SPOTS.filter(s=>s.id.startsWith(spotGroup+"_")):[];
-  const searchFiltered=searchQ.trim().length>0?NAV_SPOTS.filter(s=>s.label.includes(searchQ)||s.short.includes(searchQ)||s.id.includes(searchQ.toLowerCase())):[];
-  const searchInlineResults=searchQ.trim().length>0?buildSearchResults(searchFiltered):null;
-  const searchInlineGrouped=searchQ.trim().length>0?SPOT_CATS.map(cat=>({...cat,spots:searchFiltered.filter(s=>s.cat===cat.id&&!isGroupableSpot(s))})).filter(g=>g.spots.length>0):[];
-  const rawQuickInline=getNavQuickRaw();
-  const quickItemsInline=rawQuickInline.map(id=>{
-    if(id.startsWith("cat:")){const catId=id.slice(4);const cat=SPOT_CATS.find(c=>c.id===catId);return cat?{type:"cat",catId,label:cat.label,count:NAV_SPOTS.filter(s=>s.cat===catId).length}:null;}
-    if(id.startsWith("grp:")){const pfx=id.slice(4);const g=SPOT_GROUPS.find(x=>x.prefix===pfx);return g?{type:"grp",prefix:pfx,label:t(g.labelKey),col:g.col,count:NAV_SPOTS.filter(s=>s.id.startsWith(pfx+"_")).length}:null;}
-    const s=NAV_SPOTS.find(s=>s.id===id);return s?{type:"spot",...s}:null;
-  }).filter(Boolean);
-
-  const stopProp=e=>{e.stopPropagation();};
   const searchCard=navPhase==="search"&&searchMin?
-    <div onClick={()=>setSearchMin(false)} style={{position:"absolute",top:mob?10:14,left:mob?10:14,right:mob?10:"auto",width:cardW,zIndex:1000,display:"flex",alignItems:"center",gap:10,padding:"12px 16px",background:T.bg2,borderRadius:16,border:`1px solid ${T.bdL}`,boxShadow:"0 4px 24px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.2)",cursor:"pointer",transition:"box-shadow .15s"}}>
-      <span style={{display:"flex",color:T.txD}}>{I.search}</span>
-      <span style={{fontSize:14,color:T.txD,flex:1}}>{t("navi.searchSpot")}</span>
-    </div>
+    <button type="button" onClick={()=>setSearchMin(false)} style={{position:"absolute",top:mob?10:14,left:mob?10:14,right:mob?10:"auto",width:cardW,zIndex:1000,display:"flex",alignItems:"center",gap:10,padding:"13px 18px",background:T.bg2,borderRadius:26,border:`1px solid ${T.bdL}`,boxShadow:"0 10px 30px -10px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.15)",cursor:"pointer",transition:"box-shadow .15s",boxSizing:"border-box",textAlign:"left",font:"inherit"}}>
+      <span style={{display:"flex",color:T.tx}}>{I.search}</span>
+      <span style={{fontSize:14.5,color:T.txD,flex:1}}>{t("navi.searchAny")}</span>
+    </button>
   :navPhase==="search"?
-    /* ── Phase 1: Search (直接入力可能) ── */
-    <div style={cardBase} onMouseDown={stopProp} onDoubleClick={stopProp} onKeyDown={stopProp} onKeyUp={stopProp}>
-      <div style={{padding:"10px 10px 6px"}}>
-        <div style={{position:"relative"}}>
-          <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",display:"flex",color:T.txD,pointerEvents:"none"}}>{I.search}</span>
-          <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder={t("navi.searchSpot")} autoFocus style={{width:"100%",padding:"11px 10px 11px 34px",borderRadius:10,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
-        </div>
-      </div>
-      <div style={{maxHeight:320,overflowY:"auto",padding:"0 6px 6px"}}>
-        {searchQ.trim().length>0?<>
-          {searchInlineResults.groups.map(g=>(
-            <button key={g.prefix} onClick={()=>{setSpotGroup(g.prefix);setNavPhase("group");setSearchQ("");}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <div style={{width:24,height:24,borderRadius:6,background:`${g.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill={g.col} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
-              </div>
-              <span style={{fontSize:13,fontWeight:600,color:T.txH,flex:1}}>{t(g.labelKey)}</span>
-              <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:g.spots.length})} ›</span>
-            </button>
-          ))}
-          {searchInlineGrouped.map(g=><div key={g.id}>
-            <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5,padding:"8px 10px 3px"}}>{g.label}</div>
-            {g.spots.map(s=>(
-              <button key={s.id} onClick={()=>{setDestination(s.id);setSpotGroup(null);setNavPhase("detail");setSearchQ("");if(mapInst.current)mapInst.current.flyTo([s.lat,s.lng],18,{duration:.5});}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                <div style={{width:20,height:20,borderRadius:5,background:`${s.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:s.col}}>{s.short}</span></div>
-                <span style={{fontSize:12,fontWeight:400,color:T.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{s.label}</span>
-              </button>
-            ))}
-          </div>)}
-          {searchInlineResults.groups.length===0&&searchInlineGrouped.length===0&&<div style={{padding:"16px 0",fontSize:12,color:T.txD,textAlign:"center"}}>{t("navi.notFound")}</div>}
-        </>:<>
-          <div style={{fontSize:10,fontWeight:700,color:T.txD,letterSpacing:.5,padding:"6px 10px 3px"}}>{t("navi.frequentlyUsed")}</div>
-          {quickItemsInline.map((item,i)=>{
-            if(item.type==="cat") return <button key={"cat:"+item.catId} onClick={()=>setOpenCatInline(item.catId)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <span style={{fontSize:12,fontWeight:500,color:T.txH}}>{item.label}</span>
-              <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:item.count})} ›</span>
-            </button>;
-            if(item.type==="grp") return <button key={"grp:"+item.prefix} onClick={()=>{setSpotGroup(item.prefix);setNavPhase("group");setSearchQ("");}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <div style={{width:20,height:20,borderRadius:5,background:`${item.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><div style={{width:8,height:8,borderRadius:2,background:item.col}}/></div>
-              <span style={{fontSize:12,fontWeight:500,color:T.txH,flex:1}}>{item.label}</span>
-              <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:item.count})} ›</span>
-            </button>;
-            return <button key={item.id} onClick={()=>{setDestination(item.id);setSpotGroup(null);setNavPhase("detail");setSearchQ("");if(mapInst.current)mapInst.current.flyTo([item.lat,item.lng],18,{duration:.5});}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <div style={{width:20,height:20,borderRadius:5,background:`${item.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:item.col}}>{item.short}</span></div>
-              <span style={{fontSize:12,fontWeight:400,color:T.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{item.label}</span>
-            </button>;
-          })}
-          <div style={{height:1,background:T.bd,margin:"6px 10px"}}/>
-          {SPOT_CATS.filter(cat=>NAV_SPOTS.some(s=>s.cat===cat.id)).map(cat=>{
-            const catSpots=NAV_SPOTS.filter(s=>s.cat===cat.id&&!isGroupableSpot(s));
-            const catGroups=SPOT_GROUPS.filter(g=>NAV_SPOTS.some(s=>s.cat===cat.id&&s.id.startsWith(g.prefix+"_")));
-            // カテゴリ内にグループ1つだけ（個別スポットなし）→ 直接グループリンク
-            if(catSpots.length===0&&catGroups.length===1){
-              const g=catGroups[0];
-              const cnt=NAV_SPOTS.filter(s=>s.id.startsWith(g.prefix+"_")).length;
-              return <button key={cat.id} onClick={()=>{setSpotGroup(g.prefix);setNavPhase("group");setSearchQ("");setOpenCatInline(null);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                <div style={{width:20,height:20,borderRadius:6,background:`${g.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill={g.col} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
-                </div>
-                <span style={{fontSize:13,fontWeight:500,color:T.txH,flex:1}}>{cat.label}</span>
-                <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:cnt})} ›</span>
-              </button>;
-            }
-            const isOpen=openCatInline===cat.id;
-            return <div key={cat.id}>
-              <button onClick={()=>setOpenCatInline(isOpen?null:cat.id)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"10px 10px",borderRadius:8,border:"none",background:isOpen?T.bg3:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>{if(!isOpen)e.currentTarget.style.background=T.hover}} onMouseLeave={e=>{if(!isOpen)e.currentTarget.style.background=isOpen?T.bg3:"transparent"}}>
-                <span style={{fontSize:13,fontWeight:500,color:T.txH}}>{cat.label}</span>
-                <span style={{fontSize:11,color:T.txD}}>{t("navi.itemsCount",{n:catSpots.length+catGroups.length})} {isOpen?"▾":"›"}</span>
-              </button>
-              {isOpen&&<div style={{padding:"0 4px 4px"}}>
-                {catGroups.map(g=>{
-                  const cnt=NAV_SPOTS.filter(s=>s.id.startsWith(g.prefix+"_")).length;
-                  return <button key={g.prefix} onClick={()=>{setSpotGroup(g.prefix);setNavPhase("group");setSearchQ("");setOpenCatInline(null);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    <div style={{width:20,height:20,borderRadius:6,background:`${g.col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill={g.col} stroke="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
-                    </div>
-                    <span style={{fontSize:12,fontWeight:400,color:T.tx,flex:1}}>{t(g.labelKey)}</span>
-                    <span style={{fontSize:10,color:T.txD}}>{t("navi.itemsCount",{n:cnt})} ›</span>
-                  </button>;
-                })}
-                {catSpots.map(s=>(
-                  <button key={s.id} onClick={()=>{setDestination(s.id);setSpotGroup(null);setNavPhase("detail");setSearchQ("");setOpenCatInline(null);if(mapInst.current)mapInst.current.flyTo([s.lat,s.lng],18,{duration:.5});}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background=T.hover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    <div style={{width:20,height:20,borderRadius:5,background:`${s.col}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:7,fontWeight:700,color:s.col}}>{s.short}</span></div>
-                    <span style={{fontSize:12,fontWeight:400,color:T.tx,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{s.label}</span>
-                  </button>
-                ))}
-              </div>}
-            </div>;
-          })}
-        </>}
-      </div>
-    </div>
+    /* ── Phase 1: Search（共通の選択シート） ── */
+    <SpotPicker mode="search" mob={mob} gpsPos={gpsPos} nextCls={nextCls} nextClsSpot={nextClsSpot}
+      onPick={(sp)=>{setDestination(sp.id);setSpotGroup(null);setNavPhase("detail");setSearchMin(true);if(mapInst.current)mapInst.current.flyTo([sp.lat,sp.lng],18,{duration:.5});}}
+      onPickGroup={(prefix)=>{setSpotGroup(prefix);setNavPhase("group");setSearchMin(true);}}
+      onClose={()=>setSearchMin(true)}/>
   :navPhase==="group"?
     /* ── Phase 1.5: Group pins on map ── */
     <div style={cardBase}>
@@ -968,23 +1072,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
               </a>)}
             </div>}
           </div>}
-          <button onClick={()=>{
-            setNavPhase("route");
-            // GPS で現在地を自動取得
-            if(navigator.geolocation){
-              setGpsLoading(true);
-              navigator.geolocation.getCurrentPosition(
-                pos=>{
-                  const {latitude:lat,longitude:lng,accuracy}=pos.coords;
-                  setGpsPos({lat,lng,accuracy});
-                  setOrigin("__gps__");setGpsOriginPos({lat,lng});setOriginFromGps(true);
-                  setGpsLoading(false);
-                },
-                ()=>setGpsLoading(false),
-                {enableHighAccuracy:true,timeout:10000,maximumAge:30000}
-              );
-            }
-          }} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"11px 0",borderRadius:12,border:"none",background:"linear-gradient(135deg,#4de8b0,#34a853)",cursor:"pointer",transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=".85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+          <button onClick={()=>navigateTo()} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"11px 0",borderRadius:12,border:"none",background:"linear-gradient(135deg,#4de8b0,#34a853)",cursor:"pointer",transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=".85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
             <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{t("navi.navigateHere")}</span>
           </button>
@@ -992,33 +1080,55 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
       </div>
     </div>
   :
-    /* ── Phase 3: Route mode (origin selector + destination) ── */
-    <div style={cardBase}>
-      <div style={{display:"flex",alignItems:"stretch",padding:"4px 8px 4px 4px"}}>
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:32,flexShrink:0,padding:"12px 0"}}>
-          <div style={{width:10,height:10,borderRadius:"50%",background:origin?"#fff":"#ccc",border:"2px solid #bbb",flexShrink:0}}/>
-          <div style={{width:2,flex:1,background:`${T.txD}30`,margin:"3px 0",minHeight:12}}/>
-          <div style={{width:10,height:10,borderRadius:"50%",background:destination?T.accent:`${T.accent}60`,border:`2px solid ${T.accent}`,flexShrink:0}}/>
+    /* ── Phase 3: Route mode（出発地・目的地。タップで選択シートを開く） ── */
+    pickerFor?
+      <SpotPicker mode={pickerFor} value={pickerFor==="origin"?origin:destination} mob={mob} gpsPos={gpsPos}
+        refPos={pickerFor==="origin"?null:(origin==="__gps__"?gpsOriginPos:NAV_SPOTS.find(x=>x.id===origin)||null)}
+        nextCls={pickerFor==="destination"?nextCls:null} nextClsSpot={nextClsSpot} gpsLoading={gpsLoading}
+        onPick={(sp)=>{
+          if(pickerFor==="origin"){setOrigin(sp.id);setGpsOriginPos(null);setOriginFromGps(false);}
+          else setDestination(sp.id);
+          setSelectMode(null);setPickerFor(null);
+        }}
+        onGps={pickerFor==="origin"?()=>{getGpsOrigin();setPickerFor(null);}:null}
+        onPickOnMap={()=>{setSelectMode(pickerFor);setPickerFor(null);}}
+        onClear={()=>{
+          if(pickerFor==="origin"){setOrigin(null);setGpsOriginPos(null);setOriginFromGps(false);}
+          else{setDestination(null);setOrigin(null);setNavPhase("search");}
+          setPickerFor(null);
+        }}
+        onClose={()=>setPickerFor(null)}/>
+    :<div style={cardBase}>
+      <div style={{display:"flex",alignItems:"stretch",padding:"6px 8px 6px 4px"}}>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:34,flexShrink:0,padding:"14px 0"}}>
+          {origin==="__gps__"
+            ?<div style={{width:12,height:12,borderRadius:"50%",background:ROUTE_COL,border:"2.5px solid #fff",boxShadow:`0 0 0 1.5px ${ROUTE_COL}55`,flexShrink:0}}/>
+            :<div style={{width:11,height:11,borderRadius:"50%",background:T.bg2,border:`2.5px solid ${origin?T.tx:T.txD}`,flexShrink:0,boxSizing:"border-box"}}/>}
+          <div style={{width:0,flex:1,borderLeft:`2px dotted ${T.txD}66`,margin:"4px 0",minHeight:14}}/>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill={destination?T.accent:`${T.accent}80`} style={{flexShrink:0}}><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
         </div>
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
-          <div style={{borderBottom:`1px solid ${T.bd}`}}>
-            <SpotSelector value={origin} onChange={v=>{setOrigin(v);setGpsOriginPos(null);setOriginFromGps(false);setSelectMode(null);}} placeholder={t("navi.selectOrigin")} accent="#34a853" onGps={getGpsOrigin} gpsLoading={gpsLoading}/>
-          </div>
-          <SpotSelector value={destination} onChange={v=>{if(v){setDestination(v);}else{setDestination(null);setOrigin(null);setNavPhase("search");}}} placeholder={t("navi.selectDestination")} accent={T.accent}/>
+          {[["origin",origin==="__gps__"?t("navi.currentLocation"):originSpotInfo?.label,t("navi.selectOrigin")],
+            ["destination",destSpotInfo?.label,t("navi.selectDestination")]].map(([key,label,ph],i)=>(
+            <button key={key} onClick={()=>{setSelectMode(null);setPickerFor(key);}} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"11px 10px",borderRadius:10,border:"none",borderBottom:i===0?`1px solid ${T.bd}`:"none",background:selectMode===key?`${T.accent}12`:"transparent",cursor:"pointer",textAlign:"left",boxSizing:"border-box"}} onMouseEnter={e=>{if(selectMode!==key)e.currentTarget.style.background=T.hover;}} onMouseLeave={e=>{e.currentTarget.style.background=selectMode===key?`${T.accent}12`:"transparent";}}>
+              <span style={{flex:1,minWidth:0,fontSize:14.5,fontWeight:label?700:500,color:label?(key==="origin"&&origin==="__gps__"?ROUTE_COL:T.txH):T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{label||ph}</span>
+            </button>
+          ))}
         </div>
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,flexShrink:0,paddingLeft:4}}>
-          <button onClick={getGpsOrigin} disabled={gpsLoading} style={{display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:"50%",border:`1px solid ${gpsPos?"#4285f440":T.bd}`,background:gpsPos?"#4285f410":"transparent",cursor:gpsLoading?"wait":"pointer",color:gpsPos?"#4285f4":T.txD,transition:"all .15s",opacity:gpsLoading?0.5:1}} title={t("navi.setCurrentAsOrigin")}>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,flexShrink:0,paddingLeft:6}}>
+          <button onClick={getGpsOrigin} disabled={gpsLoading} style={{display:"flex",alignItems:"center",justifyContent:"center",width:34,height:34,borderRadius:"50%",border:`1px solid ${origin==="__gps__"?`${ROUTE_COL}55`:T.bd}`,background:origin==="__gps__"?`${ROUTE_COL}14`:"transparent",cursor:gpsLoading?"wait":"pointer",color:origin==="__gps__"?ROUTE_COL:T.txD,transition:"all .15s",opacity:gpsLoading?0.5:1}} title={t("navi.setCurrentAsOrigin")}>
             {I.tgt}
           </button>
-          <button onClick={swap} style={{display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:"50%",border:`1px solid ${T.bd}`,background:"transparent",cursor:"pointer",color:T.txD,transition:"all .15s"}} title={t("navi.swap")}>
+          <button onClick={swap} disabled={origin==="__gps__"} style={{display:"flex",alignItems:"center",justifyContent:"center",width:34,height:34,borderRadius:"50%",border:`1px solid ${T.bd}`,background:"transparent",cursor:origin==="__gps__"?"default":"pointer",color:T.txD,transition:"all .15s",opacity:origin==="__gps__"?0.4:1}} title={t("navi.swap")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="7 3 7 21"/><polyline points="4 6 7 3 10 6"/><polyline points="17 21 17 3"/><polyline points="14 18 17 21 20 18"/></svg>
           </button>
         </div>
       </div>
-      {selectMode&&<div style={{padding:"6px 14px 10px",borderTop:`1px solid ${T.bd}`}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:8,background:`${T.accent}10`}}>
+      {selectMode&&<div style={{padding:"0 12px 12px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 8px 8px 12px",borderRadius:12,background:`${T.accent}12`,border:`1px solid ${T.accent}35`}}>
           <span style={{display:"flex",color:T.accent}}>{I.tgt}</span>
-          <span style={{fontSize:11,color:T.accent,fontWeight:500}}>{t("navi.tapBuildingToSelect",{what:selectMode==="origin"?t("navi.origin"):t("navi.destination")})}</span>
+          <span style={{flex:1,fontSize:12,color:T.txH,fontWeight:600}}>{t("navi.tapBuildingToSelect",{what:selectMode==="origin"?t("navi.origin"):t("navi.destination")})}</span>
+          <button onClick={()=>setSelectMode(null)} style={{padding:"5px 10px",borderRadius:9,border:`1px solid ${T.bd}`,background:T.bg2,color:T.tx,fontSize:11.5,fontWeight:700,cursor:"pointer"}}>{t("common.cancel")}</button>
         </div>
       </div>}
     </div>;
@@ -1032,47 +1142,50 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     width:cardW,
     zIndex:1000,
     background:T.bg2,
-    borderRadius:16,
-    boxShadow:"0 -2px 20px rgba(0,0,0,.35), 0 1px 3px rgba(0,0,0,.2)",
+    borderRadius:20,
+    boxShadow:"0 18px 40px -18px rgba(0,0,0,.5), 0 1px 3px rgba(0,0,0,.18)",
     border:`1px solid ${T.bdL}`,
     padding:"16px 18px",
+    boxSizing:"border-box",
     animation:"navSlideUp .25s ease-out",
   }}>
-    <div style={{display:"flex",alignItems:"center",gap:14}}>
-      {/* Time circle */}
-      <div style={{width:56,height:56,borderRadius:"50%",background:"linear-gradient(135deg,#4de8b0,#34a853)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-        <span style={{fontSize:20,fontWeight:800,color:"#fff",lineHeight:1}}>{route.minutes}</span>
-        <span style={{fontSize:9,fontWeight:600,color:"rgba(255,255,255,.85)",marginTop:-1}}>{t("navi.min")}</span>
+    <div style={{display:"flex",alignItems:"center",gap:12,paddingRight:18}}>
+      <div style={{width:46,height:46,borderRadius:14,background:`${T.accent}1f`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
       </div>
-
       <div style={{flex:1,minWidth:0}}>
-        <div style={{display:"flex",alignItems:"baseline",gap:6}}>
-          <span style={{fontSize:16,fontWeight:700,color:T.txH}}>{route.distance}m</span>
-          <span style={{fontSize:12,color:T.txD}}>{t("navi.walk")}</span>
+        <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
+          <span style={{fontSize:18,fontWeight:800,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{destSpotInfo?.label||""}</span>
+          {destSpotInfo?.short&&<span style={{padding:"2px 8px",borderRadius:7,background:T.bg3,color:T.tx,fontSize:11,fontWeight:800,flexShrink:0}}>{destSpotInfo.short}</span>}
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginTop:5,flexWrap:"wrap"}}>
-          <div style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:6,background:`${T.bg3}`}}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4de8b0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            <span style={{fontSize:11,fontWeight:600,color:T.txH}}>{t("navi.aboutMin",{n:route.minutes})}</span>
-          </div>
-          {route.hasStairs&&<div style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:6,background:`${T.orange}12`}}>
+        <div style={{display:"flex",alignItems:"baseline",gap:6,marginTop:3,flexWrap:"wrap"}}>
+          <span style={{fontSize:13,fontWeight:700,color:T.tx}}>{t("navi.walk")}</span>
+          <span style={{fontSize:30,fontWeight:900,color:ROUTE_COL,lineHeight:1,letterSpacing:"-.02em"}}>{route.minutes}</span>
+          <span style={{fontSize:13,fontWeight:700,color:T.tx}}>{t("navi.min")} ・ {t("navi.aboutMeters",{n:route.distance})}</span>
+          {route.hasStairs&&<span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:6,background:`${T.orange}14`,alignSelf:"center"}}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={T.orange} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 18h4v-4h4v-4h4v-4h4"/></svg>
-            <span style={{fontSize:11,fontWeight:600,color:T.orange}}>{t("navi.hasStairs")}</span>
-          </div>}
+            <span style={{fontSize:11,fontWeight:700,color:T.orange}}>{t("navi.hasStairs")}</span>
+          </span>}
         </div>
       </div>
-
-      {/* Close/minimize */}
-      <button onClick={()=>setPanelMin(true)} style={{position:"absolute",top:8,right:10,background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}} title={t("common.close")}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
-      </button>
     </div>
+    {/* 目的地が今日の次の授業の建物なら、その授業を出す */}
+    {destIsNextCls&&<div style={{display:"flex",alignItems:"center",gap:8,marginTop:12,padding:"9px 12px",borderRadius:12,background:T.bg3,fontSize:12.5,color:T.tx,minWidth:0}}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span style={{fontWeight:800,color:T.txH,flexShrink:0}}>{t(nextCls.st==="now"?"navi.nowClass":"navi.nextClass")}</span>
+      <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nextCls.co.name}</span>
+      <span style={{fontWeight:700,flexShrink:0}}>{nextCls.pd.l} {hm(nextCls.pd.s)}〜</span>
+    </div>}
+    {/* Close/minimize */}
+    <button onClick={()=>setPanelMin(true)} style={{position:"absolute",top:10,right:10,background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",padding:4}} title={t("common.close")}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
+    </button>
     {/* 案内を開始ボタン（出発地がGPS=現在地の時のみ） */}
-    {!guiding&&originFromGps&&<button onClick={startGuiding} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"12px 0",marginTop:10,borderRadius:12,border:"none",background:"linear-gradient(135deg,#4de8b0,#34a853)",cursor:"pointer",transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=".85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+    {!guiding&&originFromGps&&<button onClick={startGuiding} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"12px 0",marginTop:12,borderRadius:14,border:"none",background:"linear-gradient(135deg,#4de8b0,#34a853)",cursor:"pointer",transition:"opacity .15s"}} onMouseEnter={e=>e.currentTarget.style.opacity=".85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
       <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{t("navi.startGuiding")}</span>
     </button>}
-    {guiding&&<button onClick={stopGuiding} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"12px 0",marginTop:10,borderRadius:12,border:`1.5px solid ${T.red}40`,background:`${T.red}12`,cursor:"pointer",transition:"opacity .15s"}}>
+    {guiding&&<button onClick={stopGuiding} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",padding:"12px 0",marginTop:12,borderRadius:14,border:`1.5px solid ${T.red}40`,background:`${T.red}12`,cursor:"pointer",transition:"opacity .15s"}}>
       <span style={{fontSize:14,fontWeight:700,color:T.red}}>{t("navi.stopGuiding")}</span>
     </button>}
   </div>;
@@ -1122,23 +1235,71 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed})=>{
     </div>
   </div>;
 
-  return <div style={{flex:1,position:"relative",overflow:"hidden"}}>
+  // 下からのカードが出ている間、スマホでは地図切り替えボタンを隠す（重なるため）
+  const locPromptShown=!guiding&&navPhase==="search"&&((locConsent==null&&!locDenied)||locDeniedMsg)&&!!navigator.geolocation;
+  const bottomCardShown=(hasRoute&&!panelMin)||noRoute||navPhase==="detail"||locPromptShown;
+  const pickerOpen=!!pickerFor||(navPhase==="search"&&!searchMin);
+  const showMapToggle=!guiding&&!(mob&&bottomCardShown)&&!(mob&&pickerOpen);
+  const nextClsCard=!guiding&&navPhase==="search"&&searchMin&&nextCls&&nextClsSpot&&<button onClick={()=>navigateTo(nextClsSpot.id)} style={{position:"absolute",top:(mob?10:14)+58,left:mob?10:14,right:mob?10:"auto",width:cardW,zIndex:999,display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:T.bg2,borderRadius:16,border:`1px solid ${T.bdL}`,boxShadow:"0 10px 26px -14px rgba(0,0,0,.45)",cursor:"pointer",textAlign:"left",boxSizing:"border-box",animation:"navSlideUp .25s ease-out"}}>
+    <div style={{width:36,height:36,borderRadius:11,background:`${T.accent}1f`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    </div>
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{fontSize:11,fontWeight:800,color:T.accent}}>{t(nextCls.st==="now"?"navi.nowClass":"navi.nextClass")} ・ {nextCls.pd.l} {hm(nextCls.pd.s)}〜</div>
+      <div style={{fontSize:14,fontWeight:800,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1}}>{nextCls.co.name}</div>
+    </div>
+    <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0,fontSize:12.5,fontWeight:800,color:T.txH}}>
+      {nextClsSpot.label.replace(/・.*$/,"")}
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+  </button>;
+  const mapToggle=showMapToggle&&<button onClick={()=>setBasemap(b=>b==="illust"?"photo":"illust")} style={{position:"absolute",right:mob?10:14,bottom:mob?92:96,zIndex:999,display:"flex",alignItems:"center",gap:6,padding:"8px 12px",borderRadius:20,background:T.bg2,border:`1px solid ${T.bdL}`,boxShadow:"0 6px 16px -6px rgba(0,0,0,.4)",cursor:"pointer",color:T.txH,fontSize:12,fontWeight:700}}>
+    {basemap==="illust"
+      ?<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      :<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>}
+    {basemap==="illust"?t("navi.mapPhoto"):t("navi.mapIllust")}
+  </button>;
+  const outOfRegionChip=basemap==="illust"&&outOfRegion&&!guiding&&!bottomCardShown&&<div style={{position:"absolute",left:mob?10:0,right:mob?64:0,bottom:mob?18:24,zIndex:999,display:"flex",justifyContent:mob?"flex-start":"center",pointerEvents:"none"}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 8px 8px 14px",borderRadius:20,background:T.bg2,border:`1px solid ${T.bdL}`,boxShadow:"0 6px 16px -6px rgba(0,0,0,.4)",whiteSpace:"nowrap",animation:"navSlideUp .2s ease-out",pointerEvents:"auto"}}>
+      <span style={{fontSize:12,color:T.tx}}>{t("navi.illustAreaOnly")}</span>
+      <button onClick={()=>setBasemap("photo")} style={{padding:"5px 10px",borderRadius:14,border:"none",background:T.accent,color:"#fff",fontSize:11.5,fontWeight:800,cursor:"pointer"}}>{t("navi.mapPhoto")}</button>
+    </div>
+  </div>;
+
+  return <div className={guiding?"nav-guiding":""} style={{flex:1,position:"relative",overflow:"hidden"}}>
     <style>{tipStyle}{`
 @keyframes navSlideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes navPinPop{0%{opacity:0;transform:scale(.3) translateY(8px)}60%{opacity:1;transform:scale(1.08) translateY(-1px)}100%{opacity:1;transform:scale(1) translateY(0)}}
 @keyframes navPinDot{0%{transform:scale(.5)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
 @keyframes locPulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.5)}}
 .gps-smooth{transition:transform .3s ease-out!important}
+@keyframes navHalo{0%{transform:scale(.55);opacity:.9}100%{transform:scale(1.9);opacity:0}}
+@keyframes navPickerIn{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes navFlow{to{stroke-dashoffset:-16.1}}
+.nav-route-flow{animation:navFlow .8s linear infinite}
+@keyframes navPinDrop{0%{transform:translateY(-90px) scale(.7);opacity:0}55%{transform:translateY(3px) scale(1.04);opacity:1}75%{transform:translateY(-7px) scale(1)}100%{transform:translateY(0)}}
+@keyframes navPinShadow{0%{transform:translateX(-50%) scale(.2);opacity:0}100%{transform:translateX(-50%) scale(1);opacity:1}}
+.nav-pin{position:relative;width:36px;height:46px}
+.nav-pin-body{position:absolute;inset:0;transform-origin:50% 100%;filter:drop-shadow(0 3px 4px rgba(0,0,0,.25))}
+.nav-pin-drop{animation:navPinDrop .6s cubic-bezier(.3,.9,.4,1.1) both}
+.nav-pin-shadow{position:absolute;left:50%;bottom:-1px;width:18px;height:6px;border-radius:50%;background:rgba(0,0,0,.22);transform:translateX(-50%);animation:navPinShadow .6s ease-out both}
+.nav-here{position:absolute;left:24px;top:50%;transform:translateY(-50%);padding:4px 9px;border-radius:11px;background:#0e2030;color:#fff;font-size:11px;font-weight:800;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25);pointer-events:none}
+.nav-guiding .nav-here{display:none}
+.leaflet-control-attribution{font-size:9.5px!important;line-height:1.4!important;padding:0 5px!important;background:${T.bg2}cc!important;color:${T.txD}!important;border-radius:6px 0 0 0}
+.leaflet-control-attribution a{color:inherit!important}
     `}</style>
     {/* Full-screen map */}
     <div ref={mapRef} style={{position:"absolute",inset:0}}/>
     {/* Floating UI */}
     {!guiding&&searchCard}
+    {nextClsCard}
+    {mapToggle}
+    {outOfRegionChip}
     {routeCard}
     {routePill}
     {noRouteCard}
     {/* 位置情報: 事前説明（未同意時のみ・検索画面のとき） / 拒否時の案内 */}
-    {!guiding&&navPhase==="search"&&((locConsent==null&&!locDenied)||locDeniedMsg)&&!!navigator.geolocation&&<div role="dialog" aria-live="polite" style={{position:"absolute",left:mob?10:14,right:mob?10:"auto",bottom:mob?16:20,width:mob?"auto":cardW,zIndex:1000,padding:"12px 14px",background:T.bg2,borderRadius:14,boxShadow:"0 4px 20px rgba(0,0,0,.35)",border:`1px solid ${T.bd}`}}>
+    {locPromptShown&&<div role="dialog" aria-live="polite" style={{position:"absolute",left:mob?10:14,right:mob?10:"auto",bottom:mob?16:20,width:mob?"auto":cardW,zIndex:1000,padding:"12px 14px",background:T.bg2,borderRadius:14,boxShadow:"0 4px 20px rgba(0,0,0,.35)",border:`1px solid ${T.bd}`}}>
       {locDeniedMsg?<>
         <div style={{fontSize:13,fontWeight:700,color:T.txH}}>{t("navi.locDeniedTitle")}</div>
         <div style={{fontSize:12,color:T.txD,marginTop:4,lineHeight:1.5}}>{t("navi.locDeniedBody")}</div>

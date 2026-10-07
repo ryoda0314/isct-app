@@ -96,3 +96,43 @@ promo-video/
 ## クレジット（公開時必須）
 動画概要欄に「VOICEVOX:ずんだもん」「VOICEVOX:四国めたん」を明記すること。
 立ち絵を使う場合は各配布元の規約・クレジットにも従う。
+
+---
+
+# アプリ紹介アニメーション（AppPromo・約54秒）
+
+ずんだもん版とは別の、ナレーションなし・BGMのみのモーショングラフィックス版。
+アプリ画面は画像ではなく React で再現して動かしているので、文言や数字を変えても画質が落ちない。
+
+| コマンド | 内容 |
+|---|---|
+| `npm run studio` | Remotion Studio で `AppPromo` を選んでプレビュー |
+| `npm run promo:render` | `out/app-promo.mp4` に書き出し |
+| `npm run promo:frames -- 300 708` | 指定フレームを `out/frames/` に静止画で書き出し（見た目の確認用） |
+| `npm run promo:sfx` | 効果音（通知音・風切り音）を numpy で再生成 |
+
+## 構成（BGM が 150BPM なので 1小節 = 48フレームに全カットを合わせている）
+
+| フレーム | 秒 | シーン |
+|---|---|---|
+| 0–192 | 0.0–6.4 | 課題提起（サイトがバラバラ・ログイン何回目？）※曲のイントロ |
+| 192–288 | 6.4–9.6 | ツバメが飛来してアイコン完成「ぜんぶ、ひとつに。」※ハイハットが入る瞬間 |
+| 288–480 | 9.6–16.0 | 01 ホーム |
+| 480–672 | 16.0–22.4 | 02 時間割（LMS連携・次の授業） |
+| 672–864 | 22.4–28.8 | 03 締切のプッシュ通知（文言は lib/deadline-notify.js と同じ） |
+| 864–1056 | 28.8–35.2 | 04 チャット |
+| 1056–1248 | 35.2–41.6 | 05 キャンパスナビ（スマホ画面が全画面に広がる） |
+| 1248–1344 | 41.6–44.8 | 30以上の機能タイル |
+| 1344–1440 | 44.8–48.0 | スマホ・PC ※ベースが抜けるブレイク |
+| 1440–1620 | 48.0–54.0 | エンドカード（sciencetokyo.app） |
+
+境界は [src/promo/theme.js](src/promo/theme.js) の `T`。シーンごとのコードは [src/promo/scenes/](src/promo/scenes/)、
+スマホ内の画面は [src/promo/screens/](src/promo/screens/)。
+
+## 素材
+- BGM: `public/promo/bgm.mp3`（`public/bgm/soundorbis - Hey So Jungle [Country Release].mp3` のコピー）。**公開前に配布元の規約とクレジット表記を確認すること。**
+- フォント: `public/fonts/NotoSansJP-VF.ttf`（Noto Sans JP, SIL Open Font License）
+- アイコン: `public/promo/icon.png`（iOS の AppIcon 1024px の角を透過）、`swallow.png`（ツバメの切り抜き）、`icon-plate.png`（ツバメを抜いた土台）
+- PC画面: `public/promo/desktop-timetable.png`（promo-screenshots の時間割。開発用オーバーレイを塗りつぶし済み）
+- 効果音: `public/promo/sfx/*.wav`（make_promo_sfx.py で合成。外部素材なし）
+- マップはイラスト調の架空配置で、実際の建物配置を厳密に再現したものではない

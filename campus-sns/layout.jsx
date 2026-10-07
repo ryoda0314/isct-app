@@ -55,6 +55,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
       <SideItem icon={I.swallow} label={t("tool.tsubame")} on={view==="tsubame"} click={()=>setView("tsubame")} compact={cp}/>
       <SideItem icon={I.train} label={t("nav.train")} on={view==="train"} click={()=>setView("train")} compact={cp}/>
       <SideItem icon={I.grad} label={t("nav.freshman")} on={view==="freshman"} click={()=>setView("freshman")} compact={cp}/>
+      <SideItem icon={I.star} label={t("nav.festival")} on={view==="festival"} click={()=>setView("festival")} compact={cp}/>
       <SideItem icon={I.cal} label={t("nav.calendar")} on={view==="calendar"} click={()=>setView("calendar")} compact={cp}/>
       <SideItem icon={I.clip} label={t("nav.pocket")} on={view==="pocket"} click={()=>setView("pocket")} compact={cp}/>
 
@@ -241,7 +242,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
 // ============================================================
 
 const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false})=>{
-  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","languages","admin","acadCal","exams","freeroom","freshman","reg","med-tt","timetable","pocket","takiplaza","gym","tsubame","train","library","pdftools","notes","music","grading","qr","attendance","textbooks","lecrec"];
+  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","languages","admin","acadCal","exams","freeroom","freshman","festival","reg","med-tt","timetable","pocket","takiplaza","gym","tsubame","train","library","pdftools","notes","music","grading","qr","attendance","textbooks","lecrec"];
   const ttId=hasMed?"med-tt":"timetable";
   const isMore=moreViews.includes(view)&&view!==ttId;
   return(
@@ -300,6 +301,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
       {id:"tsubame",i:I.swallow,l:t("tool.tsubame")},
       {id:"train",i:I.train,l:t("nav.train")},
       {id:"library",i:I.tgt,l:t("nav.library")},
+      {id:"festival",i:I.star,l:t("nav.festival")},
       {id:"freshman",i:I.userPlus,l:t("nav.freshman")},
     ]},
     {title:t("more.other"),items:otherItems},

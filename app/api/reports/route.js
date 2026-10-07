@@ -3,7 +3,7 @@ import { requireAuth } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 const VALID_REASONS = ['spam', 'harassment', 'inappropriate', 'copyright', 'other'];
-const VALID_TARGETS = ['post', 'comment', 'message', 'dm', 'user', 'circle'];
+const VALID_TARGETS = ['post', 'comment', 'message', 'dm', 'user', 'circle', 'festival_booth'];
 
 // POST /api/reports — ユーザーが通報を送信
 export async function POST(request) {
