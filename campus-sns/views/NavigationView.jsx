@@ -3,7 +3,7 @@ import { T } from "../theme.js";
 import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { useLeaflet, Loader } from "../shared.jsx";
-import { CAMPUS_CENTER, CAMPUS_ZOOM, SPOTS, SPOT_CATS, ENTRANCES, AREAS, roomToSpot } from "../hooks/useLocationSharing.js";
+import { CAMPUS_CENTER, CAMPUS_ZOOM, CAMPUS_BOUNDARY, SPOTS, SPOT_CATS, ENTRANCES, AREAS, roomToSpot } from "../hooks/useLocationSharing.js";
 import { useNavigation, NAV_SPOTS } from "../hooks/useNavigation.js";
 import { createCampusBasemap, isDarkColor } from "../campusBasemap.js";
 import { getNextClass } from "../todayClasses.js";
@@ -11,6 +11,48 @@ import { getNextClass } from "../todayClasses.js";
 const ROUTE_COL="#1a8ef0"; // ルート線（地図アプリの慣例どおり青）
 const PIN_SVG=(col)=>`<svg width="36" height="46" viewBox="0 0 36 46"><path d="M18 44C18 44 3 29.5 3 18a15 15 0 0130 0c0 11.5-15 26-15 26z" fill="${col}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><circle cx="18" cy="18" r="5.5" fill="#fff"/></svg>`;
 const hm=([h,m])=>`${h}:${String(m).padStart(2,"0")}`;
+const WALK_M_PER_MIN=80; // useNavigation と同じ歩行速度
+// イラスト地図で描いている範囲（キャンパス＋周辺）。この外では自動で現在地へ飛ばない
+const CAMPUS_BBOX=(()=>{const la=CAMPUS_BOUNDARY.map(p=>p[0]),ln=CAMPUS_BOUNDARY.map(p=>p[1]);return [Math.min(...la)-0.0013,Math.min(...ln)-0.0016,Math.max(...la)+0.0013,Math.max(...ln)+0.0016];})();
+const inCampusArea=(lat,lng)=>lat>=CAMPUS_BBOX[0]&&lat<=CAMPUS_BBOX[2]&&lng>=CAMPUS_BBOX[1]&&lng<=CAMPUS_BBOX[3];
+const angDiff=(a,b)=>((a-b)%360+540)%360-180; // a-b を -180〜180 に
+// ルートの累積距離（進み具合・残り距離の計算用）
+const buildRouteMeta=(coords)=>{
+  if(!coords||coords.length<2)return null;
+  const cum=[0];
+  for(let i=1;i<coords.length;i++)cum.push(cum[i-1]+haversineNav(coords[i-1].lat,coords[i-1].lng,coords[i].lat,coords[i].lng));
+  return {coords,cum,total:cum[cum.length-1]};
+};
+// 現在地をルートに投影する。前回の位置の少し手前〜80m先だけを探すので、折り返しのある経路でも進み具合が逆戻りしない
+const projectOnRoute=(meta,p,fromIdx)=>{
+  const c=meta.coords,cum=meta.cum,n=c.length-1;
+  const kx=Math.cos(p.lat*Math.PI/180)*111320,ky=110540;
+  const search=(from,to)=>{
+    let best=null;
+    for(let i=from;i<to;i++){
+      const ax=(c[i].lng-p.lng)*kx,ay=(c[i].lat-p.lat)*ky,bx=(c[i+1].lng-p.lng)*kx,by=(c[i+1].lat-p.lat)*ky;
+      const dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy;
+      const t=l2?Math.max(0,Math.min(1,-(ax*dx+ay*dy)/l2)):0;
+      const d=Math.hypot(ax+dx*t,ay+dy*t);
+      if(!best||d<best.d)best={i,t,d};
+    }
+    return best;
+  };
+  const start=Math.min(Math.max(0,fromIdx),n-1);
+  let to=start+1;
+  while(to<n&&cum[to]-cum[start]<80)to++;
+  let best=search(Math.max(0,start-1),to);
+  if(!best||best.d>35)best=search(0,n); // 大きく外れたときだけ全体から探し直す
+  return {idx:best.i,t:best.t,dist:best.d,along:cum[best.i]+(cum[best.i+1]-cum[best.i])*best.t};
+};
+const fmtClock=(d)=>`${d.getHours()}:${String(d.getMinutes()).padStart(2,"0")}`;
+// 回転した地図で現在地へ移動する。leaflet-rotate はアニメーション付きの移動（panTo/panBy）だと
+// 回転の中心が古いまま残ってずれが積み重なり、地図がどんどん離れていく。
+// そのため毎回ビューを作り直し（reset）、回転の中心も取り直す。
+const followTo=(map,latlng,zoom)=>{
+  map.setView(latlng,zoom??map.getZoom(),{reset:true});
+  if(map._rotate&&typeof map.setBearing==="function")map.setBearing(map.getBearing());
+};
 
 const NAV_QUICK_DEFAULT=["taki","eki","lib","main","coop","gym","w5"];
 // Returns raw IDs including cat: and grp: prefixes
@@ -373,8 +415,24 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   const [gpsLoading,setGpsLoading]=useState(false);
   // 案内モード（GPS追従+コンパス）
   const [guiding,setGuiding]=useState(false);
-  const [heading,setHeading]=useState(null);
+  // 向き（コンパス or 歩いている方向）。向きが変わるたびに画面全体を描き直さないよう ref で持ち、地図へ直接反映する
   const headingRef=useRef(null);
+  const courseAtRef=useRef(0);   // GPSの進行方位を最後に使った時刻（歩いている間はコンパスより優先）
+  const viewRafRef=useRef(0);
+  const [northUp,setNorthUp]=useState(false); // 案内中に「北を上」に固定するか（既定は進行方向が上）
+  const northUpRef=useRef(false);
+  useEffect(()=>{northUpRef.current=northUp;},[northUp]);
+  const [mapRotated,setMapRotated]=useState(false); // 方位ボタンを出すか
+  const compassNeedleRef=useRef(null);
+  // ナビの進み具合
+  const progressRef=useRef({meta:null,idx:0,t:0});
+  const [progress,setProgress]=useState(null); // {along, remaining, total, dist}
+  const [arrived,setArrived]=useState(null);   // 到着した目的地（到着カード用）
+  const [rerouteMsg,setRerouteMsg]=useState(false);
+  const rerouteTimerRef=useRef(0);
+  const offRouteCountRef=useRef(0);
+  const lastRerouteRef=useRef(0);
+  const basemapModeRef=useRef("illust");
   const watchIdRef=useRef(null);
   const prevGpsRef=useRef(null);
   const GPS_SMOOTH=0.35;
@@ -384,6 +442,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   const guidingOriginRef=useRef(null); // 案内開始時の出発地点（固定表示用）
   // 自動追従モード（案内中にユーザーがドラッグしたらfalse）
   const [following,setFollowing]=useState(true);
+  const followingRef=useRef(true);
+  useEffect(()=>{followingRef.current=following;},[following]);
   const guidingRef=useRef(false);
   useEffect(()=>{guidingRef.current=guiding;},[guiding]);
   // 出発地がGPS（現在地）由来かどうか
@@ -434,10 +494,10 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
         const lng=prev?prev.lng+A*(rawLng-prev.lng):rawLng;
         prevGpsRef.current={lat,lng};
         setGpsPos({lat,lng,accuracy});
-        // 初回GPS取得時にマップを現在地へ移動
+        // 初回GPS取得時にマップを現在地へ移動（イラスト地図で描いていない場所なら、キャンパスの表示のまま）
         if(!gpsCenteredRef.current&&mapInst.current){
           gpsCenteredRef.current=true;
-          mapInst.current.flyTo([lat,lng],CAMPUS_ZOOM,{duration:0.6});
+          if(basemapModeRef.current!=="illust"||inCampusArea(lat,lng))mapInst.current.flyTo([lat,lng],CAMPUS_ZOOM,{duration:0.6});
         }
       },
       (e)=>onGeoErr(e,false),
@@ -449,8 +509,39 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   // ルート座標をrefに同期（watchPositionコールバック内で参照するため）
   useEffect(()=>{routeCoordsRef.current=route?.coords||null;},[route]);
 
-  // ルートからの逸脱判定しきい値（メートル）
-  const REROUTE_THRESHOLD=50;
+  // 地図の向き・現在地の矢印を、いまの向きに合わせる（requestAnimationFrame で1フレームに1回だけ）
+  const applyView=useCallback(()=>{
+    viewRafRef.current=0;
+    const map=mapInst.current;
+    if(!map||typeof map.setBearing!=="function")return;
+    if(guidingRef.current&&followingRef.current){
+      // leaflet-rotate の setBearing(θ) は地図を時計回りに θ 回す＝方位 -θ が画面の上になる
+      const hd=headingRef.current??initialBearingRef.current;
+      const target=northUpRef.current?0:hd!=null?-hd:null;
+      if(target!=null){
+        const cur=map.getBearing();
+        const d=angDiff(target,cur);
+        if(Math.abs(d)>0.4)map.setBearing(cur+d);
+      }
+    }
+    const arrow=gpsMarkerRef.current?.getElement?.()?.querySelector(".gps-arrow");
+    if(arrow){
+      const hd=headingRef.current;
+      if(hd!=null){arrow.style.display="block";arrow.style.transform=`translateX(-50%) rotate(${hd+map.getBearing()}deg)`;}
+      else arrow.style.display="none";
+    }
+  },[]);
+  const scheduleView=useCallback(()=>{if(!viewRafRef.current)viewRafRef.current=requestAnimationFrame(applyView);},[applyView]);
+  useEffect(()=>()=>cancelAnimationFrame(viewRafRef.current),[]);
+  // 新しい向きを取り込む（角度の平滑化つき）。source: "compass" | "course"（GPSの進行方位）
+  const pushHeading=useCallback((h,source)=>{
+    if(h==null||Number.isNaN(h))return;
+    if(source==="compass"&&Date.now()-courseAtRef.current<4000)return; // 歩いている間はGPSの進行方位を優先
+    const prev=headingRef.current;
+    headingRef.current=prev==null?h:(prev+angDiff(h,prev)*(source==="course"?0.6:0.25)+360)%360;
+    scheduleView();
+  },[scheduleView]);
+
 
   // GPS位置からルートポリライン上の最短距離を求める
   const distToRoute=(lat,lng,coords)=>{
@@ -472,24 +563,37 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     return minD;
   };
 
-  // GPS常時追従
+  // GPS常時追従（案内中）
   const startWatch=useCallback(()=>{
     if(!navigator.geolocation||watchIdRef.current!=null)return;
     const id=navigator.geolocation.watchPosition(
       (pos)=>{
-        const {latitude:rawLat,longitude:rawLng,accuracy}=pos.coords;
+        const {latitude:rawLat,longitude:rawLng,accuracy,heading:course,speed}=pos.coords;
         const prev=prevGpsRef.current;
         const A=GPS_SMOOTH;
         const lat=prev?prev.lat+A*(rawLat-prev.lat):rawLat;
         const lng=prev?prev.lng+A*(rawLng-prev.lng):rawLng;
         prevGpsRef.current={lat,lng};
         setGpsPos({lat,lng,accuracy});
-        // ルートが存在する場合、逸脱時のみ再計算
+        // 歩いているときは GPS の進行方位を使う（建物の近くではコンパスが狂いやすい）
+        if(course!=null&&!Number.isNaN(course)&&speed!=null&&speed>=0.8&&accuracy<=30){
+          courseAtRef.current=Date.now();
+          pushHeading(course,"course");
+        }
         const rc=routeCoordsRef.current;
         if(rc&&rc.length>0){
-          const d=distToRoute(lat,lng,rc);
-          if(d>REROUTE_THRESHOLD){
+          // ルートから外れたかの判定。GPSの精度が悪いときは判定しない。
+          // しきい値は精度に合わせて20〜45m、2回続けて超えたときだけ再検索する（1回の飛びで経路が変わらないように）
+          if(accuracy>60){offRouteCountRef.current=0;return;}
+          const th=Math.min(45,Math.max(20,accuracy*1.5));
+          offRouteCountRef.current=distToRoute(lat,lng,rc)>th?offRouteCountRef.current+1:0;
+          if(offRouteCountRef.current>=2&&Date.now()-lastRerouteRef.current>8000){
+            offRouteCountRef.current=0;
+            lastRerouteRef.current=Date.now();
             setOrigin("__gps__");setGpsOriginPos({lat,lng});setOriginFromGps(true);
+            setRerouteMsg(true);
+            clearTimeout(rerouteTimerRef.current);
+            rerouteTimerRef.current=setTimeout(()=>setRerouteMsg(false),3000);
           }
         }else{
           // ルート未設定時は従来通り（出発地の初期設定用）
@@ -500,65 +604,40 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
       {enableHighAccuracy:true,timeout:10000,maximumAge:2000}
     );
     watchIdRef.current=id;
-  },[setOrigin]);
+  },[setOrigin,pushHeading]);
   const stopWatch=useCallback(()=>{
     if(watchIdRef.current!=null){navigator.geolocation.clearWatch(watchIdRef.current);watchIdRef.current=null;}
   },[]);
   useEffect(()=>()=>stopWatch(),[]);
 
-  // コンパス（ローパスフィルタ+連続回転角でジッター・ラップアラウンド抑制）
-  // 権限はstartGuiding内（ユーザージェスチャー内）で取得済み
+  // コンパス（向いている方向）。権限はstartGuiding内（ユーザー操作の中）で取得済み
   useEffect(()=>{
-    if(!guiding){setHeading(null);return;}
+    if(!guiding){headingRef.current=null;return;}
     if(!compassPermRef.current)return;
-    let smoothed=null;
-    let prevSmoothed=null;
-    let accumulated=null;
     let gotAbsolute=false; // 絶対方向イベントを受信済みか
-    const process=(h)=>{
-      // ローパスフィルタ: 急な変動を平滑化
-      if(smoothed==null){smoothed=h;prevSmoothed=h;accumulated=h;}
-      else{
-        let delta=h-smoothed;
-        if(delta>180)delta-=360;
-        if(delta<-180)delta+=360;
-        smoothed=(smoothed+delta*0.25+360)%360;
-      }
-      headingRef.current=smoothed;
-      // 連続回転角: 0/360境界をまたいでもCSSが最短経路で回転
-      let d=smoothed-prevSmoothed;
-      if(d>180)d-=360;
-      if(d<-180)d+=360;
-      prevSmoothed=smoothed;
-      accumulated+=d;
-      // 2度以上変化した時のみ再描画
-      setHeading(prev=>{
-        if(prev==null)return Math.round(accumulated);
-        return Math.abs(accumulated-prev)>=2?Math.round(accumulated):prev;
-      });
-    };
-    // 絶対方向ハンドラ（deviceorientationabsolute）
-    const absHandler=(e)=>{
+    // 横持ちのときは画面の上方向に合わせて補正する
+    const screenAngle=()=>{const a=window.screen?.orientation?.angle;return typeof a==="number"?a:(typeof window.orientation==="number"?window.orientation:0);};
+    const toHeading=(e,absolute)=>{
       let h=null;
       if(e.webkitCompassHeading!=null)h=e.webkitCompassHeading;
-      else if(e.alpha!=null&&(e.absolute||e.type==="deviceorientationabsolute"))h=(360-e.alpha)%360;
+      else if(e.alpha!=null&&absolute)h=(360-e.alpha)%360;
+      return h==null?null:(h+screenAngle()+360)%360;
+    };
+    // 絶対方向ハンドラ（deviceorientationabsolute / iOS の webkitCompassHeading）
+    const absHandler=(e)=>{
+      const h=toHeading(e,e.absolute||e.type==="deviceorientationabsolute");
       if(h==null)return;
       gotAbsolute=true;
-      process(h);
+      pushHeading(h,"compass");
     };
     // フォールバック: 通常のdeviceorientation（絶対方向が取れない場合のみ使用）
     const fallbackHandler=(e)=>{
-      if(gotAbsolute)return; // 絶対方向が取れている場合は無視
-      let h=null;
-      if(e.webkitCompassHeading!=null)h=e.webkitCompassHeading;
-      else if(e.alpha!=null)h=(360-e.alpha)%360;
-      if(h==null)return;
-      process(h);
+      if(gotAbsolute)return;
+      const h=toHeading(e,true);
+      if(h!=null)pushHeading(h,"compass");
     };
     const hasAbsoluteEvent=typeof window.DeviceOrientationAbsoluteEvent!=="undefined";
-    if(hasAbsoluteEvent){
-      window.addEventListener("deviceorientationabsolute",absHandler,true);
-    }
+    if(hasAbsoluteEvent)window.addEventListener("deviceorientationabsolute",absHandler,true);
     // iOS: webkitCompassHeadingはdeviceorientationイベント内で取得
     // Android: absoluteイベントがない端末のフォールバック
     window.addEventListener("deviceorientation",hasAbsoluteEvent?fallbackHandler:absHandler,true);
@@ -566,72 +645,72 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
       if(hasAbsoluteEvent)window.removeEventListener("deviceorientationabsolute",absHandler,true);
       window.removeEventListener("deviceorientation",hasAbsoluteEvent?fallbackHandler:absHandler,true);
     };
-  },[guiding]);
+  },[guiding,pushHeading]);
 
-  // 案内モード: GPS追従でマップ中央を追従（followingがtrueの時のみ）
+  // 案内中は現在地を追いかける。ズームはユーザーが変えたものをそのまま使う（開始時だけ18に寄る）
   useEffect(()=>{
-    if(guiding&&following&&gpsPos&&mapInst.current){
-      const zoom=Math.max(mapInst.current.getZoom(),18);
-      mapInst.current.setView([gpsPos.lat,gpsPos.lng],zoom,{animate:true,duration:0.3});
-    }
+    if(guiding&&following&&gpsPos&&mapInst.current)followTo(mapInst.current,[gpsPos.lat,gpsPos.lng]);
   },[guiding,following,gpsPos]);
 
-  // 案内モード: heading変更時にマップをネイティブ回転（followingがtrueの時のみ）
-  // コンパスデータ到着前は出発地→目的地の初期方位を維持
+  // 案内の開始・終了、追従の切り替え、北固定の切り替えで地図の向きを合わせ直す
   useEffect(()=>{
-    if(!mapInst.current||typeof mapInst.current.setBearing!=='function')return;
-    if(guiding&&following&&heading!=null){
-      mapInst.current.setBearing(-heading);
-    }else if(guiding&&following&&initialBearingRef.current!=null){
-      mapInst.current.setBearing(initialBearingRef.current);
-    }else if(!guiding){
-      mapInst.current.setBearing(0);
-    }
-    // guiding && !following の時は何もしない（ユーザーが自由操作中）
-  },[guiding,following,heading]);
+    const map=mapInst.current;
+    if(!map||typeof map.setBearing!=="function")return;
+    if(!guiding)map.setBearing(0);
+    scheduleView();
+  },[guiding,following,northUp,scheduleView]);
 
-  // GPSマーカーの方向矢印をheading変化に追従させる（DOM直接操作）
+  // 案内中は画面を消さない（消えるとGPSも止まる）。戻ってきたら取り直す
   useEffect(()=>{
-    if(!gpsMarkerRef.current) return;
-    const el=gpsMarkerRef.current.getElement?.();
-    if(!el) return;
-    const arrow=el.querySelector('.gps-arrow');
-    if(!arrow) return;
-    const hd=headingRef.current;
-    const mapBearing=(mapInst.current&&typeof mapInst.current.getBearing==='function')?mapInst.current.getBearing():0;
-    const arrowAngle=hd!=null?hd+mapBearing:null;
-    if(arrowAngle!=null){
-      arrow.style.display='block';
-      arrow.style.transform=`translateX(-50%) rotate(${arrowAngle}deg)`;
-    }else{
-      arrow.style.display='none';
-    }
-  },[heading,guiding,following]);
+    if(!guiding||typeof navigator==="undefined"||!navigator.wakeLock)return;
+    let lock=null;
+    let done=false;
+    const acquire=()=>{navigator.wakeLock.request("screen").then(l=>{if(done){l.release().catch(()=>{});return;}lock=l;l.addEventListener?.("release",()=>{lock=null;});}).catch(()=>{});};
+    const onVis=()=>{if(document.visibilityState==="visible"&&!lock&&!done)acquire();};
+    acquire();
+    document.addEventListener("visibilitychange",onVis);
+    return()=>{done=true;document.removeEventListener("visibilitychange",onVis);lock?.release?.().catch(()=>{});};
+  },[guiding]);
 
   // 案内開始/終了
   const startGuiding=useCallback(()=>{
     const doStart=()=>{
       setGuiding(true);
       setFollowing(true);
+      setNorthUp(false);
+      setArrived(null);
+      guidingRef.current=true;
+      followingRef.current=true;
+      northUpRef.current=false;
+      offRouteCountRef.current=0;
       setPanelMin(true);
       startWatch();
       // 出発地点を固定保存（マーカー表示用、案内中に動かない）
       const origSpot=origin==="__gps__"&&gpsOriginPos?{lat:gpsOriginPos.lat,lng:gpsOriginPos.lng}:NAV_SPOTS.find(s=>s.id===origin);
       if(origSpot)guidingOriginRef.current={lat:origSpot.lat,lng:origSpot.lng};
+      // 向きのデータが来るまでは「最初に歩く方向」（ルートの先頭から約20m先）を上にする
+      const rc=routeCoordsRef.current;
       const destSpot=NAV_SPOTS.find(s=>s.id===destination);
-      if(origSpot&&destSpot&&mapInst.current&&typeof mapInst.current.setBearing==='function'){
-        const b=bearingNav(origSpot.lat,origSpot.lng,destSpot.lat,destSpot.lng);
-        initialBearingRef.current=b;
-        mapInst.current.setBearing(b);
+      let b=null;
+      if(rc&&rc.length>1){
+        let acc=0;
+        let target=rc[rc.length-1];
+        for(let i=1;i<rc.length;i++){acc+=haversineNav(rc[i-1].lat,rc[i-1].lng,rc[i].lat,rc[i].lng);if(acc>=20){target=rc[i];break;}}
+        b=bearingNav(rc[0].lat,rc[0].lng,target.lat,target.lng);
+      }else if(origSpot&&destSpot){
+        b=bearingNav(origSpot.lat,origSpot.lng,destSpot.lat,destSpot.lng);
       }
-      // 現在地にズームイン
-      if(gpsPos&&mapInst.current){
-        mapInst.current.flyTo([gpsPos.lat,gpsPos.lng],18,{duration:0.8});
-      }else if(mapInst.current){
+      initialBearingRef.current=b;
+      // 現在地に寄る（向きを先に合わせてから）
+      applyView();
+      const map=mapInst.current;
+      if(gpsPos&&map){
+        followTo(map,[gpsPos.lat,gpsPos.lng],Math.max(map.getZoom(),18));
+      }else if(map){
         navigator.geolocation?.getCurrentPosition((pos)=>{
           const {latitude:lat,longitude:lng,accuracy}=pos.coords;
           setGpsPos({lat,lng,accuracy});
-          mapInst.current?.flyTo([lat,lng],18,{duration:0.8});
+          if(mapInst.current)followTo(mapInst.current,[lat,lng],Math.max(mapInst.current.getZoom(),18));
         },()=>{},{enableHighAccuracy:true,timeout:10000});
       }
     };
@@ -645,22 +724,56 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
       compassPermRef.current=true;
       doStart();
     }
-  },[startWatch,gpsPos,gpsOriginPos,origin,destination]);
+  },[startWatch,applyView,gpsPos,gpsOriginPos,origin,destination]);
   const stopGuiding=useCallback(()=>{
     setGuiding(false);
     setFollowing(true);
+    setNorthUp(false);
+    setProgress(null);
     stopWatch();
     initialBearingRef.current=null;
     guidingOriginRef.current=null;
+    offRouteCountRef.current=0;
   },[stopWatch]);
 
   // 現在地に戻る（自動追従再開）
   const reCenter=useCallback(()=>{
     setFollowing(true);
+    followingRef.current=true;
     if(gpsPos&&mapInst.current){
-      mapInst.current.flyTo([gpsPos.lat,gpsPos.lng],18,{duration:0.5});
+      followTo(mapInst.current,[gpsPos.lat,gpsPos.lng],Math.max(mapInst.current.getZoom(),17.5));
+      applyView();
     }
-  },[gpsPos]);
+  },[gpsPos,applyView]);
+
+  // ナビの進み具合（残り距離）と到着判定
+  const routeMeta=useMemo(()=>buildRouteMeta(route?.coords),[route]);
+  useEffect(()=>{
+    if(!guiding||!gpsPos||!routeMeta)return;
+    if(progressRef.current.meta!==routeMeta)progressRef.current={meta:routeMeta,idx:0,t:0};
+    const pr=projectOnRoute(routeMeta,gpsPos,progressRef.current.idx);
+    progressRef.current={meta:routeMeta,idx:pr.idx,t:pr.t};
+    const remaining=Math.max(0,routeMeta.total-pr.along);
+    setProgress({along:pr.along,remaining,total:routeMeta.total,dist:pr.dist});
+    // 到着: 残りわずか・目的地のすぐそば・目的地の建物の中のいずれか。
+    // 出発直後に建物の中にいて誤判定しないよう、半分以上進んでいるか残り40m以内のときだけ
+    const dest=NAV_SPOTS.find(s=>s.id===destination);
+    if(!dest)return;
+    const poly=AREAS[dest.id];
+    const inside=!!(poly&&poly.length>=3&&pointInPolyNav(gpsPos.lat,gpsPos.lng,poly));
+    const near=remaining<=Math.max(12,Math.min(gpsPos.accuracy||0,25))||haversineNav(gpsPos.lat,gpsPos.lng,dest.lat,dest.lng)<=20||inside;
+    if(near&&(pr.along>=routeMeta.total*0.5||remaining<=40)){
+      setArrived({spot:dest});
+      try{navigator.vibrate?.([80,60,80]);}catch{/* 振動非対応 */}
+      stopGuiding();
+    }
+  },[guiding,gpsPos,routeMeta,destination,stopGuiding]);
+  // 到着カードはしばらくしたら消す
+  useEffect(()=>{
+    if(!arrived)return;
+    const id=setTimeout(()=>setArrived(null),12000);
+    return()=>clearTimeout(id);
+  },[arrived]);
 
   const getGpsOrigin=useCallback(()=>{
     if(!navigator.geolocation)return;
@@ -711,7 +824,9 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   useEffect(()=>{
     if(!leafletReady||!mapRef.current||mapInst.current)return;
     const L=window.L;
-    const map=L.map(mapRef.current,{center:[CAMPUS_CENTER.lat,CAMPUS_CENTER.lng],zoom:CAMPUS_ZOOM,zoomControl:false,attributionControl:false,rotate:true,touchRotate:true,bearing:0});
+    const map=L.map(mapRef.current,{center:[CAMPUS_CENTER.lat,CAMPUS_CENTER.lng],zoom:CAMPUS_ZOOM,zoomControl:false,attributionControl:false,rotate:true,touchRotate:true,bearing:0,
+      rotateControl:false,  // 標準の方位ボタンは左上（カードの裏）に出て押せないので、自前のボタンを使う
+      zoomSnap:0.25,wheelPxPerZoomLevel:90,minZoom:15,maxZoom:21});
     // 航空写真（切り替え用）。どちらを表示するかは下の basemap の effect が決める
     const imagery=L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:22,maxNativeZoom:19,attribution:"Imagery © Esri"});
     overlayRef.current=L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:22,maxNativeZoom:19,pane:"overlayPane",opacity:0.35,attribution:"© OpenStreetMap contributors"});
@@ -723,6 +838,22 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     map.on("dragstart",()=>{if(guidingRef.current)setFollowing(false);});
     return()=>{map.remove();mapInst.current=null;gpsMarkerRef.current=null;gpsCircleRef.current=null;};
   },[leafletReady]);
+
+  // 地図の回転に合わせて方位ボタンの針・現在地の矢印を更新（回っていないときはボタンを隠す）
+  useEffect(()=>{
+    const map=mapInst.current;
+    if(!leafletReady||!map||typeof map.getBearing!=="function")return;
+    const onRotate=()=>{
+      const b=map.getBearing();
+      if(compassNeedleRef.current)compassNeedleRef.current.style.transform=`rotate(${b}deg)`;
+      const rotated=Math.abs(angDiff(b,0))>1;
+      setMapRotated(prev=>prev===rotated?prev:rotated);
+      scheduleView();
+    };
+    map.on("rotate",onRotate);
+    onRotate();
+    return()=>map.off("rotate",onRotate);
+  },[leafletReady,scheduleView]);
 
   // イラスト地図のデータ（約50KB）は地図を開いたときだけ読む
   useEffect(()=>{
@@ -737,10 +868,14 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     const map=mapInst.current;
     if(!leafletReady||!map)return;
     try{localStorage.setItem("navBasemap",basemap);}catch{}
+    basemapModeRef.current=basemap;
+    // イラスト地図はキャンパス周辺しか描いていないので引きすぎ・寄りすぎを止める
     if(basemap!=="illust"){
+      map.setMinZoom(10);map.setMaxZoom(22);
       photoLayersRef.current.forEach(l=>{if(!map.hasLayer(l))l.addTo(map);});
       return;
     }
+    map.setMinZoom(15);map.setMaxZoom(21);
     photoLayersRef.current.forEach(l=>{if(map.hasLayer(l))map.removeLayer(l);});
     if(!bmData)return;
     const ctl=createCampusBasemap(window.L,map,bmData,{dark:isDarkColor(T.bg),accent:T.accent,onSpotClick:id=>spotTapRef.current?.(id)});
@@ -848,15 +983,9 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
 
       // 案内中: GPSに最も近いルート上のセグメント射影点で分割 → 通過済み=グレー, 残り=緑
       if(guiding&&gpsPos){
-        let bestSeg=0,bestT=0,bestDist=Infinity;
-        for(let i=0;i<latlngs.length-1;i++){
-          const [ay,ax]=latlngs[i],[by,bx]=latlngs[i+1];
-          const dy=by-ay,dx=bx-ax,lenSq=dy*dy+dx*dx;
-          let t=lenSq===0?0:((gpsPos.lat-ay)*dy+(gpsPos.lng-ax)*dx)/lenSq;
-          t=Math.max(0,Math.min(1,t));
-          const d=haversineNav(gpsPos.lat,gpsPos.lng,ay+t*dy,ax+t*dx);
-          if(d<bestDist){bestDist=d;bestSeg=i;bestT=t;}
-        }
+        const pr=progressRef.current;
+        const bestSeg=pr.meta&&pr.meta.coords===route.coords?Math.min(pr.idx,latlngs.length-2):0;
+        const bestT=pr.meta&&pr.meta.coords===route.coords?pr.t:0;
         const [ay,ax]=latlngs[bestSeg],[by,bx]=latlngs[bestSeg+1];
         const proj=[ay+bestT*(by-ay),ax+bestT*(bx-ax)];
         // 通過済み部分（先頭〜射影点）
@@ -936,6 +1065,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     }else{
       const gpsDot=L.divIcon({className:"gps-smooth",html:`<div style="position:relative"><div class="gps-arrow" style="display:none;position:absolute;top:-18px;left:50%;transform-origin:center 25px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:14px solid ${ROUTE_COL};filter:drop-shadow(0 0 3px rgba(26,142,240,.6));z-index:2;transition:transform .15s ease-out"></div><div style="position:absolute;inset:-12px;border-radius:50%;background:rgba(26,142,240,.25);animation:navHalo 2s ease-out infinite"></div><div style="width:14px;height:14px;border-radius:50%;background:${ROUTE_COL};border:3px solid #fff;box-shadow:0 1px 6px rgba(26,142,240,.55)"></div><div class="nav-here">${t("navi.currentLocation")}</div></div>`,iconSize:[14,14],iconAnchor:[10,10]});
       const gm=L.marker([gpsPos.lat,gpsPos.lng],{icon:gpsDot,zIndexOffset:900}).addTo(map);
+      scheduleView();
       gm.bindTooltip(`<b>${t("navi.currentLocation")}</b>`,{direction:"top",offset:[0,-10],className:"nav-tip"});
       gpsMarkerRef.current=gm;
     }
@@ -961,6 +1091,9 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
 
   const hasRoute=!!route;
   const noRoute=origin&&destination&&origin!==destination&&!route;
+  const liveDist=guiding&&progress?Math.round(progress.remaining):route?.distance;
+  const liveMin=guiding&&progress?Math.max(1,Math.ceil(progress.remaining/WALK_M_PER_MIN)):route?.minutes;
+  const etaText=liveMin!=null?fmtClock(new Date(Date.now()+liveMin*60000)):"";
 
   // 目的地を決めてルート表示へ（出発地は現在地）
   const navigateTo=(destId)=>{
@@ -1160,8 +1293,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
         </div>
         <div style={{display:"flex",alignItems:"baseline",gap:6,marginTop:3,flexWrap:"wrap"}}>
           <span style={{fontSize:13,fontWeight:700,color:T.tx}}>{t("navi.walk")}</span>
-          <span style={{fontSize:30,fontWeight:900,color:ROUTE_COL,lineHeight:1,letterSpacing:"-.02em"}}>{route.minutes}</span>
-          <span style={{fontSize:13,fontWeight:700,color:T.tx}}>{t("navi.min")} ・ {t("navi.aboutMeters",{n:route.distance})}</span>
+          <span style={{fontSize:30,fontWeight:900,color:ROUTE_COL,lineHeight:1,letterSpacing:"-.02em"}}>{liveMin}</span>
+          <span style={{fontSize:13,fontWeight:700,color:T.tx}}>{t("navi.min")} ・ {t("navi.aboutMeters",{n:liveDist})} ・ {t("navi.etaAt",{time:etaText})}</span>
           {route.hasStairs&&<span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:6,background:`${T.orange}14`,alignSelf:"center"}}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={T.orange} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 18h4v-4h4v-4h4v-4h4"/></svg>
             <span style={{fontSize:11,fontWeight:700,color:T.orange}}>{t("navi.hasStairs")}</span>
@@ -1191,7 +1324,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   </div>;
 
   /* ── Minimized route pill ── */
-  const routePill=hasRoute&&panelMin&&<button onClick={()=>setPanelMin(false)} style={{
+  const routePill=hasRoute&&panelMin&&!arrived&&<button onClick={()=>setPanelMin(false)} style={{
     position:"absolute",
     bottom:mob?12:20,
     left:mob?12:14,
@@ -1206,8 +1339,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     animation:"navSlideUp .2s ease-out",
   }}>
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-    <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{t("navi.minCount",{n:route.minutes})}</span>
-    <span style={{fontSize:12,fontWeight:500,color:"rgba(255,255,255,.8)"}}>{route.distance}m</span>
+    <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{t("navi.minCount",{n:liveMin})}</span>
+    <span style={{fontSize:12,fontWeight:500,color:"rgba(255,255,255,.8)"}}>{liveDist}m</span>
   </button>;
 
   /* ── No route error ── */
@@ -1253,13 +1386,38 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </div>
   </button>;
-  const mapToggle=showMapToggle&&<button onClick={()=>setBasemap(b=>b==="illust"?"photo":"illust")} style={{position:"absolute",right:mob?10:14,bottom:mob?92:96,zIndex:999,display:"flex",alignItems:"center",gap:6,padding:"8px 12px",borderRadius:20,background:T.bg2,border:`1px solid ${T.bdL}`,boxShadow:"0 6px 16px -6px rgba(0,0,0,.4)",cursor:"pointer",color:T.txH,fontSize:12,fontWeight:700}}>
+  // 右下のボタン列。スマホで下からカードが出ている間は隠す（案内中は方位ボタンだけ出す）
+  const sideBtn={width:44,height:44,borderRadius:22,display:"flex",alignItems:"center",justifyContent:"center",background:T.bg2,border:`1px solid ${T.bdL}`,boxShadow:"0 6px 16px -6px rgba(0,0,0,.4)",cursor:"pointer",color:T.txH,padding:0};
+  const btnStack=[];
+  if(showMapToggle)btnStack.push(<button key="bm" onClick={()=>setBasemap(b=>b==="illust"?"photo":"illust")} style={{...sideBtn,width:"auto",height:36,borderRadius:18,padding:"0 12px",gap:6,fontSize:12,fontWeight:700}}>
     {basemap==="illust"
       ?<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
       :<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>}
     {basemap==="illust"?t("navi.mapPhoto"):t("navi.mapIllust")}
-  </button>;
-  const outOfRegionChip=basemap==="illust"&&outOfRegion&&!guiding&&!bottomCardShown&&<div style={{position:"absolute",left:mob?10:0,right:mob?64:0,bottom:mob?18:24,zIndex:999,display:"flex",justifyContent:mob?"flex-start":"center",pointerEvents:"none"}}>
+  </button>);
+  if(showMapToggle&&!pickerOpen)btnStack.push(<button key="loc" title={t("navi.locateMe")} aria-label={t("navi.locateMe")} onClick={()=>{
+    const map=mapInst.current;
+    if(gpsPos&&map){
+      if(mapRotated)followTo(map,[gpsPos.lat,gpsPos.lng],Math.max(map.getZoom(),17.5));
+      else map.flyTo([gpsPos.lat,gpsPos.lng],Math.max(map.getZoom(),17.5),{duration:0.5});
+    }else requestLocation();
+  }} style={{...sideBtn,color:gpsPos?ROUTE_COL:T.txD}}>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="3.2" fill={gpsPos?"currentColor":"none"}/><circle cx="12" cy="12" r="8"/><path d="M12 1.5v3m0 15v3M1.5 12h3m15 0h3"/></svg>
+  </button>);
+  if((mapRotated||guiding)&&!(mob&&bottomCardShown&&!guiding)&&!pickerOpen)btnStack.push(<button key="compass" title={guiding?(northUp?t("navi.headingUp"):t("navi.northUp")):t("navi.northUp")} aria-label={t("navi.northUp")} onClick={()=>{
+    if(guiding){setNorthUp(v=>!v);setFollowing(true);}
+    else mapInst.current?.setBearing?.(0);
+  }} style={{...sideBtn,border:`1.5px solid ${guiding&&northUp?T.accent:T.bdL}`}}>
+    <div ref={compassNeedleRef} style={{width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",transform:`rotate(${mapInst.current?.getBearing?.()||0}deg)`}}>
+      <svg width="16" height="22" viewBox="0 0 16 22"><polygon points="8,1 13,11 3,11" fill="#e5534b"/><polygon points="8,21 13,11 3,11" fill={T.txD}/></svg>
+    </div>
+  </button>);
+  if(guiding&&!following)btnStack.push(<button key="recenter" onClick={reCenter} style={{...sideBtn,width:"auto",height:40,borderRadius:20,padding:"0 14px",gap:6,color:ROUTE_COL,fontSize:13,fontWeight:700,animation:"navSlideUp .2s ease-out"}}>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m-10-10h4m12 0h4"/></svg>
+    {t("navi.recenter")}
+  </button>);
+  const mapButtons=btnStack.length>0&&<div style={{position:"absolute",right:mob?10:14,bottom:mob?118:122,zIndex:999,display:"flex",flexDirection:"column-reverse",alignItems:"flex-end",gap:10}}>{btnStack}</div>;
+  const outOfRegionChip=basemap==="illust"&&(outOfRegion||(gpsPos&&!inCampusArea(gpsPos.lat,gpsPos.lng)))&&!guiding&&!bottomCardShown&&!pickerOpen&&<div style={{position:"absolute",left:mob?10:0,right:mob?64:0,bottom:mob?18:24,zIndex:999,display:"flex",justifyContent:mob?"flex-start":"center",pointerEvents:"none"}}>
     <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 8px 8px 14px",borderRadius:20,background:T.bg2,border:`1px solid ${T.bdL}`,boxShadow:"0 6px 16px -6px rgba(0,0,0,.4)",whiteSpace:"nowrap",animation:"navSlideUp .2s ease-out",pointerEvents:"auto"}}>
       <span style={{fontSize:12,color:T.tx}}>{t("navi.illustAreaOnly")}</span>
       <button onClick={()=>setBasemap("photo")} style={{padding:"5px 10px",borderRadius:14,border:"none",background:T.accent,color:"#fff",fontSize:11.5,fontWeight:800,cursor:"pointer"}}>{t("navi.mapPhoto")}</button>
@@ -1285,6 +1443,10 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
 .nav-pin-shadow{position:absolute;left:50%;bottom:-1px;width:18px;height:6px;border-radius:50%;background:rgba(0,0,0,.22);transform:translateX(-50%);animation:navPinShadow .6s ease-out both}
 .nav-here{position:absolute;left:24px;top:50%;transform:translateY(-50%);padding:4px 9px;border-radius:11px;background:#0e2030;color:#fff;font-size:11px;font-weight:800;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25);pointer-events:none}
 .nav-guiding .nav-here{display:none}
+.leaflet-control-zoom{border:none!important;border-radius:14px!important;overflow:hidden;box-shadow:0 6px 16px -6px rgba(0,0,0,.4)!important}
+.leaflet-control-zoom a{width:40px!important;height:40px!important;line-height:40px!important;font-size:20px!important;background:${T.bg2}!important;color:${T.txH}!important;border-bottom:1px solid ${T.bd}!important}
+.leaflet-control-zoom a:last-child{border-bottom:none!important}
+.leaflet-control-zoom a.leaflet-disabled{color:${T.txD}!important;opacity:.45}
 .leaflet-control-attribution{font-size:9.5px!important;line-height:1.4!important;padding:0 5px!important;background:${T.bg2}cc!important;color:${T.txD}!important;border-radius:6px 0 0 0}
 .leaflet-control-attribution a{color:inherit!important}
     `}</style>
@@ -1293,7 +1455,6 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     {/* Floating UI */}
     {!guiding&&searchCard}
     {nextClsCard}
-    {mapToggle}
     {outOfRegionChip}
     {routeCard}
     {routePill}
@@ -1319,16 +1480,30 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     {guiding&&<div style={{position:"absolute",top:mob?10:14,left:mob?10:14,right:mob?10:"auto",width:cardW,zIndex:1000}}>
       <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:T.bg2,borderRadius:14,boxShadow:"0 4px 20px rgba(0,0,0,.4)",border:`1px solid #4de8b060`}}>
         <div style={{width:8,height:8,borderRadius:"50%",background:following?"#4de8b0":"#888",animation:following?"locPulse 1.5s infinite":"none",flexShrink:0}}/>
-        <span style={{fontSize:13,fontWeight:700,color:following?"#4de8b0":"#888",flex:1}}>{following?t("navi.guiding"):t("navi.freeControl")}</span>
-        {route&&<span style={{fontSize:12,fontWeight:600,color:T.txH}}>{t("navi.distMin",{dist:route.distance,min:route.minutes})}</span>}
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:11.5,fontWeight:700,color:following?"#2fbf86":"#888",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{following?t("navi.guiding"):t("navi.freeControl")}{destSpotInfo?` ・ ${destSpotInfo.label}`:""}</div>
+          {route&&<div style={{fontSize:14.5,fontWeight:800,color:T.txH,marginTop:1,whiteSpace:"nowrap"}}>{t("navi.remaining",{dist:fmtDist(liveDist||0),min:liveMin})} ・ {t("navi.etaAt",{time:etaText})}</div>}
+        </div>
         <button onClick={stopGuiding} style={{padding:"5px 12px",borderRadius:8,border:`1px solid ${T.red}40`,background:`${T.red}10`,cursor:"pointer",fontSize:11,fontWeight:600,color:T.red}}>{t("navi.stop")}</button>
       </div>
     </div>}
-    {/* 案内中 + 自由操作中: 現在地に戻るボタン */}
-    {guiding&&!following&&<button onClick={reCenter} style={{position:"absolute",bottom:hasRoute&&!panelMin?(mob?180:195):(mob?70:80),right:mob?12:14,zIndex:1000,display:"flex",alignItems:"center",gap:6,padding:"10px 16px",borderRadius:28,background:T.bg2,border:`1px solid #4285f440`,boxShadow:"0 4px 16px rgba(0,0,0,.35)",cursor:"pointer",animation:"navSlideUp .2s ease-out",transition:"bottom .25s ease"}}>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4285f4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m-10-10h4m12 0h4"/></svg>
-      <span style={{fontSize:13,fontWeight:700,color:"#4285f4"}}>{t("navi.recenter")}</span>
-    </button>}
+    {/* ルートを再検索したとき */}
+    {guiding&&rerouteMsg&&<div style={{position:"absolute",top:(mob?10:14)+66,left:0,right:0,zIndex:1000,display:"flex",justifyContent:"center",pointerEvents:"none"}}>
+      <div style={{padding:"7px 14px",borderRadius:16,background:"rgba(14,32,48,.88)",color:"#fff",fontSize:12.5,fontWeight:700,boxShadow:"0 6px 16px -6px rgba(0,0,0,.5)",animation:"navSlideUp .2s ease-out"}}>{t("navi.rerouted")}</div>
+    </div>}
+    {/* 到着 */}
+    {arrived&&<div style={{position:"absolute",bottom:mob?12:20,left:mob?12:14,right:mob?12:"auto",width:cardW,zIndex:1001,display:"flex",alignItems:"center",gap:12,padding:"14px 14px 14px 16px",background:T.bg2,borderRadius:20,border:`1px solid ${T.accent}55`,boxShadow:"0 18px 40px -18px rgba(0,0,0,.5)",boxSizing:"border-box",animation:"navSlideUp .25s ease-out"}}>
+      <div style={{width:44,height:44,borderRadius:22,background:T.accent,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:12,fontWeight:800,color:T.accent}}>{t("navi.arrived")}</div>
+        <div style={{fontSize:17,fontWeight:800,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{arrived.spot.label}</div>
+      </div>
+      <button onClick={()=>setArrived(null)} style={{padding:"8px 14px",borderRadius:12,border:`1px solid ${T.bd}`,background:T.bg3,color:T.txH,fontSize:12.5,fontWeight:700,cursor:"pointer",flexShrink:0}}>{t("common.close")}</button>
+    </div>}
+    {/* 右下のボタン列（下から: 航空写真/イラスト → 現在地 → 方位） */}
+    {mapButtons}
     {/* ── Tips Modal ── */}
     {tipsOpen&&destSpotInfo?.meta?.tips&&(()=>{
       const col=destSpotInfo.col;
