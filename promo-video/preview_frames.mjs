@@ -4,7 +4,7 @@
 //   node preview_frames.mjs --id=AppPromoV2 400  → ver2 を書き出す（--out=フォルダ で書き出し先も変えられる）
 import path from 'node:path';
 import { bundle } from '@remotion/bundler';
-import { renderStill, selectComposition } from '@remotion/renderer';
+import { openBrowser, renderStill, selectComposition } from '@remotion/renderer';
 
 const args = process.argv.slice(2);
 const scaleArg = args.find((a) => a.startsWith('--scale='));
@@ -18,9 +18,13 @@ if (!frames.length) {
 }
 
 const serveUrl = await bundle({ entryPoint: path.resolve('src/index.js') });
-const composition = await selectComposition({ serveUrl, id });
+// ブラウザは1つを使い回す（端末の3Dモデルは WebGL なので GL は ANGLE）
+const chromiumOptions = { gl: process.env.GL || 'angle' };
+const browser = await openBrowser('chrome', { chromiumOptions });
+const composition = await selectComposition({ serveUrl, id, puppeteerInstance: browser });
 for (const frame of frames) {
   const output = path.resolve(outDir, `f${String(frame).padStart(4, '0')}.png`);
-  await renderStill({ composition, serveUrl, output, frame, scale, timeoutInMilliseconds: 180000 });
+  await renderStill({ composition, serveUrl, output, frame, scale, timeoutInMilliseconds: 180000, chromiumOptions, puppeteerInstance: browser });
   console.log('wrote', output);
 }
+await browser.close({ silent: true });

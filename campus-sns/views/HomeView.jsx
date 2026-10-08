@@ -499,7 +499,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
         <div style={{display:"flex",flexDirection:"column",gap:4}}>
           {/* テスト広場 — 全ユーザー共通 */}
           <div onClick={()=>{setDid?.("global:sandbox");setCh("chat");setView("dept");}}
-            style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,borderLeft:"3px solid #6366f1",cursor:"pointer"}}>
+            style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:T.bg2,borderStyle:"solid",borderWidth:"1px 1px 1px 3px",borderColor:`${T.bd} ${T.bd} ${T.bd} #6366f1`,cursor:"pointer"}}>
             <div style={{width:32,height:32,borderRadius:8,background:"#6366f1",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             </div>
@@ -510,7 +510,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
             <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
           </div>
           {userSchools.map(s=><div key={s.prefix} onClick={()=>{setDid?.(s.prefix);setCh("chat");setView("dept");}}
-            style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,borderLeft:`3px solid ${s.col}`,cursor:"pointer"}}>
+            style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:T.bg2,borderStyle:"solid",borderWidth:"1px 1px 1px 3px",borderColor:`${T.bd} ${T.bd} ${T.bd} ${s.col}`,cursor:"pointer"}}>
             <div style={{width:32,height:32,borderRadius:8,background:s.col,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             </div>
@@ -521,7 +521,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
             <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
           </div>)}
           {userDepts.map(d=><div key={d.prefix} onClick={()=>{setDid?.(d.prefix);setCh("chat");setView("dept");}}
-            style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,borderLeft:`3px solid ${d.col}`,cursor:"pointer"}}>
+            style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:T.bg2,borderStyle:"solid",borderWidth:"1px 1px 1px 3px",borderColor:`${T.bd} ${T.bd} ${T.bd} ${d.col}`,cursor:"pointer"}}>
             <div style={{width:32,height:32,borderRadius:8,background:d.col,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             </div>
@@ -532,7 +532,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
             <span style={{color:T.txD,display:"flex"}}>{I.arr}</span>
           </div>)}
           {userUnit&&<div onClick={()=>{setDid?.(userUnit.prefix);setCh("chat");setView("dept");}}
-            style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:T.bg2,border:`1px solid ${T.bd}`,borderLeft:`3px solid ${userUnit.col}`,cursor:"pointer"}}>
+            style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:T.bg2,borderStyle:"solid",borderWidth:"1px 1px 1px 3px",borderColor:`${T.bd} ${T.bd} ${T.bd} ${userUnit.col}`,cursor:"pointer"}}>
             <div style={{width:32,height:32,borderRadius:8,background:userUnit.col,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             </div>
@@ -675,8 +675,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
             <button onClick={()=>setView("tasks")} style={{background:"none",border:"none",color:T.accentSoft,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:2}}>{t("home.viewAll")} {I.arr}</button>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr",gap:6}}>
-            {upcoming.map(a=>{const co=courses.find(x=>x.id===a.cid),dl=uDue(a.due),p=pDone(a.subs);return(
-              <div key={a.id} onClick={()=>setView("tasks")} style={{padding:"8px 10px",borderRadius:8,background:dl.u?`${dl.c}08`:T.bg2,border:`1px solid ${dl.u?`${dl.c}20`:T.bd}`,borderLeft:`3px solid ${dl.c}`,cursor:"pointer"}}>
+            {upcoming.map(a=>{const co=courses.find(x=>x.id===a.cid),dl=uDue(a.due),p=pDone(a.subs),bd=dl.u?`${dl.c}20`:T.bd;return(
+              <div key={a.id} onClick={()=>setView("tasks")} style={{padding:"8px 10px",borderRadius:8,background:dl.u?`${dl.c}08`:T.bg2,borderStyle:"solid",borderWidth:"1px 1px 1px 3px",borderColor:`${bd} ${bd} ${bd} ${dl.c}`,cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}>
                   <span style={{fontSize:10,fontWeight:700,color:co?.col||T.txD,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>{co?.name||co?.code||""}</span>
                   {a.subs.length>0&&<span style={{fontSize:9,color:T.txD,flexShrink:0}}>{p}%</span>}

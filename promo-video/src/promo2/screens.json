@@ -99,6 +99,76 @@
   "tab_top": 720.0,
   "header": 54.0
  },
+ "fx_applied": {
+  "w": 1170,
+  "h": 7200,
+  "css_h": 2400,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 2350.0,
+  "header": 54.0
+ },
+ "fx_form": {
+  "w": 1170,
+  "h": 7200,
+  "css_h": 2400,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 2350.0,
+  "header": 54.0
+ },
+ "fx_form_empty": {
+  "w": 1170,
+  "h": 7200,
+  "css_h": 2400,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 2350.0,
+  "header": 54.0
+ },
+ "fx_map": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "fx_mine": {
+  "w": 1170,
+  "h": 5700,
+  "css_h": 1900,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 1850.0,
+  "header": 54.0
+ },
+ "fx_qr": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#6f7172",
+  "bottom": "#6f7172",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "fx_top": {
+  "w": 1170,
+  "h": 7200,
+  "css_h": 2400,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 2350.0,
+  "header": 54.0
+ },
  "home": {
   "w": 1170,
   "h": 2310,
@@ -117,6 +187,46 @@
   "bottom": "#f6fafd",
   "dark": false,
   "tab_top": 1490.0,
+  "header": 54.0
+ },
+ "navi3d_guide": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "navi3d_map": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "navi3d_route": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "navi3d_spot": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
   "header": 54.0
  },
  "navi_guide": {

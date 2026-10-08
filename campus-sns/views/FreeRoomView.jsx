@@ -3,16 +3,38 @@ import { T } from "../theme.js";
 import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { isDemoMode } from "../demoMode.js";
+import { SPOTS, roomToSpot } from "../hooks/useLocationSharing.js";
 
 const API = "";
 
 const DAYS = ["月", "火", "水", "木", "金"];
 const AREA_ORDER = ["本館・中央", "西地区", "南地区", "東・北地区", "石川台地区", "すずかけ台", "その他"];
-const SLOT_LABEL = ["1-2限", "3-4限", "5-6限", "7-8限", "9-10限"];
-const SLOT_TIMES = ["8:50–10:30", "10:45–12:25", "13:30–15:10", "15:25–17:05", "17:15–18:55"];
+const SLOT_START = ["8:50", "10:45", "13:30", "15:25", "17:15"];
+const SLOT_END = ["10:30", "12:25", "15:10", "17:05", "18:55"];
+const SLOT_TIMES = SLOT_START.map((s, i) => `${s}–${SLOT_END[i]}`);
 // 各スロットの終了時刻 (分換算) — 現在スロット判定用
 const SLOT_END_MIN = [10 * 60 + 30, 12 * 60 + 25, 15 * 60 + 10, 17 * 60 + 5, 18 * 60 + 55];
 const DAY_START_MIN = 8 * 60 + 50;
+
+// 建物コード → 名前（キャンパスナビの建物と同じ名前。"W5" → "西5号館"）。
+// 喫煙所なども S1 のような記号を持つので、建物の区分のスポットだけから引く
+const BUILDING_CATS = new Set(["central", "west", "south", "eastnorth", "ishikawa", "midori"]);
+const CODE_NAME = (() => {
+  const m = new Map([["M", "本館"]]);
+  for (const s of SPOTS) {
+    if (!BUILDING_CATS.has(s.cat) || !s.short || m.has(s.short) || !/^[A-Z]{1,3}\d{0,2}[A-Z]?$/.test(s.short)) continue;
+    m.set(s.short, s.label.replace(/（.*?）/g, "").replace(/・.*$/, ""));
+  }
+  return m;
+})();
+const buildingLabel = (code, campus) => {
+  if (code === "その他") return t("freeroom.otherRooms");
+  if (campus === "すずかけ台") return t("freeroom.buildingName", { building: code });
+  return CODE_NAME.get(code) || code;
+};
+
+// 建物名から始まる教室名は、見出しと重なる建物名を省く（"南1号館化学系講義室" → "化学系講義室"）
+const roomName = (room) => room.replace(/^(?:大岡山)?(?:西|南|北|東|石川台|石)\d+号館\s*/, "") || room;
 
 // 教室名 → 階(フロア)情報。
 // "M-278"→2F, "W5-106"→1F, "M-B07"→B1F, "石川台1号館2階253"→2F,
@@ -36,89 +58,113 @@ function floorInfo(room) {
   return { label: "階不明", sort: 999 };
 }
 
-// 建物内の教室を階ごとにまとめる
-function groupByFloor(list) {
-  const m = new Map(); // label -> { sort, rooms[] }
-  for (const r of list) {
-    const f = floorInfo(r.room);
-    if (!m.has(f.label)) m.set(f.label, { sort: f.sort, rooms: [] });
-    m.get(f.label).rooms.push(r);
-  }
-  return [...m.entries()]
-    .map(([label, v]) => ({ label, sort: v.sort, rooms: v.rooms }))
-    .sort((a, b) => a.sort - b.sort);
-}
+// 建物の中の並び：階 → 室番号
+const sortRooms = (list) => list
+  .map((r) => ({ r, f: floorInfo(r.room).sort }))
+  .sort((a, b) => a.f - b.f || a.r.room.localeCompare(b.r.room, "ja", { numeric: true }))
+  .map((x) => x.r);
 
-// 建物コード → 表示色 (なんとなく系統で色分け)
-const buildingColor = (b) => {
-  const palette = ["#6375f0", "#3dae72", "#d4843e", "#a855c7", "#e5534b", "#0ea5e9", "#c6a236", "#14b8a6"];
-  let h = 0;
-  for (let i = 0; i < b.length; i++) h = (h * 31 + b.charCodeAt(i)) >>> 0;
-  return palette[h % palette.length];
+// その日の5コマのうち、slot から続けて空いている最後のコマ（使用中なら -1）
+const freeUntil = (strip, slot) => {
+  if (strip[slot]) return -1;
+  let e = slot;
+  while (e < 4 && !strip[e + 1]) e++;
+  return e;
+};
+// 使用中の教室が次に空くコマ（無ければ -1）
+const nextFree = (strip, slot) => {
+  for (let i = slot + 1; i < 5; i++) if (!strip[i]) return i;
+  return -1;
+};
+const norm = (s) => String(s || "").normalize("NFKC").toLowerCase().replace(/\s+/g, "");
+
+// キャンパスナビへ（建物のスポットは教室名から引く。"W5-104" → 西5号館）
+const spotIdOf = (rooms) => {
+  for (const r of rooms) {
+    const sp = roomToSpot(r);
+    if (sp?.id) return sp.id;
+  }
+  return null;
 };
 
-// 教室をクリックしたとき: その教室の週間(曜日×時限)空き状況モーダル
+// 背景の明るさで暗いテーマかを見分ける（切り替えのつまみの色に使う）
+const isDarkT = () => {
+  const h = String(T.bg || "#ffffff").replace("#", "");
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) || 0);
+  return 0.299 * r + 0.587 * g + 0.114 * b < 128;
+};
+const ellipsis = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+
+// 教室をクリックしたとき: その教室の週間(曜日×時限)空き状況
 function RoomScheduleModal({ sel, occ, quarter, year, mob, nowDay, nowSlot, nowActive, onClose, goToBuilding }) {
-  const { room, building } = sel;
-  const col = buildingColor(building);
+  const { room, building, campus } = sel;
   const fl = floorInfo(room).label;
+  const bName = buildingLabel(building, campus);
   let freeN = 0;
-  const grid = DAYS.map((d, di) =>
-    SLOT_LABEL.map((_, si) => {
+  const grid = DAYS.map((d) =>
+    SLOT_START.map((_, si) => {
       const entry = (occ?.[quarter]?.[d]?.[si] || []).find((e) => e.room === room);
       if (!entry) freeN++;
       return entry || null;
     })
   );
-  const canNav = building !== "その他" && typeof goToBuilding === "function";
+  const spotId = typeof goToBuilding === "function" ? spotIdOf([room]) : null;
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: mob ? 12 : 24 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 560, maxHeight: "90%", overflowY: "auto", background: T.bg2, border: `1px solid ${T.bdL || T.bd}`, borderRadius: 16, boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
-        {/* ヘッダー */}
-        <div style={{ position: "sticky", top: 0, background: T.bg2, padding: mob ? "14px 14px 10px" : "16px 18px 12px", borderBottom: `1px solid ${T.bd}`, display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ minWidth: 34, height: 34, padding: "0 9px", borderRadius: 9, background: `${col}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: col }}>{building}</div>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.45)", display: "flex", alignItems: mob ? "flex-end" : "center", justifyContent: "center", padding: mob ? 0 : 24 }}>
+      <div role="dialog" aria-modal="true" aria-label={room} onClick={(e) => e.stopPropagation()} style={{
+        width: "100%", maxWidth: 520, maxHeight: mob ? "88%" : "90%", overflowY: "auto", background: T.bg2,
+        borderRadius: mob ? "16px 16px 0 0" : 16, boxShadow: "0 24px 60px rgba(0,0,0,.35)", paddingBottom: mob ? "env(safe-area-inset-bottom)" : 0,
+      }}>
+        {mob && <div style={{ width: 36, height: 4, borderRadius: 2, background: T.bd, margin: "8px auto 0" }} />}
+        {/* 見出し */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: mob ? "12px 16px 0" : "18px 20px 0" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: mob ? 16 : 18, fontWeight: 800, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{room}</div>
-            <div style={{ fontSize: 11.5, color: T.txD }}>{t("freeroom.modalSubtitle", { year, quarter, free: freeN })}{fl !== "階不明" ? ` ・ ${fl}` : ""}</div>
+            <div style={{ fontSize: 19, fontWeight: 700, color: T.txH, lineHeight: 1.3, wordBreak: "break-all" }}>{room}</div>
+            <div style={{ fontSize: 12.5, color: T.txD, marginTop: 3, lineHeight: 1.5 }}>
+              {bName}{fl !== "階不明" ? ` ・ ${fl}` : ""} ・ {t("freeroom.modalSubtitle", { year, quarter, free: freeN })}
+            </div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex", flexShrink: 0 }}>{I.x}</button>
+          <button onClick={onClose} aria-label="close" style={{ width: 32, height: 32, borderRadius: 16, background: T.bg3, border: "none", color: T.tx, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{I.x}</button>
         </div>
 
-        {/* 週間グリッド */}
-        <div style={{ padding: mob ? 12 : 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: `auto repeat(5, 1fr)`, gap: 4 }}>
-            {/* 曜日ヘッダー行 */}
+        {/* 週間の表 */}
+        <div style={{ padding: mob ? "14px 16px 18px" : "16px 20px 20px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "auto repeat(5, 1fr)", gap: 4 }}>
             <div />
-            {DAYS.map((d, di) => (
-              <div key={d} style={{ textAlign: "center", fontSize: 12, fontWeight: 700, color: nowActive && di === nowDay ? T.accent : T.txD, padding: "2px 0" }}>{t("dow.s." + d)}</div>
-            ))}
-            {/* 各時限行 */}
-            {SLOT_LABEL.map((lbl, si) => (
-              <React.Fragment key={lbl}>
-                <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", paddingRight: 6 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: T.txH }}>{t("period.range", { a: 2 * si + 1, b: 2 * si + 2 })}</span>
-                  <span style={{ fontSize: 8.5, color: T.txD }}>{SLOT_TIMES[si]}</span>
+            {DAYS.map((d, di) => {
+              const today = nowActive && di === nowDay;
+              return (
+                <div key={d} style={{ textAlign: "center", fontSize: 12.5, fontWeight: today ? 700 : 600, color: today ? T.accent : T.txD, paddingBottom: 2 }}>{t("dow.s." + d)}</div>
+              );
+            })}
+            {SLOT_START.map((s, si) => (
+              <React.Fragment key={s}>
+                <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", paddingRight: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: T.txH, whiteSpace: "nowrap" }}>{t("period.range", { a: 2 * si + 1, b: 2 * si + 2 })}</span>
+                  <span style={{ fontSize: 10.5, color: T.txD, fontVariantNumeric: "tabular-nums" }}>{s}</span>
                 </div>
                 {DAYS.map((d, di) => {
                   const entry = grid[di][si];
-                  const busy = !!entry;
                   const isNowCell = nowActive && di === nowDay && si === nowSlot;
                   const c0 = entry?.classes?.[0];
                   return (
-                    <div key={d} title={busy ? entry.classes.map((c) => `${c.code} ${c.name}`).join(" / ") : t("freeroom.free")} style={{
-                      minHeight: mob ? 44 : 48, borderRadius: 8, padding: "4px 5px",
-                      border: `1px solid ${isNowCell ? T.accent : busy ? `${T.red}25` : `${T.green}30`}`,
-                      background: busy ? `${T.red}0e` : `${T.green}12`,
-                      boxShadow: isNowCell ? `0 0 0 1px ${T.accent}` : "none",
-                      display: "flex", flexDirection: "column", justifyContent: "center", alignItems: busy ? "flex-start" : "center", overflow: "hidden",
+                    <div key={d} title={entry ? entry.classes.map((c) => `${c.code} ${c.name}`).join(" / ") : t("freeroom.free")} style={{
+                      minHeight: mob ? 48 : 52, borderRadius: 8, padding: "5px 6px", boxSizing: "border-box", minWidth: 0,
+                      background: entry ? T.bg3 : `${T.green}17`, boxShadow: isNowCell ? `inset 0 0 0 2px ${T.accent}` : "none",
+                      display: "flex", flexDirection: "column", justifyContent: "center", alignItems: entry ? "flex-start" : "center", gap: 1, overflow: "hidden",
                     }}>
-                      {busy ? (
+                      {entry ? (
                         <>
-                          <span style={{ fontSize: 9.5, fontWeight: 700, color: T.red, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{c0?.code || t("freeroom.inUse")}</span>
-                          {c0?.name && <span style={{ fontSize: 9, color: T.txD, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{c0.name}</span>}
+                          <span style={{ fontSize: 10, fontWeight: 600, color: T.tx, maxWidth: "100%", ...ellipsis }}>{c0?.name || c0?.code || t("freeroom.inUse")}</span>
+                          {c0?.name && c0?.code && <span style={{ fontSize: 9.5, color: T.txD, maxWidth: "100%", ...ellipsis }}>{c0.code}</span>}
                         </>
                       ) : (
-                        <span style={{ fontSize: 11, fontWeight: 700, color: T.green }}>{t("freeroom.freeShort")}</span>
+                        <span style={{ fontSize: 11.5, fontWeight: 700, color: T.green }}>{t("freeroom.free")}</span>
                       )}
                     </div>
                   );
@@ -127,14 +173,13 @@ function RoomScheduleModal({ sel, occ, quarter, year, mob, nowDay, nowSlot, nowA
             ))}
           </div>
 
-          {/* フッター */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
-            {canNav && (
-              <button onClick={() => { onClose(); goToBuilding(building); }} style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", borderRadius: 9, border: `1px solid ${T.accent}`, background: `${T.accent}15`, color: T.accent, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
-                {I.map}{t("freeroom.viewBuildingOnMap", { building })}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
+            {spotId && (
+              <button onClick={() => { onClose(); goToBuilding(spotId); }} style={{ display: "flex", alignItems: "center", gap: 7, height: 40, padding: "0 16px", borderRadius: 10, border: "none", background: T.accent, color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <span style={{ display: "flex", transform: "scale(.85)" }}>{I.map}</span>{t("freeroom.routeTo", { name: bName })}
               </button>
             )}
-            <span style={{ fontSize: 10, color: T.txD, flex: 1 }}>{t("freeroom.legend")}</span>
+            <span style={{ fontSize: 11.5, color: T.txD }}>{t("freeroom.legend")}</span>
           </div>
         </div>
       </div>
@@ -179,39 +224,75 @@ function currentAcademicYear() {
 }
 
 // --- デモ用サンプル (デモモード時のみ使用) ---
+// 実際の画面に近い量（約80教室）を、時限ごとの混み具合に合わせて決まった並びで埋める
 const DEMO_DATA = (() => {
-  const A = (room, building, campus, area) => ({ room, building, campus, area });
-  const rooms = [
-    A("W5-104", "W5", "大岡山", "西地区"), A("W5-106", "W5", "大岡山", "西地区"), A("W5-107", "W5", "大岡山", "西地区"),
-    A("W9-322", "W9", "大岡山", "西地区"), A("W9-323", "W9", "大岡山", "西地区"), A("W9-324", "W9", "大岡山", "西地区"),
-    A("M-B07", "M", "大岡山", "本館・中央"), A("M-110", "M", "大岡山", "本館・中央"), A("M-124", "M", "大岡山", "本館・中央"),
-    A("S2-201", "S2", "大岡山", "南地区"), A("S2-203", "S2", "大岡山", "南地区"), A("S2-204", "S2", "大岡山", "南地区"),
-    A("I1-256", "I1", "大岡山", "石川台地区"), A("I3-107", "I3", "大岡山", "石川台地区"),
-    A("G1-101", "G1", "すずかけ台", "すずかけ台"), A("G1-102", "G1", "すずかけ台", "すずかけ台"),
-    A("J2-201", "J2", "すずかけ台", "すずかけ台"), A("J2-202", "J2", "すずかけ台", "すずかけ台"),
-    A("B2-301", "B2", "すずかけ台", "すずかけ台"),
+  const SPEC = [
+    ["大岡山", "本館・中央", "M", ["M-110", "M-112", "M-124", "M-134", "M-156", "M-178", "M-278", "M-B07", "M-B43"]],
+    ["大岡山", "西地区", "W5", ["W5-104", "W5-106", "W5-107", "W5-108", "W5-201", "W5-202"]],
+    ["大岡山", "西地区", "WL1", ["WL1-201", "WL1-301", "WL1-401"]],
+    ["大岡山", "西地区", "WL2", ["WL2-101", "WL2-201", "WL2-301", "WL2-401"]],
+    ["大岡山", "西地区", "W9", ["W9-321", "W9-322", "W9-323", "W9-324", "W9-325", "W9-326"]],
+    ["大岡山", "南地区", "S1", ["南1号館化学系講義室", "南1号館計算機室"]],
+    ["大岡山", "南地区", "S2", ["S2-201", "S2-202", "S2-203", "S2-204", "S2-301"]],
+    ["大岡山", "南地区", "S3", ["S3-206", "S3-207", "S3-215"]],
+    ["大岡山", "南地区", "S4", ["S4-201", "S4-202", "S4-203", "南4号館3階第2演習室"]],
+    ["大岡山", "南地区", "S5", ["S5-101", "S5-102", "S5-106", "S5-107"]],
+    ["大岡山", "南地区", "S7", ["S7-201", "S7-202"]],
+    ["大岡山", "東・北地区", "E1", ["E1-101", "E1-201"]],
+    ["大岡山", "石川台地区", "I1", ["I1-255", "I1-256"]],
+    ["大岡山", "石川台地区", "I3", ["I3-107", "I3-108", "I3-301"]],
+    ["すずかけ台", "すずかけ台", "G1", ["G1-101", "G1-102", "G1-103"]],
+    ["すずかけ台", "すずかけ台", "J2", ["J2-201", "J2-202"]],
+    ["すずかけ台", "すずかけ台", "B2", ["B2-301", "B2-302"]],
   ];
-  const empty = () => DAYS.reduce((o, d) => { o[d] = SLOT_TIMES.map(() => []); return o; }, {});
-  const occ = { "1Q": empty(), "2Q": empty(), "3Q": empty(), "4Q": empty() };
+  const COURSES = [
+    ["CSC.T243", "データ構造とアルゴリズム"], ["MCS.T223", "線形代数学第二"], ["LAS.M102", "微分積分学第二"], ["LAS.P104", "電磁気学基礎２"],
+    ["EEE.C261", "制御工学"], ["MEC.D211", "材料力学第一"], ["LAL.E331", "英語第三"], ["CVE.M203", "測量学"],
+    ["MAT.P204", "物理化学(化学熱力学）"], ["TSE.A233", "工学計測基礎第二"], ["LAH.S101", "哲学A"], ["MCS.T213", "確率と統計"],
+    ["LAL.S204", "スペイン語初級４"], ["CSC.T263", "コンピュータアーキテクチャ"], ["MCS.T335", "数値解析"], ["ARC.D201", "建築設計製図第一"],
+  ];
+  const rooms = SPEC.flatMap(([campus, area, building, list]) => list.map((room) => ({ room, building, campus, area })));
+  const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+  const BUSY = [0.5, 0.55, 0.45, 0.3, 0.1]; // 時限ごとの混み具合
+  const quarters = ["1Q", "2Q", "3Q", "4Q"];
+  const occ = {};
+  for (const q of quarters) {
+    occ[q] = {};
+    for (const d of DAYS) {
+      occ[q][d] = SLOT_START.map((_, s) => rooms
+        .filter((r) => (hash(`${q}${d}${s}${r.room}`) % 1000) / 1000 < BUSY[s])
+        .map((r) => {
+          const [code, name] = COURSES[hash(`${r.room}${q}${d}${s}c`) % COURSES.length];
+          return { room: r.room, classes: [{ code, name }] };
+        }));
+    }
+  }
   const buildings = [...new Set(rooms.map((r) => r.building))];
-  const campuses = ["大岡山", "すずかけ台"];
-  const areas = ["本館・中央", "西地区", "南地区", "石川台地区", "すずかけ台"];
-  // 適当に埋める ({room, classes:[{code,name}]})
-  occ["1Q"]["月"][0] = [
-    { room: "W5-106", classes: [{ code: "CVE.M203", name: "測量学" }] },
-    { room: "M-B07", classes: [{ code: "MAT.P204", name: "物理化学(化学熱力学）" }] },
-    { room: "S2-201", classes: [{ code: "TSE.A233", name: "工学計測基礎第二" }] },
-  ];
-  occ["1Q"]["月"][1] = [
-    { room: "W5-107", classes: [{ code: "MCS.T335", name: "数値解析" }] },
-    { room: "W9-322", classes: [{ code: "LAL.S204", name: "スペイン語初級４" }] },
-  ];
-  occ["1Q"]["火"][2] = [
-    { room: "M-124", classes: [{ code: "LAS.P104", name: "電磁気学基礎２" }] },
-    { room: "S2-204", classes: [{ code: "EEE.C261", name: "制御工学" }] },
-  ];
-  return { year: String(currentAcademicYear()), rooms, buildings, campuses, areas, quarters: ["1Q", "2Q", "3Q", "4Q"], occ, totalCourses: 0 };
+  return { year: String(currentAcademicYear()), rooms, buildings, campuses: ["大岡山", "すずかけ台"], areas: AREA_ORDER.filter((a) => rooms.some((r) => r.area === a)), quarters, occ, totalCourses: 0 };
 })();
+
+// 等幅の切り替え（曜日・時限）。選んだ項目は浮き上がったつまみ、今日・今の時限は文字をアクセント色に
+const Segmented = ({ items, value, onChange, mark }) => {
+  const thumb = isDarkT() ? T.bg4 : T.bg2;
+  return (
+    <div role="tablist" style={{ display: "flex", gap: 2, padding: 3, borderRadius: 11, background: T.bg3 }}>
+      {items.map((it, i) => {
+        const on = i === value;
+        const now = mark === i;
+        return (
+          <button key={i} role="tab" aria-selected={on} className="fr-btn" onClick={() => onChange(i)} style={{
+            flex: 1, minWidth: 0, padding: it.sub ? "5px 2px 4px" : "7px 2px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "inherit",
+            background: on ? thumb : "transparent", boxShadow: on ? "0 1px 3px rgba(0,0,0,.12), 0 1px 1px rgba(0,0,0,.04)" : "none",
+            color: now ? T.accent : on ? T.txH : T.tx, display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
+          }}>
+            <span style={{ fontSize: 13.5, fontWeight: on || now ? 700 : 600, whiteSpace: "nowrap" }}>{it.label}</span>
+            {it.sub && <span style={{ fontSize: 10.5, fontWeight: 500, color: now ? T.accent : T.txD, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{it.sub}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
 
 export const FreeRoomView = ({ mob, goToBuilding }) => {
   const nc = useMemo(() => nowContext(), []);
@@ -220,9 +301,10 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
   const [dayIdx, setDayIdx] = useState(nc.dayIdx);
   const [slot, setSlot] = useState(nc.slot);
   const [campus, setCampus] = useState("大岡山");
-  const [areaFilter, setAreaFilter] = useState(null); // null = 全地域
-  const [status, setStatus] = useState("free"); // "free" | "busy" | "all"
-  const [selRoom, setSelRoom] = useState(null); // {room, building} クリックした教室
+  const [areaFilter, setAreaFilter] = useState(null); // null = 全地区
+  const [showBusy, setShowBusy] = useState(false);
+  const [query, setQuery] = useState("");
+  const [selRoom, setSelRoom] = useState(null); // {room, building, campus, area} クリックした教室
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -263,55 +345,59 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
 
   const day = DAYS[dayIdx];
 
-  // 選択中スロットの使用中教室 → Map<room, classes[]>
-  const occMap = useMemo(() => {
-    const arr = data?.occ?.[quarter]?.[day]?.[slot] || [];
-    const m = new Map();
-    for (const e of arr) m.set(e.room, e.classes || []);
-    return m;
-  }, [data, quarter, day, slot]);
-
-  // 選択中キャンパスに属する教室・地域
-  const campusRooms = useMemo(
-    () => (data?.rooms || []).filter((r) => r.campus === campus),
-    [data, campus]
+  // その曜日の時限ごとの使用中教室 → [Map<room, classes[]>] × 5
+  const busyBySlot = useMemo(
+    () => SLOT_START.map((_, s) => new Map((data?.occ?.[quarter]?.[day]?.[s] || []).map((e) => [e.room, e.classes || []]))),
+    [data, quarter, day]
   );
-  const campusAreas = useMemo(() => {
-    const set = new Set(campusRooms.map((r) => r.area));
-    return AREA_ORDER.filter((a) => set.has(a));
-  }, [campusRooms]);
 
-  // キャンパス内の全教室を 地域 → 建物 で入れ子グルーピング
-  const { areaGroups, freeTotal, busyTotal, roomTotal } = useMemo(() => {
-    let freeTotal = 0, busyTotal = 0;
-    const byArea = new Map(); // area -> Map(building -> rooms[])
+  // 選択中キャンパスの教室（その日の5コマの空き状況つき）
+  const campusRooms = useMemo(
+    () => (data?.rooms || []).filter((r) => r.campus === campus).map((r) => {
+      const strip = busyBySlot.map((m) => m.has(r.room));
+      return { ...r, strip, busy: strip[slot], classes: busyBySlot[slot].get(r.room) || [] };
+    }),
+    [data, campus, busyBySlot, slot]
+  );
+  const q = norm(query);
+  const matchQuery = useCallback(
+    (r) => !q || norm(r.room).includes(q) || norm(r.building).includes(q) || norm(buildingLabel(r.building, r.campus)).includes(q),
+    [q]
+  );
+
+  // 地区ごとの空き数（地区の切り替えに出す）と、表示する教室を 地区 → 建物 にまとめる
+  const { areaStats, groups } = useMemo(() => {
+    const areaStats = new Map();
+    const byArea = new Map();
     for (const r of campusRooms) {
-      const classes = occMap.get(r.room);
-      const busy = !!classes;
-      if (busy) busyTotal++; else freeTotal++;
-      if (status === "free" && busy) continue;
-      if (status === "busy" && !busy) continue;
+      if (!matchQuery(r)) continue;
+      const st = areaStats.get(r.area) || { free: 0, total: 0 };
+      st.total++;
+      if (!r.busy) st.free++;
+      areaStats.set(r.area, st);
       if (areaFilter && r.area !== areaFilter) continue;
+      if (r.busy && !showBusy) continue;
       if (!byArea.has(r.area)) byArea.set(r.area, new Map());
       const bmap = byArea.get(r.area);
       if (!bmap.has(r.building)) bmap.set(r.building, []);
-      bmap.get(r.building).push({ room: r.room, busy, classes: classes || [] });
+      bmap.get(r.building).push(r);
     }
-    const areaGroups = [...byArea.entries()]
-      .map(([area, bmap]) => {
-        const buildings = [...bmap.entries()]
-          .map(([building, list]) => ({
-            building,
-            list: list.sort((a, b) => (a.busy === b.busy ? a.room.localeCompare(b.room) : a.busy ? 1 : -1)),
-          }))
-          .sort((a, b) => (a.building === "その他" ? 1 : b.building === "その他" ? -1 : a.building.localeCompare(b.building)));
-        const count = buildings.reduce((s, b) => s + b.list.length, 0);
-        return { area, buildings, count };
-      })
-      .sort((a, b) => AREA_ORDER.indexOf(a.area) - AREA_ORDER.indexOf(b.area));
-    return { areaGroups, freeTotal, busyTotal, roomTotal: campusRooms.length };
-  }, [campusRooms, occMap, areaFilter, status]);
+    const groups = [...byArea.entries()]
+      .sort((a, b) => AREA_ORDER.indexOf(a[0]) - AREA_ORDER.indexOf(b[0]))
+      .map(([area, bmap]) => ({
+        area,
+        buildings: [...bmap.entries()]
+          .sort((a, b) => (a[0] === "その他" ? 1 : b[0] === "その他" ? -1 : a[0].localeCompare(b[0], "ja", { numeric: true })))
+          .map(([building, list]) => {
+            // その建物の（検索で絞った）全教室での空き数
+            const all = campusRooms.filter((r) => r.building === building && matchQuery(r));
+            return { building, list: sortRooms(list), free: all.filter((r) => !r.busy).length, total: all.length, spotId: spotIdOf(all.map((r) => r.room)) };
+          }),
+      }));
+    return { areaStats, groups };
+  }, [campusRooms, matchQuery, areaFilter, showBusy]);
 
+  const campusAreas = useMemo(() => AREA_ORDER.filter((a) => campusRooms.some((r) => r.area === a)), [campusRooms]);
   const isNow = dayIdx === nc.dayIdx && slot === nc.slot && quarter === nc.quarter && year === String(currentAcademicYear());
   const resetToNow = () => {
     setYear(String(currentAcademicYear()));
@@ -319,191 +405,245 @@ export const FreeRoomView = ({ mob, goToBuilding }) => {
     setDayIdx(nc.dayIdx);
     setSlot(nc.slot);
   };
+  const nowActive = quarter === nc.quarter && year === String(currentAcademicYear());
+  const dayMark = nowActive && !nc.isWeekend ? nc.dayIdx : -1;
+  const slotMark = nowActive && !nc.isWeekend && !nc.offHours && dayIdx === nc.dayIdx ? nc.slot : -1;
 
-  // ワンタップ用ピル
-  const Pill = ({ on, col = T.accent, onClick, children, min }) => (
-    <button onClick={onClick} style={{
-      padding: mob ? "5px 9px" : "5px 11px", minWidth: min, borderRadius: 7, textAlign: "center",
-      border: `1px solid ${on ? col : T.bd}`,
-      background: on ? (col === T.accent ? T.accent : `${col}18`) : T.bg2,
-      color: on ? (col === T.accent ? "#fff" : col) : T.txD,
-      fontSize: mob ? 12 : 12.5, fontWeight: on ? 700 : 600, cursor: "pointer", whiteSpace: "nowrap",
-    }}>{children}</button>
+  const dark = isDarkT();
+  const hair = dark ? T.bd : `${T.bd}a6`; // 行の区切り線
+  const rowH = mob ? 44 : 40;
+  const css = `.fr-row{position:relative}.fr-row+.fr-row::before{content:"";position:absolute;left:31px;right:0;top:0;border-top:1px solid ${hair}}.fr-row:hover{background:${T.bg3}}.fr-btn:focus-visible,.fr-row:focus-visible{outline:2px solid ${T.accent};outline-offset:-2px}.fr-chips::-webkit-scrollbar{display:none}`;
+
+  // ── いつ（曜日・時限）──
+  const timeBlock = (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 28 }}>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 18, fontWeight: 700, color: T.txH }}>
+            {t("dow.f." + day)} {t("period.range", { a: 2 * slot + 1, b: 2 * slot + 2 })}
+          </span>
+          <span style={{ fontSize: 13, color: T.txD, fontVariantNumeric: "tabular-nums" }}>{SLOT_TIMES[slot]}</span>
+        </div>
+        {isNow ? (
+          <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: T.green, whiteSpace: "nowrap" }}>
+            <span style={{ width: 7, height: 7, borderRadius: 4, background: T.green, boxShadow: `0 0 0 3px ${T.green}26` }} />{t("freeroom.nowBadge")}
+          </span>
+        ) : (
+          <button className="fr-btn" onClick={resetToNow} title={t("freeroom.nowTooltip")} style={{ height: 28, padding: "0 12px", borderRadius: 14, border: "none", background: `${T.accent}14`, color: T.accent, fontSize: 12.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}>
+            {t("freeroom.backToNow")}
+          </button>
+        )}
+      </div>
+      <Segmented items={DAYS.map((d) => ({ label: t("dow.s." + d) }))} value={dayIdx} onChange={setDayIdx} mark={dayMark} />
+      <Segmented items={SLOT_START.map((s, i) => ({ label: t("period.range", { a: 2 * i + 1, b: 2 * i + 2 }), sub: s }))} value={slot} onChange={setSlot} mark={slotMark} />
+      {(nc.isWeekend || (nc.offHours && isNow)) && (
+        <div style={{ fontSize: 11.5, color: T.txD }}>{nc.isWeekend ? t("freeroom.weekendNote") : t("freeroom.offHoursNote")}</div>
+      )}
+    </div>
   );
-  const Sep = () => <span style={{ width: 1, height: 18, background: T.bd, margin: "0 2px", flexShrink: 0 }} />;
-  const selStyle = {
-    padding: mob ? "5px 6px" : "5px 8px", borderRadius: 7, border: `1px solid ${T.bd}`,
-    background: T.bg2, color: T.txH, fontSize: mob ? 12 : 12.5, fontWeight: 600, cursor: "pointer", outline: "none",
+
+  // ── どこ（検索・キャンパス・年度とクォーター・使用中も表示）──
+  const campuses = data?.campuses || ["大岡山"];
+  const quarters = data?.quarters?.length ? data.quarters : ["1Q", "2Q", "3Q", "4Q"];
+  const chevron = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='${encodeURIComponent(T.txD)}' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`;
+  const selectSt = {
+    appearance: "none", WebkitAppearance: "none", height: 34, padding: "0 28px 0 11px", borderRadius: 9, border: `1px solid ${T.bd}`,
+    background: `${T.bg2} ${chevron} no-repeat right 10px center`, color: T.txH, fontSize: 13, fontWeight: 600, cursor: "pointer", outline: "none", fontFamily: "inherit", minWidth: 0,
+  };
+  const searchBox = (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 12px", height: 40, borderRadius: 10, background: T.bg2, border: `1px solid ${T.bd}`, color: T.txD }}>
+      <span style={{ display: "flex" }}>{I.search}</span>
+      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("freeroom.search")} aria-label={t("freeroom.search")}
+        style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", color: T.txH, fontSize: 14, fontFamily: "inherit" }} />
+      {query && <button onClick={() => setQuery("")} aria-label="clear" style={{ display: "flex", padding: 0, border: "none", background: "transparent", color: T.txD, cursor: "pointer", transform: "scale(.8)" }}>{I.x}</button>}
+    </div>
+  );
+  const selects = (
+    <>
+      {campuses.length > 1 && (
+        <select value={campus} onChange={(e) => { setCampus(e.target.value); setAreaFilter(null); }} style={{ ...selectSt, flex: mob ? "none" : 1 }} aria-label="campus">
+          {campuses.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      )}
+      <select value={`${year}|${quarter}`} onChange={(e) => { const [y, qq] = e.target.value.split("|"); setYear(y); setQuarter(qq); }} style={{ ...selectSt, flex: mob ? "none" : 1 }} aria-label="term">
+        {yearOpts.flatMap((y) => (y === year ? quarters : ["1Q", "2Q", "3Q", "4Q"]).map((qq) => (
+          <option key={`${y}${qq}`} value={`${y}|${qq}`}>{t("freeroom.yearLabel", { year: y })} {qq}</option>
+        )))}
+      </select>
+    </>
+  );
+  const busySwitch = (
+    <button role="switch" aria-checked={showBusy} className="fr-btn" onClick={() => setShowBusy((v) => !v)} style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: 0, border: "none", background: "transparent", borderRadius: 6,
+      color: T.tx, fontSize: 12.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", width: mob ? "auto" : "100%",
+    }}>
+      {t("freeroom.showBusy")}
+      <span style={{ width: 36, height: 22, borderRadius: 11, background: showBusy ? T.accent : T.bg4, position: "relative", flexShrink: 0, transition: "background .15s" }}>
+        <span style={{ position: "absolute", top: 2, left: showBusy ? 16 : 2, width: 18, height: 18, borderRadius: 9, background: "#fff", transition: "left .15s", boxShadow: "0 1px 2px rgba(0,0,0,.25)" }} />
+      </span>
+    </button>
+  );
+
+  // ── 地区（スマホは横に並べてスクロール、PC は縦の一覧）──
+  const areaItems = [{ key: null, label: t("freeroom.allAreas") }, ...campusAreas.map((a) => ({ key: a, label: a }))];
+  const statOf = (key) => {
+    if (key) return areaStats.get(key) || { free: 0, total: 0 };
+    let free = 0, total = 0;
+    for (const v of areaStats.values()) { free += v.free; total += v.total; }
+    return { free, total };
+  };
+  const areaChips = campusAreas.length > 1 && (
+    <div className="fr-chips" style={mob
+      ? { display: "flex", gap: 6, overflowX: "auto", margin: "0 -12px", padding: "0 12px", scrollbarWidth: "none" }
+      : { display: "flex", flexDirection: "column", gap: 2 }}>
+      {areaItems.map(({ key, label }) => {
+        const on = areaFilter === key;
+        const n = statOf(key).free;
+        return (
+          <button key={label} className="fr-btn" onClick={() => setAreaFilter(key)} style={mob ? {
+            flexShrink: 0, display: "flex", alignItems: "baseline", gap: 5, padding: "6px 12px", borderRadius: 20,
+            border: `1px solid ${on ? T.accent : T.bd}`, background: on ? `${T.accent}14` : T.bg2, color: on ? T.accent : T.tx,
+            fontSize: 12.5, fontWeight: on ? 700 : 600, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
+          } : {
+            display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, border: "none",
+            background: on ? `${T.accent}14` : "transparent", color: on ? T.accent : T.tx, fontSize: 13.5, fontWeight: on ? 700 : 500,
+            cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+          }}>
+            <span style={{ flex: mob ? "none" : 1 }}>{label}</span>
+            <span style={{ fontSize: mob ? 11.5 : 12.5, fontWeight: 500, color: on ? T.accent : T.txD, fontVariantNumeric: "tabular-nums" }}>{n}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  // ── 教室の行（描画のたびに部品を作り直さないよう、ただの関数で描く）──
+  const roomRow = (r) => {
+    const until = freeUntil(r.strip, slot);
+    const nf = r.busy ? nextFree(r.strip, slot) : -1;
+    const c0 = r.classes[0];
+    return (
+      <button key={r.room} className="fr-row" onClick={() => setSelRoom({ room: r.room, building: r.building, campus: r.campus, area: r.area })} title={`${r.room} — ${t("freeroom.clickForWeek")}`} style={{
+        display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: rowH, padding: "0 14px", border: "none",
+        background: "transparent", cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+      }}>
+        <span style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, background: r.busy ? "transparent" : T.green, boxShadow: r.busy ? `inset 0 0 0 1.5px ${T.bd}` : "none" }} />
+        <span style={{ fontSize: 15, fontWeight: 500, color: r.busy ? T.txD : T.txH, minWidth: 0, flexShrink: r.busy ? 0 : 1, maxWidth: r.busy ? "55%" : "none", ...ellipsis }}>{roomName(r.room)}</span>
+        {r.busy && <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: T.txD, ...ellipsis }}>{c0 ? (c0.name || c0.code) : t("freeroom.hasClass")}</span>}
+        <span style={{ marginLeft: "auto", flexShrink: 0, fontSize: 13, color: T.txD, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+          {!r.busy ? t("freeroom.until", { time: SLOT_END[until] }) : nf >= 0 ? t("freeroom.freeFrom", { time: SLOT_START[nf] }) : t("freeroom.noFreeAfter")}
+        </span>
+      </button>
+    );
   };
 
-  return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }}>
-      {/* === 固定ヘッダー (中央寄せ・幅固定) === */}
-      <div style={{ flexShrink: 0, padding: mob ? "10px 12px 9px" : "12px 20px 11px", borderBottom: `1px solid ${T.bd}`, background: T.bg }}>
-        <div style={{ maxWidth: 760, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 7 }}>
-          {/* 行1: キャンパス + 年度/Q */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            {(data?.campuses || ["大岡山"]).map((c) => (
-              <Pill key={c} on={c === campus} onClick={() => { setCampus(c); setAreaFilter(null); }}>{c}</Pill>
-            ))}
-            <Sep />
-            <select value={year} onChange={(e) => setYear(e.target.value)} style={selStyle}>
-              {yearOpts.map((y) => <option key={y} value={y}>{t("freeroom.yearLabel", { year: y })}</option>)}
-            </select>
-            <select value={quarter} onChange={(e) => setQuarter(e.target.value)} style={selStyle}>
-              {(data?.quarters || ["1Q", "2Q", "3Q", "4Q"]).map((q) => <option key={q} value={q}>{q}</option>)}
-            </select>
-          </div>
-
-          {/* 行2: 曜日 + 時限 + 今 */}
-          <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
-            {DAYS.map((d, i) => (
-              <Pill key={d} on={i === dayIdx} onClick={() => setDayIdx(i)} min={mob ? 30 : 34}>{t("dow.s." + d)}</Pill>
-            ))}
-            <Sep />
-            {SLOT_LABEL.map((lbl, i) => (
-              <Pill key={lbl} on={i === slot} onClick={() => setSlot(i)} col={T.accent}>{`${2 * i + 1}-${2 * i + 2}`}</Pill>
-            ))}
-            <button onClick={resetToNow} disabled={isNow} title={t("freeroom.nowTooltip")} style={{
-              display: "flex", alignItems: "center", gap: 3, padding: mob ? "5px 8px" : "5px 10px", borderRadius: 7,
-              border: `1px solid ${isNow ? T.bd : T.accent}`, background: isNow ? T.bg2 : `${T.accent}15`,
-              color: isNow ? T.txD : T.accent, fontSize: mob ? 11.5 : 12.5, fontWeight: 700, cursor: isNow ? "default" : "pointer", opacity: isNow ? 0.6 : 1, whiteSpace: "nowrap",
-            }}>{I.clock}{t("freeroom.now")}</button>
-            <span style={{ fontSize: 11, color: T.txD, marginLeft: 2 }}>{SLOT_TIMES[slot]}</span>
-          </div>
-
-          {/* 行3: 表示ステータス + 地域 */}
-          {!loading && !error && (
-            <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
-              <Pill on={status === "free"} col={T.green} onClick={() => setStatus("free")}>{t("freeroom.statusFree", { n: freeTotal })}</Pill>
-              <Pill on={status === "busy"} col={T.red} onClick={() => setStatus("busy")}>{t("freeroom.statusBusy", { n: busyTotal })}</Pill>
-              <Pill on={status === "all"} col={T.txH} onClick={() => setStatus("all")}>{t("freeroom.statusAll", { n: roomTotal })}</Pill>
-              {campusAreas.length > 1 && <>
-                <Sep />
-                <Pill on={areaFilter === null} col={T.txH} onClick={() => setAreaFilter(null)}>{t("freeroom.allAreas")}</Pill>
-                {campusAreas.map((a) => (
-                  <Pill key={a} on={a === areaFilter} onClick={() => setAreaFilter(a === areaFilter ? null : a)}>{a}</Pill>
-                ))}
-              </>}
-            </div>
-          )}
-          {(nc.isWeekend || (nc.offHours && isNow)) && (
-            <div style={{ fontSize: 10.5, color: T.txD }}>
-              {nc.isWeekend ? t("freeroom.weekendNote") : t("freeroom.offHoursNote")}
-            </div>
+  // ── 建物のカード ──
+  const buildingCard = ({ building, list, free, total, spotId }) => {
+    const name = buildingLabel(building, campus);
+    const canNav = !!spotId && typeof goToBuilding === "function";
+    return (
+      <div key={building} style={{ background: T.bg2, border: `1px solid ${T.bd}`, borderRadius: 14, overflow: "hidden", breakInside: "avoid", marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 50, padding: canNav ? "0 8px 0 14px" : "0 14px", borderBottom: `1px solid ${hair}` }}>
+          <span style={{ fontSize: 15.5, fontWeight: 700, color: T.txH, minWidth: 0, ...ellipsis }}>{name}</span>
+          {name !== building && building !== "その他" && <span style={{ fontSize: 12, fontWeight: 600, color: T.txD, flexShrink: 0 }}>{building}</span>}
+          <span style={{ marginLeft: "auto", flexShrink: 0, fontSize: 12.5, color: T.txD, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+            <b style={{ fontWeight: 700, color: free ? T.txH : T.txD }}>{free}</b> / {t("freeroom.roomCount", { n: total })}
+          </span>
+          {canNav && (
+            <button className="fr-btn" onClick={() => goToBuilding(spotId)} title={t("freeroom.mapTooltip", { name })} aria-label={t("freeroom.mapTooltip", { name })} style={{
+              width: 34, height: 34, borderRadius: 10, border: "none", background: T.bg3, color: T.tx, cursor: "pointer", flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <span style={{ display: "flex", transform: "scale(.85)" }}>{I.map}</span>
+            </button>
           )}
         </div>
+        {list.map(roomRow)}
       </div>
+    );
+  };
 
-      {/* === スクロール本体 === */}
-      <div style={{ flex: 1, overflowY: "auto", padding: mob ? 12 : 20 }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-      {/* 本体 */}
+  const body = (
+    <>
       {loading && <div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 14 }}>{t("common.loading")}</div>}
       {!loading && error && (
         <div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 14 }}>
           {t("freeroom.loadError")}<br /><span style={{ fontSize: 12 }}>{error}</span>
           <div style={{ marginTop: 12 }}>
-            <button onClick={() => load(year)} style={{ padding: "6px 16px", borderRadius: 8, border: "none", background: T.accent, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{t("freeroom.retry")}</button>
+            <button onClick={() => load(year)} style={{ height: 34, padding: "0 16px", borderRadius: 9, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{t("freeroom.retry")}</button>
           </div>
         </div>
       )}
-      {!loading && !error && areaGroups.length === 0 && (
-        <div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 14 }}>
-          {roomTotal === 0
-            ? t("freeroom.emptyNoData")
-            : status === "free" ? t("freeroom.emptyNoFree")
-            : status === "busy" ? t("freeroom.emptyNoBusy")
-            : t("freeroom.emptyNoMatch")}
+      {!loading && !error && groups.length === 0 && (
+        <div style={{ textAlign: "center", padding: "40px 16px", color: T.txD, fontSize: 14, lineHeight: 1.7 }}>
+          {campusRooms.length === 0 ? t("freeroom.emptyNoData") : q ? t("freeroom.emptyNoMatch") : t("freeroom.emptyNoFree")}
+          {!showBusy && campusRooms.length > 0 && !q && (
+            <div style={{ marginTop: 12 }}>
+              <button onClick={() => setShowBusy(true)} style={{ height: 34, padding: "0 14px", borderRadius: 9, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t("freeroom.showBusy")}</button>
+            </div>
+          )}
         </div>
       )}
-
-      {!loading && !error && areaGroups.map(({ area, buildings, count }) => (
-        <div key={area} style={{ marginBottom: 22 }}>
-          {/* 地域ヘッダー */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <div style={{ width: 4, height: 18, borderRadius: 2, background: T.accent }} />
-            <div style={{ flex: 1, fontSize: mob ? 15 : 16, fontWeight: 800, color: T.txH }}>{area}</div>
-            <span style={{ fontSize: 11, fontWeight: 600, color: T.txD }}>{t("freeroom.roomCount", { n: count })}</span>
+      {!loading && !error && groups.map(({ area, buildings }, gi) => (
+        <section key={area} style={{ marginTop: gi === 0 && !mob ? 2 : 22 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "0 4px 8px" }}>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: T.txH }}>{area}</h3>
+            <span style={{ fontSize: 12, color: T.txD }}>{t("freeroom.statusFree", { n: statOf(area).free })}</span>
           </div>
-
-          {/* 建物ごと */}
-          {buildings.map(({ building, list }) => {
-            const col = buildingColor(building);
-            const canNav = building !== "その他" && typeof goToBuilding === "function";
-            return (
-              <div key={building} style={{ marginBottom: 14, marginLeft: mob ? 0 : 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "3px 0", borderBottom: `2px solid ${col}30` }}>
-                  <div style={{ minWidth: 28, height: 26, padding: "0 8px", borderRadius: 8, background: `${col}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: col }}>{building}</div>
-                  <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: T.txH }}>{building === "その他" ? t("freeroom.otherRooms") : t("freeroom.buildingName", { building })}</div>
-                  {canNav && <button onClick={() => goToBuilding(building)} title={t("freeroom.buildingMapTooltip", { building })}
-                    style={{ display: "flex", alignItems: "center", gap: 3, background: "none", border: "none", color: col, fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0 }}>
-                    {I.map}{t("freeroom.map")}
-                  </button>}
-                  <span style={{ fontSize: 11, fontWeight: 600, color: col, padding: "2px 10px", borderRadius: 6, background: `${col}15` }}>{t("freeroom.roomCount", { n: list.length })}</span>
-                </div>
-                {groupByFloor(list).map(({ label, rooms: fRooms }) => (
-                  <div key={label} style={{ marginBottom: 8 }}>
-                    {/* 階(フロア)見出し */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, margin: "4px 0 6px 2px" }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: col, padding: "1px 8px", borderRadius: 5, background: `${col}12`, border: `1px solid ${col}25` }}>{label === "階不明" ? t("freeroom.floorUnknown") : label}</span>
-                      <div style={{ flex: 1, height: 1, background: `${col}15` }} />
-                      <span style={{ fontSize: 10, color: T.txD }}>{t("freeroom.roomCount", { n: fRooms.length })}</span>
-                    </div>
-                    {(() => {
-                      const hasBusy = fRooms.some((r) => r.busy);
-                      const minW = hasBusy ? (mob ? 150 : 220) : (mob ? 92 : 110);
-                      return (
-                        <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${minW}px, 1fr))`, gap: 6, marginLeft: mob ? 0 : 6 }}>
-                          {fRooms.map(({ room, busy, classes }) => busy ? (
-                            <div key={room} onClick={() => setSelRoom({ room, building })} title={t("freeroom.clickForWeek")} style={{
-                              display: "flex", flexDirection: "column", gap: 2, padding: "6px 9px", borderRadius: 9, cursor: "pointer",
-                              border: `1px solid ${T.red}25`, background: `${T.red}08`, minWidth: 0,
-                            }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                <span style={{ color: T.red, display: "flex", flexShrink: 0 }}>{I.pin}</span>
-                                <span style={{ fontSize: mob ? 12.5 : 13.5, fontWeight: 700, color: T.txH }}>{room}</span>
-                              </div>
-                              {classes.length === 0
-                                ? <span style={{ fontSize: 11, color: T.txD }}>{t("freeroom.hasClass")}</span>
-                                : <div style={{ display: "flex", alignItems: "baseline", gap: 5, overflow: "hidden", paddingLeft: 2 }}>
-                                    {classes[0].code && <span style={{ fontSize: 10.5, fontWeight: 700, color: T.red, flexShrink: 0 }}>{classes[0].code}</span>}
-                                    <span style={{ fontSize: 11.5, color: T.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                      {classes[0].name || t("freeroom.noCourseName")}{classes.length > 1 ? t("freeroom.andMore", { n: classes.length - 1 }) : ""}
-                                    </span>
-                                  </div>}
-                            </div>
-                          ) : (
-                            <div key={room} onClick={() => setSelRoom({ room, building })} title={t("freeroom.clickForWeek")} style={{
-                              display: "flex", alignItems: "center", gap: 5, padding: "7px 9px", borderRadius: 9, cursor: "pointer",
-                              border: `1px solid ${T.green}30`, background: `${T.green}0c`, minWidth: 0,
-                            }}>
-                              <span style={{ color: T.green, display: "flex", flexShrink: 0 }}>{I.pin}</span>
-                              <span style={{ fontSize: mob ? 12.5 : 13.5, fontWeight: 700, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{room}</span>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
+          <div style={mob ? undefined : { columnWidth: 300, columnGap: 12 }}>
+            {buildings.map(buildingCard)}
+          </div>
+        </section>
       ))}
+      {!loading && !error && (
+        <div style={{ fontSize: 11, color: T.txD, margin: "14px 4px 0", lineHeight: 1.6 }}>{t("freeroom.disclaimer")}</div>
+      )}
+    </>
+  );
 
-      <div style={{ fontSize: 10, color: T.txD, marginTop: 16, lineHeight: 1.6 }}>
-        {t("freeroom.disclaimer")}
-      </div>
-      </div>
-      </div>
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: T.bg }}>
+      <style>{css}</style>
+      {mob ? (
+        <>
+          {/* スマホ：いつ（曜日・時限）だけを上に固定し、ほかは一覧と一緒に流れる */}
+          <div style={{ flexShrink: 0, padding: "10px 12px 12px", background: T.bg, borderBottom: `1px solid ${hair}`, zIndex: 2 }}>
+            {timeBlock}
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: "12px 12px 28px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {searchBox}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {selects}
+                <div style={{ flex: 1 }} />
+                {busySwitch}
+              </div>
+              {areaChips}
+            </div>
+            {body}
+          </div>
+        </>
+      ) : (
+        <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 24, padding: "16px 20px 0", maxWidth: 1320, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+          {/* PC：左に条件（いつ・どこ・地区）、右に結果 */}
+          <aside style={{ width: 296, flexShrink: 0, overflowY: "auto", paddingBottom: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ padding: 14, borderRadius: 14, background: T.bg2, border: `1px solid ${T.bd}` }}>{timeBlock}</div>
+            {searchBox}
+            <div style={{ display: "flex", gap: 6 }}>{selects}</div>
+            <div style={{ padding: "0 2px" }}>{busySwitch}</div>
+            {areaChips && <div style={{ padding: 6, borderRadius: 14, background: T.bg2, border: `1px solid ${T.bd}` }}>{areaChips}</div>}
+          </aside>
+          <main style={{ flex: 1, minWidth: 0, overflowY: "auto", paddingBottom: 24 }}>
+            {body}
+          </main>
+        </div>
+      )}
 
       {selRoom && (
         <RoomScheduleModal
           sel={selRoom} occ={data?.occ} quarter={quarter} year={year} mob={mob}
           nowDay={nc.dayIdx} nowSlot={nc.slot}
-          nowActive={quarter === nc.quarter && year === String(currentAcademicYear())}
+          nowActive={nowActive}
           onClose={() => setSelRoom(null)} goToBuilding={goToBuilding}
         />
       )}

@@ -1,0 +1,892 @@
+{
+ "au_booth": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#241a14",
+  "bottom": "#241a14",
+  "dark": true,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "au_booth_coupon": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#241a14",
+  "bottom": "#241a14",
+  "dark": true,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "au_fest": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#241a14",
+  "bottom": "#241a14",
+  "dark": true,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "au_fest_grid": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#241a14",
+  "bottom": "#241a14",
+  "dark": true,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "au_home": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#241a14",
+  "bottom": "#241a14",
+  "dark": true,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "lang_en": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "lang_ja": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "lang_ko": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "lang_tp": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "lang_tp_sp": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "lang_zh": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "sp_circles": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#fff8f9",
+  "bottom": "#fff8f9",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 46.0
+ },
+ "sp_events": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#fff8f9",
+  "bottom": "#fff8f9",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "sp_home": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#fff8f9",
+  "bottom": "#fff8f9",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "sp_home_tall": {
+  "w": 1170,
+  "h": 4500,
+  "css_h": 1500,
+  "top": "#fff8f9",
+  "bottom": "#fff8f9",
+  "dark": false,
+  "tab_top": 1450.0,
+  "header": 54.0
+ },
+ "sp_navi_guide": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#fff8f9",
+  "bottom": "#fff8f9",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "sp_navi_map": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#fff8f9",
+  "bottom": "#fff8f9",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "sp_navi_route": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#fff8f9",
+  "bottom": "#fff8f9",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "sp_navi_spot": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#fff8f9",
+  "bottom": "#fff8f9",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "sp_tt": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#fff8f9",
+  "bottom": "#fff8f9",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 46.0
+ },
+ "su_asgn": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f8fcf8",
+  "bottom": "#f8fcf8",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "su_attendance": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f8fcf8",
+  "bottom": "#f8fcf8",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "su_dm": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f8fcf8",
+  "bottom": "#f8fcf8",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "su_dm_chat": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f8fcf8",
+  "bottom": "#f8fcf8",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "su_free": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f8fcf8",
+  "bottom": "#f8fcf8",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "su_free_busy": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f8fcf8",
+  "bottom": "#f8fcf8",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "su_free_modal": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#888a88",
+  "bottom": "#f8fcf8",
+  "dark": false,
+  "tab_top": null,
+  "header": 54.0
+ },
+ "su_friends": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f8fcf8",
+  "bottom": "#f8fcf8",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "su_home": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f8fcf8",
+  "bottom": "#f8fcf8",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "su_notif": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f8fcf8",
+  "bottom": "#f8fcf8",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "su_tasks": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f8fcf8",
+  "bottom": "#f8fcf8",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_coral": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#fff8f6",
+  "bottom": "#fff8f6",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_dark": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#1a1a1f",
+  "bottom": "#1a1a1f",
+  "dark": true,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_koyo": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#241a14",
+  "bottom": "#241a14",
+  "dark": true,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_lavender": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#faf8ff",
+  "bottom": "#faf8ff",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_lemon": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#fdfcf5",
+  "bottom": "#fdfcf5",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_light": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#ffffff",
+  "bottom": "#ffffff",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_mint": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fcf9",
+  "bottom": "#f6fcf9",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_mizukumori": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#fdfdfe",
+  "bottom": "#fdfdfe",
+  "dark": false,
+  "tab_top": null,
+  "header": null
+ },
+ "th_peach": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#fff9f5",
+  "bottom": "#fff9f5",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_sakura": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#fff8f9",
+  "bottom": "#fff8f9",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_scitokyo": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#18181f",
+  "bottom": "#18181f",
+  "dark": true,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_shinryoku": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f8fcf8",
+  "bottom": "#f8fcf8",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_sky": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6faff",
+  "bottom": "#f6faff",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_titech": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#0e1e36",
+  "bottom": "#0e1e36",
+  "dark": true,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_tmdu": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#0e2422",
+  "bottom": "#0e2422",
+  "dark": true,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_tsubame": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "th_yuki": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f8fafc",
+  "bottom": "#f8fafc",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_acadCal": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#eef5fb",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": null
+ },
+ "wall_attendance": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_calendar": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_circles": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 46.0
+ },
+ "wall_dm": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_events": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_exams": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_festival": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_freeroom": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_freshman": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_friends": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_grades": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_gym": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_home": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_languages": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 48.0
+ },
+ "wall_lecrec": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#eef5fb",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": null
+ },
+ "wall_library": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_moreMenu": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_music": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_notes": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_notif": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_pdftools": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_pocket": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_pomo": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_profile": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_qr": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_reviews": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_search": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_takiplaza": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_tasks": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_textbooks": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_timetable": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 46.0
+ },
+ "wall_train": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_tsubame": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wi_acadcal": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f0f4f8",
+  "bottom": "#f8fafc",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": null
+ },
+ "wi_calendar": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f8fafc",
+  "bottom": "#f8fafc",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wi_exams": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f8fafc",
+  "bottom": "#f8fafc",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wi_gpa": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f8fafc",
+  "bottom": "#f8fafc",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wi_grades": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f8fafc",
+  "bottom": "#f8fafc",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wi_grading": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#ffffff",
+  "bottom": "#ffffff",
+  "dark": false,
+  "tab_top": null,
+  "header": null
+ },
+ "wi_home": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f8fafc",
+  "bottom": "#f8fafc",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ }
+}

@@ -1,14 +1,16 @@
 """撮った画面の上下の色と、ヘッダー下端・タブバー上端（CSS px）を測って src/promo2/screens.json に書く。
 動画側で、ステータスバー（54px）とホームインジケータ（20px）の帯をこの色で塗り、縦長の画面はヘッダーとタブバーを固定してスクロールさせる。
-    python promo-video/capture/measure_screens.py
+    python promo-video/capture/measure_screens.py          … ver2 の画面（public/promo2/screens → src/promo2/screens.json）
+    python promo-video/capture/measure_screens.py film     … 最高傑作版の画面（public/film/screens → src/film/screens.json）
 """
-import glob, json, os
+import glob, json, os, sys
 import numpy as np
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(HERE, '..', 'public', 'promo2', 'screens')
-OUT = os.path.join(HERE, '..', 'src', 'promo2', 'screens.json')
+KIND = sys.argv[1] if len(sys.argv) > 1 else 'promo2'
+SRC = os.path.join(HERE, '..', 'public', KIND, 'screens')
+OUT = os.path.join(HERE, '..', 'src', KIND, 'screens.json')
 
 def hexc(c):
     return '#%02x%02x%02x' % tuple(int(v) for v in c)

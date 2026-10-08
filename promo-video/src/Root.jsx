@@ -5,6 +5,14 @@ import { T, FPS, W, H } from './promo/theme.js';
 import { Campus3DCheck } from './promo2/dev/Campus3DCheck.jsx';
 import { AppPromoV2 } from './promo2/AppPromoV2.jsx';
 import { T2 } from './promo2/theme2.js';
+import { StoryPromo } from './story/StoryPromo.jsx';
+import { SH, SW, TS } from './story/theme.js';
+import { FestPromo } from './fest/FestPromo.jsx';
+import { TF } from './fest/theme.js';
+import { AppPromoFilm } from './film/AppPromoFilm.jsx';
+import { TL } from './film/theme.js';
+import { PhoneCheck } from './film/dev/PhoneCheck.jsx';
+import { TX, XPromo, XS } from './x/XPromo.jsx';
 
 export const RemotionRoot = () => {
   return (
@@ -47,6 +55,16 @@ export const RemotionRoot = () => {
       />
       {/* アプリ紹介アニメーション ver2（実画面・ある学生の1日・約59秒） */}
       <Composition id="AppPromoV2" component={AppPromoV2} durationInFrames={T2.total} fps={FPS} width={W} height={H} />
+      {/* インスタのストーリー用の縦動画（1080x1920・約20秒） */}
+      <Composition id="StoryPromo" component={StoryPromo} durationInFrames={TS.total} fps={FPS} width={SW} height={SH} />
+      {/* 工大祭の出店団体むけ「出店を宣伝しませんか？」の縦動画（1080x1920・約23.6秒） */}
+      <Composition id="FestPromo" component={FestPromo} durationInFrames={TF.total} fps={FPS} width={SW} height={SH} />
+      {/* 最高傑作版（季節のテーマで1年をたどる・曲を通しで使う・約3分） */}
+      <Composition id="AppPromoFilm" component={AppPromoFilm} durationInFrames={TL.total} fps={FPS} width={W} height={H} />
+      {/* X（Twitter）のタイムライン用（1080x1080・約30秒・工大祭は扱わない） */}
+      <Composition id="XPromo" component={XPromo} durationInFrames={TX.total} fps={FPS} width={XS} height={XS} />
+      {/* 開発用：3Dモデルの端末の見え方の確認 */}
+      <Composition id="PhoneCheck" component={PhoneCheck} durationInFrames={1} fps={FPS} width={W} height={H} />
       {/* 開発用：ver2 の3Dキャンパスのカメラ確認（--props で調整） */}
       <Composition id="Campus3DCheck" component={Campus3DCheck} durationInFrames={1} fps={FPS} width={W} height={H} />
     </>

@@ -40,6 +40,8 @@ function SubmitSheet({a,mob,onClose,onSubmitted,onRemoved}){
   const inputRef=useRef(null);
 
   useEffect(()=>{
+    // デモ：Moodle には問い合わせず「未提出」から始める
+    if(isDemoMode()){setStatus({lastattempt:{submissionsenabled:true,canedit:true}});setLoading(false);return undefined;}
     let alive=true;
     (async()=>{
       try{
@@ -125,11 +127,21 @@ function SubmitSheet({a,mob,onClose,onSubmitted,onRemoved}){
 
   const doSubmit=async()=>{
     if(!files.length||busy||vErr)return;
-    if(isDemoMode()){setErr(t("asgn.submitDemo"));return;}
     const names=files.map(finalName).join("\n");
     if(!window.confirm(t("asgn.submitConfirm",{files:names})))return;
     setBusy(true);setErr(null);
     try{
+      if(isDemoMode()){
+        // デモ：どこにも送らず、本番と同じ段階を進めて提出済みにする
+        const wait=(ms)=>new Promise(r=>setTimeout(r,ms));
+        setPhase(t("asgn.submitUploading"));await wait(400);
+        setPhase(t("asgn.submitSending"));await wait(300);
+        setPhase(t("asgn.submitVerifying"));await wait(200);
+        setStatus({lastattempt:{submissionsenabled:true,canedit:true,submission:{plugins:[{type:"file",fileareas:[{area:"submission_files",files:files.map(f=>({filename:finalName(f),filesize:f.file.size,mimetype:f.file.type}))}]}]}}});
+        setDone(true);
+        onSubmitted?.();
+        return;
+      }
       setPhase(t("asgn.submitUploading"));
       const {wstoken}=await getClientToken();
       const {itemid}=await uploadDraftFiles(wstoken,files.map(f=>({file:f.file,name:finalName(f)})));
@@ -148,7 +160,7 @@ function SubmitSheet({a,mob,onClose,onSubmitted,onRemoved}){
 
   const doRemove=async()=>{
     if(removing||busy)return;
-    if(isDemoMode()){setErr(t("asgn.submitDemo"));return;}
+    if(isDemoMode()){setStatus({lastattempt:{submissionsenabled:true,canedit:true}});setFiles([]);setDone(false);onRemoved?.();return;}
     if(!window.confirm(t("asgn.removeConfirm")))return;
     setRemoving(true);setErr(null);
     try{
@@ -380,7 +392,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
 
   // Detail (mobile: full page)
   if(sel&&mob){
-    const a=sel,co=courses.find(x=>x.id===a.cid),at=aMap()[a.type],dl=uDue(a.due),si=sMap()[a.st],p=pDone(a.subs);
+    const a=asgn.find(x=>x.id===sel.id)||sel,co=courses.find(x=>x.id===a.cid),at=aMap()[a.type],dl=uDue(a.due),si=sMap()[a.st],p=pDone(a.subs);
     return(
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:mob?14:20}}>
         <button onClick={()=>setSel(null)} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",color:T.txD,fontSize:13,cursor:"pointer",marginBottom:12,padding:0}}>{I.back} {t("common.back")}</button>
@@ -695,7 +707,7 @@ export const AsgnView=({asgn,setAsgn,course,mob,myTasks,addTask,toggleTask,delet
         {/* PC Right Panel */}
         {!mob&&showTabs&&(tab==="active"||tab==="done")&&<div style={{width:340,flexShrink:0,borderLeft:`1px solid ${T.bd}`,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:14}}>
           {sel?(()=>{
-            const a=sel,co=courses.find(x=>x.id===a.cid),at=aMap()[a.type],dl=uDue(a.due),si=sMap()[a.st],p=pDone(a.subs);
+            const a=asgn.find(x=>x.id===sel.id)||sel,co=courses.find(x=>x.id===a.cid),at=aMap()[a.type],dl=uDue(a.due),si=sMap()[a.st],p=pDone(a.subs);
             return <>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
                 <span style={{fontSize:14,fontWeight:700,color:T.txH}}>{t("asgn.detailTitle")}</span>

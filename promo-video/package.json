@@ -16,13 +16,27 @@
     "promo:render": "remotion render src/index.js AppPromo out/app-promo.mp4 --color-space=bt709 --timeout=180000",
     "promo2:capture": "node capture/capture_v2.mjs",
     "promo2:frames": "node preview_frames.mjs --id=AppPromoV2",
-    "promo2:render": "remotion render src/index.js AppPromoV2 out/app-promo-v2.mp4 --color-space=bt709 --timeout=180000"
+    "promo2:render": "remotion render src/index.js AppPromoV2 out/app-promo-v2.mp4 --color-space=bt709 --timeout=180000",
+    "story:capture": "node capture/capture_story.mjs",
+    "story:frames": "node preview_frames.mjs --id=StoryPromo",
+    "story:render": "remotion render src/index.js StoryPromo out/story-promo.mp4 --color-space=bt709 --timeout=180000",
+    "fest:capture": "node capture/capture_fest.mjs && python capture/measure_screens.py",
+    "fest:frames": "node preview_frames.mjs --id=FestPromo",
+    "fest:render": "remotion render src/index.js FestPromo out/fest-promo.mp4 --color-space=bt709 --timeout=180000",
+    "film:capture": "node capture/capture_film.mjs && python capture/measure_screens.py film",
+    "film:record": "node capture/record_film.mjs && python capture/measure_recs.py && python capture/make_rec_thumbs.py",
+    "film:sfx": "python make_film_sfx.py",
+    "film:frames": "node preview_frames.mjs --id=AppPromoFilm",
+    "film:render": "node render_film.mjs",
+    "film:preview": "node render_film.mjs --scale=0.5",
+    "x:render": "remotion render src/index.js XPromo out/x_v.mp4 --gl=angle --codec=h264 --crf=18 --color-space=bt709 --muted && remotion render src/index.js XPromo out/x_a.wav --codec=wav && node_modules/@remotion/compositor-win32-x64-msvc/ffmpeg.exe -v error -y -i out/x_v.mp4 -i out/x_a.wav -map 0:v -map 1:a -c:v copy -bsf:v h264_metadata=colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1:video_full_range_flag=0 -c:a aac -b:a 320k -movflags +faststart out/x-promo.mp4"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.0",
     "@remotion/media-utils": "^4.0.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "remotion": "^4.0.0"
+    "remotion": "^4.0.0",
+    "three": "^0.169.0"
   }
 }

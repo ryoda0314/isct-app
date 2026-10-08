@@ -1,309 +1,223 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect } from "react";
+import { createFogSim } from "../fogSim.js";
+import { createFogRenderer, createFogRenderer2D } from "../fogGL.js";
 
 /**
- * 水曇りオーバーレイ — 画面全体を曇りガラスのように覆い、
- * 指（マウス）でぬぐうと見えるようになる。
- * しばらく放置すると再び曇り始める。
+ * 水曇りオーバーレイ（テーマ「水曇り」）— 画面全体が結露したガラスになる。
+ * 指（マウスはドラッグ）でなぞると拭ける。拭き取った水は縁に寄って水滴になり、
+ * 端末の傾きの向きへ垂れて、ほかの粒を集めながら通り道を晴らす。しばらくすると拭いた所から曇り直す。
  *
- * 2層構造:
- *  - 下: backdrop-filter blur で本物のすりガラス効果
- *  - 上: Canvas で alpha mask（ぬぐった所だけ穴を開ける）+ 水滴テクスチャ
+ * 層（どれも pointer-events:none。UI の操作は一切じゃましない）:
+ *  - すりガラス: backdrop-filter のぼかし。曇りの濃さを mask-image にして、拭いた所だけ澄ませる。
+ *    マスクの差し替えで一瞬ぼかしが消えないよう、2 枚を交互に使う（新しい方を上に重ねてから古い方を隠す）
+ *  - 曇りと水滴: WebGL（fogGL.js）。ガラスの状態は fogSim.js
+ * 変化がない間は描画を止める。
  */
 
-const BRUSH = 25;
-const REFOG_DELAY = 5000;
-const REFOG_SPEED = 0.3;
-const FOG_ALPHA = 255;
+const BLUR = "blur(10px) saturate(1.25)";
+const MASK_MS = 80;          // ぼかしのマスクを作り直す間隔の下限
+const R_TOUCH = 24, R_MOUSE = 22, R_PEN = 9;
+const D2R = Math.PI / 180;
 
-// 水滴テクスチャ
-function drawDroplets(ctx, w, h) {
-  // 大きめの水滴
-  const bigCount = Math.floor((w * h) / 12000);
-  for (let i = 0; i < bigCount; i++) {
-    const x = Math.random() * w;
-    const y = Math.random() * h;
-    const rx = 2 + Math.random() * 5;
-    const ry = rx * (1.1 + Math.random() * 1.0);
-    ctx.save();
-    ctx.beginPath();
-    ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
-    const grad = ctx.createRadialGradient(x - rx * 0.3, y - ry * 0.3, 0, x, y, Math.max(rx, ry));
-    grad.addColorStop(0, "rgba(255,255,255,0.45)");
-    grad.addColorStop(0.4, "rgba(240,244,250,0.25)");
-    grad.addColorStop(1, "rgba(220,228,240,0.05)");
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.restore();
-  }
+const layer = { position: "absolute", inset: 0, pointerEvents: "none" };
 
-  // 細かい霧粒
-  const smallCount = Math.floor((w * h) / 500);
-  for (let i = 0; i < smallCount; i++) {
-    const x = Math.random() * w;
-    const y = Math.random() * h;
-    const r = 0.3 + Math.random() * 1.2;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255,255,255,${0.1 + Math.random() * 0.25})`;
-    ctx.fill();
-  }
-
-  // 水が垂れた跡
-  const streakCount = Math.floor(w / 40);
-  for (let i = 0; i < streakCount; i++) {
-    const x = Math.random() * w;
-    const y0 = Math.random() * h * 0.15;
-    const len = 80 + Math.random() * 400;
-    const wobble = 1.5 + Math.random() * 3;
-    ctx.beginPath();
-    ctx.moveTo(x, y0);
-    for (let dy = 0; dy < len; dy += 2) {
-      ctx.lineTo(x + Math.sin(dy * 0.03) * wobble, y0 + dy);
-    }
-    ctx.strokeStyle = `rgba(255,255,255,${0.03 + Math.random() * 0.06})`;
-    ctx.lineWidth = 0.8 + Math.random() * 2;
-    ctx.stroke();
-  }
+export default function FogOverlay() {
+  const root = useRef(null);
+  const blurA = useRef(null);
+  const blurB = useRef(null);
+  useEffect(() => startFog(root.current, [blurA.current, blurB.current]), []);
+  return (
+    <div ref={root} aria-hidden="true" style={{ position: "fixed", inset: 0, zIndex: 99989, pointerEvents: "none", userSelect: "none", WebkitTouchCallout: "none" }}>
+      <div ref={blurA} style={{ ...layer, visibility: "hidden" }} />
+      <div ref={blurB} style={{ ...layer, visibility: "hidden" }} />
+    </div>
+  );
 }
 
-// 垂れる水滴 — 窓を伝うようにつーっと流れる（軌跡のみ）
-const DRIP_WOBBLE = 0.08;
-export default function FogOverlay() {
-  const maskRef = useRef(null);
-  const texRef = useRef(null);
-  const fogRef = useRef(null);
-  const lastTouchRef = useRef(0);
-  const rafRef = useRef(null);
-  const sizeRef = useRef({ w: 0, h: 0 });
-  const dropletsRef = useRef(null);
-  const dripsRef = useRef([]);        // アクティブな垂れ水滴リスト
+const supports = (prop, val) => typeof CSS !== "undefined" && CSS.supports?.(prop, val);
 
-  const setupCanvas = useCallback(() => {
-    const mask = maskRef.current;
-    const tex = texRef.current;
-    if (!mask || !tex) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = Math.ceil(window.innerWidth * dpr);
-    const h = Math.ceil(window.innerHeight * dpr);
+// 直前に外したオーバーレイのガラス。スマホ⇔PC のレイアウト切り替え（App が別の場所に付け直す）や
+// StrictMode の付け直しでは、曇り直しの演出をやり直さず、拭いた跡ごと引き継ぐ
+let kept = null;
+const KEEP_MS = 2000;
 
-    for (const cvs of [mask, tex]) {
-      cvs.width = w;
-      cvs.height = h;
-      cvs.style.width = window.innerWidth + "px";
-      cvs.style.height = window.innerHeight + "px";
+function startFog(root, blurEls) {
+  const reduced = !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const sim = kept && performance.now() - kept.at < KEEP_MS ? kept.sim : createFogSim(window.innerWidth, window.innerHeight, { reduced });
+  kept = null;
+  sim.resize(window.innerWidth, window.innerHeight);
+  // canvas はマウントごとに作る（StrictMode の再マウントで、捨てた WebGL コンテキストを掴まないように）。
+  // WebGL が使えなければ別の canvas で 2D に切り替える
+  const makeCanvas = () => {
+    const c = document.createElement("canvas");
+    Object.assign(c.style, { ...layer, width: "100%", height: "100%", zIndex: "2" });
+    root.appendChild(c);
+    return c;
+  };
+  let canvas = makeCanvas();
+  let gfx = createFogRenderer(canvas, { onRestore: () => { lightDirty = true; wake(); } });
+  if (!gfx) { canvas.remove(); canvas = makeCanvas(); gfx = createFogRenderer2D(canvas); }
+  if (!gfx) { canvas.remove(); return () => {}; }
+  const canBlur = (supports("backdrop-filter", "blur(2px)") || supports("-webkit-backdrop-filter", "blur(2px)"))
+    && (supports("mask-image", "none") || supports("-webkit-mask-image", "none"));
+  const opacity = canBlur ? 0.6 : 1.3;   // ぼかせないときは、白い膜だけで文字が読めない濃さにする（描くときに 0.97 で頭打ち）
+
+  let raf = 0, timer = 0, last = performance.now(), destroyed = false;
+  let maskDirty = true, lastMask = -1e9, swapping = false, lightDirty = true;
+  let [front, back] = blurEls;
+  const mask = document.createElement("canvas");
+  const mctx = mask.getContext("2d");
+  let mimg = null;
+
+  // ── 光と重力（傾きセンサーがあれば使う。許可の確認はしない） ──
+  let gvx = 0, gvy = 0.85;
+  const light = { x: 0, y: 0 }, grav = { x: 0, y: 1 };
+  const aim = () => {
+    const m = Math.hypot(gvx, gvy);
+    grav.x = m > 1e-3 ? gvx / m : 0;
+    grav.y = m > 1e-3 ? gvy / m : 1;
+    // 光は「上」から少し左。傾けると映り込みが動く
+    const k = 0.35 + 0.6 * Math.min(1, m), c = Math.cos(-0.5), s = Math.sin(-0.5);
+    light.x = (-grav.x * c + grav.y * s) * k;
+    light.y = (-grav.x * s - grav.y * c) * k;
+  };
+  aim();
+
+  const setSize = () => {
+    const g = sim.grid, scale = Math.min(window.devicePixelRatio || 1, 1.75);
+    gfx.resize(window.innerWidth, window.innerHeight, scale, g.gw, g.gh, g.cell);
+    gfx.upload(g.bytes);
+    mask.width = g.gw;
+    mask.height = g.gh;
+    mimg = mctx.createImageData(g.gw, g.gh);
+    const sz = `${g.gw * g.cell}px ${g.gh * g.cell}px`;
+    for (const el of blurEls) {
+      el.style.setProperty("mask-size", sz);
+      el.style.setProperty("-webkit-mask-size", sz);
     }
-    sizeRef.current = { w, h };
-
-    fogRef.current = new Uint8Array(w * h);
-    fogRef.current.fill(FOG_ALPHA);
-
-    const offscreen = document.createElement("canvas");
-    offscreen.width = w;
-    offscreen.height = h;
-    drawDroplets(offscreen.getContext("2d"), w, h);
-    dropletsRef.current = offscreen;
-
-    lastTouchRef.current = 0;
-  }, []);
-
-  const wipe = useCallback((clientX, clientY) => {
-    const fog = fogRef.current;
-    if (!fog) return;
-    const { w, h } = sizeRef.current;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const cx = Math.round(clientX * dpr);
-    const cy = Math.round(clientY * dpr);
-    const r = Math.round(BRUSH * dpr);
-    const r2 = r * r;
-
-    const x0 = Math.max(0, cx - r);
-    const x1 = Math.min(w - 1, cx + r);
-    const y0 = Math.max(0, cy - r);
-    const y1 = Math.min(h - 1, cy + r);
-
-    for (let y = y0; y <= y1; y++) {
-      for (let x = x0; x <= x1; x++) {
-        const dx = x - cx;
-        const dy = y - cy;
-        const d2 = dx * dx + dy * dy;
-        if (d2 < r2) {
-          const t = 1 - Math.sqrt(d2) / r;
-          const idx = y * w + x;
-          fog[idx] = Math.max(0, fog[idx] - Math.round(t * 200));
-        }
+    maskDirty = lightDirty = true;
+  };
+  if (canBlur) {
+    for (const el of blurEls) {
+      for (const [k, v] of [["backdrop-filter", BLUR], ["mask-repeat", "no-repeat"], ["mask-position", "0 0"]]) {
+        el.style.setProperty(k, v);
+        el.style.setProperty("-webkit-" + k, v);
       }
     }
-    lastTouchRef.current = performance.now();
-  }, []);
+  }
+  setSize();
 
-  useEffect(() => {
-    setupCanvas();
-    window.addEventListener("resize", setupCanvas);
+  const nextFrame = () => new Promise((r) => requestAnimationFrame(r));
+  const refreshMask = async (now) => {
+    swapping = true;
+    maskDirty = false;
+    lastMask = now;
+    sim.buildMask(mimg.data);
+    mctx.putImageData(mimg, 0, 0);
+    const url = mask.toDataURL();
+    // 読み込みを済ませてから差し替える（WebKit は data URL も非同期に読む）
+    try { const im = new Image(); im.src = url; await im.decode(); } catch {}
+    if (destroyed) return;
+    back.style.setProperty("mask-image", `url("${url}")`);
+    back.style.setProperty("-webkit-mask-image", `url("${url}")`);
+    back.style.zIndex = "1";
+    front.style.zIndex = "0";
+    back.style.visibility = "visible";
+    await nextFrame();
+    await nextFrame();
+    if (destroyed) return;
+    front.style.visibility = "hidden";
+    [front, back] = [back, front];
+    swapping = false;
+    if (maskDirty) wake();
+  };
 
-    const render = () => {
-      const mask = maskRef.current;
-      const tex = texRef.current;
-      const fog = fogRef.current;
-      if (!mask || !tex || !fog) { rafRef.current = requestAnimationFrame(render); return; }
-      const mctx = mask.getContext("2d");
-      const tctx = tex.getContext("2d");
-      const { w, h } = sizeRef.current;
+  const frame = (now) => {
+    raf = 0;
+    const r = sim.step((now - last) / 1000);
+    last = now;
+    if (r.changed) { gfx.upload(sim.grid.bytes); maskDirty = true; }
+    if (r.changed || r.dropsChanged || lightDirty) {
+      gfx.render(sim.drops, light, grav, opacity);
+      lightDirty = false;
+    }
+    let next = r.next;
+    if (canBlur && maskDirty) {
+      if (!swapping && now - lastMask >= MASK_MS) refreshMask(now);
+      else next = Math.min(next, Math.max(0, (MASK_MS - (now - lastMask)) / 1000));
+    }
+    schedule(next);
+  };
+  const schedule = (sec) => {
+    if (destroyed || raf || timer) return;
+    if (sec <= 0.017) raf = requestAnimationFrame(frame);
+    else if (sec !== Infinity) timer = setTimeout(() => { timer = 0; raf = requestAnimationFrame(frame); }, Math.min(sec, 10) * 1000);
+  };
+  const wake = () => {
+    if (destroyed) return;
+    if (timer) { clearTimeout(timer); timer = 0; }
+    if (!raf) raf = requestAnimationFrame(frame);
+  };
 
-      // re-fog
-      const now = performance.now();
-      const sinceTouch = now - lastTouchRef.current;
-      if (lastTouchRef.current > 0 && sinceTouch > REFOG_DELAY) {
-        const speed = Math.min(REFOG_SPEED * (1 + (sinceTouch - REFOG_DELAY) / 4000), 3.5);
-        for (let i = 0, len = fog.length; i < len; i++) {
-          if (fog[i] < FOG_ALPHA) fog[i] = Math.min(FOG_ALPHA, fog[i] + speed);
-        }
-      }
+  // ── 入力（window で拾うだけ。preventDefault はしない） ──
+  // 指はタッチイベントで拾う（スクロールが始まると pointer イベントは pointercancel で止まるため）
+  const hasTouch = "ontouchstart" in window;
+  const touchR = (t) => {
+    const m = Math.max(t.radiusX || 0, t.radiusY || 0);
+    return m > 4 ? Math.min(34, Math.max(16, m * 1.15)) : R_TOUCH;
+  };
+  const onTouchStart = (e) => { for (const t of e.changedTouches) sim.begin("t" + t.identifier, t.clientX, t.clientY, touchR(t)); wake(); };
+  const onTouchMove = (e) => { for (const t of e.changedTouches) sim.move("t" + t.identifier, t.clientX, t.clientY); wake(); };
+  const onTouchEnd = (e) => { for (const t of e.changedTouches) sim.end("t" + t.identifier); wake(); };
+  const isTouch = (e) => e.pointerType === "touch" && hasTouch;
+  const penR = (e) => (e.pointerType === "pen" ? R_PEN : e.pointerType === "touch" ? R_TOUCH : R_MOUSE);
+  const onPointerDown = (e) => { if (isTouch(e)) return; sim.begin("p" + e.pointerId, e.clientX, e.clientY, penR(e)); wake(); };
+  const onPointerMove = (e) => {
+    if (isTouch(e) || !e.buttons) return;
+    const id = "p" + e.pointerId;
+    if (sim.has(id)) sim.move(id, e.clientX, e.clientY);
+    else sim.begin(id, e.clientX, e.clientY, penR(e));
+    wake();
+  };
+  const onPointerUp = (e) => { if (isTouch(e)) return; sim.end("p" + e.pointerId); wake(); };
 
-      // mask canvas — 白一色で alpha だけ変える (blurレイヤーのマスクとして使う)
-      const imgData = mctx.createImageData(w, h);
-      const data = imgData.data;
-      for (let i = 0, len = fog.length; i < len; i++) {
-        const off = i * 4;
-        data[off] = 255;
-        data[off + 1] = 255;
-        data[off + 2] = 255;
-        data[off + 3] = fog[i];
-      }
-      mctx.putImageData(imgData, 0, 0);
+  const onOrient = (e) => {
+    if (e.beta == null || e.gamma == null) return;
+    const b = e.beta * D2R, g = e.gamma * D2R;
+    const sx = Math.sin(g) * Math.cos(b), sy = Math.sin(b);
+    // 画面の向き（window.orientation は screen.orientation のない古い iOS 用）
+    const a = ((screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0) * D2R;
+    const tx = sx * Math.cos(a) + sy * Math.sin(a), ty = -sx * Math.sin(a) + sy * Math.cos(a);
+    gvx += (tx - gvx) * 0.12;
+    gvy += (ty - gvy) * 0.12;
+    sim.setGravity(gvx, gvy);
+    const ox = light.x, oy = light.y;
+    aim();
+    if (Math.abs(light.x - ox) + Math.abs(light.y - oy) > 0.015) { lightDirty = true; wake(); }
+  };
+  const onResize = () => { if (sim.resize(window.innerWidth, window.innerHeight)) setSize(); wake(); };
+  const onVisible = () => { if (document.visibilityState === "visible") wake(); };
 
-      // 垂れる水滴を更新
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const drips = dripsRef.current;
-      const trailR = Math.round(5 * dpr);
-      for (let i = drips.length - 1; i >= 0; i--) {
-        const d = drips[i];
-        // 止まり→じわっと動く→ツーッと流れる→また止まる
-        if (d.paused > 0) {
-          d.paused--;
-        } else {
-          const dy = d.vel;
-          d.y += dy;
-          d.x += Math.sin(d.y * 0.06 + d.phase) * DRIP_WOBBLE;
-          d.dist += dy;
-          // 加速 — つーっと流れる
-          d.vel = Math.min(d.vel + 0.01, 1.8);
-          // たまに止まる（頻度低め）
-          if (Math.random() < 0.003) {
-            d.paused = 10 + Math.floor(Math.random() * 25);
-            d.vel = 0.15 + Math.random() * 0.2;
-          }
-        }
-        // 軌跡で霧を消す
-        const px = Math.round(d.x * dpr);
-        const py = Math.round(d.y * dpr);
-        const tr2 = trailR * trailR;
-        const tx0 = Math.max(0, px - trailR);
-        const tx1 = Math.min(w - 1, px + trailR);
-        const ty0 = Math.max(0, py - trailR);
-        const ty1 = Math.min(h - 1, py + trailR);
-        for (let yy = ty0; yy <= ty1; yy++) {
-          for (let xx = tx0; xx <= tx1; xx++) {
-            if ((xx - px) * (xx - px) + (yy - py) * (yy - py) < tr2) {
-              fog[yy * w + xx] = 0;
-            }
-          }
-        }
-        // 一定距離で消える（画面全部消さない）
-        if (d.dist > d.maxDist) drips.splice(i, 1);
-        else if (d.y > window.innerHeight + 20) drips.splice(i, 1);
-      }
+  const cap = { passive: true, capture: true };
+  const listeners = [
+    [window, "touchstart", onTouchStart], [window, "touchmove", onTouchMove],
+    [window, "touchend", onTouchEnd], [window, "touchcancel", onTouchEnd],
+    [window, "pointerdown", onPointerDown], [window, "pointermove", onPointerMove],
+    [window, "pointerup", onPointerUp], [window, "pointercancel", onPointerUp],
+    [window, "resize", onResize], [document, "visibilitychange", onVisible],
+  ];
+  if (!reduced) listeners.push([window, "deviceorientation", onOrient]);
+  for (const [t, ev, fn] of listeners) t.addEventListener(ev, fn, cap);
+  wake();
 
-      // texture canvas — 静的水滴 + 垂れる水滴を描画
-      tctx.clearRect(0, 0, w, h);
-      if (dropletsRef.current) {
-        tctx.drawImage(dropletsRef.current, 0, 0);
-        tctx.globalCompositeOperation = "destination-in";
-        tctx.drawImage(mask, 0, 0);
-        tctx.globalCompositeOperation = "source-over";
-      }
-
-
-      rafRef.current = requestAnimationFrame(render);
-    };
-    rafRef.current = requestAnimationFrame(render);
-
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-      window.removeEventListener("resize", setupCanvas);
-    };
-  }, [setupCanvas]);
-
-  // 全レイヤー pointer-events: none にして、
-  // window レベルでタッチ座標を拾ってぬぐうだけ。
-  // UIの操作（スクロール、タップ、長押し等）は一切邪魔しない。
-  useEffect(() => {
-    const onMove = (e) => {
-      if (e.touches) {
-        for (const t of e.touches) wipe(t.clientX, t.clientY);
-      } else if (e.buttons > 0) {
-        wipe(e.clientX, e.clientY);
-      }
-    };
-    const onDown = (e) => {
-      const x = e.touches ? e.touches[0]?.clientX : e.clientX;
-      const y = e.touches ? e.touches[0]?.clientY : e.clientY;
-      if (x != null && y != null) wipe(x, y);
-    };
-    const onUp = (e) => {
-      const x = e.changedTouches ? e.changedTouches[0]?.clientX : e.clientX;
-      const y = e.changedTouches ? e.changedTouches[0]?.clientY : e.clientY;
-      if (x == null || y == null) return;
-      // 指を離した地点から 1〜3 滴生成
-      const count = 1 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < count; i++) {
-        dripsRef.current.push({
-          x: x + (Math.random() - 0.5) * 16,
-          y: y + Math.random() * 4,
-          vel: 0.1 + Math.random() * 0.2,
-          phase: Math.random() * Math.PI * 2,
-          paused: 10 + Math.floor(Math.random() * 20), // 最初少し溜まる
-          dist: 0,
-          maxDist: 150 + Math.random() * 250,
-        });
-      }
-    };
-    window.addEventListener("pointerdown", onDown);
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("touchstart", onDown, { passive: true });
-    window.addEventListener("touchmove", onMove, { passive: true });
-    window.addEventListener("touchend", onUp, { passive: true });
-    return () => {
-      window.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("touchstart", onDown);
-      window.removeEventListener("touchmove", onMove);
-      window.removeEventListener("touchend", onUp);
-    };
-  }, [wipe]);
-
-  const fixed = { position: "fixed", inset: 0 };
-
-  return (
-    <>
-      {/* Layer 1: 白い霧マスク — うっすら透ける。ぬぐった所は alpha=0 で完全クリア */}
-      <canvas ref={maskRef} style={{
-        ...fixed,
-        zIndex: 99989,
-        pointerEvents: "none",
-        opacity: 0.93,
-        userSelect: "none",
-        WebkitTouchCallout: "none",
-      }} />
-      {/* Layer 2: 水滴テクスチャ */}
-      <canvas ref={texRef} style={{
-        ...fixed,
-        zIndex: 99990,
-        pointerEvents: "none",
-        userSelect: "none",
-        WebkitTouchCallout: "none",
-      }} />
-    </>
-  );
+  return () => {
+    destroyed = true;
+    cancelAnimationFrame(raf);
+    clearTimeout(timer);
+    for (const [t, ev, fn] of listeners) t.removeEventListener(ev, fn, cap);
+    gfx.destroy();
+    canvas.remove();
+    kept = { sim, at: performance.now() };
+    setTimeout(() => { if (kept?.sim === sim) kept = null; }, KEEP_MS);
+  };
 }
