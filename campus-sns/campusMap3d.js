@@ -53,6 +53,86 @@ const spotById = Object.fromEntries(SPOTS.filter((s) => s.id).map((s) => [s.id, 
 
 export const EMPTY_FC = fc([]);
 
+// ── 画面を地図データの外（何も描いていないところ）に出さない ──
+const DEG = Math.PI / 180;
+const MPP_EQ = 78271.517; // ズーム 0・赤道で 1px あたり何 m か（512px タイル）
+const CONSTRAIN_PITCH = 20; // 制限の計算に使う傾きの上限。これより奥（画面の上のほう）は、もやで隠す
+
+// データの範囲（緯度経度と、メートルでの幅・高さ）
+export function regionOf(data) {
+  const [[s, w], [n, e]] = data.region;
+  const lat0 = (s + n) / 2;
+  const kx = 111320 * Math.cos(lat0 * DEG);
+  const ky = 110950;
+  return { s, w, n, e, lat0, kx, ky, wm: (e - w) * kx, hm: (n - s) * ky, mpp0: MPP_EQ * Math.cos(lat0 * DEG) };
+}
+
+// 画面の四隅が地面のどこに当たるか。中心からの [東, 北]（単位は中心の縮尺での px）
+function cornerOffsets(W, H, pad, bearing, pitch, fovRad) {
+  const p = Math.min(pitch, CONSTRAIN_PITCH) * DEG;
+  const th = bearing * DEG;
+  const D = (0.5 * H) / Math.tan(fovRad / 2); // カメラから画面の中心までの距離
+  const xc = (W + pad.left - pad.right) / 2;
+  const yc = (H + pad.top - pad.bottom) / 2;
+  const cp = Math.cos(p);
+  const sp = Math.sin(p);
+  return [[0, 0], [W, 0], [0, H], [W, H]].map(([sx, sy]) => {
+    const v = sy - yc;
+    const t = (D * cp) / (D * cp + v * sp);
+    const fwd = (D * sp - v * cp) * t - D * sp; // 奥（画面の上）へ
+    const right = (sx - xc) * t;
+    return [right * Math.cos(th) + fwd * Math.sin(th), -right * Math.sin(th) + fwd * Math.cos(th)];
+  });
+}
+
+// MapLibre の transformConstrain に渡す関数。this は MapLibre の transform（幅・高さ・向き・傾き・余白を持つ）。
+// 回した・傾けた画面の四隅がデータの外に出るなら、中心をずらし、それでも収まらなければ寄る
+export function makeConstrain(R, LngLat) {
+  return function constrain(lngLat, zoom) {
+    const W = this.width;
+    const H = this.height;
+    let z = Math.min(this.maxZoom, Math.max(this.minZoom, zoom));
+    if (!W || !H || !lngLat) return { center: lngLat, zoom: z };
+    let mpp = R.mpp0 / 2 ** z;
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    cornerOffsets(W, H, this.padding, this.bearing, this.pitch, this.fovInRadians).forEach(([ex, ny]) => {
+      x0 = Math.min(x0, ex); x1 = Math.max(x1, ex); y0 = Math.min(y0, ny); y1 = Math.max(y1, ny);
+    });
+    const over = Math.max(((x1 - x0) * mpp) / R.wm, ((y1 - y0) * mpp) / R.hm);
+    if (over > 1) {
+      z = Math.min(this.maxZoom, z + Math.log2(over));
+      mpp = R.mpp0 / 2 ** z;
+    }
+    const cx = (lngLat.lng - R.w) * R.kx; // データの南西の角から東へ何 m
+    const cy = (lngLat.lat - R.s) * R.ky;
+    const clamp = (v, lo, hi) => (lo > hi ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, v)));
+    const ex = clamp(cx, -x0 * mpp, R.wm - x1 * mpp);
+    const ny = clamp(cy, -y0 * mpp, R.hm - y1 * mpp);
+    if (ex === cx && ny === cy) return { center: lngLat, zoom: z };
+    return { center: new LngLat(R.w + ex / R.kx, R.s + ny / R.ky), zoom: z };
+  };
+}
+
+// 回さず傾けずに、データがちょうど画面いっぱいになるズーム（いちばん引いた「全体」）
+export const coverZoom = (R, W, H) => Math.log2(Math.max((W * R.mpp0) / R.wm, (H * R.mpp0) / R.hm));
+
+// 引くほど平らに：全体のあたりでは真上近くから、少し寄ると立体に
+export const maxPitchAt = (zoom, cover) => 10 + 60 * Math.min(1, Math.max(0, (zoom - cover - 0.1) / 0.9));
+
+// データの端（道路などを切ったところ）を背景色へ溶かす帯。外側ほど濃く、データの外は塗りつぶす
+function edgeFC(R, width = 160, steps = 8) {
+  const ring = (d) => {
+    const dx = d / R.kx;
+    const dy = d / R.ky;
+    return [[R.w + dx, R.s + dy], [R.e - dx, R.s + dy], [R.e - dx, R.n - dy], [R.w + dx, R.n - dy], [R.w + dx, R.s + dy]];
+  };
+  const far = [[R.w - 1, R.s - 1], [R.e + 1, R.s - 1], [R.e + 1, R.n + 1], [R.w - 1, R.n + 1], [R.w - 1, R.s - 1]];
+  const poly = (o, rings) => ({ type: "Feature", properties: { o }, geometry: { type: "Polygon", coordinates: rings } });
+  const feats = [poly(1, [far, ring(0)])];
+  for (let i = 0; i < steps; i++) feats.push(poly((1 - (i + 0.5) / steps) ** 1.6, [ring((width * i) / steps), ring((width * (i + 1)) / steps)]));
+  return fc(feats);
+}
+
 /**
  * @param data  BASEMAP（campusBasemapData.js）
  * @param opts  { dark, accent }
@@ -85,6 +165,7 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868" } = {}) {
     cbRailTunnel: { type: "geojson", data: fc(data.rail.tunnel.map((l) => lineF(l))) },
     cbPlatforms: { type: "geojson", data: fc(data.platforms.map((p) => polyF([p]))) },
     cbBuildings: { type: "geojson", data: fc(buildings) },
+    cbEdge: { type: "geojson", data: edgeFC(regionOf(data)) },
     // 動的に入れ替えるもの
     navAccuracy: { type: "geojson", data: EMPTY_FC },
     navRoutePassed: { type: "geojson", data: EMPTY_FC },
@@ -119,6 +200,8 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868" } = {}) {
     { id: "cb-platforms", type: "fill", source: "cbPlatforms", paint: { "fill-color": pal.platform } },
     { id: "cb-rail", type: "line", source: "cbRailSurface", layout: { "line-join": "round" }, paint: { "line-color": pal.rail, "line-width": ["interpolate", ["exponential", 2], ["zoom"], zA, 3, zA + Math.log2(3), 9] } },
     { id: "cb-rail-dash", type: "line", source: "cbRailSurface", paint: { "line-color": pal.railDash, "line-width": ["interpolate", ["exponential", 2], ["zoom"], zA, 1.2, zA + Math.log2(3), 2.9], "line-dasharray": [4, 4] } },
+    // データの端を背景へ溶かす（道路がぷつっと切れて見えないように）
+    { id: "cb-edge", type: "fill", source: "cbEdge", paint: { "fill-color": pal.outside, "fill-opacity": ["get", "o"], "fill-antialias": false } },
     { id: "nav-accuracy", type: "fill", source: "navAccuracy", paint: { "fill-color": "#4285f4", "fill-opacity": 0.1 } },
     // 建物以外のスポット（ベンチ・自販機など）。寄ったときだけ出す。建物の陰になるものは隠れる
     {

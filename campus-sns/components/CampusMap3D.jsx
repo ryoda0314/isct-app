@@ -3,7 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { T } from "../theme.js";
 import { t } from "../i18n.js";
-import { EMPTY_FC, ML_ZOOM_OFFSET, PITCH, PITCH_GUIDE, buildCampus3D, circleFC, lineFC, pointsFC, roofAt, spotOutline } from "../campusMap3d.js";
+import { EMPTY_FC, ML_ZOOM_OFFSET, PITCH, PITCH_GUIDE, buildCampus3D, circleFC, coverZoom, lineFC, makeConstrain, maxPitchAt, pointsFC, regionOf, roofAt, spotOutline } from "../campusMap3d.js";
 
 const ROUTE_COL = "#1a8ef0";
 const PIN_SVG = (col) => `<svg width="36" height="46" viewBox="0 0 36 46"><path d="M18 44C18 44 3 29.5 3 18a15 15 0 0130 0c0 11.5-15 26-15 26z" fill="${col}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><circle cx="18" cy="18" r="5.5" fill="#fff"/></svg>`;
@@ -25,7 +25,9 @@ const NO_PAD = { top: 0, bottom: 0, left: 0, right: 0 }; // 案内中に下げ�
 
 // 2D のイラスト地図と同じ見え方の規則（Leaflet のズーム 16.5 / 17.6 / 19 = MapLibre の 15.5 / 16.6 / 18）
 const CSS = `
+.cb3-map.maplibregl-map{font:inherit}
 .cb3-map .maplibregl-canvas{outline:none}
+.cb3-haze{position:absolute;left:0;right:0;top:0;height:38%;pointer-events:none;opacity:0}
 .cb3-lbl{white-space:nowrap;font-weight:800;letter-spacing:-.01em;line-height:1;color:var(--cb3-label);pointer-events:none;font-family:inherit;
   text-shadow:0 0 3px var(--cb3-halo),0 0 3px var(--cb3-halo),0 0 2px var(--cb3-halo),0 0 1px var(--cb3-halo)}
 .cb3-lbl{transition:opacity .18s}.cb3-lbl.cb-off{opacity:0!important}
@@ -98,6 +100,9 @@ function fitCamera(ml, map, pts, pad, pitch, bearing, maxZoom) {
       for (let k = 0; k < 4; k++) {
         tr.setZoom(zoom);
         tr.setCenter(center);
+        // データの外が見えないよう止められたら、止まった位置から測り直す
+        zoom = tr.zoom;
+        center = new ml.LngLat(tr.center.lng, tr.center.lat);
         let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
         lls.forEach((ll) => {
           const s = tr.locationToScreenPoint(ll);
@@ -146,6 +151,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const hlRef = useRef(null);
   const fitRef = useRef({ route: null, dest: null, group: null });
   const wasGuiding = useRef(false);
+  const coverRef = useRef(14); // いちばん引いたズーム（データがちょうど画面いっぱい）
+  const blockedRef = useRef(false); // 追従の中心が、データの端で止められている
 
   // ── 地図を作る（1回だけ）──
   useEffect(() => {
@@ -163,7 +170,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     Object.entries(vars).forEach(([k, v]) => wrap.style.setProperty(k, v));
     wrap.style.background = built.pal.outside;
 
-    const [[s, w], [n, e]] = data.region;
+    const R = regionOf(data);
+    const constrain = makeConstrain(R, ml.LngLat);
     let map;
     try {
       map = new ml.Map({
@@ -173,11 +181,11 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         zoom: initialView.zoom + ML_ZOOM_OFFSET,
         bearing: initialView.bearing || 0,
         pitch: 0,
-        minZoom: 14,
+        minZoom: 12,
         maxZoom: 20,
         maxPitch: 70,
-        // イラスト地図の範囲から遠くへ行って迷子にならないよう、周囲を少し足した範囲に留める
-        maxBounds: [[w - 0.008, s - 0.006], [e + 0.008, n + 0.006]],
+        // 画面が地図データの外（何も描いていないところ）に出ないよう、回転・傾き・余白も考えて止める
+        transformConstrain: constrain,
         attributionControl: false,
         fadeDuration: 0,
       });
@@ -188,6 +196,35 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     }
     mapRef.current = map;
     map.on("error", (ev) => console.warn("[3D map]", ev?.error?.message || ev));
+
+    // いちばん引いたところ＝データがちょうど画面いっぱい（回していないとき）。画面の大きさが変わったら測り直す
+    const fitMinZoom = () => {
+      coverRef.current = coverZoom(R, box.clientWidth || 1, box.clientHeight || 1);
+      map.setMinZoom(Math.min(19, coverRef.current));
+    };
+    fitMinZoom();
+    map.on("resize", fitMinZoom);
+
+    // 傾けたときは、画面の上のほう（遠く）を背景色のもやで薄める。地図の上・マーカーの下に重ねる
+    const haze = document.createElement("div");
+    haze.className = "cb3-haze";
+    haze.style.background = `linear-gradient(to bottom, ${built.pal.outside} 0%, ${built.pal.outside}cc 32%, ${built.pal.outside}00 100%)`;
+    map.getCanvas().after(haze);
+    const updateHaze = () => { haze.style.opacity = String(Math.min(1, Math.max(0, (map.getPitch() - 22) / 26))); };
+    map.on("pitch", updateHaze);
+    updateHaze();
+
+    // 動き終わったら：引いているのに傾きすぎていれば平らに戻し、回したあとなどで外が見えていれば内側へ戻す
+    map.on("moveend", () => {
+      const p = propsRef.current;
+      if (p.guiding && p.follow) return; // 案内中の追従は自分でカメラを決める
+      const c = map.getCenter();
+      const z = map.getZoom();
+      const r = constrain.call(map.transform, c, z);
+      const outside = Math.hypot((r.center.lng - c.lng) * R.kx, (r.center.lat - c.lat) * R.ky) > 0.5 || r.zoom - z > 0.01;
+      const cap = maxPitchAt(r.zoom, coverRef.current);
+      if (outside || map.getPitch() > cap + 0.5) map.easeTo({ center: r.center, zoom: r.zoom, pitch: Math.min(map.getPitch(), cap), duration: 350 });
+    });
 
     // ラベル（建物の屋上に置く）と駅名
     built.labels.forEach((l) => {
@@ -300,7 +337,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         if (k < 1) requestAnimationFrame(step);
       };
       requestAnimationFrame(step);
-      if (!propsRef.current.guiding) map.easeTo({ pitch: PITCH, duration: 950 });
+      if (!propsRef.current.guiding) map.easeTo({ pitch: Math.min(PITCH, maxPitchAt(map.getZoom(), coverRef.current)), duration: 950 });
     });
 
     // タップ：建物の無いスポット（点）→ 建物 → 何もないところ
@@ -382,7 +419,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const dP = PITCH_GUIDE - pitch;
     const dZ = zoomTgtRef.current != null ? zoomTgtRef.current - zoom : 0;
     const dPad = map.getContainer().clientHeight * GUIDE_FOCUS - padTop;
-    if (Math.abs(dB) < 0.3 && Math.abs(dLng) < 2e-7 && Math.abs(dLat) < 2e-7 && Math.abs(dP) < 0.2 && Math.abs(dZ) < 0.01 && Math.abs(dPad) < 1) {
+    const centerNear = Math.abs(dLng) < 2e-7 && Math.abs(dLat) < 2e-7;
+    if (Math.abs(dB) < 0.3 && Math.abs(dP) < 0.2 && Math.abs(dZ) < 0.01 && Math.abs(dPad) < 1 && (centerNear || blockedRef.current)) {
       zoomTgtRef.current = null;
       return;
     }
@@ -393,6 +431,9 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       zoom: zoom + dZ * 0.15,
       padding: { top: padTop + dPad * 0.15, bottom: 0, left: 0, right: 0 },
     });
+    // データの端の近くでは、画面が外に出ないよう中心が止められる。動かなくなったら、そこで待つのをやめる
+    const after = map.getCenter();
+    blockedRef.current = !centerNear && Math.abs(after.lng - c.lng) < 1e-9 && Math.abs(after.lat - c.lat) < 1e-9;
     followRaf.current = requestAnimationFrame(followTick);
   }
   function kickFollow() {
@@ -540,6 +581,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       gpsAnim.current.raf = requestAnimationFrame(step);
     }
     map.getSource("navAccuracy")?.setData(gps.accuracy && gps.accuracy < 500 ? circleFC(gps.lat, gps.lng, gps.accuracy) : EMPTY_FC);
+    blockedRef.current = false;
     if (follow) kickFollow();
   }, [loaded, gps]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -555,7 +597,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       cancelAnimationFrame(followRaf.current);
       followRaf.current = 0;
       zoomTgtRef.current = null;
-      map.easeTo({ pitch: PITCH, bearing: 0, padding: NO_PAD, duration: 600 });
+      map.easeTo({ pitch: Math.min(PITCH, maxPitchAt(map.getZoom(), coverRef.current)), bearing: 0, padding: NO_PAD, duration: 600 });
     }
     wasGuiding.current = guiding;
   }, [loaded, guiding, follow]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -578,7 +620,11 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     Object.assign(f, { route: rKey, group: gKey, dest: dKey });
     if (guiding) return;
     const go = (pts, bearing, extraTop = 0, bottom = pad.bottom) => {
-      const cam = fitCamera(ml, map, pts, { ...pad, top: pad.top + extraTop, bottom }, PITCH_FIT, bearing, 19 + ML_ZOOM_OFFSET);
+      const box = { ...pad, top: pad.top + extraTop, bottom };
+      let cam = fitCamera(ml, map, pts, box, PITCH_FIT, bearing, 19 + ML_ZOOM_OFFSET);
+      // 広い範囲を見せるとき（引いたズーム）は傾きを抑えて、もう一度合わせる
+      const cap = cam ? maxPitchAt(cam.zoom, coverRef.current) : PITCH_FIT;
+      if (cam && cap < PITCH_FIT) cam = fitCamera(ml, map, pts, box, cap, bearing, 19 + ML_ZOOM_OFFSET) || cam;
       if (cam) map.easeTo({ ...cam, padding: NO_PAD, duration: 800 });
     };
     // ルート全体：進む方向を上にして、目的地の建物とピンまで入れる
@@ -598,7 +644,10 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     }
     if (dKey && changed.dest) {
       if (origin) go([origin, dest, ...spotOutline(data, built, dest.id)], bearingOf(origin, dest), 70);
-      else map.easeTo({ center: [dest.lng, dest.lat], zoom: Math.max(map.getZoom(), 18 + ML_ZOOM_OFFSET), pitch: Math.max(map.getPitch(), PITCH_FIT), padding: NO_PAD, duration: 700 });
+      else {
+        const z = Math.max(map.getZoom(), 18 + ML_ZOOM_OFFSET);
+        map.easeTo({ center: [dest.lng, dest.lat], zoom: z, pitch: Math.min(Math.max(map.getPitch(), PITCH_FIT), maxPitchAt(z, coverRef.current)), padding: NO_PAD, duration: 700 });
+      }
     }
   }, [loaded, rKey, dest?.id, origin?.lat, origin?.lng, group?.prefix, guiding]); // eslint-disable-line react-hooks/exhaustive-deps
 

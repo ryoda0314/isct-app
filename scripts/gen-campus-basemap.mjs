@@ -26,8 +26,11 @@ const { CAMPUS_BOUNDARY, SPOTS } = new Function(`${src.replace(/^export /gm, '')
 const lats = CAMPUS_BOUNDARY.map((p) => p[0]);
 const lngs = CAMPUS_BOUNDARY.map((p) => p[1]);
 const CAMPUS_BOX = [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)];
-const M = 0.0013; // 周辺道路・駅が入るように約140m広げる
-const REGION = [CAMPUS_BOX[0] - M, CAMPUS_BOX[1] - M * 1.2, CAMPUS_BOX[2] + M, CAMPUS_BOX[3] + M * 1.2];
+// 周辺の道路・緑地・線路・駅を描く範囲（建物はキャンパスの中だけ）。3D表示でキャンパス全体を見渡したとき、
+// 横長の画面でも外側の何も無いところが見えないよう、東西に約900m・南北に約310m広げる
+const M_LAT = 0.0028;
+const M_LNG = 0.01;
+const REGION = [CAMPUS_BOX[0] - M_LAT, CAMPUS_BOX[1] - M_LNG, CAMPUS_BOX[2] + M_LAT, CAMPUS_BOX[3] + M_LNG];
 const bboxStr = (b) => b.map((v) => v.toFixed(5)).join(',');
 
 async function overpass(query) {
@@ -380,7 +383,7 @@ const GREEN_KIND = (t) => {
 for (const el of features.elements) {
   const t = el.tags || {};
   if (el.type === 'node') {
-    if (t.railway === 'station' && t.name) stations.push({ name: t.name.replace(/駅$/, ''), lat: round6(el.lat), lng: round6(el.lon) });
+    if (t.railway === 'station' && t.name) stations.push({ name: t.name.replace(/駅$/, ''), lat: el.lat, lng: el.lon });
     continue;
   }
   const g = geomOf(el.geometry);
@@ -404,6 +407,15 @@ for (const el of features.elements) {
   }
 }
 
+// 同じ駅が路線ごとに別の点で入っていることがある（自由が丘など）。名前でまとめて真ん中に置く
+const stationList = Object.values(stations.reduce((acc, st) => {
+  const a = (acc[st.name] ||= { name: st.name, lat: 0, lng: 0, n: 0 });
+  a.lat += st.lat;
+  a.lng += st.lng;
+  a.n += 1;
+  return acc;
+}, {})).map((a) => ({ name: a.name, lat: round6(a.lat / a.n), lng: round6(a.lng / a.n) }));
+
 const BASEMAP = {
   generated: new Date().toISOString().slice(0, 10),
   attribution: '© OpenStreetMap contributors',
@@ -414,7 +426,7 @@ const BASEMAP = {
   streets,
   rail,
   platforms,
-  stations,
+  stations: stationList,
 };
 
 const header = `// 自動生成ファイル: node scripts/gen-campus-basemap.mjs で再生成する（手で編集しない）
@@ -426,6 +438,6 @@ fs.writeFileSync(OUT, `${header}export const BASEMAP = ${JSON.stringify(BASEMAP)
 
 const mapped = new Set(outBuildings.flatMap((b) => [b.s, ...(b.o || [])].filter(Boolean)));
 console.log(`建物 ${outBuildings.length}件（スポット対応 ${outBuildings.filter((b) => b.s).length}件 / スポット ${mapped.size}件 / 高さあり ${outBuildings.filter((b) => b.z).length}件）`);
-console.log(`緑地 ${green.length} / 水面 ${water.length} / 道路 ${Object.values(streets).reduce((a, v) => a + v.length, 0)} / 線路 ${rail.surface.length}+${rail.tunnel.length} / ホーム ${platforms.length} / 駅 ${stations.map((s) => s.name).join('・')}`);
+console.log(`緑地 ${green.length} / 水面 ${water.length} / 道路 ${Object.values(streets).reduce((a, v) => a + v.length, 0)} / 線路 ${rail.surface.length}+${rail.tunnel.length} / ホーム ${platforms.length} / 駅 ${stationList.map((s) => s.name).join('・')}`);
 console.log(`建物に対応付けできなかったスポット: ${unmatched.length ? unmatched.join(', ') : 'なし'}`);
 console.log(`出力: ${path.relative(ROOT, OUT)} (${(fs.statSync(OUT).size / 1024).toFixed(1)} KB)`);
