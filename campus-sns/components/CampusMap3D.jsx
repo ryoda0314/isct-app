@@ -203,7 +203,13 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       map.setMinZoom(Math.min(19, coverRef.current));
     };
     fitMinZoom();
-    map.on("resize", fitMinZoom);
+    // 地図のイベントの中でカメラを動かすと、MapLibre のアニメーションが入れ子になって壊れる
+    // （"_onEaseFrame is not a function" など）。カメラを動かす処理は、イベントを抜けてから行う
+    let resizeRaf = 0;
+    map.on("resize", () => {
+      cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(fitMinZoom);
+    });
 
     // 傾けたときは、画面の上のほう（遠く）を背景色のもやで薄める。地図の上・マーカーの下に重ねる
     const haze = document.createElement("div");
@@ -214,9 +220,13 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     map.on("pitch", updateHaze);
     updateHaze();
 
-    // 動き終わったら：引いているのに傾きすぎていれば平らに戻し、回したあとなどで外が見えていれば内側へ戻す
-    map.on("moveend", () => {
+    // 動き終わったら：引いているのに傾きすぎていれば平らに戻し、回したあとなどで外が見えていれば内側へ戻す。
+    // moveend は次の動きが前の動きを止めたときにも出るので、その場では動かさず、落ち着いてから確かめる
+    let settleTimer = 0;
+    const settle = () => {
+      settleTimer = 0;
       const p = propsRef.current;
+      if (mapRef.current !== map || map.isMoving() || map.isEasing()) return; // まだ動いている（終わればまた呼ばれる）
       if (p.guiding && p.follow) return; // 案内中の追従は自分でカメラを決める
       const c = map.getCenter();
       const z = map.getZoom();
@@ -224,6 +234,10 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       const outside = Math.hypot((r.center.lng - c.lng) * R.kx, (r.center.lat - c.lat) * R.ky) > 0.5 || r.zoom - z > 0.01;
       const cap = maxPitchAt(r.zoom, coverRef.current);
       if (outside || map.getPitch() > cap + 0.5) map.easeTo({ center: r.center, zoom: r.zoom, pitch: Math.min(map.getPitch(), cap), duration: 350 });
+    };
+    map.on("moveend", () => {
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(settle, 0);
     });
 
     // ラベル（建物の屋上に置く）と駅名
@@ -378,7 +392,9 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
 
     return () => {
       cancelAnimationFrame(raf);
+      cancelAnimationFrame(resizeRaf);
       clearTimeout(declutterTimer);
+      clearTimeout(settleTimer);
       cancelAnimationFrame(followRaf.current);
       cancelAnimationFrame(gpsAnim.current.raf);
       followRaf.current = 0;
