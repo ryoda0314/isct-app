@@ -2004,6 +2004,8 @@ const M = {
   "navi.northUp": { ja:"北を上にする", en:"North up", zh:"北向朝上", ko:"북쪽을 위로" },
   "navi.headingUp": { ja:"進行方向を上にする", en:"Heading up", zh:"行进方向朝上", ko:"진행 방향을 위로" },
   "navi.locateMe": { ja:"現在地を表示", en:"Show my location", zh:"显示当前位置", ko:"현재 위치 표시" },
+  "navi.view3d": { ja:"3D表示", en:"3D view", zh:"3D 视图", ko:"3D 보기" },
+  "navi.view3dUnsupported": { ja:"この端末では3D表示を使えません", en:"3D view isn't available on this device", zh:"此设备无法使用 3D 视图", ko:"이 기기에서는 3D 보기를 사용할 수 없습니다" },
   "navi.visitManners": { ja:"{name} — 来店マナー", en:"{name} — visit etiquette", zh:"{name} — 到店礼仪", ko:"{name} — 방문 매너" , tp:"{name} — nasin pona pi kama tomo" },
   "navi.grpBench": { ja:"ベンチ", en:"Benches", zh:"长椅", ko:"벤치" , tp:"supa monsi" },
   "navi.grpPark": { ja:"駐輪場", en:"Bike parking", zh:"自行车停放处", ko:"자전거 주차장" , tp:"ma awen pi ilo tu" },

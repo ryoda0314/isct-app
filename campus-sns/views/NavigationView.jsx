@@ -2,11 +2,12 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { T } from "../theme.js";
 import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
-import { useLeaflet, Loader } from "../shared.jsx";
+import { useLeaflet, useMapLibre, Loader } from "../shared.jsx";
 import { CAMPUS_CENTER, CAMPUS_ZOOM, CAMPUS_BOUNDARY, SPOTS, SPOT_CATS, ENTRANCES, AREAS, roomToSpot } from "../hooks/useLocationSharing.js";
 import { useNavigation, NAV_SPOTS } from "../hooks/useNavigation.js";
 import { createCampusBasemap, isDarkColor } from "../campusBasemap.js";
 import { getNextClass } from "../todayClasses.js";
+import { CampusMap3D } from "../components/CampusMap3D.jsx";
 
 const ROUTE_COL="#1a8ef0"; // ルート線（地図アプリの慣例どおり青）
 const PIN_SVG=(col)=>`<svg width="36" height="46" viewBox="0 0 36 46"><path d="M18 44C18 44 3 29.5 3 18a15 15 0 0130 0c0 11.5-15 26-15 26z" fill="${col}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><circle cx="18" cy="18" r="5.5" fill="#fff"/></svg>`;
@@ -16,6 +17,8 @@ const WALK_M_PER_MIN=80; // useNavigation と同じ歩行速度
 const CAMPUS_BBOX=(()=>{const la=CAMPUS_BOUNDARY.map(p=>p[0]),ln=CAMPUS_BOUNDARY.map(p=>p[1]);return [Math.min(...la)-0.0013,Math.min(...ln)-0.0016,Math.max(...la)+0.0013,Math.max(...ln)+0.0016];})();
 const inCampusArea=(lat,lng)=>lat>=CAMPUS_BBOX[0]&&lat<=CAMPUS_BBOX[2]&&lng>=CAMPUS_BBOX[1]&&lng<=CAMPUS_BBOX[3];
 const angDiff=(a,b)=>((a-b)%360+540)%360-180; // a-b を -180〜180 に
+// 3D表示（WebGL）が使えるか。確かめるために作った描画面はすぐ手放す
+const hasWebGL=()=>{try{const c=document.createElement("canvas");const gl=c.getContext("webgl2")||c.getContext("webgl");gl?.getExtension("WEBGL_lose_context")?.loseContext();return !!gl;}catch{return false;}};
 // ルートの累積距離（進み具合・残り距離の計算用）
 const buildRouteMeta=(coords)=>{
   if(!coords||coords.length<2)return null;
@@ -399,6 +402,12 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   const [bmData,setBmData]=useState(null);
   const [bmVersion,setBmVersion]=useState(0); // イラスト地図を作り直したら増やす（マーカーの描き直し用）
   const [outOfRegion,setOutOfRegion]=useState(false);
+  // 3D表示（MapLibre GL。イラスト地図と同じデータで建物を立ち上げる）。使えない端末では 2D のまま
+  const [view3d,setView3d]=useState(()=>{try{return localStorage.getItem("navView3d")==="1"&&hasWebGL();}catch{return false;}});
+  const view3dRef=useRef(view3d);
+  const map3dRef=useRef(null);
+  const mapLibre=useMapLibre(view3d);
+  const [notice3d,setNotice3d]=useState(false); // 「この端末では3D表示を使えません」
   const photoLayersRef=useRef([]);
   const basemapRef=useRef(null);
   const spotTapRef=useRef(null);
@@ -424,6 +433,12 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   useEffect(()=>{northUpRef.current=northUp;},[northUp]);
   const [mapRotated,setMapRotated]=useState(false); // 方位ボタンを出すか
   const compassNeedleRef=useRef(null);
+  // 方位ボタンの針と、ボタンを出すか。deg は北が画面上で時計回りに何度回っているか（2D と 3D の両方から呼ぶ）
+  const syncCompass=useCallback((deg)=>{
+    if(compassNeedleRef.current)compassNeedleRef.current.style.transform=`rotate(${deg}deg)`;
+    const rotated=Math.abs(angDiff(deg,0))>1;
+    setMapRotated(prev=>prev===rotated?prev:rotated);
+  },[]);
   // ナビの進み具合
   const progressRef=useRef({meta:null,idx:0,t:0});
   const [progress,setProgress]=useState(null); // {along, remaining, total, dist}
@@ -498,6 +513,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
         if(!gpsCenteredRef.current&&mapInst.current){
           gpsCenteredRef.current=true;
           if(basemapModeRef.current!=="illust"||inCampusArea(lat,lng))mapInst.current.flyTo([lat,lng],CAMPUS_ZOOM,{duration:0.6});
+          if(inCampusArea(lat,lng))map3dRef.current?.flyTo(lat,lng,CAMPUS_ZOOM);
         }
       },
       (e)=>onGeoErr(e,false),
@@ -512,6 +528,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   // 地図の向き・現在地の矢印を、いまの向きに合わせる（requestAnimationFrame で1フレームに1回だけ）
   const applyView=useCallback(()=>{
     viewRafRef.current=0;
+    // 3D表示へは「上にする方位」と矢印の向きだけ渡す（追従のカメラは 3D 側が毎フレーム寄せる）
+    map3dRef.current?.setHeading(guidingRef.current&&followingRef.current?(headingRef.current??initialBearingRef.current):null,headingRef.current);
     const map=mapInst.current;
     if(!map||typeof map.setBearing!=="function")return;
     if(guidingRef.current&&followingRef.current){
@@ -683,6 +701,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
       followingRef.current=true;
       northUpRef.current=false;
       offRouteCountRef.current=0;
+      gpsCenteredRef.current=true; // 案内中は追従するので、あとから「最初の現在地」へ寄り直さない
       setPanelMin(true);
       startWatch();
       // 出発地点を固定保存（マーカー表示用、案内中に動かない）
@@ -844,24 +863,47 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     const map=mapInst.current;
     if(!leafletReady||!map||typeof map.getBearing!=="function")return;
     const onRotate=()=>{
-      const b=map.getBearing();
-      if(compassNeedleRef.current)compassNeedleRef.current.style.transform=`rotate(${b}deg)`;
-      const rotated=Math.abs(angDiff(b,0))>1;
-      setMapRotated(prev=>prev===rotated?prev:rotated);
+      if(!view3dRef.current)syncCompass(map.getBearing()); // 3D表示中は 3D の向きを出す
       scheduleView();
     };
     map.on("rotate",onRotate);
     onRotate();
     return()=>map.off("rotate",onRotate);
-  },[leafletReady,scheduleView]);
+  },[leafletReady,scheduleView,syncCompass]);
 
   // イラスト地図のデータ（約50KB）は地図を開いたときだけ読む
   useEffect(()=>{
-    if(basemap!=="illust"||bmData)return;
+    if((basemap!=="illust"&&!view3d)||bmData)return;
     let alive=true;
-    import("../campusBasemapData.js").then(m=>{if(alive)setBmData(m.BASEMAP);}).catch(()=>{if(alive)setBasemap("photo");});
+    import("../campusBasemapData.js").then(m=>{if(alive)setBmData(m.BASEMAP);}).catch(()=>{if(alive){setBasemap("photo");setView3d(false);}});
     return()=>{alive=false;};
-  },[basemap,bmData]);
+  },[basemap,bmData,view3d]);
+
+  // 3D表示の切り替えを覚えておく。読み込みに失敗したら 2D に戻してお知らせする
+  useEffect(()=>{view3dRef.current=view3d;try{localStorage.setItem("navView3d",view3d?"1":"0");}catch{}},[view3d]);
+  useEffect(()=>{if(mapLibre.failed&&view3dRef.current){setView3d(false);setNotice3d(true);}},[mapLibre.failed]);
+  useEffect(()=>{
+    if(!notice3d)return;
+    const id=setTimeout(()=>setNotice3d(false),3500);
+    return()=>clearTimeout(id);
+  },[notice3d]);
+  const toggle3d=()=>{
+    if(!view3d){
+      if(!hasWebGL()){setNotice3d(true);return;}
+      setView3d(true);
+      return;
+    }
+    // 2D に戻す：3D で見ていた場所・向きを引き継ぐ（案内中の向きは applyView が合わせる）
+    const v=map3dRef.current?.getView();
+    const map=mapInst.current;
+    view3dRef.current=false;
+    if(v&&map){
+      followTo(map,[v.lat,v.lng],v.zoom);
+      if(!guidingRef.current&&typeof map.setBearing==="function")map.setBearing(-v.bearing);
+    }
+    syncCompass(map?.getBearing?.()||0);
+    setView3d(false);
+  };
 
   // 地図の見た目（イラスト / 航空写真）を切り替える
   useEffect(()=>{
@@ -1090,6 +1132,16 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   const tipStyle=`.nav-tip{background:${T.bg2}!important;color:${T.txH}!important;border:1px solid ${T.bdL}!important;border-radius:8px!important;font-size:11px!important;font-weight:600!important;padding:4px 10px!important;box-shadow:0 4px 16px rgba(0,0,0,.45)!important;font-family:inherit!important}.nav-tip::before{display:none!important}`;
 
   const hasRoute=!!route;
+  // 3D表示を開いたときの視点は 2D から引き継ぐ（MapLibre の方位は leaflet-rotate と逆向き）
+  const leafletView=()=>{
+    const m=mapInst.current;
+    if(!m)return {lat:CAMPUS_CENTER.lat,lng:CAMPUS_CENTER.lng,zoom:CAMPUS_ZOOM,bearing:0};
+    const c=m.getCenter();
+    return {lat:c.lat,lng:c.lng,zoom:m.getZoom(),bearing:-(m.getBearing?.()||0)};
+  };
+  // 案内中のルートの進み具合（3D表示で、通ったところを塗り分ける）
+  const pr3=progressRef.current;
+  const split3d=guiding&&gpsPos&&route?(pr3.meta&&pr3.meta.coords===route.coords?{idx:pr3.idx,t:pr3.t}:{idx:0,t:0}):null;
   const noRoute=origin&&destination&&origin!==destination&&!route;
   const liveDist=guiding&&progress?Math.round(progress.remaining):route?.distance;
   const liveMin=guiding&&progress?Math.max(1,Math.ceil(progress.remaining/WALK_M_PER_MIN)):route?.minutes;
@@ -1389,13 +1441,17 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   // 右下のボタン列。スマホで下からカードが出ている間は隠す（案内中は方位ボタンだけ出す）
   const sideBtn={width:44,height:44,borderRadius:22,display:"flex",alignItems:"center",justifyContent:"center",background:T.bg2,border:`1px solid ${T.bdL}`,boxShadow:"0 6px 16px -6px rgba(0,0,0,.4)",cursor:"pointer",color:T.txH,padding:0};
   const btnStack=[];
-  if(showMapToggle)btnStack.push(<button key="bm" onClick={()=>setBasemap(b=>b==="illust"?"photo":"illust")} style={{...sideBtn,width:"auto",height:36,borderRadius:18,padding:"0 12px",gap:6,fontSize:12,fontWeight:700}}>
+  if(showMapToggle&&!view3d)btnStack.push(<button key="bm" onClick={()=>setBasemap(b=>b==="illust"?"photo":"illust")} style={{...sideBtn,width:"auto",height:36,borderRadius:18,padding:"0 12px",gap:6,fontSize:12,fontWeight:700}}>
     {basemap==="illust"
       ?<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
       :<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>}
     {basemap==="illust"?t("navi.mapPhoto"):t("navi.mapIllust")}
   </button>);
+  // 3D表示の切り替え（案内中も使える）。読み込み中は点滅させる
+  const loading3d=view3d&&(!mapLibre.ready||!bmData);
+  if((showMapToggle||guiding)&&!pickerOpen)btnStack.push(<button key="3d" onClick={toggle3d} title={t("navi.view3d")} aria-label={t("navi.view3d")} aria-pressed={view3d} style={{...sideBtn,fontSize:14,fontWeight:900,letterSpacing:"-.02em",background:view3d?T.accent:T.bg2,color:view3d?"#fff":T.txH,border:`1px solid ${view3d?T.accent:T.bdL}`,animation:loading3d?"nav3dLoad 1s ease-in-out infinite":"none"}}>3D</button>);
   if(showMapToggle&&!pickerOpen)btnStack.push(<button key="loc" title={t("navi.locateMe")} aria-label={t("navi.locateMe")} onClick={()=>{
+    if(gpsPos&&view3d&&map3dRef.current){map3dRef.current.flyTo(gpsPos.lat,gpsPos.lng,17.5);return;}
     const map=mapInst.current;
     if(gpsPos&&map){
       if(mapRotated)followTo(map,[gpsPos.lat,gpsPos.lng],Math.max(map.getZoom(),17.5));
@@ -1406,9 +1462,10 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   </button>);
   if((mapRotated||guiding)&&!(mob&&bottomCardShown&&!guiding)&&!pickerOpen)btnStack.push(<button key="compass" title={guiding?(northUp?t("navi.headingUp"):t("navi.northUp")):t("navi.northUp")} aria-label={t("navi.northUp")} onClick={()=>{
     if(guiding){setNorthUp(v=>!v);setFollowing(true);}
+    else if(view3d&&map3dRef.current)map3dRef.current.resetNorth();
     else mapInst.current?.setBearing?.(0);
   }} style={{...sideBtn,border:`1.5px solid ${guiding&&northUp?T.accent:T.bdL}`}}>
-    <div ref={compassNeedleRef} style={{width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",transform:`rotate(${mapInst.current?.getBearing?.()||0}deg)`}}>
+    <div ref={compassNeedleRef} style={{width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",transform:`rotate(${view3d&&map3dRef.current?-map3dRef.current.getBearing():mapInst.current?.getBearing?.()||0}deg)`}}>
       <svg width="16" height="22" viewBox="0 0 16 22"><polygon points="8,1 13,11 3,11" fill="#e5534b"/><polygon points="8,21 13,11 3,11" fill={T.txD}/></svg>
     </div>
   </button>);
@@ -1417,7 +1474,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     {t("navi.recenter")}
   </button>);
   const mapButtons=btnStack.length>0&&<div style={{position:"absolute",right:mob?10:14,bottom:mob?118:122,zIndex:999,display:"flex",flexDirection:"column-reverse",alignItems:"flex-end",gap:10}}>{btnStack}</div>;
-  const outOfRegionChip=basemap==="illust"&&(outOfRegion||(gpsPos&&!inCampusArea(gpsPos.lat,gpsPos.lng)))&&!guiding&&!bottomCardShown&&!pickerOpen&&<div style={{position:"absolute",left:mob?10:0,right:mob?64:0,bottom:mob?18:24,zIndex:999,display:"flex",justifyContent:mob?"flex-start":"center",pointerEvents:"none"}}>
+  const outOfRegionChip=basemap==="illust"&&!view3d&&(outOfRegion||(gpsPos&&!inCampusArea(gpsPos.lat,gpsPos.lng)))&&!guiding&&!bottomCardShown&&!pickerOpen&&<div style={{position:"absolute",left:mob?10:0,right:mob?64:0,bottom:mob?18:24,zIndex:999,display:"flex",justifyContent:mob?"flex-start":"center",pointerEvents:"none"}}>
     <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 8px 8px 14px",borderRadius:20,background:T.bg2,border:`1px solid ${T.bdL}`,boxShadow:"0 6px 16px -6px rgba(0,0,0,.4)",whiteSpace:"nowrap",animation:"navSlideUp .2s ease-out",pointerEvents:"auto"}}>
       <span style={{fontSize:12,color:T.tx}}>{t("navi.illustAreaOnly")}</span>
       <button onClick={()=>setBasemap("photo")} style={{padding:"5px 10px",borderRadius:14,border:"none",background:T.accent,color:"#fff",fontSize:11.5,fontWeight:800,cursor:"pointer"}}>{t("navi.mapPhoto")}</button>
@@ -1430,6 +1487,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
 @keyframes navPinPop{0%{opacity:0;transform:scale(.3) translateY(8px)}60%{opacity:1;transform:scale(1.08) translateY(-1px)}100%{opacity:1;transform:scale(1) translateY(0)}}
 @keyframes navPinDot{0%{transform:scale(.5)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
 @keyframes locPulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.5)}}
+@keyframes nav3dLoad{0%,100%{opacity:1}50%{opacity:.45}}
 .gps-smooth{transition:transform .3s ease-out!important}
 @keyframes navHalo{0%{transform:scale(.55);opacity:.9}100%{transform:scale(1.9);opacity:0}}
 @keyframes navPickerIn{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
@@ -1450,8 +1508,37 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
 .leaflet-control-attribution{font-size:9.5px!important;line-height:1.4!important;padding:0 5px!important;background:${T.bg2}cc!important;color:${T.txD}!important;border-radius:6px 0 0 0}
 .leaflet-control-attribution a{color:inherit!important}
     `}</style>
-    {/* Full-screen map */}
-    <div ref={mapRef} style={{position:"absolute",inset:0}}/>
+    {/* Full-screen map（zIndex で Leaflet 内部の重なりを閉じ込め、3D表示をその上に重ねる） */}
+    <div ref={mapRef} style={{position:"absolute",inset:0,zIndex:0}}/>
+    {view3d&&mapLibre.ready&&bmData&&<CampusMap3D
+      key={`${isDarkColor(T.bg)?"d":"l"}${T.accent}`}
+      ref={map3dRef}
+      data={bmData}
+      dark={isDarkColor(T.bg)}
+      accent={T.accent}
+      initialView={leafletView()}
+      spots={NAV_SPOTS}
+      origin={guiding&&guidingOriginRef.current?guidingOriginRef.current:origin==="__gps__"?gpsOriginPos:originSpotInfo}
+      dest={destSpotInfo||null}
+      route={route?.coords||null}
+      split={split3d}
+      gps={gpsPos}
+      guiding={guiding}
+      follow={following}
+      northUp={northUp}
+      group={navPhase==="group"&&spotGroup?{prefix:spotGroup,col:SPOT_GROUPS.find(g=>g.prefix===spotGroup)?.col}:null}
+      fitPad={{top:mob?150:40,bottom:mob?260:60,left:mob?24:480,right:mob?24:60}}
+      onSpotTap={(id)=>spotTapRef.current?.(id)}
+      onGroupTap={(id)=>{setDestination(id);setSpotGroup(null);setNavPhase("detail");}}
+      onMapClick={()=>{if(navPhaseRef.current==="search")setSearchMin(true);}}
+      onUserMove={()=>{if(guidingRef.current)setFollowing(false);}}
+      onRotate={(b)=>syncCompass(-b)}
+      onLoad={scheduleView}
+      onError={()=>{setView3d(false);setNotice3d(true);}}
+    />}
+    {notice3d&&<div style={{position:"absolute",left:0,right:0,bottom:mob?18:24,zIndex:1001,display:"flex",justifyContent:"center",pointerEvents:"none"}}>
+      <div style={{padding:"8px 14px",borderRadius:16,background:"rgba(14,32,48,.88)",color:"#fff",fontSize:12.5,fontWeight:700,boxShadow:"0 6px 16px -6px rgba(0,0,0,.5)",animation:"navSlideUp .2s ease-out"}}>{t("navi.view3dUnsupported")}</div>
+    </div>}
     {/* Floating UI */}
     {!guiding&&searchCard}
     {nextClsCard}

@@ -269,6 +269,13 @@ const CB = bboxStr([CAMPUS_BOX[0] - 0.0003, CAMPUS_BOX[1] - 0.0003, CAMPUS_BOX[2
 const bld = await overpass(`[out:json][timeout:90];(way["building"](${CB});relation["building"](${CB}););out geom;`);
 
 // ── 建物（キャンパス境界の内側だけ）──
+// 高さ(m)：OSM の height、無ければ building:levels × 3.6（3D表示で使う。どちらも無ければ null）
+const heightOf = (t = {}) => {
+  const h = parseFloat(String(t.height || '').replace(/[^\d.]/g, ''));
+  if (h > 0) return h;
+  const lv = parseFloat(t['building:levels']);
+  return lv > 0 ? lv * 3.6 : null;
+};
 const buildings = [];
 for (const el of bld.elements) {
   let rings = [];
@@ -281,12 +288,12 @@ for (const el of bld.elements) {
     // 外周が複数ある場合は個別の建物として扱う（穴は含まれる外周に付ける）
     for (const o of outer) {
       const holes = inner.filter((h) => pointInRing(h[0], o)).map(openRing);
-      buildings.push({ rings: [openRing(o), ...holes], name: el.tags?.name || null, id: `r${el.id}` });
+      buildings.push({ rings: [openRing(o), ...holes], name: el.tags?.name || null, id: `r${el.id}`, z: heightOf(el.tags) });
     }
     continue;
   }
   if (rings[0].length < 3) continue;
-  buildings.push({ rings, name: el.tags?.name || null, id: `w${el.id}` });
+  buildings.push({ rings, name: el.tags?.name || null, id: `w${el.id}`, z: heightOf(el.tags) });
 }
 const campusBuildings = buildings
   .filter((b) => pointInRing(ringCentroid(b.rings[0]), CAMPUS_BOUNDARY))
@@ -354,6 +361,7 @@ for (const i of order) {
   }
   entry.c = r6([vc.p])[0];
   entry.r = Math.round(vc.r * 10) / 10; // ラベルを置ける半径(m)。小さい建物は高ズームでだけ文字を出す
+  if (b.z) entry.z = Math.round(b.z * 10) / 10;
   outBuildings.push(entry);
 }
 
@@ -412,12 +420,12 @@ const BASEMAP = {
 const header = `// 自動生成ファイル: node scripts/gen-campus-basemap.mjs で再生成する（手で編集しない）
 // キャンパスナビのイラスト地図用。出典: © OpenStreetMap contributors（ODbL）— 地図上に出典を表示すること。
 // buildings: p=外周 h=中庭などの穴 s=スポットID o=同じ建物に入る他のスポット n=スポットのない建物の名前
-//            l=この建物にラベルを出す c=ラベル位置 r=ラベルを置ける半径(m)
+//            l=この建物にラベルを出す c=ラベル位置 r=ラベルを置ける半径(m) z=高さ(m)（OSM に階数・高さがある建物だけ）
 `;
 fs.writeFileSync(OUT, `${header}export const BASEMAP = ${JSON.stringify(BASEMAP)};\n`);
 
 const mapped = new Set(outBuildings.flatMap((b) => [b.s, ...(b.o || [])].filter(Boolean)));
-console.log(`建物 ${outBuildings.length}件（スポット対応 ${outBuildings.filter((b) => b.s).length}件 / スポット ${mapped.size}件）`);
+console.log(`建物 ${outBuildings.length}件（スポット対応 ${outBuildings.filter((b) => b.s).length}件 / スポット ${mapped.size}件 / 高さあり ${outBuildings.filter((b) => b.z).length}件）`);
 console.log(`緑地 ${green.length} / 水面 ${water.length} / 道路 ${Object.values(streets).reduce((a, v) => a + v.length, 0)} / 線路 ${rail.surface.length}+${rail.tunnel.length} / ホーム ${platforms.length} / 駅 ${stations.map((s) => s.name).join('・')}`);
 console.log(`建物に対応付けできなかったスポット: ${unmatched.length ? unmatched.join(', ') : 'なし'}`);
 console.log(`出力: ${path.relative(ROOT, OUT)} (${(fs.statSync(OUT).size / 1024).toFixed(1)} KB)`);

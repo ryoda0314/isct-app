@@ -129,6 +129,8 @@ export function middleware(request) {
     "media-src 'self' blob: data: https://*.supabase.co",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lms.s.isct.ac.jp https://api.open-meteo.com https://geocoding-api.open-meteo.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com https://server.arcgisonline.com https://tile.openstreetmap.org",
     "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com",
+    // キャンパスナビの3D表示（MapLibre GL）は地図の処理を blob: の Web Worker で動かす
+    "worker-src 'self' blob:",
     isFramablePage ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

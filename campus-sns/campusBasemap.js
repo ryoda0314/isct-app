@@ -3,7 +3,8 @@
 // Leaflet の地図インスタンスに重ねて使う。leaflet-rotate の回転にも追従する。
 import { CAMPUS_BOUNDARY, ENTRANCES, SPOTS, WAYPOINTS, EDGES } from "./hooks/useLocationSharing.js";
 
-const PALETTES = {
+// 3D表示（campusMap3d.js）でも同じ配色・線幅を使う
+export const PALETTES = {
   light: {
     outside: "#e8edf0", campus: "#f5f7f2", campusEdge: "#d8e1d3",
     park: "#d3e8c5", pitch: "#c7e2b6", track: "#ead7c6", wood: "#bddcaa", water: "#c4ddf0",
@@ -23,8 +24,8 @@ const PALETTES = {
 };
 
 // 実際の幅(m)。ズームに応じて px に直す（最小幅は確保）
-const WIDTH_M = { walk: 4.5, minor: 6, ped: 5, mid: 8, major: 12 };
-const MIN_PX = { walk: 1.6, minor: 1.6, ped: 1.4, mid: 2.2, major: 3 };
+export const WIDTH_M = { walk: 4.5, minor: 6, ped: 5, mid: 8, major: 12 };
+export const MIN_PX = { walk: 1.6, minor: 1.6, ped: 1.4, mid: 2.2, major: 3 };
 
 const STYLE_ID = "campus-basemap-style";
 const ZOOM_CLASSES = ["cb-z-lo", "cb-z-mid", "cb-z-hi", "cb-z-max"];
@@ -59,7 +60,7 @@ const spotById = Object.fromEntries(SPOTS.filter((s) => s.id).map((s) => [s.id, 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 // 通路グラフの辺を [[lat,lng],[lat,lng]] の線分の配列にする
-const walkSegments = () => {
+export const walkSegments = () => {
   const nodes = {};
   WAYPOINTS.forEach((w) => { nodes[w.id] = w; });
   ENTRANCES.forEach((e, i) => { nodes[`ent_${i}`] = e; });
@@ -74,7 +75,7 @@ const walkSegments = () => {
 };
 
 // a と b を t:1-t で混ぜた色（'#rrggbb'）
-const mixHex = (a, b, t) => {
+export const mixHex = (a, b, t) => {
   const pa = parseInt(a.slice(1, 7), 16);
   const pb = parseInt(b.slice(1, 7), 16);
   const ch = (sh) => Math.round(((pa >> sh) & 255) * t + ((pb >> sh) & 255) * (1 - t));

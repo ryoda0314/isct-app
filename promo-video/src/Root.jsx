@@ -2,6 +2,9 @@ import { Composition, staticFile } from 'remotion';
 import { PromoVideo } from './PromoVideo.jsx';
 import { AppPromo } from './promo/AppPromo.jsx';
 import { T, FPS, W, H } from './promo/theme.js';
+import { Campus3DCheck } from './promo2/dev/Campus3DCheck.jsx';
+import { AppPromoV2 } from './promo2/AppPromoV2.jsx';
+import { T2 } from './promo2/theme2.js';
 
 export const RemotionRoot = () => {
   return (
@@ -42,6 +45,10 @@ export const RemotionRoot = () => {
         width={W}
         height={H}
       />
+      {/* アプリ紹介アニメーション ver2（実画面・ある学生の1日・約59秒） */}
+      <Composition id="AppPromoV2" component={AppPromoV2} durationInFrames={T2.total} fps={FPS} width={W} height={H} />
+      {/* 開発用：ver2 の3Dキャンパスのカメラ確認（--props で調整） */}
+      <Composition id="Campus3DCheck" component={Campus3DCheck} durationInFrames={1} fps={FPS} width={W} height={H} />
     </>
   );
 };

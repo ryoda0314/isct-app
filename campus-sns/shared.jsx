@@ -52,6 +52,28 @@ const useLeaflet=()=>{
   return ready;
 };
 
+// --- MapLibre GL Loader（キャンパスナビの3D表示。使うときだけ読み込む）---
+let _mlLoading=null;
+const _loadMapLibre=()=>{
+  if(window.maplibregl)return Promise.resolve(true);
+  if(!_mlLoading)_mlLoading=new Promise(res=>{
+    _loadCSS("https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.24.0/maplibre-gl.min.css","sha512-KIMsMWIdnoG9OwZa+oaIafmbDonqck1UCmq+/zcUi2aaZ97N9QE6TqpTM+n36EO40HGh64hU/375zxtjx7WTyQ==");
+    const el=_loadJS("https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.24.0/maplibre-gl.min.js","sha512-hoXlvOdSmh58mppUyZHZsscHkR/yXl6zLpTMTNwA6IZ61DpeaCNjosRu1WJ2DeIpkfW5MsJJ9H89zjV4IBGqRw==",()=>res(!!window.maplibregl));
+    el.onerror=()=>{el.remove();_mlLoading=null;res(false);};
+  });
+  return _mlLoading;
+};
+const useMapLibre=(enabled=true)=>{
+  const [st,setSt]=useState(()=>({ready:typeof window!=="undefined"&&!!window.maplibregl,failed:false}));
+  useEffect(()=>{
+    if(!enabled||st.ready)return;
+    let alive=true;
+    _loadMapLibre().then(ok=>{if(alive)setSt({ready:ok,failed:!ok});});
+    return()=>{alive=false;};
+  },[enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  return st;
+};
+
 // --- Highlight.js Loader ---
 const useHighlight=()=>{
   const [ready,setReady]=useState(typeof window!=="undefined"&&!!window.hljs);
@@ -222,4 +244,4 @@ const msgPreview = (txt, max = 48) => {
   return s.length > max ? s.slice(0, max) + "…" : s;
 };
 
-export { useKatex, useHighlight, useLeaflet, useQRCode, Tx, Av, Tag, Bar, Btn, Loader, setProfileOpener, openProfileFor, msgPreview };
+export { useKatex, useHighlight, useLeaflet, useMapLibre, useQRCode, Tx, Av, Tag, Bar, Btn, Loader, setProfileOpener, openProfileFor, msgPreview };

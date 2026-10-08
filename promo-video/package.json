@@ -13,7 +13,10 @@
     "all": "npm run voices && npm run render",
     "promo:sfx": "python make_promo_sfx.py",
     "promo:frames": "node preview_frames.mjs",
-    "promo:render": "remotion render src/index.js AppPromo out/app-promo.mp4 --color-space=bt709 --timeout=180000"
+    "promo:render": "remotion render src/index.js AppPromo out/app-promo.mp4 --color-space=bt709 --timeout=180000",
+    "promo2:capture": "node capture/capture_v2.mjs",
+    "promo2:frames": "node preview_frames.mjs --id=AppPromoV2",
+    "promo2:render": "remotion render src/index.js AppPromoV2 out/app-promo-v2.mp4 --color-space=bt709 --timeout=180000"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.0",

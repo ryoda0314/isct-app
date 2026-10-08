@@ -5,6 +5,8 @@
 外部素材を使わず numpy だけで作るので、ライセンス表記は不要。
   chime.wav … プッシュ通知の「ピロン」（2音の減衰サイン波）
   whoosh.wav … ツバメが横切る風切り音（帯域が掃引するノイズ）
+  pop.wav … 画面をタップしたときの小さな「ポッ」（ver2）
+  success.wav … 提出・クーポン使用の「ピコピコン」（3音のアルペジオ、ver2）
 """
 import os
 import wave
@@ -79,6 +81,34 @@ def whoosh():
     write_wav("whoosh.wav", sig * (1 - pan) * 1.4, sig * pan * 1.4)
 
 
+def bell(t, start, f0, amp, decay):
+    tt = np.clip(t - start, 0, None)
+    on = (t >= start).astype(float)
+    env = (1 - np.exp(-tt / 0.003)) * np.exp(-tt / decay) * on
+    return amp * env * (np.sin(2 * np.pi * f0 * tt) + 0.22 * np.sin(2 * np.pi * 2 * f0 * tt) * np.exp(-tt / 0.12))
+
+
+def success():
+    t = np.arange(int(SR * 1.2)) / SR
+    out = bell(t, 0.0, 1046.5, 0.8, 0.2) + bell(t, 0.07, 1318.51, 0.85, 0.22) + bell(t, 0.14, 1567.98, 1.0, 0.38)
+    wet = np.zeros_like(out)
+    for d, g in [(0.023, 0.22), (0.041, 0.15), (0.067, 0.1)]:
+        n = int(SR * d)
+        wet[n:] += g * out[:-n]
+    write_wav("success.wav", out + wet, out + np.roll(wet, int(SR * 0.004)))
+
+
+def pop():
+    t = np.arange(int(SR * 0.09)) / SR
+    f = 620 + 900 * np.exp(-t / 0.012)  # 1.5kHz から素早く下がる
+    phase = 2 * np.pi * np.cumsum(f) / SR
+    env = (1 - np.exp(-t / 0.0015)) * np.exp(-t / 0.018)
+    click = np.random.default_rng(7).standard_normal(len(t)) * np.exp(-t / 0.0012) * 0.25
+    write_wav("pop.wav", np.sin(phase) * env + click)
+
+
 if __name__ == "__main__":
     chime()
     whoosh()
+    pop()
+    success()

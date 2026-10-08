@@ -1,0 +1,512 @@
+{
+ "asgn_detail": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "attendance": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "booth": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "booth_coupon": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "dm": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "dm_chat": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "festival": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "festival_grid": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "festival_tall": {
+  "w": 1170,
+  "h": 7800,
+  "css_h": 2600,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 2550.0,
+  "header": 54.0
+ },
+ "freeroom": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "home": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "home_tall": {
+  "w": 1170,
+  "h": 4620,
+  "css_h": 1540,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 1490.0,
+  "header": 54.0
+ },
+ "navi_guide": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "navi_map": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "navi_route": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "navi_search": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "navi_spot": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "tasks": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "theme_dark": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#1a1a1f",
+  "bottom": "#1a1a1f",
+  "dark": true,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "theme_koyo": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#241a14",
+  "bottom": "#241a14",
+  "dark": true,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "theme_lavender": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#faf8ff",
+  "bottom": "#faf8ff",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "theme_light": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#ffffff",
+  "bottom": "#ffffff",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "theme_mizukumori": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#fdfdfe",
+  "bottom": "#fdfdfe",
+  "dark": false,
+  "tab_top": null,
+  "header": null
+ },
+ "theme_peach": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#fff9f5",
+  "bottom": "#fff9f5",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "theme_sakura": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#fff8f9",
+  "bottom": "#fff8f9",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "theme_scitokyo": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#18181f",
+  "bottom": "#18181f",
+  "dark": true,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "theme_shinryoku": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f8fcf8",
+  "bottom": "#f8fcf8",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "theme_sky": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6faff",
+  "bottom": "#f6faff",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "theme_titech": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#0e1e36",
+  "bottom": "#0e1e36",
+  "dark": true,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "theme_yuki": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f8fafc",
+  "bottom": "#f8fafc",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "timetable": {
+  "w": 1170,
+  "h": 2310,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 46.0
+ },
+ "wall_acadCal": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#eef5fb",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": null
+ },
+ "wall_calendar": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_circles": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 46.0
+ },
+ "wall_events": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_exams": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_freshman": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_friends": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_grades": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_gym": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_languages": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 48.0
+ },
+ "wall_lecrec": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#eef5fb",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": null
+ },
+ "wall_moreMenu": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_music": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_notes": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_notif": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_pdftools": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_pocket": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_pomo": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_qr": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ },
+ "wall_reviews": {
+  "w": 780,
+  "h": 1540,
+  "css_h": 770,
+  "top": "#f6fafd",
+  "bottom": "#f6fafd",
+  "dark": false,
+  "tab_top": 720.0,
+  "header": 54.0
+ }
+}
