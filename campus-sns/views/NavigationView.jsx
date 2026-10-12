@@ -8,6 +8,7 @@ import { useNavigation, NAV_SPOTS } from "../hooks/useNavigation.js";
 import { createCampusBasemap, isDarkColor } from "../campusBasemap.js";
 import { getNextClass } from "../todayClasses.js";
 import { CampusMap3D } from "../components/CampusMap3D.jsx";
+import { FEATURES_URL, parseFeatures } from "../campus3dFeatures.js";
 
 const ROUTE_COL="#1a8ef0"; // ルート線（地図アプリの慣例どおり青）
 const PIN_SVG=(col)=>`<svg width="36" height="46" viewBox="0 0 36 46"><path d="M18 44C18 44 3 29.5 3 18a15 15 0 0130 0c0 11.5-15 26-15 26z" fill="${col}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><circle cx="18" cy="18" r="5.5" fill="#fff"/></svg>`;
@@ -400,6 +401,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   // 地図の見た目: "illust"（イラスト地図・既定）| "photo"（航空写真）
   const [basemap,setBasemap]=useState(()=>{try{return localStorage.getItem("navBasemap")==="photo"?"photo":"illust";}catch{return "illust";}});
   const [bmData,setBmData]=useState(null);
+  const [features3d,setFeatures3d]=useState(null); // 3D表示に手で足した構造物（壁・坂・橋・通り抜け）
   const [bmVersion,setBmVersion]=useState(0); // イラスト地図を作り直したら増やす（マーカーの描き直し用）
   const [outOfRegion,setOutOfRegion]=useState(false);
   // 3D表示（MapLibre GL。イラスト地図と同じデータで建物を立ち上げる）。使えない端末では 2D のまま
@@ -878,6 +880,13 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     import("../campusBasemapData.js").then(m=>{if(alive)setBmData(m.BASEMAP);}).catch(()=>{if(alive){setBasemap("photo");setView3d(false);}});
     return()=>{alive=false;};
   },[basemap,bmData,view3d]);
+  // 3D表示の構造物（public/map-3d/features.json、/editor/3d で編集）は 3D を開いたときだけ読む。読めなければ無しで描く
+  useEffect(()=>{
+    if(!view3d||features3d)return;
+    let alive=true;
+    fetch(FEATURES_URL).then(r=>r.ok?r.json():null).then(j=>{if(alive)setFeatures3d(parseFeatures(j));}).catch(()=>{if(alive)setFeatures3d([]);});
+    return()=>{alive=false;};
+  },[view3d,features3d]);
 
   // 3D表示の切り替えを覚えておく。読み込みに失敗したら 2D に戻してお知らせする
   useEffect(()=>{view3dRef.current=view3d;try{localStorage.setItem("navView3d",view3d?"1":"0");}catch{}},[view3d]);
@@ -1448,7 +1457,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     {basemap==="illust"?t("navi.mapPhoto"):t("navi.mapIllust")}
   </button>);
   // 3D表示の切り替え（案内中も使える）。読み込み中は点滅させる
-  const loading3d=view3d&&(!mapLibre.ready||!bmData);
+  const loading3d=view3d&&(!mapLibre.ready||!bmData||!features3d);
   if((showMapToggle||guiding)&&!pickerOpen)btnStack.push(<button key="3d" onClick={toggle3d} title={t("navi.view3d")} aria-label={t("navi.view3d")} aria-pressed={view3d} style={{...sideBtn,fontSize:14,fontWeight:900,letterSpacing:"-.02em",background:view3d?T.accent:T.bg2,color:view3d?"#fff":T.txH,border:`1px solid ${view3d?T.accent:T.bdL}`,animation:loading3d?"nav3dLoad 1s ease-in-out infinite":"none"}}>3D</button>);
   if(showMapToggle&&!pickerOpen)btnStack.push(<button key="loc" title={t("navi.locateMe")} aria-label={t("navi.locateMe")} onClick={()=>{
     if(gpsPos&&view3d&&map3dRef.current){map3dRef.current.flyTo(gpsPos.lat,gpsPos.lng,17.5);return;}
@@ -1510,10 +1519,11 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     `}</style>
     {/* Full-screen map（zIndex で Leaflet 内部の重なりを閉じ込め、3D表示をその上に重ねる） */}
     <div ref={mapRef} style={{position:"absolute",inset:0,zIndex:0}}/>
-    {view3d&&mapLibre.ready&&bmData&&<CampusMap3D
+    {view3d&&mapLibre.ready&&bmData&&features3d&&<CampusMap3D
       key={`${isDarkColor(T.bg)?"d":"l"}${T.accent}`}
       ref={map3dRef}
       data={bmData}
+      features={features3d}
       dark={isDarkColor(T.bg)}
       accent={T.accent}
       initialView={leafletView()}

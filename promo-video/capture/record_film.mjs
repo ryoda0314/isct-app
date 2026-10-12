@@ -9,11 +9,12 @@
 //       log.json（タップした位置とフレーム、分解図に使うカードの位置）
 // 時間は timeweb で仮想にしてあるので、1コマずつ「操作 → 1/30 秒進める → 撮る」を繰り返す（capture/record_lib.mjs）。
 // 操作のフレーム番号は、動画の側（src/film/scenes）で拍に合わせて使う位置から逆算してある。
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cleanFestival, fixUndefinedPoints, hookMap, launch, sleep } from './lib.mjs';
-import { centerOf, easeScroll, logCards, merge, openRecorder, record, setAppState, tap } from './record_lib.mjs';
+import { centerOf, easeScroll, logCards, merge, openRecorder, record, scrollToText, setAppState, tap, tapTop } from './record_lib.mjs';
+import { buildTimeline } from '../src/zundamon/schedule.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(__dirname, '..', 'public', 'film', 'rec');
@@ -102,6 +103,56 @@ const pickFile = (label) => async (page) => {
   return { tap: [p.x, p.y] };
 };
 const okConfirm = () => { window.confirm = () => true; }; // 提出の確認ダイアログは OK
+
+// ずんだもんの紹介映像の時間割り（映像の src/zundamon/timeline.js と同じ計算）。録画のフレーム = 映像のフレーム − 章の頭
+const ZT = buildTimeline(
+  JSON.parse(readFileSync(join(__dirname, '..', 'src', 'zundamon', 'script.json'), 'utf8')),
+  JSON.parse(readFileSync(join(__dirname, '..', 'src', 'zundamon', 'voice.json'), 'utf8')),
+);
+const zrec = (scene, R) => {
+  const base = ZT.SCENE[scene].start;
+  const Z = {
+    w: (id, kana, off = 0) => ZT.word(id, kana, off) - base, // その言葉が始まる、録画のフレーム
+    l: (id) => ({ at: ZT.LINE[id].at - base, end: ZT.LINE[id].end - base }),
+  };
+  return { ...R, frames: ZT.SCENE[scene].end - base, actions: () => R.actions(Z) };
+};
+// 授業の教材の PDF を開く前に、アプリと同じ pdf.js を読み込んで一度描いておく（撮影中に開いたとき、すぐ表示されるように）
+const preloadPdf = async (page) => {
+  await page.evaluate(async () => {
+    const CDN = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174';
+    if (!window.pdfjsLib) await new Promise((ok, ng) => { const s = document.createElement('script'); s.src = `${CDN}/build/pdf.min.js`; s.onload = ok; s.onerror = ng; document.head.appendChild(s); });
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = `${CDN}/build/pdf.worker.min.js`;
+    const bytes = new Uint8Array(await (await fetch('/demo/materials/lecture_en.pdf')).arrayBuffer());
+    const doc = await window.pdfjsLib.getDocument({ data: bytes, cMapUrl: `${CDN}/cmaps/`, cMapPacked: true, standardFontDataUrl: `${CDN}/standard_fonts/` }).promise;
+    const pg = await doc.getPage(1);
+    const v = pg.getViewport({ scale: 0.5 });
+    const cv = document.createElement('canvas');
+    cv.width = v.width;
+    cv.height = v.height;
+    await pg.render({ canvasContext: cv.getContext('2d'), viewport: v }).promise;
+    await doc.destroy();
+  });
+  await sleep(300);
+};
+// DM：鈴木一郎さんとのトークを開いて、スタンプの画像を先に読み込んでおく
+const openSuzukiDM = async (page) => {
+  const box = await page.evaluate(() => {
+    const c = [...document.querySelectorAll('*')].filter((e) => (e.textContent || '').includes('鈴木一郎') && (e.textContent || '').includes('ありがとう'));
+    c.sort((a, b) => a.textContent.length - b.textContent.length);
+    const r = c[0]?.getBoundingClientRect();
+    return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
+  });
+  if (!box) throw new Error('DM の相手が見つかりません');
+  await page.mouse.click(box.x, box.y);
+  await sleep(2000);
+  await page.evaluate(async () => {
+    const ids = { reactions: ['ryokai', 'arigatou', 'otsukare', 'gomenne', 'ok', 'matane'], campus: ['now_ookayama', 'near_yushima', 'engr_face', 'med_face', 'togo_topic', 'today_suzu', 'lost_tamachi', 'summon_ooka', 'experimenting', 'kadai_oware', 'med_eng', 'kokuritsu_kyu', 'back_to_lab', 'mood_yushima', 'mem_tokyotech', 'mem_idaishika'] };
+    const urls = Object.entries(ids).flatMap(([cat, list]) => list.map((id) => `/stamps/${cat}/${id}.webp`));
+    await Promise.all(urls.map((u) => new Promise((r) => { const im = new Image(); im.onload = im.onerror = r; im.src = u; })));
+  });
+  await sleep(500);
+};
 
 const RECS = {
   // ホーム（スクロールして戻る → 分解図に使う瞬間のカードの位置を記録）。映像は「4月。」から始まるので春の日付。春の扉の動画と同じ画面
@@ -323,6 +374,14 @@ const RECS = {
       if (!box) throw new Error('DM の相手が見つかりません');
       await page.mouse.click(box.x, box.y);
       await sleep(2000);
+      // スタンプの画像を先に読み込んでおく（撮影中に一覧を開いたとき、灰色の枠のまま映らないように）
+      await page.evaluate(async () => {
+        const urls = [...new Set([...document.querySelectorAll('img')].map((i) => i.src))];
+        const ids = { reactions: ['ryokai', 'arigatou', 'otsukare', 'gomenne', 'ok', 'matane'], campus: ['now_ookayama', 'near_yushima', 'engr_face', 'med_face', 'togo_topic', 'today_suzu', 'lost_tamachi', 'summon_ooka', 'experimenting', 'kadai_oware', 'med_eng', 'kokuritsu_kyu', 'back_to_lab', 'mood_yushima', 'mem_tokyotech', 'mem_idaishika'] };
+        for (const [cat, list] of Object.entries(ids)) for (const id of list) urls.push(`/stamps/${cat}/${id}.webp`);
+        await Promise.all(urls.map((u) => new Promise((r) => { const im = new Image(); im.onload = im.onerror = r; im.src = u; })));
+      });
+      await sleep(500);
     },
     init: stubDMSend,
     frames: 100,
@@ -334,6 +393,103 @@ const RECS = {
       { 72: tapDM('matane') },
     ),
   },
+  // ── ずんだもんの紹介映像（src/zundamon）。操作はすべて、声の言葉のフレーム（schedule.js の時間割り）に合わせてある。
+  // 映像では、各章の頭を録画の 0 コマ目として 1 倍速で流す（コマを止めたり飛ばしたりしない）。日付は 6/17（水）。
+  // ホーム：8:45（1限は 8:50 の西9号館＝冒頭の「授業まであと5分」）。天気 → 今日のスケジュール → 締切へスクロール
+  rec_z_home: zrec('home', {
+    open: { view: 'home', time: at(DAY.summer, '08:45'), storage: st('tsubame', 'summer') },
+    each: hideFestBanner,
+    actions: (Z) => merge(
+      { 0: logCards },
+      scrollToText(Z.w('hm2', 'ジュギョオ', -14), Z.w('hm2', 'ジュギョオ', 2), '今日のスケジュール', 6),
+      { [Z.w('hm2', 'ジュギョオ', 6)]: logCards },
+      scrollToText(Z.w('hm2', 'シメキリ', -14), Z.w('hm2', 'シメキリ', 2), '直近の締切', 6),
+      { [Z.w('hm2', 'シメキリ', 6)]: logCards },
+    ),
+  }),
+  // 時間割：一覧（履修科目）まで見せて戻る → 英語第二 → 教材 → スライドの PDF → 戻る → チャット → 投票
+  rec_z_tt: zrec('tt', {
+    open: { view: 'timetable', time: at(DAY.summer, '08:45'), storage: st('tsubame', 'summer') },
+    prepare: preloadPdf,
+    actions: (Z) => merge(
+      easeScroll(Z.w('tt1', 'リシュウ', -6), Z.w('tt1', 'リシュウ', 24), 0, 360, 'inout'),
+      easeScroll(Z.w('tt1', 'デキアガル', 4), Z.w('tt1', 'デキアガル', 30), 360, 0, 'inout'),
+      { [Z.w('tt3', 'タップ', -3)]: (p) => tap(p, '英語第二') },
+      { [Z.w('tt3', 'シリョオ', -6)]: tapTop('Week2_Paragraph_Structure.pdf') },
+      { [Z.l('tt4').at - 2]: tapTop('戻る') },
+      { [Z.w('tt4', 'チャット', -3)]: (p) => tap(p, 'チャット', { exact: true }) },
+      { [Z.w('tt4', 'アンケエト', -2)]: (p) => tap(p, 'Grammarly', { exact: true }) },
+    ),
+  }),
+  // キャンパスナビ：検索して西9号館 → ここへ案内 → 案内を開始（8:45 に大岡山駅）
+  rec_z_navi: zrec('navi', {
+    open: { view: 'navigation', time: at(DAY.summer, '08:45'), geo: HERE, storage: st('tsubame', 'summer', { navBasemap: 'illust', navView3d: '1' }), boot: 9000 },
+    init: hookMap,
+    actions: (Z) => merge(
+      { [Z.l('nv1').at + 2]: (p) => tap(p, '建物・教室・スポットを検索') },
+      typeAt(Z.w('nv1', 'ニシ'), '西9号館', 4),
+      { [Z.w('nv1', 'イッパツ', -2)]: fn((p) => p.keyboard.press('Enter')) },
+      { [Z.w('nv3', 'オスト', -4)]: (p) => tap(p, 'ここへ案内') },
+      { [Z.l('nv4').at + 2]: (p) => tap(p, '案内を開始') },
+    ),
+  }),
+  // 課題：開く → やることにチェック → アプリで提出 → PDF を選ぶ → 提出する（「押す」）→「提出しました」（「提出完了」）→ 閉じる
+  rec_z_asgn: zrec('asgn', {
+    open: { view: 'tasks', time: at(DAY.summer, '17:20'), storage: st('tsubame', 'summer') },
+    init: okConfirm,
+    each: (p) => fixUndefinedPoints(p),
+    actions: (Z) => merge(
+      { [Z.w('as2', 'ヤル', -3)]: (p) => tap(p, '実験レポート第2回') },
+      { [Z.w('as2', 'ススミ', -2)]: (p) => tap(p, '考察', { exact: true }) },
+      { [Z.w('as3', 'アプリカラ', -3)]: (p) => tap(p, 'アプリで提出', { exact: true }) },
+      { [Z.w('as4', 'エランデ', -8)]: pickFile('ファイルを選択') },
+      { [Z.w('as4', 'オス', -1)]: (p) => tap(p, '提出する', { exact: true }) },
+      { [Z.l('as5').at + 4]: tapTop('閉じる') },
+    ),
+  }),
+  // 空き教室：時限を切り替える → スクロール → 教室の週の空き
+  rec_z_free: zrec('free', {
+    open: { view: 'freeroom', time: at(DAY.summer, '12:40'), storage: st('tsubame', 'summer') },
+    actions: (Z) => merge(
+      { [Z.w('fr2', 'ジゲン', -2)]: (p) => tap(p, '7-8限') },
+      { [Z.w('fr2', 'エラブ', 4)]: (p) => tap(p, '5-6限') },
+      easeScroll(Z.w('fr2', 'ミツカル', -10), Z.w('fr2', 'ミツカル', 14), 0, 380),
+      { [Z.w('fr3', 'キョオシツ', -3)]: tapVisibleRoom },
+    ),
+  }),
+  // DM：打って送る → スタンプ
+  rec_z_dm: zrec('dm', {
+    open: { view: 'dm', time: at(DAY.summer, '12:40'), storage: st('tsubame', 'summer'), boot: 9000 },
+    prepare: openSuzukiDM,
+    init: stubDMSend,
+    actions: (Z) => merge(
+      { [Z.l('dm1').at]: tapDM('input') },
+      typeAt(Z.l('dm1').at + 6, '了解！あとで送るね', 3),
+      { [Z.w('dm1', 'デキル', -2)]: fn((p) => p.keyboard.press('Enter')) },
+      { [Z.w('dm2', 'スタンプ', -4)]: tapDM('stamps') },
+      { [Z.w('dm2', 'オクレル', -2)]: tapDM('matane') },
+    ),
+  }),
+  // テーマと言語：ホームをゆっくり流しながら、テーマを次々に → 「緑」で新緑 → English・简体中文・한국어 → toki pona
+  rec_z_theme: zrec('theme', {
+    open: { view: 'home', time: at(DAY.summer, '08:45'), storage: st('tsubame', 'summer') },
+    each: hideFestBanner,
+    actions: (Z) => {
+      const a = Z.l('th1').at + 6;
+      const b = Z.l('th1').end - 8;
+      const themes = ['dark', 'titech', 'sakura', 'mint', 'lavender', 'sky', 'peach', 'koyo', 'yuki'];
+      return merge(
+        easeScroll(Z.l('th1').at, Z.l('th2').end, 0, 380, 'inout'),
+        easeScroll(Z.l('lg1').at, Z.l('lg2').end, 380, 0, 'inout'),
+        ...themes.map((id, i) => ({ [Math.round(a + ((b - a) * i) / (themes.length - 1))]: setAppState('themePref', id) })),
+        { [Z.w('th2', 'ミドリ', -1)]: setAppState('themePref', 'shinryoku') },
+        { [Z.w('lg1', 'エエゴ', -1)]: setAppState('langPref', 'en') },
+        { [Z.w('lg1', 'チュウゴク', -1)]: setAppState('langPref', 'zh') },
+        { [Z.w('lg1', 'カンコク', -1)]: setAppState('langPref', 'ko') },
+        { [Z.w('lg2', 'トキポナ', -1)]: setAppState('langPref', 'tp') },
+      );
+    },
+  }),
   // PC：横のメニューで画面を移る
   rec_desk: {
     open: { view: 'home', time: at(DAY.summer, '08:50'), storage: st('tsubame', 'summer', { navBasemap: 'illust', navView3d: '1' }), width: 1440, height: 900, dsf: 1, mobile: false, geo: HERE },

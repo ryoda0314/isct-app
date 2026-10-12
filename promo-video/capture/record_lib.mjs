@@ -4,7 +4,7 @@
 // setTimeout・requestAnimationFrame・performance.now・Date・CSS のアニメーションとトランジションが、
 // 実時間ではなく timeweb.goTo(ms) で進めた時間で動く。読み込み中は実時間に合わせて進め（startRealtimeSimulation）、
 // 撮影に入ったら止めて 1/30 秒ずつ進めながら撮るので、重い場面でもコマ落ちしない。
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASE, hideDevOverlay, sleep } from './lib.mjs';
@@ -104,10 +104,62 @@ export const easeScroll = (a, b, y0, y1, ease = 'out') => {
   return out;
 };
 
+// スクロールの中の、文字がちょうど text の見出しを、上から offset px の位置まで a〜b フレームでなめらかに動かす。
+// 行き先は a フレーム目に測る（画面の中身が変わっても追いかける）
+export const scrollToText = (a, b, text, offset = 8) => {
+  let from = 0;
+  let to = 0;
+  const out = {};
+  for (let i = a; i <= b; i++) {
+    out[i] = async (page) => {
+      if (i === a) {
+        const r = await page.evaluate((text, offset) => {
+          const els = [...document.querySelectorAll('*')].filter((e) => { const s = getComputedStyle(e); return /(auto|scroll)/.test(s.overflowY) && e.scrollHeight > e.clientHeight + 40; });
+          els.sort((x, y) => y.clientHeight * y.clientWidth - x.clientHeight * x.clientWidth);
+          const box = els[0];
+          const el = box && [...box.querySelectorAll('span,div,h2,h3')].find((e) => e.textContent.trim() === text);
+          if (!el) return null;
+          const y1 = box.scrollTop + el.getBoundingClientRect().top - box.getBoundingClientRect().top - offset;
+          return { y0: box.scrollTop, y1: Math.max(0, Math.min(box.scrollHeight - box.clientHeight, y1)) };
+        }, text, offset);
+        if (!r) throw new Error(`見出しが見つかりません: ${text}`);
+        from = r.y0;
+        to = r.y1;
+      }
+      const t = (i - a) / Math.max(1, b - a);
+      const e = t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+      await scrollMainTo(page, Math.round(from + (to - from) * e));
+      return null;
+    };
+  }
+  return out;
+};
+
+// 文字を含む要素のうち、いま画面のいちばん手前にあるものを押す（重なったモーダルの下のボタンを押さないように）
+export const tapTop = (text) => async (page) => {
+  const p = await page.evaluate((text) => {
+    const c = [...document.querySelectorAll('button,[role=button],a,div,span')].filter((e) => (e.textContent || '').trim().includes(text));
+    c.sort((a, b) => a.textContent.length - b.textContent.length);
+    for (const e of c) {
+      const r = e.getBoundingClientRect();
+      if (!r.width || !r.height || r.bottom < 0 || r.top > innerHeight) continue;
+      const x = r.x + r.width / 2;
+      const y = r.y + r.height / 2;
+      const top = document.elementFromPoint(x, y);
+      if (top && (e === top || e.contains(top))) return { x: Math.round(x), y: Math.round(y) };
+    }
+    return null;
+  }, text);
+  if (!p) throw new Error(`押せる場所が見つかりません: ${text}`);
+  await page.mouse.click(p.x, p.y);
+  return { tap: [p.x, p.y] };
+};
+
 // 撮影：frames 枚を 30fps で撮る。actions: { [フレーム]: async (page) => 記録したいこと | null }
 // 各フレームで「操作 → 時間を 1/30 秒進める → 描画を待つ → 撮る」。操作の記録（タップの位置など）を JSON に残す
 export async function record(page, outDir, { frames, actions = {}, quality = 90, meta = {}, each }) {
-  rmSync(outDir, { recursive: true, force: true });
+  // 前の撮影のコマを消す（fs.rmSync は、日本語を含むパスでは何もせずに終わることがあるので使わない。Node 24・Windows で確認）
+  if (existsSync(outDir)) for (const n of readdirSync(outDir)) if (/\.(jpg|json)$/.test(n)) unlinkSync(join(outDir, n));
   mkdirSync(outDir, { recursive: true });
   const t0 = await page.evaluate(() => { window.timeweb.stopRealtimeSimulation(); return performance.now(); });
   const log = [];

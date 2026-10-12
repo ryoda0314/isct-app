@@ -3,9 +3,18 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { T } from "../theme.js";
 import { t } from "../i18n.js";
-import { EMPTY_FC, ML_ZOOM_OFFSET, PITCH, PITCH_GUIDE, buildCampus3D, circleFC, coverZoom, lineFC, makeConstrain, maxPitchAt, pointsFC, regionOf, roofAt, spotOutline } from "../campusMap3d.js";
+import { EMPTY_FC, ML_ZOOM_OFFSET, PITCH, PITCH_GUIDE, ROUTE_COL, ROUTE_DOT, STATIC_DEM, TERRAIN_EXAG, buildCampus3D, buildingsFC, circleFC, coverZoom, lightOf, linesFC, makeConstrain, maxPitchAt, pointsFC, regionOf, roofAt, routeCasing, routeWidth, spotOutline, streetsFC } from "../campusMap3d.js";
+import { BURN_MAXZOOM, dem, demTileUrl, registerDemProtocol } from "../campusDem.js";
+import { ROUTE_ON_BRIDGE, burnsGround, featuresBounds, prepareBridge, splitByBridges, stairsPath, toXY } from "../campus3dFeatures.js";
+import { buildMesh, buildRibbons } from "../campus3dMesh.js";
+import { createExtrasLayer } from "../campus3dLayer.js";
+import { cutPassages } from "../campus3dBuildings.js";
 
-const ROUTE_COL = "#1a8ef0";
+const rgbaOf = (hex) => {
+  const n = parseInt(hex.slice(1, 7), 16);
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, 1];
+};
+const NO_FEATURES = [];
 const PIN_SVG = (col) => `<svg width="36" height="46" viewBox="0 0 36 46"><path d="M18 44C18 44 3 29.5 3 18a15 15 0 0130 0c0 11.5-15 26-15 26z" fill="${col}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><circle cx="18" cy="18" r="5.5" fill="#fff"/></svg>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const angDiff = (a, b) => ((((a - b) % 360) + 540) % 360) - 180;
@@ -22,6 +31,8 @@ const PITCH_FIT = 45; // ルート全体などを見せるときの傾き
 const GUIDE_FOCUS = 0.3; // 案内中は画面の上 30% を空けて、現在地を下寄りに置く（先の道が見えるように）
 const ZOOM_CLASSES = ["cb3-z-lo", "cb3-z-mid", "cb3-z-hi", "cb3-z-max"];
 const NO_PAD = { top: 0, bottom: 0, left: 0, right: 0 }; // 案内中に下げた現在地の位置を、ほかの移動では戻す
+// MapLibre は地形の陰に入ったマーカーを薄くする（建物のラベルはそのまま）。駅名・ピン・現在地は谷にあっても必ず見せる
+const ALWAYS = { opacityWhenCovered: "1" };
 
 // 2D のイラスト地図と同じ見え方の規則（Leaflet のズーム 16.5 / 17.6 / 19 = MapLibre の 15.5 / 16.6 / 18）
 const CSS = `
@@ -65,6 +76,20 @@ const ORIGIN_HTML = `<div style="width:18px;height:18px;border-radius:50%;backgr
 // グループ（ベンチなど）のピン。2D と同じく、引いているときは点だけ、寄ったら名前の吹き出しを出す
 const groupPinHtml = (label, col) => `<div class="cb3-gp" style="--gp:${col}"><div class="cb3-gp-lbl">${esc(label)}</div><div class="cb3-gp-stem"></div><div class="cb3-gp-dot"></div></div>`;
 
+// ルートの透けて見える点（2倍解像度で直径 6px）
+const routeDotImage = () => {
+  const s = 12;
+  const c = document.createElement("canvas");
+  c.width = s;
+  c.height = s;
+  const g = c.getContext("2d");
+  g.fillStyle = ROUTE_COL;
+  g.beginPath();
+  g.arc(s / 2, s / 2, s / 2 - 0.5, 0, Math.PI * 2);
+  g.fill();
+  return g.getImageData(0, 0, s, s);
+};
+
 const el = (html) => {
   const d = document.createElement("div");
   d.innerHTML = html;
@@ -105,11 +130,11 @@ function fitCamera(ml, map, pts, pad, pitch, bearing, maxZoom) {
         center = new ml.LngLat(tr.center.lng, tr.center.lat);
         let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
         lls.forEach((ll) => {
-          const s = tr.locationToScreenPoint(ll);
+          const s = tr.locationToScreenPoint(ll, map.terrain || undefined); // 地形の高さも入れて投影する
           x0 = Math.min(x0, s.x); x1 = Math.max(x1, s.x); y0 = Math.min(y0, s.y); y1 = Math.max(y1, s.y);
         });
         const shift = new ml.Point(W / 2 + (x0 + x1) / 2 - (box.l + box.r) / 2, H / 2 + (y0 + y1) / 2 - (box.t + box.b) / 2);
-        center = tr.screenPointToLocation(shift);
+        center = tr.screenPointToLocation(shift, map.terrain || undefined);
         const s = Math.min((box.r - box.l) / Math.max(1, x1 - x0), (box.b - box.t) / Math.max(1, y1 - y0));
         zoom = Math.min(maxZoom, zoom + Math.log2(s));
       }
@@ -130,6 +155,8 @@ function fitCamera(ml, map, pts, pad, pitch, bearing, maxZoom) {
  *   gps, guiding, follow, northUp  現在地 { lat, lng, accuracy } と案内の状態
  *   group                          { prefix, col }（ベンチなどのグループ表示中）
  *   fitPad                         ルート全体などを見せるときの余白 { top, bottom, left, right }（上下のカードの分）
+ *   features                       手で足した構造物（campus3dFeatures.js。坂があるかどうかは作るときに決まる）
+ *   editable, selectedFeatureId    エディタ用：いつでも坂を焼き込める標高タイルにする / 選んでいる構造物を色で示す
  *   onSpotTap(id), onGroupTap(id), onMapClick(), onUserMove(), onRotate(bearing), onLoad(), onError(err)
  */
 export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
@@ -153,14 +180,46 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const wasGuiding = useRef(false);
   const coverRef = useRef(14); // いちばん引いたズーム（データがちょうど画面いっぱい）
   const blockedRef = useRef(false); // 追従の中心が、データの端で止められている
+  const extrasRef = useRef(null); // 手で足した構造物を描くレイヤー（campus3dLayer.js）
+  const bridgesRef = useRef([]); // prepareBridge 済みの橋
+  const onBridgeRef = useRef([]); // ルートのうち橋の上を通る部分 [[lng, lat, 床の標高]...]
+  const gpsLiftRef = useRef(0); // 現在地が橋の上なら、地面からの高さ(m)
+  const applyRef = useRef(0); // 構造物の反映の番号（新しい反映が始まったら古いものは捨てる）
+  const [bridgeTick, setBridgeTick] = useState(0); // 橋が変わったら増やす（ルートを分け直す）
 
-  // ── 地図を作る（1回だけ）──
+  // ── 地図を作る（1回だけ）。手で足した坂があれば、先に坂のまわりの標高を読んで焼き込んでおく（あとから地形が切り替わらないように）──
   useEffect(() => {
+    const slopes = (propsRef.current.features || []).filter(burnsGround);
+    let cleanup = null;
+    let cancelled = false;
+    const start = () => {
+      if (!cancelled) cleanup = createMap();
+    };
+    if (slopes.length) {
+      dem.ensure(featuresBounds(slopes)).then(() => {
+        dem.setBurns(slopes);
+        start();
+      });
+    } else {
+      dem.setBurns([]);
+      start();
+    }
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function createMap() {
     const ml = window.maplibregl;
     const box = boxRef.current;
     const wrap = wrapRef.current;
     if (!ml || !box || !wrap) return undefined;
-    const built = buildCampus3D(data, { dark, accent });
+    // 坂を焼き込む標高タイルは、エディタか、坂・階段があるときだけ（ふだんは元のタイルをそのまま使う）
+    const burn = !!propsRef.current.editable || (propsRef.current.features || []).some(burnsGround);
+    if (burn) registerDemProtocol(ml);
+    const built = buildCampus3D(data, { dark, accent, dem: burn ? { tiles: [demTileUrl()], maxzoom: BURN_MAXZOOM } : STATIC_DEM });
+    built.burn = burn;
     builtRef.current = built;
     const vars = {
       "--cb3-label": built.pal.label, "--cb3-label-muted": built.pal.labelMuted, "--cb3-halo": built.pal.halo, "--cb3-accent": accent,
@@ -196,6 +255,9 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     }
     mapRef.current = map;
     map.on("error", (ev) => console.warn("[3D map]", ev?.error?.message || ev));
+    map.on("styleimagemissing", (ev) => {
+      if (ev.id === ROUTE_DOT && !map.hasImage(ROUTE_DOT)) map.addImage(ROUTE_DOT, routeDotImage(), { pixelRatio: 2 });
+    });
 
     // いちばん引いたところ＝データがちょうど画面いっぱい（回していないとき）。画面の大きさが変わったら測り直す
     const fitMinZoom = () => {
@@ -249,7 +311,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     });
     built.stations.forEach((st) => {
       const node = el(`<div class="cb3-sta">${esc(st.name)}</div>`);
-      mk.current.stations.push({ m: new ml.Marker({ element: holder(node), anchor: "center" }).setLngLat(st.lngLat).addTo(map), node });
+      mk.current.stations.push({ m: new ml.Marker({ ...ALWAYS, element: holder(node), anchor: "center" }).setLngLat(st.lngLat).addTo(map), node });
     });
 
     // ズームに合わせた表示の切り替えと、ラベルを屋上の高さへ持ち上げる量
@@ -269,9 +331,12 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       }
       if (Math.abs(z - last.z) < 0.02 && Math.abs(pitch - last.p) < 0.3 && k === last.k) return;
       Object.assign(last, { z, p: pitch, k });
-      const f = k * (2 ** z / MPP0) * Math.sin((pitch * Math.PI) / 180);
+      const perM = (2 ** z / MPP0) * Math.sin((pitch * Math.PI) / 180); // 高さ 1m が画面で何 px 上か
+      const f = k * perM;
       mk.current.labels.forEach(({ m, l }) => m.setOffset([0, -l.h * f - 6]));
       if (mk.current.pin) mk.current.pin.m.setOffset([0, 2 - mk.current.pin.h * f]);
+      // 橋の上を歩いているときは、現在地を床の高さへ持ち上げる
+      mk.current.gps?.setOffset([0, -gpsLiftRef.current * perM]);
       scheduleDeclutter();
     };
     const scheduleLayout = (force) => {
@@ -326,6 +391,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       declutterTimer = setTimeout(() => requestAnimationFrame(declutter), Math.max(0, 160 - (performance.now() - lastDeclutter)));
     }
     mk.current.relabel = () => { sizes.clear(); scheduleLayout(true); };
+    mk.current.relayout = () => scheduleLayout(true);
     map.on("zoom", scheduleLayout);
     map.on("pitch", scheduleLayout);
     map.on("move", scheduleDeclutter);
@@ -338,6 +404,36 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
 
     // 地面から建物が立ち上がり、地図が傾く
     map.on("load", () => {
+      // 手で足した構造物（壁・橋など）と橋の上のルートは、建物のすぐあと（ルートの線より前）に描く
+      try {
+        const extras = createExtrasLayer({
+          light: lightOf(dark),
+          route: { width: routeWidth, casing: routeCasing, color: rgbaOf(ROUTE_COL), casingColor: [1, 1, 1, 1] },
+          exaggeration: TERRAIN_EXAG,
+        });
+        map.addLayer(extras, "nav-route-passed");
+        extrasRef.current = extras;
+      } catch (err) {
+        console.warn("[3D map] extras layer:", err?.message || err);
+      }
+      // 平地・坂道・階段の垂直な段差は壁の中に隠すが、地形が粗いと段差がぎざぎざに壁の外へはみ出す。焼き込むときだけ細かくする：
+      // ・網目：既定はタイルを 128 分割（ズーム18で約1m）→ 192（頂点の番号が 16bit なので 250 くらいまで）
+      // ・標高：既定は描くタイルより1段粗いズームの標高（deltaZoom 1）→ 同じズーム（0）
+      // どちらも MapLibre の内部の値。無ければ何もしない
+      const tr = map.terrain;
+      if (built.burn && tr && typeof tr.meshSize === "number") {
+        try {
+          tr.meshSize = 192;
+          Object.values(tr._meshCache || {}).forEach((m) => m.destroy?.());
+          tr._meshCache = {};
+          if (tr.tileManager && tr.tileManager.deltaZoom === 1) {
+            tr.tileManager.deltaZoom = 0;
+            tr.tileManager._sourceTileCache = {};
+          }
+        } catch (err) {
+          console.warn("[3D map] terrain detail:", err?.message || err);
+        }
+      }
       setLoaded(true);
       propsRef.current.onRotate?.(map.getBearing());
       propsRef.current.onLoad?.();
@@ -347,6 +443,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         const k = Math.min(1, (now - t0) / 950);
         riseRef.current = 1 - (1 - k) ** 3;
         map.setPaintProperty("cb-buildings", "fill-extrusion-height", ["*", ["get", "h"], riseRef.current]);
+        map.setPaintProperty("cb-buildings", "fill-extrusion-base", ["*", ["coalesce", ["get", "b"], 0], riseRef.current]);
         scheduleLayout();
         if (k < 1) requestAnimationFrame(step);
       };
@@ -398,11 +495,13 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       cancelAnimationFrame(followRaf.current);
       cancelAnimationFrame(gpsAnim.current.raf);
       followRaf.current = 0;
+      applyRef.current++;
       map.remove();
       mapRef.current = null;
+      extrasRef.current = null;
       mk.current = { labels: [], stations: [], gps: null, pin: null };
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   // 現在地の矢印（向いている方向）は、地図の回転を引いて画面上の向きにする
   function updateArrow() {
@@ -477,9 +576,53 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       updateArrow();
       kickFollow();
     },
+    // エディタ用：地図そのものと、坂を入れた地面の標高
+    getMap: () => mapRef.current,
+    groundAt: (ll) => dem.groundAt(ll),
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { dest, origin, route, split, gps, guiding, follow, northUp, group, spots, fitPad } = props;
+  const features = props.features || NO_FEATURES;
+  const selectedFeatureId = props.selectedFeatureId || null;
+
+  // ── 手で足した構造物を地図に反映する：坂・階段（標高タイル）→ 橋・階段の上の道路・線路を地面から外す → 建物に通り抜けの穴 → 壁・橋・階段の形 ──
+  useEffect(() => {
+    const map = mapRef.current;
+    const built = builtRef.current;
+    if (!loaded || !map || !built) return;
+    const token = ++applyRef.current;
+    const live = () => token === applyRef.current && mapRef.current === map;
+    (async () => {
+      await dem.ensure(featuresBounds(features));
+      if (!live()) return;
+      const slopes = features.filter(burnsGround);
+      if (dem.setBurns(built.burn ? slopes : [])) {
+        const url = demTileUrl();
+        map.getSource("cbDem")?.setTiles([url]);
+        map.getSource("cbDemShade")?.setTiles([url]);
+      }
+      const ground = (ll) => dem.groundAt(ll);
+      const bridges = features.filter((f) => f.type === "bridge").map((f) => prepareBridge(f, ground)).filter(Boolean);
+      // 線路の橋は線路だけ、道の橋は道だけを持ち上げる（並んで通る別の線を消さないように）
+      const railBr = bridges.filter((b) => b.f.surface === "rail");
+      // 階段の上を通る道・ルートも、段の上に描く
+      const roadBr = [...bridges.filter((b) => b.f.surface !== "rail"), ...dem.slopes.filter((sl) => sl.f.type === "stairs").map(stairsPath)];
+      const byKind = new Map();
+      built.streets.forEach(({ k, pts }) => byKind.set(k, [...(byKind.get(k) || []), pts]));
+      const streets = [];
+      // 経路の網の線（通路）はルートと同じく、少しずれていても橋の上とみなす
+      byKind.forEach((lines, k) => splitByBridges(lines, roadBr, k === "walk" ? ROUTE_ON_BRIDGE : undefined).ground.forEach((pts) => streets.push({ k, pts })));
+      map.getSource("cbStreets")?.setData(streetsFC(streets));
+      map.getSource("cbRailSurface")?.setData(linesFC(splitByBridges(data.rail.surface, railBr).ground));
+      bridgesRef.current = roadBr;
+      setBridgeTick((v) => v + 1);
+      const cut = await cutPassages(data.buildings, built.heights, features.filter((f) => f.type === "passage"), ground);
+      if (!live()) return;
+      map.getSource("cbBuildings")?.setData(buildingsFC(data, built.heights, cut.pieces));
+      map.getSource("cbPassShade")?.setData({ type: "FeatureCollection", features: cut.ceilings.map(({ rings }) => ({ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: rings } })) });
+      extrasRef.current?.setMesh(buildMesh(features, { groundAt: ground, slopes: dem.slopes, terraces: dem.terraces, ceilings: cut.ceilings, pal: built.pal, dark, selectedId: selectedFeatureId, accent }));
+    })().catch((err) => console.warn("[3D map] features:", err?.message || err));
+  }, [loaded, features, selectedFeatureId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 目的地の建物を塗り、ラベルを目立たせる
   useEffect(() => {
@@ -495,15 +638,21 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     mk.current.relabel?.();
   }, [loaded, dest?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ルート（案内中は通ったところを灰色の点線に）
+  // ルート（案内中は通ったところを灰色の点線に）。橋の上を通るところは地面に貼らず、橋の床の上に描く
   useEffect(() => {
     const map = mapRef.current;
     if (!loaded || !map) return;
     const passed = map.getSource("navRoutePassed");
     const rest = map.getSource("navRoute");
+    const setRest = (latlngs) => {
+      const { ground, onBridge } = splitByBridges(latlngs.length > 1 ? [latlngs] : [], bridgesRef.current, ROUTE_ON_BRIDGE);
+      rest?.setData(linesFC(ground));
+      onBridgeRef.current = onBridge;
+      extrasRef.current?.setRibbons(buildRibbons(onBridge));
+    };
     if (!route || route.length < 2) {
       passed?.setData(EMPTY_FC);
-      rest?.setData(EMPTY_FC);
+      setRest([]);
       return;
     }
     const toLL = (c) => [c.lat, c.lng];
@@ -512,13 +661,13 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       const a = route[seg];
       const b = route[seg + 1];
       const proj = { lat: a.lat + split.t * (b.lat - a.lat), lng: a.lng + split.t * (b.lng - a.lng) };
-      passed?.setData(lineFC([...route.slice(0, seg + 1), proj].map(toLL)));
-      rest?.setData(lineFC([proj, ...route.slice(seg + 1)].map(toLL)));
+      passed?.setData(linesFC(splitByBridges([[...route.slice(0, seg + 1), proj].map(toLL)], bridgesRef.current, ROUTE_ON_BRIDGE).ground));
+      setRest([proj, ...route.slice(seg + 1)].map(toLL));
     } else {
       passed?.setData(EMPTY_FC);
-      rest?.setData(lineFC(route.map(toLL)));
+      setRest(route.map(toLL));
     }
-  }, [loaded, route, split?.idx, split?.t, guiding]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loaded, route, split?.idx, split?.t, guiding, bridgeTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 出発地・目的地のマーカー
   useEffect(() => {
@@ -526,12 +675,12 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const map = mapRef.current;
     if (!loaded || !map || !ml) return undefined;
     const added = [];
-    if (origin) added.push(new ml.Marker({ element: holder(el(ORIGIN_HTML)), anchor: "center" }).setLngLat([origin.lng, origin.lat]).addTo(map));
+    if (origin) added.push(new ml.Marker({ ...ALWAYS, element: holder(el(ORIGIN_HTML)), anchor: "center" }).setLngLat([origin.lng, origin.lat]).addTo(map));
     if (dest) {
       // 目的地が建物の中なら、ピンは屋上に立てる。名前はピンの上に出す
       const name = (dest.label || "").replace(/・.*$/, "");
       const node = el(`<div class="nav-pin">${name ? `<div class="cb3-pin-name">${esc(name)}</div>` : ""}<div class="nav-pin-shadow"></div><div class="nav-pin-body nav-pin-drop">${PIN_SVG(accent)}</div></div>`);
-      const m = new ml.Marker({ element: holder(node), anchor: "bottom", offset: [0, 2] }).setLngLat([dest.lng, dest.lat]).addTo(map);
+      const m = new ml.Marker({ ...ALWAYS, element: holder(node), anchor: "bottom", offset: [0, 2] }).setLngLat([dest.lng, dest.lat]).addTo(map);
       mk.current.pin = { m, h: roofAt(data, builtRef.current, dest.id, dest.lat, dest.lng), name: node.querySelector(".cb3-pin-name") };
       added.push(m);
     }
@@ -559,7 +708,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         const lbl = s.label.replace(/^[^（(]*[（(]/, "").replace(/[）)]$/, "") || s.short;
         const node = el(groupPinHtml(lbl, group.col || s.col));
         node.addEventListener("click", (ev) => { ev.stopPropagation(); propsRef.current.onGroupTap?.(s.id); });
-        pins.push(new ml.Marker({ element: holder(node), anchor: "bottom" }).setLngLat([s.lng, s.lat]).addTo(map));
+        pins.push(new ml.Marker({ ...ALWAYS, element: holder(node), anchor: "bottom" }).setLngLat([s.lng, s.lat]).addTo(map));
       });
     }
     return () => pins.forEach((m) => m.remove());
@@ -580,7 +729,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     }
     const to = { lat: gps.lat, lng: gps.lng };
     if (!mk.current.gps) {
-      mk.current.gps = new ml.Marker({ element: holder(el(gpsHtml())), anchor: "center" }).setLngLat([to.lng, to.lat]).addTo(map);
+      mk.current.gps = new ml.Marker({ ...ALWAYS, element: holder(el(gpsHtml())), anchor: "center" }).setLngLat([to.lng, to.lat]).addTo(map);
       gpsAnim.current.at = to;
       updateArrow();
     } else {
@@ -597,6 +746,21 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       gpsAnim.current.raf = requestAnimationFrame(step);
     }
     map.getSource("navAccuracy")?.setData(gps.accuracy && gps.accuracy < 500 ? circleFC(gps.lat, gps.lng, gps.accuracy) : EMPTY_FC);
+    // ルートが橋の上を通っていて、現在地がその近く（4m 以内）なら、現在地を橋の床の高さに出す
+    const p = toXY([gps.lng, gps.lat]);
+    let best = 4;
+    let deck = null;
+    onBridgeRef.current.forEach((piece) => piece.forEach(([lng, lat, z]) => {
+      const q = toXY([lng, lat]);
+      const d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (d < best) { best = d; deck = z; }
+    }));
+    const g = deck == null ? NaN : dem.groundAt([gps.lng, gps.lat]);
+    const lift = Number.isFinite(g) ? Math.max(0, deck - g) : 0;
+    if (Math.abs(lift - gpsLiftRef.current) > 0.05) {
+      gpsLiftRef.current = lift;
+      mk.current.relayout?.();
+    }
     blockedRef.current = false;
     if (follow) kickFollow();
   }, [loaded, gps]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -676,7 +840,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         <button type="button" aria-label={t("pdf.zoomIn")} onClick={() => zoomBy(1)}>+</button>
         <button type="button" aria-label={t("pdf.zoomOut")} onClick={() => zoomBy(-1)}>−</button>
       </div>
-      <div className="cb3-attr">© OpenStreetMap contributors</div>
+      <div className="cb3-attr">© OpenStreetMap contributors · 標高: 国土地理院</div>
     </div>
   );
 });

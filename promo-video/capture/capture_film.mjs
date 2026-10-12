@@ -15,11 +15,18 @@
 // 3Dキャンパスはアプリのコードを変えずに撮る：MapLibre の地図をページの外から取り出して画面いっぱいに広げ、
 // カメラ・建物の高さ・ルートの線を1コマずつ動かす。アプリの名前ラベルは消して位置だけ記録し、動画の側で描き直す。
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cleanFestival, clickText, fixUndefinedPoints, hookMap, launch, openApp, scrollMain, shot, sleep } from './lib.mjs';
 import ROUTE from '../src/promo2/campusRoute.json' with { type: 'json' };
+
+// フォルダを中身ごと消す（fs.rmSync は、日本語を含むパスでは何もせずに終わることがあるので使わない。Node 24・Windows で確認）
+const removeDir = (d) => {
+  if (!existsSync(d)) return;
+  for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) removeDir(p); else unlinkSync(p); }
+  rmdirSync(d);
+};
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -333,7 +340,7 @@ async function captureSeq(name, S) {
   const dsf = PREVIEW ? 1 : 2;
   const dir = join(MAPS, PREVIEW ? `${name}_preview` : name);
   const raw = join(MAPS, `_raw_${name}`);
-  rmSync(PREVIEW ? dir : raw, { recursive: true, force: true });
+  removeDir(PREVIEW ? dir : raw);
   mkdirSync(PREVIEW ? dir : raw, { recursive: true });
   const { page, context } = await openApp(browser, {
     view: 'navigation', time: at(S.season, S.hm), geo: S.geo, width: 1920, height: 1080, dsf, mobile: false,
@@ -426,11 +433,11 @@ async function captureSeq(name, S) {
     if (!PREVIEW) {
       writeFileSync(join(META, 'maps', `${name}.json`), JSON.stringify({ f0: S.f0, f1: S.f1, names, frames }));
       // 2倍で撮ったものを 1920x1080 に縮める（建物の輪郭のギザギザが消える）
-      rmSync(dir, { recursive: true, force: true });
+      removeDir(dir);
       mkdirSync(dir, { recursive: true });
       execFileSync(FFMPEG, ['-v', 'error', '-y', '-start_number', String(S.f0), '-i', join(raw, '%04d.jpg'),
         '-vf', 'scale=1920:1080:flags=lanczos', '-q:v', '2', '-start_number', String(S.f0), join(dir, '%04d.jpg')]);
-      rmSync(raw, { recursive: true, force: true });
+      removeDir(raw);
       console.log(`  saved map/${name}/${S.f0}〜${S.f1}.jpg（${readdirSync(dir).length}枚）`);
     } else {
       console.log(`  saved map/${name}_preview（${frames.length}枚）`);

@@ -340,3 +340,31 @@ npm run x:render      # → out/x-promo.mp4（映像と音を別に書き出し�
 | 672–918 | エンドカード（URL・QR）。曲の最後の一打（852f）で締める |
 
 曲は最高傑作版と同じ曲の終盤（最高傑作版の 4512f＝小節の頭から）。コードは [src/x/XPromo.jsx](src/x/XPromo.jsx)。操作動画は X 用に、操作が拍に来るよう撮り直した短いもの（capture/record_film.mjs の rec_x_*）。
+
+# ずんだもんが紹介する ScienceTokyo App（ZundaPromo・1920x1080・約2分16秒）
+
+迷子のずんだもんが「西9号館がないのだ〜！」と慌てるところから始まり、アプリの機能を8章で紹介して、App Store の案内で締める。
+端末の画面はすべてアプリを実際に操作した動画。操作のフレームを声の言葉（カナ）に合わせて撮ってあるので、映像では録画を 1 倍速のまま流す（コマを止めたり飛ばしたりしないので、アプリの動きがなめらか）。
+
+```bash
+npm run zunda:voice    # 台本 src/zundamon/script.json → 声（VOICEVOX のエンジンを 127.0.0.1:50021 で起動しておく）。変わった行だけ作り直す
+node capture/record_film.mjs rec_z_home,rec_z_tt,rec_z_navi,rec_z_asgn,rec_z_free,rec_z_dm,rec_z_theme   # 声に合わせて操作を撮る（声を作り直したら撮り直す）
+python capture/measure_recs.py
+npm run zunda:audio    # BGM・締めのジングル・効果音を合成（public/zundamon/）
+npm run zunda:render   # → out/zunda-promo.mp4
+```
+
+- **台本**：[src/zundamon/script.json](src/zundamon/script.json)。`text` は字幕、`say` は読み（英字・記号・「〜」を読める形にしたもの）、`style` は VOICEVOX のずんだもんのスタイル、`expr` は表情（[expressions.js](src/zundamon/expressions.js)）。行の id は名前で引くので、行を消しても詰めない。
+- **尺**：行の長さは声の長さで決まる（[schedule.js](src/zundamon/schedule.js)。映像の timeline.js と撮影の record_film.mjs の `zrec` が同じ計算を使う）。画面の操作は `Z.w('行id', 'カナ')`（その言葉が始まる、録画のフレーム）で決めてあり、録画の 0 コマ目は章の頭。台本を直したら、声 → 撮影 → 書き出しの順に流し直す。
+- **立ち絵**：[capture/export_zundamon.py](capture/export_zundamon.py) が PSD から 70 パーツを書き出し、[Zundamon.jsx](src/zundamon/Zundamon.jsx) が重ねる。まばたき（2〜4.5秒おき）と、声の母音に合わせた口パク（ま行・ば行・ぱ行の頭は口を閉じる）をする。
+  手を振るときは、パーツを回さず、肘のところでなめらかに曲げた絵（-14°〜+14°・0.5°おき・`public/zundamon/parts/wave/`）を角度で選ぶ。腕のパーツには体の脇に沿った袖の裾まで入っているので、肩で回すと裾が体から外れて切り口が見え、袖口で切って回すと袖口との間に隙間が出るため。
+- **声の大きさ**：行ごとに声のある部分の RMS をそろえて WAV に書き込んである（ピークは 0.89 まで）。
+- **撮影**：`capture/record_film.mjs` の `rec_z_*`（章ごとに 1 本）。日付は 6/17（水）8:45：今日のスケジュールに 1限（英語第二・西9号館 8:50）・3〜4限の実験・夜の部活が並ぶ。
+- **デモのデータ**（プロモーションのために自由に書き換えてよい）：コースに年度を付けて「今日のスケジュール」に授業が出るようにし、夜の予定（写真部）を足した。授業の教材は Moodle の代わりにデモの教材（campus-sns/demoData.js の `demoCourseContents`）を本番と同じ変換に通して出す。PDF は `public/demo/materials/lecture_ja.pdf・lecture_en.pdf`（[capture/make_demo_pdfs.mjs](capture/make_demo_pdfs.mjs) で作る。科目ごとに作ると日本語のフォントが毎回埋め込まれて 13MB になるので共通の 2 つ）。
+- **音の大きさ**：書き出した音を [capture/master_audio.py](capture/master_audio.py) で −15 LUFS・true peak −1.5dBTP 以下にそろえてからつなぐ（大きさは ffmpeg の loudnorm で測り、ゲインと先読みリミッターは numpy。Remotion に同梱の ffmpeg にはリミッターが無い）。BGM は声の間だけ下げ、締めのジングルは BGM の小節の頭から鳴らして、最後の一打がずんだもんの最後の台詞の終わりに来るようにしてある。
+
+## クレジット（公開時に表記する）
+- 音声：VOICEVOX:ずんだもん（[利用規約](https://zunko.jp/con_ongen_kiyaku.html)。クレジット表記が必要）
+- 立ち絵：坂本アヒル「ずんだもん立ち絵素材2.3」（readme：改変・加工・商用は公式ガイドラインに準じて可、表記は任意。[公式ガイドライン](https://zunko.jp/guideline.html)）
+- BGM・効果音：このリポジトリのスクリプトで合成したオリジナル
+- 映像の最後にもクレジットを出している

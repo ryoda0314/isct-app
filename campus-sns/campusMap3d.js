@@ -1,13 +1,17 @@
 // キャンパスナビの「3D表示」。イラスト地図（campusBasemap.js）と同じデータ・配色のまま、
 // 建物を立ち上げて MapLibre GL（WebGL）で描くためのスタイルとデータを作る。地図タイルは使わない。
-// 出典: © OpenStreetMap contributors（ODbL）— 地図上に出典を表示すること。
+// 地形（土地の高低差）は、国土地理院の標高タイルから作った public/map-dem（scripts/gen-campus-terrain.mjs）。
+// 出典: © OpenStreetMap contributors（ODbL）、国土地理院 — 地図上に出典を表示すること。
 import { CAMPUS_BOUNDARY, SPOTS } from "./hooks/useLocationSharing.js";
 import { MIN_PX, PALETTES, WIDTH_M, mixHex, walkSegments } from "./campusBasemap.js";
+import { TERRAIN } from "./campusTerrain.js";
 
 // MapLibre は 512px タイル基準なので、同じ縮尺は Leaflet のズームより 1 小さい
 export const ML_ZOOM_OFFSET = -1;
 export const PITCH = 55; // ふだんの傾き
 export const PITCH_GUIDE = 60; // 案内中の傾き
+export const TERRAIN_EXAG = 1; // 地形の高さの倍率（建物と同じ縮尺のまま）
+export const ROUTE_DOT = "cb-route-dot"; // ルートの透けて見える点の画像名
 
 const LAT0 = 35.6058;
 const COS = Math.cos((LAT0 * Math.PI) / 180);
@@ -133,17 +137,65 @@ function edgeFC(R, width = 160, steps = 8) {
   return fc(feats);
 }
 
+// 段彩の標高(m)と、それぞれの色（低い → 高い）。大岡山のあたりは 7〜46m で、ほとんどが 15〜40m
+const RELIEF = [8, 18, 26, 33, 40];
+const RELIEF_COLORS = {
+  light: ["#c9d5e0", "#d9e2e9", "#e6ebef", "#eff2f1", "#f6f6f2"],
+  dark: ["#040507", "#0a0c0f", "#111418", "#1a1d22", "#23272c"],
+};
+
+// 標高タイル（Terrarium 形式）。MapLibre はタイルをワーカーで読むので、URL は絶対パスにする。
+// 坂を焼き込むときは campusdem://（campusDem.js）のタイルを、ズーム17まで使う
+export const STATIC_DEM = { tiles: [`${typeof location !== "undefined" ? location.origin : ""}${TERRAIN.path}/{z}/{x}/{y}.png`], maxzoom: TERRAIN.maxzoom };
+const demSource = (dem) => ({
+  type: "raster-dem",
+  tiles: dem.tiles,
+  tileSize: 256,
+  encoding: "terrarium",
+  minzoom: TERRAIN.minzoom,
+  maxzoom: dem.maxzoom,
+  bounds: TERRAIN.bounds,
+});
+
+// 光（南西から）。手で足した構造物（campus3dLayer.js）も同じ光で描く
+export const lightOf = (dark) => ({ anchor: "map", color: "#ffffff", intensity: dark ? 0.25 : 0.38, position: [1.4, 210, 35] });
+// ルートの線の太さ(px)。橋の上のルート（campus3dLayer.js）も同じ太さにする
+export const ROUTE_COL = "#1a8ef0";
+export const routeWidth = (zoom) => 3.5 + (Math.min(19, Math.max(14, zoom)) - 14) * 0.8;
+export const routeCasing = (zoom) => 6 + (Math.min(19, Math.max(14, zoom)) - 14) * 1.2;
+
+// 建物（通り抜けの穴をあけた建物は、分けた形 pieces: Map(番号 → [{ rings: lng/lat, h, b }]) に差し替える）
+export function buildingsFC(data, heights, pieces = null) {
+  const out = [];
+  data.buildings.forEach((b, i) => {
+    const props = { i, s: b.s || "", m: b.s ? 1 : 0 };
+    const cut = pieces && pieces.get(i);
+    if (!cut) out.push(polyF([b.p, ...(b.h || [])], { ...props, h: heights[i] }, i));
+    else cut.forEach((p) => out.push({ type: "Feature", id: i, properties: { ...props, h: p.h, b: p.b }, geometry: { type: "Polygon", coordinates: p.rings } }));
+  });
+  return fc(out);
+}
+
+// 道路と通路の線 [{ k: 種類, pts: [[lat, lng]...] }]（橋の上の部分を除いて差し替えられるように、線のまま持つ）
+export function streetLines(data) {
+  const lines = [];
+  ["minor", "ped", "mid", "major"].forEach((k) => (data.streets[k] || []).forEach((pts) => lines.push({ k, pts })));
+  walkSegments().forEach((pts) => lines.push({ k: "walk", pts }));
+  return lines;
+}
+export const streetsFC = (lines) => fc(lines.map(({ k, pts }) => lineF(pts, { k })));
+export const linesFC = (lines) => fc(lines.map((pts) => lineF(pts)));
+
 /**
  * @param data  BASEMAP（campusBasemapData.js）
- * @param opts  { dark, accent }
- * @returns { style, bySpot: Map(spotId -> [建物の番号]), heights: 建物ごとの高さ(m), labels, stations, pal, hl }
+ * @param opts  { dark, accent, dem（標高タイル。既定は STATIC_DEM） }
+ * @returns { style, bySpot: Map(spotId -> [建物の番号]), heights: 建物ごとの高さ(m), labels, stations, pal, hl, streets }
  */
-export function buildCampus3D(data, { dark = false, accent = "#28c868" } = {}) {
-  const pal = dark ? PALETTES.dark : PALETTES.light;
-  const hl = mixHex(accent, pal.bld, dark ? 0.55 : 0.4); // 目的地の建物の色
+export function buildCampus3D(data, { dark = false, accent = "#28c868", dem = STATIC_DEM } = {}) {
+  const pal = { ...(dark ? PALETTES.dark : PALETTES.light), relief: RELIEF_COLORS[dark ? "dark" : "light"] };
+  const hl =mixHex(accent, pal.bld, dark ? 0.55 : 0.4); // 目的地の建物の色
 
   const heights = data.buildings.map(buildingHeight);
-  const buildings = data.buildings.map((b, i) => polyF([b.p, ...(b.h || [])], { i, s: b.s || "", m: b.s ? 1 : 0, h: heights[i] }, i));
   const bySpot = new Map();
   data.buildings.forEach((b, i) => {
     [b.s, ...(b.o || [])].filter(Boolean).forEach((id) => {
@@ -152,20 +204,22 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868" } = {}) {
     });
   });
 
-  const streets = [];
-  ["minor", "ped", "mid", "major"].forEach((k) => (data.streets[k] || []).forEach((l) => streets.push(lineF(l, { k }))));
-  walkSegments().forEach((l) => streets.push(lineF(l, { k: "walk" })));
+  const streets = streetLines(data);
 
   const sources = {
     cbCampus: { type: "geojson", data: fc([polyF([CAMPUS_BOUNDARY])]) },
     cbGreen: { type: "geojson", data: fc(data.green.map((g) => polyF([g.p], { k: g.k }))) },
     cbWater: { type: "geojson", data: fc(data.water.map((w) => polyF([w]))) },
-    cbStreets: { type: "geojson", data: fc(streets) },
-    cbRailSurface: { type: "geojson", data: fc(data.rail.surface.map((l) => lineF(l))) },
+    cbStreets: { type: "geojson", data: streetsFC(streets) },
+    cbRailSurface: { type: "geojson", data: linesFC(data.rail.surface) },
     cbRailTunnel: { type: "geojson", data: fc(data.rail.tunnel.map((l) => lineF(l))) },
     cbPlatforms: { type: "geojson", data: fc(data.platforms.map((p) => polyF([p]))) },
-    cbBuildings: { type: "geojson", data: fc(buildings) },
+    cbBuildings: { type: "geojson", data: buildingsFC(data, heights) },
     cbEdge: { type: "geojson", data: edgeFC(regionOf(data)) },
+    cbPassShade: { type: "geojson", data: EMPTY_FC }, // 通り抜け（屋根の下）の床の影
+    // 地形（立体）と陰影は別のソースにする（MapLibre の推奨。同じタイルを共有すると解像度の扱いがぶつかる）
+    cbDem: demSource(dem),
+    cbDemShade: demSource(dem),
     // 動的に入れ替えるもの
     navAccuracy: { type: "geojson", data: EMPTY_FC },
     navRoutePassed: { type: "geojson", data: EMPTY_FC },
@@ -179,6 +233,14 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868" } = {}) {
   const zA = Math.log2(MPP0); // 線路：3m を 3〜9px で
   const layers = [
     { id: "cb-bg", type: "background", paint: { "background-color": pal.outside } },
+    // 段彩：低いところ（谷）ほど濃く、高いところ（台地）ほど明るく塗る。坂がゆるやかなので、陰影だけでは高低がわかりにくい
+    {
+      id: "cb-relief", type: "color-relief", source: "cbDemShade",
+      paint: {
+        "color-relief-color": ["interpolate", ["linear"], ["elevation"], ...RELIEF.flatMap((h, i) => [h, pal.relief[i]])],
+        "color-relief-opacity": 1,
+      },
+    },
     { id: "cb-campus", type: "fill", source: "cbCampus", paint: { "fill-color": pal.campus } },
     { id: "cb-campus-edge", type: "line", source: "cbCampus", paint: { "line-color": pal.campusEdge, "line-width": 1.5 } },
     {
@@ -186,6 +248,18 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868" } = {}) {
       paint: { "fill-color": ["match", ["get", "k"], "pitch", pal.pitch, "track", pal.track, "wood", pal.wood, pal.park] },
     },
     { id: "cb-water", type: "fill", source: "cbWater", paint: { "fill-color": pal.water } },
+    // 斜面の陰影（地面の色の上・道路の下）。立体の地形だけでは、塗りが平らで坂が見えにくい
+    {
+      id: "cb-hillshade", type: "hillshade", source: "cbDemShade",
+      paint: {
+        "hillshade-exaggeration": dark ? 0.6 : 0.55,
+        "hillshade-illumination-direction": 315,
+        "hillshade-illumination-anchor": "map",
+        "hillshade-shadow-color": dark ? "#000000" : "#4d6378",
+        "hillshade-highlight-color": dark ? "#2c3540" : "#ffffff",
+        "hillshade-accent-color": dark ? "#000000" : "#6f8398",
+      },
+    },
     ...kinds.map((k) => ({
       id: `cb-case-${k}`, type: "line", source: "cbStreets", filter: ["==", ["get", "k"], k],
       layout: { "line-cap": "round", "line-join": "round" },
@@ -196,6 +270,8 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868" } = {}) {
       layout: { "line-cap": "round", "line-join": "round" },
       paint: { "line-color": fillOf(k), "line-width": widthExpr(WIDTH_M[k], MIN_PX[k]) },
     })),
+    // 建物をくぐる通路の床は暗くする（上は屋根で隠れるので、穴の口からだけ見える）
+    { id: "cb-passage-shade", type: "fill", source: "cbPassShade", paint: { "fill-color": dark ? "#000000" : "#2b3a4a", "fill-opacity": dark ? 0.35 : 0.22 } },
     { id: "cb-rail-tunnel", type: "line", source: "cbRailTunnel", paint: { "line-color": pal.rail, "line-width": 2.5, "line-opacity": 0.55, "line-dasharray": [2, 3] } },
     { id: "cb-platforms", type: "fill", source: "cbPlatforms", paint: { "fill-color": pal.platform } },
     { id: "cb-rail", type: "line", source: "cbRailSurface", layout: { "line-join": "round" }, paint: { "line-color": pal.rail, "line-width": ["interpolate", ["exponential", 2], ["zoom"], zA, 3, zA + Math.log2(3), 9] } },
@@ -220,15 +296,28 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868" } = {}) {
       paint: {
         "fill-extrusion-color": ["case", ["boolean", ["feature-state", "hl"], false], hl, ["==", ["get", "m"], 1], pal.bld, pal.bldMuted],
         "fill-extrusion-height": ["get", "h"],
-        "fill-extrusion-base": 0,
+        // 通り抜けの穴の上の部分は、天井の高さ b から上だけ
+        "fill-extrusion-base": ["coalesce", ["get", "b"], 0],
         "fill-extrusion-opacity": dark ? 0.94 : 0.97,
         "fill-extrusion-vertical-gradient": true,
       },
     },
-    // ルートは建物の上に描く（建物の陰に入っても見えるように）
+    // ルートの線は地形に貼り付けて描くので、建物の陰に入ると隠れる
     { id: "nav-route-passed", type: "line", source: "navRoutePassed", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#888888", "line-width": 5, "line-opacity": 0.45, "line-dasharray": [1.2, 1.6] } },
     { id: "nav-route-case", type: "line", source: "navRoute", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#ffffff", "line-width": ["interpolate", ["linear"], ["zoom"], 14, 6, 19, 12] } },
-    { id: "nav-route", type: "line", source: "navRoute", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#1a8ef0", "line-width": ["interpolate", ["linear"], ["zoom"], 14, 3.5, 19, 7.5] } },
+    { id: "nav-route", type: "line", source: "navRoute", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": ROUTE_COL, "line-width": ["interpolate", ["linear"], ["zoom"], 14, 3.5, 19, 7.5] } },
+    // 建物の陰に隠れたところも透けて見えるよう、建物より手前に描かれる点（シンボル）を線に沿って並べる。
+    // 線より細い同じ色なので、見えているところでは線に溶け込み、建物の上だけ点線になる（画像 ROUTE_DOT は CampusMap3D が足す）
+    {
+      id: "nav-route-xray", type: "symbol", source: "navRoute",
+      layout: {
+        "symbol-placement": "line", "symbol-spacing": 9, "icon-image": ROUTE_DOT,
+        "icon-allow-overlap": true, "icon-ignore-placement": true,
+        "icon-rotation-alignment": "map", "icon-pitch-alignment": "map",
+        "icon-size": ["interpolate", ["linear"], ["zoom"], 14, 0.5, 19, 1],
+      },
+      paint: { "icon-opacity": 0.9 },
+    },
   ];
 
   // ラベル（2D と同じく、スポットの略称と名前。小さい建物は寄ったときだけ）
@@ -247,9 +336,10 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868" } = {}) {
     sources,
     layers,
     // 南西からの光（2D の影と同じ向き）
-    light: { anchor: "map", color: "#ffffff", intensity: dark ? 0.25 : 0.38, position: [1.4, 210, 35] },
+    light: lightOf(dark),
+    terrain: { source: "cbDem", exaggeration: TERRAIN_EXAG },
   };
-  return { style, bySpot, heights, labels, stations, pal, hl };
+  return { style, bySpot, heights, labels, stations, pal, hl, streets };
 }
 
 const inRing = (lat, lng, ring) => {

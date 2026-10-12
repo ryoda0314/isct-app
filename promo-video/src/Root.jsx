@@ -13,6 +13,7 @@ import { AppPromoFilm } from './film/AppPromoFilm.jsx';
 import { TL } from './film/theme.js';
 import { PhoneCheck } from './film/dev/PhoneCheck.jsx';
 import { TX, XPromo, XS } from './x/XPromo.jsx';
+import { ZUNDA_TOTAL, ZundaPromo } from './zundamon/ZundaPromo.jsx';
 
 export const RemotionRoot = () => {
   return (
@@ -61,6 +62,8 @@ export const RemotionRoot = () => {
       <Composition id="FestPromo" component={FestPromo} durationInFrames={TF.total} fps={FPS} width={SW} height={SH} />
       {/* 最高傑作版（季節のテーマで1年をたどる・曲を通しで使う・約3分） */}
       <Composition id="AppPromoFilm" component={AppPromoFilm} durationInFrames={TL.total} fps={FPS} width={W} height={H} />
+      {/* ずんだもんが紹介する ScienceTokyo App（1920x1080・約2分15秒） */}
+      <Composition id="ZundaPromo" component={ZundaPromo} durationInFrames={ZUNDA_TOTAL} fps={FPS} width={W} height={H} />
       {/* X（Twitter）のタイムライン用（1080x1080・約30秒・工大祭は扱わない） */}
       <Composition id="XPromo" component={XPromo} durationInFrames={TX.total} fps={FPS} width={XS} height={XS} />
       {/* 開発用：3Dモデルの端末の見え方の確認 */}

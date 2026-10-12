@@ -29,7 +29,10 @@
     "film:frames": "node preview_frames.mjs --id=AppPromoFilm",
     "film:render": "node render_film.mjs",
     "film:preview": "node render_film.mjs --scale=0.5",
-    "x:render": "remotion render src/index.js XPromo out/x_v.mp4 --gl=angle --codec=h264 --crf=18 --color-space=bt709 --muted && remotion render src/index.js XPromo out/x_a.wav --codec=wav && node_modules/@remotion/compositor-win32-x64-msvc/ffmpeg.exe -v error -y -i out/x_v.mp4 -i out/x_a.wav -map 0:v -map 1:a -c:v copy -bsf:v h264_metadata=colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1:video_full_range_flag=0 -c:a aac -b:a 320k -movflags +faststart out/x-promo.mp4"
+    "x:render": "node render_x.mjs",
+    "zunda:voice": "node capture/zunda_voice.mjs",
+    "zunda:audio": "python capture/zunda_audio.py",
+    "zunda:render": "node render_zunda.mjs"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.0",

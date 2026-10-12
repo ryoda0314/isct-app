@@ -171,6 +171,7 @@ const DEMO_REVIEWS = [
 
 // ── カレンダーイベント ──
 const DEMO_MY_EVENTS = [
+  { id: "me_0", title: "写真部の活動", date: d(0, 18, 30), endDate: d(0, 20, 0), color: "#e5534b" },
   { id: "me_1", title: "グループ勉強会", date: d(1, 18, 0), endDate: d(1, 20, 0), color: "#a855c7" },
   { id: "me_2", title: "バイト", date: d(3, 17, 0), endDate: d(3, 21, 0), color: "#3dae72" },
 ];
@@ -1928,10 +1929,13 @@ function activatePersonaData(personaId, q2Courses) {
 /** ペルソナからデモデータ一式を生成（全クォーター対応） */
 function buildDemoDataForPersona(personaId) {
   const p = DEMO_PERSONAS.find(x => x.id === personaId) || DEMO_PERSONAS[0];
-  const q1 = p.q[1] || [];
-  const q2 = p.q[2] || [];
-  const q3 = p.q[3] || [];
-  const q4 = p.q[4] || [];
+  // 今年度の授業として扱う（ホームの「今日のスケジュール」とカレンダーは、年度が今年度の授業だけを出す）
+  const ay = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const thisYear = (cs) => (cs || []).map((c) => (c.year ? c : { ...c, year: ay }));
+  const q1 = thisYear(p.q[1]);
+  const q2 = thisYear(p.q[2]);
+  const q3 = thisYear(p.q[3]);
+  const q4 = thisYear(p.q[4]);
   const allCourses = [...q1, ...q2, ...q3, ...q4];
   const qdata = {
     1: { C: q1, TT: buildDemoTT(q1) },
@@ -1946,6 +1950,42 @@ function buildDemoDataForPersona(personaId) {
   activatePersonaData(p.id, q2);
 
   return { courses: allCourses, qdata, asgn, user };
+}
+
+// ── 授業の教材（デモ用）──
+// Moodle の core_course_get_contents と同じ形で返し、本番と同じ変換（transformCourseMaterials）を通して表示する。
+// PDF は public/demo/materials/lecture_ja.pdf・lecture_en.pdf（講義スライド。promo-video/capture/make_demo_pdfs.mjs で作る）
+const MAT_WEEKS = ["イントロダクション", "基本概念", "演習と応用", "まとめと発展"];
+const ENGLISH_WEEKS = ["Course Introduction", "Paragraph Structure", "Thesis Statements", "Peer Review"];
+function demoCourseContents(moodleId) {
+  const all = DEMO_PERSONAS.flatMap((p) => Object.values(p.q || {}).flat());
+  const c = all.find((x) => x && x.moodleId === moodleId);
+  if (!c) return [];
+  const en = /^LAS\.A/.test(c.code);
+  const pdf = en ? "/demo/materials/lecture_en.pdf" : "/demo/materials/lecture_ja.pdf";
+  const weeks = en ? ENGLISH_WEEKS : MAT_WEEKS;
+  const t0 = Math.floor(now.getTime() / 1000);
+  let mid = moodleId * 100;
+  const file = (name, filename, size, days, mimetype = "application/pdf", url = pdf) => ({
+    id: ++mid, modname: "resource", name, visible: 1, uservisible: true,
+    contents: [{ type: "file", filename, fileurl: url, filesize: size, mimetype, timemodified: t0 - days * 86400 }],
+  });
+  return [
+    { id: moodleId * 10, name: "全般", visible: 1, modules: [
+      file(en ? "Syllabus" : "シラバス", en ? "Syllabus_English.pdf" : "シラバス.pdf", 182400, 70),
+      { id: ++mid, modname: "forum", name: en ? "Announcements" : "お知らせ", visible: 1, uservisible: true, description: en ? "<p>Essay drafts are due next week.</p>" : "<p>次回は小テストがあります。</p>" },
+    ] },
+    ...weeks.map((w, i) => ({
+      id: moodleId * 10 + i + 1,
+      name: en ? `Week ${i + 1}` : `第${i + 1}回`,
+      visible: 1,
+      modules: [
+        // 一覧にはファイル名が出るので、中身のわかる名前にしている
+        file(en ? `Week ${i + 1}: ${w} (slides)` : `第${i + 1}回 講義スライド：${w}`, en ? `Week${i + 1}_${w.replace(/ /g, "_")}.pdf` : `第${i + 1}回_${w}.pdf`, 980000 + i * 137000, 56 - i * 7),
+        ...(i === 1 ? [file(en ? "Worksheet: Topic Sentences" : "演習問題1", en ? "Worksheet_Topic_Sentences.pdf" : "演習問題1.pdf", 214000, 49)] : []),
+      ],
+    })),
+  ];
 }
 
 // ── 期末試験（デモ用） ──
@@ -1974,6 +2014,7 @@ export {
   DEMO_CHAT_MESSAGES, DEMO_EXAMS,
   DEMO_PERSONAS, buildDemoDataForPersona,
   DEMO_MED_RAW_COURSES, buildDemoMedSessions,
+  demoCourseContents,
 };
 
 // ══════════════════════════════════════════════

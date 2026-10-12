@@ -7,7 +7,7 @@
 // 映像は音なしで区間ごとに書き出し（できている区間は飛ばす）、音（曲と効果音）は WAV で一度に書き出して、最後に ffmpeg でつなぐ。
 // 音を最後に1回だけ AAC にするので、区間の継ぎ目で音が途切れない。
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
@@ -36,7 +36,7 @@ for (let k = 0; k < parts; k++) {
   const file = path.join(DIR, `part_${String(k).padStart(2, '0')}.mp4`);
   if (existsSync(file)) { console.log(`skip ${path.basename(file)} (${a}-${b})`); continue; }
   const tmp = `${file}.tmp.mp4`;
-  rmSync(tmp, { force: true });
+  if (existsSync(tmp)) unlinkSync(tmp); // rmSync は日本語のパスで効かないことがある
   const t0 = Date.now();
   let last = -1;
   await renderMedia({

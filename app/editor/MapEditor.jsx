@@ -591,6 +591,7 @@ export default function MapEditor(){
             </button>;
           })}
         </nav>
+        <a href="/editor/3d" style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${T.bdL}`,background:T.bg3,fontSize:11,fontWeight:600,color:T.txH,textDecoration:"none"}}>3D 構造物 →</a>
         <button onClick={exportJSON} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:6,border:`1px solid ${T.accent}`,background:`${T.accent}15`,cursor:"pointer"}}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span style={{fontSize:11,fontWeight:600,color:T.accent}}>JSON出力</span>

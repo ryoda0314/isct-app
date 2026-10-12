@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getClientToken, fetchCourseContents } from '../moodleClient.js';
 import { transformCourseMaterials } from '../../lib/transform/material-transform.js';
+import { isDemoMode } from '../demoMode.js';
+import { demoCourseContents } from '../demoData.js';
 
 // Cached entries are { data, ts }. The embedded fileurl strings (contextid /
 // itemid / filename) go stale when an instructor replaces a resource on Moodle —
@@ -49,8 +51,10 @@ export function useCourseMaterials(moodleCourseId) {
     setLoading(true);
     (async () => {
       try {
-        const { wstoken } = await getClientToken();
-        const raw = await fetchCourseContents(wstoken, moodleCourseId);
+        // デモ：Moodle の代わりにデモの教材（同じ形のデータ）を、本番と同じ変換に通す
+        const demo = isDemoMode();
+        const { wstoken } = demo ? { wstoken: 'demo' } : await getClientToken();
+        const raw = demo ? demoCourseContents(moodleCourseId) : await fetchCourseContents(wstoken, moodleCourseId);
         const { sections, totalFiles, totalActivities } = transformCourseMaterials(raw, wstoken);
         if (!cancelled) {
           const result = { sections, totalFiles, totalActivities, error: null };
