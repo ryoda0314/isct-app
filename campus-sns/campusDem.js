@@ -4,7 +4,7 @@
 // - dem.levelAt：平地だけ入れた地面（坂道・階段の高さの基準）、dem.baseAt：元の地面
 // - MapLibre には campusdem://{z}/{x}/{y} のタイルとして渡す。坂のないタイルは元のまま、ズーム16・17は15から補間して作る
 import { TERRAIN } from "./campusTerrain.js";
-import { prepareSlope, prepareTerrace, toXY } from "./campus3dFeatures.js";
+import { isOpenStairs, prepareSlope, prepareTerrace, stairsOpening, toXY } from "./campus3dFeatures.js";
 
 export const DEM_PROTOCOL = "campusdem";
 export const BURN_MAXZOOM = 18; // 段差が壁の中に収まるよう、ズーム18（1px ≒ 0.5m）まで作る
@@ -141,18 +141,18 @@ class Dem {
     return this._bilinear(lngToX(lng, BZ) * 256 - 0.5, latToY(lat, BZ) * 256 - 0.5);
   }
 
-  // 平地だけ入れた地面の標高（坂道・階段の高さの基準）
-  levelAt(ll) {
+  // 平地だけ入れた地面の標高（坂道・階段の高さの基準）。shown なら表示する地面（壁なしの階段が横切るふちの外は掘らない）
+  levelAt(ll, shown = false) {
     let v = this.baseAt(ll);
     if (!this.terraces.length || !Number.isFinite(v)) return v;
     const [x, y] = toXY(ll);
-    for (const t of this.terraces) v = t.burn(x, y, v);
+    for (const t of this.terraces) v = shown ? t.burn(x, y, v) : t.level(x, y, v);
     return v;
   }
 
   // 平地・坂道・階段をぜんぶ入れた地面の標高
   groundAt(ll) {
-    let v = this.levelAt(ll);
+    let v = this.levelAt(ll, true);
     if (!this.slopes.length || !Number.isFinite(v)) return v;
     const [x, y] = toXY(ll);
     for (const s of this.slopes) v = s.burn(x, y, v);
@@ -164,7 +164,8 @@ class Dem {
     const key = JSON.stringify(features);
     if (key === this.burnKey) return false;
     this.burnKey = key;
-    this.terraces = features.filter((f) => f.type === "terrace").map((f) => prepareTerrace(f, (ll) => this.baseAt(ll))).filter(Boolean);
+    const opens = features.filter(isOpenStairs).map(stairsOpening); // 壁なしの階段が横切る平地のふちは掘らない
+    this.terraces = features.filter((f) => f.type === "terrace").map((f) => prepareTerrace(f, (ll) => this.baseAt(ll), opens)).filter(Boolean);
     this.slopes = features.filter((f) => f.type === "slope" || f.type === "stairs").map((f) => prepareSlope(f, (ll) => this.levelAt(ll))).filter(Boolean);
     this.version++;
     this.cache.clear();

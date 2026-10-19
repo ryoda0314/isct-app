@@ -7,8 +7,8 @@ import { useMapLibre } from "../../campus-sns/shared.jsx";
 import { CampusMap3D } from "../../campus-sns/components/CampusMap3D.jsx";
 import { CAMPUS_CENTER } from "../../campus-sns/hooks/useLocationSharing.js";
 import {
-  CANDIDATES_URL, DEFAULTS, FEATURES_URL, FEATURE_TYPES, SURFACE_LABEL, TYPE_LABEL,
-  baseWidth, candidateToFeature, createFeature, cumulative, featuresBounds, isArea, lerpAlong, normalizeFeature, offsetLine,
+  CANDIDATES_URL, FEATURES_URL, FEATURE_TYPES, SURFACE_LABEL, TYPE_LABEL,
+  baseWidth, candidateToFeature, createFeature, cumulative, featuresBounds, isArea, lerpAlong, normalizeFeature, offsetLine, vertexShifts, vertexWidths,
   ROUTE_ON_BRIDGE, parseFeatures, pathProfile, prepareBridge, prepareTerrace, serializeFeatures, splitByBridges, stairFlights, stairSteps, toLngLat, toXY, withLandings, withSegmentLength,
 } from "../../campus-sns/campus3dFeatures.js";
 import { dem } from "../../campus-sns/campusDem.js";
@@ -49,9 +49,12 @@ const footprint = (f) => {
   if (isArea(f.type)) return [[...f.coords, f.coords[0]]];
   if (f.type === "wall" || f.coords.length < 2) return null;
   const xy = f.coords.map(toXY);
-  const hw = (f.type === "slope" || f.type === "stairs" ? baseWidth(f) : f.width) / 2;
-  const L = offsetLine(xy, hw);
-  const R = offsetLine(xy, -hw).reverse();
+  // 坂道・階段は点ごとの横幅（だんだん広がる）に土台のぶんを足す
+  const path = f.type === "slope" || f.type === "stairs";
+  const hw = path ? vertexWidths(f).map((w) => (w + baseWidth(f) - f.width) / 2) : xy.map(() => f.width / 2);
+  const cv = path ? vertexShifts(f) : xy.map(() => 0); // 帯の中心のずれ（左へ m）
+  const L = offsetLine(xy, hw.map((h, i) => cv[i] + h));
+  const R = offsetLine(xy, hw.map((h, i) => cv[i] - h)).reverse();
   return [[...L, ...R, L[0]].map(toLngLat)];
 };
 function overlayFC(features, selId) {
@@ -191,23 +194,24 @@ function ProfileSvg({ f, sh, groundFn, col, selVertex, onPick }) {
   );
 }
 
-// 断面（縦横同じ縮尺、点1から点2を見て）：帯の面（階段は段）、土台（両わきの壁か平らな路肩）と斜面、手すり（rails は段の幅に対する位置）
-function SectionSvg({ width, base, side, inner, outer, rails = [], col }) {
+// 断面（縦横同じ縮尺、点1から点2を見て）：帯の面（階段は段）、土台（両わきの壁か平らな路肩）と斜面、手すり（rails は段の幅に対する位置）。
+// shift は帯の中心のずれ（中心線から左へ m）。ずれていれば、描いた中心線を点線で示す
+function SectionSvg({ width, base, side, inner, outer, rails = [], shift = 0, walls = true, col }) {
   const H = rails.length ? 132 : 116;
   const d = inner - outer;
   const half = width / 2;
   const hb = Math.max(half, base / 2);
-  const wall = side === 0;
-  const reach = hb + side + 1.2;
+  const wall = side === 0 && walls;
+  const reach = hb + side + 1.2 + Math.abs(shift);
   const zTop = Math.max(inner, outer) + (rails.length ? 1 : 0.3);
   const zBot = Math.min(inner, outer) - 0.5;
   // 上の2行（文字）の下、y 30〜H−4 に収める
   const sc = Math.min((SVG_W - 24) / (2 * reach), (H - 34) / Math.max(zTop - zBot, 0.8));
-  const X = (x) => SVG_W / 2 + x * sc;
+  const X = (x) => SVG_W / 2 + (x - shift) * sc; // x は帯の中心から右へ。左へずれた帯は図の左へ
   const Y = (z) => 30 + (zTop - z) * sc + (H - 34 - (zTop - zBot) * sc) / 2;
   const line = (pts) => pts.map(([x, z], k) => `${k ? "L" : "M"}${X(x).toFixed(1)},${Y(z).toFixed(1)}`).join("");
   // まわりの地面：壁なら壁の外の面まで、斜面なら斜面と路肩をへて帯のふちまで
-  const ground = wall
+  const ground = side === 0
     ? [[[-reach, outer], [-hb, outer]], [[hb, outer], [reach, outer]]]
     : [[[-reach, outer], [-(hb + side), outer], [-hb, inner], [-half, inner]], [[half, inner], [hb, inner], [hb + side, outer], [reach, outer]]];
   const wTop = Math.max(inner, outer) + 0.05; // 壁の上
@@ -225,7 +229,12 @@ function SectionSvg({ width, base, side, inner, outer, rails = [], col }) {
       {wall && [-1, 1].map((sg) => (
         <rect key={sg} x={X(sg < 0 ? -hb : half)} y={Y(wTop)} width={Math.max(2, (hb - half) * sc)} height={(wTop - wBot) * sc} fill={T.txH} opacity={0.8} />
       ))}
+      {side === 0 && !walls && inner > outer && <rect x={X(-half)} y={Y(inner)} width={width * sc} height={(inner - outer) * sc} fill={col} opacity={0.25} />}
       <line x1={X(-half)} y1={Y(inner)} x2={X(half)} y2={Y(inner)} stroke={col} strokeWidth={3} />
+      {Math.abs(shift) > 0.01 && <>
+        <line x1={X(shift)} y1={30} x2={X(shift)} y2={H - 4} stroke={T.txD} strokeWidth={1} strokeDasharray="3 3" />
+        <text x={X(shift) + (shift > 0 ? 4 : -4)} y={H - 6} fontSize={9} fill={T.txD} textAnchor={shift > 0 ? "start" : "end"}>描いた線（{shift > 0 ? "左" : "右"}へ {fmt2(Math.abs(shift))} m ずれ）</text>
+      </>}
       {rails.map((r, k) => {
         const { x, foot } = railAt(r);
         return (
@@ -239,7 +248,7 @@ function SectionSvg({ width, base, side, inner, outer, rails = [], col }) {
       <text x={6} y={12} fontSize={9} fill={T.txD}>{Math.abs(d) <= 0.05 ? "この点では地面と同じ高さ" : `地面との差 ${d > 0 ? "+" : "−"}${Math.abs(d).toFixed(2)} m（${d > 0 ? "盛る" : "掘る"}）`}</text>
       <text x={SVG_W - 6} y={12} fontSize={9} fill={T.txD} textAnchor="end">点1から点2を見て</text>
       <text x={6} y={25} fontSize={9} fill={T.txH}>
-        土台 {fmt2(hb * 2)} m{hb - half > 0.01 ? `（${wall ? "壁" : "路肩"} ${fmt2(hb - half)} m ずつ）` : ""}{!wall && Math.abs(d) > 0.05 ? `・斜面 ${side} m` : ""}
+        {side === 0 && !walls ? "両わきに壁なし" : `土台 ${fmt2(hb * 2)} m${hb - half > 0.01 ? `（${wall ? "壁" : "路肩"} ${fmt2(hb - half)} m ずつ）` : ""}${side > 0 && Math.abs(d) > 0.05 ? `・斜面 ${side} m` : ""}`}
       </text>
     </svg>
   );
@@ -391,10 +400,14 @@ function ShapeEditor({ f, demTick, selVertex, setSelVertex, update, lift, onAlig
   const addLandings = () => {
     if (!ready) return;
     const w = withLandings(f, groundFn, f.type === "stairs" ? every * f.riser : every, landLen);
-    if (w.added) update({ coords: w.coords, z: w.z, flat: w.flat, steps: undefined }); // 分けた区間の段数は自動に戻す
+    if (w.added) update({ coords: w.coords, z: w.z, flat: w.flat, widths: w.widths || undefined, shifts: w.shifts || undefined, steps: undefined }); // 分けた区間の段数は自動に戻す
   };
-  // 土台：両わきの壁（斜面なら路肩）の幅
+  // 土台：両わきの壁（斜面なら路肩）の幅。各点の横幅（空欄は両端なら横幅、途中は前後を結ぶ）
   const edgeW = (baseWidth(f) - f.width) / 2;
+  const wv = isPath ? vertexWidths(f) : f.coords.map(() => f.width);
+  const cv = isPath ? vertexShifts(f) : f.coords.map(() => 0); // 点ごとの帯の中心のずれ（左へ m）
+  const setW = (i, v) => update((g) => ({ widths: g.coords.map((_, k) => (k === i ? v : g.widths?.[k] ?? null)) }), `w${i}`);
+  const setC = (i, v) => update((g) => ({ shifts: g.coords.map((_, k) => (k === i ? v : g.shifts?.[k] ?? null)) }), `c${i}`);
   // 手すり：段の幅に対する位置（0 が左の端、1 が右の端）。本数を決めると段の両端から同じ間隔で並べる
   const rails = f.rails || [];
   const evenRails = (n) => (n <= 0 ? [] : n === 1 ? [0.5] : Array.from({ length: n }, (_, k) => Math.round((k / (n - 1)) * 1000) / 1000));
@@ -484,21 +497,57 @@ function ShapeEditor({ f, demTick, selVertex, setSelVertex, update, lift, onAlig
 
       {!isBridge && <>
         <Sub>横幅と両わき（点{si + 1}の断面）</Sub>
-        {ready ? <SectionSvg width={f.width} base={baseWidth(f)} side={f.side} inner={sh.elev[si]} outer={sh.ground[si]} rails={f.type === "stairs" ? rails : []} col={col} /> : <Muted>標高を読み込み中…</Muted>}
-        <Row label={`${TYPE_LABEL[f.type]}の横幅 (m)`}><Num value={f.width} min={0.5} max={60} onChange={(v) => update({ width: v }, "width")} /></Row>
-        <Row label="土台の横幅 (m)">
-          <Num value={f.base ?? null} nullable placeholder={`自動 ${fmt2(baseWidth({ ...f, base: null }))}`} min={f.width} max={80} width={84} onChange={(v) => update({ base: v }, "base")} />
-          <span style={{ fontSize: 10, color: T.txD }}>{edgeW > 0.01 ? `${f.side === 0 ? "壁" : "路肩"} ${fmt2(edgeW)} m ずつ` : ""}</span>
+        {ready ? <SectionSvg width={r2(wv[si])} base={wv[si] + 2 * edgeW} side={f.side} inner={sh.elev[si]} outer={sh.ground[si]} rails={f.type === "stairs" ? rails : []} shift={cv[si]} walls={f.walls !== false} col={col} /> : <Muted>標高を読み込み中…</Muted>}
+        <Row label={`${TYPE_LABEL[f.type]}の横幅 (m)`}>
+          <Num value={f.width} min={0.5} max={60} onChange={(v) => update({ width: v }, "width")} />
         </Row>
-        <Row label="両わきの斜面 (m)">
-          <Num value={f.side} min={0} max={30} onChange={(v) => update({ side: v }, "side")} />
-          {f.side > 0
-            ? <Btn onClick={() => update({ side: 0 })}>垂直な壁にする</Btn>
-            : <Btn onClick={() => update({ side: DEFAULTS[f.type].side || 3 })}>斜面に戻す</Btn>}
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, margin: "4px 0" }}>
+          <thead>
+            <tr style={{ color: T.txD, textAlign: "right" }}>
+              <th style={{ ...th, textAlign: "left" }}>点</th><th style={th}>横幅 m</th><th style={th}>ずれ m（左が＋）</th>
+            </tr>
+          </thead>
+          <tbody>
+            {f.coords.map((_, i) => (
+              <tr key={i} onClick={() => setSelVertex(i)} style={{ background: i === selVertex ? `${col}22` : "transparent", cursor: "pointer", textAlign: "right" }}>
+                <td style={{ textAlign: "left", padding: "2px", color: i === selVertex ? col : T.tx }}>{i + 1}</td>
+                <td style={{ padding: "2px" }}><Num value={f.widths?.[i] ?? null} nullable placeholder={String(r2(wv[i]))} min={0.5} max={60} width={56} onChange={(v) => setW(i, v)} /></td>
+                <td style={{ padding: "2px" }}><Num value={f.shifts?.[i] ?? null} nullable placeholder={String(r2(cv[i]))} min={-30} max={30} width={56} onChange={(v) => setC(i, v)} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {(f.widths || f.shifts) && (
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 4 }}>
+            {f.widths && <Btn onClick={() => update({ widths: undefined })} title="点ごとの横幅を消して、どこも同じ横幅にする">どこも同じ幅に</Btn>}
+            {f.shifts && <Btn onClick={() => update({ shifts: undefined })} title="帯を描いた線のまん中に戻す">ずれをなくす</Btn>}
+          </div>
+        )}
+        <Muted style={{ marginBottom: 4 }}>
+          空欄は自動（両端なら上の横幅・ずれ 0、途中は前後の点のあいだを結ぶ）。両端だけ入れると、だんだん広がる台形に。ずれは帯の中心を描いた線から横へずらす（上底を横にずらした台形など）。
+          地図で選ぶと、各点の両わきに四角いつまみが出る。ドラッグすると、反対側のふちはそのままで横幅とずれが変わる（平地のふちや角に吸い付く。Alt で外す）
+        </Muted>
+        <Row label="両わき">
+          <Btn active={f.side === 0 && f.walls !== false} col={col} onClick={() => update({ side: 0, walls: undefined })} title="両わきと両端に擁壁を立てる">擁壁</Btn>
+          <Btn active={f.side > 0} col={col} onClick={() => update({ side: f.side > 0 ? f.side : 3, walls: undefined })} title="壁を立てず、まわりの地面へ斜面でつなぐ">斜面</Btn>
+          {f.type === "stairs" && <Btn active={f.side === 0 && f.walls === false} col={col} onClick={() => update({ side: 0, walls: false })} title="壁も斜面も作らない（平地の中に置いて、平地の壁を両わきの壁にするとき）">なし</Btn>}
         </Row>
+        {f.side === 0 && f.walls !== false && (
+          <Row label="土台の横幅 (m)">
+            <Num value={f.base ?? null} nullable placeholder={`自動 ${fmt2(baseWidth({ ...f, base: null }))}`} min={f.width} max={80} width={84} onChange={(v) => update({ base: v }, "base")} />
+            <span style={{ fontSize: 10, color: T.txD }}>{edgeW > 0.01 ? `壁 ${fmt2(edgeW)} m ずつ` : ""}</span>
+          </Row>
+        )}
+        {f.side > 0 && <>
+          <Row label="斜面の幅 (m)"><Num value={f.side} min={0.1} max={30} onChange={(v) => update({ side: v }, "side")} /></Row>
+          <Row label="土台の横幅 (m)">
+            <Num value={f.base ?? null} nullable placeholder={`自動 ${fmt2(baseWidth({ ...f, base: null }))}`} min={f.width} max={80} width={84} onChange={(v) => update({ base: v }, "base")} />
+            <span style={{ fontSize: 10, color: T.txD }}>{edgeW > 0.01 ? `路肩 ${fmt2(edgeW)} m ずつ` : ""}</span>
+          </Row>
+        </>}
         <Muted>
-          {TYPE_LABEL[f.type]}の横幅は歩くところ{f.type === "stairs" ? "（段）" : ""}の幅。土台の横幅は、両わきの壁（斜面のときは平らな路肩）を含めた全体の幅で、空欄は自動（壁なら両わきに 1.2m ずつ）。
-          斜面の幅は、土台のふちから元の地面に戻るまでの横の長さ。0 にすると垂直な壁（擁壁）になる。両端も同じ
+          {TYPE_LABEL[f.type]}の横幅は歩くところ{f.type === "stairs" ? "（段）" : ""}の幅。擁壁：両わきと両端に壁（土台の横幅は壁を含めた全体の幅、空欄は自動で両わきに 1.2m ずつ）。
+          斜面：壁を立てず、土台のふちから元の地面へ斜面でつなぐ。{f.type === "stairs" && "なし：壁も斜面も作らない。平地のふちに合わせて置くと、平地の壁がそのまま両わきの壁になる（平地の高さは階段の下の端にそろえる）"}
           {f.type === "slope" && f.side === 0 && edgeW < 1.2 && <span style={{ color: T.yellow }}>　壁が 1.2m より細いと、まわりの地面とのつなぎ目が見えることがある</span>}
         </Muted>
       </>}
@@ -536,7 +585,7 @@ function ShapeEditor({ f, demTick, selVertex, setSelVertex, update, lift, onAlig
         <div style={{ marginTop: 6 }}><Btn onClick={() => update({ rails: [...rails, 0.5] })} disabled={rails.length >= 12}>1本足す（まん中に）</Btn></div>
         <Muted style={{ marginTop: 4 }}>
           位置は、点1から点2を見て段の左の端からの距離（0〜{f.width} m が段の上）。マイナスか段の横幅より大きくすると、土台（{f.side === 0 ? "壁" : "路肩"}）の上。
-          本数を変えると、段の両端から同じ間隔で並べ直す。段の横幅を変えても、並び方（端・まん中）はそのまま
+          本数を変えると、段の両端から同じ間隔で並べ直す。段の横幅を変えても、並び方（端・まん中）はそのまま{f.widths ? "（点ごとに横幅が違うときは、上の「横幅」での位置。広いところでは同じ割合の位置に並ぶ）" : ""}
         </Muted>
       </>}
 
@@ -775,7 +824,7 @@ export default function Map3DEditor() {
       // 段数を手で決めているときは、つないだ区間の段数を足す
       const st = g.steps;
       const steps = !st ? st : v === 0 ? st.slice(1) : v === g.coords.length - 1 ? st.slice(0, -1) : [...st.slice(0, v - 1), (st[v - 1] || 0) + (st[v] || 0) || null, ...st.slice(v + 1)];
-      return { coords: g.coords.filter((_, i) => i !== v), z: g.z ? g.z.filter((_, i) => i !== v) : g.z, flat, steps };
+      return { coords: g.coords.filter((_, i) => i !== v), z: g.z ? g.z.filter((_, i) => i !== v) : g.z, flat, steps, widths: g.widths ? g.widths.filter((_, i) => i !== v) : g.widths, shifts: g.shifts ? g.shifts.filter((_, i) => i !== v) : g.shifts };
     });
     setSelVertex(null);
   }, [updateFeature]);
@@ -1087,6 +1136,8 @@ export default function Map3DEditor() {
         updateFeature(sel.id, (g) => ({
           coords: [...g.coords.slice(0, i + 1), mid, ...g.coords.slice(i + 1)],
           z: g.z ? [...g.z.slice(0, i + 1), null, ...g.z.slice(i + 1)] : g.z,
+          widths: g.widths ? [...g.widths.slice(0, i + 1), null, ...g.widths.slice(i + 1)] : g.widths, // 足した点の横幅・ずれは前後を結ぶ
+          shifts: g.shifts ? [...g.shifts.slice(0, i + 1), null, ...g.shifts.slice(i + 1)] : g.shifts,
           flat: g.flat ? [...g.flat.slice(0, i + 1), g.flat[i], ...g.flat.slice(i + 1)] : g.flat, // 分けた2つの区間は、元の区間と同じ
           // 段数を手で決めているときは、半分ずつに分ける
           steps: g.steps ? [...g.steps.slice(0, i), ...(g.steps[i] ? [Math.max(1, Math.round(g.steps[i] / 2)), Math.max(1, g.steps[i] - Math.round(g.steps[i] / 2))] : [null, null]), ...g.steps.slice(i + 1)] : g.steps,
@@ -1094,6 +1145,102 @@ export default function Map3DEditor() {
         setSelVertex(i + 1);
       });
       markers.current.push(new ml.Marker({ element: d, opacityWhenCovered: "1" }).setLngLat([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]).addTo(map));
+    }
+    // 坂道・階段：各点の左右のふちのつまみ。ドラッグで、反対側のふちはそのままで横幅とずれを変える（その点の横の線の上だけ動く）
+    if (sel.type === "slope" || sel.type === "stairs") {
+      const xy = sel.coords.map(toXY);
+      const wv0 = vertexWidths(sel);
+      const cv0 = vertexShifts(sel);
+      // その点で、ふちが動く向き（角では留め継ぎの向きと倍率。offsetLine と同じ）
+      const frame = (i) => {
+        const n = xy.length;
+        const nrm = (j) => { const dx = xy[j + 1][0] - xy[j][0]; const dy = xy[j + 1][1] - xy[j][1]; const l = Math.hypot(dx, dy) || 1; return [-dy / l, dx / l]; };
+        const a = nrm(Math.max(0, i - 1));
+        const b = nrm(Math.min(n - 2, i));
+        let mx = a[0] + b[0];
+        let my = a[1] + b[1];
+        const ml2 = Math.hypot(mx, my);
+        if (ml2 < 1e-6) return { m: a, k: 1 };
+        mx /= ml2;
+        my /= ml2;
+        return { m: [mx, my], k: Math.min(3, 1 / Math.max(1e-3, mx * a[0] + my * a[1])) };
+      };
+      // つまみの線（その点の横の線）と、平地のふち・角の吸い付き先（線の上の位置 d m）
+      const snapD = (i, d, raw) => {
+        const { m, k } = frame(i);
+        const v = xy[i];
+        const at = (t) => [v[0] + m[0] * t * k, v[1] + m[1] * t * k];
+        const mpp = (78271.517 * Math.cos((raw.lat * Math.PI) / 180)) / 2 ** map.getZoom();
+        let best = null;
+        S.current.features.forEach((g) => {
+          if (g.id === sel.id || g.type !== "terrace") return;
+          const ring = g.coords.map(toXY);
+          ring.forEach((q, j) => {
+            // 角：線へ垂直に下ろした位置（角が線から 14px 以内）
+            const t = ((q[0] - v[0]) * m[0] + (q[1] - v[1]) * m[1]) / k;
+            const p = at(t);
+            const dist = Math.hypot(q[0] - p[0], q[1] - p[1]) / mpp;
+            const off = Math.abs(t - d) * k / mpp;
+            if (dist <= SNAP_VERTEX_PX && off <= SNAP_VERTEX_PX * 2 && (!best || best.edge || off < best.off)) best = { t, off, ll: toLngLat(q), edge: false };
+            // ふち：線との交わり
+            const r = ring[(j + 1) % ring.length];
+            const ex = r[0] - q[0];
+            const ey = r[1] - q[1];
+            const den = m[0] * k * ey - m[1] * k * ex;
+            if (Math.abs(den) < 1e-9) return;
+            const tt = ((q[0] - v[0]) * ey - (q[1] - v[1]) * ex) / den;
+            const u = ((q[0] - v[0]) * m[1] * k - (q[1] - v[1]) * m[0] * k) / den;
+            if (u < 0 || u > 1) return;
+            const off2 = Math.abs(tt - d) * k / mpp;
+            if (off2 <= SNAP_EDGE_PX && (!best || (best.edge && off2 < best.off))) best = { t: tt, off: off2, ll: toLngLat(at(tt)), edge: true };
+          });
+        });
+        return best;
+      };
+      const square = (side) => {
+        const d = document.createElement("div");
+        d.style.cssText = `width:11px;height:11px;border-radius:2px;background:#fff;border:2.5px solid ${col};box-sizing:border-box;cursor:ew-resize;box-shadow:0 1px 3px rgba(0,0,0,.45)`;
+        d.title = `${side > 0 ? "左" : "右"}のふち（ドラッグで横幅とずれ。反対側のふちはそのまま）`;
+        return d;
+      };
+      sel.coords.forEach((_, i) => {
+        const { m, k } = frame(i);
+        [1, -1].forEach((side) => {
+          const edgeAt = (t) => toLngLat([xy[i][0] + m[0] * t * k, xy[i][1] + m[1] * t * k]);
+          const mk = new ml.Marker({ element: square(side), draggable: true, opacityWhenCovered: "1" }).setLngLat(edgeAt(cv0[i] + (side * wv0[i]) / 2)).addTo(map);
+          mk.getElement().addEventListener("click", (e) => { e.stopPropagation(); setSelVertex(i); });
+          // ドラッグした位置 → このふちの位置 t（中心線から左へ m）。反対側のふちはそのまま
+          const widthShift = (raw, alt) => {
+            const q = toXY([raw.lng, raw.lat]);
+            let t = ((q[0] - xy[i][0]) * m[0] + (q[1] - xy[i][1]) * m[1]) / k;
+            const snap = alt || altRef.current || !S.current.snapOn ? null : snapD(i, t, raw);
+            if (snap) t = snap.t;
+            const other = cv0[i] - (side * wv0[i]) / 2;
+            const lo = side > 0 ? Math.max(t, other + 0.5) : Math.min(t, other - 0.5);
+            const w = Math.round(Math.abs(lo - other) * 100) / 100;
+            const c = Math.round(((lo + other) / 2) * 100) / 100;
+            return { w, c, t: lo, snap };
+          };
+          mk.on("drag", () => {
+            const raw = mk.getLngLat();
+            const r = widthShift(raw, false);
+            mk.setLngLat(edgeAt(r.t));
+            snapFns.current.showSnap?.(r.snap ? { ll: r.snap.ll, vertex: !r.snap.edge } : null);
+            const g = { ...sel, widths: sel.coords.map((__, j) => (j === i ? r.w : sel.widths?.[j] ?? null)), shifts: sel.coords.map((__, j) => (j === i ? r.c : sel.shifts?.[j] ?? null)) };
+            map.getSource("ed-feat")?.setData(overlayFC(S.current.features.map((h) => (h.id === sel.id ? g : h)), sel.id));
+          });
+          mk.on("dragend", () => {
+            snapFns.current.showSnap?.(null);
+            const r = widthShift(mk.getLngLat(), false);
+            updateFeature(sel.id, (g) => ({
+              widths: g.coords.map((__, j) => (j === i ? r.w : g.widths?.[j] ?? null)),
+              shifts: g.coords.map((__, j) => (j === i ? r.c : g.shifts?.[j] ?? null)),
+            }));
+            setSelVertex(i);
+          });
+          markers.current.push(mk);
+        });
+      });
     }
     return () => {
       markers.current.forEach((m) => m.remove());

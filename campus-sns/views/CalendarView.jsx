@@ -3,16 +3,16 @@ import { T } from "../theme.js";
 import { I } from "../icons.jsx";
 import { NOW, fDS, fDF, fTs, uDue, aMap, sMap } from "../utils.jsx";
 import { Tag } from "../shared.jsx";
-import { getAcademicInfo, getCurrentQuarter } from "../academicCalendar.js";
+import { getAcademicInfo } from "../academicCalendar.js";
 import { PERIOD_TIMES } from "../examData.js";
-import { buildTimetable } from "../../lib/transform/timetable-builder.js";
-import { getSciSessions, annotateSessions } from "../attendanceUtils.js";
+import { makeClassResolver, matchMyExams } from "../calendarItems.js";
 import { t, locCal } from "../i18n.js";
+import { isDemoMode } from "../demoMode.js";
+import { CalendarFeedPanel } from "../components/CalendarFeedPanel.jsx";
 const DAY_KEYS=["cal.sun","cal.mon","cal.tue","cal.wed","cal.thu","cal.fri","cal.sat"];
 const COLORS=["#6375f0","#e5534b","#3dae72","#a855c7","#d4843e","#c6a236","#2d9d8f","#c75d8e"];
 const dKey=d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 const isSameDay=(a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
-const PD=[{s:[8,50],e:[10,30],l:"1限"},{s:[10,45],e:[12,25],l:"2限"},{s:[13,30],e:[15,10],l:"3限"},{s:[15,25],e:[17,5],l:"4限"},{s:[17,15],e:[18,55],l:"5限"}];
 const PRESETS=[
   {label:"バイト",color:"#d4843e",time:"17:00",endTime:"22:00"},
   {label:"ゼミ",color:"#a855c7",time:"13:00",endTime:"15:00"},
@@ -32,12 +32,13 @@ const rangesOverlap=(s1h,s1m,e1h,e1m,s2h,s2m,e2h,e2m)=>{
 
 const getWeekStart=d=>{const dt=new Date(d);dt.setDate(dt.getDate()-dt.getDay());dt.setHours(0,0,0,0);return dt;};
 
-export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:deleteEventApi,asgn,courses=[],qd,qDataAll={},mob,pastTTCache={},fetchPastTimetable,medSessions=[],records={},setStatus})=>{
+export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:deleteEventApi,asgn,courses=[],qd,qDataAll={},mob,pastTTCache={},fetchPastTimetable,medSessions=[],records={},setStatus,calFeed})=>{
   const [viewMode,setViewMode]=useState("month");
   const [calMonth,setCalMonth]=useState(()=>({y:NOW.getFullYear(),m:NOW.getMonth()}));
   const [weekStart,setWeekStart]=useState(()=>getWeekStart(NOW));
   const [selDay,setSelDay]=useState(null);
   const [adding,setAdding]=useState(false);
+  const [showFeed,setShowFeed]=useState(false);
   const [editing,setEditing]=useState(null);
   const [form,setForm]=useState({title:"",date:"",time:"",endTime:"",color:COLORS[0],memo:"",repeat:"none"});
   const [savAsFav,setSavAsFav]=useState(false);
@@ -46,32 +47,7 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
   const togFilter=k=>setFilter(p=>({...p,[k]:!p[k]}));
   const [exams,setExams]=useState([]);
   useEffect(()=>{fetch("/api/exams").then(r=>r.json()).then(d=>setExams(d.exams||[])).catch(()=>{});},[]);
-  const myExams=useMemo(()=>{
-    if(!courses?.length||!exams.length)return [];
-    // 試験(e)と履修科目(c)の年度/クォーターを正規化して比較
-    // exam.year:'2025' 文字列 / exam.quarter:数値or'4Q' ; course.year:'2025' / course.quarter:1-4数値
-    const normQ=q=>{if(q==null||q==="")return"";const m=String(q).match(/(\d)/);return m?m[1]:"";};
-    // 試験日(YYYY-MM-DD)が属する年度: 4月〜翌3月が同一年度 (dateToAYと同じ規則)
-    const examAY=ds=>{const [y,m]=ds.split("-").map(Number);return (m-1)>=3?y:y-1;};
-    const matchYQ=(c,ey,eq)=>{
-      if(ey&&(!c.year||String(c.year)!==ey))return false;
-      if(eq){
-        // 複数クォーター科目(例:1-2Q)は該当する全クォーターの試験にマッチ
-        const qs=(c.quarters&&c.quarters.length)?c.quarters.map(String):(c.quarter==null?[]:[normQ(c.quarter)]);
-        if(!qs.includes(eq))return false;
-      }
-      return true;
-    };
-    return exams.filter(e=>{
-      const ey=e.year==null?"":String(e.year);
-      const eq=normQ(e.quarter);
-      // 試験の年度と、表示される日付の年度が一致すること (2026年度試験→年度2026の日付にのみ)
-      if(ey&&e.date&&String(examAY(e.date))!==ey)return false;
-      return courses.some(c=>matchYQ(c,ey,eq)&&(
-        (c.codeRaw&&c.codeRaw!==c.code)?c.codeRaw===e.code_raw:c.code===e.code
-      ));
-    });
-  },[exams,courses]);
+  const myExams=useMemo(()=>matchMyExams(exams,courses),[exams,courses]);
 
   const addFav=p=>{const next=[...favPresets,p];setFavPresets(next);saveFavs(next);};
   const removeFav=label=>{const next=favPresets.filter(f=>f.label!==label);setFavPresets(next);saveFavs(next);};
@@ -130,8 +106,6 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
   };
   const deleteEvent=id=>{deleteEventApi(id);setEditing(null);setAdding(false);resetForm();};
 
-  // Academic year from date: April–March = same nendo
-  const dateToAY=d=>d.getMonth()>=3?d.getFullYear():d.getFullYear()-1;
   // Viewed month's academic year (for auto-fetch)
   const viewedAY=useMemo(()=>calMonth.m>=3?calMonth.y:calMonth.y-1,[calMonth.y,calMonth.m]);
   // Auto-fetch past timetable when browsing a different academic year
@@ -142,104 +116,7 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
     if(!hasInCurrent&&!pastTTCache[viewedAY]){fetchPastTimetable(viewedAY);}
   },[viewedAY,qDataAll,pastTTCache,fetchPastTimetable]);
 
-  // Build year-filtered timetables to avoid cross-year slot collisions.
-  // When courses from multiple years share the same quarter (e.g. 2025-1Q and 2026-1Q),
-  // building one grid overwrites slots. Filter by year first, then build separate grids.
-  const yearTTMap=useMemo(()=>{
-    const map={};
-    for(const [q,qObj] of Object.entries(qDataAll)){
-      if(!qObj?.C)continue;
-      const byYear={};
-      for(const c of qObj.C){const y=c.year||0;if(!byYear[y])byYear[y]=[];byYear[y].push(c);}
-      map[q]={};
-      for(const [y,courses] of Object.entries(byYear)){map[q][y]=buildTimetable(courses);}
-    }
-    return map;
-  },[qDataAll]);
-  const getTT=(q,yr)=>{
-    // 1. Try year-filtered timetable from qDataAll
-    const tt=yearTTMap[q]?.[yr];
-    if(tt&&tt.some(row=>row.some(cell=>cell)))return tt;
-    // 2. Fallback: pastTTCache for that year
-    const past=pastTTCache[yr];
-    if(past?.qData?.[q]?.TT)return past.qData[q].TT;
-    return[];
-  };
-  const DOW_MAP={"月":0,"火":1,"水":2,"木":3,"金":4};
-  // Index med sessions by date key (YYYY-M-D) for fast lookup
-  const medByDay=useMemo(()=>{
-    const map={};
-    for(const s of medSessions){
-      if(!s.date)continue;
-      // s.date is "YYYY/MM/DD" — convert to dKey format
-      const parts=s.date.split("/").map(Number);
-      const k=`${parts[0]}-${parts[1]-1}-${parts[2]}`;
-      if(!map[k])map[k]=[];
-      map[k].push(s);
-    }
-    return map;
-  },[medSessions]);
-  const getMedClasses=date=>{
-    const sessions=medByDay[dKey(date)];
-    if(!sessions||sessions.length===0)return [];
-    const seen=new Set();
-    return sessions.filter(s=>{
-      const key=`${s.code}|${s.timeStart}|${s.timeEnd}`;
-      if(seen.has(key))return false;
-      seen.add(key);return true;
-    }).map(s=>{
-      const [sh,sm]=(s.timeStart||"0:0").split(":").map(Number);
-      const [eh,em]=(s.timeEnd||"0:0").split(":").map(Number);
-      return{type:"class",course:{name:s.name,col:"#e04e6a",room:s.room||null,code:s.code},pd:{l:s.timeStart,s:[sh,sm],e:[eh,em]},pi:null,n:null,sub:false,dow:s.day};
-    });
-  };
-  // 休講(cancelled)注釈マップ: courseId → ゼロ埋めISO日付 → {cancelled, ordinal, sessionKey}
-  const sciAnnot=useMemo(()=>{
-    const sci=records.sci||{};
-    const map={};
-    for(const co of courses){
-      if(!co?.quarter)continue; // sci のみ（medは別扱い）
-      const statuses=sci[String(co.id)]||{};
-      const keys=new Set(Object.keys(statuses).filter(k=>statuses[k]==="cancelled"));
-      const byDate={};
-      for(const s of annotateSessions(getSciSessions(co),keys))byDate[s.dateStr]={cancelled:s.cancelled,ordinal:s.ordinal,sessionKey:s.sessionKey};
-      map[String(co.id)]=byDate;
-    }
-    return map;
-  },[courses,records]);
-  // getSciSessions().dateStr はゼロ埋め "YYYY-MM-DD"。dKey(ゼロ埋め無し)は流用不可。
-  const isoOf=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  const getClasses=date=>{
-    const yr=dateToAY(date);
-    const iso=isoOf(date);
-    const info=getAcademicInfo(date);
-    const hasAcad=info.items.length>0||info.period;
-    const withAnnot=(co,base)=>{
-      const ann=sciAnnot[String(co.id)]?.[iso];
-      return {...base,dispN:(ann&&ann.ordinal!=null)?ann.ordinal:base.n,cancelled:!!ann?.cancelled,sessionKey:ann?.sessionKey,dateStr:iso};
-    };
-    let results=[];
-    if(hasAcad){
-      const classItems=info.items.filter(it=>it.type==="class");
-      if(classItems.length>0){
-        for(const item of classItems){
-          const di=DOW_MAP[item.dow];
-          if(di===undefined) continue;
-          const tt=getTT(item.q,yr);
-          PD.forEach((pd,pi)=>{const co=tt[pi]?.[di];if(co) results.push(withAnnot(co,{type:"class",course:co,pd,pi,n:item.n,sub:item.sub,dow:item.dow}));});
-        }
-      }
-    } else {
-      const dow=date.getDay();
-      if(dow>=1&&dow<=5){
-        const di=dow-1;
-        const tt=getTT(getCurrentQuarter(date),yr);
-        results=PD.map((pd,pi)=>{const co=tt[pi]?.[di];if(!co)return null;return withAnnot(co,{type:"class",course:co,pd,pi,n:null,sub:false});}).filter(Boolean);
-      }
-    }
-    // Append med sessions (date-based, not timetable grid)
-    return results.concat(getMedClasses(date));
-  };
+  const getClasses=useMemo(()=>makeClassResolver({qDataAll,pastTTCache,courses,records,medSessions}),[qDataAll,pastTTCache,courses,records,medSessions]);
 
   // Build calendar data
   const first=new Date(calMonth.y,calMonth.m,1);
@@ -308,6 +185,8 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
     const favs=favPresets.filter(f=>!seen.has(f.label));
     return [...PRESETS.map(p=>({...p,src:"builtin"})),...favs.map(f=>({...f,src:"fav"}))];
   },[favPresets]);
+
+  if(showFeed&&calFeed)return <CalendarFeedPanel feed={calFeed} mob={mob} onBack={()=>setShowFeed(false)}/>;
 
   // ── FORM VIEW ──
   if(adding){
@@ -408,6 +287,9 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
         {[{k:"ev",l:t("cal.typeEvent"),c:T.accent},{k:"asgn",l:t("cal.typeAssign"),c:T.orange},{k:"cls",l:t("cal.typeClass"),c:T.green},{k:"exam",l:t("cal.typeExam"),c:"#d97706"}].map(f=><button key={f.k} onClick={()=>togFilter(f.k)} style={{padding:"3px 10px",borderRadius:6,border:`1px solid ${filter[f.k]?f.c:T.bd}`,background:filter[f.k]?`${f.c}14`:"transparent",color:filter[f.k]?f.c:T.txD,fontSize:11,fontWeight:filter[f.k]?600:400,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
           <span style={{width:6,height:6,borderRadius:3,background:filter[f.k]?f.c:T.txD}}/>{f.l}
         </button>)}
+        {calFeed&&!isDemoMode()&&<button onClick={()=>setShowFeed(true)} title={t("cal.feedTitle")} style={{marginLeft:"auto",padding:"3px 10px",borderRadius:6,border:`1px solid ${calFeed.status.enabled?T.accent:T.bd}`,background:calFeed.status.enabled?`${T.accent}14`:"transparent",color:calFeed.status.enabled?T.accent:T.txD,fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+          {React.cloneElement(I.upload,{width:13,height:13})}{t("cal.feedBtn")}
+        </button>}
       </div>
     </div>
   );

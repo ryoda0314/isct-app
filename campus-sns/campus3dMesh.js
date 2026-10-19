@@ -2,7 +2,7 @@
 // 位置はメルカトル座標の「キャンパスの中心からの差 × MERC_SCALE」と標高(m)。float32 でも桁が落ちないように中心からの差で持つ
 import earcut from "earcut";
 import { CAMPUS_CENTER } from "./hooks/useLocationSharing.js";
-import { WALL_T, densify, lerpAlong, offsetLine, pointInRing, ringArea, stairSteps, stripDistance, toLngLat, toXY, vertexElevations } from "./campus3dFeatures.js";
+import { WALL_T, densify, edgeOpen, isOpenStairs, lerpAlong, offsetLine, pointInRing, ringArea, stairSteps, stairsOpening, stripDistance, toLngLat, toXY, vertexElevations } from "./campus3dFeatures.js";
 
 export const MERC_SCALE = 2 ** 20;
 const DEG = Math.PI / 180;
@@ -101,8 +101,20 @@ class Mesh {
 }
 
 const finite = (a) => a.every(Number.isFinite);
-// 中心線から a m と b m ずらした2本の線を、左（進む向きの左）・右の順にして返す（側面の向きをそろえるため）
-const band = (pts, a, b) => [offsetLine(pts, Math.max(a, b)), offsetLine(pts, Math.min(a, b))];
+// 中心線から a m と b m ずらした2本の線を、左（進む向きの左）・右の順にして返す（側面の向きをそろえるため）。
+// a・b は数か、点ごとの数の並び（だんだん広がる帯）
+const band = (pts, a, b) => {
+  if (!Array.isArray(a) && !Array.isArray(b)) return [offsetLine(pts, Math.max(a, b)), offsetLine(pts, Math.min(a, b))];
+  const av = Array.isArray(a) ? a : pts.map(() => a);
+  const bv = Array.isArray(b) ? b : pts.map(() => b);
+  return [offsetLine(pts, av.map((v, i) => Math.max(v, bv[i]))), offsetLine(pts, av.map((v, i) => Math.min(v, bv[i])))];
+};
+// 中心線を細かくした点（距離 s）ごとの、帯と土台の半幅と、帯の中心のずれ（左へ m）
+const halfWidths = (sl, s) => ({
+  hw: s.map((v) => lerpAlong(sl.cum, sl.hwv, v)),
+  hb: s.map((v) => lerpAlong(sl.cum, sl.hbv, v)),
+  c: s.map((v) => lerpAlong(sl.cum, sl.cv, v)),
+});
 
 function addWall(m, f, groundAt, c) {
   const { pts } = densify(f.coords.map(toXY), 2);
@@ -161,27 +173,28 @@ function addBridge(m, f, groundAt, pal, cols, tint) {
   }
 }
 
-// 帯の片側（sg = 1 左、-1 右）の外の地面：壁の外の面から 0.4m 先（pts は中心線を細かくした点）
-const outerGround = (sl, groundAt, pts, sg) => offsetLine(pts, sg * (sl.hb + 0.4)).map((p) => groundAt(toLngLat(p)));
+// 帯の片側（sg = 1 左、-1 右）の外の地面：壁の外の面から 0.4m 先（pts は中心線を細かくした点、c・hb はその点ごとの中心のずれと土台の半幅）
+const outerGround = (groundAt, pts, c, hb, sg) => offsetLine(pts, hb.map((h, i) => c[i] + sg * (h + 0.4))).map((p) => groundAt(toLngLat(p)));
 
 // 坂・階段の両わきの斜面が 0（垂直）のとき：坂の面とまわりの地面の段差に壁を立てる（両わきと両端）。
 // 壁は帯のふちから外へ sl.wt（土台の横幅から決まる厚さ）。上は高いほう（坂の面か外の地面）より少し上
 function addSlopeWalls(m, sl, groundAt, c) {
   const { pts, s } = densify(sl.xy, 1);
+  const { hw, hb, c: cs } = halfWidths(sl, s);
   const inner = s.map((v) => lerpAlong(sl.prof.s, sl.prof.e, v));
   const low = s.map((v, i) => Math.min(inner[i], lerpAlong(sl.under.s, sl.under.e, v))); // 階段は段の下の地面が一段ぶん低いところがある
   [1, -1].forEach((sg) => {
-    const out = outerGround(sl, groundAt, pts, sg);
+    const out = outerGround(groundAt, pts, cs, hb, sg);
     if (!finite(out)) return;
     // 壁の下の地面（帯のふちと壁のまん中）まで下ろす：まわりより高い階段の下は元の地面のままで、平地のふちをまたぐとそこが低い
-    const foot = [sl.hw, (sl.hw + sl.hb) / 2].map((d) => offsetLine(pts, sg * d).map((p) => groundAt(toLngLat(p))));
+    const foot = [hw, hw.map((h, i) => (h + hb[i]) / 2)].map((d) => offsetLine(pts, d.map((v, i) => cs[i] + sg * v)).map((p) => groundAt(toLngLat(p))));
     const bot = low.map((v, i) => Math.min(v, out[i], ...foot.map((g) => (Number.isFinite(g[i]) ? g[i] : Infinity))) - 0.3);
     const top = inner.map((v, i) => Math.max(v, out[i]) + 0.05);
-    m.prism(...band(pts, sg * sl.hw, sg * sl.hb), bot, top, { top: c, side: c });
+    m.prism(...band(pts, hw.map((v, i) => cs[i] + sg * v), hb.map((v, i) => cs[i] + sg * v)), bot, top, { top: c, side: c });
   });
   // 両端：土台の端の線（左の壁の外〜右の壁の外）から外へ壁の厚さぶん。段差がほとんどなければ立てない
-  const Ls = offsetLine(pts, sl.hb);
-  const Rs = offsetLine(pts, -sl.hb);
+  const Ls = offsetLine(pts, hb.map((v, i) => cs[i] + v));
+  const Rs = offsetLine(pts, hb.map((v, i) => cs[i] - v));
   [[0, 1], [pts.length - 1, pts.length - 2]].forEach(([i, j]) => {
     const dx = pts[i][0] - pts[j][0];
     const dy = pts[i][1] - pts[j][1];
@@ -202,14 +215,26 @@ function addSlopeWalls(m, sl, groundAt, c) {
 }
 
 // 平地のふちを垂直に切ったとき：ふちに沿って、平地とまわりの地面の段差に壁を立てる。
-// 坂道・階段がふちを横切るところと、となりの平地のほうが高いところ（そちらが壁を立てる）はあける
+// 坂道・階段がふちを横切るところと、となりの平地のほうが高いところ（そちらが壁を立てる）はあける。
+// 壁を立てない階段（walls: false）は、横切るところだけあけ、両わきのふちに沿うところは残す（平地の壁がその両わきの壁になる。
+// 判定は campus3dFeatures.js の edgeOpen：焼き込みでも同じところのふちの外を掘らない）
 function addTerraceWalls(m, tr, { groundAt, terraces, paths }, c) {
   const { pts } = densify([...tr.ring, tr.ring[0]], 1);
   const out = ringArea(tr.ring) > 0 ? -1 : 1; // 左回りなら中は進む向きの左なので、外は右
   const outer = offsetLine(pts, out * (WALL_T + 0.4));
+  const gaps = paths.filter((sl) => !isOpenStairs(sl.f)).map((sl) => ({ sl, hv: sl.hbv.map((h) => h + (sl.side > 0 ? WALL_T : 0)) }));
+  const opens = paths.filter((sl) => isOpenStairs(sl.f)).map((sl) => stairsOpening(sl.f));
+  // ふちの向き（点の前と後ろの辺。ring は閉じてあるので、最初と最後は同じ点）
+  const dirOf = (a, b) => { const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [(b[0] - a[0]) / l, (b[1] - a[1]) / l]; };
+  const last = pts.length - 1;
   const ground = pts.map((p, i) => {
     const q = outer[i];
-    if (paths.some((sl) => stripDistance(sl.xy, sl.cum, sl.hb + (sl.side > 0 ? WALL_T : 0), p).D <= 0)) return null;
+    if (gaps.some(({ sl, hv }) => stripDistance(sl.xy, sl.cum, hv, p, sl.cv).D <= 0)) return null;
+    if (opens.length) {
+      // 角の点は、どちらかの辺が階段のふちに沿っていれば残す（壁が角まで届く）
+      const dirs = [dirOf(i > 0 ? pts[i - 1] : pts[last - 1], p), dirOf(p, i < last ? pts[i + 1] : pts[1])];
+      if (dirs.every((dir) => edgeOpen(opens, p, dir))) return null;
+    }
     if (terraces.some((t) => t !== tr && t.elev > tr.elev + 0.05 && pointInRing(q[0], q[1], t.ring))) return null;
     const g = groundAt(toLngLat(q));
     return Number.isFinite(g) && Math.abs(tr.elev - g) >= 0.15 ? g : null;
@@ -232,15 +257,17 @@ function addTerraceWalls(m, tr, { groundAt, terraces, paths }, c) {
 function addStairs(m, rm, sl, groundAt, cols, tint) {
   const f = sl.f;
   const c = tint(rgba(cols.stairs));
-  const L = offsetLine(sl.xy, sl.hw);
-  const R = offsetLine(sl.xy, -sl.hw);
+  const L = offsetLine(sl.xy, sl.hwv.map((h, i) => sl.cv[i] + h));
+  const R = offsetLine(sl.xy, sl.hwv.map((h, i) => sl.cv[i] - h));
   const at = (line, i, t) => [line[i][0] + (line[i + 1][0] - line[i][0]) * t, line[i][1] + (line[i + 1][1] - line[i][1]) * t];
   stairSteps(sl.prof, f.riser, sl.cum).forEach((st) => {
     const i = st.seg;
     const len = sl.cum[i + 1] - sl.cum[i];
     const t0 = (st.s0 - sl.cum[i]) / len;
     const t1 = (st.s1 - sl.cum[i]) / len;
-    const base = Math.min(lerpAlong(sl.under.s, sl.under.e, st.s0), lerpAlong(sl.under.s, sl.under.e, st.s1)) - 0.5; // 段の下の地面より下から
+    // 段の下の地面より下から。まわりより高い段（下は元の地面のまま）は、その下の地面まで下ろす（壁がなくても浮かない）
+    const foot = [at(L, i, t0), at(L, i, t1), at(R, i, t0), at(R, i, t1)].map((q) => groundAt(toLngLat(q))).filter(Number.isFinite);
+    const base = Math.min(lerpAlong(sl.under.s, sl.under.e, st.s0) - 0.5, lerpAlong(sl.under.s, sl.under.e, st.s1) - 0.5, ...foot.map((g) => g - 0.3));
     m.prism([at(L, i, t0), at(L, i, t1)], [at(R, i, t0), at(R, i, t1)], [base, base], [st.top, st.top], { top: c, side: c });
   });
   // 手すり：位置ごとに、足もとの線から 0.85〜0.95m の横の棒と、1.2m おきの支柱（板にすると段が隠れる）。
@@ -249,23 +276,28 @@ function addStairs(m, rm, sl, groundAt, cols, tint) {
   if (!rails.length) return;
   const rc = tint(rgba(cols.railing));
   const { pts, s } = densify(sl.xy, 0.5);
+  const { hw, hb, c: cs } = halfWidths(sl, s);
   const ramp = s.map((v) => lerpAlong(sl.prof.s, sl.prof.e, v));
   const nose = ramp.map((v) => v + sl.rise);
   const feet = {}; // 土台の上の足もと（左右それぞれ）
   const footOnBase = (sg) => {
     if (!feet[sg]) {
-      const out = sl.wt > 0 ? outerGround(sl, groundAt, pts, sg) : null;
+      const out = sl.wt > 0 ? outerGround(groundAt, pts, cs, hb, sg) : null;
       feet[sg] = ramp.map((v, i) => (!out ? v - sl.rise - 0.02 : Number.isFinite(out[i]) ? Math.max(v, out[i]) + 0.05 : v));
     }
     return feet[sg];
   };
   const len = sl.cum[sl.cum.length - 1];
   rails.forEach((r) => {
-    const onSteps = r >= 0 && r <= 1;
-    const lim = (onSteps ? sl.hw : sl.hb) - 0.06;
-    const o = Math.min(lim, Math.max(-lim, sl.hw - r * f.width)); // 中心線から左へ（m）
-    const foot = onSteps || Math.abs(o) <= sl.hw ? nose : footOnBase(o > 0 ? 1 : -1);
-    rm.prism(...band(pts, o + 0.03, o - 0.03), foot.map((v) => v + 0.85), foot.map((v) => v + 0.95), { top: rc, side: rc });
+    const onSteps = (r >= 0 && r <= 1) || !(sl.wt > 0 || sl.side > 0); // 壁も路肩もなければ段のふち
+    // 中心線から左へ（m）。幅が変わるところでは、同じ割合の位置
+    const offAt = (h, b) => {
+      const lim = (onSteps ? h : b) - 0.06;
+      return Math.min(lim, Math.max(-lim, h * (1 - 2 * r)));
+    };
+    const o = hw.map((h, i) => cs[i] + offAt(h, hb[i]));
+    const foot = onSteps ? nose : footOnBase(r < 0 ? 1 : -1);
+    rm.prism(...band(pts, o.map((v) => v + 0.03), o.map((v) => v - 0.03)), foot.map((v) => v + 0.85), foot.map((v) => v + 0.95), { top: rc, side: rc });
     for (let k = 0, n = Math.max(1, Math.round(len / 1.2)); k <= n; k++) {
       const sv = (len * k) / n;
       const i = Math.min(sl.xy.length - 2, Math.max(0, sl.cum.findIndex((c) => c >= sv) - 1));
@@ -278,7 +310,8 @@ function addStairs(m, rm, sl, groundAt, cols, tint) {
       const post = [[p[0] - u[0] * 0.03, p[1] - u[1] * 0.03], [p[0] + u[0] * 0.03, p[1] + u[1] * 0.03]];
       const z1 = lerpAlong(s, foot, sv) + 0.95;
       const z0 = foot === nose ? z1 - 0.95 - sl.rise : z1 - 0.95; // 段の上の支柱は坂の面から（段の箱に刺さる）
-      rm.prism(...band(post, o + 0.03, o - 0.03), [z0, z0], [z1, z1], { top: rc, side: rc });
+      const ov = lerpAlong(sl.cum, sl.cv, sv) + offAt(lerpAlong(sl.cum, sl.hwv, sv), lerpAlong(sl.cum, sl.hbv, sv));
+      rm.prism(...band(post, ov + 0.03, ov - 0.03), [z0, z0], [z1, z1], { top: rc, side: rc });
     }
   });
 }
@@ -306,7 +339,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
   slopes.forEach((sl) => {
     const tint = sl.f.id === selectedId ? (c) => mix(c, acc, 0.45) : (c) => c;
     if (sl.f.type === "stairs") addStairs(m, thin, sl, groundAt, cols, tint);
-    if (sl.f.side === 0) addSlopeWalls(m, sl, groundAt, tint(rgba(cols.wall)));
+    if (sl.f.side === 0 && sl.walls) addSlopeWalls(m, sl, groundAt, tint(rgba(cols.wall)));
   });
   const cc = rgba(cols.ceiling);
   ceilings.forEach(({ rings, z }) => m.polygon(rings.map((r) => r.map(toXY)), z, [0, 0, -1], cc));

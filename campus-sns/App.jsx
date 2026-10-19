@@ -76,6 +76,7 @@ import { useBlocks } from "./hooks/useBlocks.js";
 import { useMutes } from "./hooks/useMutes.js";
 import { useTasks } from "./hooks/useTasks.js";
 import { useCalendarEvents } from "./hooks/useCalendarEvents.js";
+import { useCalendarFeed } from "./hooks/useCalendarFeed.js";
 import { useOfflineQueue } from "./hooks/useOfflineQueue.js";
 import { useGroups } from "./hooks/useGroups.js";
 import { getClientToken, clearClientToken, fetchUserCourses as moodleFetchCourses, fetchAssignments as moodleFetchAssignments, fetchSubmissionStatus as moodleFetchSubmissionStatus } from "./moodleClient.js";
@@ -327,6 +328,7 @@ export default function App(){
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
+  const calFeed=useCalendarFeed({enabled:ready&&!guestMode,asgn,hiddenAsgn,courses:allCourses,qDataAll:qDataLive||QData,pastTTCache,medSessions,records:attRecords,myEvents});
   const [pomo,setPomo]=useState({running:false,sec:25*60,mode:"work",sessions:0});
   const [searchQ,setSearchQ]=useState("");
   const [notifEnabled,setNotifEnabled]=useState(()=>{try{const v=localStorage.getItem("notifEnabled");return v!==null?JSON.parse(v):true;}catch{return true;}});
@@ -1134,7 +1136,7 @@ export default function App(){
           {view==="notif"&&(L?<LockedView title={t("nav.notif")}/>:<NotifView mob={false} pending={friendPending} acceptRequest={acceptRequest} rejectRequest={rejectRequest} onRefetchFriends={refetchFriends}/>)}
           {view==="grades"&&(L?<LockedView title={t("tool.grades")}/>:<GradeView mob={false}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
-          {view==="calendar"&&(L?<LockedView title={t("nav.calendar")}/>:<CalendarView myEvents={myEvents} addEvent={addEventFn} addEvents={addEventsFn} updateEvent={updateEventFn} deleteEvent={deleteEventFn} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob={false} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} medSessions={medSessions} records={attRecords} setStatus={setAttStatus}/>)}
+          {view==="calendar"&&(L?<LockedView title={t("nav.calendar")}/>:<CalendarView myEvents={myEvents} addEvent={addEventFn} addEvents={addEventsFn} updateEvent={updateEventFn} deleteEvent={deleteEventFn} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob={false} pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} medSessions={medSessions} records={attRecords} setStatus={setAttStatus} calFeed={calFeed}/>)}
           {view==="events"&&<EventView events={allEvents} mob={false} rsvps={rsvps} onRsvp={handleRsvp}/>}
           {view==="reviews"&&(L?<LockedView title={t("tool.reviews")}/>:<ReviewView reviews={reviews} setReviews={setReviews} mob={false} courses={allCourses}/>)}
           {view==="bmarks"&&(L?<LockedView title={t("tool.bmarks")}/>:<BookmarkView bmarks={bmarks} mob={false} setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/>)}
@@ -1200,7 +1202,7 @@ export default function App(){
         {view==="notif"&&(L?<><MHdr title={t("nav.notif")} back={mBack}/><LockedView title={t("nav.notif")}/></>:<><MHdr title={t("nav.notif")} back={mBack}/><NotifView mob pending={friendPending} acceptRequest={acceptRequest} rejectRequest={rejectRequest} onRefetchFriends={refetchFriends}/></>)}
         {view==="grades"&&(L?<><MHdr title={t("tool.grades")} back={mBack}/><LockedView title={t("tool.grades")}/></>:<><MHdr title={t("tool.grades")} back={mBack}/><GradeView mob/></>)}
         {view==="pomo"&&<><MHdr title={t("tool.pomo")} back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
-        {view==="calendar"&&(L?<><MHdr title={t("nav.calendar")} back={mBack}/><LockedView title={t("nav.calendar")}/></>:<><MHdr title={t("nav.calendar")} back={mBack}/><CalendarView myEvents={myEvents} addEvent={addEventFn} addEvents={addEventsFn} updateEvent={updateEventFn} deleteEvent={deleteEventFn} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} medSessions={medSessions} records={attRecords} setStatus={setAttStatus}/></>)}
+        {view==="calendar"&&(L?<><MHdr title={t("nav.calendar")} back={mBack}/><LockedView title={t("nav.calendar")}/></>:<><MHdr title={t("nav.calendar")} back={mBack}/><CalendarView myEvents={myEvents} addEvent={addEventFn} addEvents={addEventsFn} updateEvent={updateEventFn} deleteEvent={deleteEventFn} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob pastTTCache={pastTTCache} fetchPastTimetable={fetchPastTimetable} medSessions={medSessions} records={attRecords} setStatus={setAttStatus} calFeed={calFeed}/></>)}
         {view==="events"&&<><MHdr title={t("tool.events")} back={mBack}/><EventView events={allEvents} mob rsvps={rsvps} onRsvp={handleRsvp}/></>}
         {view==="reviews"&&(L?<><MHdr title={t("tool.reviews")} back={mBack}/><LockedView title={t("tool.reviews")}/></>:<><MHdr title={t("tool.reviews")} back={mBack}/><ReviewView reviews={reviews} setReviews={setReviews} mob courses={allCourses}/></>)}
         {view==="bmarks"&&(L?<><MHdr title={t("tool.bmarks")} back={mBack}/><LockedView title={t("tool.bmarks")}/></>:<><MHdr title={t("tool.bmarks")} back={mBack}/><BookmarkView bmarks={bmarks} mob setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/></>)}

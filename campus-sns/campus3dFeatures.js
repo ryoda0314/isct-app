@@ -4,7 +4,11 @@
 //   terrace : coords は囲む範囲（3点以上、閉じない）。elev（平らにする標高。null は中の元の地面の平均）, side（ふちの斜面の幅。0 は垂直に切って壁）
 //   slope   : 坂道。width, z（各点の高さ。平地を入れた地面から ±m、null は自動）, side（両わきの斜面の幅。0 は垂直な壁）,
 //             flat（区間ごとの踊り場＝平らにするか）, corner（曲がり角を幅のぶん平らにして踊り場にするか）,
-//             base（土台の横幅＝両わきの壁・路肩を含む。なければ自動：壁なら 幅＋WALL_T×2、斜面なら幅）
+//             base（土台の横幅＝両わきの壁・路肩を含む。なければ自動：壁なら 幅＋WALL_T×2、斜面なら幅）,
+//             widths（各点の横幅。null は、両端なら width、途中は前後の決まった点のあいだを距離で直線に結ぶ＝だんだん広がる）,
+//             shifts（各点の帯の中心のずれ。中心線から左へ m、右はマイナス。null は widths と同じ決まりで、両端は 0。
+//             上底を横にずらした台形など、中心線に対して左右が同じでない形）,
+//             walls（false なら両わき・両端に壁を立てない。平地の中に置いて、平地の壁を両わきの壁にするときなど）
 //   stairs  : slope と同じ（width, z, side, flat, corner, base）に riser（一段の高さ）, rails（手すりの位置。段の幅に対する割合で、
 //             0 が左の端・1 が右の端（点1から点2を見て）。0 未満・1 より大は土台の上）。坂の面にそって riser ごとに段を刻む。
 //             steps（区間ごとの段数）があれば、段数は手で決めたもの。蹴上げはどの段も同じ（高さの差 ÷ 段数の合計）。
@@ -38,7 +42,7 @@ export const DEFAULTS = {
 };
 // 入力できる範囲（m）
 export const RANGE = {
-  height: [0.1, 40], thickness: [0.05, 5], width: [0.5, 60], side: [0, 30], riser: [0.08, 0.4], z: [-30, 60], elev: [-50, 200], base: [0.5, 80],
+  height: [0.1, 40], thickness: [0.05, 5], width: [0.5, 60], side: [0, 30], riser: [0.08, 0.4], z: [-30, 60], elev: [-50, 200], base: [0.5, 80], shift: [-30, 30],
 };
 const clampTo = (v, [lo, hi], dflt) => (Number.isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : dflt);
 
@@ -88,6 +92,13 @@ export function normalizeFeature(f) {
       out.corner = f.corner == null ? d.corner : !!f.corner;
       // 土台の横幅（帯の幅より狭くはしない）。空なら自動
       if (f.base != null && f.base !== "" && Number.isFinite(+f.base)) out.base = round2(clampTo(f.base, [out.width, RANGE.base[1]], out.width));
+      // 各点の横幅（どれかに数があるときだけ持つ）
+      const wOk = (v) => v != null && v !== "" && Number.isFinite(+v);
+      if (Array.isArray(f.widths) && f.widths.some(wOk)) out.widths = coords.map((_, i) => (wOk(f.widths[i]) ? round2(clampTo(f.widths[i], RANGE.width, out.width)) : null));
+      // 壁を立てないとき（既定は立てる）
+      if (f.walls === false) out.walls = false;
+      // 各点の中心のずれ（どれかに数があるときだけ持つ）
+      if (Array.isArray(f.shifts) && f.shifts.some(wOk)) out.shifts = coords.map((_, i) => (wOk(f.shifts[i]) ? round2(clampTo(f.shifts[i], RANGE.shift, 0)) : null));
       if (f.type === "stairs") {
         out.riser = round2(clampTo(f.riser, RANGE.riser, d.riser));
         // 手すり（以前の railing: true/false も読む）。12本まで。並べ替えない（エディタで入力中の行がずれないように）
@@ -169,6 +180,8 @@ export function pathProfile(f, groundAt) {
   const knots = cum.map((s, v) => ({ s, v }));
   const zones = []; // 曲がり角の踊り場 [s0, s1]
   if (f.corner && f.width) {
+    const wv = vertexWidths(f);
+    const cv = vertexShifts(f);
     for (let i = 1; i < n - 1; i++) {
       const ax = xy[i][0] - xy[i - 1][0];
       const ay = xy[i][1] - xy[i - 1][1];
@@ -177,8 +190,8 @@ export function pathProfile(f, groundAt) {
       const la = Math.hypot(ax, ay);
       const lb = Math.hypot(bx, by);
       if (!la || !lb || (ax * bx + ay * by) / (la * lb) > Math.cos(25 * DEG)) continue; // ほぼまっすぐなら角ではない
-      const d0 = Math.min(f.width / 2, la * 0.4);
-      const d1 = Math.min(f.width / 2, lb * 0.4);
+      const d0 = Math.min(wv[i] / 2 + Math.abs(cv[i]), la * 0.4);
+      const d1 = Math.min(wv[i] / 2 + Math.abs(cv[i]), lb * 0.4);
       knots.push({ s: cum[i] - d0 }, { s: cum[i] + d1 });
       zones.push([cum[i] - d0, cum[i] + d1]);
     }
@@ -236,13 +249,15 @@ export function withSegmentLength(coords, i, L) {
 
 /**
  * 段（坂）の区間のうち、高さの差が everyRise m を超えるものを同じ高さずつに分け、あいだに長さ len m の踊り場を入れた形を返す
- * （踊り場は区間の長さの半分まで）。頂点の z は残し、足した点は自動の高さ
+ * （踊り場は区間の長さの半分まで）。頂点の z・横幅は残し、足した点は自動（高さも横幅も前後のあいだを結ぶ）
  */
 export function withLandings(f, groundAt, everyRise, len) {
   const P = pathProfile({ ...f, corner: false }, groundAt);
   const coords = [f.coords[0]];
   const z = [f.z?.[0] ?? null];
   const flat = [];
+  const widths = f.widths ? [f.widths[0] ?? null] : null; // 足した点の横幅・ずれは空き（前後のあいだを結ぶ）
+  const shifts = f.shifts ? [f.shifts[0] ?? null] : null;
   let added = 0;
   for (let i = 0; i < f.coords.length - 1; i++) {
     const L = P.cum[i + 1] - P.cum[i];
@@ -255,17 +270,19 @@ export function withLandings(f, groundAt, everyRise, len) {
       const at = (s) => toLngLat([ax + ((bx - ax) * s) / L, ay + ((by - ay) * s) / L]);
       for (let j = 1, pos = 0; j < k; j++) {
         pos += fl;
-        coords.push(at(pos)); z.push(null); flat.push(false); // ここまで段
+        coords.push(at(pos)); z.push(null); flat.push(false); widths?.push(null); shifts?.push(null); // ここまで段
         pos += d;
-        coords.push(at(pos)); z.push(null); flat.push(true); // ここまで踊り場
+        coords.push(at(pos)); z.push(null); flat.push(true); widths?.push(null); shifts?.push(null); // ここまで踊り場
         added++;
       }
     }
     coords.push(f.coords[i + 1]);
     z.push(f.z?.[i + 1] ?? null);
     flat.push(!!f.flat?.[i]);
+    widths?.push(f.widths[i + 1] ?? null);
+    shifts?.push(f.shifts[i + 1] ?? null);
   }
-  return { coords, z, flat, added };
+  return { coords, z, flat, added, widths, shifts };
 }
 
 // 点を細かく足す（各辺を maxStep m 以下に）。元の頂点は残し、各点の距離 s も返す
@@ -285,8 +302,27 @@ export function densify(xy, maxStep) {
   return { pts, s };
 }
 
-// 折れ線を左（進む向きの左）へ d m ずらした線。角は留め継ぎ（とがりすぎたら抑える）
+// 点ごとの値：arr の数か、両端は endValue、途中の空きは前後の決まった点のあいだを距離で直線に結ぶ
+function perVertex(f, arr, endValue) {
+  const n = f.coords.length;
+  const V = f.coords.map((_, i) => (arr && typeof arr[i] === "number" ? arr[i] : i === 0 || i === n - 1 ? endValue : null));
+  if (!V.some((v) => v == null)) return V;
+  const cum = cumulative(f.coords.map(toXY));
+  for (let i = 1; i < n - 1; i++) {
+    if (V[i] != null) continue;
+    let b = i + 1;
+    while (V[b] == null) b++;
+    V[i] = V[i - 1] + ((V[b] - V[i - 1]) * (cum[i] - cum[i - 1])) / (cum[b] - cum[i - 1] || 1);
+  }
+  return V;
+}
+// 坂道・階段の各点の横幅（空きは両端なら width）と、帯の中心のずれ（中心線から左へ m。空きは両端なら 0）
+export const vertexWidths = (f) => perVertex(f, f.widths, f.width);
+export const vertexShifts = (f) => perVertex(f, f.shifts, 0);
+
+// 折れ線を左（進む向きの左）へ d m ずらした線（d は数か、点ごとの数の並び）。角は留め継ぎ（とがりすぎたら抑える）
 export function offsetLine(xy, d) {
+  const dd = Array.isArray(d) ? (i) => d[i] : () => d;
   const n = xy.length;
   const nrm = [];
   for (let i = 0; i < n - 1; i++) {
@@ -301,57 +337,86 @@ export function offsetLine(xy, d) {
     let mx = a[0] + b[0];
     let my = a[1] + b[1];
     const ml = Math.hypot(mx, my);
-    if (ml < 1e-6) return [p[0] + a[0] * d, p[1] + a[1] * d];
+    if (ml < 1e-6) return [p[0] + a[0] * dd(i), p[1] + a[1] * dd(i)];
     mx /= ml;
     my /= ml;
     const k = Math.min(3, 1 / Math.max(1e-3, mx * a[0] + my * a[1])); // 留め継ぎの長さ（3倍まで）
-    return [p[0] + mx * d * k, p[1] + my * d * k];
+    return [p[0] + mx * dd(i) * k, p[1] + my * dd(i) * k];
   });
 }
 
-// 帯（中心線 xy・半幅 hw）の外側までの距離 D と、中心線に沿った位置 s。帯の中なら D=0。
-// 両端は平らに切り、途中の角は丸く見る。ただし端より先の点には角の丸みを使わない
-// （最初・最後の辺が半幅より短いと、角の丸みが端の先へはみ出して、帯が端より長くなってしまう）
-export function stripDistance(xy, cum, hw, p) {
+// 帯（中心線 xy・半幅 hw・中心のずれ ctr）の外側までの距離 D と、中心線に沿った位置 s、そこでの半幅 hw と帯の横の範囲 lo〜hi
+// （中心線から左へ m）。帯の中なら D=0。hw・ctr は数か、点ごとの並び（だんだん広がる帯・横にずれた帯）。
+// 両端は平らに切り、途中の角は丸く見る。角の丸みは、角の外側のすき間（前の辺の終わりより先で、次の辺の始まりより手前）だけに使う。
+// ほかでは、その点を横に見る辺（まっすぐの距離）で決める（丸みを広く使うと、最初・最後の辺が半幅より短いときに帯が端の先へ
+// はみ出し、点ごとに幅が違うと広い点の丸みがせまい辺の横へはみ出して、帯が描いた形より太くなる）
+export function stripDistance(xy, cum, hw, p, ctr = 0) {
   let best = null;
+  const at = (arr, i, tc) => (Array.isArray(arr) ? arr[i] + (arr[i + 1] - arr[i]) * tc : arr);
   const last = xy.length - 2;
-  // 端の線より先（はじめの辺の手前・おわりの辺の先）にある点か
-  const along = (i) => {
+  // 辺ごとの、点の位置（辺の始まり 0〜終わり 1）。長さのない辺は null
+  const T = [];
+  for (let i = 0; i <= last; i++) {
     const dx = xy[i + 1][0] - xy[i][0];
     const dy = xy[i + 1][1] - xy[i][1];
     const L2 = dx * dx + dy * dy;
-    return L2 < 1e-9 ? null : ((p[0] - xy[i][0]) * dx + (p[1] - xy[i][1]) * dy) / L2;
-  };
+    T.push(L2 < 1e-9 ? null : ((p[0] - xy[i][0]) * dx + (p[1] - xy[i][1]) * dy) / L2);
+  }
+  const prevT = (i) => { for (let k = i - 1; k >= 0; k--) if (T[k] != null) return T[k]; return null; };
+  const nextT = (i) => { for (let k = i + 1; k <= last; k++) if (T[k] != null) return T[k]; return null; };
   let first = 0;
-  while (first < last && along(first) == null) first++;
+  while (first < last && T[first] == null) first++;
   let end = last;
-  while (end > 0 && along(end) == null) end--;
-  const beyond = along(first) < 0 || along(end) > 1;
+  while (end > 0 && T[end] == null) end--;
   for (let i = 0; i <= last; i++) {
+    const t = T[i];
+    if (t == null) continue;
     const [ax, ay] = xy[i];
     const dx = xy[i + 1][0] - ax;
     const dy = xy[i + 1][1] - ay;
-    const L2 = dx * dx + dy * dy;
-    if (L2 < 1e-9) continue;
-    const L = Math.sqrt(L2);
-    const t = ((p[0] - ax) * dx + (p[1] - ay) * dy) / L2;
-    let lateral;
-    let over = 0;
+    const L = Math.hypot(dx, dy);
+    const tc = Math.min(1, Math.max(0, t));
+    const h = at(hw, i, tc);
+    const c = at(ctr, i, tc);
+    const lat = (dx * (p[1] - ay) - dy * (p[0] - ax)) / L; // 中心線から左へ（右はマイナス）
+    let D;
+    let raw;
     if ((i === first && t < 0) || (i === end && t > 1)) {
-      lateral = Math.abs((p[0] - ax) * dy - (p[1] - ay) * dx) / L;
-      over = t < 0 ? -t * L : (t - 1) * L;
+      const over = t < 0 ? -t * L : (t - 1) * L;
+      D = Math.hypot(Math.max(0, lat - (c + h), c - h - lat), over);
+      raw = Math.abs(lat) + over;
+    } else if (t >= 0 && t <= 1) {
+      D = Math.max(0, lat - (c + h), c - h - lat);
+      raw = Math.abs(lat);
     } else {
-      if ((t < 0 || t > 1) && beyond) continue; // 端より先の点に、途中の角の丸みは使わない
-      const tc = Math.min(1, Math.max(0, t));
-      lateral = Math.hypot(p[0] - (ax + dx * tc), p[1] - (ay + dy * tc));
+      // 角の丸みは、角の外側のすき間だけ。丸みの半径は、その側のふちまで
+      if (t < 0 && !(prevT(i) > 1)) continue;
+      if (t > 1 && !(nextT(i) < 0)) continue;
+      const dist = Math.hypot(p[0] - (ax + dx * tc), p[1] - (ay + dy * tc));
+      D = Math.max(0, dist - (lat >= 0 ? c + h : h - c));
+      raw = dist;
     }
-    const D = Math.hypot(Math.max(0, lateral - hw), over);
-    const raw = lateral + over;
     if (!best || D < best.D - 1e-9 || (Math.abs(D - best.D) <= 1e-9 && raw < best.raw)) {
-      best = { D, raw, s: cum[i] + Math.min(1, Math.max(0, t)) * L };
+      best = { D, raw, s: cum[i] + tc * L, hw: h, lo: c - h, hi: c + h };
     }
   }
-  return best || { D: Infinity, raw: Infinity, s: 0 };
+  if (!best && T.some((t) => t != null)) {
+    // どの決まりにも当たらない点（念のため）：いちばん近い辺の上の点から
+    for (let i = 0; i <= last; i++) {
+      if (T[i] == null) continue;
+      const tc = Math.min(1, Math.max(0, T[i]));
+      const [ax, ay] = xy[i];
+      const dx = xy[i + 1][0] - ax;
+      const dy = xy[i + 1][1] - ay;
+      const lateral = Math.hypot(p[0] - (ax + dx * tc), p[1] - (ay + dy * tc));
+      const h = at(hw, i, tc);
+      const c = at(ctr, i, tc);
+      if (!best || lateral < best.raw) best = { D: Math.max(0, lateral - h - Math.abs(c)), raw: lateral, s: cum[i] + tc * Math.hypot(dx, dy), hw: h, lo: c - h, hi: c + h };
+    }
+  }
+  const h0 = Array.isArray(hw) ? hw[0] : hw;
+  const c0 = Array.isArray(ctr) ? ctr[0] : ctr;
+  return best || { D: Infinity, raw: Infinity, s: 0, hw: h0, lo: c0 - h0, hi: c0 + h0 };
 }
 
 const bboxOf = (xy, pad) => {
@@ -384,11 +449,48 @@ const edgeBlend = (d, inner, v, band, wt = WALL_T) => {
 // 坂道・階段の土台の横幅（両わきの壁・路肩を含む）。壁（side 0）は既定で両わきに WALL_T ずつ、いちばん細くて 0.1m ずつ。
 // 斜面（side > 0）は既定で帯と同じ（路肩なし）
 export function baseWidth(f) {
+  if (f.walls === false && !(f.side > 0)) return f.width; // 壁を立てない
   if (f.side > 0) return Math.max(f.width, f.base ?? f.width);
   return Math.max(f.width + 0.2, f.base ?? f.width + 2 * WALL_T);
 }
 // 両わきの壁の厚さ（斜面なら 0）
 export const wallThickness = (f) => (f.side > 0 ? 0 : (baseWidth(f) - f.width) / 2);
+
+// ── 壁を立てない階段（walls: false）と平地のふち ──
+// 平地のふちのうち、壁なしの階段が横切るところ（帯の中で、両わきのふちの線に沿っていない）は「開いている」：
+// 平地はそこに壁を立てず（campus3dMesh.js）、ふちの外も掘らない（地面の段差は階段の段が隠す）。
+// 両わきのふちの線から WALL_T 以内で向きが 30°以内なら「沿っている」：平地の壁がそのまま階段の両わきの壁になる
+export const isOpenStairs = (f) => f.type === "stairs" && f.walls === false && !(f.side > 0);
+const ALONG = Math.cos((30 * Math.PI) / 180);
+// 平面の形だけ（高さはいらないので、平地より先に作れる）
+export function stairsOpening(f) {
+  const xy = f.coords.map(toXY);
+  const hwv = vertexWidths(f).map((w) => w / 2);
+  const cv = vertexShifts(f);
+  return {
+    xy, cum: cumulative(xy), hwv, cv,
+    sides: [1, -1].map((sg) => offsetLine(xy, hwv.map((h, i) => cv[i] + sg * h))), // 左と右のふちの線
+    box: bboxOf(xy, Math.max(...hwv.map((h, i) => h + Math.abs(cv[i]))) + WALL_T),
+  };
+}
+// 点 p（向き dir のふちの上）が、どれかの線に沿っているか
+function alongLines(lines, p, dir) {
+  return lines.some((ln) => ln.some((a, k) => {
+    const b = ln[k + 1];
+    if (!b) return false;
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const l2 = dx * dx + dy * dy;
+    if (l2 < 1e-9) return false;
+    const t = Math.min(1, Math.max(0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2));
+    if (Math.hypot(p[0] - a[0] - dx * t, p[1] - a[1] - dy * t) > WALL_T) return false;
+    return Math.abs(dx * dir[0] + dy * dir[1]) / Math.sqrt(l2) >= ALONG;
+  }));
+}
+// ふちの点 p（ふちの向き dir）が、壁なしの階段の通り道で開いているか（opens は stairsOpening の並び）
+export function edgeOpen(opens, p, dir) {
+  return opens.some((o) => inBox(o.box, p[0], p[1]) && stripDistance(o.xy, o.cum, o.hwv, p, o.cv).D <= 0.01 && !alongLines(o.sides, p, dir));
+}
 
 // ── 坂・階段：標高タイルに「焼き込む」形 ──
 // baseAt([lng,lat]) は元の地面の高さ。返す burn(x, y, v) は地面の高さ v をその点の坂の高さにする。
@@ -399,10 +501,14 @@ export function prepareSlope(f, baseAt) {
   if (!P.e.every(Number.isFinite)) return null;
   const { xy, cum, elev } = P;
   const prof = { s: P.s, e: P.e, flat: P.flat, seg: P.seg, segRun: P.segRun, steps: P.steps }; // 高さの折れ線（踊り場の区切りを含む）
-  const hw = f.width / 2;
   const side = f.side;
-  const hb = baseWidth(f) / 2; // 土台の半分の幅
-  const wt = wallThickness(f); // 両わきの壁の厚さ（斜面なら 0）
+  const hwv = vertexWidths(f).map((w) => w / 2); // 点ごとの半幅（だんだん広がる帯）
+  const wt = wallThickness(f); // 両わきの壁の厚さ（斜面なら 0）。幅が変わっても同じ
+  const edge = (baseWidth(f) - f.width) / 2; // 帯のふちから土台のふちまで（壁の厚さか路肩の幅）
+  const hbv = hwv.map((h) => h + edge); // 点ごとの土台の半幅
+  const cv = vertexShifts(f); // 点ごとの帯の中心のずれ（左へ m）
+  const hw = Math.max(...hwv.map((h, i) => h + Math.abs(cv[i]))); // 中心線からいちばん遠いふちまで
+  const hb = Math.max(...hbv.map((h, i) => h + Math.abs(cv[i])));
   const box = bboxOf(xy, hb + side + 1);
   // 焼き込む地面：坂道は坂の面、階段は段の下（stairGround）。rise は階段のいちばん高い蹴上げ（段の角をなぞる線の高さ）
   let under = prof;
@@ -415,17 +521,20 @@ export function prepareSlope(f, baseAt) {
   }
   // 壁で囲った階段は削るだけ：まわりより高いところは元の地面のまま（段と壁で隠れる）。地面の段差が壁の外に出ないので、壁を細くできる
   const cutOnly = f.type === "stairs" && side === 0;
-  const sw = side > 0 ? hb - hw : 0; // 路肩の幅
+  // 壁なしの階段は、両端から WALL_T のあいだだけ盛りもする：地面の段差を端の外（段のない所）でなく段の下に置く
+  const fillEnds = isOpenStairs(f) ? WALL_T : 0;
+  const len = cum[cum.length - 1];
+  const sw = side > 0 ? edge : 0; // 路肩の幅
   // 路肩の高さ：坂道は坂の面、階段は段の下の地面より下（坂の面から一段下）
   const shoulder = (s) => lerpAlong(prof.s, prof.e, s) - (f.type === "stairs" ? rise + 0.02 : 0);
   return {
-    f, xy, cum, elev, prof, under, rise, hw, hb, wt, side, box,
+    f, xy, cum, elev, prof, under, rise, hw, hb, hwv, hbv, cv, wt, side, box, walls: f.walls !== false,
     burn(x, y, v) {
       if (!inBox(box, x, y)) return v;
-      const { D, s } = stripDistance(xy, cum, hw, [x, y]);
+      const { D, s } = stripDistance(xy, cum, hwv, [x, y], cv);
       const h = lerpAlong(under.s, under.e, s);
       if (cutOnly) {
-        if (D <= 0) return Math.min(h, v);
+        if (D <= 0) return s < fillEnds || s > len - fillEnds ? h : Math.min(h, v);
         return h < v && D < wt * 0.75 ? h : v; // 掘ったところの段差は壁の中（外の面寄り）
       }
       if (D <= 0) return h;
@@ -461,11 +570,34 @@ function distToRing(x, y, ring) {
   }
   return best;
 }
+// 多角形のふちのいちばん近い辺 k（ring[k] から次の点へ）とその上の位置 t、距離 d
+function nearestOnRing(x, y, ring) {
+  let best = { d: Infinity, k: 0, t: 0 };
+  for (let k = 0; k < ring.length; k++) {
+    const [ax, ay] = ring[k];
+    const b = ring[(k + 1) % ring.length];
+    const dx = b[0] - ax;
+    const dy = b[1] - ay;
+    const L2 = dx * dx + dy * dy || 1e-9;
+    const t = Math.min(1, Math.max(0, ((x - ax) * dx + (y - ay) * dy) / L2));
+    const d = Math.hypot(x - (ax + dx * t), y - (ay + dy * t));
+    if (d < best.d) best = { d, k, t };
+  }
+  return best;
+}
+const ringDir = (ring, k) => {
+  const a = ring[(k + ring.length) % ring.length];
+  const b = ring[(k + 1 + ring.length) % ring.length];
+  const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+  return [(b[0] - a[0]) / l, (b[1] - a[1]) / l];
+};
+
 // 多角形の面積（左回りなら正）
 export const ringArea = (ring) => ring.reduce((a, p, i) => { const q = ring[(i + 1) % ring.length]; return a + (p[0] * q[1] - q[0] * p[1]) / 2; }, 0);
 
-// baseAt は元の地面。中の地面を 1m おき（広いときは間引く）に調べて、最低・平均・最高を出し、平らにする高さを決める
-export function prepareTerrace(f, baseAt) {
+// baseAt は元の地面。中の地面を 1m おき（広いときは間引く）に調べて、最低・平均・最高を出し、平らにする高さを決める。
+// opens（stairsOpening の並び）：壁なしの階段が横切るふちの外は掘らない（そこには壁を立てないので、掘ると溝が見える）
+export function prepareTerrace(f, baseAt, opens = []) {
   const ring = f.coords.map(toXY);
   const b0 = bboxOf(ring, 0);
   const step = Math.max(1, Math.sqrt(((b0[2] - b0[0]) * (b0[3] - b0[1])) / 2500));
@@ -493,11 +625,29 @@ export function prepareTerrace(f, baseAt) {
   if (!Number.isFinite(elev)) return null;
   const side = f.side;
   const box = bboxOf(ring, Math.max(side, WALL_T) + 1);
+  const near = side > 0 ? [] : opens.filter((o) => !(o.box[2] < box[0] || o.box[0] > box[2] || o.box[3] < box[1] || o.box[1] > box[3]));
+  // 坂道・階段の高さの基準にする地面：開いていてもふちの外を掘る（ふちちょうどに置いた点の地面が、1cm の丸めで
+  // 平地の高さと外の地面のあいだを飛ばないように）
+  const level = (x, y, v) => {
+    if (!inBox(box, x, y)) return v;
+    return pointInRing(x, y, ring) ? elev : edgeBlend(distToRing(x, y, ring), elev, v, side);
+  };
   return {
-    f, ring, elev, side, box, stats: { min, mean, max },
-    burn(x, y, v) {
+    f, ring, elev, side, box, stats: { min, mean, max }, level,
+    // 表示する地面
+    burn: !near.length ? level : (x, y, v) => {
       if (!inBox(box, x, y)) return v;
-      return pointInRing(x, y, ring) ? elev : edgeBlend(distToRing(x, y, ring), elev, v, side);
+      if (pointInRing(x, y, ring)) return elev;
+      const { d, k, t } = nearestOnRing(x, y, ring);
+      if (d < WALL_T) {
+        const a = ring[k];
+        const b = ring[(k + 1) % ring.length];
+        const p = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+        // 角に近いなら両側の辺の向きで見る（どちらかで開いていれば掘らない）
+        const dirs = t < 1e-6 ? [ringDir(ring, k - 1), ringDir(ring, k)] : t > 1 - 1e-6 ? [ringDir(ring, k), ringDir(ring, k + 1)] : [ringDir(ring, k)];
+        if (dirs.some((dir) => edgeOpen(near, p, dir))) return v;
+      }
+      return edgeBlend(d, elev, v, side);
     },
   };
 }
@@ -594,16 +744,20 @@ export function stairGround(flights) {
 }
 
 // ── 線を持ち上げる面（橋の床・階段の段の上）：その上を通る線の見分け ──
-function pathOf(f, xy, cum, deckAt) {
+// hwv は点ごとの半幅（なければ f.width の半分で一定）、cv は点ごとの帯の中心のずれ（なければ 0）
+function pathOf(f, xy, cum, deckAt, hwv = null, cv = null) {
+  const hv = hwv || xy.map(() => f.width / 2);
+  const cc = cv || xy.map(() => 0);
   const segs = [];
   for (let i = 0; i < xy.length - 1; i++) {
     const dx = xy[i + 1][0] - xy[i][0];
     const dy = xy[i + 1][1] - xy[i][1];
     const L = Math.hypot(dx, dy);
-    if (L > 1e-6) segs.push({ a: xy[i], ux: dx / L, uy: dy / L, L });
+    // 辺の横の範囲（中心線から左へ m）
+    if (L > 1e-6) segs.push({ a: xy[i], ux: dx / L, uy: dy / L, L, lo: Math.min(cc[i] - hv[i], cc[i + 1] - hv[i + 1]), hi: Math.max(cc[i] + hv[i], cc[i + 1] + hv[i + 1]) });
   }
-  const hw = f.width / 2;
-  return { f, xy, cum, hw, segs, box: bboxOf(xy, hw + 1), deckAt };
+  const hw = Math.max(...hv.map((h, i) => h + Math.abs(cc[i])));
+  return { f, xy, cum, hw, hwv: hv, cv: cc, segs, box: bboxOf(xy, hw + 1), deckAt };
 }
 export function prepareBridge(f, groundAt) {
   const xy = f.coords.map(toXY);
@@ -613,27 +767,31 @@ export function prepareBridge(f, groundAt) {
 }
 // 階段の上のルートの通り道：手すりのあいだでいちばん広いところのまん中（中心線から左へ m）。
 // 手すりが段の両端だけならまん中。まん中に手すりがあるときに、ルートが手すりの支柱に隠れて途切れないように
-export function stairsLane(f) {
-  const w = f.width;
-  const xs = [0, ...(f.rails || []).filter((r) => r > 0.02 && r < 0.98).map((r) => r * w), w].sort((a, b) => a - b);
+// 手すりの位置は幅に対する割合なので、通り道も割合で決まる（幅が変わる階段でも、同じ割合の位置を通る）
+const laneRatio = (f) => {
+  const xs = [0, ...(f.rails || []).filter((r) => r > 0.02 && r < 0.98), 1].sort((a, b) => a - b);
   let best = null;
   for (let i = 0; i < xs.length - 1; i++) {
     const gap = xs[i + 1] - xs[i];
     const mid = (xs[i] + xs[i + 1]) / 2;
-    if (!best || gap > best.gap + 1e-6 || (Math.abs(gap - best.gap) <= 1e-6 && Math.abs(mid - w / 2) < Math.abs(best.mid - w / 2) - 1e-6)) best = { gap, mid };
+    if (!best || gap > best.gap + 1e-6 || (Math.abs(gap - best.gap) <= 1e-6 && Math.abs(mid - 0.5) < Math.abs(best.mid - 0.5) - 1e-6)) best = { gap, mid };
   }
-  return w / 2 - best.mid;
-}
+  return best.mid;
+};
+export const stairsLane = (f) => f.width * (0.5 - laneRatio(f));
 // 階段の上を通る線は、段の角をなぞる高さ（坂の面 + 一段）より少し上（STAIRS_CLEAR）に、手すりのあいだの通り道（lane）へ寄せて描く。
 // 段の角とほとんど同じ高さだと、画面での線の太さのぶん、手前の段の蹴上げに隠れて点線のように途切れる。
 // 踊り場の前後で高さの折れ目があるので、点は 0.5m ごと。sl は prepareSlope の結果
 const STAIRS_CLEAR = 0.15;
-export const stairsPath = (sl) => ({
-  ...pathOf(sl.f, sl.xy, sl.cum, (s) => lerpAlong(sl.prof.s, sl.prof.e, s) + (sl.rise || sl.f.riser) + STAIRS_CLEAR),
-  elev: sl.elev,
-  lane: stairsLane(sl.f),
-  step: 0.5,
-});
+export const stairsPath = (sl) => {
+  const k = 1 - 2 * laneRatio(sl.f); // 通り道 = 半幅 × k（中心線から左へ）
+  return {
+    ...pathOf(sl.f, sl.xy, sl.cum, (s) => lerpAlong(sl.prof.s, sl.prof.e, s) + (sl.rise || sl.f.riser) + STAIRS_CLEAR, sl.hwv, sl.cv),
+    elev: sl.elev,
+    laneAt: (s) => lerpAlong(sl.cum, sl.cv, s) + lerpAlong(sl.cum, sl.hwv, s) * k,
+    step: 0.5,
+  };
+};
 
 const ALIGN = Math.cos(35 * DEG); // 線の向きと橋の向きがこの角度以内なら「橋の上を通る線」
 
@@ -654,7 +812,7 @@ function onBridgeRange(A, B, br, margin, side) {
     const ay = A[1] - sg.a[1];
     const conds = [
       [ax * sg.ux + ay * sg.uy, vx * sg.ux + vy * sg.uy, -margin, sg.L + margin],
-      [-ax * sg.uy + ay * sg.ux, -vx * sg.uy + vy * sg.ux, -(br.hw + side), br.hw + side],
+      [-ax * sg.uy + ay * sg.ux, -vx * sg.uy + vy * sg.ux, (sg.lo ?? -br.hw) - side, (sg.hi ?? br.hw) + side],
     ];
     let ok = true;
     for (const [p0, dp, lo, hi] of conds) {
@@ -734,7 +892,7 @@ export function splitByBridges(lines, bridges, { margin = 0.6, side = 0.6, toDec
     const xy = line.map(([lat, lng]) => toXY([lng, lat]));
     let run = null; // 続いている区間 { br（地面なら null）, pts, tail（床へ寄せる前の終わりの点） }
     const close = () => {
-      if (run && run.br && run.br.lane != null) easeIntoLane(run.pts);
+      if (run && run.br && run.br.laneAt) easeIntoLane(run.pts);
       if (run && run.tail) run.pts.push(run.tail); // 床へ寄せた線を、地面の線の続きへつなぎ戻す
       if (run && run.pts.length > 1) (run.br ? onBridge : ground).push(run.pts);
       run = null;
@@ -753,15 +911,15 @@ export function splitByBridges(lines, bridges, { margin = 0.6, side = 0.6, toDec
       // 通り道（lane：階段の手すりのあいだ）があれば、そこへ寄せる
       const deckPoint = (br, t, raw = false) => {
         const q = at(t);
-        const { s } = stripDistance(br.xy, br.cum, br.hw, q);
+        const { s, lo, hi } = stripDistance(br.xy, br.cum, br.hwv || br.hw, q, br.cv || 0);
         if (!toDeck || raw) return [...toLngLat(q), br.deckAt(s)];
         const c = centerAt(br, s);
-        const lim = Math.max(0, br.hw - 0.4);
         const off = (q[0] - c.p[0]) * c.n[0] + (q[1] - c.p[1]) * c.n[1];
-        const free = Math.max(-lim, Math.min(lim, off)) - off;
-        const o = (br.lane != null ? br.lane - off : free);
+        // 床の内側（ふちから 0.4m）までに抑える。床がせまければまん中
+        const free = (lo + 0.4 <= hi - 0.4 ? Math.max(lo + 0.4, Math.min(hi - 0.4, off)) : (lo + hi) / 2) - off;
+        const o = br.laneAt ? br.laneAt(s) - off : free;
         const p = [...toLngLat([q[0] + c.n[0] * o, q[1] + c.n[1] * o]), br.deckAt(s)];
-        if (br.lane != null) p.free = toLngLat([q[0] + c.n[0] * free, q[1] + c.n[1] * free]); // 通り道へ寄せる前の位置（両端でなめらかに寄せる）
+        if (br.laneAt) p.free = toLngLat([q[0] + c.n[0] * free, q[1] + c.n[1] * free]); // 通り道へ寄せる前の位置（両端でなめらかに寄せる）
         return p;
       };
       const moved = (a, b) => Math.hypot(...toXY(a).map((v, k) => v - toXY(b)[k])) > 0.3;
@@ -780,7 +938,7 @@ export function splitByBridges(lines, bridges, { margin = 0.6, side = 0.6, toDec
         const br = hits
           .filter((h) => h.r[0] <= tm && h.r[1] >= tm)
           .map((h) => h.br)
-          .sort((a, b) => stripDistance(a.xy, a.cum, a.hw, mid).raw - stripDistance(b.xy, b.cum, b.hw, mid).raw)[0];
+          .sort((a, b) => stripDistance(a.xy, a.cum, a.hwv || a.hw, mid, a.cv || 0).raw - stripDistance(b.xy, b.cum, b.hwv || b.hw, mid, b.cv || 0).raw)[0];
         parts.push([t0, t1, br]);
         t = t1;
       }
