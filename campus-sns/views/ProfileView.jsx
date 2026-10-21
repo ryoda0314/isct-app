@@ -149,6 +149,21 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
     try{const r=await fetch("/api/timetable-examples",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(patch)});if(!r.ok)throw new Error();setTtEx((await r.json()).settings);}
     catch{setTtEx(prev);alert(t("profile.ttExFail"));}
   };
+  // 旧T2SCHOLA（2024年度以前）の時間割も時間割例に加える。2025年度以降の入学者には過去分が無いので出さない
+  const ttExEntry=Number(user.yearGroup?.slice(0,2))||null;
+  const ttExHasT2=!ttExEntry||2000+ttExEntry<=2024;
+  const [ttExPast,setTtExPast]=useState(null); // null | "loading" | { ok, msg }
+  const collectPastTt=async()=>{
+    if(ttExPast==="loading")return;
+    setTtExPast("loading");
+    try{
+      const r=await fetch("/api/data/timetable-past?year=2024&collect=1");
+      const d=await r.json().catch(()=>({}));
+      const c=d.collected;
+      if(!r.ok||!c)setTtExPast({ok:false,msg:d.needsToken?t("profile.ttExPastNeedsPortal"):t("profile.ttExPastFail")});
+      else setTtExPast({ok:true,msg:c.rows?t("profile.ttExPastDone",{years:c.years.map(y=>t("tte.yearN",{y})).join("・"),n:c.rows}):t("profile.ttExPastNone")});
+    }catch{setTtExPast({ok:false,msg:t("profile.ttExPastFail")});}
+  };
   const [showTerms,setShowTerms]=useState(false);
   const [showLangPage,setShowLangPage]=useState(false);
   const [showThemePage,setShowThemePage]=useState(false);
@@ -1158,6 +1173,11 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               label={t("profile.ttExShare")}
               sub={t("profile.ttExShareSub")}
               right={<Toggle on={!!ttEx.share} onTog={()=>saveTtEx({share:!ttEx.share})}/>}/>
+            {!ttEx.optOut&&ttExHasT2&&<GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>}
+              label={t("profile.ttExPast")}
+              sub={!credStatus?.hasPortal?t("profile.ttExPastNeedsPortal"):ttExPast==="loading"?t("profile.ttExPastLoading"):ttExPast?ttExPast.msg:t("profile.ttExPastSub")}
+              onClick={credStatus?.hasPortal?collectPastTt:undefined}
+              right={ttExPast&&ttExPast!=="loading"&&<span style={{color:ttExPast.ok?T.green:T.red,display:"flex"}}>{ttExPast.ok?I.chk:"!"}</span>}/>}
           </>}
           <GRow
             icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>}

@@ -1,10 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import puppeteer from 'puppeteer-core';
 import { requireAuth } from '../../../../lib/auth/require-auth.js';
 import { loadCredentials } from '../../../../lib/credentials.js';
 import { lookupScheduleFromDB } from '../../../../lib/api/syllabus-bulk.js';
-import { transformCourses, groupByQuarter } from '../../../../lib/transform/course-transform.js';
+import { transformCourses, transformCoursesByYear, groupByQuarter } from '../../../../lib/transform/course-transform.js';
 import { buildTimetable } from '../../../../lib/transform/timetable-builder.js';
+import { recordPastTimetableExamples } from '../../../../lib/timetable-examples.js';
 
 const T2_BASE = 'https://t2schola.titech.ac.jp';
 const T2_API = `${T2_BASE}/webservice/rest/server.php`;
@@ -240,6 +241,58 @@ async function acquireT2Token(loginId) {
  * Fetches past timetable from T2SCHOLA, enriches with syllabus DB data.
  * If t2token is omitted, automatically acquires one via SSO using stored credentials.
  */
+const courseYear = (shortname) => (shortname.match(/\[(\d{4})\]/) || shortname.match(/^(\d{4})/))?.[1] || null;
+
+/**
+ * Schedule map from syllabus DB rows — store ARRAYS (courses can have multiple slots).
+ * Also key by syllabus idnumber (URL tail) so Moodle courses disambiguate Q-variants.
+ */
+function buildScheduleMap(dbRows) {
+  const scheduleMap = {};
+  const push = (k, s) => { (scheduleMap[k] ||= []).push(s); };
+  for (const row of dbRows) {
+    const schedule = {
+      per: row.per, day: row.day,
+      periodStart: row.period_start, periodEnd: row.period_end,
+      room: row.room, quarter: row.quarter,
+      building: row.building || null,
+      dept: row.dept || null,
+      syllabusUrl: row.syllabus_url || null,
+      credits: row.credits ?? null,
+      requirement: row.requirement || null,
+    };
+    const idMatch = row.syllabus_url && row.syllabus_url.match(/(\d{9})(?:[?#].*)?$/);
+    if (idMatch) push(`@${idMatch[1]}`, schedule);
+    if (row.year) {
+      push(`${row.code}#${row.year}`, schedule);
+      if (row.section) push(`${row.code}:${row.section}#${row.year}`, schedule);
+    }
+    if (row.section) push(`${row.code}:${row.section}`, schedule);
+    push(row.code, schedule);
+  }
+  return scheduleMap;
+}
+
+/**
+ * 時間割例（lib/timetable-examples.js）: T2SCHOLA が返す全年度分を、年度ごとにシラバスDBと
+ * 照合して記録する。学年は行ごとに「その年度 − 入学年度 + 1」。シラバスDBに無い年度の科目は
+ * Q・時限が分からないので記録されない（管理画面の「シラバス取得」でその年度を取り込むと入る）。
+ */
+async function recordAllT2Years(userid, enrolledCourses) {
+  const dated = enrolledCourses.filter(mc => mc.visible !== 0 && courseYear(mc.shortname));
+  const codesByYear = new Map();
+  for (const mc of dated) {
+    const code = mc.shortname.match(/([A-Z]{2,4}\.[A-Z]\d{3})/)?.[1];
+    if (!code) continue;
+    const y = courseYear(mc.shortname);
+    if (!codesByYear.has(y)) codesByYear.set(y, new Set());
+    codesByYear.get(y).add(code);
+  }
+  // 年度ごとに引く（まとめて引くと PostgREST の 1000 行上限で切れる）
+  const dbRows = (await Promise.all([...codesByYear].map(([y, codes]) => lookupScheduleFromDB([...codes], y)))).flat();
+  return recordPastTimetableExamples(userid, transformCoursesByYear(dated, buildScheduleMap(dbRows)));
+}
+
 export async function GET(request) {
   try {
     const auth = await requireAuth(request);
@@ -248,6 +301,8 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     let t2token = searchParams.get('t2token');
     const year = searchParams.get('year') || '2024';
+    // collect=1: プロフィールの「過去の時間割も提供する」。記録し終えてから結果を返す
+    const collect = searchParams.get('collect') === '1';
 
     // Auto-acquire T2SCHOLA token if not provided
     if (!t2token) {
@@ -290,7 +345,7 @@ export async function GET(request) {
     // also offered in 2024 lands in the 2024 timetable with the 2024 slot.
     // Courses without a year tag (site guides etc.) are kept.
     const rawCourses = enrolledCourses.filter(mc => {
-      const y = (mc.shortname.match(/\[(\d{4})\]/) || mc.shortname.match(/^(\d{4})/))?.[1];
+      const y = courseYear(mc.shortname);
       return !y || y === String(year);
     });
     console.log(`[TimetablePast] year=${year}: T2SCHOLA全${enrolledCourses.length}件のうち${rawCourses.length}件 (他年度${enrolledCourses.length - rawCourses.length}件を除外)`);
@@ -319,44 +374,7 @@ export async function GET(request) {
       console.log(`[TimetablePast][DBG] sample row:`, JSON.stringify(dbRows[0]));
     }
 
-    // Build schedule map from DB rows — store ARRAYS (courses can have multiple slots).
-    // Also key by syllabus idnumber (URL tail) so Moodle courses disambiguate Q-variants.
-    const scheduleMap = {};
-    for (const row of dbRows) {
-      const schedule = {
-        per: row.per, day: row.day,
-        periodStart: row.period_start, periodEnd: row.period_end,
-        room: row.room, quarter: row.quarter,
-        building: row.building || null,
-        dept: row.dept || null,
-        syllabusUrl: row.syllabus_url || null,
-        credits: row.credits ?? null,
-        requirement: row.requirement || null,
-      };
-      const idMatch = row.syllabus_url && row.syllabus_url.match(/(\d{9})(?:[?#].*)?$/);
-      if (idMatch) {
-        const idKey = `@${idMatch[1]}`;
-        if (!scheduleMap[idKey]) scheduleMap[idKey] = [];
-        scheduleMap[idKey].push(schedule);
-      }
-      if (row.year) {
-        const yKey = `${row.code}#${row.year}`;
-        if (!scheduleMap[yKey]) scheduleMap[yKey] = [];
-        scheduleMap[yKey].push(schedule);
-        if (row.section) {
-          const ysKey = `${row.code}:${row.section}#${row.year}`;
-          if (!scheduleMap[ysKey]) scheduleMap[ysKey] = [];
-          scheduleMap[ysKey].push(schedule);
-        }
-      }
-      if (row.section) {
-        const key = `${row.code}:${row.section}`;
-        if (!scheduleMap[key]) scheduleMap[key] = [];
-        scheduleMap[key].push(schedule);
-      }
-      if (!scheduleMap[row.code]) scheduleMap[row.code] = [];
-      scheduleMap[row.code].push(schedule);
-    }
+    const scheduleMap = buildScheduleMap(dbRows);
 
     // Log Moodle courses that had no code match or no syllabus schedule
     const noCodeCourses = rawCourses.filter(mc => !mc.shortname.match(/([A-Z]{2,4}\.[A-Z]\d{3})/));
@@ -427,10 +445,19 @@ export async function GET(request) {
       qData[q] = { C: qCourses, TT: buildTimetable(qCourses) };
     }
 
+    // 時間割例: 表示する年度に関係なく、T2SCHOLA にある全年度分を記録する
+    let collected;
+    if (collect) {
+      collected = await recordAllT2Years(auth.userid, enrolledCourses).catch(e => { console.error('[TimetableExamples] past:', e.message); return null; });
+    } else {
+      after(() => recordAllT2Years(auth.userid, enrolledCourses).catch(e => console.error('[TimetableExamples] past:', e.message)));
+    }
+
     return NextResponse.json({
       qData,
       allCourses: courses,
       year,
+      ...(collect ? { collected } : {}),
       t2user: { userid: siteInfo.userid, fullname: siteInfo.fullname },
       stats: {
         total: courses.length,

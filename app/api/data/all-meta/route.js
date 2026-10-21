@@ -3,7 +3,7 @@ import { requireAuth } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { loadCredentials } from '../../../../lib/credentials.js';
 import { fetchScheduleForCourses } from '../../../../lib/api/syllabus-scraper.js';
-import { transformCourses, groupByQuarter } from '../../../../lib/transform/course-transform.js';
+import { transformCourses, transformCoursesByYear, groupByQuarter } from '../../../../lib/transform/course-transform.js';
 import { buildTimetable } from '../../../../lib/transform/timetable-builder.js';
 import { transformAssignments } from '../../../../lib/transform/assignment-transform.js';
 import { seedEnrollmentCache, syncEnrollments } from '../../../../lib/auth/course-enrollment.js';
@@ -152,7 +152,8 @@ export async function POST(request) {
     // 時間割例（lib/timetable-examples.js）。応答を返した後に、前回と変わったときだけ書く。
     // シラバスが引けなかったときは Q・時限が不正確なので、前回の記録を上書きしない。
     if (Object.keys(scheduleMap).length > 0) {
-      after(() => recordTimetableExample(userid, courses, { studentId, yearGroup, profile: profileRow })
+      // 年度ごとに変換し直す（再履修した科目を前の年度の時間割からも落とさないため）
+      after(() => recordTimetableExample(userid, transformCoursesByYear(rawCourses, scheduleMap, profileRow?.dept || null), { studentId, yearGroup, profile: profileRow })
         .catch(e => console.error('[TimetableExamples]', e.message)));
     }
 

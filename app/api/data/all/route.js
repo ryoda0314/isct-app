@@ -5,7 +5,7 @@ import { loadCredentials } from '../../../../lib/credentials.js';
 import { fetchUserCourses } from '../../../../lib/api/courses.js';
 import { fetchScheduleForCourses } from '../../../../lib/api/syllabus-scraper.js';
 import { fetchAssignments } from '../../../../lib/api/assignments.js';
-import { transformCourses, groupByQuarter } from '../../../../lib/transform/course-transform.js';
+import { transformCourses, transformCoursesByYear, groupByQuarter } from '../../../../lib/transform/course-transform.js';
 import { buildTimetable } from '../../../../lib/transform/timetable-builder.js';
 import { transformAssignments } from '../../../../lib/transform/assignment-transform.js';
 import { syncEnrollments } from '../../../../lib/auth/course-enrollment.js';
@@ -136,7 +136,8 @@ export async function GET(request) {
 
     // 時間割例（lib/timetable-examples.js）。前回と変わったときだけ書く。シラバスが引けなかったときは書かない
     if (Object.keys(scheduleMap).length > 0) {
-      after(() => recordTimetableExample(userid, courses, { studentId, yearGroup, profile: profileRow })
+      // 年度ごとに変換し直す（再履修した科目を前の年度の時間割からも落とさないため）
+      after(() => recordTimetableExample(userid, transformCoursesByYear(raw, scheduleMap, profileRow?.dept || null), { studentId, yearGroup, profile: profileRow })
         .catch(e => console.error('[TimetableExamples]', e.message)));
     }
 
