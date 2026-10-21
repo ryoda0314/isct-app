@@ -745,7 +745,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       };
       gpsAnim.current.raf = requestAnimationFrame(step);
     }
-    map.getSource("navAccuracy")?.setData(gps.accuracy && gps.accuracy < 500 ? circleFC(gps.lat, gps.lng, gps.accuracy) : EMPTY_FC);
+    map.getSource("navAccuracy")?.setData(gps.accuracy && gps.accuracy < 5000 ? circleFC(gps.lat, gps.lng, gps.accuracy) : EMPTY_FC);
     // ルートが橋の上を通っていて、現在地がその近く（4m 以内）なら、現在地を橋の床の高さに出す
     const p = toXY([gps.lng, gps.lat]);
     let best = 4;

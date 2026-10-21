@@ -452,7 +452,23 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   const basemapModeRef=useRef("illust");
   const watchIdRef=useRef(null);
   const prevGpsRef=useRef(null);
-  const GPS_SMOOTH=0.35;
+  // 新しい位置を、いまの推定と精度で混ぜる（緯度・経度それぞれに1次元のカルマンフィルタ）。精度の悪い位置で良い推定を引っぱらず、
+  // 精度の良い位置が来たらすぐそちらへ寄る。前の推定から誤差の3倍より離れたら、混ぜずに乗り換える（歩いて移動した・前がおおまかな位置だった）
+  const fuseGps=(lat,lng,accuracy)=>{
+    const now=Date.now(),prev=prevGpsRef.current,a=Math.max(3,accuracy||50);
+    let next={lat,lng,acc:a,t:now};
+    if(prev){
+      const dt=Math.max(0,(now-prev.t)/1000);
+      const pv=prev.acc*prev.acc+(5*dt)**2; // 歩いたり走ったりで動けるぶん（5m/秒）、前の推定の誤差を広げる
+      const mv=a*a;
+      if(haversineNav(prev.lat,prev.lng,lat,lng)<=3*Math.max(Math.sqrt(pv),a)){
+        const k=pv/(pv+mv);
+        next={lat:prev.lat+k*(lat-prev.lat),lng:prev.lng+k*(lng-prev.lng),acc:Math.sqrt(pv*mv/(pv+mv)),t:now};
+      }
+    }
+    prevGpsRef.current=next;
+    return next;
+  };
   const routeCoordsRef=useRef(null);
   const initialBearingRef=useRef(null);
   const compassPermRef=useRef(false); // コンパス権限取得済みか
@@ -505,11 +521,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     const id=navigator.geolocation.watchPosition(
       (pos)=>{
         const {latitude:rawLat,longitude:rawLng,accuracy}=pos.coords;
-        const prev=prevGpsRef.current;
-        const A=GPS_SMOOTH;
-        const lat=prev?prev.lat+A*(rawLat-prev.lat):rawLat;
-        const lng=prev?prev.lng+A*(rawLng-prev.lng):rawLng;
-        prevGpsRef.current={lat,lng};
+        const {lat,lng}=fuseGps(rawLat,rawLng,accuracy);
         setGpsPos({lat,lng,accuracy});
         // 初回GPS取得時にマップを現在地へ移動（イラスト地図で描いていない場所なら、キャンパスの表示のまま）
         if(!gpsCenteredRef.current&&mapInst.current){
@@ -589,11 +601,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     const id=navigator.geolocation.watchPosition(
       (pos)=>{
         const {latitude:rawLat,longitude:rawLng,accuracy,heading:course,speed}=pos.coords;
-        const prev=prevGpsRef.current;
-        const A=GPS_SMOOTH;
-        const lat=prev?prev.lat+A*(rawLat-prev.lat):rawLat;
-        const lng=prev?prev.lng+A*(rawLng-prev.lng):rawLng;
-        prevGpsRef.current={lat,lng};
+        const {lat,lng}=fuseGps(rawLat,rawLng,accuracy);
         setGpsPos({lat,lng,accuracy});
         // 歩いているときは GPS の進行方位を使う（建物の近くではコンパスが狂いやすい）
         if(course!=null&&!Number.isNaN(course)&&speed!=null&&speed>=0.8&&accuracy<=30){
@@ -729,7 +737,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
         followTo(map,[gpsPos.lat,gpsPos.lng],Math.max(map.getZoom(),18));
       }else if(map){
         navigator.geolocation?.getCurrentPosition((pos)=>{
-          const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+          const {latitude:rawLat,longitude:rawLng,accuracy}=pos.coords;
+          const {lat,lng}=fuseGps(rawLat,rawLng,accuracy);
           setGpsPos({lat,lng,accuracy});
           if(mapInst.current)followTo(mapInst.current,[lat,lng],Math.max(mapInst.current.getZoom(),18));
         },()=>{},{enableHighAccuracy:true,timeout:10000});
@@ -801,7 +810,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     setGpsLoading(true);
     navigator.geolocation.getCurrentPosition(
       (pos)=>{
-        const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+        const {latitude:rawLat,longitude:rawLng,accuracy}=pos.coords;
+        const {lat,lng}=fuseGps(rawLat,rawLng,accuracy);
         setGpsPos({lat,lng,accuracy});
         setOrigin("__gps__");setGpsOriginPos({lat,lng});setOriginFromGps(true);
         setGpsLoading(false);onGeoOk();
@@ -823,7 +833,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
           setGpsLoading(true);
           navigator.geolocation.getCurrentPosition(
             pos=>{
-              const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+              const {latitude:rawLat,longitude:rawLng,accuracy}=pos.coords;
+              const {lat,lng}=fuseGps(rawLat,rawLng,accuracy);
               setGpsPos({lat,lng,accuracy});
               const ns=findNearestNavSpot(lat,lng);
               if(ns&&ns.distance<1500){setOrigin("__gps__");setGpsOriginPos({lat,lng});setOriginFromGps(true);}
@@ -1120,7 +1131,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
       gm.bindTooltip(`<b>${t("navi.currentLocation")}</b>`,{direction:"top",offset:[0,-10],className:"nav-tip"});
       gpsMarkerRef.current=gm;
     }
-    if(gpsPos.accuracy&&gpsPos.accuracy<500){
+    if(gpsPos.accuracy&&gpsPos.accuracy<5000){
       if(gpsCircleRef.current){
         gpsCircleRef.current.setLatLng([gpsPos.lat,gpsPos.lng]);
         gpsCircleRef.current.setRadius(gpsPos.accuracy);
@@ -1164,7 +1175,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
       setGpsLoading(true);
       navigator.geolocation.getCurrentPosition(
         pos=>{
-          const {latitude:lat,longitude:lng,accuracy}=pos.coords;
+          const {latitude:rawLat,longitude:rawLng,accuracy}=pos.coords;
+          const {lat,lng}=fuseGps(rawLat,rawLng,accuracy);
           setGpsPos({lat,lng,accuracy});
           setOrigin("__gps__");setGpsOriginPos({lat,lng});setOriginFromGps(true);
           setGpsLoading(false);
@@ -1490,6 +1502,15 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     </div>
   </div>;
 
+  // 位置の誤差が大きいとき（屋内・おおよその位置しか取れない）。1km 以上なら「正確な位置情報」の設定を案内する
+  const gpsAcc=gpsPos?.accuracy||0;
+  const accChip=gpsAcc>100&&!pickerOpen&&<div style={{position:"absolute",top:(mob?10:14)+(guiding&&rerouteMsg?110:66),left:mob?10:0,right:mob?10:0,zIndex:999,display:"flex",justifyContent:"center",pointerEvents:"none"}}>
+    <div role="status" style={{maxWidth:340,padding:"8px 14px",borderRadius:14,background:T.bg2,border:`1px solid ${T.bdL}`,boxShadow:"0 6px 16px -6px rgba(0,0,0,.4)",animation:"navSlideUp .2s ease-out"}}>
+      <div style={{fontSize:12.5,fontWeight:700,color:T.txH}}>{t(gpsAcc>=1000?"navi.accApprox":"navi.accLow",{d:fmtDist(gpsAcc)})}</div>
+      {gpsAcc>=1000&&<div style={{fontSize:11.5,color:T.txD,marginTop:2,lineHeight:1.45}}>{t("navi.accApproxHint")}</div>}
+    </div>
+  </div>;
+
   return <div className={guiding?"nav-guiding":""} style={{flex:1,position:"relative",overflow:"hidden"}}>
     <style>{tipStyle}{`
 @keyframes navSlideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
@@ -1553,6 +1574,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     {!guiding&&searchCard}
     {nextClsCard}
     {outOfRegionChip}
+    {accChip}
     {routeCard}
     {routePill}
     {noRouteCard}
