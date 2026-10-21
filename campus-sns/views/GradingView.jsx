@@ -296,7 +296,7 @@ const MyGradingPanel = ({ courses = [] }) => {
     setLoading(true); setErr(null);
     try {
       const payload = yearCourses
-        .filter(c => c && c.code && !/^\d{6}$/.test(c.section || ''))
+        .filter(c => c && c.code && !/^\d{3}[0-9a-z]{3}$/.test(c.section || ''))
         .map(c => ({
           code: c.code, section: c.section || null,
           name: c.name || c.code, quarter: c.quarter || null,

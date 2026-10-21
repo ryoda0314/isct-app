@@ -222,16 +222,17 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
   const medCourses = useMemo(() => {
     const src = courses.length > 0 ? courses : capturedCourses;
     return src.filter(c => {
-      const m = c.fullname?.match(/【(\d{6})】/);
+      const m = c.fullname?.match(/【(\d{3}[0-9a-z]{3})】/);
       return m && !HIDDEN_LCT_CDS.has(m[1]);
     }).map(c => {
-      const m = c.fullname.match(/【(\d{6})】/);
+      const m = c.fullname.match(/【(\d{3}[0-9a-z]{3})】/);
       const codeMatch = c.shortname?.match(/([A-Z]{2,4}\.[A-Z]\d{3})/);
       return {
         code: codeMatch ? codeMatch[1] : c.shortname,
         lctCd: m[1],
-        name: c.fullname.split(" / ")[0].replace(/\s*\/?\s*【\d{6}】/, "").trim(),
+        name: c.fullname.split(" / ")[0].replace(/\s*\/?\s*【\d{3}[0-9a-z]{3}】/, "").trim(),
         moodleId: c.id,
+        year: c.shortname?.match(/\[(\d{4})\]/)?.[1] || null,
       };
     });
   }, [courses, capturedCourses]);
@@ -257,7 +258,7 @@ export const MedTTView = ({ courses = [], mob, setCid, setView, setCh, demoKey, 
         let pickedUser = null;
         for (const cap of caps) {
           if (!cap?.raw_courses) continue;
-          const med = cap.raw_courses.filter(c => /【\d{6}】/.test(c.fullname));
+          const med = cap.raw_courses.filter(c => /【\d{3}[0-9a-z]{3}】/.test(c.fullname));
           if (med.length > 0) { pickedMed = med; pickedUser = cap.moodle_user_id; break; }
         }
         if (pickedMed) {

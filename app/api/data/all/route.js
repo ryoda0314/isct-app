@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { requireAuth } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { loadCredentials } from '../../../../lib/credentials.js';
@@ -9,6 +9,7 @@ import { transformCourses, groupByQuarter } from '../../../../lib/transform/cour
 import { buildTimetable } from '../../../../lib/transform/timetable-builder.js';
 import { transformAssignments } from '../../../../lib/transform/assignment-transform.js';
 import { syncEnrollments } from '../../../../lib/auth/course-enrollment.js';
+import { recordTimetableStats } from '../../../../lib/timetable-stats.js';
 
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -52,7 +53,8 @@ export async function GET(request) {
     const sb = getSupabaseAdmin();
     const [raw, profileRow, captureConfig] = await Promise.all([
       fetchUserCourses(wstoken, userid),
-      sb.from('profiles').select('dept, year_group, unit, student_id').eq('moodle_id', userid).maybeSingle().then(r => r.data),
+      // '*': includes timetable_stats_* when supabase/timetable-stats.sql has been run, and doesn't fail when it hasn't
+      sb.from('profiles').select('*').eq('moodle_id', userid).maybeSingle().then(r => r.data),
       sb.from('site_settings').select('value').eq('key', 'moodle_capture_targets').maybeSingle().then(r => r.data?.value),
     ]);
 
@@ -130,6 +132,12 @@ export async function GET(request) {
           sb.from('profiles').update(updates).eq('moodle_id', userid);
         }
       }
+    }
+
+    // 履修状況の匿名統計（lib/timetable-stats.js）。前回と変わったときだけ書く。シラバスが引けなかったときは書かない
+    if (Object.keys(scheduleMap).length > 0) {
+      after(() => recordTimetableStats(userid, courses, { studentId, yearGroup, profile: profileRow })
+        .catch(e => console.error('[TimetableStats]', e.message)));
     }
 
     const resp = { qData, courses, assignments, user: { userid, fullname, isAdmin, dept: profileRow?.dept || null, yearGroup, unit: profileRow?.unit || null, studentId } };

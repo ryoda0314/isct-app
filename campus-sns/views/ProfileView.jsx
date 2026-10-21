@@ -138,6 +138,15 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   const [unitYg,setUnitYg]=useState(()=>user.myUnit?user.myUnit.split("-")[0]||user.yearGroup||"":"");
   const [cacheCleared,setCacheCleared]=useState(false);
   const [showPrivacy,setShowPrivacy]=useState(false);
+  // 時間割の統計（/api/timetable-stats）。null = 未取得（ゲスト・デモ・通信失敗）→ 行を出さない
+  const [ttStatsOptOut,setTtStatsOptOut]=useState(null);
+  useEffect(()=>{let live=true;fetch("/api/timetable-stats").then(r=>r.ok?r.json():null).then(d=>{if(live&&typeof d?.optOut==="boolean")setTtStatsOptOut(d.optOut);}).catch(()=>{});return()=>{live=false;};},[]);
+  const toggleTtStats=async()=>{
+    const next=!ttStatsOptOut;
+    setTtStatsOptOut(next);
+    try{const r=await fetch("/api/timetable-stats",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({optOut:next})});if(!r.ok)throw new Error();}
+    catch{setTtStatsOptOut(!next);alert(t("profile.ttStatsFail"));}
+  };
   const [showTerms,setShowTerms]=useState(false);
   const [showLangPage,setShowLangPage]=useState(false);
   const [showThemePage,setShowThemePage]=useState(false);
@@ -1138,6 +1147,10 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             label={t("profile.privacyPolicy")}
             sub={t("profile.privacySub")}
             onClick={()=>setShowPrivacy(true)}/>
+          {ttStatsOptOut!==null&&<GRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>}
+            label={t("profile.ttStats")}
+            sub={t("profile.ttStatsSub")}
+            right={<Toggle on={!ttStatsOptOut} onTog={toggleTtStats}/>}/>}
           <GRow
             icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>}
             label={t("profile.logout")} last danger

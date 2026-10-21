@@ -5,7 +5,8 @@ import { lookupMedSessionsFromDB } from '../../../../lib/api/syllabus-med.js';
 /**
  * Fetch medical/dental session schedules from DB (pre-scraped by admin).
  *
- * POST body: { courses: [{ code, lctCd, name }] }
+ * POST body: { courses: [{ code, lctCd, name, year? }] }
+ *   year: 年度。LMS の短縮名 "011001[2026]" の [2026]。無ければ code から読み、それも無ければ今の年度。
  * Returns:   { sessions: [...], courseMeta: {...} }
  */
 export async function POST(request) {
@@ -19,23 +20,31 @@ export async function POST(request) {
     }
 
     const toFetch = courses.slice(0, 50).filter(c => c.lctCd);
-    const lctCds = toFetch.map(c => c.lctCd);
-    const codeByLctCd = {};
-    for (const c of toFetch) codeByLctCd[c.lctCd] = c.code;
-    console.log(`[MedSchedule] user=${auth.userid} coursesIn=${courses.length} lctCds=${lctCds.length} sample=${lctCds.slice(0,5).join(',')}`);
+    const jst = new Date(Date.now() + 9 * 3600000);
+    const currentAY = String(jst.getUTCMonth() >= 3 ? jst.getUTCFullYear() : jst.getUTCFullYear() - 1);
+    const yearOf = (c) => (/^\d{4}$/.test(String(c.year)) ? String(c.year) : String(c.code || '').match(/\[(\d{4})\]/)?.[1] || currentAY);
+    const lctCdsByYear = {};
+    const codeByYearLctCd = {};
+    for (const c of toFetch) {
+      const y = yearOf(c);
+      (lctCdsByYear[y] ||= []).push(c.lctCd);
+      codeByYearLctCd[`${y}|${c.lctCd}`] = c.code;
+    }
+    const years = Object.keys(lctCdsByYear).sort();
+    console.log(`[MedSchedule] user=${auth.userid} coursesIn=${courses.length} lctCds=${toFetch.length} years=${years.join(',')} sample=${toFetch.slice(0,5).map(c => c.lctCd).join(',')}`);
 
-    // Read from DB
-    const dbRows = await lookupMedSessionsFromDB(lctCds, '2026');
-    console.log(`[MedSchedule] dbRows=${dbRows.length} year=2026`);
-    if (dbRows.length === 0 && lctCds.length > 0) {
-      console.warn(`[MedSchedule] DB empty for year=2026 lctCds=${lctCds.slice(0,10).join(',')} — scrape_med_syllabus may not have been run for 2026 yet`);
+    // Read from DB (one query per year; years ascending keeps the date+time order)
+    const dbRows = (await Promise.all(years.map(y => lookupMedSessionsFromDB(lctCdsByYear[y], y)))).flat();
+    console.log(`[MedSchedule] dbRows=${dbRows.length} years=${years.join(',')}`);
+    if (dbRows.length === 0 && toFetch.length > 0) {
+      console.warn(`[MedSchedule] DB empty for years=${years.join(',')} lctCds=${toFetch.slice(0,10).map(c => c.lctCd).join(',')} — scrape_med_syllabus may not have been run for that year yet`);
     }
 
     const allSessions = [];
     const courseMeta = {};
 
     for (const row of dbRows) {
-      const code = codeByLctCd[row.lct_cd] || row.lct_cd;
+      const code = codeByYearLctCd[`${row.year}|${row.lct_cd}`] || row.lct_cd;
 
       if (!courseMeta[code]) {
         courseMeta[code] = {

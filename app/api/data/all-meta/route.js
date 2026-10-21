@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { requireAuth } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { loadCredentials } from '../../../../lib/credentials.js';
@@ -8,6 +8,7 @@ import { buildTimetable } from '../../../../lib/transform/timetable-builder.js';
 import { transformAssignments } from '../../../../lib/transform/assignment-transform.js';
 import { seedEnrollmentCache, syncEnrollments } from '../../../../lib/auth/course-enrollment.js';
 import { syncAssignmentDeadlines } from '../../../../lib/deadline-notify.js';
+import { recordTimetableStats } from '../../../../lib/timetable-stats.js';
 
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -79,7 +80,8 @@ export async function POST(request) {
 
     // Fetch profile and syllabus schedule in parallel
     const [profileRow, scheduleMap] = await Promise.all([
-      sb.from('profiles').select('dept, year_group, unit, student_id').eq('moodle_id', userid).maybeSingle().then(r => r.data),
+      // '*': includes timetable_stats_* when supabase/timetable-stats.sql has been run, and doesn't fail when it hasn't
+      sb.from('profiles').select('*').eq('moodle_id', userid).maybeSingle().then(r => r.data),
       fetchScheduleForCourses(rawCourses).catch(e => {
         console.error('[AllMeta] Syllabus scrape failed:', e.message);
         return {};
@@ -145,6 +147,13 @@ export async function POST(request) {
           sb.from('profiles').update(updates).eq('moodle_id', userid);
         }
       }
+    }
+
+    // 履修状況の匿名統計（lib/timetable-stats.js）。応答を返した後に、前回と変わったときだけ書く。
+    // シラバスが引けなかったときは Q・時限が不正確なので、前回の記録を上書きしない。
+    if (Object.keys(scheduleMap).length > 0) {
+      after(() => recordTimetableStats(userid, courses, { studentId, yearGroup, profile: profileRow })
+        .catch(e => console.error('[TimetableStats]', e.message)));
     }
 
     return NextResponse.json({

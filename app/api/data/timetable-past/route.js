@@ -279,11 +279,21 @@ export async function GET(request) {
     coursesUrl.searchParams.set('moodlewsrestformat', 'json');
     coursesUrl.searchParams.set('userid', siteInfo.userid);
     const coursesResp = await fetch(coursesUrl.toString());
-    const rawCourses = await coursesResp.json();
+    const enrolledCourses = await coursesResp.json();
 
-    if (!Array.isArray(rawCourses)) {
+    if (!Array.isArray(enrolledCourses)) {
       return NextResponse.json({ error: 'Failed to fetch T2SCHOLA courses' }, { status: 502 });
     }
+
+    // T2SCHOLA returns every year the user was enrolled in. Keep only the requested
+    // year (shortname tag "LAS.M102-06[2024]"), otherwise a 2023 course whose code is
+    // also offered in 2024 lands in the 2024 timetable with the 2024 slot.
+    // Courses without a year tag (site guides etc.) are kept.
+    const rawCourses = enrolledCourses.filter(mc => {
+      const y = (mc.shortname.match(/\[(\d{4})\]/) || mc.shortname.match(/^(\d{4})/))?.[1];
+      return !y || y === String(year);
+    });
+    console.log(`[TimetablePast] year=${year}: T2SCHOLA全${enrolledCourses.length}件のうち${rawCourses.length}件 (他年度${enrolledCourses.length - rawCourses.length}件を除外)`);
 
     // 3. Extract course codes and look up schedules from syllabus DB
     const codes = [];
@@ -320,6 +330,7 @@ export async function GET(request) {
         building: row.building || null,
         dept: row.dept || null,
         syllabusUrl: row.syllabus_url || null,
+        credits: row.credits ?? null,
       };
       const idMatch = row.syllabus_url && row.syllabus_url.match(/(\d{9})(?:[?#].*)?$/);
       if (idMatch) {
@@ -369,12 +380,15 @@ export async function GET(request) {
     const catToQuarter = {};
     categories.forEach((cat, i) => { catToQuarter[cat] = i + 1; });
 
+    // quarterHint: used by transformCourses only when the syllabus gives no quarter
+    // (otherwise it guesses from today's month, so the past timetable would change
+    // depending on when it is opened).
     const adapted = rawCourses
       .filter(mc => mc.visible !== 0)
-      .map(mc => ({
-        ...mc,
-        _t2quarter: catToQuarter[mc.category] || null,
-      }));
+      .map(mc => {
+        const q = catToQuarter[mc.category];
+        return { ...mc, quarterHint: q >= 1 && q <= 4 ? q : null };
+      });
 
     const idKeys = Object.keys(scheduleMap).filter(k => k.startsWith('@'));
     console.log(`[TimetablePast][DBG] scheduleMap keys: total=${Object.keys(scheduleMap).length}, idnumber-keys=${idKeys.length}`);
@@ -397,16 +411,8 @@ export async function GET(request) {
 
     const courses = transformCourses(adapted, scheduleMap);
 
-    // Override quarter from T2SCHOLA category when syllabus DB didn't provide one
-    for (const course of courses) {
-      const orig = adapted.find(a => a.id === course.moodleId);
-      if (orig?._t2quarter && !scheduleMap[course.code]?.[0]?.quarter) {
-        course.quarter = orig._t2quarter;
-      }
-    }
-
     // Log courses that ended up without schedule (per) info
-    const noPerCourses = courses.filter(c => !c.per);
+    const noPerCourses = courses.filter(c => c.per === '未設定');
     if (noPerCourses.length > 0) {
       console.log(`[TimetablePast] 時間割配置なし (${noPerCourses.length}件):`);
       for (const c of noPerCourses) {
@@ -426,8 +432,8 @@ export async function GET(request) {
       year,
       t2user: { userid: siteInfo.userid, fullname: siteInfo.fullname },
       stats: {
-        total: rawCourses.length,
-        withSchedule: courses.filter(c => c.per).length,
+        total: courses.length,
+        withSchedule: courses.length - noPerCourses.length,
         dbRows: dbRows.length,
         noCode: noCodeCourses.map(mc => ({ id: mc.id, shortname: mc.shortname, fullname: mc.fullname })),
         noSchedule: noScheduleCodes.map(code => {

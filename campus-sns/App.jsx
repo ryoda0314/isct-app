@@ -420,12 +420,12 @@ export default function App(){
       const rawCourses=await moodleFetchCourses(wstoken,userid);
       console.log(`[Timing] client-side: courses fetch ${(performance.now()-t0).toFixed(0)}ms (${rawCourses.length} courses)`);
 
-      // Extract medical/dental course info (fullname contains【lctCd】)
-      const medRaw=rawCourses.filter(c=>c.visible!==0&&/【\d{6}】/.test(c.fullname));
+      // Extract medical/dental course info (fullname contains【lctCd】, e.g.【011001】【021a00】)
+      const medRaw=rawCourses.filter(c=>c.visible!==0&&/【\d{3}[0-9a-z]{3}】/.test(c.fullname));
       if(medRaw.length>0){
         setMedRawCourses(medRaw);
         // Fetch med sessions for home timeline
-        const medCrs=medRaw.map(c=>{const m=c.fullname.match(/【(\d{6})】/);const cm=c.shortname?.match(/([A-Z]{2,4}\.[A-Z]\d{3})/);return{code:cm?cm[1]:c.shortname,lctCd:m[1],name:c.fullname.split(" / ")[0].replace(/\s*\/?\s*【\d{6}】/,"").trim()};});
+        const medCrs=medRaw.map(c=>{const m=c.fullname.match(/【(\d{3}[0-9a-z]{3})】/);const cm=c.shortname?.match(/([A-Z]{2,4}\.[A-Z]\d{3})/);return{code:cm?cm[1]:c.shortname,lctCd:m[1],name:c.fullname.split(" / ")[0].replace(/\s*\/?\s*【\d{3}[0-9a-z]{3}】/,"").trim(),year:c.shortname?.match(/\[(\d{4})\]/)?.[1]||null};});
         fetch("/api/data/med-schedule",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({courses:medCrs})}).then(r=>r.ok?r.json():null).then(d=>{if(d?.sessions)setMedSessions(d.sessions);}).catch(()=>{});
       }
 

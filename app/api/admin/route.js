@@ -6,6 +6,8 @@ import { createNotification } from '../../../lib/notify.js';
 import { broadcast, supportTicketTopic, supportUserTopic, supportAdminTopic } from '../../../lib/realtime.js';
 import { getSyllabusFromDB, getSyllabusStats, fetchDeptSyllabus, getDeptList, getScrapeProgress, fetchDeptTextbooks, fetchDeptGrading, getGradingStats } from '../../../lib/api/syllabus-bulk.js';
 import { fetchMedFacultySyllabus, getMedFacultyList, getMedScrapeProgress } from '../../../lib/api/syllabus-med.js';
+import { DEPT_TO_SCHOOL, SCHOOL_NAMES, DEPT_NAMES, MED_SCHOOLS, inferFromStudentId } from '../../../lib/student-affiliation.js';
+import { aggregateTimetableStats } from '../../../lib/timetable-stats.js';
 
 export const maxDuration = 300;
 
@@ -521,51 +523,6 @@ export async function GET(request) {
         .select('dept, year_group, student_id, last_active_at, banned');
       if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
 
-      const DEPT_TO_SCHOOL = {
-        MTH:'science',PHY:'science',CHM:'science',EPS:'science',
-        MEC:'engineering',SCE:'engineering',EEE:'engineering',ICT:'engineering',IEE:'engineering',
-        MAT:'matsci',CAP:'matsci',
-        MCS:'computing',CSC:'computing',
-        LST:'lifesci',
-        ARC:'envsoc',CVE:'envsoc',TSE:'envsoc',SHS:'envsoc',TIM:'envsoc',MOT:'envsoc',
-        MED_M:'medicine',MED_N:'medicine',MED_T:'medicine',
-        DEN_D:'dentistry',DEN_H:'dentistry',DEN_E:'dentistry',
-      };
-      const SCHOOL_NAMES = {
-        science:'理学院',engineering:'工学院',matsci:'物質理工学院',
-        computing:'情報理工学院',lifesci:'生命理工学院',envsoc:'環境・社会理工学院',
-        medicine:'医学部',dentistry:'歯学部',
-      };
-      const DEPT_NAMES = {
-        MTH:'数学系',PHY:'物理学系',CHM:'化学系',EPS:'地球惑星科学系',
-        MEC:'機械系',SCE:'システム制御系',EEE:'電気電子系',ICT:'情報通信系',IEE:'経営工学系',
-        MAT:'材料系',CAP:'応用化学系',
-        MCS:'数理・計算科学系',CSC:'情報工学系',
-        LST:'生命理工学系',
-        ARC:'建築学系',CVE:'土木・環境工学系',TSE:'融合理工学系',SHS:'社会・人間科学系',TIM:'イノベーション科学系',MOT:'技術経営専門職学位課程',
-        MED_M:'医学科',MED_N:'保健衛生学科 看護学',MED_T:'保健衛生学科 検査技術学',
-        DEN_D:'歯学科',DEN_H:'口腔保健 衛生学',DEN_E:'口腔保健 工学',
-      };
-      const MED_SCHOOLS = new Set(['medicine','dentistry']);
-      const SCHOOL_NUM_MAP = {'0':'science','1':'engineering','2':'matsci','3':'computing','4':'lifesci','5':'envsoc'};
-      const MED_NEW_MAP = {'1':'medicine','2':'medicine','3':'medicine','5':'dentistry','6':'dentistry','7':'dentistry'};
-      const MED_LEGACY = {'11':'medicine','21':'medicine','22':'medicine','31':'dentistry','32':'dentistry','39':'dentistry'};
-      const MED_NEW_DEPT = {'1':'MED_M','2':'MED_N','3':'MED_T','5':'DEN_D','6':'DEN_H','7':'DEN_E'};
-      const MED_LEGACY_DEPT = {'11':'MED_M','21':'MED_N','22':'MED_T','31':'DEN_D','32':'DEN_H','39':'DEN_E'};
-
-      function inferFromStudentId(sid) {
-        if (!sid) return { schoolKey: null, deptKey: null };
-        const m = sid.match(/^(\d{2})([BMDR])(\d)(\d)?/i);
-        if (m) {
-          const sn = m[3], sub = m[4] || null;
-          if (sn === '6' && sub) return { schoolKey: MED_NEW_MAP[sub] || null, deptKey: MED_NEW_DEPT[sub] || null };
-          return { schoolKey: SCHOOL_NUM_MAP[sn] || null, deptKey: null };
-        }
-        const mL = sid.match(/^(\d{2})(\d{2})\d{4}$/);
-        if (mL && MED_LEGACY[mL[1]]) return { schoolKey: MED_LEGACY[mL[1]], deptKey: MED_LEGACY_DEPT[mL[1]] || null };
-        return { schoolKey: null, deptKey: null };
-      }
-
       const byYearGroup = {}, bySchool = {}, byDept = {}, byDegree = {};
       const byCampus = { science_eng: 0, med_dental: 0, unknown: 0 };
       let withDept = 0, withStudentId = 0;
@@ -605,6 +562,24 @@ export async function GET(request) {
         byYearGroup, bySchool, byDept, byCampus, byDegree,
         schoolNames: SCHOOL_NAMES, deptNames: DEPT_NAMES, deptToSchool: DEPT_TO_SCHOOL,
       });
+    }
+
+    // --- Anonymous timetable stats (lib/timetable-stats.js) ---
+    if (action === 'timetable_stats') {
+      const q = Number(searchParams.get('quarter'));
+      try {
+        return NextResponse.json(await aggregateTimetableStats(sb, {
+          year: Number(searchParams.get('year')) || null,
+          quarter: q >= 1 && q <= 4 ? q : null,
+          school: searchParams.get('school') || null,
+          dept: searchParams.get('dept') || null,
+          grade: searchParams.get('grade') || null,
+        }));
+      } catch (e) {
+        console.error('[Admin] timetable_stats:', e.message);
+        const missing = /timetable_stats/.test(e.message || '') && /exist|find/i.test(e.message || '');
+        return NextResponse.json({ error: missing ? 'timetable_stats テーブルがありません。supabase/timetable-stats.sql を実行してください' : 'Internal error' }, { status: 500 });
+      }
     }
 
     // --- Exam schedules ---
@@ -1705,11 +1680,11 @@ export async function POST(request) {
     if (action === 'get_captured_moodle') {
       const { filter } = body;
       // filter='med' → paginate through captures and return only those containing
-      // med/dental courses (fullname with 【6-digit lct_cd】). Needed because
+      // med/dental courses (fullname with 【6-char lct_cd】, e.g. 011001 / 021a00). Needed because
       // the raw LIMIT-50 list can be dominated by a single heavy user's recent
       // captures, hiding other users' med-bearing captures.
       if (filter === 'med') {
-        const MED_RE = /【\d{6}】/;
+        const MED_RE = /【\d{3}[0-9a-z]{3}】/;
         const PAGE = 100;
         const out = [];
         for (let from = 0; from < 1000 && out.length < 20; from += PAGE) {

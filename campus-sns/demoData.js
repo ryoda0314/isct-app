@@ -1931,7 +1931,8 @@ function buildDemoDataForPersona(personaId) {
   const p = DEMO_PERSONAS.find(x => x.id === personaId) || DEMO_PERSONAS[0];
   // 今年度の授業として扱う（ホームの「今日のスケジュール」とカレンダーは、年度が今年度の授業だけを出す）
   const ay = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  const thisYear = (cs) => (cs || []).map((c) => (c.year ? c : { ...c, year: ay }));
+  // 単位数はデモ科目に無いので一律2単位（時間割の「◯科目 · ◯単位」表示用）
+  const thisYear = (cs) => (cs || []).map((c) => ({ credits: 2, ...c, year: c.year || ay }));
   const q1 = thisYear(p.q[1]);
   const q2 = thisYear(p.q[2]);
   const q3 = thisYear(p.q[3]);

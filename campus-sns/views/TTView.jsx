@@ -31,6 +31,8 @@ export const TTView=(_p)=>{
     return g;
   },[isPast,_allTT,curC]);
   const cnt=cid=>asgn.filter(a=>a.cid===cid&&a.st!=="completed"&&!hiddenSet.has(a.id)).length;
+  // 単位数はシラバスで分かった科目だけ合計（シラバスの無い LMS コースは数えない）。1つも分からなければ出さない
+  const credits=React.useMemo(()=>{const known=curC.filter(c=>c.credits!=null);return known.length?Math.round(known.reduce((s,c)=>s+Number(c.credits),0)*10)/10:null;},[curC]);
   const handleRefresh=async()=>{if(!onRefresh||refreshing)return;setRefreshing(true);try{await onRefresh();}finally{setRefreshing(false);}};
   const toggleMerged=()=>setMerged(p=>{const nv=!p;try{localStorage.setItem("tt_merged",nv?"1":"0");}catch{}return nv;});
   const cellEntries=React.useMemo(()=>{const entries=[],visited=new Set();for(let pi=0;pi<5;pi++)for(let di=0;di<5;di++){if(visited.has(`${pi}-${di}`))continue;const co=curTT[pi]?.[di];let span=1;if(co&&merged){for(let pj=pi+1;pj<5;pj++){const nx=curTT[pj]?.[di];if(nx&&nx.id===co.id){span++;visited.add(`${pj}-${di}`);}else break;}}entries.push({di,pi,co,span});}return entries;},[curTT,merged]);
@@ -223,7 +225,7 @@ export const TTView=(_p)=>{
             <QDrop/>
             <YrDrop/>
           </div>
-          <span style={{fontSize:12,color:T.txD}}>{t("tt.coursesCredits",{courses:curC.length,credits:curC.length*2})}</span>
+          <span style={{fontSize:12,color:T.txD}}>{credits!=null?t("tt.coursesCredits",{courses:curC.length,credits}):t("tt.countCourses",{n:curC.length})}</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6}}><MergeBtn/><RefreshBtn/></div>
       </div>

@@ -37,6 +37,7 @@ const tabs = [
   { id: "exams", labelKey: "admin.tab.exams", icon: I.clip },
   { id: "t2schola", labelKey: "admin.tab.t2schola", icon: I.search },
   { id: "user_analytics", labelKey: "admin.tab.userAnalytics", icon: I.bar },
+  { id: "timetable_stats", labelKey: "admin.tab.ttStats", icon: I.cal },
   { id: "analytics", labelKey: "admin.tab.analytics", icon: I.poll },
   { id: "guests", labelKey: "admin.tab.guests", icon: I.eye },
   { id: "med_syllabus", labelKey: "admin.tab.medSyllabus", icon: I.cal },
@@ -4686,6 +4687,177 @@ const T2ScholaTab = () => {
   );
 };
 
+// ---- Timetable stats (anonymous, lib/timetable-stats.js) ----
+const TT_DAYS = ["月", "火", "水", "木", "金"];
+const TtSel = ({ value, onChange, children }) => (
+  <select value={value} onChange={e => onChange(e.target.value)} style={{
+    padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg3,
+    color: T.txH, fontSize: 12, outline: "none", cursor: "pointer",
+  }}>{children}</select>
+);
+
+const TimetableStatsTab = () => {
+  const [f, setF] = useState({ year: "", quarter: "", school: "", dept: "", grade: "" });
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    const p = new URLSearchParams({ action: "timetable_stats" });
+    for (const [k, v] of Object.entries(f)) if (v) p.set(k, v);
+    setLoading(true);
+    fetch(`${API}/api/admin?${p}`)
+      .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`); return d; })
+      .then(d => { setData(d); setErr(null); })
+      .catch(e => setErr(e.message))
+      .finally(() => setLoading(false));
+  }, [f]);
+  // 学院を変えたら学系の絞り込みは外す（別学院の学系が残ると0人になる）
+  const set = (k, v) => setF(p => ({ ...p, [k]: v, ...(k === "school" ? { dept: "" } : {}) }));
+
+  if (!data && loading) return <div style={{ padding: 20, color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>;
+  if (!data) return <div style={{ padding: 20, color: T.red, fontSize: 13 }}>{err || t("admin.fetchDataFailed")}</div>;
+
+  const gradeLabel = g => (g ? t("admin.tts.gradeN", { deg: t(`admin.tts.deg.${g[0]}`), n: g.slice(1) }) : t("admin.tts.unknown"));
+  const schoolLabel = s => (s ? data.schoolNames?.[s] || s : t("admin.tts.unknown"));
+  const schools = [...new Set(data.breakdown.map(c => c.school))].sort((a, b) => (a == null) - (b == null) || String(a).localeCompare(String(b)));
+  const cellN = (g, s) => data.breakdown.find(c => c.grade === g && c.school === s)?.n || 0;
+  const perQ = f.quarter ? "" : t("admin.tts.perQ");
+  const n = data.n;
+  const box = { padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 20 };
+  const th = { padding: "6px 8px", fontSize: 11, color: T.txD, fontWeight: 600, textAlign: "left", whiteSpace: "nowrap" };
+  const td = { padding: "6px 8px", fontSize: 12, color: T.txH, borderTop: `1px solid ${T.bd}` };
+
+  return (
+    <div style={{ padding: 16, opacity: loading ? 0.6 : 1, transition: "opacity .15s" }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 4 }}>{t("admin.tts.title")}</div>
+      <div style={{ fontSize: 12, color: T.txD, marginBottom: 16 }}>{t("admin.tts.note", { min: data.minGroup })}</div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 20 }}>
+        <TtSel value={f.year || String(data.year)} onChange={v => set("year", v)}>
+          {(data.years.length ? data.years : [data.year]).map(y => <option key={y} value={y}>{t("admin.tts.yearN", { y })}</option>)}
+        </TtSel>
+        <TtSel value={f.quarter} onChange={v => set("quarter", v)}>
+          <option value="">{t("admin.tts.allQ")}</option>
+          {[1, 2, 3, 4].map(q => <option key={q} value={q}>{q}Q</option>)}
+        </TtSel>
+        <TtSel value={f.school} onChange={v => set("school", v)}>
+          <option value="">{t("admin.tts.allSchools")}</option>
+          {schools.filter(Boolean).map(s => <option key={s} value={s}>{schoolLabel(s)}</option>)}
+        </TtSel>
+        <TtSel value={f.dept} onChange={v => set("dept", v)}>
+          <option value="">{t("admin.tts.allDepts")}</option>
+          {data.depts.map(d => <option key={d.key} value={d.key}>{data.deptNames?.[d.key] || d.key} ({d.n})</option>)}
+        </TtSel>
+        <TtSel value={f.grade} onChange={v => set("grade", v)}>
+          <option value="">{t("admin.tts.allGrades")}</option>
+          {data.grades.filter(Boolean).map(g => <option key={g} value={g}>{gradeLabel(g)}</option>)}
+        </TtSel>
+      </div>
+
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+        <Card label={t("admin.tts.users")} value={n} color={T.accent} />
+        <Card label={t("admin.tts.avgCourses") + perQ} value={data.avgCourses ?? "—"} color={T.green} />
+        <Card label={t("admin.tts.avgCredits") + perQ} value={data.avgCredits ?? "—"} color={T.orange} />
+      </div>
+
+      {/* 学年 × 学院（絞り込み前）。セルを押すとその集団に絞る */}
+      {data.breakdown.length > 0 && (
+        <div style={{ ...box, overflowX: "auto" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.tts.breakdown")}</div>
+          <table style={{ borderCollapse: "collapse", minWidth: "100%" }}>
+            <thead><tr>
+              <th style={th}>{t("admin.tts.grade")}</th>
+              {schools.map(s => <th key={s || "-"} style={{ ...th, textAlign: "right" }}>{schoolLabel(s)}</th>)}
+            </tr></thead>
+            <tbody>
+              {data.grades.map(g => (
+                <tr key={g || "-"}>
+                  <td style={{ ...td, fontWeight: 600 }}>{gradeLabel(g)}</td>
+                  {schools.map(s => {
+                    const v = cellN(g, s);
+                    const on = f.grade === (g || "") && f.school === (s || "") && !!g && !!s;
+                    return (
+                      <td key={s || "-"} onClick={() => v && g && s && setF(p => ({ ...p, grade: g, school: s, dept: "" }))}
+                        style={{ ...td, textAlign: "right", fontFamily: "monospace", cursor: v && g && s ? "pointer" : "default",
+                          color: v ? T.txH : T.txD, background: on ? `${T.accent}18` : "transparent" }}>
+                        {v || "·"}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {n === 0 && <div style={{ ...box, fontSize: 13, color: T.txD }}>{t("admin.tts.empty")}</div>}
+      {data.suppressed && <div style={{ ...box, fontSize: 13, color: T.txD }}>{t("admin.tts.suppressed", { min: data.minGroup })}</div>}
+
+      {data.grid && (
+        <div style={box}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.tts.grid")}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "44px repeat(5, 1fr)", gap: 4, maxWidth: 560 }}>
+            <div />
+            {TT_DAYS.map(d => <div key={d} style={{ textAlign: "center", fontSize: 12, fontWeight: 700, color: T.txH }}>{d}</div>)}
+            {data.grid.map((row, pi) => (
+              <React.Fragment key={pi}>
+                <div style={{ fontSize: 11, color: T.txD, display: "flex", alignItems: "center" }}>{pi + 1}限</div>
+                {row.map((v, di) => {
+                  const pct = n ? v / n : 0;
+                  return (
+                    <div key={di} title={t("admin.peopleCount", { n: v })} style={{
+                      height: 40, borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                      background: `color-mix(in srgb, ${T.accent} ${Math.round(pct * 85)}%, ${T.bg2})`, border: `1px solid ${T.bd}`,
+                    }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: pct > 0.5 ? "#fff" : T.txH }}>{Math.round(pct * 100)}%</span>
+                    </div>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {data.courses && (
+        <div style={{ ...box, overflowX: "auto" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.tts.courses")}</div>
+          <table style={{ borderCollapse: "collapse", width: "100%" }}>
+            <thead><tr>
+              <th style={th}>#</th><th style={th}>{t("admin.tts.colCourse")}</th><th style={th}>{t("admin.tts.colSlots")}</th>
+              <th style={{ ...th, width: "34%" }}>{t("admin.tts.colUsers")}</th>
+            </tr></thead>
+            <tbody>
+              {data.courses.map((c, i) => (
+                <tr key={c.code}>
+                  <td style={{ ...td, color: T.txD, fontFamily: "monospace" }}>{i + 1}</td>
+                  <td style={td}>
+                    <div style={{ fontWeight: 600 }}>{c.name}</div>
+                    <div style={{ fontSize: 11, color: T.txD, fontFamily: "monospace" }}>{c.code}</div>
+                  </td>
+                  <td style={{ ...td, color: T.txD, whiteSpace: "nowrap" }}>{c.slots.join(" · ") || "—"}</td>
+                  <td style={td}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ flex: 1, height: 8, borderRadius: 4, background: T.bg2, overflow: "hidden" }}>
+                        <div style={{ width: `${(c.n / n) * 100}%`, height: "100%", background: T.accent }} />
+                      </div>
+                      <span style={{ fontSize: 12, fontFamily: "monospace", color: T.txH, minWidth: 74, textAlign: "right" }}>
+                        {c.n} ({Math.round((c.n / n) * 100)}%)
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ---- Main AdminView ----
 export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
   const [tab, setTab] = useState("stats");
@@ -4744,6 +4916,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "exams" && <ExamTab />}
         {tab === "t2schola" && <T2ScholaTab />}
         {tab === "user_analytics" && <UserAnalyticsTab />}
+        {tab === "timetable_stats" && <TimetableStatsTab />}
         {tab === "analytics" && <AnalyticsTab />}
         {tab === "guests" && <GuestAnalyticsTab />}
         {tab === "med_syllabus" && <MedSyllabusTab />}
