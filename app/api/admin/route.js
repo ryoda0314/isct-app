@@ -7,7 +7,7 @@ import { broadcast, supportTicketTopic, supportUserTopic, supportAdminTopic } fr
 import { getSyllabusFromDB, getSyllabusStats, fetchDeptSyllabus, getDeptList, getScrapeProgress, fetchDeptTextbooks, fetchDeptGrading, getGradingStats } from '../../../lib/api/syllabus-bulk.js';
 import { fetchMedFacultySyllabus, getMedFacultyList, getMedScrapeProgress } from '../../../lib/api/syllabus-med.js';
 import { DEPT_TO_SCHOOL, SCHOOL_NAMES, DEPT_NAMES, MED_SCHOOLS, inferFromStudentId } from '../../../lib/student-affiliation.js';
-import { aggregateTimetableStats } from '../../../lib/timetable-stats.js';
+import { adminTimetableExamples } from '../../../lib/timetable-examples.js';
 
 export const maxDuration = 300;
 
@@ -564,11 +564,11 @@ export async function GET(request) {
       });
     }
 
-    // --- Anonymous timetable stats (lib/timetable-stats.js) ---
-    if (action === 'timetable_stats') {
+    // --- Timetable examples (lib/timetable-examples.js) ---
+    if (action === 'timetable_examples') {
       const q = Number(searchParams.get('quarter'));
       try {
-        return NextResponse.json(await aggregateTimetableStats(sb, {
+        return NextResponse.json(await adminTimetableExamples(sb, {
           year: Number(searchParams.get('year')) || null,
           quarter: q >= 1 && q <= 4 ? q : null,
           school: searchParams.get('school') || null,
@@ -576,9 +576,9 @@ export async function GET(request) {
           grade: searchParams.get('grade') || null,
         }));
       } catch (e) {
-        console.error('[Admin] timetable_stats:', e.message);
-        const missing = /timetable_stats/.test(e.message || '') && /exist|find/i.test(e.message || '');
-        return NextResponse.json({ error: missing ? 'timetable_stats テーブルがありません。supabase/timetable-stats.sql を実行してください' : 'Internal error' }, { status: 500 });
+        console.error('[Admin] timetable_examples:', e.message);
+        const missing = /timetable_examples/.test(e.message || '') && /exist|find/i.test(e.message || '');
+        return NextResponse.json({ error: missing ? 'timetable_examples テーブルがありません。supabase/timetable-examples.sql を実行してください' : 'Internal error' }, { status: 500 });
       }
     }
 

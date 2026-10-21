@@ -5,7 +5,7 @@ import { requireAuth } from '../../../../lib/auth/require-auth.js';
 import { COOKIE_NAME, destroyUserSessions, verifySession } from '../../../../lib/auth/session.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { generateTOTP } from '../../../../lib/auth/totp.js';
-import { deleteTimetableStats } from '../../../../lib/timetable-stats.js';
+import { deleteTimetableExamples } from '../../../../lib/timetable-examples.js';
 
 // Capacitor ネイティブアプリのみ許可する Origin
 // server.url が設定されている場合、Origin はそのドメインになる
@@ -270,8 +270,8 @@ export async function DELETE(request) {
       // 16. Admin entry
       await sb.from('admin_users').delete().eq('moodle_user_id', userId);
 
-      // 16b. Anonymous timetable stats (keyed by anon_id, not moodle_id; table may not exist yet)
-      try { await deleteTimetableStats(userId); } catch {}
+      // 16b. Timetable examples (keyed by anon_id, not moodle_id; table may not exist yet)
+      try { await deleteTimetableExamples(userId); } catch {}
 
       // 17. Profile — LAST (all FK references must be cleared first)
       await sb.from('profiles').delete().eq('moodle_id', userId);

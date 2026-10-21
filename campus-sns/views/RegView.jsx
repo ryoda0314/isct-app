@@ -4,6 +4,7 @@ import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { getCurrentQuarter } from "../academicCalendar.js";
 import { REQ_BY_Q, QUARTERS, siblingQ, isSemesterSpan, academicYearOf, CAT_COLORS, UNIT_OPT, LAB_OPT, SCHOOLS, SHARED_DEPTS, DEPT_LABELS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
+import { TimetableExampleCard } from "../components/TimetableExampleCard.jsx";
 
 // Per year-level + quarter localStorage
 const lsKey=(yr,q)=>`reg_${yr}_${q}`;
@@ -91,6 +92,13 @@ export const RegView=({mob})=>{
   const [syllabusData,setSyllabusData]=useState(null);
   const [syllabusLoading,setSyllabusLoading]=useState(false);
 
+  // 時間割例（/api/timetable-examples）。本人が公開に同意した分だけが返る。
+  // null = 取れない（ゲスト・デモ・SQL未実行）→ 欄ごと出さない
+  const [examples,setExamples]=useState(null);
+  const [exSettings,setExSettings]=useState(null);
+  const [exOpen,setExOpen]=useState(true);
+  const [exShown,setExShown]=useState(3);
+
   // Derived — 3年→"3,2", 4年→"4,3,2", otherwise single level
   const level=browseLevel>=3
     ?Array.from({length:browseLevel-1},(_,i)=>String(browseLevel-i)).join(',')
@@ -127,6 +135,26 @@ export const RegView=({mob})=>{
   const up=useCallback((fn)=>setData(prev=>{const next=fn(prev);saveQ(browseLevel,quarter,next);syncSpan(browseLevel,quarter,next);return next;}),[browseLevel,quarter]);
 
   const {req,reqSec,sci,opt,optInfo,unit}=data;
+
+  useEffect(()=>{
+    let live=true;
+    const p=new URLSearchParams({grade:`B${browseLevel}`,quarter:quarter.charAt(0)});
+    if(browseLevel>=2&&selSchool)p.set("school",selSchool);
+    if(browseLevel>=2&&selDept)p.set("dept",selDept);
+    fetch(`/api/timetable-examples?${p}`).then(r=>r.ok?r.json():null)
+      .then(d=>{if(!live)return;setExamples(Array.isArray(d?.examples)?d.examples:null);setExSettings(d?.settings||null);setExShown(3);})
+      .catch(()=>{if(live){setExamples(null);setExSettings(null);}});
+    return()=>{live=false;};
+  },[browseLevel,quarter,selSchool,selDept]);
+  const toggleExShare=async()=>{
+    const next=!exSettings.share;
+    setExSettings(s=>({...s,share:next}));
+    try{
+      const r=await fetch("/api/timetable-examples",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({share:next})});
+      if(!r.ok)throw new Error();
+      setExSettings((await r.json()).settings);
+    }catch{setExSettings(s=>({...s,share:!next}));alert(t("profile.ttExFail"));}
+  };
 
   // ── Fetch required sections from DB (1年 only) ──
   useEffect(()=>{
@@ -745,6 +773,35 @@ export const RegView=({mob})=>{
             </div>
           ))}
           <div style={{fontSize:9,color:T.txD,marginTop:6,opacity:.8}}>{t("reg.regListNote")}</div>
+        </div>
+      )}
+
+      {/* 時間割例（同じ学年・Q。公開に同意した人の分だけ） */}
+      {examples&&(
+        <div style={{background:T.bg2,borderRadius:14,border:`1px solid ${T.bd}`,padding:`4px ${mob?12:16}px`,marginBottom:16}}>
+          <SecHdr title={t("tte.title")} open={exOpen} toggle={()=>setExOpen(p=>!p)} badge={t("tte.countN",{n:examples.length})}/>
+          {exOpen&&<div style={{padding:"10px 0 12px"}}>
+            <div style={{fontSize:11,color:T.txD,marginBottom:10,lineHeight:1.5}}>{t("tte.sub",{grade:t("reg.yearLong",{year:browseLevel}),quarter})}</div>
+            {examples.length===0
+              ?<div style={{padding:"14px 0",textAlign:"center",fontSize:12,color:T.txD}}>{t("tte.empty")}</div>
+              :examples.slice(0,exShown).map((ex,i)=><TimetableExampleCard key={i} ex={ex} mob={mob}/>)}
+            {examples.length>exShown&&(
+              <button onClick={()=>setExShown(n=>n+5)} style={{width:"100%",padding:"8px 0",borderRadius:8,border:`1px solid ${T.bd}`,
+                background:T.bg3,color:T.accent,fontSize:12,fontWeight:600,cursor:"pointer"}}>{t("tte.more",{n:examples.length-exShown})}</button>
+            )}
+            {exSettings&&(
+              <div onClick={toggleExShare} style={{display:"flex",alignItems:"center",gap:10,marginTop:10,padding:"10px 12px",borderRadius:10,
+                background:T.bg3,border:`1px solid ${T.bd}`,cursor:"pointer"}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:600,color:T.txH}}>{t("tte.shareLabel")}</div>
+                  <div style={{fontSize:10,color:T.txD,marginTop:2,lineHeight:1.4}}>{t("tte.shareSub")}</div>
+                </div>
+                <div style={{width:38,height:22,borderRadius:11,background:exSettings.share?T.green:T.bg4,padding:2,flexShrink:0,transition:"background .2s"}}>
+                  <div style={{width:18,height:18,borderRadius:9,background:"#fff",transform:exSettings.share?"translateX(16px)":"none",transition:"transform .2s",boxShadow:"0 1px 3px rgba(0,0,0,.25)"}}/>
+                </div>
+              </div>
+            )}
+          </div>}
         </div>
       )}
 

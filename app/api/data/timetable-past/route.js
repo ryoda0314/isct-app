@@ -331,6 +331,7 @@ export async function GET(request) {
         dept: row.dept || null,
         syllabusUrl: row.syllabus_url || null,
         credits: row.credits ?? null,
+        requirement: row.requirement || null,
       };
       const idMatch = row.syllabus_url && row.syllabus_url.match(/(\d{9})(?:[?#].*)?$/);
       if (idMatch) {

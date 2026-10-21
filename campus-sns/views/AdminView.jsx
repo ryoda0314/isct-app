@@ -12,6 +12,7 @@ import { showToast } from "../hooks/useToast.js";
 import { t } from "../i18n.js";
 import { getSupabaseClient } from "../../lib/supabase/client.js";
 import { ANNOUNCE_LINKS, announceLinkLabelKey } from "../announceLinks.js";
+import { TimetableExampleCard, exampleGradeLabel } from "../components/TimetableExampleCard.jsx";
 
 const OnlineContext = createContext(new Set());
 
@@ -37,7 +38,7 @@ const tabs = [
   { id: "exams", labelKey: "admin.tab.exams", icon: I.clip },
   { id: "t2schola", labelKey: "admin.tab.t2schola", icon: I.search },
   { id: "user_analytics", labelKey: "admin.tab.userAnalytics", icon: I.bar },
-  { id: "timetable_stats", labelKey: "admin.tab.ttStats", icon: I.cal },
+  { id: "timetable_examples", labelKey: "admin.tab.ttExamples", icon: I.cal },
   { id: "analytics", labelKey: "admin.tab.analytics", icon: I.poll },
   { id: "guests", labelKey: "admin.tab.guests", icon: I.eye },
   { id: "med_syllabus", labelKey: "admin.tab.medSyllabus", icon: I.cal },
@@ -4687,7 +4688,7 @@ const T2ScholaTab = () => {
   );
 };
 
-// ---- Timetable stats (anonymous, lib/timetable-stats.js) ----
+// ---- Timetable examples (lib/timetable-examples.js) ----
 const TT_DAYS = ["月", "火", "水", "木", "金"];
 const TtSel = ({ value, onChange, children }) => (
   <select value={value} onChange={e => onChange(e.target.value)} style={{
@@ -4696,14 +4697,14 @@ const TtSel = ({ value, onChange, children }) => (
   }}>{children}</select>
 );
 
-const TimetableStatsTab = () => {
+const TimetableExamplesTab = () => {
   const [f, setF] = useState({ year: "", quarter: "", school: "", dept: "", grade: "" });
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
   useEffect(() => {
-    const p = new URLSearchParams({ action: "timetable_stats" });
+    const p = new URLSearchParams({ action: "timetable_examples" });
     for (const [k, v] of Object.entries(f)) if (v) p.set(k, v);
     setLoading(true);
     fetch(`${API}/api/admin?${p}`)
@@ -4718,11 +4719,11 @@ const TimetableStatsTab = () => {
   if (!data && loading) return <div style={{ padding: 20, color: T.txD, fontSize: 13 }}>{t("common.loading")}</div>;
   if (!data) return <div style={{ padding: 20, color: T.red, fontSize: 13 }}>{err || t("admin.fetchDataFailed")}</div>;
 
-  const gradeLabel = g => (g ? t("admin.tts.gradeN", { deg: t(`admin.tts.deg.${g[0]}`), n: g.slice(1) }) : t("admin.tts.unknown"));
-  const schoolLabel = s => (s ? data.schoolNames?.[s] || s : t("admin.tts.unknown"));
+  const gradeLabel = g => exampleGradeLabel(g?.[0], g?.slice(1));
+  const schoolLabel = s => (s ? data.schoolNames?.[s] || s : t("admin.tte.unknown"));
   const schools = [...new Set(data.breakdown.map(c => c.school))].sort((a, b) => (a == null) - (b == null) || String(a).localeCompare(String(b)));
   const cellN = (g, s) => data.breakdown.find(c => c.grade === g && c.school === s)?.n || 0;
-  const perQ = f.quarter ? "" : t("admin.tts.perQ");
+  const perQ = f.quarter ? "" : t("admin.tte.perQ");
   const n = data.n;
   const box = { padding: 16, borderRadius: 14, background: T.bg3, border: `1px solid ${T.bd}`, marginBottom: 20 };
   const th = { padding: "6px 8px", fontSize: 11, color: T.txD, fontWeight: 600, textAlign: "left", whiteSpace: "nowrap" };
@@ -4730,44 +4731,45 @@ const TimetableStatsTab = () => {
 
   return (
     <div style={{ padding: 16, opacity: loading ? 0.6 : 1, transition: "opacity .15s" }}>
-      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 4 }}>{t("admin.tts.title")}</div>
-      <div style={{ fontSize: 12, color: T.txD, marginBottom: 16 }}>{t("admin.tts.note", { min: data.minGroup })}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.txH, marginBottom: 4 }}>{t("admin.tte.title")}</div>
+      <div style={{ fontSize: 12, color: T.txD, marginBottom: 16 }}>{t("admin.tte.note")}</div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 20 }}>
         <TtSel value={f.year || String(data.year)} onChange={v => set("year", v)}>
-          {(data.years.length ? data.years : [data.year]).map(y => <option key={y} value={y}>{t("admin.tts.yearN", { y })}</option>)}
+          {(data.years.length ? data.years : [data.year]).map(y => <option key={y} value={y}>{t("admin.tte.yearN", { y })}</option>)}
         </TtSel>
         <TtSel value={f.quarter} onChange={v => set("quarter", v)}>
-          <option value="">{t("admin.tts.allQ")}</option>
+          <option value="">{t("admin.tte.allQ")}</option>
           {[1, 2, 3, 4].map(q => <option key={q} value={q}>{q}Q</option>)}
         </TtSel>
         <TtSel value={f.school} onChange={v => set("school", v)}>
-          <option value="">{t("admin.tts.allSchools")}</option>
+          <option value="">{t("admin.tte.allSchools")}</option>
           {schools.filter(Boolean).map(s => <option key={s} value={s}>{schoolLabel(s)}</option>)}
         </TtSel>
         <TtSel value={f.dept} onChange={v => set("dept", v)}>
-          <option value="">{t("admin.tts.allDepts")}</option>
+          <option value="">{t("admin.tte.allDepts")}</option>
           {data.depts.map(d => <option key={d.key} value={d.key}>{data.deptNames?.[d.key] || d.key} ({d.n})</option>)}
         </TtSel>
         <TtSel value={f.grade} onChange={v => set("grade", v)}>
-          <option value="">{t("admin.tts.allGrades")}</option>
+          <option value="">{t("admin.tte.allGrades")}</option>
           {data.grades.filter(Boolean).map(g => <option key={g} value={g}>{gradeLabel(g)}</option>)}
         </TtSel>
       </div>
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
-        <Card label={t("admin.tts.users")} value={n} color={T.accent} />
-        <Card label={t("admin.tts.avgCourses") + perQ} value={data.avgCourses ?? "—"} color={T.green} />
-        <Card label={t("admin.tts.avgCredits") + perQ} value={data.avgCredits ?? "—"} color={T.orange} />
+        <Card label={t("admin.tte.users")} value={n} color={T.accent} />
+        <Card label={t("admin.tte.sharedCount")} value={data.shared} color="#14b8a6" />
+        <Card label={t("admin.tte.avgCourses") + perQ} value={data.avgCourses ?? "—"} color={T.green} />
+        <Card label={t("admin.tte.avgCredits") + perQ} value={data.avgCredits ?? "—"} color={T.orange} />
       </div>
 
       {/* 学年 × 学院（絞り込み前）。セルを押すとその集団に絞る */}
       {data.breakdown.length > 0 && (
         <div style={{ ...box, overflowX: "auto" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.tts.breakdown")}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.tte.breakdown")}</div>
           <table style={{ borderCollapse: "collapse", minWidth: "100%" }}>
             <thead><tr>
-              <th style={th}>{t("admin.tts.grade")}</th>
+              <th style={th}>{t("admin.tte.grade")}</th>
               {schools.map(s => <th key={s || "-"} style={{ ...th, textAlign: "right" }}>{schoolLabel(s)}</th>)}
             </tr></thead>
             <tbody>
@@ -4792,12 +4794,11 @@ const TimetableStatsTab = () => {
         </div>
       )}
 
-      {n === 0 && <div style={{ ...box, fontSize: 13, color: T.txD }}>{t("admin.tts.empty")}</div>}
-      {data.suppressed && <div style={{ ...box, fontSize: 13, color: T.txD }}>{t("admin.tts.suppressed", { min: data.minGroup })}</div>}
+      {n === 0 && <div style={{ ...box, fontSize: 13, color: T.txD }}>{t("admin.tte.empty")}</div>}
 
-      {data.grid && (
+      {n > 0 && (
         <div style={box}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.tts.grid")}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.tte.grid")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "44px repeat(5, 1fr)", gap: 4, maxWidth: 560 }}>
             <div />
             {TT_DAYS.map(d => <div key={d} style={{ textAlign: "center", fontSize: 12, fontWeight: 700, color: T.txH }}>{d}</div>)}
@@ -4821,13 +4822,27 @@ const TimetableStatsTab = () => {
         </div>
       )}
 
-      {data.courses && (
+      {n > 0 && (
+        <div style={box}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.tte.examples", { n: data.examples.length })}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 10 }}>
+            {data.examples.map(ex => (
+              <TimetableExampleCard key={`${ex.anon_id}-${ex.year}-${ex.quarter}`} ex={ex} extra={<>
+                <span title={t("admin.tte.anonId")} style={{ fontSize: 10, color: T.txD, fontFamily: "monospace" }}>#{ex.anon_id.slice(0, 8)}</span>
+                {ex.shared && <span style={{ fontSize: 9, fontWeight: 700, color: "#14b8a6", background: "#14b8a618", padding: "1px 6px", borderRadius: 4 }}>{t("admin.tte.sharedBadge")}</span>}
+              </>} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {n > 0 && (
         <div style={{ ...box, overflowX: "auto" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.tts.courses")}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 10 }}>{t("admin.tte.courses")}</div>
           <table style={{ borderCollapse: "collapse", width: "100%" }}>
             <thead><tr>
-              <th style={th}>#</th><th style={th}>{t("admin.tts.colCourse")}</th><th style={th}>{t("admin.tts.colSlots")}</th>
-              <th style={{ ...th, width: "34%" }}>{t("admin.tts.colUsers")}</th>
+              <th style={th}>#</th><th style={th}>{t("admin.tte.colCourse")}</th><th style={th}>{t("admin.tte.colSlots")}</th>
+              <th style={{ ...th, width: "34%" }}>{t("admin.tte.colUsers")}</th>
             </tr></thead>
             <tbody>
               {data.courses.map((c, i) => (
@@ -4916,7 +4931,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "exams" && <ExamTab />}
         {tab === "t2schola" && <T2ScholaTab />}
         {tab === "user_analytics" && <UserAnalyticsTab />}
-        {tab === "timetable_stats" && <TimetableStatsTab />}
+        {tab === "timetable_examples" && <TimetableExamplesTab />}
         {tab === "analytics" && <AnalyticsTab />}
         {tab === "guests" && <GuestAnalyticsTab />}
         {tab === "med_syllabus" && <MedSyllabusTab />}

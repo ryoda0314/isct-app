@@ -9,7 +9,7 @@ import { transformCourses, groupByQuarter } from '../../../../lib/transform/cour
 import { buildTimetable } from '../../../../lib/transform/timetable-builder.js';
 import { transformAssignments } from '../../../../lib/transform/assignment-transform.js';
 import { syncEnrollments } from '../../../../lib/auth/course-enrollment.js';
-import { recordTimetableStats } from '../../../../lib/timetable-stats.js';
+import { recordTimetableExample } from '../../../../lib/timetable-examples.js';
 
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 
@@ -53,7 +53,7 @@ export async function GET(request) {
     const sb = getSupabaseAdmin();
     const [raw, profileRow, captureConfig] = await Promise.all([
       fetchUserCourses(wstoken, userid),
-      // '*': includes timetable_stats_* when supabase/timetable-stats.sql has been run, and doesn't fail when it hasn't
+      // '*': includes timetable_examples_* when supabase/timetable-examples.sql has been run, and doesn't fail when it hasn't
       sb.from('profiles').select('*').eq('moodle_id', userid).maybeSingle().then(r => r.data),
       sb.from('site_settings').select('value').eq('key', 'moodle_capture_targets').maybeSingle().then(r => r.data?.value),
     ]);
@@ -134,10 +134,10 @@ export async function GET(request) {
       }
     }
 
-    // 履修状況の匿名統計（lib/timetable-stats.js）。前回と変わったときだけ書く。シラバスが引けなかったときは書かない
+    // 時間割例（lib/timetable-examples.js）。前回と変わったときだけ書く。シラバスが引けなかったときは書かない
     if (Object.keys(scheduleMap).length > 0) {
-      after(() => recordTimetableStats(userid, courses, { studentId, yearGroup, profile: profileRow })
-        .catch(e => console.error('[TimetableStats]', e.message)));
+      after(() => recordTimetableExample(userid, courses, { studentId, yearGroup, profile: profileRow })
+        .catch(e => console.error('[TimetableExamples]', e.message)));
     }
 
     const resp = { qData, courses, assignments, user: { userid, fullname, isAdmin, dept: profileRow?.dept || null, yearGroup, unit: profileRow?.unit || null, studentId } };

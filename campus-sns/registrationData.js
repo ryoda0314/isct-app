@@ -150,21 +150,22 @@ export const CAT_COLORS = {
 };
 
 // ── 学院・系 マッピング ──────────────────────────
+// 系コードは syllabus_courses.dept（lib/api/syllabus-bulk.js の系一覧）と同じ
 export const SCHOOLS = [
   { key:'science',     label:'理学院',        depts:['MTH','PHY','CHM','EPS'] },
-  { key:'engineering', label:'工学院',        depts:['MEC','CSC','EEE','IEE','ICT'] },
+  { key:'engineering', label:'工学院',        depts:['MEC','SCE','EEE','ICT','IEE'] },
   { key:'matsci',      label:'物質理工学院',   depts:['MAT','CAP'] },
-  { key:'computing',   label:'情報理工学院',   depts:['MCS','ART','ISC'] },
+  { key:'computing',   label:'情報理工学院',   depts:['MCS','CSC'] },
   { key:'lifesci',     label:'生命理工学院',   depts:['LST','HCB'] },
   { key:'envsoc',      label:'環境・社会理工学院', depts:['ARC','CVE','TSE','UDE','ESI','GEG','TIM'] },
 ];
-export const SHARED_DEPTS = ['LAS','LAE','LAJ','LAH','LAW','LAT','LAL','ENT','SCE','XEG','XEN','XCO','XMC','XES','XLS','XIP'];
+export const SHARED_DEPTS = ['LAS','LAE','LAJ','LAH','LAW','LAT','LAL','ENT','XEG','XEN','XCO','XMC','XES','XLS','XIP'];
 
 export const DEPT_LABELS = {
   MTH:'数学系', PHY:'物理学系', CHM:'化学系', EPS:'地球惑星科学系',
-  MEC:'機械系', CSC:'システム制御系', EEE:'電気電子系', IEE:'情報通信系', ICT:'経営工学系',
+  MEC:'機械系', SCE:'システム制御系', EEE:'電気電子系', ICT:'情報通信系', IEE:'経営工学系',
   MAT:'材料系', CAP:'応用化学系',
-  MCS:'数理・計算科学系', ART:'人工知能系', ISC:'情報工学系',
+  MCS:'数理・計算科学系', CSC:'情報工学系',
   LST:'生命理工学系', HCB:'ライフエンジニアリング系',
   ARC:'建築学系', CVE:'土木・環境工学系', TSE:'融合理工学系',
   UDE:'都市・環境学系', ESI:'社会・人間科学系', GEG:'地球環境共創系', TIM:'技術経営専門職学位課程',
