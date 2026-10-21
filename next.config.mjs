@@ -6,6 +6,8 @@ const withPWA = withPWAInit({
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
   extendDefaultRuntimeCaching: true,
+  // public/pitch/ の発表スライドはアプリ利用者には不要なので、SW の事前キャッシュに入れない
+  publicExcludes: ["!noprecache/**/*", "!pitch/**/*"],
   workboxOptions: {
     importScripts: ['/push-handler.js'],
     runtimeCaching: [
@@ -24,6 +26,10 @@ const nextConfig = {
   serverExternalPackages: ['puppeteer', 'puppeteer-core', '@sparticuz/chromium', 'otplib'],
   // 開発時の「N」インジケーターを無効化（/features 実演iframe内でアプリ右上に被るため）。本番では元々非表示。
   devIndicators: false,
+  // 発表スライド: /pitch/kotonoha → public/pitch/kotonoha.html（.html なしでも開けるように）
+  async rewrites() {
+    return [{ source: '/pitch/:name', destination: '/pitch/:name.html' }];
+  },
 };
 
 export default withPWA(nextConfig);

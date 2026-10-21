@@ -51,6 +51,9 @@ export function middleware(request) {
   // /embed/* は機能紹介ページ(/features)内に同一オリジン限定で埋め込むデモ専用ルート。
   // frame-ancestors 'self' なので外部サイトからの clickjacking は不可。本体(/)の DENY は据え置き。
   const isFramablePage = isPortalPage || pathname.startsWith('/embed');
+  // /pitch/* は public/pitch/ に置いた発表スライド（1ファイル完結のHTML）。ログイン不要で誰でも見られる。
+  // 静的ファイルなので nonce を付けられず、中のインライン script は通常の CSP では止まる。このパスだけ別の CSP にする。
+  const isPitchPage = pathname.startsWith('/pitch/');
 
   // M4: Rate limit API endpoints (tiered)
   // 開発環境ではスキップ（ローカルは攻撃対象でなく、HMR/StrictMode二重実行/頻繁な
@@ -119,7 +122,17 @@ export function middleware(request) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
 
   // M1: Content-Security-Policy with nonce for inline scripts
-  const cspValue = [
+  const cspValue = isPitchPage ? [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'none'",
+  ].join('; ') : [
     "default-src 'self'",
     // 'wasm-unsafe-eval': PDFツールのパスワード解除(qpdf WebAssembly)用。wasmのコンパイルのみ許可し、JSのevalは許可しない
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
