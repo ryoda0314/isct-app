@@ -3,12 +3,16 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { T } from "../theme.js";
 import { t } from "../i18n.js";
-import { EMPTY_FC, ML_ZOOM_OFFSET, PITCH, PITCH_GUIDE, ROUTE_COL, ROUTE_DOT, STATIC_DEM, TERRAIN_EXAG, buildCampus3D, buildingsFC, circleFC, coverZoom, lightOf, linesFC, makeConstrain, maxPitchAt, pointsFC, regionOf, roofAt, routeCasing, routeWidth, spotOutline, streetsFC } from "../campusMap3d.js";
+import { EMPTY_FC, ML_ZOOM_OFFSET, PITCH, PITCH_GUIDE, ROUTE_COL, ROUTE_DOT, STATIC_DEM, TERRAIN_EXAG, applyLook, buildCampus3D, buildingsFC, circleFC, coverZoom, linesFC, makeConstrain, maxPitchAt, pointsFC, regionOf, roofAt, routeCasing, routeWidth, spotOutline, streetsFC } from "../campusMap3d.js";
+import { LOOK_MODES, lookFor } from "../campus3dSky.js";
 import { BURN_MAXZOOM, dem, demTileUrl, registerDemProtocol } from "../campusDem.js";
-import { ROUTE_ON_BRIDGE, burnsGround, featuresBounds, prepareBridge, splitByBridges, stairsPath, toXY } from "../campus3dFeatures.js";
+import { ROUTE_ON_BRIDGE, buildingRoof, burnsGround, featuresBounds, isPaint, pointInRing, prepareBridge, replacedBuildings, splitByBridges, stairsPath, toXY } from "../campus3dFeatures.js";
 import { buildMesh, buildRibbons } from "../campus3dMesh.js";
-import { createExtrasLayer } from "../campus3dLayer.js";
-import { cutPassages } from "../campus3dBuildings.js";
+import { createExtrasLayer, createTrainsLayer } from "../campus3dLayer.js";
+import { paintFeatures } from "../campus3dPaint.js";
+import { TRAINS_URL, prepareTrains, serviceClock, setTrackHeights, trackBounds, trainMesh, trainsAt } from "../campus3dTrains.js";
+import { TERRAIN } from "../campusTerrain.js";
+import { cutPassages, loadClipper } from "../campus3dBuildings.js";
 
 const rgbaOf = (hex) => {
   const n = parseInt(hex.slice(1, 7), 16);
@@ -63,8 +67,23 @@ const CSS = `
 .cb3-zoom{position:absolute;right:10px;bottom:24px;display:flex;flex-direction:column;border-radius:14px;overflow:hidden;box-shadow:0 6px 16px -6px rgba(0,0,0,.4);z-index:2}
 .cb3-zoom button{width:40px;height:40px;border:none;background:var(--cb3-btn);color:var(--cb3-btn-tx);font-size:20px;line-height:40px;cursor:pointer;padding:0;font-family:inherit}
 .cb3-zoom button+button{border-top:1px solid var(--cb3-btn-bd)}
+.cb3-look{position:absolute;right:10px;bottom:112px;width:40px;height:40px;border:none;border-radius:14px;background:var(--cb3-btn);color:var(--cb3-btn-tx);
+  box-shadow:0 6px 16px -6px rgba(0,0,0,.4);cursor:pointer;z-index:2;display:flex;align-items:center;justify-content:center;padding:0}
+.cb3-look-a{position:absolute;right:4px;bottom:3px;font-size:8px;font-weight:800;line-height:1;opacity:.7;font-family:inherit}
+.cb3-look-toast{position:absolute;right:58px;bottom:118px;padding:6px 10px;border-radius:10px;background:var(--cb3-btn);color:var(--cb3-btn-tx);font-size:12px;font-weight:700;
+  white-space:nowrap;box-shadow:0 6px 16px -6px rgba(0,0,0,.4);z-index:2;pointer-events:none;animation:navSlideUp .2s ease-out}
 .cb3-attr{position:absolute;right:0;bottom:0;font-size:9.5px;line-height:1.4;padding:0 5px;border-radius:6px 0 0 0;background:var(--cb3-attr-bg);color:var(--cb3-attr);pointer-events:none;z-index:2}
 `;
+
+// 見え方のボタンのアイコン（昼：太陽、夕方：沈む太陽、夜：月）。キャンパスナビのボタン（NavigationView）も使う
+export const LOOK_ICON = {
+  day: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="4.2" />{[0, 45, 90, 135, 180, 225, 270, 315].map((a) => { const r = (a * Math.PI) / 180; return <line key={a} x1={12 + Math.cos(r) * 7.2} y1={12 + Math.sin(r) * 7.2} x2={12 + Math.cos(r) * 9.6} y2={12 + Math.sin(r) * 9.6} />; })}</svg>,
+  evening: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6.5 16a5.5 5.5 0 0 1 11 0" /><line x1="3" y1="16" x2="21" y2="16" /><line x1="7" y1="19.5" x2="17" y2="19.5" />{[200, 245, 295, 340].map((a) => { const r = (a * Math.PI) / 180; return <line key={a} x1={12 + Math.cos(r) * 8} y1={16 + Math.sin(r) * 8} x2={12 + Math.cos(r) * 10.2} y2={16 + Math.sin(r) * 10.2} />; })}</svg>,
+  night: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" /></svg>,
+};
+export const LOOK_LABEL = { auto: "navi.lookAuto", day: "navi.lookDay", evening: "navi.lookEvening", night: "navi.lookNight" };
+// 空（傾けたときの画面の上のもや）：上は空の色、地平線のあたりは地平線の色
+const hazeBackground = (look) => `linear-gradient(to bottom, ${look.sky.top} 0%, ${look.sky.horizon}cc 34%, ${look.sky.horizon}00 100%)`;
 
 const gpsHtml = () => `<div style="position:relative;width:14px;height:14px">
   <div class="gps3-arrow" style="display:none;position:absolute;top:-18px;left:50%;transform-origin:center 25px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:14px solid ${ROUTE_COL};filter:drop-shadow(0 0 3px rgba(26,142,240,.6));z-index:2"></div>
@@ -148,6 +167,7 @@ function fitCamera(ml, map, pts, pad, pitch, bearing, maxZoom) {
 /**
  * props:
  *   data, dark, accent             地図データ（BASEMAP）と配色（変わったら親が key を変えて作り直す）
+ *   trains                         電車を走らせる（目黒線・大井町線、時刻表どおり。作るときだけ見る）
  *   initialView                    { lat, lng, zoom(Leaflet 基準), bearing(MapLibre 基準: 画面の上の方位) }
  *   spots                          NAV_SPOTS（建物の無いスポットは点で描く）
  *   origin, dest                   出発地 { lat, lng } / 目的地スポット
@@ -157,10 +177,33 @@ function fitCamera(ml, map, pts, pad, pitch, bearing, maxZoom) {
  *   fitPad                         ルート全体などを見せるときの余白 { top, bottom, left, right }（上下のカードの分）
  *   features                       手で足した構造物（campus3dFeatures.js。坂があるかどうかは作るときに決まる）
  *   editable, selectedFeatureId    エディタ用：いつでも坂を焼き込める標高タイルにする / 選んでいる構造物を色で示す
+ *   lookKey, defaultLook           見え方（時刻に合わせる・昼・夕方・夜。campus3dSky.js）を覚えておく localStorage のキーと、はじめの見え方
+ *   lookMode, onLookPhase(phase)   見え方を親が決めるとき（このときは地図の上にボタンを出さない）と、いまの昼・夕方・夜を知らせる
  *   onSpotTap(id), onGroupTap(id), onMapClick(), onUserMove(), onRotate(bearing), onLoad(), onError(err)
  */
 export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
-  const { data, dark, accent, initialView } = props;
+  const { data, dark, accent, initialView, lookKey = "cb3Look", defaultLook = "auto" } = props;
+  // 見え方：auto（時刻に合わせる）・day・evening・night。ボタンで切りかえて覚えておく
+  const [lookMode, setLookMode] = useState(() => {
+    try {
+      const v = localStorage.getItem(lookKey);
+      if (LOOK_MODES.includes(v)) return v;
+    } catch {
+      /* 読めなければはじめの見え方 */
+    }
+    return LOOK_MODES.includes(defaultLook) ? defaultLook : "auto";
+  });
+  const controlled = LOOK_MODES.includes(props.lookMode);
+  const mode = controlled ? props.lookMode : lookMode;
+  const lookModeRef = useRef(mode);
+  lookModeRef.current = mode;
+  const lookRef = useRef(null); // いまの見え方（lookFor の結果）
+  const [lookPhase, setLookPhase] = useState("day"); // ボタンのアイコン
+  const [lookToast, setLookToast] = useState(null);
+  const lookToastTimer = useRef(0);
+  const hazeRef = useRef(null);
+  const trainsLayerRef = useRef(null);
+  const paintRef = useRef(null); // 道路・路面の塗りを作り直す関数（見え方が変わったら色を変える）
   const wrapRef = useRef(null);
   const boxRef = useRef(null);
   const mapRef = useRef(null);
@@ -182,6 +225,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const blockedRef = useRef(false); // 追従の中心が、データの端で止められている
   const extrasRef = useRef(null); // 手で足した構造物を描くレイヤー（campus3dLayer.js）
   const bridgesRef = useRef([]); // prepareBridge 済みの橋
+  const meshRef = useRef(null); // 構造物の三角形を作り直す関数（目的地が変わったら、置きかえた建物の色を変える）
+  const bldHitRef = useRef([]); // 置きかえた建物の形とスポット [{ ring: xy, spot }]（タップで選ぶ）
   const onBridgeRef = useRef([]); // ルートのうち橋の上を通る部分 [[lng, lat, 床の標高]...]
   const gpsLiftRef = useRef(0); // 現在地が橋の上なら、地面からの高さ(m)
   const applyRef = useRef(0); // 構造物の反映の番号（新しい反映が始まったら古いものは捨てる）
@@ -218,7 +263,10 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     // 坂を焼き込む標高タイルは、エディタか、坂・階段があるときだけ（ふだんは元のタイルをそのまま使う）
     const burn = !!propsRef.current.editable || (propsRef.current.features || []).some(burnsGround);
     if (burn) registerDemProtocol(ml);
-    const built = buildCampus3D(data, { dark, accent, dem: burn ? { tiles: [demTileUrl()], maxzoom: BURN_MAXZOOM } : STATIC_DEM });
+    // いまの見え方（時刻・昼・夕方・夜）の色と光で作る（できてから切りかえると一瞬ちらつくので）
+    const look = lookFor(lookModeRef.current, { dark });
+    lookRef.current = look;
+    const built = buildCampus3D(data, { dark, accent, dem: burn ? { tiles: [demTileUrl()], maxzoom: BURN_MAXZOOM } : STATIC_DEM, look });
     built.burn = burn;
     builtRef.current = built;
     const vars = {
@@ -276,7 +324,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     // 傾けたときは、画面の上のほう（遠く）を背景色のもやで薄める。地図の上・マーカーの下に重ねる
     const haze = document.createElement("div");
     haze.className = "cb3-haze";
-    haze.style.background = `linear-gradient(to bottom, ${built.pal.outside} 0%, ${built.pal.outside}cc 32%, ${built.pal.outside}00 100%)`;
+    haze.style.background = hazeBackground(look);
+    hazeRef.current = haze;
     map.getCanvas().after(haze);
     const updateHaze = () => { haze.style.opacity = String(Math.min(1, Math.max(0, (map.getPitch() - 22) / 26))); };
     map.on("pitch", updateHaze);
@@ -402,12 +451,34 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     });
     layout();
 
+    const startTrains = async () => {
+      try {
+        const res = await fetch(TRAINS_URL);
+        if (!res.ok) return;
+        const prep = prepareTrains(await res.json());
+        const [w, s, e, n] = trackBounds(prep);
+        const tb = TERRAIN.bounds; // 標高タイルのある範囲だけ読む（外はいちばん近い高さ）
+        await dem.ensure([Math.max(w, tb[0]), Math.max(s, tb[1]), Math.min(e, tb[2]), Math.min(n, tb[3])]);
+        if (mapRef.current !== map) return;
+        setTrackHeights(prep, (ll) => dem.groundAt(ll));
+        const frame = () => {
+          const ts = trainsAt(prep, serviceClock());
+          return { ...trainMesh(prep, ts, lookRef.current?.lamp || 0), count: ts.length }; // 夜は窓あかり
+        };
+        const layer = createTrainsLayer({ light: lookRef.current.light, exaggeration: TERRAIN_EXAG, frame });
+        map.addLayer(layer, "nav-route-passed");
+        trainsLayerRef.current = layer;
+      } catch (err) {
+        console.warn("[3D map] trains:", err?.message || err);
+      }
+    };
+
     // 地面から建物が立ち上がり、地図が傾く
     map.on("load", () => {
       // 手で足した構造物（壁・橋など）と橋の上のルートは、建物のすぐあと（ルートの線より前）に描く
       try {
         const extras = createExtrasLayer({
-          light: lightOf(dark),
+          light: lookRef.current.light,
           route: { width: routeWidth, casing: routeCasing, color: rgbaOf(ROUTE_COL), casingColor: [1, 1, 1, 1] },
           exaggeration: TERRAIN_EXAG,
         });
@@ -416,6 +487,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       } catch (err) {
         console.warn("[3D map] extras layer:", err?.message || err);
       }
+      // 電車（目黒線・大井町線）を時刻表どおりに走らせる（campus3dTrains.js）。線路の標高を読んでから足す
+      if (propsRef.current.trains) startTrains();
       // 平地・坂道・階段の垂直な段差は壁の中に隠すが、地形が粗いと段差がぎざぎざに壁の外へはみ出す。焼き込むときだけ細かくする：
       // ・網目：既定はタイルを 128 分割（ズーム18で約1m）→ 192（頂点の番号が 16bit なので 250 くらいまで）
       // ・標高：既定は描くタイルより1段粗いズームの標高（deltaZoom 1）→ 同じズーム（0）
@@ -466,9 +539,18 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       }
       const bld = map.queryRenderedFeatures(ev.point, { layers: ["cb-buildings"] }).find((h) => h.properties.s);
       if (bld) p.onSpotTap?.(bld.properties.s);
+      else {
+        const own = bldSpotAt(ev.lngLat);
+        if (own) p.onSpotTap?.(own);
+      }
     });
+    // 手で置きかえた建物（3Dレイヤーで描く）のスポット：タップした地面の点がその形の中なら
+    const bldSpotAt = (ll) => {
+      const [x, y] = toXY([ll.lng, ll.lat]);
+      return bldHitRef.current.find((b) => pointInRing(x, y, b.ring))?.spot || null;
+    };
     map.on("mousemove", (ev) => {
-      const hit = map.queryRenderedFeatures(ev.point, { layers: ["nav-spots", "cb-buildings"] }).some((h) => h.layer.id === "nav-spots" || h.properties.s);
+      const hit = map.queryRenderedFeatures(ev.point, { layers: ["nav-spots", "cb-buildings"] }).some((h) => h.layer.id === "nav-spots" || h.properties.s) || !!bldSpotAt(ev.lngLat);
       map.getCanvas().style.cursor = hit ? "pointer" : "";
     });
     // 1本指（マウス）で動かしたら、案内中の追従をやめる。2本指の拡大・回転では追従を続け、指を離したら戻る
@@ -592,14 +674,29 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     if (!loaded || !map || !built) return;
     const token = ++applyRef.current;
     const live = () => token === applyRef.current && mapRef.current === map;
+    // 道路・路面・白線・横断歩道は地面に貼るだけなので、標高を待たずに出す（道路の交差点の計算には polygon-clipping を読む）
+    const showPaint = (pc) => {
+      const paint = paintFeatures(features, lookRef.current || dark, pc);
+      map.getSource("cbPaveSurf")?.setData(paint.surfaces);
+      map.getSource("cbPaveMark")?.setData(paint.paint);
+    };
+    if (features.some((f) => f.type === "road")) {
+      loadClipper().then((pc) => {
+        if (!live()) return;
+        paintRef.current = () => showPaint(pc);
+        showPaint(pc);
+      });
+    } else {
+      paintRef.current = () => showPaint(null);
+      showPaint(null);
+    }
     (async () => {
-      await dem.ensure(featuresBounds(features));
+      await dem.ensure(featuresBounds(features.filter((f) => !isPaint(f.type)))); // 地面に貼る塗りは標高がいらない
       if (!live()) return;
       const slopes = features.filter(burnsGround);
       if (dem.setBurns(built.burn ? slopes : [])) {
         const url = demTileUrl();
-        map.getSource("cbDem")?.setTiles([url]);
-        map.getSource("cbDemShade")?.setTiles([url]);
+        map.getSource("cbDem")?.setTiles([url]); // 陰影（cbDemShade）は元の地面のまま
       }
       const ground = (ll) => dem.groundAt(ll);
       const bridges = features.filter((f) => f.type === "bridge").map((f) => prepareBridge(f, ground)).filter(Boolean);
@@ -618,11 +715,83 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       setBridgeTick((v) => v + 1);
       const cut = await cutPassages(data.buildings, built.heights, features.filter((f) => f.type === "passage"), ground);
       if (!live()) return;
-      map.getSource("cbBuildings")?.setData(buildingsFC(data, built.heights, cut.pieces));
+      // 手で置きかえた建物（「建物」）：元の建物は描かず、ラベルとピンの高さはその点の屋根の高さに
+      const replaced = replacedBuildings(features, data.buildings);
+      built.heights0 ||= built.heights.slice();
+      built.heights = built.heights0.map((h, i) => (replaced.has(i) ? buildingRoof(replaced.get(i)).hAt(toXY([data.buildings[i].c[1], data.buildings[i].c[0]])) : h));
+      built.labels.forEach((l) => {
+        l.h0 ??= l.h;
+        l.h = replaced.has(l.i) ? built.heights[l.i] : l.h0;
+      });
+      mk.current.relayout?.();
+      const spotsOf = new Map(); // 「建物」→ 置きかえた建物のスポット
+      replaced.forEach((f, i) => { if (data.buildings[i].s) spotsOf.set(f.id, [...(spotsOf.get(f.id) || []), data.buildings[i].s]); });
+      bldHitRef.current = features.filter((f) => f.type === "building" && spotsOf.has(f.id)).map((f) => ({ ring: f.coords.map(toXY), spot: spotsOf.get(f.id)[0] }));
+      map.getSource("cbBuildings")?.setData(buildingsFC(data, built.heights, cut.pieces, replaced));
       map.getSource("cbPassShade")?.setData({ type: "FeatureCollection", features: cut.ceilings.map(({ rings }) => ({ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: rings } })) });
-      extrasRef.current?.setMesh(buildMesh(features, { groundAt: ground, slopes: dem.slopes, terraces: dem.terraces, ceilings: cut.ceilings, pal: built.pal, dark, selectedId: selectedFeatureId, accent }));
+      // 置きかえた建物の色：目的地なら強調、スポットのある建物なら白、ほかは控えめ（fill-extrusion と同じ）
+      const bldColor = (f) => {
+        const spots = spotsOf.get(f.id) || [];
+        return hlRef.current && spots.includes(hlRef.current) ? built.hl : spots.length ? built.pal.bld : built.pal.bldMuted;
+      };
+      // 建物のくり抜き（ベランダ）は多角形の重ね合わせで作る
+      const clip = features.some((f) => f.type === "building" && f.carves) ? await loadClipper() : null;
+      if (!live()) return;
+      meshRef.current = () => extrasRef.current?.setMesh(buildMesh(features, { groundAt: ground, slopes: dem.slopes, terraces: dem.terraces, ceilings: cut.ceilings, pal: built.pal, dark, selectedId: selectedFeatureId, accent, bldColor, clip, tone: lookRef.current?.tone }));
+      meshRef.current();
     })().catch((err) => console.warn("[3D map] features:", err?.message || err));
   }, [loaded, features, selectedFeatureId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── 見え方（時刻に合わせる・昼・夕方・夜）を当てはめる。時刻に合わせるときは 1 分ごとに太陽の位置を測り直す。
+  // window に "cb3-clock" を送ると、すぐ測り直す（試すとき：window.__mapClock = { at: "17:05" } と合わせて）──
+  useEffect(() => {
+    if (!loaded) return undefined;
+    let last = null;
+    const tick = () => {
+      const map = mapRef.current;
+      const built = builtRef.current;
+      const wrap = wrapRef.current;
+      if (!map || !built || !wrap) return;
+      const look = lookFor(mode, { dark });
+      setLookPhase(look.phase);
+      propsRef.current.onLookPhase?.(look.phase);
+      if (look.key === last) return;
+      last = look.key;
+      lookRef.current = look;
+      applyLook(map, built, look, accent);
+      const pal = look.pal;
+      const vars = { "--cb3-label": pal.label, "--cb3-label-muted": pal.labelMuted, "--cb3-halo": pal.halo, "--cb3-station": pal.station, "--cb3-station-bg": pal.stationBg };
+      Object.entries(vars).forEach(([k, v]) => wrap.style.setProperty(k, v));
+      wrap.style.background = pal.outside;
+      if (hazeRef.current) hazeRef.current.style.background = hazeBackground(look);
+      extrasRef.current?.setLight(look.light);
+      trainsLayerRef.current?.setLight(look.light);
+      meshRef.current?.();
+      paintRef.current?.();
+    };
+    tick();
+    const id = mode === "auto" ? setInterval(tick, 60000) : 0;
+    window.addEventListener("cb3-clock", tick);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("cb3-clock", tick);
+    };
+  }, [loaded, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 見え方のボタン：時刻に合わせる → 昼 → 夕方 → 夜 → 時刻に合わせる
+  const cycleLook = () => {
+    const next = LOOK_MODES[(LOOK_MODES.indexOf(lookMode) + 1) % LOOK_MODES.length];
+    setLookMode(next);
+    try {
+      localStorage.setItem(lookKey, next);
+    } catch {
+      /* 覚えておけなくても切りかえはする */
+    }
+    clearTimeout(lookToastTimer.current);
+    setLookToast(next);
+    lookToastTimer.current = setTimeout(() => setLookToast(null), 1800);
+  };
+  useEffect(() => () => clearTimeout(lookToastTimer.current), []);
 
   // 目的地の建物を塗り、ラベルを目立たせる
   useEffect(() => {
@@ -636,6 +805,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     mk.current.labels.forEach(({ node, l }) => node.classList.toggle("cb-hl", !!id && l.spot === id));
     hlRef.current = id;
     mk.current.relabel?.();
+    if (features.some((f) => f.type === "building")) meshRef.current?.(); // 置きかえた建物の色
   }, [loaded, dest?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ルート（案内中は通ったところを灰色の点線に）。橋の上を通るところは地面に貼らず、橋の床の上に描く
@@ -836,6 +1006,11 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     <div ref={wrapRef} style={{ position: "absolute", inset: 0, zIndex: 1 }}>
       <style>{CSS}</style>
       <div ref={boxRef} className="cb3-map" style={{ position: "absolute", inset: 0 }} />
+      {!controlled && <button type="button" className="cb3-look" aria-label={t("navi.look")} title={`${t("navi.look")}：${t(LOOK_LABEL[lookMode])}`} onClick={cycleLook}>
+        {LOOK_ICON[lookMode === "auto" ? lookPhase : lookMode]}
+        {lookMode === "auto" && <span className="cb3-look-a">A</span>}
+      </button>}
+      {!controlled && lookToast && <div className="cb3-look-toast">{lookToast === "auto" ? `${t("navi.lookAuto")}（${t(LOOK_LABEL[lookPhase])}）` : t(LOOK_LABEL[lookToast])}</div>}
       <div className="cb3-zoom">
         <button type="button" aria-label={t("pdf.zoomIn")} onClick={() => zoomBy(1)}>+</button>
         <button type="button" aria-label={t("pdf.zoomOut")} onClick={() => zoomBy(-1)}>−</button>

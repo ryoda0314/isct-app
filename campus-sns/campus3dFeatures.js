@@ -1,4 +1,4 @@
-// キャンパスナビの3D表示に手で足す構造物（平地・坂道・階段・壁・橋・建物の通り抜け）のデータと、形の計算。
+// キャンパスナビの3D表示に手で足す構造物（平地・坂道・階段・壁・橋・建物の通り抜け）と路面（道路・路面・白線・横断歩道）のデータと、形の計算。
 // データ: public/map-3d/features.json（/editor/3d で編集する）。座標は [経度, 緯度]、長さ・高さは m。
 //   { id, type, name, coords: [[lng, lat], ...], osm?（取り込んだ OSM の way） } に、種類ごとに
 //   terrace : coords は囲む範囲（3点以上、閉じない）。elev（平らにする標高。null は中の元の地面の平均）, side（ふちの斜面の幅。0 は垂直に切って壁）
@@ -16,6 +16,23 @@
 //   wall    : height（高いほうの地面から）, thickness
 //   bridge  : width, z（各点の床の高さ。真下の地面から、null は自動）, thickness, railing, piers, surface（walk / street / rail）
 //   passage : width, height（天井の高さ）。建物の外から外へ引いた中心線に沿って、建物に穴をあける
+//   building : 建物の形を変える（地図の建物を置きかえる・新しく足す）。coords は建物の形（囲む範囲）、height（屋上の高さ。地面から m）、
+//             cuts（屋根を斜めに切る面。6つまで）：[{ slope: [[lng, lat], [lng, lat]], low }]。面ごとに点1で low m・点2で height m、
+//             そのあいだは平らな斜面で、点1より手前は low、点2より先は height のまま（low が 0 なら点1の線で地面まで切れる）。
+//             屋根はどの面よりも低いところ：向かい合う2面で横から見て台形、4面で寄棟。以前の slope・low（1面）も読む。
+//             rotLow・rotHigh（度）：「低」の線・「高」の線をそれぞれ回す（0 は下がる向きに直角、左回りが＋）。平行でなければ、
+//             あいだは2本の線を結ぶねじれた斜面（傾きは場所で変わる）
+//             carves（くり抜き＝ベランダ・テラス。8つまで）：[{ coords（囲む範囲。建物と重なるところだけ）, bottom（床の高さ。地面から m）,
+//             top（天井の高さ。null なら上まで抜く＝屋上テラス）, rail（床のふちの手すり壁 1.1m）,
+//             floors・ceils（点ごとの床・天井の高さ。null の点は bottom・top。点のあいだは連続した斜めの面＝上辺と下辺が平行でなくてよい） }]
+//             地図の建物のうち、中心がこの形の中にあるものは描かず（replacedBuildings）、campus3dMesh.js が代わりに描く
+//   road    : 道路。coords は中心線。width（車道の幅）, lanes（車線の数。偶数ならまん中が中央線）, center（中央線：dashed 白の破線 /
+//             solid 白線 / yellow 黄線 / none）, edge（外側線＝車道のふちの内側の白線）, walk（[左, 右] の歩道の幅。0 はなし。点1から点2を見て）。
+//             交差点（車道を重ねて角を丸める・標示を切る）は campus3dPaint.js が自動で作る
+//   surface : 路面の塗り。coords は囲む範囲。kind（road 車道 / walk 歩道 / plaza 広場 / red カラー舗装 / green 植え込み / zebra 導流帯）,
+//             angle（導流帯の縞の向き、度）。地面に貼って描く（campus3dPaint.js）
+//   marking : 白線。coords は折れ線。kind（solid 白線 / dashed 白の破線 / stop 停止線 / yellow 黄線 / wide 太い白線）
+//   crosswalk : 横断歩道。coords は渡る向きの2点（歩道から歩道へ）、width（横断歩道の幅＝縞の長さ）
 // z が null の点は、両端なら地面の高さ、途中なら前後の決まった点のあいだを距離で直線に結ぶ。
 // 地面は「元の地面 → 平地 → 坂道・階段」の順に重ねて作る（坂道・階段の高さは平地を入れたあとの地面から）
 // DOM も MapLibre も使わない（3D表示・エディタ・テストから共通で使う）
@@ -23,13 +40,19 @@ import { CAMPUS_CENTER } from "./hooks/useLocationSharing.js";
 
 export const FEATURES_URL = "/map-3d/features.json";
 export const CANDIDATES_URL = "/map-3d/osm-candidates.json";
-export const FEATURE_TYPES = ["terrace", "slope", "stairs", "wall", "bridge", "passage"];
-export const TYPE_LABEL = { terrace: "平地", slope: "坂道", stairs: "階段", wall: "壁", bridge: "橋", passage: "通り抜け" };
+export const FEATURE_TYPES = ["terrace", "slope", "stairs", "wall", "bridge", "passage", "building", "road", "crosswalk", "marking", "surface"];
+export const TYPE_LABEL = { terrace: "平地", slope: "坂道", stairs: "階段", wall: "壁", bridge: "橋", passage: "通り抜け", building: "建物", road: "道路", surface: "路面", marking: "白線", crosswalk: "横断歩道" };
+// 路面と白線の種類（色・幅は campus3dPaint.js）
+export const SURFACE_KIND_KEYS = ["road", "walk", "plaza", "red", "green", "zebra"];
+export const MARKING_KIND_KEYS = ["solid", "dashed", "stop", "yellow", "wide"];
+export const CENTER_KIND_KEYS = ["dashed", "solid", "yellow", "none"];
+// 地面に貼る塗り（道路・路面・白線・横断歩道）
+export const isPaint = (type) => type === "road" || type === "surface" || type === "marking" || type === "crosswalk";
 export const SURFACE_LABEL = { walk: "歩道", street: "車道", rail: "線路" };
 // 地面の形を変える（標高タイルに焼き込む）種類
 export const burnsGround = (f) => f.type === "terrace" || f.type === "slope" || f.type === "stairs";
 // 帯（中心線と幅）でなく、囲む範囲（多角形）の種類
-export const isArea = (type) => type === "terrace";
+export const isArea = (type) => type === "terrace" || type === "surface" || type === "building";
 
 // 種類ごとの既定値（m）
 export const DEFAULTS = {
@@ -39,10 +62,16 @@ export const DEFAULTS = {
   wall: { height: 1.2, thickness: 0.3 },
   bridge: { width: 4, thickness: 0.8, railing: true, piers: false, surface: "walk" },
   passage: { width: 4, height: 3 },
+  building: { height: 10 },
+  road: { width: 7, lanes: 2, center: "dashed", edge: true, walk: [2.5, 2.5] },
+  surface: { kind: "plaza" },
+  marking: { kind: "solid" },
+  crosswalk: { width: 4 },
 };
 // 入力できる範囲（m）
 export const RANGE = {
   height: [0.1, 40], thickness: [0.05, 5], width: [0.5, 60], side: [0, 30], riser: [0.08, 0.4], z: [-30, 60], elev: [-50, 200], base: [0.5, 80], shift: [-30, 30],
+  crosswalk: [1, 12], angle: [0, 180], lanes: [1, 8], walk: [0, 15], bheight: [1, 250],
 };
 const clampTo = (v, [lo, hi], dflt) => (Number.isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : dflt);
 
@@ -81,6 +110,50 @@ export function normalizeFeature(f) {
   } else if (f.type === "passage") {
     out.width = round2(clampTo(f.width, RANGE.width, d.width));
     out.height = round2(clampTo(f.height, RANGE.height, d.height));
+  } else if (f.type === "building") {
+    out.height = round2(clampTo(f.height, RANGE.bheight, d.height));
+    const cuts = (Array.isArray(f.cuts) ? f.cuts : f.slope ? [{ slope: f.slope, low: f.low }] : []).map((c) => {
+      const sp = Array.isArray(c?.slope) ? c.slope.filter((q) => Array.isArray(q) && Number.isFinite(+q[0]) && Number.isFinite(+q[1])).map((q) => [round7(+q[0]), round7(+q[1])]) : [];
+      if (sp.length !== 2 || (sp[0][0] === sp[1][0] && sp[0][1] === sp[1][1])) return null;
+      const cut = { slope: sp, low: round2(clampTo(c.low, [0, out.height], 0)) };
+      for (const k of ["rotLow", "rotHigh"]) {
+        const v = Number.isFinite(+c[k]) ? Math.round(clampTo(c[k], [-75, 75], 0) * 10) / 10 : 0;
+        if (v) cut[k] = v;
+      }
+      return cut;
+    }).filter(Boolean).slice(0, 6);
+    if (cuts.length) out.cuts = cuts;
+    const carves = (Array.isArray(f.carves) ? f.carves : []).map((cv) => {
+      const cs = Array.isArray(cv?.coords) ? cv.coords.filter((q) => Array.isArray(q) && Number.isFinite(+q[0]) && Number.isFinite(+q[1])).map((q) => [round7(+q[0]), round7(+q[1])]) : [];
+      if (cs.length > 1 && cs[0][0] === cs[cs.length - 1][0] && cs[0][1] === cs[cs.length - 1][1]) cs.pop();
+      if (cs.length < 3) return null;
+      const bottom = round2(clampTo(cv.bottom, [0, RANGE.bheight[1]], 3));
+      const top = cv.top == null || cv.top === "" || !Number.isFinite(+cv.top) ? null : round2(clampTo(cv.top, [bottom + 0.5, RANGE.bheight[1]], bottom + 3));
+      const ok = (v) => v != null && v !== "" && Number.isFinite(+v);
+      const perPoint = (arr) => (Array.isArray(arr) && arr.some(ok) ? cs.map((_, i) => (ok(arr[i]) ? round2(clampTo(arr[i], [0, RANGE.bheight[1]], 0)) : null)) : null);
+      const out2 = { coords: cs, bottom, top, rail: cv.rail !== false };
+      const floors = perPoint(cv.floors);
+      const ceils = top == null ? null : perPoint(cv.ceils);
+      if (floors) out2.floors = floors;
+      if (ceils) out2.ceils = ceils;
+      return out2;
+    }).filter(Boolean).slice(0, 8);
+    if (carves.length) out.carves = carves;
+  } else if (f.type === "road") {
+    out.width = round2(clampTo(f.width, RANGE.width, d.width));
+    out.lanes = Math.round(clampTo(f.lanes, RANGE.lanes, d.lanes));
+    out.center = CENTER_KIND_KEYS.includes(f.center) ? f.center : d.center;
+    out.edge = f.edge == null ? d.edge : !!f.edge;
+    const w = Array.isArray(f.walk) ? f.walk : d.walk;
+    out.walk = [0, 1].map((i) => round2(clampTo(w[i], RANGE.walk, d.walk[i])));
+  } else if (f.type === "surface") {
+    out.kind = SURFACE_KIND_KEYS.includes(f.kind) ? f.kind : d.kind;
+    if (out.kind === "zebra" && f.angle != null && Number.isFinite(+f.angle)) out.angle = Math.round(clampTo(f.angle, RANGE.angle, 45));
+  } else if (f.type === "marking") {
+    out.kind = MARKING_KIND_KEYS.includes(f.kind) ? f.kind : d.kind;
+  } else if (f.type === "crosswalk") {
+    out.coords = coords.slice(0, 2);
+    out.width = round2(clampTo(f.width, RANGE.crosswalk, d.width));
   } else {
     out.width = round2(clampTo(f.width, RANGE.width, d.width));
     out.z = coords.map((_, i) => (f.z && f.z[i] != null && Number.isFinite(+f.z[i]) ? round2(clampTo(f.z[i], RANGE.z, 0)) : null));
@@ -486,6 +559,32 @@ function alongLines(lines, p, dir) {
     if (Math.hypot(p[0] - a[0] - dx * t, p[1] - a[1] - dy * t) > WALL_T) return false;
     return Math.abs(dx * dir[0] + dy * dir[1]) / Math.sqrt(l2) >= ALONG;
   }));
+}
+// 両わきとも、垂直に切った平地のふちに沿っている（7割以上の長さで、1.2m 以内・30°以内）階段は、壁なしの階段
+// （walls: false）として扱う：平地の壁がそのまま両わきの壁になる。階段の壁も立てると、平地の壁と上端の高さを測る
+// 場所がずれて段違いになり（角・端で 0.5〜0.8m）、平地のふちとのすき間の段差も壁の外に出てガタガタに見える。
+// 自動で切り替えたものは autoOpen: true（エディタで知らせる）
+export function withAutoOpenStairs(features) {
+  const rings = features.filter((f) => f.type === "terrace" && !(f.side > 0) && f.coords.length >= 3).map((f) => {
+    const r = f.coords.map(toXY);
+    return [...r, r[0]];
+  });
+  if (!rings.length) return features;
+  return features.map((f) => {
+    if (f.type !== "stairs" || f.walls === false || f.side > 0 || f.coords.length < 2) return f;
+    const along = stairsOpening(f).sides.every((side) => {
+      const { pts } = densify(side, 1);
+      let ok = 0;
+      pts.forEach((p, i) => {
+        const a = pts[Math.max(0, i - 1)];
+        const b = pts[Math.min(pts.length - 1, i + 1)];
+        const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+        if (alongLines(rings, p, [(b[0] - a[0]) / l, (b[1] - a[1]) / l])) ok++;
+      });
+      return ok >= 0.7 * pts.length;
+    });
+    return along ? { ...f, walls: false, autoOpen: true } : f;
+  });
 }
 // ふちの点 p（ふちの向き dir）が、壁なしの階段の通り道で開いているか（opens は stairsOpening の並び）
 export function edgeOpen(opens, p, dir) {
@@ -994,4 +1093,288 @@ export function candidateToFeature(c) {
   if (c.type === "passage") Object.assign(extra, { width: c.width, height: c.height });
   if (c.type === "wall") Object.assign(extra, { height: c.height });
   return createFeature(c.type, c.coords, extra);
+}
+
+// ── 建物（地図の建物の置きかえ）──
+// 斜めに切る面（以前の slope・low の1面も）
+export const buildingCuts = (f) => f.cuts || (f.slope ? [{ slope: f.slope, low: f.low ?? 0 }] : []);
+// 屋根の高さ（地面から m）。面ごとに点1→点2の向きに low から height へ（外はそれぞれの高さのまま）、屋根はどの面よりも低いところ。
+// cuts は面ごとの { A, B, L, u, low, t（点1で 0・点2で 1）, ramp（斜面の高さ。平面の式 [a, b, c]：a·x + b·y + c） }
+// 線を回したとき（rotLow・rotHigh）は warped：「低」の線より外（sLo < 0）は low、「高」の線より外（sHi < 0）は height、あいだは
+// 2本の線からの距離の比で low → height（ねじれた斜面。同じ高さの線は2本の線の交わる点 X から放射状に出る。線が近いところほど急）。
+// 2本が平行なら平らな斜面（plane）。vl・vh は「低」「高」の線の向き、sectors は X からの扇（描くときに細かく分ける）
+const WARP_N = 24;
+export function buildingRoof(f) {
+  const H = f.height;
+  const cuts = buildingCuts(f).map((c) => {
+    const A = toXY(c.slope[0]);
+    const B = toXY(c.slope[1]);
+    const L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1;
+    const u = [(B[0] - A[0]) / L, (B[1] - A[1]) / L];
+    const low = Math.min(c.low ?? 0, H);
+    const k = (H - low) / L;
+    const perp = [-u[1], u[0]];
+    const rot = (d) => [perp[0] * Math.cos(d * DEG) - perp[1] * Math.sin(d * DEG), perp[0] * Math.sin(d * DEG) + perp[1] * Math.cos(d * DEG)];
+    const vl = rot(c.rotLow || 0);
+    const vh = rot(c.rotHigh || 0);
+    const base = { A, B, L, u, low, vl, vh, t: (p) => ((p[0] - A[0]) * u[0] + (p[1] - A[1]) * u[1]) / L, ramp: [u[0] * k, u[1] * k, low - k * (A[0] * u[0] + A[1] * u[1])] };
+    if (!c.rotLow && !c.rotHigh) return base;
+    // 線から相手の側へ向く法線と、そちらへの距離
+    const toward = (v, from, to) => { const n = [-v[1], v[0]]; return (to[0] - from[0]) * n[0] + (to[1] - from[1]) * n[1] >= 0 ? n : [-n[0], -n[1]]; };
+    const nl = toward(vl, A, B);
+    const nh = toward(vh, B, A);
+    const sLo = (p) => (p[0] - A[0]) * nl[0] + (p[1] - A[1]) * nl[1];
+    const sHi = (p) => (p[0] - B[0]) * nh[0] + (p[1] - B[1]) * nh[1];
+    const value = (p) => {
+      const lo = sLo(p);
+      const hi = sHi(p);
+      if (lo <= 0) return low;
+      if (hi <= 0) return H;
+      return low + ((H - low) * lo) / (lo + hi);
+    };
+    const cr = vl[0] * vh[1] - vl[1] * vh[0];
+    if (Math.abs(cr) < 1e-6) {
+      // 平行：あいだは平らな斜面
+      const D = sLo(B) || 1;
+      const k2 = (H - low) / D;
+      return { ...base, warped: true, sLo, sHi, value, plane: [nl[0] * k2, nl[1] * k2, low - k2 * (A[0] * nl[0] + A[1] * nl[1])] };
+    }
+    // 2本の線の交わる点 X と、あいだ（sLo ≥ 0・sHi ≥ 0）の扇の両はしの向き（「低」の線の上と「高」の線の上）
+    const tX = ((B[0] - A[0]) * vh[1] - (B[1] - A[1]) * vh[0]) / cr;
+    const X = [A[0] + vl[0] * tX, A[1] + vl[1] * tX];
+    const d1 = vl[0] * nh[0] + vl[1] * nh[1] >= 0 ? vl : [-vl[0], -vl[1]];
+    const d2 = vh[0] * nl[0] + vh[1] * nl[1] >= 0 ? vh : [-vh[0], -vh[1]];
+    const a1 = Math.atan2(d1[1], d1[0]);
+    let da = Math.atan2(d2[1], d2[0]) - a1;
+    while (da > Math.PI) da -= 2 * Math.PI;
+    while (da < -Math.PI) da += 2 * Math.PI;
+    const rays = Array.from({ length: WARP_N + 1 }, (_, i) => [Math.cos(a1 + (da * i) / WARP_N), Math.sin(a1 + (da * i) / WARP_N)]);
+    const sg = da >= 0 ? 1 : -1;
+    // 扇 i：ray i と ray i+1 のあいだ（X からの半平面2つ）
+    // 扇 i の、まん中の向きの高さ（X そのものは高さが決まらないので、その扇の X にはこの高さを使う）
+    const sectors = rays.slice(0, -1).map((r0, i) => {
+      const r1 = rays[i + 1];
+      const m = [r0[0] + r1[0], r0[1] + r1[1]];
+      const ml = Math.hypot(m[0], m[1]) || 1;
+      return { f1: (p) => sg * (r0[0] * (p[1] - X[1]) - r0[1] * (p[0] - X[0])), f2: (p) => sg * ((p[0] - X[0]) * r1[1] - (p[1] - X[1]) * r1[0]), hX: value([X[0] + m[0] / ml, X[1] + m[1] / ml]) };
+    });
+    return { ...base, warped: true, sLo, sHi, value, X, sectors };
+  });
+  const cutAt = (c, p) => (c.warped ? c.value(p) : c.low + (H - c.low) * Math.min(1, Math.max(0, c.t(p))));
+  const hAt = (p) => cuts.reduce((h, c) => Math.min(h, cutAt(c, p)), H);
+  return { H, cuts, sloped: cuts.length > 0, hAt };
+}
+
+// 3点（xy と高さ）を通る平面の式 [a, b, c]
+function planeOf(P) {
+  const [p, q, r] = P;
+  const d = (q[0] - p[0]) * (r[1] - p[1]) - (r[0] - p[0]) * (q[1] - p[1]);
+  if (Math.abs(d) < 1e-12) return [0, 0, (p[2] + q[2] + r[2]) / 3];
+  const a = ((q[2] - p[2]) * (r[1] - p[1]) - (r[2] - p[2]) * (q[1] - p[1])) / d;
+  const b = ((q[0] - p[0]) * (r[2] - p[2]) - (r[0] - p[0]) * (q[2] - p[2])) / d;
+  return [a, b, p[2] - a * p[0] - b * p[1]];
+}
+// 多角形を三角形に（凸でなくてもよいよう耳を切る。点は 3〜数十）
+function triangulate(poly) {
+  const pts = poly.slice();
+  const ccw = ringArea(pts) > 0;
+  const out = [];
+  const cross = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  const inside = (p, a, b, c) => { const s1 = cross(a, b, p), s2 = cross(b, c, p), s3 = cross(c, a, p); return ccw ? s1 > 1e-12 && s2 > 1e-12 && s3 > 1e-12 : s1 < -1e-12 && s2 < -1e-12 && s3 < -1e-12; };
+  let guard = 0;
+  while (pts.length > 3 && guard++ < 500) {
+    let cut = false;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[(i - 1 + pts.length) % pts.length], b = pts[i], c = pts[(i + 1) % pts.length];
+      const cv = cross(a, b, c);
+      if (ccw ? cv <= 1e-12 : cv >= -1e-12) continue;
+      if (pts.some((p) => p !== a && p !== b && p !== c && inside(p, a, b, c))) continue;
+      out.push([a, b, c]);
+      pts.splice(i, 1);
+      cut = true;
+      break;
+    }
+    if (!cut) break;
+  }
+  if (pts.length === 3) out.push(pts);
+  else for (let i = 1; i + 1 < pts.length; i++) out.push([pts[0], pts[i], pts[i + 1]]);
+  return out;
+}
+
+// 屋根を平面ごとの多角形に分ける（どの面よりも低いところ）：[{ poly: xy の輪, fn: [a, b, c]（高さ = a·x + b·y + c） }]。
+// 高さがほぼ 0 のところ（地面まで切れたところ）は除く
+export function roofPieces(f, ring) {
+  const r = buildingRoof(f);
+  const val = (fn, p) => fn[0] * p[0] + fn[1] * p[1] + fn[2];
+  const diff = (g, fn) => (p) => val(g, p) - val(fn, p); // >= 0 なら fn のほうが低い
+  let pieces = [{ poly: ring, fn: [0, 0, r.H] }];
+  for (const c of r.cuts) {
+    const lowFn = [0, 0, c.low];
+    const next = [];
+    for (const pc of pieces) {
+      // 線を回した面：「高」の線より外は効かない、「低」の線より外は low、あいだは（平行なら平らな斜面、でなければ扇ごとに
+      // 三角形に分けて、頂点の高さを通る平面）といまの高さの低いほう
+      if (c.warped) {
+        const hiW = clipHalf(pc.poly, (p) => -c.sHi(p));
+        if (hiW.length >= 3) next.push({ poly: hiW, fn: pc.fn });
+        const between = clipHalf(clipHalf(pc.poly, c.sLo), c.sHi);
+        const regions = [[clipHalf(pc.poly, (p) => -c.sLo(p)), lowFn]];
+        if (between.length >= 3) {
+          if (c.plane) regions.push([between, c.plane]);
+          else {
+            for (const { f1, f2, hX } of c.sectors) {
+              const sec = clipHalf(clipHalf(between, f1), f2);
+              if (sec.length < 3 || Math.abs(ringArea(sec)) < 1e-6) continue;
+              const hv = (q) => (Math.hypot(q[0] - c.X[0], q[1] - c.X[1]) < 1e-4 ? hX : c.value(q));
+              for (const tri of triangulate(sec)) regions.push([tri, planeOf(tri.map((q) => [q[0], q[1], hv(q)]))]);
+            }
+          }
+        }
+        for (const [poly, g] of regions) {
+          if (poly.length < 3) continue;
+          const keep = clipHalf(poly, diff(g, pc.fn));
+          if (keep.length >= 3) next.push({ poly: keep, fn: pc.fn });
+          const cut = clipHalf(poly, diff(pc.fn, g));
+          if (cut.length >= 3) next.push({ poly: cut, fn: g });
+        }
+        continue;
+      }
+      // 面の高い側（点2より先）：この面は効かない
+      const hi = clipHalf(pc.poly, (p) => c.t(p) - 1);
+      if (hi.length >= 3) next.push({ poly: hi, fn: pc.fn });
+      // 斜面（点1〜点2）と、低い側（点1より手前）：いまの高さとこの面の低いほう
+      const mid = clipHalf(clipHalf(pc.poly, (p) => c.t(p)), (p) => 1 - c.t(p));
+      const lo = clipHalf(pc.poly, (p) => -c.t(p));
+      for (const [poly, g] of [[mid, c.ramp], [lo, lowFn]]) {
+        if (poly.length < 3) continue;
+        const keep = clipHalf(poly, diff(g, pc.fn));
+        if (keep.length >= 3) next.push({ poly: keep, fn: pc.fn });
+        const cut = clipHalf(poly, diff(pc.fn, g));
+        if (cut.length >= 3) next.push({ poly: cut, fn: g });
+      }
+    }
+    pieces = next.filter(({ poly }) => Math.abs(ringArea(poly)) > 1e-4);
+  }
+  return pieces.filter(({ poly, fn }) => poly.some((p) => val(fn, p) > 0.05));
+}
+
+// 多角形 ring（xy）の、f(p) >= 0 のほうだけを残す（直線で切る。凹んだ形でも描くのに困らない程度に）
+export function clipHalf(ring, f) {
+  const out = [];
+  for (let i = 0; i < ring.length; i++) {
+    const p = ring[i];
+    const q = ring[(i + 1) % ring.length];
+    const fp = f(p);
+    const fq = f(q);
+    if (fp >= 0) out.push(p);
+    if ((fp >= 0) !== (fq >= 0)) {
+      const k = fp / (fp - fq);
+      out.push([p[0] + (q[0] - p[0]) * k, p[1] + (q[1] - p[1]) * k]);
+    }
+  }
+  return out;
+}
+
+// 屋根を斜めに切るときの、最初の2点：形のいちばん長い辺の向きに、端から端まで（点1の側が低い）
+export function defaultSlope(coords) {
+  const xy = coords.map(toXY);
+  let best = null;
+  xy.forEach((a, i) => {
+    const b = xy[(i + 1) % xy.length];
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (!best || l > best.l) best = { l, u: [(b[0] - a[0]) / (l || 1), (b[1] - a[1]) / (l || 1)] };
+  });
+  const c = xy.reduce((m, p) => [m[0] + p[0] / xy.length, m[1] + p[1] / xy.length], [0, 0]);
+  const pr = xy.map((p) => (p[0] - c[0]) * best.u[0] + (p[1] - c[1]) * best.u[1]);
+  const lo = Math.min(...pr);
+  const hi = Math.max(...pr);
+  return [toLngLat([c[0] + best.u[0] * lo, c[1] + best.u[1] * lo]), toLngLat([c[0] + best.u[0] * hi, c[1] + best.u[1] * hi])];
+}
+
+// 置きかえる地図の建物（BASEMAP.buildings の番号）：中心 c（[緯度, 経度]）が、どれかの「建物」の形の中にあるもの。
+// 返すのは 番号 → その建物を置きかえる「建物」
+export function replacedBuildings(features, buildings) {
+  const out = new Map();
+  const blds = features.filter((f) => f.type === "building" && f.coords.length >= 3).map((f) => ({ f, ring: f.coords.map(toXY) }));
+  if (!blds.length) return out;
+  buildings.forEach((b, i) => {
+    if (!b.c) return;
+    const [x, y] = toXY([b.c[1], b.c[0]]);
+    const hit = blds.find(({ ring }) => pointInRing(x, y, ring));
+    if (hit) out.set(i, hit.f);
+  });
+  return out;
+}
+
+// 屋根を斜めに切る向き：低くなる向きの方位（度。北 0・東 90・南 180・西 270）
+export function slopeAzimuth(f) {
+  if (!f.slope) return null;
+  const A = toXY(f.slope[0]);
+  const B = toXY(f.slope[1]);
+  return ((Math.atan2(A[0] - B[0], A[1] - B[1]) / DEG) + 360) % 360;
+}
+// 屋根の傾き（度）
+export function slopePitch(f) {
+  if (!f.slope) return null;
+  const A = toXY(f.slope[0]);
+  const B = toXY(f.slope[1]);
+  return Math.atan2(f.height - (f.low ?? 0), Math.hypot(B[0] - A[0], B[1] - A[1])) / DEG;
+}
+// 低くなる向きを az 度にした2点。低い側（点1）は建物のいちばん低い側の端に置き、斜面の長さ（＝傾き）はそのまま。
+// fit なら建物の端から端まで（点2が高い側の端）、len があればその長さ。f は面（slope・low）と建物（coords・height）を合わせたもの
+export function aimSlope(f, az, fit = false, len = null) {
+  const xy = f.coords.map(toXY);
+  const u = [-Math.sin(az * DEG), -Math.cos(az * DEG)]; // 上る向き
+  const c = xy.reduce((m, p) => [m[0] + p[0] / xy.length, m[1] + p[1] / xy.length], [0, 0]);
+  const pr = xy.map((p) => (p[0] - c[0]) * u[0] + (p[1] - c[1]) * u[1]);
+  const hi = Math.max(...pr);
+  const lo = Math.min(...pr);
+  const A = [c[0] + u[0] * lo, c[1] + u[1] * lo];
+  let L = hi - lo;
+  if (len != null) L = len;
+  else if (!fit && f.slope) {
+    const A0 = toXY(f.slope[0]);
+    const B0 = toXY(f.slope[1]);
+    L = Math.hypot(B0[0] - A0[0], B0[1] - A0[1]);
+  }
+  L = Math.max(0.5, L);
+  return [toLngLat(A), toLngLat([A[0] + u[0] * L, A[1] + u[1] * L])];
+}
+// 傾きを deg 度にした2点：低い側（点1）と向きはそのまま、「高」の線（点2）を動かす（急にするほど斜面が短く、上の平らなところが広い）
+export function pitchSlope(f, deg) {
+  if (!f.slope) return f.slope;
+  const A = toXY(f.slope[0]);
+  const B = toXY(f.slope[1]);
+  const L0 = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1;
+  const u = [(B[0] - A[0]) / L0, (B[1] - A[1]) / L0];
+  const dh = f.height - (f.low ?? 0);
+  if (dh <= 0.01) return f.slope;
+  const L = Math.max(0.5, dh / Math.tan(Math.min(89, Math.max(1, deg)) * DEG));
+  return [f.slope[0], toLngLat([A[0] + u[0] * L, A[1] + u[1] * L])];
+}
+// 建物の向き az に沿った長さ（端から端まで）
+export function extentAlong(coords, az) {
+  const u = [Math.sin(az * DEG), Math.cos(az * DEG)];
+  const pr = coords.map(toXY).map((p) => p[0] * u[0] + p[1] * u[1]);
+  return Math.max(...pr) - Math.min(...pr);
+}
+// 建物の辺ごとの、外へ向く方位（度）と長さ：その辺へ向かって低くする（辺に沿って切る）ときの向き
+export function edgeAzimuths(coords) {
+  const xy = coords.map(toXY);
+  const ccw = ringArea(xy) > 0;
+  return xy.map((a, i) => {
+    const b = xy[(i + 1) % xy.length];
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const n = ccw ? [dy, -dx] : [-dy, dx]; // 外向き
+    return { i, len: Math.hypot(dx, dy), az: ((Math.atan2(n[0], n[1]) / DEG) + 360) % 360 };
+  });
+}
+// 方位（度）の名前（8方位）
+export const azimuthName = (az) => ["北", "北東", "東", "南東", "南", "南西", "西", "北西"][Math.round(((az % 360) + 360) % 360 / 45) % 8];
+
+// くり抜きを描いて足すときの高さ：2階の床（3.5m）から1階分。建物が低ければ1階から、上が近ければ上まで抜く
+export function defaultCarve(f, coords) {
+  const bottom = f.height > 4.5 ? 3.5 : 0;
+  return { coords, bottom, top: bottom + 3.5 < f.height - 0.5 ? bottom + 3.5 : null, rail: bottom > 0 };
 }

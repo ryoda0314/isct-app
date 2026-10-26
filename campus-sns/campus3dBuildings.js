@@ -4,7 +4,8 @@
 import { passageFootprint, toLngLat, toXY } from "./campus3dFeatures.js";
 
 let clipper = null;
-const loadClipper = () => (clipper ||= import("polygon-clipping").then((m) => m.default || m));
+// polygon-clipping（重い。使うときだけ読む。道路の交差点 campus3dPaint.js でも使う）
+export const loadClipper = () => (clipper ||= import("polygon-clipping").then((m) => m.default || m));
 
 // 多角形の頂点の平均（MapLibre が重心にするのと同じく、閉じる点を除いた全部の輪の点）→ [lng, lat]
 function vertexMean(poly) {

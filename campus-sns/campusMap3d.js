@@ -5,6 +5,7 @@
 import { CAMPUS_BOUNDARY, SPOTS } from "./hooks/useLocationSharing.js";
 import { MIN_PX, PALETTES, WIDTH_M, mixHex, walkSegments } from "./campusBasemap.js";
 import { TERRAIN } from "./campusTerrain.js";
+import { RELIEF_COLORS } from "./campus3dSky.js";
 
 // MapLibre は 512px タイル基準なので、同じ縮尺は Leaflet のズームより 1 小さい
 export const ML_ZOOM_OFFSET = -1;
@@ -137,12 +138,34 @@ function edgeFC(R, width = 160, steps = 8) {
   return fc(feats);
 }
 
-// 段彩の標高(m)と、それぞれの色（低い → 高い）。大岡山のあたりは 7〜46m で、ほとんどが 15〜40m
+// 段彩の標高(m)（色は campus3dSky.js の RELIEF_COLORS。低い → 高い）。大岡山のあたりは 7〜46m で、ほとんどが 15〜40m
 const RELIEF = [8, 18, 26, 33, 40];
-const RELIEF_COLORS = {
-  light: ["#c9d5e0", "#d9e2e9", "#e6ebef", "#eff2f1", "#f6f6f2"],
-  dark: ["#040507", "#0a0c0f", "#111418", "#1a1d22", "#23272c"],
-};
+const reliefExpr = (colors) => ["interpolate", ["linear"], ["elevation"], ...RELIEF.flatMap((h, i) => [h, colors[i]])];
+const greenExpr = (pal) => ["match", ["get", "k"], "pitch", pal.pitch, "track", pal.track, "wood", pal.wood, pal.park];
+const bldColorExpr = (hl, pal) => ["case", ["boolean", ["feature-state", "hl"], false], hl, ["==", ["get", "m"], 1], pal.bld, pal.bldMuted];
+const STREET_KINDS = ["minor", "ped", "mid", "major", "walk"];
+const caseOf = (pal, k) => (k === "walk" ? pal.walkCase : pal.streetCase);
+const fillOf = (pal, k) => (k === "walk" ? pal.walk : pal.street);
+// 地面に置く円の半径を m で（ズームに合わせて px に）
+const metersExpr = (m) => ["interpolate", ["exponential", 2], ["zoom"], 14, (m * 2 ** 14) / MPP0, 22, (m * 2 ** 22) / MPP0];
+
+// 夜の街灯：道・通路に沿って step m おき（[{ pts: [[緯度, 経度]...] }]）
+function lampsFC(lines, step = 26) {
+  const kx = 111320 * COS;
+  const ky = 110950;
+  const out = [];
+  for (const { pts } of lines) {
+    let s = step / 2;
+    for (let i = 1; i < pts.length; i++) {
+      const [la0, ln0] = pts[i - 1];
+      const [la1, ln1] = pts[i];
+      const L = Math.hypot((ln1 - ln0) * kx, (la1 - la0) * ky);
+      for (; s < L; s += step) out.push({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [ln0 + ((ln1 - ln0) * s) / L, la0 + ((la1 - la0) * s) / L] } });
+      s -= L;
+    }
+  }
+  return fc(out);
+}
 
 // 標高タイル（Terrarium 形式）。MapLibre はタイルをワーカーで読むので、URL は絶対パスにする。
 // 坂を焼き込むときは campusdem://（campusDem.js）のタイルを、ズーム17まで使う
@@ -164,10 +187,12 @@ export const ROUTE_COL = "#1a8ef0";
 export const routeWidth = (zoom) => 3.5 + (Math.min(19, Math.max(14, zoom)) - 14) * 0.8;
 export const routeCasing = (zoom) => 6 + (Math.min(19, Math.max(14, zoom)) - 14) * 1.2;
 
-// 建物（通り抜けの穴をあけた建物は、分けた形 pieces: Map(番号 → [{ rings: lng/lat, h, b }]) に差し替える）
-export function buildingsFC(data, heights, pieces = null) {
+// 建物（通り抜けの穴をあけた建物は、分けた形 pieces: Map(番号 → [{ rings: lng/lat, h, b }]) に差し替える。
+// skip（番号の Map か Set）は描かない：手で置きかえた建物（campus3dMesh.js が描く）
+export function buildingsFC(data, heights, pieces = null, skip = null) {
   const out = [];
   data.buildings.forEach((b, i) => {
+    if (skip?.has(i)) return;
     const props = { i, s: b.s || "", m: b.s ? 1 : 0 };
     const cut = pieces && pieces.get(i);
     if (!cut) out.push(polyF([b.p, ...(b.h || [])], { ...props, h: heights[i] }, i));
@@ -191,9 +216,17 @@ export const linesFC = (lines) => fc(lines.map((pts) => lineF(pts)));
  * @param opts  { dark, accent, dem（標高タイル。既定は STATIC_DEM） }
  * @returns { style, bySpot: Map(spotId -> [建物の番号]), heights: 建物ごとの高さ(m), labels, stations, pal, hl, streets }
  */
-export function buildCampus3D(data, { dark = false, accent = "#28c868", dem = STATIC_DEM } = {}) {
-  const pal = { ...(dark ? PALETTES.dark : PALETTES.light), relief: RELIEF_COLORS[dark ? "dark" : "light"] };
-  const hl =mixHex(accent, pal.bld, dark ? 0.55 : 0.4); // 目的地の建物の色
+// 航空写真（2D の「航空写真」と同じ Esri World Imagery）。エディタで路面をなぞるときに下に敷く
+export const PHOTO_TILES = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+export const PHOTO_LAYER = "cb-photo";
+
+// look（campus3dSky.js の lookFor）があれば、その時刻の色・光で作る（なければ dark の昼・夜の色）
+export function buildCampus3D(data, { dark = false, accent = "#28c868", dem = STATIC_DEM, look = null } = {}) {
+  const night = look ? look.f.night > 0.5 : dark;
+  const pal = look ? { ...look.pal, relief: look.relief } : { ...(dark ? PALETTES.dark : PALETTES.light), relief: RELIEF_COLORS[dark ? "dark" : "light"] };
+  const hl = mixHex(accent, pal.bld, night ? 0.55 : 0.4); // 目的地の建物の色
+  const shade = look ? look.hillshade : { exaggeration: dark ? 0.6 : 0.55, shadow: dark ? "#000000" : "#4d6378", highlight: dark ? "#2c3540" : "#ffffff", accent: dark ? "#000000" : "#6f8398" };
+  const passage = look ? look.passage : { color: dark ? "#000000" : "#2b3a4a", opacity: dark ? 0.35 : 0.22 };
 
   const heights = data.buildings.map(buildingHeight);
   const bySpot = new Map();
@@ -217,9 +250,17 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868", dem = ST
     cbBuildings: { type: "geojson", data: buildingsFC(data, heights) },
     cbEdge: { type: "geojson", data: edgeFC(regionOf(data)) },
     cbPassShade: { type: "geojson", data: EMPTY_FC }, // 通り抜け（屋根の下）の床の影
+    cbLamps: { type: "geojson", data: lampsFC(streets) }, // 夜の街灯
+    // 手で描いた道路・路面と路面標示（campus3dPaint.js。CampusMap3D が入れる）
+    cbPaveSurf: { type: "geojson", data: EMPTY_FC },
+    cbPaveMark: { type: "geojson", data: EMPTY_FC },
+    // なぞるための航空写真（エディタで出し入れする。ふだんは隠したまま読まない）
+    cbPhoto: { type: "raster", tiles: [PHOTO_TILES], tileSize: 256, maxzoom: 19, attribution: "Imagery © Esri" },
     // 地形（立体）と陰影は別のソースにする（MapLibre の推奨。同じタイルを共有すると解像度の扱いがぶつかる）
     cbDem: demSource(dem),
-    cbDemShade: demSource(dem),
+    // 陰影・段彩は元の地面から：焼き込んだ平地・階段の段差（壁の中）は、陰の計算でまわりの px にもかかり、
+    // 壁の外へギザギザの黒い影としてはみ出す。段差は壁と段で見えるので、陰は元の地面で足りる
+    cbDemShade: demSource(STATIC_DEM),
     // 動的に入れ替えるもの
     navAccuracy: { type: "geojson", data: EMPTY_FC },
     navRoutePassed: { type: "geojson", data: EMPTY_FC },
@@ -227,9 +268,6 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868", dem = ST
     navSpots: { type: "geojson", data: EMPTY_FC },
   };
 
-  const kinds = ["minor", "ped", "mid", "major", "walk"];
-  const caseOf = (k) => (k === "walk" ? pal.walkCase : pal.streetCase);
-  const fillOf = (k) => (k === "walk" ? pal.walk : pal.street);
   const zA = Math.log2(MPP0); // 線路：3m を 3〜9px で
   const layers = [
     { id: "cb-bg", type: "background", paint: { "background-color": pal.outside } },
@@ -237,7 +275,7 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868", dem = ST
     {
       id: "cb-relief", type: "color-relief", source: "cbDemShade",
       paint: {
-        "color-relief-color": ["interpolate", ["linear"], ["elevation"], ...RELIEF.flatMap((h, i) => [h, pal.relief[i]])],
+        "color-relief-color": reliefExpr(pal.relief),
         "color-relief-opacity": 1,
       },
     },
@@ -245,33 +283,45 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868", dem = ST
     { id: "cb-campus-edge", type: "line", source: "cbCampus", paint: { "line-color": pal.campusEdge, "line-width": 1.5 } },
     {
       id: "cb-green", type: "fill", source: "cbGreen",
-      paint: { "fill-color": ["match", ["get", "k"], "pitch", pal.pitch, "track", pal.track, "wood", pal.wood, pal.park] },
+      paint: { "fill-color": greenExpr(pal) },
     },
     { id: "cb-water", type: "fill", source: "cbWater", paint: { "fill-color": pal.water } },
     // 斜面の陰影（地面の色の上・道路の下）。立体の地形だけでは、塗りが平らで坂が見えにくい
     {
       id: "cb-hillshade", type: "hillshade", source: "cbDemShade",
       paint: {
-        "hillshade-exaggeration": dark ? 0.6 : 0.55,
+        "hillshade-exaggeration": shade.exaggeration,
         "hillshade-illumination-direction": 315,
         "hillshade-illumination-anchor": "map",
-        "hillshade-shadow-color": dark ? "#000000" : "#4d6378",
-        "hillshade-highlight-color": dark ? "#2c3540" : "#ffffff",
-        "hillshade-accent-color": dark ? "#000000" : "#6f8398",
+        "hillshade-shadow-color": shade.shadow,
+        "hillshade-highlight-color": shade.highlight,
+        "hillshade-accent-color": shade.accent,
       },
     },
-    ...kinds.map((k) => ({
+    ...STREET_KINDS.map((k) => ({
       id: `cb-case-${k}`, type: "line", source: "cbStreets", filter: ["==", ["get", "k"], k],
       layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": caseOf(k), "line-width": widthExpr(WIDTH_M[k], MIN_PX[k], k === "walk" ? 1.6 : 2) },
+      paint: { "line-color": caseOf(pal, k), "line-width": widthExpr(WIDTH_M[k], MIN_PX[k], k === "walk" ? 1.6 : 2) },
     })),
-    ...kinds.map((k) => ({
+    ...STREET_KINDS.map((k) => ({
       id: `cb-fill-${k}`, type: "line", source: "cbStreets", filter: ["==", ["get", "k"], k],
       layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": fillOf(k), "line-width": widthExpr(WIDTH_M[k], MIN_PX[k]) },
+      paint: { "line-color": fillOf(pal, k), "line-width": widthExpr(WIDTH_M[k], MIN_PX[k]) },
     })),
+    // なぞるための航空写真（道路の上・手で描いた路面の下）
+    { id: PHOTO_LAYER, type: "raster", source: "cbPhoto", layout: { visibility: "none" }, paint: { "raster-opacity": 0.85, "raster-fade-duration": 0 } },
+    // 手で描いた道路（車道・歩道）・路面（広場など）と、その上の白線・横断歩道。地形に貼って描く
+    { id: "cb-pave-surface", type: "fill", source: "cbPaveSurf", paint: { "fill-color": ["get", "color"] } },
+    // 道路の歩道のふち（縁石）
+    { id: "cb-pave-edge", type: "line", source: "cbPaveSurf", filter: ["==", ["get", "edge"], 1], layout: { "line-join": "round" }, paint: { "line-color": ["get", "curb"], "line-width": widthExpr(0.3, 0.6) } },
+    { id: "cb-pave-mark", type: "fill", source: "cbPaveMark", paint: { "fill-color": ["get", "color"] } },
+    // 夜の街灯のあかり（道に落ちる光の輪。昼は隠す）
+    {
+      id: "cb-lamps", type: "circle", source: "cbLamps", minzoom: 14.5, layout: { visibility: look && look.lamp > 0.01 ? "visible" : "none" },
+      paint: { "circle-radius": metersExpr(6.5), "circle-color": "#ffc46b", "circle-blur": 1, "circle-opacity": 0.42 * (look?.lamp || 0), "circle-pitch-alignment": "map", "circle-pitch-scale": "map" },
+    },
     // 建物をくぐる通路の床は暗くする（上は屋根で隠れるので、穴の口からだけ見える）
-    { id: "cb-passage-shade", type: "fill", source: "cbPassShade", paint: { "fill-color": dark ? "#000000" : "#2b3a4a", "fill-opacity": dark ? 0.35 : 0.22 } },
+    { id: "cb-passage-shade", type: "fill", source: "cbPassShade", paint: { "fill-color": passage.color, "fill-opacity": passage.opacity } },
     { id: "cb-rail-tunnel", type: "line", source: "cbRailTunnel", paint: { "line-color": pal.rail, "line-width": 2.5, "line-opacity": 0.55, "line-dasharray": [2, 3] } },
     { id: "cb-platforms", type: "fill", source: "cbPlatforms", paint: { "fill-color": pal.platform } },
     { id: "cb-rail", type: "line", source: "cbRailSurface", layout: { "line-join": "round" }, paint: { "line-color": pal.rail, "line-width": ["interpolate", ["exponential", 2], ["zoom"], zA, 3, zA + Math.log2(3), 9] } },
@@ -294,11 +344,11 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868", dem = ST
     {
       id: "cb-buildings", type: "fill-extrusion", source: "cbBuildings",
       paint: {
-        "fill-extrusion-color": ["case", ["boolean", ["feature-state", "hl"], false], hl, ["==", ["get", "m"], 1], pal.bld, pal.bldMuted],
+        "fill-extrusion-color": bldColorExpr(hl, pal),
         "fill-extrusion-height": ["get", "h"],
         // 通り抜けの穴の上の部分は、天井の高さ b から上だけ
         "fill-extrusion-base": ["coalesce", ["get", "b"], 0],
-        "fill-extrusion-opacity": dark ? 0.94 : 0.97,
+        "fill-extrusion-opacity": night ? 0.94 : 0.97,
         "fill-extrusion-vertical-gradient": true,
       },
     },
@@ -335,11 +385,49 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868", dem = ST
     version: 8,
     sources,
     layers,
-    // 南西からの光（2D の影と同じ向き）
-    light: lightOf(dark),
+    // 光：時刻の見え方があればその光（太陽・月の向きと色）、なければ南西から（2D の影と同じ向き）
+    light: look ? look.light : lightOf(dark),
     terrain: { source: "cbDem", exaggeration: TERRAIN_EXAG },
   };
   return { style, bySpot, heights, labels, stations, pal, hl, streets };
+}
+
+// 動いている地図に、時刻の見え方（lookFor）を当てはめる：地面・道・建物の色、陰影、段彩、街灯、光。built.pal・built.hl も差し替える
+export function applyLook(map, built, look, accent) {
+  const pal = look.pal;
+  built.pal = { ...pal, relief: look.relief };
+  built.hl = mixHex(accent, pal.bld, look.f.night > 0.5 ? 0.55 : 0.4);
+  const set = (id, prop, v) => {
+    if (map.getLayer(id)) map.setPaintProperty(id, prop, v);
+  };
+  set("cb-bg", "background-color", pal.outside);
+  set("cb-relief", "color-relief-color", reliefExpr(look.relief));
+  set("cb-campus", "fill-color", pal.campus);
+  set("cb-campus-edge", "line-color", pal.campusEdge);
+  set("cb-green", "fill-color", greenExpr(pal));
+  set("cb-water", "fill-color", pal.water);
+  set("cb-hillshade", "hillshade-exaggeration", look.hillshade.exaggeration);
+  set("cb-hillshade", "hillshade-shadow-color", look.hillshade.shadow);
+  set("cb-hillshade", "hillshade-highlight-color", look.hillshade.highlight);
+  set("cb-hillshade", "hillshade-accent-color", look.hillshade.accent);
+  STREET_KINDS.forEach((k) => {
+    set(`cb-case-${k}`, "line-color", caseOf(pal, k));
+    set(`cb-fill-${k}`, "line-color", fillOf(pal, k));
+  });
+  set("cb-passage-shade", "fill-color", look.passage.color);
+  set("cb-passage-shade", "fill-opacity", look.passage.opacity);
+  set("cb-rail-tunnel", "line-color", pal.rail);
+  set("cb-platforms", "fill-color", pal.platform);
+  set("cb-rail", "line-color", pal.rail);
+  set("cb-rail-dash", "line-color", pal.railDash);
+  set("cb-edge", "fill-color", pal.outside);
+  set("cb-buildings", "fill-extrusion-color", bldColorExpr(built.hl, pal));
+  set("cb-buildings", "fill-extrusion-opacity", look.f.night > 0.5 ? 0.94 : 0.97);
+  if (map.getLayer("cb-lamps")) {
+    map.setLayoutProperty("cb-lamps", "visibility", look.lamp > 0.01 ? "visible" : "none");
+    set("cb-lamps", "circle-opacity", 0.42 * look.lamp);
+  }
+  map.setLight(look.light);
 }
 
 const inRing = (lat, lng, ring) => {

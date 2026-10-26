@@ -57,6 +57,15 @@ function compile(gl, vs, fs) {
   return { p, loc, att };
 }
 
+// 光の色（"#rrggbb"。なければ白）を [r, g, b] に
+const lightRgb = (hex) => {
+  if (typeof hex !== "string" || !/^#[0-9a-f]{6}/i.test(hex)) return [1, 1, 1];
+  const n = parseInt(hex.slice(1, 7), 16);
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+};
+// 光（スタイルの light と同じ値）を、シェーダーに渡す形に。時刻の見え方で差し替える（setLight）
+const lightState = (light) => ({ pos: lightVector(light.position), intensity: light.intensity, color: lightRgb(light.color) });
+
 // MapLibre の光（position: [r, 方位, 仰角]）を、地図に固定した向きのベクトルにする（MapLibre と同じ変換）
 export function lightVector([r, azimuthal, polar]) {
   const az = ((azimuthal + 90) * Math.PI) / 180;
@@ -81,7 +90,7 @@ function matrixFor(m, worldSize, exaggeration) {
 }
 
 /**
- * @param light  { position: [r, 方位, 仰角], intensity }（スタイルの light と同じ値）
+ * @param light  { position: [r, 方位, 仰角], intensity, color }（スタイルの light と同じ値。setLight で差し替える）
  * @param route  { width: (zoom) => px, casing: (zoom) => px, color, casingColor }
  */
 export function createExtrasLayer({ light, route, exaggeration = 1 }) {
@@ -92,7 +101,7 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
   const buf = { mesh: null, thin: null, rib: null };
   let mesh = null;
   let rib = null;
-  const lightPos = lightVector(light.position);
+  let lt = lightState(light);
 
   const upload = (data, keys) => {
     const out = { count: data.count };
@@ -160,9 +169,9 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
         if (!b) return;
         gl.useProgram(solid.p);
         gl.uniformMatrix4fv(solid.loc("u_matrix"), false, M);
-        gl.uniform3fv(solid.loc("u_lightpos"), lightPos);
-        gl.uniform1f(solid.loc("u_lightintensity"), light.intensity);
-        gl.uniform3fv(solid.loc("u_lightcolor"), [1, 1, 1]);
+        gl.uniform3fv(solid.loc("u_lightpos"), lt.pos);
+        gl.uniform1f(solid.loc("u_lightintensity"), lt.intensity);
+        gl.uniform3fv(solid.loc("u_lightcolor"), lt.color);
         enabled.push(bindAttr(solid, "a_pos", b.pos, 3), bindAttr(solid, "a_normal", b.nrm, 3), bindAttr(solid, "a_color", b.col, 4));
         gl.depthMask(writeDepth);
         gl.drawArrays(gl.TRIANGLES, 0, b.count);
@@ -210,5 +219,131 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
     rib = r;
     map?.triggerRepaint();
   };
+  // 光を差し替える（時刻の見え方）
+  layer.setLight = (l) => {
+    lt = lightState(l);
+    map?.triggerRepaint();
+  };
   return layer;
+}
+
+// ── 電車（campus3dTrains.js）。形は毎フレーム作り直す ──
+export const TRAINS_LAYER_ID = "cb-trains";
+// 建物と同じ光。u_alpha で薄くする（色はあらかじめ透明度を掛けた形で出す）
+const VS_TRAIN = `
+attribute vec3 a_pos;
+attribute vec3 a_normal;
+attribute vec4 a_color;
+uniform mat4 u_matrix;
+uniform vec3 u_lightpos;
+uniform float u_lightintensity;
+uniform vec3 u_lightcolor;
+uniform float u_alpha;
+varying vec4 v_color;
+void main() {
+  gl_Position = u_matrix * vec4(a_pos, 1.0);
+  vec4 color = a_color;
+  float colorvalue = color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722;
+  color += vec4(0.03, 0.03, 0.03, 1.0);
+  float directional = clamp(dot(a_normal, u_lightpos), 0.0, 1.0);
+  directional = mix(1.0 - u_lightintensity, max(1.0 - colorvalue + u_lightintensity, 1.0), directional);
+  // 窓あかり（色のアルファを 0.5 にした面）は光を受けず、そのままの明るさ
+  vec3 lit = a_color.a < 0.75 ? a_color.rgb : clamp(color.rgb * directional * u_lightcolor, mix(vec3(0.0), vec3(0.3), 1.0 - u_lightcolor), vec3(1.0));
+  v_color = vec4(lit * u_alpha, u_alpha);
+}`;
+
+/**
+ * @param frame  () => { surface, tunnel, count }（いまの車両の形。surface は地上、tunnel はトンネルの中、count は走っている列車の数）
+ */
+export function createTrainsLayer({ light, exaggeration = 1, frame }) {
+  let map = null;
+  let gl = null;
+  let prog = null;
+  let timer = 0;
+  const bufs = {};
+  let lt = lightState(light);
+  const put = (key, data) => {
+    if (!bufs[key]) bufs[key] = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, bufs[key]);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+  };
+  const bind = (key, name, size) => {
+    const a = prog.att(name);
+    if (a < 0) return -1;
+    gl.bindBuffer(gl.ARRAY_BUFFER, bufs[key]);
+    gl.enableVertexAttribArray(a);
+    gl.vertexAttribPointer(a, size, gl.FLOAT, false, 0, 0);
+    return a;
+  };
+  // 地図が止まっていても動かし続ける：走っている列車があれば 1 秒に 20 回、なければ 2 秒ごとに描き直す
+  const later = (ms) => {
+    if (timer) return;
+    timer = setTimeout(() => {
+      timer = 0;
+      map?.triggerRepaint();
+    }, ms);
+  };
+  return {
+    id: TRAINS_LAYER_ID,
+    type: "custom",
+    renderingMode: "3d",
+    // 光を差し替える（時刻の見え方）
+    setLight(l) {
+      lt = lightState(l);
+      map?.triggerRepaint();
+    },
+    onAdd(m, g) {
+      map = m;
+      gl = g;
+      prog = compile(gl, VS_TRAIN, FS_SOLID);
+    },
+    onRemove() {
+      clearTimeout(timer);
+      timer = 0;
+      if (gl) {
+        Object.values(bufs).forEach((b) => gl.deleteBuffer(b));
+        if (prog) gl.deleteProgram(prog.p);
+      }
+      map = null;
+    },
+    render(g, args) {
+      const f = frame();
+      later(f?.count ? 50 : 2000);
+      if (!f || (!f.surface.count && !f.tunnel.count)) return;
+      const M = matrixFor(args.modelViewProjectionMatrix, map.transform.worldSize, exaggeration);
+      gl.useProgram(prog.p);
+      gl.uniformMatrix4fv(prog.loc("u_matrix"), false, M);
+      gl.uniform3fv(prog.loc("u_lightpos"), lt.pos);
+      gl.uniform1f(prog.loc("u_lightintensity"), lt.intensity);
+      gl.uniform3fv(prog.loc("u_lightcolor"), lt.color);
+      const draw = (mesh, key, alpha) => {
+        const on = [bind(key + "p", "a_pos", 3), bind(key + "n", "a_normal", 3), bind(key + "c", "a_color", 4)];
+        gl.uniform1f(prog.loc("u_alpha"), alpha);
+        gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
+        on.forEach((a) => a >= 0 && gl.disableVertexAttribArray(a));
+      };
+      ["surface", "tunnel"].forEach((k) => {
+        const mesh = f[k];
+        if (!mesh.count) return;
+        put(k + "p", mesh.pos);
+        put(k + "n", mesh.nrm);
+        put(k + "c", mesh.col);
+      });
+      gl.depthFunc(gl.LEQUAL);
+      gl.depthMask(true);
+      if (f.surface.count) draw(f.surface, "surface", 1);
+      if (f.tunnel.count) {
+        // トンネルの中：入口のあたりで地面より上に出ているところはそのまま。地面の下は透かして薄く（駅に止まっているのも見える）
+        draw(f.tunnel, "tunnel", 1);
+        gl.depthMask(false);
+        gl.depthFunc(gl.GREATER);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        draw(f.tunnel, "tunnel", 0.38);
+        gl.depthFunc(gl.LEQUAL);
+        gl.depthMask(true);
+      }
+      gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    },
+  };
 }

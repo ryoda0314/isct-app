@@ -7,7 +7,8 @@ import { CAMPUS_CENTER, CAMPUS_ZOOM, CAMPUS_BOUNDARY, SPOTS, SPOT_CATS, ENTRANCE
 import { useNavigation, NAV_SPOTS } from "../hooks/useNavigation.js";
 import { createCampusBasemap, isDarkColor } from "../campusBasemap.js";
 import { getNextClass } from "../todayClasses.js";
-import { CampusMap3D } from "../components/CampusMap3D.jsx";
+import { CampusMap3D, LOOK_ICON, LOOK_LABEL } from "../components/CampusMap3D.jsx";
+import { LOOK_MODES } from "../campus3dSky.js";
 import { FEATURES_URL, parseFeatures } from "../campus3dFeatures.js";
 
 const ROUTE_COL="#1a8ef0"; // ルート線（地図アプリの慣例どおり青）
@@ -406,6 +407,20 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   const [outOfRegion,setOutOfRegion]=useState(false);
   // 3D表示（MapLibre GL。イラスト地図と同じデータで建物を立ち上げる）。使えない端末では 2D のまま
   const [view3d,setView3d]=useState(()=>{try{return localStorage.getItem("navView3d")==="1"&&hasWebGL();}catch{return false;}});
+  // 3D の見え方：時刻に合わせる（auto）・昼・夕方・夜。いまの昼・夕方・夜はアイコンに出す
+  const [look3d,setLook3d]=useState(()=>{try{const v=localStorage.getItem("cb3Look");return LOOK_MODES.includes(v)?v:"auto";}catch{return "auto";}});
+  const [lookPhase3d,setLookPhase3d]=useState("day");
+  const [lookNote,setLookNote]=useState(null);
+  const lookNoteTimer=useRef(0);
+  const cycleLook3d=()=>{
+    const next=LOOK_MODES[(LOOK_MODES.indexOf(look3d)+1)%LOOK_MODES.length];
+    setLook3d(next);
+    try{localStorage.setItem("cb3Look",next);}catch{}
+    clearTimeout(lookNoteTimer.current);
+    setLookNote(next);
+    lookNoteTimer.current=setTimeout(()=>setLookNote(null),1800);
+  };
+  useEffect(()=>()=>clearTimeout(lookNoteTimer.current),[]);
   const view3dRef=useRef(view3d);
   const map3dRef=useRef(null);
   const mapLibre=useMapLibre(view3d);
@@ -1470,6 +1485,11 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   </button>);
   // 3D表示の切り替え（案内中も使える）。読み込み中は点滅させる
   const loading3d=view3d&&(!mapLibre.ready||!bmData||!features3d);
+  // 3D の見え方（時刻に合わせる・昼・夕方・夜）。時刻に合わせるときは右下に小さく A
+  if(view3d&&(showMapToggle||guiding)&&!pickerOpen)btnStack.push(<button key="look" onClick={cycleLook3d} title={`${t("navi.look")}：${t(LOOK_LABEL[look3d])}`} aria-label={t("navi.look")} style={{...sideBtn,position:"relative"}}>
+    {LOOK_ICON[look3d==="auto"?lookPhase3d:look3d]}
+    {look3d==="auto"&&<span style={{position:"absolute",right:6,bottom:5,fontSize:8,fontWeight:800,lineHeight:1,opacity:.7}}>A</span>}
+  </button>);
   if((showMapToggle||guiding)&&!pickerOpen)btnStack.push(<button key="3d" onClick={toggle3d} title={t("navi.view3d")} aria-label={t("navi.view3d")} aria-pressed={view3d} style={{...sideBtn,fontSize:14,fontWeight:900,letterSpacing:"-.02em",background:view3d?T.accent:T.bg2,color:view3d?"#fff":T.txH,border:`1px solid ${view3d?T.accent:T.bdL}`,animation:loading3d?"nav3dLoad 1s ease-in-out infinite":"none"}}>3D</button>);
   if(showMapToggle&&!pickerOpen)btnStack.push(<button key="loc" title={t("navi.locateMe")} aria-label={t("navi.locateMe")} onClick={()=>{
     if(gpsPos&&view3d&&map3dRef.current){map3dRef.current.flyTo(gpsPos.lat,gpsPos.lng,17.5);return;}
@@ -1544,6 +1564,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
       key={`${isDarkColor(T.bg)?"d":"l"}${T.accent}`}
       ref={map3dRef}
       data={bmData}
+      trains
       features={features3d}
       dark={isDarkColor(T.bg)}
       accent={T.accent}
@@ -1566,7 +1587,12 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
       onRotate={(b)=>syncCompass(-b)}
       onLoad={scheduleView}
       onError={()=>{setView3d(false);setNotice3d(true);}}
+      lookMode={look3d}
+      onLookPhase={setLookPhase3d}
     />}
+    {lookNote&&view3d&&<div style={{position:"absolute",left:0,right:0,bottom:mob?18:24,zIndex:1001,display:"flex",justifyContent:"center",pointerEvents:"none"}}>
+      <div style={{padding:"8px 14px",borderRadius:16,background:"rgba(14,32,48,.88)",color:"#fff",fontSize:12.5,fontWeight:700,boxShadow:"0 6px 16px -6px rgba(0,0,0,.5)",animation:"navSlideUp .2s ease-out"}}>{t("navi.look").replace(/（.*$|\s*\(.*$/,"")}：{lookNote==="auto"?`${t("navi.lookAuto")}（${t(LOOK_LABEL[lookPhase3d])}）`:t(LOOK_LABEL[lookNote])}</div>
+    </div>}
     {notice3d&&<div style={{position:"absolute",left:0,right:0,bottom:mob?18:24,zIndex:1001,display:"flex",justifyContent:"center",pointerEvents:"none"}}>
       <div style={{padding:"8px 14px",borderRadius:16,background:"rgba(14,32,48,.88)",color:"#fff",fontSize:12.5,fontWeight:700,boxShadow:"0 6px 16px -6px rgba(0,0,0,.5)",animation:"navSlideUp .2s ease-out"}}>{t("navi.view3dUnsupported")}</div>
     </div>}

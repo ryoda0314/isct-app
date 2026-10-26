@@ -4,7 +4,7 @@
 // - dem.levelAt：平地だけ入れた地面（坂道・階段の高さの基準）、dem.baseAt：元の地面
 // - MapLibre には campusdem://{z}/{x}/{y} のタイルとして渡す。坂のないタイルは元のまま、ズーム16・17は15から補間して作る
 import { TERRAIN } from "./campusTerrain.js";
-import { isOpenStairs, prepareSlope, prepareTerrace, stairsOpening, toXY } from "./campus3dFeatures.js";
+import { isOpenStairs, prepareSlope, prepareTerrace, stairsOpening, toXY, withAutoOpenStairs } from "./campus3dFeatures.js";
 
 export const DEM_PROTOCOL = "campusdem";
 export const BURN_MAXZOOM = 18; // 段差が壁の中に収まるよう、ズーム18（1px ≒ 0.5m）まで作る
@@ -160,10 +160,12 @@ class Dem {
   }
 
   // 焼き込むもの（平地・坂道・階段）を差し替える（先に ensure でまわりのタイルを読んでおく）。変わったら true
-  setBurns(features) {
-    const key = JSON.stringify(features);
+  setBurns(features0) {
+    const key = JSON.stringify(features0);
     if (key === this.burnKey) return false;
     this.burnKey = key;
+    // 両わきとも平地のふちに沿う階段は、壁なしの階段として焼き込む（壁も dem.slopes の f を見て同じにそろう）
+    const features = withAutoOpenStairs(features0);
     const opens = features.filter(isOpenStairs).map(stairsOpening); // 壁なしの階段が横切る平地のふちは掘らない
     this.terraces = features.filter((f) => f.type === "terrace").map((f) => prepareTerrace(f, (ll) => this.baseAt(ll), opens)).filter(Boolean);
     this.slopes = features.filter((f) => f.type === "slope" || f.type === "stairs").map((f) => prepareSlope(f, (ll) => this.levelAt(ll))).filter(Boolean);
