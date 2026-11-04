@@ -779,6 +779,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       const paint = paintFeatures(features, lookRef.current || dark, pc);
       map.getSource("cbPaveSurf")?.setData(paint.surfaces);
       map.getSource("cbPaveMark")?.setData(paint.paint);
+      map.getSource("cbPaveFine")?.setData(paint.fine);
     };
     if (features.some((f) => f.type === "road")) {
       loadClipper().then((pc) => {

@@ -5,7 +5,8 @@
 //             faces（辺ごとの壁の面の見た目。辺 i は点 i → 点 i+1、最後は最後の点 → 最初の点。null はふつうの壁）：
 //             { glass（低いほうの地面からこの高さまでガラス。m）, base（ガラスの下の端。同じく m、なければ 0）, frost（すりガラス）,
 //             pitch（縦の桟の間隔 m）, rows（横の桟の高さ。低いほうの地面から m）, doors（扉：[[始まり, 終わり], ...]。辺の上の位置 0〜1）,
-//             brick（ガラスの上＝ガラスがなければ面ぜんぶをれんが積みに） }。段差の低いほうに向く面に描く（掘り下げなら中、盛りなら外）,
+//             brick（ガラスの上＝ガラスがなければ面ぜんぶをれんが積みに）, deck（ウッドデッキの縁：上の DECK_FASCIA m は木の板、
+//             その下は奥の暗いすき間と、DECK_POST m おきの灰色の束（つか）） }。段差の低いほうに向く面に描く（掘り下げなら中、盛りなら外）,
 //             beams（くぼみの上を渡る梁。8本まで）：[{ coords（両端の2点）, width, depth（梁の下までの深さ）, top（上の高さ。平らにした
 //             地面から m。なければ両端の外の地面） }],
 //             wallTop（壁の上の面の色：なしは自動＝壁の外の高い側の路面の色、"wall" は壁の色、ほかは路面の種類 SURFACE_KIND_KEYS）,
@@ -23,10 +24,19 @@
 //             steps（区間ごとの段数）があれば、段数は手で決めたもの。蹴上げはどの段も同じ（高さの差 ÷ 段数の合計）。
 //             段数は蹴上げの数。踊り場につながる流れは両端が蹴上げで、踏面は 段数−1 枚（stairFlights）。material（段の材質：wood 木 / stone 石 / brick 灰色のれんが。なしはコンクリート）
 //   wall    : height（高いほうの地面から）, thickness, kind（hedge 生け垣 / fence 縦の格子の柵 / rail ガードパイプ＝柱と横の管 2 本 /
-//             glass ガラスの手すり＝ガラスの板と上の細い手すり / slant 斜めの格子＝ステンレスの丸棒を 2 本ずつ上で合わせた「Λ」の並び（正門の柵）。
-//             leans（slant の棒の傾き：点ごとの度。点のあいだは距離で直線に。0 は鉛直））,
-//             curb（glass・slant の下の石の縁石の高さ m。幅 CURB_W。ガラス・棒はその上から height まで）
+//             glass ガラスの手すり＝ガラスの板と上の細い手すり / slant 斜めの格子＝ステンレスの丸棒の柵（正門）。断面は三角形：
+//             足もとの幅は thickness、上は 1 本の手すり。両側の面の棒を上で合わせた「Λ」の並び（柵の向きに傾ける）。
+//             upright（slant の鉛直な面："left" 左 / "right" 右＝点1から点2を見て。上の手すりはその側の足の真上で、断面は直角三角形。
+//             なしは二等辺の A）。
+//             leans（slant の棒の柵の向きの傾き：点ごとの度。点のあいだは距離で直線に。0 は柵に直角な面の中））,
+//             xbrace クロスの柵＝柱と上下の横の棒、柱のあいだに X の筋交い（柱は bay m おき。なしは 1.8m） /
+//             bench ベンチ＝木の座面（高さ height、奥行き thickness）と木の脚。点の並びに沿って（閉じれば木のまわりを囲むベンチ））,
+//             curb（glass・slant の下の石の縁石の高さ m。幅 curbWidth。ガラス・棒はその上から height まで）,
+//             rim（fence・rail・xbrace を、両わき RAIL_REACH m の高いほうの地面から立てる：掘り下げた平地のふちの壁の上・
+//             盛った平地のふちの壁の上（壁の帯の上）に立つ柵。glass はいつも）
 //   bridge  : width, z（各点の床の高さ。真下の地面から、null は自動）, thickness, railing, piers, surface（walk / street / rail / deck 木の床）
+//   tree    : 木。coords は幹の 1 点。height, crown（枝の広がりの直径 m）, kind（broad 枝の広がる木 / round 丸い木 / ginkgo イチョウ /
+//             conifer 針葉樹 / cherry サクラ＝低いところで太い枝に分かれ、横に広い平たい傘の形）
 //   passage : width, height（天井の高さ）。建物の外から外へ引いた中心線に沿って、建物に穴をあける
 //   building : 建物の形を変える（地図の建物を置きかえる・新しく足す）。coords は建物の形（囲む範囲）、height（屋上の高さ。地面から m）、
 //             cuts（屋根を斜めに切る面。6つまで）：[{ slope: [[lng, lat], [lng, lat]], low }]。面ごとに点1で low m・点2で height m、
@@ -85,8 +95,9 @@
 //             radius（[左, 右] の車道のふちが作る交差点の角の丸みの半径 m。null は既定の CORNER_R＝3m）。
 //             交差点（車道を重ねて角を丸める・標示を切る）は campus3dPaint.js が自動で作る
 //   surface : 路面の塗り。coords は囲む範囲。kind（road 車道 / walk 歩道 / plaza 広場 / tile 石畳 / deck 木の床 / red カラー舗装 / green 植え込み / zebra 導流帯 /
-//             gravel 黒い砂利 / stones 白い砂利 / brick 灰色のれんが / darkbrick こげ茶のれんが）,
-//             angle（導流帯の縞の向き、度）。地面に貼って描く（campus3dPaint.js）
+//             gravel 黒い砂利 / stones 白い砂利 / brick 灰色のれんが / darkbrick こげ茶のれんが / wood 古い木の床）,
+//             angle（導流帯の縞の向き、度）, boards（板の目地：[板の幅 m, 板の向き＝北から右回りの度]。目地は寄って見たときだけ描く）。
+//             地面に貼って描く（campus3dPaint.js）
 //   marking : 白線。coords は折れ線。kind（solid 白線 / dashed 白の破線 / stop 停止線 / yellow 黄線 / wide 太い白線 / tactile 点字ブロック（黄 30cm））
 //   crosswalk : 横断歩道。coords は渡る向きの2点（歩道から歩道へ）、width（横断歩道の幅＝縞の長さ）
 //   signal  : 信号機。coords は柱の足もとの 1 点。height（柱の高さ＝腕の高さ m）, arm（腕の長さ m。0 は腕なし）, bearing（腕の向き。北から右回りの度）,
@@ -94,9 +105,9 @@
 //             灯は歩行者だけが渡れるとき（車の信号は赤、歩行者の信号は青。campus3dMesh.js の addSignal）
 //   sign    : 看板（立て看板・柵に付けた銘板）。coords は板の下の端のまん中の真下の地面の 1 点。bearing（面が向く方位）, width・height（板の幅・高さ m）,
 //             thickness（板の厚さ m）, z（板の下の端の高さ。地面から m）, tilt（後ろへ倒す角度。度）, style（steel ステンレスの箱に暗い文字 /
-//             white 白い板に薄い灰色の文字）, legs（板の後ろの脚の数。0 は柵などに付けた板）,
+//             white 白い板に薄い灰色の文字 / notice 白い板の上に緑の帯（帯の中の行は白、ほかは暗い文字））, legs（脚の数。0 は柵などに付けた板）,
 //             lines（文字の行：[{ text（A〜Z・0〜9・& - . 空白と、漢字 東京科学大）, x・y（行の左下。板の左下の角から m）, size（字の高さ m） }]。8 行まで）,
-//             rules（細い線：[[x0, y0, x1, y1]]。区切りの縦線など）, logo（Science Tokyo の印：[x, y, 高さ]。なしは null）
+//             rules（細い線：[[x0, y0, x1, y1]]。区切りの縦線など）, logo（校章＝Science Tokyo のシンボルマーク：[左下の x, y, 高さ]。幅は高さの 0.72 倍。なしは null）
 // z が null の点は、両端なら地面の高さ、途中なら前後の決まった点のあいだを距離で直線に結ぶ。
 // 地面は「元の地面 → 平地 → 坂道・階段」の順に重ねて作る（坂道・階段の高さは平地を入れたあとの地面から）
 // DOM も MapLibre も使わない（3D表示・エディタ・テストから共通で使う）
@@ -107,13 +118,13 @@ export const CANDIDATES_URL = "/map-3d/osm-candidates.json";
 export const FEATURE_TYPES = ["terrace", "slope", "stairs", "wall", "bridge", "passage", "building", "road", "crosswalk", "marking", "surface", "tree", "signal", "sign"];
 export const TYPE_LABEL = { terrace: "平地", slope: "坂道", stairs: "階段", wall: "壁", bridge: "橋", passage: "通り抜け", building: "建物", road: "道路", surface: "路面", marking: "白線", crosswalk: "横断歩道", tree: "木", signal: "信号機", sign: "看板" };
 // 路面と白線の種類（色・幅は campus3dPaint.js）
-export const SURFACE_KIND_KEYS = ["road", "walk", "plaza", "tile", "deck", "red", "green", "zebra", "gravel", "stones", "brick", "darkbrick"];
+export const SURFACE_KIND_KEYS = ["road", "walk", "plaza", "tile", "deck", "red", "green", "zebra", "gravel", "stones", "brick", "darkbrick", "wood"];
 export const MARKING_KIND_KEYS = ["solid", "dashed", "stop", "yellow", "wide", "tactile"];
 // 壁の種類（なしは壁）：生け垣・縦の格子の柵・ガードパイプ
-export const WALL_KIND_KEYS = ["hedge", "fence", "rail", "glass", "slant"];
+export const WALL_KIND_KEYS = ["hedge", "fence", "rail", "glass", "slant", "xbrace", "bench"];
 export const CENTER_KIND_KEYS = ["dashed", "solid", "yellow", "none"];
 // 木の形（campus3dMesh.js の addTree）：枝の広がる木（ケヤキなど）・丸い木（クスノキ・サクラなど）・イチョウ・針葉樹
-export const TREE_KIND_KEYS = ["broad", "round", "ginkgo", "conifer"];
+export const TREE_KIND_KEYS = ["broad", "round", "ginkgo", "conifer", "cherry"];
 // 階段の段の材質（campus3dMesh.js の色）。なしはコンクリート
 export const STAIRS_MATERIALS = ["wood", "stone", "brick"];
 export const STAIRS_MATERIAL_LABEL = { "": "コンクリート", wood: "木", stone: "石", brick: "れんが" };
@@ -124,7 +135,11 @@ export const BUILDING_MATERIALS = ["rust", "perforated", "steel", "darkbrick", "
 // 空中の板（panels）の見た目：穴あきの金属板・ガラス・ステンレス・暗い鋼・建物の色
 export const PANEL_KINDS = ["perforated", "glass", "steel", "dark", "wall", "white"];
 export const CURB_W = 0.32; // ガラスの手すり（wall の glass）の下の石の縁石の幅 m
-export const RAIL_REACH = 1.0; // ガラスの手すりの足もとの高さを測る、線から両わきへの距離 m（railGround）
+// 縁石の幅：斜めの格子は足もとの幅より 0.15m 広く（少なくとも CURB_W）
+export const curbWidth = (f) => (f.kind === "slant" ? Math.max(CURB_W, f.thickness + 0.15) : CURB_W);
+export const RAIL_REACH = 1.5; // ガラスの手すり・rim の柵の足もとの高さを測る、線から両わきへの距離 m（railGround。盛った平地の壁の帯 WALL_T より広く）
+export const DECK_FASCIA = 0.15; // ウッドデッキの縁（平地の面の deck）の木の板の高さ m
+export const DECK_POST = 1.2; // ウッドデッキの縁の下の束の間隔 m
 // 地面に貼る塗り（道路・路面・白線・横断歩道）
 export const isPaint = (type) => type === "road" || type === "surface" || type === "marking" || type === "crosswalk";
 export const SURFACE_LABEL = { walk: "歩道", street: "車道", rail: "線路", deck: "木の床" };
@@ -154,7 +169,7 @@ export const DEFAULTS = {
   signal: { height: 5.5, arm: 3.5, bearing: 90, face: 180, peds: [] },
   sign: { bearing: 0, width: 2, height: 0.5, thickness: 0.15, z: 0.5, tilt: 0, style: "steel", legs: 2, lines: [], rules: [], logo: null },
 };
-export const SIGN_STYLES = ["steel", "white"];
+export const SIGN_STYLES = ["steel", "white", "notice"];
 // 看板の文字に使える字（campus3dMesh.js の GLYPHS にある字）
 export const SIGN_CHARS = /[A-Z0-9&.\- 東京科学大]/;
 // 入力できる範囲（m）
@@ -196,6 +211,7 @@ function normalizeFace(fc) {
     if (doors.length) out.doors = doors.slice(0, 8);
   }
   if (fc.brick) out.brick = true;
+  if (fc.deck) out.deck = true;
   return Object.keys(out).length ? out : null;
 }
 
@@ -258,6 +274,9 @@ export function normalizeFeature(f) {
     if (WALL_KIND_KEYS.includes(f.kind)) out.kind = f.kind; // 生け垣（緑で、上がでこぼこ）・柵（縦の格子。向こうが透ける）・ガードパイプ
     // ガラスの手すり・斜めの格子の下の石の縁石（ガラス・棒が 0.2m は残る高さまで）
     if ((out.kind === "glass" || out.kind === "slant") && f.curb != null && f.curb !== "" && Number.isFinite(+f.curb) && +f.curb > 0) out.curb = round2(clampTo(f.curb, [0.05, Math.max(0.05, Math.min(1.5, out.height - 0.2))], 0.3));
+    if ((out.kind === "fence" || out.kind === "rail" || out.kind === "xbrace") && f.rim) out.rim = true;
+    if (out.kind === "xbrace" && Number.isFinite(+f.bay) && f.bay != null && f.bay !== "") out.bay = round2(clampTo(f.bay, [0.5, 6], 1.8));
+    if (out.kind === "slant" && (f.upright === "left" || f.upright === "right")) out.upright = f.upright;
     // 斜めの格子の棒の傾き（点ごと。なければ 10 度）
     if (out.kind === "slant" && Array.isArray(f.leans) && f.leans.some((v) => v != null && v !== "" && Number.isFinite(+v))) {
       out.leans = coords.map((_, i) => (f.leans[i] != null && f.leans[i] !== "" && Number.isFinite(+f.leans[i]) ? round2(clampTo(f.leans[i], [0, 60], 10)) : 10));
@@ -470,6 +489,10 @@ export function normalizeFeature(f) {
   } else if (f.type === "surface") {
     out.kind = SURFACE_KIND_KEYS.includes(f.kind) ? f.kind : d.kind;
     if (out.kind === "zebra" && f.angle != null && Number.isFinite(+f.angle)) out.angle = Math.round(clampTo(f.angle, RANGE.angle, 45));
+    // 板の目地：[板の幅, 板の向き]
+    if (Array.isArray(f.boards) && f.boards.length === 2 && f.boards.every((v) => v != null && v !== "" && Number.isFinite(+v))) {
+      out.boards = [round2(clampTo(f.boards[0], [0.05, 1], 0.15)), Math.round((((+f.boards[1] % 180) + 180) % 180) * 10) / 10];
+    }
   } else if (f.type === "marking") {
     out.kind = MARKING_KIND_KEYS.includes(f.kind) ? f.kind : d.kind;
   } else if (f.type === "crosswalk") {

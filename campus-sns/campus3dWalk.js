@@ -5,7 +5,7 @@
 // ぶつかり：建物（高さのぶんだけ。通り抜け・くり抜きはくぐれる）・手で足した壁・木の幹・池・街灯の柱・地図の外。橋や階段の横、くり抜きの床のふち
 // （手すり）、平地の段差のふち（柵）からは落ちない。どこからでも歩きはじめられるよう、画面で指したところの立てる面も出す（pick）。
 // ここは位置・速さ・向きの計算と、目の位置から MapLibre のカメラ（中心・ズーム・中心の標高）を出す計算。DOM も MapLibre も使わない
-import { BOARD_T, CURB_W, STAIRS_CLEAR, WALL_T, buildingOpenings, buildingRoof, buildingSoffit, cumulative, edgeOpen, isOpenStairs, offsetLine, panelSlices, pointInRing, prepareBridge, railGround, signFrame, ringArea, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexShifts, vertexWidths, withAutoOpenStairs } from "./campus3dFeatures.js";
+import { BOARD_T, STAIRS_CLEAR, WALL_T, buildingOpenings, buildingRoof, buildingSoffit, cumulative, edgeOpen, isOpenStairs, curbWidth, offsetLine, panelSlices, pointInRing, prepareBridge, railGround, signFrame, ringArea, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexShifts, vertexWidths, withAutoOpenStairs } from "./campus3dFeatures.js";
 import { carveSurfaces, reachOut, trunkRadius } from "./campus3dMesh.js";
 
 const DEG = Math.PI / 180;
@@ -261,9 +261,9 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
       for (let i = 1; i < pts.length; i++) {
         const mid = [(pts[i - 1][0] + pts[i][0]) / 2, (pts[i - 1][1] + pts[i][1]) / 2];
         const L = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]) || 1;
-        // ガラスの手すりは描くのと同じ足もと（両わきの高いほうの地面。掘り下げた平地のふちの上に立つものも）
-        const g = f.kind === "glass" ? railGround(groundAt, mid, [-(pts[i][1] - pts[i - 1][1]) / L, (pts[i][0] - pts[i - 1][0]) / L]) : ground(mid[0], mid[1]);
-        const t = f.curb ? Math.max(f.thickness || 0.3, CURB_W) : f.thickness || 0.3; // 縁石があればその幅
+        // ガラスの手すり・rim の柵は描くのと同じ足もと（両わきの高いほうの地面。掘り下げた平地のふちの上に立つものも）
+        const g = f.kind === "glass" || f.rim ? railGround(groundAt, mid, [-(pts[i][1] - pts[i - 1][1]) / L, (pts[i][0] - pts[i - 1][0]) / L]) : ground(mid[0], mid[1]);
+        const t = f.curb ? Math.max(f.thickness || 0.3, curbWidth(f)) : f.thickness || 0.3; // 縁石があればその幅
         addEdge(pts[i - 1], pts[i], t / 2 + BODY, [[-Infinity, Number.isFinite(g) ? g + (f.height || 1.2) : Infinity]]);
       }
     }

@@ -22,8 +22,9 @@ export const SURFACE_KINDS = {
   stones: { label: "白い砂利", light: "#dedbd4", dark: "#55565a" },
   brick: { label: "れんが（灰）", light: "#a19d99", dark: "#3e3f44" }, // 灰色の炻器質れんが敷き（附属図書館の広場）
   darkbrick: { label: "れんが（こげ茶）", light: "#5e4b44", dark: "#2b2422" },
+  wood: { label: "古い木の床", light: "#a39889", dark: "#3d3a35" }, // 雨風で灰色がかった木の板（本館前のウッドデッキの、桜の下）
 };
-export const SURFACE_ORDER = ["road", "zebra", "red", "plaza", "brick", "darkbrick", "tile", "deck", "walk", "gravel", "stones", "green"];
+export const SURFACE_ORDER = ["road", "zebra", "red", "plaza", "brick", "darkbrick", "tile", "deck", "wood", "walk", "gravel", "stones", "green"];
 // 白線の種類：幅（m）・色・破線
 export const MARKING_KINDS = {
   solid: { label: "白線", width: 0.15, color: "white" },
@@ -47,6 +48,8 @@ const PAINT = { white: { light: "#ffffff", dark: "#d9dde2" }, yellow: { light: "
 export const CURB = { light: "#b9bdb6", dark: "#5d646c" };
 
 const BAR = 0.45; // 横断歩道・導流帯の縞の幅
+const SEAM = 0.016; // 木の床の板の目地の幅
+const SEAM_DARK = 0.84; // 目地の色（床の色にこの割合を掛ける。濃いと離れたところで縞がちらつく）
 const GAP = 0.45; // 横断歩道の縞のすき間
 const ZEBRA_STEP = 1.5; // 導流帯の縞の間隔
 const EDGE = 0.15; // 導流帯の縁の線
@@ -58,6 +61,8 @@ const ARC_STEP = Math.PI / 12; // 丸めの細かさ（15°）
 const DEG = Math.PI / 180;
 
 const ring = (pts) => [...pts, pts[0]].map(toLngLat);
+// "#rrggbb" の明るさに k を掛けた色
+const darkHex = (hex, k) => "#" + [1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * k).toString(16).padStart(2, "0")).join("");
 const poly = (pts, props) => ({ type: "Feature", properties: props, geometry: { type: "Polygon", coordinates: [ring(pts)] } });
 // polygon-clipping の MultiPolygon（平面の m）を GeoJSON に
 const multi = (mp, props) => ({ type: "Feature", properties: props, geometry: { type: "MultiPolygon", coordinates: mp.map((p) => p.map((r) => r.map(toLngLat))) } });
@@ -111,6 +116,16 @@ export function lineBars(pts, w, dash) {
 
 // 多角形の中を、角度 deg の縞（幅 BAR、間隔 ZEBRA_STEP）で埋める。縞の両端は多角形のふちに沿って斜めに切る
 export function hatchBars(pts, deg = 45) {
+  return stripeBars(pts, deg, ZEBRA_STEP, BAR, ZEBRA_STEP / 2);
+}
+
+// 木の床の板の目地：板の向き bearing（北から右回りの度）に走る幅 SEAM の線を、板の幅 w ごとに（多角形の中だけ）
+export function boardSeams(pts, w, bearing) {
+  return stripeBars(pts, 90 - bearing, w, SEAM, w);
+}
+
+// 多角形の中を、角度 deg（東から左回り）に走る幅 bw の縞で、間隔 step・最初の縞は端から first で埋める
+function stripeBars(pts, deg, step, bw, first) {
   const t = (deg * Math.PI) / 180, c = Math.cos(t), s = Math.sin(t);
   // 縞が横（y 一定）になるように回した座標
   const rot = (p) => [p[0] * c + p[1] * s, -p[0] * s + p[1] * c];
@@ -127,8 +142,8 @@ export function hatchBars(pts, deg = 45) {
     return xs.sort((p, q) => p - q);
   };
   const out = [];
-  for (let y = lo + ZEBRA_STEP / 2; y < hi; y += ZEBRA_STEP) {
-    const y0 = Math.max(lo + 0.01, y - BAR / 2), y1 = Math.min(hi - 0.01, y + BAR / 2);
+  for (let y = lo + first; y < hi; y += step) {
+    const y0 = Math.max(lo + 0.01, y - bw / 2), y1 = Math.min(hi - 0.01, y + bw / 2);
     const A = cross(y0), B = cross(y1), M = cross(y);
     for (let k = 0; k + 1 < M.length; k += 2) {
       const same = A.length === M.length && B.length === M.length;
@@ -353,6 +368,7 @@ export function paintFeatures(features, dark = false, pc = null) {
   const tone = (k) => (typeof dark?.tone === "function" ? dark.tone(k.light, k.dark) : dark ? k.dark : k.light);
   const layers = Object.fromEntries(SURFACE_ORDER.map((k) => [k, []]));
   const paint = [];
+  const fine = []; // 寄ったときだけ描く細かいもの（木の床の板の目地）
   const roads = features.filter((f) => f.type === "road");
   const crosswalks = features.filter((f) => f.type === "crosswalk" && f.coords.length >= 2).map((f) => [toXY(f.coords[0]), toXY(f.coords[1]), f.width || 4]);
   const rg = pc && roads.length ? roadGeometry(roads, crosswalks, pc) : null;
@@ -367,6 +383,10 @@ export function paintFeatures(features, dark = false, pc = null) {
     if (pts.length < 3) continue;
     const k = SURFACE_KINDS[f.kind] || SURFACE_KINDS.road;
     (layers[f.kind] || layers.road).push(poly(pts, { id: f.id, color: tone(k) }));
+    if (f.boards) {
+      const seam = tone({ light: darkHex(k.light, SEAM_DARK), dark: darkHex(k.dark, SEAM_DARK) });
+      for (const q of boardSeams(pts, f.boards[0], f.boards[1])) fine.push(poly(q, { id: f.id, color: seam }));
+    }
     if (f.kind === "zebra") {
       const white = tone(PAINT.white);
       for (let i = 0; i < pts.length; i++) paint.push(poly(bar(pts[i], pts[(i + 1) % pts.length], EDGE), { id: f.id, color: white }));
@@ -384,5 +404,9 @@ export function paintFeatures(features, dark = false, pc = null) {
       for (const q of crosswalkBars(a, b, f.width || 4)) paint.push(poly(q, { id: f.id, color }));
     }
   }
-  return { surfaces: { type: "FeatureCollection", features: SURFACE_ORDER.flatMap((k) => layers[k]) }, paint: { type: "FeatureCollection", features: paint } };
+  return {
+    surfaces: { type: "FeatureCollection", features: SURFACE_ORDER.flatMap((k) => layers[k]) },
+    paint: { type: "FeatureCollection", features: paint },
+    fine: { type: "FeatureCollection", features: fine },
+  };
 }

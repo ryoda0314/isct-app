@@ -240,6 +240,7 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868", dem = ST
     // 手で描いた道路・路面と路面標示（campus3dPaint.js。CampusMap3D が入れる）
     cbPaveSurf: { type: "geojson", data: EMPTY_FC },
     cbPaveMark: { type: "geojson", data: EMPTY_FC },
+    cbPaveFine: { type: "geojson", data: EMPTY_FC }, // 木の床の板の目地（寄ったときだけ）
     // なぞるための航空写真（エディタで出し入れする。ふだんは隠したまま読まない）
     cbPhoto: { type: "raster", tiles: [PHOTO_TILES], tileSize: 256, maxzoom: 19, attribution: "Imagery © Esri" },
     // 地形（立体）と陰影は別のソースにする（MapLibre の推奨。同じタイルを共有すると解像度の扱いがぶつかる）
@@ -298,6 +299,8 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868", dem = ST
     { id: PHOTO_LAYER, type: "raster", source: "cbPhoto", layout: { visibility: "none" }, paint: { "raster-opacity": 0.85, "raster-fade-duration": 0 } },
     // 手で描いた道路（車道・歩道）・路面（広場など）と、その上の白線・横断歩道。地形に貼って描く
     { id: "cb-pave-surface", type: "fill", source: "cbPaveSurf", paint: { "fill-color": ["get", "color"] } },
+    // 木の床の板の目地：引くと細かすぎてちらつくので、寄ったとき（歩いて見るなど）だけ。だんだん出す
+    { id: "cb-pave-fine", type: "fill", source: "cbPaveFine", minzoom: 20.5, paint: { "fill-color": ["get", "color"], "fill-opacity": ["interpolate", ["linear"], ["zoom"], 20.5, 0, 21.5, 1] } },
     // 道路の歩道のふち（縁石）
     { id: "cb-pave-edge", type: "line", source: "cbPaveSurf", filter: ["==", ["get", "edge"], 1], layout: { "line-join": "round" }, paint: { "line-color": ["get", "curb"], "line-width": widthExpr(0.3, 0.6) } },
     { id: "cb-pave-mark", type: "fill", source: "cbPaveMark", paint: { "fill-color": ["get", "color"] } },

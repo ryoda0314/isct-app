@@ -21,7 +21,7 @@ const T = { bg: "#1a1a1f", bg2: "#222228", bg3: "#2a2a32", bg4: "#32323c", tx: "
 const TYPE_COL = { terrace: "#b48cff", slope: "#f0c040", stairs: "#ff7eb6", wall: "#e5534b", bridge: "#4db88a", passage: "#60a0ff", building: "#8ecae6", carve: "#f4a261", board: "#ff4b3a", road: "#d4a373", surface: "#8fb3c9", marking: "#f2f2f2", crosswalk: "#ffd166", tree: "#7ed37e", signal: "#ff8a5c", sign: "#c9d2dc" };
 const REF_API = "/api/dev/map-3d-ref"; // 下絵（なぞる用の写真・図面。開発サーバーだけ）
 // 木の形（campus3dMesh.js の addTree）
-const TREE_KINDS = { broad: "枝の広がる木（ケヤキなど）", round: "丸い木（クスノキ・サクラなど）", ginkgo: "イチョウ", conifer: "針葉樹" };
+const TREE_KINDS = { broad: "枝の広がる木（ケヤキなど）", round: "丸い木（クスノキなど）", ginkgo: "イチョウ", conifer: "針葉樹", cherry: "サクラ（横に広い傘）" };
 const LIFT_COL = "#1a8ef0"; // ルートが橋の上に浮くところ
 const CAND_COL = "#c070f0";
 // 道に合わせる（スナップ）：線の頂点（交差点・曲がり角・端）はこの px 以内、線の上はこの px 以内なら吸い付く
@@ -272,7 +272,7 @@ function LeansRow({ f, update }) {
 }
 
 /* ── 看板：面の向き・大きさ・高さ・倒し・見た目・脚と、文字の行 ── */
-const SIGN_STYLE_LABEL = { steel: "ステンレス（暗い文字）", white: "白い板（薄い文字）" };
+const SIGN_STYLE_LABEL = { steel: "ステンレス（暗い文字）", white: "白い板（薄い文字）", notice: "お知らせ（緑の帯）" };
 function SignPanel({ f, update }) {
   const inp = { flex: 1, minWidth: 0, padding: "4px 6px", borderRadius: 5, border: `1px solid ${T.bdL}`, background: T.bg, color: T.txH, fontSize: 12, fontFamily: "inherit" };
   const setLine = (i, patch) => update({ lines: f.lines.map((l, k) => (k === i ? { ...l, ...patch } : l)) }, `line${i}`);
@@ -2205,11 +2205,28 @@ export default function Map3DEditor() {
             <Btn active={sel.kind === "rail"} col={TYPE_COL.wall} onClick={() => update({ kind: "rail" })}>ガードパイプ</Btn>
             <Btn active={sel.kind === "glass"} col={TYPE_COL.wall} onClick={() => update({ kind: "glass" })}>ガラスの手すり</Btn>
             <Btn active={sel.kind === "slant"} col={TYPE_COL.wall} onClick={() => update({ kind: "slant" })}>斜めの格子</Btn>
+            <Btn active={sel.kind === "xbrace"} col={TYPE_COL.wall} onClick={() => update({ kind: "xbrace" })}>クロスの柵</Btn>
+            <Btn active={sel.kind === "bench"} col={TYPE_COL.wall} onClick={() => update({ kind: "bench" })}>ベンチ</Btn>
           </div>
         </Row>
         <Row label="高さ (m)"><Num value={sel.height} min={0.1} max={40} onChange={(v) => update({ height: v }, "height")} /><span style={{ fontSize: 10, color: T.txD }}>高いほうの地面から</span></Row>
-        <Row label="厚さ (m)"><Num value={sel.thickness} min={0.05} max={5} step={0.05} onChange={(v) => update({ thickness: v }, "thickness")} /></Row>
+        <Row label="厚さ (m)"><Num value={sel.thickness} min={0.05} max={5} step={0.05} onChange={(v) => update({ thickness: v }, "thickness")} />{sel.kind === "slant" && <span style={{ fontSize: 10, color: T.txD }}>足もとの幅（断面は三角形）</span>}</Row>
         {sel.kind === "slant" && <LeansRow f={sel} update={update} />}
+        {sel.kind === "slant" && <Row label="断面">
+          <div style={{ display: "flex", gap: 6 }}>
+            <Btn active={!sel.upright} col={TYPE_COL.wall} onClick={() => update({ upright: undefined })}>二等辺（A）</Btn>
+            <Btn active={sel.upright === "left"} col={TYPE_COL.wall} onClick={() => update({ upright: "left" })}>左が直角</Btn>
+            <Btn active={sel.upright === "right"} col={TYPE_COL.wall} onClick={() => update({ upright: "right" })}>右が直角</Btn>
+          </div>
+        </Row>}
+        {sel.kind === "xbrace" && <Row label="柱の間隔 (m)"><Num value={sel.bay ?? 1.8} min={0.5} max={6} step={0.1} onChange={(v) => update({ bay: v }, "bay")} /><span style={{ fontSize: 10, color: T.txD }}>柱のあいだに X の筋交い</span></Row>}
+        {sel.kind === "bench" && <div style={{ fontSize: 10, color: T.txD, lineHeight: 1.6, marginBottom: 4 }}>高さは座面の高さ、厚さは座面の奥行き。最後の点を最初の点に重ねると木のまわりを囲むベンチ</div>}
+        {(sel.kind === "fence" || sel.kind === "rail" || sel.kind === "xbrace") && <Row label="立てる場所">
+          <div style={{ display: "flex", gap: 6 }}>
+            <Btn active={!sel.rim} col={TYPE_COL.wall} onClick={() => update({ rim: undefined })}>足もとの地面</Btn>
+            <Btn active={!!sel.rim} col={TYPE_COL.wall} onClick={() => update({ rim: true })}>穴のふちの上</Btn>
+          </div>
+        </Row>}
         {(sel.kind === "glass" || sel.kind === "slant") && <Row label="下の縁石 (m)"><Num value={sel.curb ?? null} nullable placeholder="なし" min={0.05} max={1.5} step={0.05} onChange={(v) => update({ curb: v ?? undefined }, "curb")} /><span style={{ fontSize: 10, color: T.txD }}>石の縁石の高さ。ガラス・棒はその上</span></Row>}
       </>}
       {sel.type === "terrace" && <TerracePanel f={sel} demTick={demTick} update={update} />}
@@ -2264,6 +2281,11 @@ export default function Map3DEditor() {
           </div>
         </Row>
         {sel.kind === "zebra" && <Row label="縞の向き (度)"><Num value={sel.angle ?? 45} min={0} max={180} step={5} onChange={(v) => update({ angle: v }, "angle")} /><span style={{ fontSize: 10, color: T.txD }}>45° おき 1.5m の白い縞と、ふちの白線</span></Row>}
+        <Row label="板の目地">
+          <Num value={sel.boards?.[0] ?? null} nullable placeholder="なし" min={0.05} max={1} step={0.01} onChange={(v) => update({ boards: v == null ? undefined : [v, sel.boards?.[1] ?? 0] }, "boards")} />
+          <Num value={sel.boards?.[1] ?? 0} min={0} max={180} step={5} onChange={(v) => sel.boards && update({ boards: [sel.boards[0], v] }, "boards")} />
+          <span style={{ fontSize: 10, color: T.txD }}>板の幅 (m)・板の向き（北から右回り）。寄ったときだけ描く</span>
+        </Row>
         <div style={{ fontSize: 10, color: T.txD, lineHeight: 1.6, marginTop: 4 }}>重なったところは、車道 → 導流帯 → カラー舗装 → 広場 → 歩道 → 植え込みの順に上へ塗る（車道を大きく囲んでから、歩道を重ねて描くと楽）</div>
       </>}
       {sel.type === "marking" && <>
