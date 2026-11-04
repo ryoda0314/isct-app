@@ -9,7 +9,7 @@ import { CAMPUS_CENTER } from "../../campus-sns/hooks/useLocationSharing.js";
 import {
   CANDIDATES_URL, FEATURES_URL, FEATURE_TYPES, STAIRS_MATERIAL_LABEL, SURFACE_LABEL, TREE_KIND_KEYS, TYPE_LABEL,
   aimSlope, azimuthName, baseWidth, buildingRoof, candidateToFeature, pointInRing, createFeature, cumulative, defaultCarve, defaultSlope, edgeAzimuths, extentAlong, facesDelete, facesInsert, featuresBounds, isArea, isPoint, minPoints, pitchSlope, slopeAzimuth, slopePitch, lerpAlong, normalizeFeature, offsetLine, vertexShifts, vertexWidths,
-  ROUTE_ON_BRIDGE, parseFeatures, pathProfile, prepareBridge, prepareTerrace, serializeFeatures, splitByBridges, stairFlights, stairSteps, toLngLat, toXY, withLandings, withSegmentLength,
+  ROUTE_ON_BRIDGE, SIGN_STYLES, parseFeatures, pathProfile, prepareBridge, prepareTerrace, serializeFeatures, signFrame, splitByBridges, stairFlights, stairSteps, toLngLat, toXY, withLandings, withSegmentLength,
 } from "../../campus-sns/campus3dFeatures.js";
 import { dem } from "../../campus-sns/campusDem.js";
 import { PHOTO_LAYER, buildingHeight, streetLines } from "../../campus-sns/campusMap3d.js";
@@ -18,7 +18,7 @@ import { ROAD_KINDS, alignToLines, buildSnapIndex, nearestOnRoads, streetChain }
 
 /* ── 見た目（2D のマップエディタと同じ暗い配色）── */
 const T = { bg: "#1a1a1f", bg2: "#222228", bg3: "#2a2a32", bg4: "#32323c", tx: "#b0b0b8", txH: "#e8e8f0", txD: "#68687a", bd: "#2e2e38", bdL: "#3a3a48", accent: "#6375f0", green: "#4db88a", red: "#e5534b", yellow: "#f0c040" };
-const TYPE_COL = { terrace: "#b48cff", slope: "#f0c040", stairs: "#ff7eb6", wall: "#e5534b", bridge: "#4db88a", passage: "#60a0ff", building: "#8ecae6", carve: "#f4a261", board: "#ff4b3a", road: "#d4a373", surface: "#8fb3c9", marking: "#f2f2f2", crosswalk: "#ffd166", tree: "#7ed37e", signal: "#ff8a5c" };
+const TYPE_COL = { terrace: "#b48cff", slope: "#f0c040", stairs: "#ff7eb6", wall: "#e5534b", bridge: "#4db88a", passage: "#60a0ff", building: "#8ecae6", carve: "#f4a261", board: "#ff4b3a", road: "#d4a373", surface: "#8fb3c9", marking: "#f2f2f2", crosswalk: "#ffd166", tree: "#7ed37e", signal: "#ff8a5c", sign: "#c9d2dc" };
 const REF_API = "/api/dev/map-3d-ref"; // 下絵（なぞる用の写真・図面。開発サーバーだけ）
 // 木の形（campus3dMesh.js の addTree）
 const TREE_KINDS = { broad: "枝の広がる木（ケヤキなど）", round: "丸い木（クスノキ・サクラなど）", ginkgo: "イチョウ", conifer: "針葉樹" };
@@ -127,8 +127,14 @@ const footprint = (f) => {
   const R = offsetLine(xy, hw.map((h, i) => cv[i] - h)).reverse();
   return [[...L, ...R, L[0]].map(toLngLat)];
 };
-// 木の枝の広がり（直径 crown）の円
+// 木の枝の広がり（直径 crown）の円。看板は板の真下の四角（倒した板の奥行きまで）
 function crownRing(f) {
+  if (f.type === "sign") {
+    const fr = signFrame(f);
+    const back = Math.min(-f.thickness, -f.thickness + f.height * fr.ey[0]);
+    const q = [[0, 0], [f.width, 0], [f.width, back], [0, back]].map(([x, d]) => [fr.o[0] + fr.ex[0] * x + fr.n[0] * d, fr.o[1] + fr.ex[1] * x + fr.n[1] * d]);
+    return [...q, q[0]].map(toLngLat);
+  }
   const [x, y] = toXY(f.coords[0]);
   const r = f.type === "signal" ? 0.6 : (f.crown || 4) / 2;
   return Array.from({ length: 25 }, (_, k) => toLngLat([x + r * Math.cos((k / 24) * 2 * Math.PI), y + r * Math.sin((k / 24) * 2 * Math.PI)]));
@@ -244,6 +250,62 @@ function SignalPanel({ f, update }) {
       </Row>
       <div style={{ fontSize: 10, color: T.txD, lineHeight: 1.6, marginTop: 4 }}>
         歩行者の信号は柱に付き、面が向く方位をカンマで（4 つまで）。灯は歩行者だけが渡れるとき（車は赤、歩行者は青）。地図の線は腕
+      </div>
+    </>
+  );
+}
+
+/* ── 斜めの格子：点ごとの棒の傾き（度。カンマで） ── */
+function LeansRow({ f, update }) {
+  const show = (f.leans || f.coords.map(() => 10)).join(", ");
+  const [txt, setTxt] = useState(show);
+  useEffect(() => setTxt(show), [f.id, show]);
+  return (
+    <Row label="棒の傾き (度)">
+      <input value={txt} onChange={(e) => {
+        setTxt(e.target.value);
+        const v = e.target.value.split(/[,\s、]+/).filter(Boolean).map(Number);
+        if (v.length === f.coords.length && v.every(Number.isFinite)) update({ leans: v }, "leans");
+      }} placeholder="点ごと。例：14, 4, 22" style={{ flex: 1, padding: "4px 6px", borderRadius: 5, border: `1px solid ${T.bdL}`, background: T.bg, color: T.txH, fontSize: 12, fontFamily: "inherit" }} />
+    </Row>
+  );
+}
+
+/* ── 看板：面の向き・大きさ・高さ・倒し・見た目・脚と、文字の行 ── */
+const SIGN_STYLE_LABEL = { steel: "ステンレス（暗い文字）", white: "白い板（薄い文字）" };
+function SignPanel({ f, update }) {
+  const inp = { flex: 1, minWidth: 0, padding: "4px 6px", borderRadius: 5, border: `1px solid ${T.bdL}`, background: T.bg, color: T.txH, fontSize: 12, fontFamily: "inherit" };
+  const setLine = (i, patch) => update({ lines: f.lines.map((l, k) => (k === i ? { ...l, ...patch } : l)) }, `line${i}`);
+  return (
+    <>
+      <Row label="面の向き (度)"><Num value={f.bearing} min={0} max={360} step={5} onChange={(v) => update({ bearing: v }, "bearing")} /><span style={{ fontSize: 10, color: T.txD }}>北から右回り。文字はこの向きから読む</span></Row>
+      <Row label="幅・高さ (m)"><Num value={f.width} min={0.2} max={12} step={0.1} onChange={(v) => update({ width: v }, "width")} /><Num value={f.height} min={0.1} max={5} step={0.05} onChange={(v) => update({ height: v }, "height")} /></Row>
+      <Row label="下の端 (m)"><Num value={f.z} min={0} max={10} step={0.05} onChange={(v) => update({ z: v }, "z")} /><span style={{ fontSize: 10, color: T.txD }}>地面から</span></Row>
+      <Row label="倒す (度)"><Num value={f.tilt} min={-30} max={80} step={1} onChange={(v) => update({ tilt: v }, "tilt")} /><span style={{ fontSize: 10, color: T.txD }}>後ろへ。0 は垂直</span></Row>
+      <Row label="厚さ (m)"><Num value={f.thickness} min={0.01} max={1} step={0.01} onChange={(v) => update({ thickness: v }, "thickness")} /></Row>
+      <Row label="見た目">
+        <div style={{ display: "flex", gap: 6 }}>{SIGN_STYLES.map((k) => <Btn key={k} active={f.style === k} col={TYPE_COL.sign} onClick={() => update({ style: k })}>{SIGN_STYLE_LABEL[k]}</Btn>)}</div>
+      </Row>
+      <Row label="脚"><Num value={f.legs} min={0} max={4} step={1} onChange={(v) => update({ legs: v }, "legs")} /><span style={{ fontSize: 10, color: T.txD }}>0 は柵などに付けた板</span></Row>
+      <Row label="ロゴ">
+        <div style={{ display: "flex", gap: 6 }}>
+          <Btn active={!!f.logo} col={TYPE_COL.sign} onClick={() => update({ logo: [0.05, r2(f.height * 0.15), r2(f.height * 0.6)] })}>あり</Btn>
+          <Btn active={!f.logo} col={TYPE_COL.sign} onClick={() => update({ logo: null })}>なし</Btn>
+        </div>
+      </Row>
+      {f.lines.map((l, i) => (
+        <Row key={i} label={`文字 ${i + 1}`}>
+          <input value={l.text} onChange={(e) => setLine(i, { text: e.target.value })} style={inp} />
+          <Num value={l.size} min={0.01} max={f.height} step={0.01} onChange={(v) => setLine(i, { size: v })} />
+          <button onClick={() => update({ lines: f.lines.filter((_, k) => k !== i) })} style={{ border: "none", background: "none", color: T.red, cursor: "pointer" }}>×</button>
+        </Row>
+      ))}
+      {f.lines.map((l, i) => (
+        <Row key={`p${i}`} label={`位置 ${i + 1} (m)`}><Num value={l.x} min={0} max={f.width} step={0.02} onChange={(v) => setLine(i, { x: v })} /><Num value={l.y} min={0} max={f.height} step={0.02} onChange={(v) => setLine(i, { y: v })} /><span style={{ fontSize: 10, color: T.txD }}>左下の角から</span></Row>
+      ))}
+      {f.lines.length < 8 && <Btn col={TYPE_COL.sign} onClick={() => update({ lines: [...f.lines, { text: "TEXT", x: 0.05, y: r2(f.height * 0.3), size: r2(f.height * 0.4) }] })}>＋ 文字の行</Btn>}
+      <div style={{ fontSize: 10, color: T.txD, lineHeight: 1.6, marginTop: 4 }}>
+        字は A〜Z・0〜9・&amp; - . と漢字「東京科学大」。小文字は大文字にする。地図の線は板の真下（点は板の下の端のまん中）
       </div>
     </>
   );
@@ -2142,11 +2204,13 @@ export default function Map3DEditor() {
             <Btn active={sel.kind === "fence"} col={TYPE_COL.wall} onClick={() => update({ kind: "fence" })}>柵</Btn>
             <Btn active={sel.kind === "rail"} col={TYPE_COL.wall} onClick={() => update({ kind: "rail" })}>ガードパイプ</Btn>
             <Btn active={sel.kind === "glass"} col={TYPE_COL.wall} onClick={() => update({ kind: "glass" })}>ガラスの手すり</Btn>
+            <Btn active={sel.kind === "slant"} col={TYPE_COL.wall} onClick={() => update({ kind: "slant" })}>斜めの格子</Btn>
           </div>
         </Row>
         <Row label="高さ (m)"><Num value={sel.height} min={0.1} max={40} onChange={(v) => update({ height: v }, "height")} /><span style={{ fontSize: 10, color: T.txD }}>高いほうの地面から</span></Row>
         <Row label="厚さ (m)"><Num value={sel.thickness} min={0.05} max={5} step={0.05} onChange={(v) => update({ thickness: v }, "thickness")} /></Row>
-        {sel.kind === "glass" && <Row label="下の縁石 (m)"><Num value={sel.curb ?? null} nullable placeholder="なし" min={0.05} max={1.5} step={0.05} onChange={(v) => update({ curb: v ?? undefined }, "curb")} /><span style={{ fontSize: 10, color: T.txD }}>石の縁石の高さ。ガラスはその上</span></Row>}
+        {sel.kind === "slant" && <LeansRow f={sel} update={update} />}
+        {(sel.kind === "glass" || sel.kind === "slant") && <Row label="下の縁石 (m)"><Num value={sel.curb ?? null} nullable placeholder="なし" min={0.05} max={1.5} step={0.05} onChange={(v) => update({ curb: v ?? undefined }, "curb")} /><span style={{ fontSize: 10, color: T.txD }}>石の縁石の高さ。ガラス・棒はその上</span></Row>}
       </>}
       {sel.type === "terrace" && <TerracePanel f={sel} demTick={demTick} update={update} />}
       {sel.type === "tree" && <>
@@ -2160,6 +2224,7 @@ export default function Map3DEditor() {
         <div style={{ fontSize: 10, color: T.txD, lineHeight: 1.6, marginTop: 4 }}>点をドラッグして動かす。歩いて見るときは幹にぶつかる（葉の下はくぐれる）</div>
       </>}
       {sel.type === "signal" && <SignalPanel f={sel} update={update} />}
+      {sel.type === "sign" && <SignPanel f={sel} update={update} />}
       {sel.type === "passage" && <>
         <Row label="幅 (m)"><Num value={sel.width} min={0.5} max={60} onChange={(v) => update({ width: v }, "width")} /></Row>
         <Row label="天井の高さ (m)"><Num value={sel.height} min={0.1} max={40} onChange={(v) => update({ height: v }, "height")} /><span style={{ fontSize: 10, color: T.txD }}>屋上より高いと切り通し</span></Row>

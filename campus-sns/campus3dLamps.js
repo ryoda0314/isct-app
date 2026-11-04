@@ -2,7 +2,7 @@
 // （地形に貼る画像。lampLightCanvas を CampusMap3D が canvas のソースにして重ねる）を描く。
 // 置き場所：車道の外（路肩・歩道）に、道の種類ごとの間隔で。広い道は左右に互い違い、細い道は片側。手で描いた道路は歩道の縁石ぎわ。
 // キャンパスの通路は、建物の外のところだけ通路の脇に。建物・線路・ホーム・水・運動場・ほかの道の上、手で足した建物・橋・坂道・
-// 階段・壁・通り抜け・平地のふちには立てない。地図の端（背景へ溶かす帯）では端に近いほど薄く、ほとんど見えないところには立てない
+// 階段・壁・通り抜け・平地のふち・看板には立てない。地図の端（背景へ溶かす帯）では端に近いほど薄く、ほとんど見えないところには立てない
 import { WIDTH_M, walkSegments } from "./campusBasemap.js";
 import { pointInRing, toLngLat, toXY } from "./campus3dFeatures.js";
 import { GlowMesh, Mesh, worldOf } from "./campus3dMesh.js";
@@ -128,6 +128,7 @@ export function streetLamps(data, features = [], R, { walk = walkSegments() } = 
     else if (f.type === "terrace" && pts.length > 2) addBand([...pts, pts[0]], 1);
     else if (f.type === "tree" && pts.length) addBand([pts[0], pts[0]], 1.5); // 幹のそばには立てない
     else if (f.type === "signal" && pts.length) addBand([pts[0], pts[0]], 1.5); // 信号機の柱のそばにも
+    else if (f.type === "sign" && pts.length) addBand([pts[0], pts[0]], f.width / 2 + 1); // 看板のそばにも
   }
   ["major", "mid", "minor", "ped"].forEach((k) => (data.streets[k] || []).forEach((l) => addMapBand(l.map(ll2xy), WIDTH_M[k] / 2 + 0.3)));
   walk.forEach((l) => addMapBand(l.map(ll2xy), WIDTH_M.walk / 2));

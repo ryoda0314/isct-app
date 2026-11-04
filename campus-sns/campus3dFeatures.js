@@ -23,7 +23,9 @@
 //             steps（区間ごとの段数）があれば、段数は手で決めたもの。蹴上げはどの段も同じ（高さの差 ÷ 段数の合計）。
 //             段数は蹴上げの数。踊り場につながる流れは両端が蹴上げで、踏面は 段数−1 枚（stairFlights）。material（段の材質：wood 木 / stone 石 / brick 灰色のれんが。なしはコンクリート）
 //   wall    : height（高いほうの地面から）, thickness, kind（hedge 生け垣 / fence 縦の格子の柵 / rail ガードパイプ＝柱と横の管 2 本 /
-//             glass ガラスの手すり＝ガラスの板と上の細い手すり）, curb（glass の下の石の縁石の高さ m。幅 CURB_W。ガラスはその上から height まで）
+//             glass ガラスの手すり＝ガラスの板と上の細い手すり / slant 斜めの格子＝ステンレスの丸棒を 2 本ずつ上で合わせた「Λ」の並び（正門の柵）。
+//             leans（slant の棒の傾き：点ごとの度。点のあいだは距離で直線に。0 は鉛直））,
+//             curb（glass・slant の下の石の縁石の高さ m。幅 CURB_W。ガラス・棒はその上から height まで）
 //   bridge  : width, z（各点の床の高さ。真下の地面から、null は自動）, thickness, railing, piers, surface（walk / street / rail / deck 木の床）
 //   passage : width, height（天井の高さ）。建物の外から外へ引いた中心線に沿って、建物に穴をあける
 //   building : 建物の形を変える（地図の建物を置きかえる・新しく足す）。coords は建物の形（囲む範囲）、height（屋上の高さ。地面から m）、
@@ -90,6 +92,11 @@
 //   signal  : 信号機。coords は柱の足もとの 1 点。height（柱の高さ＝腕の高さ m）, arm（腕の長さ m。0 は腕なし）, bearing（腕の向き。北から右回りの度）,
 //             face（車の信号の向き＝信号の面が向く方位。null は車の信号なし。腕の先に吊る）, peds（歩行者の信号の向き：方位の並び。柱に付ける）。
 //             灯は歩行者だけが渡れるとき（車の信号は赤、歩行者の信号は青。campus3dMesh.js の addSignal）
+//   sign    : 看板（立て看板・柵に付けた銘板）。coords は板の下の端のまん中の真下の地面の 1 点。bearing（面が向く方位）, width・height（板の幅・高さ m）,
+//             thickness（板の厚さ m）, z（板の下の端の高さ。地面から m）, tilt（後ろへ倒す角度。度）, style（steel ステンレスの箱に暗い文字 /
+//             white 白い板に薄い灰色の文字）, legs（板の後ろの脚の数。0 は柵などに付けた板）,
+//             lines（文字の行：[{ text（A〜Z・0〜9・& - . 空白と、漢字 東京科学大）, x・y（行の左下。板の左下の角から m）, size（字の高さ m） }]。8 行まで）,
+//             rules（細い線：[[x0, y0, x1, y1]]。区切りの縦線など）, logo（Science Tokyo の印：[x, y, 高さ]。なしは null）
 // z が null の点は、両端なら地面の高さ、途中なら前後の決まった点のあいだを距離で直線に結ぶ。
 // 地面は「元の地面 → 平地 → 坂道・階段」の順に重ねて作る（坂道・階段の高さは平地を入れたあとの地面から）
 // DOM も MapLibre も使わない（3D表示・エディタ・テストから共通で使う）
@@ -97,13 +104,13 @@ import { CAMPUS_CENTER } from "./hooks/useLocationSharing.js";
 
 export const FEATURES_URL = "/map-3d/features.json";
 export const CANDIDATES_URL = "/map-3d/osm-candidates.json";
-export const FEATURE_TYPES = ["terrace", "slope", "stairs", "wall", "bridge", "passage", "building", "road", "crosswalk", "marking", "surface", "tree", "signal"];
-export const TYPE_LABEL = { terrace: "平地", slope: "坂道", stairs: "階段", wall: "壁", bridge: "橋", passage: "通り抜け", building: "建物", road: "道路", surface: "路面", marking: "白線", crosswalk: "横断歩道", tree: "木", signal: "信号機" };
+export const FEATURE_TYPES = ["terrace", "slope", "stairs", "wall", "bridge", "passage", "building", "road", "crosswalk", "marking", "surface", "tree", "signal", "sign"];
+export const TYPE_LABEL = { terrace: "平地", slope: "坂道", stairs: "階段", wall: "壁", bridge: "橋", passage: "通り抜け", building: "建物", road: "道路", surface: "路面", marking: "白線", crosswalk: "横断歩道", tree: "木", signal: "信号機", sign: "看板" };
 // 路面と白線の種類（色・幅は campus3dPaint.js）
 export const SURFACE_KIND_KEYS = ["road", "walk", "plaza", "tile", "deck", "red", "green", "zebra", "gravel", "stones", "brick", "darkbrick"];
 export const MARKING_KIND_KEYS = ["solid", "dashed", "stop", "yellow", "wide", "tactile"];
 // 壁の種類（なしは壁）：生け垣・縦の格子の柵・ガードパイプ
-export const WALL_KIND_KEYS = ["hedge", "fence", "rail", "glass"];
+export const WALL_KIND_KEYS = ["hedge", "fence", "rail", "glass", "slant"];
 export const CENTER_KIND_KEYS = ["dashed", "solid", "yellow", "none"];
 // 木の形（campus3dMesh.js の addTree）：枝の広がる木（ケヤキなど）・丸い木（クスノキ・サクラなど）・イチョウ・針葉樹
 export const TREE_KIND_KEYS = ["broad", "round", "ginkgo", "conifer"];
@@ -126,7 +133,7 @@ export const burnsGround = (f) => f.type === "terrace" || f.type === "slope" || 
 // 帯（中心線と幅）でなく、囲む範囲（多角形）の種類
 export const isArea = (type) => type === "terrace" || type === "surface" || type === "building";
 // 点1つで置く種類
-export const isPoint = (type) => type === "tree" || type === "signal";
+export const isPoint = (type) => type === "tree" || type === "signal" || type === "sign";
 // 形に要る点の数
 export const minPoints = (type) => (isArea(type) ? 3 : isPoint(type) ? 1 : 2);
 
@@ -145,7 +152,11 @@ export const DEFAULTS = {
   crosswalk: { width: 4 },
   tree: { height: 10, crown: 8, kind: "broad" },
   signal: { height: 5.5, arm: 3.5, bearing: 90, face: 180, peds: [] },
+  sign: { bearing: 0, width: 2, height: 0.5, thickness: 0.15, z: 0.5, tilt: 0, style: "steel", legs: 2, lines: [], rules: [], logo: null },
 };
+export const SIGN_STYLES = ["steel", "white"];
+// 看板の文字に使える字（campus3dMesh.js の GLYPHS にある字）
+export const SIGN_CHARS = /[A-Z0-9&.\- 東京科学大]/;
 // 入力できる範囲（m）
 export const RANGE = {
   height: [0.1, 40], thickness: [0.05, 5], width: [0.5, 60], side: [0, 30], riser: [0.08, 0.4], z: [-30, 60], elev: [-50, 200], base: [0.5, 80], shift: [-30, 30],
@@ -245,8 +256,12 @@ export function normalizeFeature(f) {
     out.height = round2(clampTo(f.height, RANGE.height, d.height));
     out.thickness = round2(clampTo(f.thickness, RANGE.thickness, d.thickness));
     if (WALL_KIND_KEYS.includes(f.kind)) out.kind = f.kind; // 生け垣（緑で、上がでこぼこ）・柵（縦の格子。向こうが透ける）・ガードパイプ
-    // ガラスの手すりの下の石の縁石（ガラスが 0.2m は残る高さまで）
-    if (out.kind === "glass" && f.curb != null && f.curb !== "" && Number.isFinite(+f.curb) && +f.curb > 0) out.curb = round2(clampTo(f.curb, [0.05, Math.max(0.05, Math.min(1.5, out.height - 0.2))], 0.3));
+    // ガラスの手すり・斜めの格子の下の石の縁石（ガラス・棒が 0.2m は残る高さまで）
+    if ((out.kind === "glass" || out.kind === "slant") && f.curb != null && f.curb !== "" && Number.isFinite(+f.curb) && +f.curb > 0) out.curb = round2(clampTo(f.curb, [0.05, Math.max(0.05, Math.min(1.5, out.height - 0.2))], 0.3));
+    // 斜めの格子の棒の傾き（点ごと。なければ 10 度）
+    if (out.kind === "slant" && Array.isArray(f.leans) && f.leans.some((v) => v != null && v !== "" && Number.isFinite(+v))) {
+      out.leans = coords.map((_, i) => (f.leans[i] != null && f.leans[i] !== "" && Number.isFinite(+f.leans[i]) ? round2(clampTo(f.leans[i], [0, 60], 10)) : 10));
+    }
   } else if (f.type === "signal") {
     out.coords = coords.slice(0, 1);
     out.height = round2(clampTo(f.height, [2.5, 12], d.height));
@@ -255,6 +270,27 @@ export function normalizeFeature(f) {
     out.bearing = Number.isFinite(+f.bearing) && f.bearing !== null && f.bearing !== "" ? deg(f.bearing) : d.bearing;
     out.face = f.face === null || f.face === "" ? null : Number.isFinite(+f.face) && f.face !== undefined ? deg(f.face) : d.face;
     out.peds = (Array.isArray(f.peds) ? f.peds : []).filter((v) => v !== null && v !== "" && Number.isFinite(+v)).map(deg).slice(0, 4);
+  } else if (f.type === "sign") {
+    out.coords = coords.slice(0, 1);
+    const deg = (v) => Math.round((((+v % 360) + 360) % 360) * 10) / 10;
+    out.bearing = Number.isFinite(+f.bearing) && f.bearing !== null && f.bearing !== "" ? deg(f.bearing) : d.bearing;
+    out.width = round2(clampTo(f.width, [0.2, 12], d.width));
+    out.height = round2(clampTo(f.height, [0.1, 5], d.height));
+    out.thickness = round2(clampTo(f.thickness, [0.01, 1], d.thickness));
+    out.z = round2(clampTo(f.z, [0, 10], d.z));
+    out.tilt = round2(clampTo(f.tilt, [-30, 80], d.tilt));
+    out.style = SIGN_STYLES.includes(f.style) ? f.style : d.style;
+    out.legs = Math.round(clampTo(f.legs, [0, 4], d.legs));
+    const W = out.width, H = out.height;
+    out.lines = (Array.isArray(f.lines) ? f.lines : []).map((l) => {
+      const text = typeof l?.text === "string" ? [...l.text.toUpperCase()].filter((ch) => SIGN_CHARS.test(ch)).join("").slice(0, 40) : "";
+      if (!text.trim()) return null;
+      return { text, x: round2(clampTo(l.x, [0, W], 0)), y: round2(clampTo(l.y, [0, H], 0)), size: round2(clampTo(l.size, [0.01, H], Math.min(0.2, H))) };
+    }).filter(Boolean).slice(0, 8);
+    out.rules = (Array.isArray(f.rules) ? f.rules : []).filter((r) => Array.isArray(r) && r.length === 4 && r.every((v) => Number.isFinite(+v)))
+      .map((r) => [round2(clampTo(r[0], [0, W], 0)), round2(clampTo(r[1], [0, H], 0)), round2(clampTo(r[2], [0, W], 0)), round2(clampTo(r[3], [0, H], 0))]).slice(0, 8);
+    const lg = f.logo;
+    out.logo = Array.isArray(lg) && lg.length === 3 && lg.every((v) => Number.isFinite(+v)) && +lg[2] > 0 ? [round2(clampTo(lg[0], [0, W], 0)), round2(clampTo(lg[1], [0, H], 0)), round2(clampTo(lg[2], [0.02, H], 0.2))] : null;
   } else if (f.type === "tree") {
     out.coords = coords.slice(0, 1);
     out.height = round2(clampTo(f.height, RANGE.theight, d.height));
@@ -1821,6 +1857,25 @@ export function clipHalf(ring, f) {
 export function railGround(groundAt, p, n) {
   const g = [p, [p[0] + n[0] * RAIL_REACH, p[1] + n[1] * RAIL_REACH], [p[0] - n[0] * RAIL_REACH, p[1] - n[1] * RAIL_REACH]].map((q) => groundAt(toLngLat(q))).filter(Number.isFinite);
   return g.length ? Math.max(...g) : NaN;
+}
+
+// 看板（sign）の板の向き：o（板の前の面の左下の角。平面 m）と地面からの高さ z0、ex（板の幅の向き＝前から見て右。水平）、
+// ey（板の上の向き：[水平のずれ, 上]。後ろへ倒すと水平のずれは奥へ）、en（前の面の外向き：[水平, 上]）、n（面の向きの水平の単位ベクトル）。
+// 点は o + ex·x + n·(ey[0]·y + en[0]·d)、高さ z0 + ey[1]·y + en[1]·d（x は幅の向き、y は板の上の向き、d は面から外へ）
+export function signFrame(f) {
+  const p = toXY(f.coords[0]);
+  const b = f.bearing * DEG;
+  const n = [Math.sin(b), Math.cos(b)];
+  const ex = [-n[1], n[0]]; // 面に向かって立つと右（面が北を向けば西）
+  const t = (f.tilt || 0) * DEG;
+  const ey = [-Math.sin(t), Math.cos(t)];
+  const en = [Math.cos(t), Math.sin(t)];
+  const o = [p[0] - (ex[0] * f.width) / 2, p[1] - (ex[1] * f.width) / 2];
+  const at = (x, y, dd = 0) => {
+    const h = ey[0] * y + en[0] * dd;
+    return [[o[0] + ex[0] * x + n[0] * h, o[1] + ex[1] * x + n[1] * h], f.z + ey[1] * y + en[1] * dd];
+  };
+  return { o, z0: f.z, ex, ey, en, n, at };
 }
 
 // 立った板（建物の panels の 1 つ。V 字の柱など）を、地面の上の線に沿って step m ごとに切ったもの：

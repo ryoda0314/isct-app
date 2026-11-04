@@ -2,7 +2,7 @@
 // 位置はメルカトル座標の「キャンパスの中心からの差 × MERC_SCALE」と標高(m)。float32 でも桁が落ちないように中心からの差で持つ
 import earcut from "earcut";
 import { CAMPUS_CENTER } from "./hooks/useLocationSharing.js";
-import { BOARD_BASE_DROP, BOARD_T, CURB_W, WALL_CAP, WALL_T, buildingOpenings, railGround, buildingRoof, buildingSoffit, clipHalf, offsetRingBy, densify, edgeOpen, isOpenStairs, lerpAlong, offsetLine, pointInRing, ringArea, roofPieces, roofRisers, stairSteps, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexElevations } from "./campus3dFeatures.js";
+import { BOARD_BASE_DROP, BOARD_T, CURB_W, WALL_CAP, WALL_T, buildingOpenings, cumulative, railGround, signFrame, buildingRoof, buildingSoffit, clipHalf, offsetRingBy, densify, edgeOpen, isOpenStairs, lerpAlong, offsetLine, pointInRing, ringArea, roofPieces, roofRisers, stairSteps, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexElevations } from "./campus3dFeatures.js";
 import { SURFACE_KINDS, SURFACE_ORDER } from "./campus3dPaint.js";
 
 export const MERC_SCALE = 2 ** 20;
@@ -51,6 +51,8 @@ const COLORS = {
     solar: "#4d5b70", solarLine: "#97a2b2", parapet: "#dfe3e6", fin: "#d3d8dc", member: "#f1f2f3", glassRail: "#b9cdd6", fritWhite: "#e8edf0",
     // 建物の材質のこげ茶のれんが・白っぽい石（ガラスの手すりの下の縁石も）
     darkBrick: "#5e4b44", stone: "#d8d2c5",
+    // 看板：ステンレスの箱（面・側面）と暗い文字、白い板と薄い灰色の文字
+    signFace: "#d4d9dd", signSide: "#a9b0b6", signText: "#30353a", plateFace: "#f3f4f5", plateText: "#c3c8cd",
   },
   dark: {
     wall: "#353d47", deckSide: "#2c333c", railing: "#4a5460", pier: "#2a3139", ceiling: "#20252c", stairs: "#3b424c", bridgeDeck: "#44423d",
@@ -65,6 +67,7 @@ const COLORS = {
     signalPole: "#2a2826", signalBox: "#1b1d20", signalOff: "#24272a", lampRed: "#ff4a36", lampGreen: "#23f0a0", rail: "#5a6168", letter: "#6c737b",
     solar: "#151a24", solarLine: "#2c333d", parapet: "#4a525c", fin: "#4b535d", member: "#5d656f", glassRail: "#3d4e57", fritWhite: "#9a8c70",
     darkBrick: "#2a2320", stone: "#4f4c46",
+    signFace: "#4a5159", signSide: "#353b42", signText: "#15181b", plateFace: "#5a6168", plateText: "#454b52",
   },
 };
 
@@ -582,6 +585,54 @@ function addGlassRail(m, f, groundAt, glassCol, railCol, curbCol, gm = m) {
   }
 }
 
+// 斜めの格子（wall の kind "slant"）：ステンレスの丸棒を 2 本ずつ上の手すりで合わせた「Λ」を SLANT_PITCH m おきに。
+// 棒の傾きは点ごとの leans（度。点のあいだは距離で直線に）。下は太い丸棒と縁石（curb）、上は細い手すり、点ごとに柱。高さは地面から
+const SLANT_PITCH = 0.12;
+function addSlantFence(m, f, groundAt, c, curbCol) {
+  const xy = f.coords.map(toXY);
+  const cb = f.curb || 0;
+  const gs = xy.map((p) => groundAt(toLngLat(p)));
+  if (!gs.every(Number.isFinite)) return;
+  if (cb > 0) {
+    const ln = offsetLine(xy, xy.map(() => CURB_W / 2));
+    const rn = offsetLine(xy, xy.map(() => -CURB_W / 2));
+    for (let i = 0; i + 1 < xy.length; i++) m.prism([ln[i], ln[i + 1]], [rn[i], rn[i + 1]], [gs[i] - 0.1, gs[i + 1] - 0.1], [gs[i] + cb, gs[i + 1] + cb], { top: curbCol, side: curbCol });
+  }
+  const cum = cumulative(xy);
+  const L = cum[cum.length - 1];
+  const leans = f.leans || xy.map(() => 10);
+  const RB = 0.045; // 下の丸棒の半径
+  const zBot = (i) => gs[i] + cb + RB;
+  const zTop = (i) => gs[i] + f.height;
+  // 距離 s の点・向き・棒の下と上の高さ・傾き
+  const along = (s) => {
+    let i = 1;
+    while (i < cum.length - 1 && cum[i] < s) i++;
+    const seg = cum[i] - cum[i - 1] || 1;
+    const t = (s - cum[i - 1]) / seg;
+    const u = [(xy[i][0] - xy[i - 1][0]) / seg, (xy[i][1] - xy[i - 1][1]) / seg];
+    const p = [xy[i - 1][0] + (xy[i][0] - xy[i - 1][0]) * t, xy[i - 1][1] + (xy[i][1] - xy[i - 1][1]) * t];
+    const lerp = (a, b) => a + (b - a) * t;
+    return { p, u, zb: lerp(zBot(i - 1), zBot(i)), zt: lerp(zTop(i - 1), zTop(i)), lean: lerp(leans[i - 1], leans[i]) };
+  };
+  const n = Math.max(1, Math.floor(L / SLANT_PITCH));
+  for (let k = 0; k < n; k++) {
+    const s = ((k + 0.5) * L) / n;
+    const { p, u, zb, zt, lean } = along(s);
+    const d = Math.min(0.6, (zt - zb) * Math.tan((lean * Math.PI) / 180));
+    // 端の Λ は足を柵の端までに
+    const da = Math.min(d, s), db = Math.min(d, L - s);
+    addTube(m, [[p[0] - u[0] * da, p[1] - u[1] * da], zb], [p, zt], 0.013, c, 5);
+    addTube(m, [[p[0] + u[0] * db, p[1] + u[1] * db], zb], [p, zt], 0.013, c, 5);
+  }
+  for (let i = 0; i + 1 < xy.length; i++) {
+    addTube(m, [xy[i], zBot(i)], [xy[i + 1], zBot(i + 1)], RB, c, 8);
+    addTube(m, [xy[i], zTop(i)], [xy[i + 1], zTop(i + 1)], 0.02, c, 6);
+  }
+  // 点ごとの柱（区画の継ぎ目と両端）
+  xy.forEach((p, i) => addBeam(m, [p, gs[i] + cb], [p, zTop(i) + 0.02], 0.06, c));
+}
+
 // ガードパイプ（wall の kind "rail"）：2m おきの柱（丸い管）と、上と中ほどの横の管。高さは地面から
 function addRail(m, f, groundAt, c) {
   const xy = f.coords.map(toXY);
@@ -703,6 +754,12 @@ const GLYPHS = {
   8: { w: 0.55, s: [arcPts(0.275, 0.76, 0.22, 0.24, 0, 360, 16), arcPts(0.275, 0.26, 0.275, 0.26, 0, 360, 18)] },
   9: { w: 0.54, s: [[[0.1, 0.05], [0.25, 0], [0.42, 0.1], [0.52, 0.4], [0.52, 0.7], [0.42, 0.94], [0.26, 1], [0.09, 0.94], [0, 0.75], [0.06, 0.55], [0.24, 0.47], [0.42, 0.55], [0.51, 0.7]]] },
   "-": { w: 0.4, s: [[[0, 0.45], [0.4, 0.45]]] },
+  // 看板の漢字（東京科学大学）：1 の正方形の中の線
+  東: { w: 1, s: [[[0.08, 0.86], [0.92, 0.86]], [[0.2, 0.72], [0.2, 0.34]], [[0.2, 0.72], [0.8, 0.72], [0.8, 0.34]], [[0.2, 0.53], [0.8, 0.53]], [[0.2, 0.34], [0.8, 0.34]], [[0.5, 1], [0.5, 0]], [[0.46, 0.34], [0.06, 0.04]], [[0.54, 0.34], [0.94, 0.04]]] },
+  京: { w: 1, s: [[[0.5, 1], [0.5, 0.88]], [[0.06, 0.86], [0.94, 0.86]], [[0.24, 0.72], [0.24, 0.46]], [[0.24, 0.72], [0.76, 0.72], [0.76, 0.46]], [[0.24, 0.46], [0.76, 0.46]], [[0.5, 0.46], [0.5, 0.02], [0.4, 0.1]], [[0.3, 0.32], [0.12, 0.1]], [[0.7, 0.32], [0.88, 0.1]]] },
+  科: { w: 1, s: [[[0.4, 0.98], [0.08, 0.88]], [[0.04, 0.68], [0.44, 0.68]], [[0.24, 0.9], [0.24, 0]], [[0.23, 0.62], [0.04, 0.24]], [[0.26, 0.56], [0.42, 0.42]], [[0.6, 0.9], [0.7, 0.82]], [[0.58, 0.7], [0.7, 0.6]], [[0.5, 0.4], [0.98, 0.48]], [[0.8, 1], [0.8, 0]]] },
+  学: { w: 1, s: [[[0.26, 0.98], [0.33, 0.86]], [[0.5, 1], [0.52, 0.86]], [[0.76, 0.98], [0.66, 0.86]], [[0.08, 0.7], [0.08, 0.8], [0.92, 0.8], [0.9, 0.7]], [[0.28, 0.66], [0.7, 0.66], [0.5, 0.52]], [[0.5, 0.52], [0.5, 0.02], [0.4, 0.08]], [[0.06, 0.38], [0.94, 0.38]]] },
+  大: { w: 1, s: [[[0.08, 0.66], [0.92, 0.66]], [[0.5, 1], [0.5, 0.6], [0.06, 0.02]], [[0.52, 0.56], [0.94, 0.02]]] },
   ".": { w: 0.06, s: [[[0.03, 0], [0.03, 0.06]]] },
   " ": { w: 0.3, s: [] },
 };
@@ -710,6 +767,46 @@ const LETTER_GAP = 0.18; // 字と字のあいだ（大文字の高さに対し�
 const LETTER_STROKE = 0.075; // 線の太さ（同じく）
 const LETTER_DEPTH = 0.04; // 壁からの厚み（m）
 const LETTER_OFF = 0.02; // 壁から浮かせる（m）
+// 平らな面の上の線分 (x0, y0)→(x1, y1)（面の上の x・y m）を、太さ sw・面から d0〜d1 m 浮いた角材に。
+// plane は { P(x, y, d)（面の上の点から外へ d m の点 → [平面の点, 高さ]）, N（面の外向き）, U・V（面の上の x・y の向き。3 次元） }
+function planeBar(m, plane, x0, y0, x1, y1, sw, d0, d1, c, side) {
+  const dx = x1 - x0, dy = y1 - y0;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) return;
+  const tx = dx / len, ty = dy / len;
+  const e = sw / 2; // 継ぎ目が切れないよう両端を伸ばす
+  const ax = x0 - tx * e, ay = y0 - ty * e, bx = x1 + tx * e, by = y1 + ty * e;
+  const ox = -ty * (sw / 2), oy = tx * (sw / 2);
+  const q = [[ax + ox, ay + oy], [bx + ox, by + oy], [bx - ox, by - oy], [ax - ox, ay - oy]];
+  const { P, N, U, V } = plane;
+  m.quad([P(q[3][0], q[3][1], d1), P(q[2][0], q[2][1], d1), P(q[1][0], q[1][1], d1), P(q[0][0], q[0][1], d1)], N, c);
+  for (let k = 0; k < 4; k++) {
+    const s0 = q[k], s1 = q[(k + 1) % 4];
+    const ex = s1[0] - s0[0], ey = s1[1] - s0[1];
+    const el = Math.hypot(ex, ey) || 1;
+    // 角材の側面の向き：面の上で辺の外向き（ey, -ex）を 3D に
+    const nx = ey / el, ny = -ex / el;
+    m.quad([P(s0[0], s0[1], d0), P(s1[0], s1[1], d0), P(s1[0], s1[1], d1), P(s0[0], s0[1], d1)], [0, 1, 2].map((i) => U[i] * nx + V[i] * ny), side);
+  }
+}
+// 字の並び text を、面の上の (x, y)（行の左下）から字の高さ size で。字のあいだは gap（m）、kx は横の縮め、stroke は線の太さ
+// （size に対して）、shear は斜体（上へ 1 進むと右へ shear）
+function planeText(m, plane, text, x, y, size, opt, c, side) {
+  const { gap = size * LETTER_GAP, kx = 1, stroke = LETTER_STROKE, d0 = LETTER_OFF, d1 = LETTER_OFF + LETTER_DEPTH, shear = 0 } = opt;
+  const sw = size * stroke;
+  let cx = x + sw / 2;
+  for (const ch of text) {
+    const gl = GLYPHS[ch] || GLYPHS[" "];
+    for (const st of gl.s) {
+      for (let k = 0; k + 1 < st.length; k++) {
+        const [u0, v0] = st[k];
+        const [u1, v1] = st[k + 1];
+        planeBar(m, plane, cx + (u0 + shear * v0) * size * kx, y + v0 * size, cx + (u1 + shear * v1) * size * kx, y + v1 * size, sw, d0, d1, c, side);
+      }
+    }
+    cx += gl.w * size * kx + gap;
+  }
+}
 // 1 行の文字を、壁の上の a→b（host）に。字の幅は大文字の高さ size に比例し、字のあいだを広げ縮めて行の幅に合わせる
 // （狭すぎるときは横に縮める）。line なら下の端に行の幅の横線
 function addLetters(m, l, host, g0, c) {
@@ -724,42 +821,60 @@ function addLetters(m, l, host, g0, c) {
     gap = l.size * 0.05;
     kx = (L - gap * gaps - sw) / (natural - sw);
   }
-  const side = (x, d) => [a[0] + u[0] * x + n[0] * d, a[1] + u[1] * x + n[1] * d];
   const z0 = g0 + l.z;
-  const d0 = LETTER_OFF;
-  const d1 = LETTER_OFF + LETTER_DEPTH;
-  const N = [n[0], n[1], 0];
-  const side2 = c.map((v, i) => (i < 3 ? v * 0.82 : v));
-  // 壁の上の線分 (x0, y0)→(x1, y1)（x は行の左端から m、y は下の端から m）を、太さ sw の角材に
-  const bar = (x0, y0, x1, y1) => {
-    const dx = x1 - x0, dy = y1 - y0;
-    const len = Math.hypot(dx, dy);
-    if (len < 1e-6) return;
-    const tx = dx / len, ty = dy / len;
-    const e = sw / 2; // 継ぎ目が切れないよう両端を伸ばす
-    const ax = x0 - tx * e, ay = y0 - ty * e, bx = x1 + tx * e, by = y1 + ty * e;
-    const ox = -ty * (sw / 2), oy = tx * (sw / 2);
-    const q = [[ax + ox, ay + oy], [bx + ox, by + oy], [bx - ox, by - oy], [ax - ox, ay - oy]];
-    const P = (pt, d) => [side(pt[0], d), z0 + pt[1]];
-    m.quad([P(q[3], d1), P(q[2], d1), P(q[1], d1), P(q[0], d1)], N, c);
-    for (let k = 0; k < 4; k++) {
-      const s0 = q[k], s1 = q[(k + 1) % 4];
-      const ex = s1[0] - s0[0], ey = s1[1] - s0[1];
-      const el = Math.hypot(ex, ey) || 1;
-      // 角材の側面の向き：壁の上で辺の外向き（ey, -ex）を 3D に
-      const nx = ey / el, ny = -ex / el;
-      const NN = [u[0] * nx, u[1] * nx, ny];
-      m.quad([P(s0, d0), P(s1, d0), P(s1, d1), P(s0, d1)], NN, side2);
-    }
+  const plane = {
+    P: (x, y, d) => [[a[0] + u[0] * x + n[0] * d, a[1] + u[1] * x + n[1] * d], z0 + y],
+    N: [n[0], n[1], 0], U: [u[0], u[1], 0], V: [0, 0, 1],
   };
-  let x = sw / 2;
-  for (const gl of glyphs) {
-    for (const st of gl.s) {
-      for (let k = 0; k + 1 < st.length; k++) bar(x + st[k][0] * l.size * kx, st[k][1] * l.size, x + st[k + 1][0] * l.size * kx, st[k + 1][1] * l.size);
-    }
-    x += gl.w * l.size * kx + gap;
+  const side2 = c.map((v, i) => (i < 3 ? v * 0.82 : v));
+  planeText(m, plane, l.text, 0, 0, l.size, { gap, kx }, c, side2);
+  if (l.line) planeBar(m, plane, 0, 0, L, 0, sw, LETTER_OFF, LETTER_OFF + LETTER_DEPTH, c, side2);
+}
+
+// 看板（sign）：板（厚さのある箱。前の面は style の色）と、後ろの脚、前の面の文字・区切りの線・Science Tokyo の印。
+// 文字は面から浮いた細い角材（ステンレスは暗い切り文字、白い板は薄い灰色）
+const SIGN_TEXT_DEPTH = 0.012;
+function addSign(m, f, groundAt, cols, tint) {
+  const g = groundAt(toLngLat(f.coords[0]));
+  if (!Number.isFinite(g)) return;
+  const fr = signFrame(f);
+  const W = f.width, H = f.height, T = f.thickness;
+  const white = f.style === "white";
+  const face = tint(rgba(cols[white ? "plateFace" : "signFace"]));
+  const side = tint(rgba(cols[white ? "plateText" : "signSide"]));
+  const ink = tint(rgba(cols[white ? "plateText" : "signText"]));
+  const inkSide = ink.map((v, i) => (i < 3 ? v * 0.8 : v));
+  const at = (x, y, d) => {
+    const [p, z] = fr.at(x, y, d);
+    return [p, g + z];
+  };
+  const U = [fr.ex[0], fr.ex[1], 0];
+  const V = [fr.n[0] * fr.ey[0], fr.n[1] * fr.ey[0], fr.ey[1]];
+  const N = [fr.n[0] * fr.en[0], fr.n[1] * fr.en[0], fr.en[1]];
+  const neg = (v) => v.map((k) => -k);
+  // 板：前（d 0）・後ろ（d -T）・上下・左右
+  m.quad([at(0, 0, 0), at(W, 0, 0), at(W, H, 0), at(0, H, 0)], N, face);
+  m.quad([at(W, 0, -T), at(0, 0, -T), at(0, H, -T), at(W, H, -T)], neg(N), side);
+  m.quad([at(0, H, 0), at(W, H, 0), at(W, H, -T), at(0, H, -T)], V, side);
+  m.quad([at(W, 0, 0), at(0, 0, 0), at(0, 0, -T), at(W, 0, -T)], neg(V), side);
+  m.quad([at(0, 0, -T), at(0, 0, 0), at(0, H, 0), at(0, H, -T)], neg(U), side);
+  m.quad([at(W, 0, 0), at(W, 0, -T), at(W, H, -T), at(W, H, 0)], U, side);
+  // 脚：板の後ろの面のまん中の高さから、真下の地面まで（角材）
+  for (let k = 0; k < f.legs; k++) {
+    const x = f.legs === 1 ? W / 2 : W * (0.18 + (0.64 * k) / (f.legs - 1));
+    const [p, z] = at(x, H / 2, -T - 0.03);
+    addBeam(m, [p, g - 0.1], [p, z], 0.06, side);
   }
-  if (l.line) bar(0, 0, L, 0);
+  const plane = { P: at, N, U, V };
+  const d0 = 0, d1 = SIGN_TEXT_DEPTH;
+  // 漢字の行は線を少し太く
+  for (const l of f.lines) planeText(m, plane, l.text, l.x, l.y, l.size, { stroke: [...l.text].some((ch) => ch > "~") ? 0.085 : LETTER_STROKE, d0, d1 }, ink, inkSide);
+  for (const r of f.rules) planeBar(m, plane, r[0], r[1], r[2], r[3], 0.008, d0, d1, ink, inkSide);
+  // Science Tokyo の印：太い斜めの S
+  if (f.logo) {
+    const [lx, ly, lh] = f.logo;
+    planeText(m, plane, "S", lx, ly, lh, { stroke: 0.2, shear: 0.22, d0, d1 }, ink, inkSide);
+  }
 }
 
 function addBridge(m, f, groundAt, pal, cols, tint) {
@@ -2654,7 +2769,9 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     else if (f.type === "wall" && f.kind === "fence") addFence(m, f, groundAt, tint(rgba(cols.railing)));
     else if (f.type === "wall" && f.kind === "rail") addRail(m, f, groundAt, tint(rgba(cols.rail)));
     else if (f.type === "wall" && f.kind === "glass") addGlassRail(m, f, groundAt, tint(rgba(cols.glassRail)), tint(rgba(cols.rail)), tint(rgba(cols.stone)), glassy);
+    else if (f.type === "wall" && f.kind === "slant") addSlantFence(m, f, groundAt, tint(rgba(cols.rail)), tint(rgba(cols.stone)));
     else if (f.type === "signal") addSignal(m, f, groundAt, cols, tint);
+    else if (f.type === "sign") addSign(m, f, groundAt, cols, tint);
     else if (f.type === "wall") addWall(m, f, groundAt, tint(rgba(cols.wall)));
     else if (f.type === "bridge") addBridge(m, f, groundAt, pal, cols, tint);
     else if (f.type === "tree") addTree(m, f, groundAt, cols, tint);

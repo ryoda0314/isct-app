@@ -5,7 +5,7 @@
 // ぶつかり：建物（高さのぶんだけ。通り抜け・くり抜きはくぐれる）・手で足した壁・木の幹・池・街灯の柱・地図の外。橋や階段の横、くり抜きの床のふち
 // （手すり）、平地の段差のふち（柵）からは落ちない。どこからでも歩きはじめられるよう、画面で指したところの立てる面も出す（pick）。
 // ここは位置・速さ・向きの計算と、目の位置から MapLibre のカメラ（中心・ズーム・中心の標高）を出す計算。DOM も MapLibre も使わない
-import { BOARD_T, CURB_W, STAIRS_CLEAR, WALL_T, buildingOpenings, buildingRoof, buildingSoffit, cumulative, edgeOpen, isOpenStairs, offsetLine, panelSlices, pointInRing, prepareBridge, railGround, ringArea, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexShifts, vertexWidths, withAutoOpenStairs } from "./campus3dFeatures.js";
+import { BOARD_T, CURB_W, STAIRS_CLEAR, WALL_T, buildingOpenings, buildingRoof, buildingSoffit, cumulative, edgeOpen, isOpenStairs, offsetLine, panelSlices, pointInRing, prepareBridge, railGround, signFrame, ringArea, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexShifts, vertexWidths, withAutoOpenStairs } from "./campus3dFeatures.js";
 import { carveSurfaces, reachOut, trunkRadius } from "./campus3dMesh.js";
 
 const DEG = Math.PI / 180;
@@ -248,6 +248,14 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
       // 信号機：柱だけ（腕と灯の下はくぐれる）
       const p = toXY(f.coords[0]);
       addEdge(p, p, 0.11 + BODY, ALL, null, false);
+    } else if (f.type === "sign" && f.legs > 0) {
+      // 立て看板：板の真下（倒した板の奥行きの中ほど）の線。板の上の端まで（柵などに付けた板は、付けたものがふさぐ）
+      const g = ground(...toXY(f.coords[0]));
+      const fr = signFrame(f);
+      const reach = Math.max(f.thickness, f.height * Math.abs(fr.ey[0])) / 2;
+      const [a] = fr.at(0, f.height / 2, -f.thickness / 2);
+      const [b] = fr.at(f.width, f.height / 2, -f.thickness / 2);
+      addEdge(a, b, reach + BODY, [[-Infinity, Number.isFinite(g) ? g + f.z + f.height * fr.ey[1] : Infinity]], null, false);
     } else if (f.type === "wall") {
       const pts = f.coords.map(toXY);
       for (let i = 1; i < pts.length; i++) {
