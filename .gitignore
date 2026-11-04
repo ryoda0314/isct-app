@@ -69,3 +69,9 @@ logcat*.txt
 # SSO / portal / grades debug screenshots (student ID, 2FA, grades)
 data/sso-debug-*.png
 data/grades-*.png
+
+# 撮った動画・写真（大きい・人が写る。3D マップの作業の参考にだけ使う。GitHub は 100MB より大きいファイルを受け付けない）
+/*.MOV
+/*.mov
+/ScreenRecording_*.mp4
+/百年記念館/
