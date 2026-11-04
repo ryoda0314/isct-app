@@ -1,7 +1,7 @@
 // 建物をくぐる道（通り抜け）の穴を、建物にあける。
 // 建物を「穴の外側（地面から屋上まで）」と「穴の上（天井の高さから屋上まで）」に分けて、MapLibre の fill-extrusion で描く。
 // MapLibre は地形の上で、分けた形それぞれの重心の地面に建物を置くので、屋上がそろうよう高さを足し引きする
-import { passageFootprint, toLngLat, toXY } from "./campus3dFeatures.js";
+import { passageFootprint, reachPassageEnds, toLngLat, toXY } from "./campus3dFeatures.js";
 
 let clipper = null;
 // polygon-clipping（重い。使うときだけ読む。道路の交差点 campus3dPaint.js でも使う）
@@ -36,18 +36,25 @@ const overlap = (a, b) => !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > 
  * @param heights    建物ごとの高さ(m)
  * @param passages   通り抜け（normalizeFeature 済み）
  * @param groundAt   ([lng, lat]) => 地面の標高
+ * @param skip       穴をあけない建物の番号（has(i)。手で置きかえた建物：置きかえた形のほうに campus3dMesh.js が穴をあける）
  * @returns { pieces: Map(建物の番号 → [{ rings: [[lng, lat]...], h, b }]), ceilings: [{ rings, z }] }
  */
-export async function cutPassages(buildings, heights, passages, groundAt) {
+export async function cutPassages(buildings, heights, passages, groundAt, skip = null) {
   const out = { pieces: new Map(), ceilings: [] };
   if (!passages.length) return out;
   const pc = await loadClipper();
+  const rings = buildings.map((b) => [b.p, ...(b.h || [])].map((ring) => ring.map(([lat, lng]) => toXY([lng, lat]))));
   const holes = passages.map((f) => {
-    const geom = pc.union(...passageFootprint(f));
+    // 端が壁の少し手前で止まっていたら、建物の外までのばす（奥が薄い壁でふさがらないように）
+    const xy = f.coords.map(toXY);
+    const near = rings.filter((B) => overlap(boxOf(B), boxOf([xy])));
+    const coords = reachPassageEnds(xy, near).map(toLngLat);
+    const geom = pc.union(...passageFootprint({ ...f, coords }));
     return { f, geom, box: boxOf(geom.flat()) };
   });
   buildings.forEach((b, i) => {
-    const B = [b.p, ...(b.h || [])].map((ring) => ring.map(([lat, lng]) => toXY([lng, lat])));
+    if (skip?.has(i)) return;
+    const B = rings[i];
     const box = boxOf(B);
     const hits = holes.filter((h) => overlap(h.box, box));
     if (!hits.length) return;

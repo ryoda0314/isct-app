@@ -3,12 +3,14 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { T } from "../theme.js";
 import { t } from "../i18n.js";
-import { EMPTY_FC, ML_ZOOM_OFFSET, PITCH, PITCH_GUIDE, ROUTE_COL, ROUTE_DOT, STATIC_DEM, TERRAIN_EXAG, applyLook, buildCampus3D, buildingsFC, circleFC, coverZoom, linesFC, makeConstrain, maxPitchAt, pointsFC, regionOf, roofAt, routeCasing, routeWidth, spotOutline, streetsFC } from "../campusMap3d.js";
+import { EMPTY_FC, LAMP_LIGHT_BEFORE, LAMP_LIGHT_LAYER, LAMP_LIGHT_SOURCE, ML_ZOOM_OFFSET, PITCH, PITCH_GUIDE, ROUTE_COL, ROUTE_DOT, STATIC_DEM, TERRAIN_EXAG, applyLook, buildCampus3D, buildingsFC, circleFC, coverZoom, lampLightOpacity, linesFC, makeConstrain, maxPitchAt, pointsFC, regionOf, roofAt, routeCasing, routeWidth, spotOutline, streetsFC } from "../campusMap3d.js";
 import { LOOK_MODES, lookFor } from "../campus3dSky.js";
 import { BURN_MAXZOOM, dem, demTileUrl, registerDemProtocol } from "../campusDem.js";
-import { ROUTE_ON_BRIDGE, buildingRoof, burnsGround, featuresBounds, isPaint, pointInRing, prepareBridge, replacedBuildings, splitByBridges, stairsPath, toXY } from "../campus3dFeatures.js";
+import { ROUTE_ON_BRIDGE, buildingOpenings, buildingRoof, burnsGround, featuresBounds, isPaint, pointInRing, prepareBridge, replacedBuildings, splitByBridges, stairsPath, toLngLat, toXY } from "../campus3dFeatures.js";
 import { buildMesh, buildRibbons } from "../campus3dMesh.js";
-import { createExtrasLayer, createTrainsLayer } from "../campus3dLayer.js";
+import { createExtrasLayer, createLightsLayer, createTrainsLayer } from "../campus3dLayer.js";
+import { lampBounds, lampLightCanvas, lampMesh, streetLamps } from "../campus3dLamps.js";
+import { EYE, PITCH as WALK_PITCH, SPEED, SPRINT_FOV, VIEW_D, WALK_FOV, eyeCamera, routePath, stepBody, stepRoute, walkWorld } from "../campus3dWalk.js";
 import { paintFeatures } from "../campus3dPaint.js";
 import { TRAINS_URL, prepareTrains, serviceClock, setTrackHeights, trackBounds, trainMesh, trainsAt } from "../campus3dTrains.js";
 import { TERRAIN } from "../campusTerrain.js";
@@ -73,7 +75,47 @@ const CSS = `
 .cb3-look-toast{position:absolute;right:58px;bottom:118px;padding:6px 10px;border-radius:10px;background:var(--cb3-btn);color:var(--cb3-btn-tx);font-size:12px;font-weight:700;
   white-space:nowrap;box-shadow:0 6px 16px -6px rgba(0,0,0,.4);z-index:2;pointer-events:none;animation:navSlideUp .2s ease-out}
 .cb3-attr{position:absolute;right:0;bottom:0;font-size:9.5px;line-height:1.4;padding:0 5px;border-radius:6px 0 0 0;background:var(--cb3-attr-bg);color:var(--cb3-attr);pointer-events:none;z-index:2}
+.cb3-walk{position:absolute;right:10px;bottom:166px;width:40px;height:40px;border:none;border-radius:14px;background:var(--cb3-btn);color:var(--cb3-btn-tx);
+  box-shadow:0 6px 16px -6px rgba(0,0,0,.4);cursor:pointer;z-index:2;display:flex;align-items:center;justify-content:center;padding:0}
+/* 歩いて見る：ラベル・ピン・上のもや・ズームなどのボタンは隠す（目の高さでは位置が合わない。空は MapLibre の sky） */
+.cb3-walking .maplibregl-marker,.cb3-walking .cb3-haze,.cb3-walking .cb3-zoom,.cb3-walking .cb3-look,.cb3-walking .cb3-look-toast,.cb3-walking .cb3-walk{display:none!important}
+.cb3-walking .cb3-map{cursor:pointer;touch-action:none}
+.cb3-cross{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;pointer-events:none;opacity:.85}
+.cb3-cross:before,.cb3-cross:after{content:"";position:absolute;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.cb3-cross:before{left:8px;top:0;width:2px;height:18px}
+.cb3-cross:after{left:0;top:8px;width:18px;height:2px}
+.cb3-walk-btns .cb3-jump{width:64px;height:64px;border-radius:50%;padding:0;font-size:12px;background:rgba(255,255,255,.88);color:#0e2030;touch-action:none}
+.cb3-walk-ui{position:absolute;inset:0;pointer-events:none;z-index:3;font-family:inherit}
+.cb3-walk-hint{position:absolute;left:50%;top:14px;transform:translateX(-50%);max-width:calc(100% - 32px);padding:8px 14px;border-radius:16px;background:rgba(14,32,48,.82);
+  color:#fff;font-size:12.5px;font-weight:700;line-height:1.5;text-align:center;box-shadow:0 6px 16px -6px rgba(0,0,0,.5);animation:navSlideUp .2s ease-out;box-sizing:border-box}
+.cb3-joy{position:absolute;left:22px;bottom:30px;width:116px;height:116px;border-radius:50%;background:rgba(14,32,48,.32);border:2px solid rgba(255,255,255,.55);
+  box-shadow:0 6px 18px -8px rgba(0,0,0,.5);pointer-events:auto;touch-action:none;cursor:pointer}
+.cb3-joy-knob{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;background:rgba(255,255,255,.92);
+  box-shadow:0 3px 10px rgba(0,0,0,.35);pointer-events:none}
+.cb3-walk-btns{position:absolute;right:12px;bottom:30px;display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:auto}
+.cb3-walk-btns button{min-width:44px;height:42px;padding:0 16px;border:none;border-radius:21px;background:rgba(14,32,48,.82);color:#fff;font-size:13px;font-weight:800;
+  font-family:inherit;cursor:pointer;box-shadow:0 6px 16px -6px rgba(0,0,0,.5);white-space:nowrap}
+.cb3-walk-btns button.on{background:var(--cb3-accent);color:#fff}
+.cb3-walk-btns .cb3-walk-exit{background:#fff;color:#0e2030}
+/* 歩きはじめるところを選ぶ：地図は動かせる（タップしたところから歩く）。下にほかの選び方 */
+.cb3-picking .maplibregl-canvas-container.maplibregl-interactive{cursor:crosshair}
+.cb3-picking .cb3-zoom,.cb3-picking .cb3-look,.cb3-picking .cb3-look-toast{display:none!important}
+.cb3-pick-btns{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);display:flex;flex-wrap:wrap;justify-content:center;gap:8px;width:max-content;
+  max-width:calc(100% - 32px);pointer-events:auto}
+.cb3-pick-btns button{height:42px;padding:0 16px;border:none;border-radius:21px;background:rgba(14,32,48,.82);color:#fff;font-size:13px;font-weight:800;
+  font-family:inherit;cursor:pointer;box-shadow:0 6px 16px -6px rgba(0,0,0,.5);white-space:nowrap}
+.cb3-pick-btns .cb3-walk-exit{background:#fff;color:#0e2030}
 `;
+
+// 「歩いて見る」のボタンのアイコン（歩く人）。キャンパスナビのボタン（NavigationView）も使う
+export const WALK_ICON = (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="13" cy="4" r="2" />
+    <path d="M10.5 21l1.8-6.2 2.7 2.4V21" />
+    <path d="M7 12.5l2.2-4.3 4.3-.7 2.3 3.6 2.7 1.3" />
+    <path d="M12.3 14.8L11 7.6" />
+  </svg>
+);
 
 // 見え方のボタンのアイコン（昼：太陽、夕方：沈む太陽、夜：月）。キャンパスナビのボタン（NavigationView）も使う
 export const LOOK_ICON = {
@@ -84,6 +126,20 @@ export const LOOK_ICON = {
 export const LOOK_LABEL = { auto: "navi.lookAuto", day: "navi.lookDay", evening: "navi.lookEvening", night: "navi.lookNight" };
 // 空（傾けたときの画面の上のもや）：上は空の色、地平線のあたりは地平線の色
 const hazeBackground = (look) => `linear-gradient(to bottom, ${look.sky.top} 0%, ${look.sky.horizon}cc 34%, ${look.sky.horizon}00 100%)`;
+// 歩いて見るときの空（MapLibre の sky。目の高さでは画面の上半分が空になる）：時刻の見え方の空の色。
+// 遠くの地面は背景の色へ溶かす（データの端が見えないように）
+const skyOf = (look) => ({
+  "sky-color": look.sky.top,
+  "horizon-color": look.sky.horizon,
+  "fog-color": look.pal.outside,
+  "sky-horizon-blend": 0.7,
+  "horizon-fog-blend": 0.6,
+  "fog-ground-blend": 0.55,
+  "atmosphere-blend": 0,
+});
+// 歩くのに使うキー（押しているあいだ動く）
+const WALK_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE", "KeyR", "KeyF", "KeyC", "Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "ShiftLeft", "ShiftRight"]);
+const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
 const gpsHtml = () => `<div style="position:relative;width:14px;height:14px">
   <div class="gps3-arrow" style="display:none;position:absolute;top:-18px;left:50%;transform-origin:center 25px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:14px solid ${ROUTE_COL};filter:drop-shadow(0 0 3px rgba(26,142,240,.6));z-index:2"></div>
@@ -179,6 +235,7 @@ function fitCamera(ml, map, pts, pad, pitch, bearing, maxZoom) {
  *   editable, selectedFeatureId    エディタ用：いつでも坂を焼き込める標高タイルにする / 選んでいる構造物を色で示す
  *   lookKey, defaultLook           見え方（時刻に合わせる・昼・夕方・夜。campus3dSky.js）を覚えておく localStorage のキーと、はじめの見え方
  *   lookMode, onLookPhase(phase)   見え方を親が決めるとき（このときは地図の上にボタンを出さない）と、いまの昼・夕方・夜を知らせる
+ *   walkButton                     地図の上に「歩いて見る」のボタンを出す（エディタ。キャンパスナビは ref の startWalk() を呼ぶ）
  *   onSpotTap(id), onGroupTap(id), onMapClick(), onUserMove(), onRotate(bearing), onLoad(), onError(err)
  */
 export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
@@ -203,6 +260,20 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const lookToastTimer = useRef(0);
   const hazeRef = useRef(null);
   const trainsLayerRef = useRef(null);
+  const lightsRef = useRef(null); // 夜の街灯の柱・灯具を描くレイヤー（campus3dLayer.js）
+  const lampsRef = useRef(null); // いまの街灯（campus3dLamps.js の streetLamps）
+  const lampKeyRef = useRef(null); // 街灯を置いたときの構造物（変わっていなければ置き直さない）
+  // 歩いて見る（campus3dWalk.js）：歩いているあいだの状態（位置・向き・入力・戻すときの設定）。null なら歩いていない
+  const walkRef = useRef(null);
+  const [walking, setWalking] = useState(false);
+  const [walkUi, setWalkUi] = useState({ run: false, auto: false, route: false, done: false, hint: false, locked: false, touch: false });
+  const joyKnobRef = useRef(null);
+  // 歩きはじめるところを選んでいるあいだ：{ world }（null なら選んでいない）と、出すボタン { route, gps }
+  const pickRef = useRef(null);
+  const [picking, setPicking] = useState(null);
+  const cutRef = useRef(null); // 通り抜けで分けた建物（歩くときのぶつかり）
+  const replacedRef = useRef(null); // 手で置きかえた地図の建物
+  const lampLightRef = useRef({ canvas: null, lamps: null, timer: 0 }); // 道に落ちる光の輪の画像（作ったときの街灯）
   const paintRef = useRef(null); // 道路・路面の塗りを作り直す関数（見え方が変わったら色を変える）
   const wrapRef = useRef(null);
   const boxRef = useRef(null);
@@ -278,7 +349,12 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     wrap.style.background = built.pal.outside;
 
     const R = regionOf(data);
-    const constrain = makeConstrain(R, ml.LngLat);
+    // 画面がデータの外に出ないようにする制限。歩いて見るあいだは目の位置で決めるので、ズームの範囲だけ
+    const limit = makeConstrain(R, ml.LngLat);
+    const constrain = function constrain(lngLat, zoom) {
+      if (walkRef.current) return { center: lngLat, zoom: Math.min(this.maxZoom, Math.max(this.minZoom, zoom)) };
+      return limit.call(this, lngLat, zoom);
+    };
     let map;
     try {
       map = new ml.Map({
@@ -337,6 +413,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const settle = () => {
       settleTimer = 0;
       const p = propsRef.current;
+      if (walkRef.current) return; // 歩いて見るあいだはカメラを目の位置で決める
       if (mapRef.current !== map || map.isMoving() || map.isEasing()) return; // まだ動いている（終わればまた呼ばれる）
       if (p.guiding && p.follow) return; // 案内中の追従は自分でカメラを決める
       const c = map.getCenter();
@@ -368,6 +445,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     let raf = 0;
     const layout = () => {
       raf = 0;
+      if (walkRef.current) return; // 歩いて見るあいだはラベルを地図から外している（やめたら relayout）
       const z = map.getZoom();
       const pitch = map.getPitch();
       const k = riseRef.current;
@@ -400,6 +478,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const shownAt = (l) => last.cls === ZOOM_CLASSES[3] || (last.cls !== ZOOM_CLASSES[0] && l.mapped && !l.small);
     const declutter = () => {
       declutterTimer = 0;
+      if (walkRef.current) return;
       lastDeclutter = performance.now();
       const W = box.clientWidth;
       const H = box.clientHeight;
@@ -461,9 +540,9 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         await dem.ensure([Math.max(w, tb[0]), Math.max(s, tb[1]), Math.min(e, tb[2]), Math.min(n, tb[3])]);
         if (mapRef.current !== map) return;
         setTrackHeights(prep, (ll) => dem.groundAt(ll));
-        const frame = () => {
+        const frame = (view) => {
           const ts = trainsAt(prep, serviceClock());
-          return { ...trainMesh(prep, ts, lookRef.current?.lamp || 0), count: ts.length }; // 夜は窓あかり
+          return { ...trainMesh(prep, ts, lookRef.current?.lamp || 0, { ...view, reuse: true }), count: ts.length }; // 夜は窓あかり・前照灯の光
         };
         const layer = createTrainsLayer({ light: lookRef.current.light, exaggeration: TERRAIN_EXAG, frame });
         map.addLayer(layer, "nav-route-passed");
@@ -486,6 +565,15 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         extrasRef.current = extras;
       } catch (err) {
         console.warn("[3D map] extras layer:", err?.message || err);
+      }
+      // 夜の街灯の柱・灯具（置き場所は構造物を反映するときに決める。手で描いた道路・建物などをよけるので）
+      try {
+        const lights = createLightsLayer({ light: lookRef.current.light, exaggeration: TERRAIN_EXAG });
+        map.addLayer(lights, "nav-route-passed");
+        lights.setGlow(lookRef.current.lamp);
+        lightsRef.current = lights;
+      } catch (err) {
+        console.warn("[3D map] lights layer:", err?.message || err);
       }
       // 電車（目黒線・大井町線）を時刻表どおりに走らせる（campus3dTrains.js）。線路の標高を読んでから足す
       if (propsRef.current.trains) startTrains();
@@ -527,6 +615,11 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     // タップ：建物の無いスポット（点）→ 建物 → 何もないところ
     map.on("click", (ev) => {
       const p = propsRef.current;
+      if (pickRef.current) {
+        pickStart("tap", ev); // 歩きはじめるところ
+        return;
+      }
+      if (walkRef.current) return; // 歩いて見るあいだのタップは見回すため
       p.onMapClick?.();
       const { x, y } = ev.point;
       const dots = map.getLayer("nav-spots") ? map.queryRenderedFeatures([[x - 12, y - 12], [x + 12, y + 12]], { layers: ["nav-spots"] }) : [];
@@ -565,11 +658,14 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       kickFollow();
     });
     map.on("rotate", () => {
+      if (walkRef.current) return; // 歩いて見るあいだは毎フレーム回るので、方位磁針などは動かさない
       propsRef.current.onRotate?.(map.getBearing());
       updateArrow();
     });
 
     return () => {
+      cancelAnimationFrame(walkRef.current?.raf);
+      walkRef.current = null;
       cancelAnimationFrame(raf);
       cancelAnimationFrame(resizeRaf);
       clearTimeout(declutterTimer);
@@ -604,7 +700,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     followRaf.current = 0;
     const map = mapRef.current;
     const p = propsRef.current;
-    if (!map || !p.guiding || !p.follow || !p.gps || gestRef.current) return;
+    if (!map || !p.guiding || !p.follow || !p.gps || gestRef.current || walkRef.current || pickRef.current) return; // 歩きはじめるところを選ぶあいだも止める
     const c = map.getCenter();
     const bearing = map.getBearing();
     const pitch = map.getPitch();
@@ -649,9 +745,13 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     // 現在地ボタン（zoom は Leaflet 基準）
     flyTo(lat, lng, zoom) {
       const map = mapRef.current;
-      if (map) map.easeTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), zoom + ML_ZOOM_OFFSET), padding: NO_PAD, duration: 600 });
+      if (map && !walkRef.current) map.easeTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), zoom + ML_ZOOM_OFFSET), padding: NO_PAD, duration: 600 });
     },
-    resetNorth() { mapRef.current?.easeTo({ bearing: 0, duration: 500 }); },
+    resetNorth() { if (!walkRef.current) mapRef.current?.easeTo({ bearing: 0, duration: 500 }); },
+    // 目の高さで歩いて見る（はじめる・やめる）
+    startWalk: () => startWalk(),
+    stopWalk: () => (pickRef.current ? cancelPick() : stopWalk()),
+    isWalking: () => !!walkRef.current || !!pickRef.current, // 選んでいるあいだも（地図のタップは歩きはじめるところ）
     // 案内中に上にする方位（null なら今の向きのまま）と、現在地の矢印の向き（null なら出さない）
     setHeading(follow, arrow) {
       headRef.current = { follow, arrow };
@@ -713,10 +813,13 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       map.getSource("cbRailSurface")?.setData(linesFC(splitByBridges(data.rail.surface, railBr).ground));
       bridgesRef.current = roadBr;
       setBridgeTick((v) => v + 1);
-      const cut = await cutPassages(data.buildings, built.heights, features.filter((f) => f.type === "passage"), ground);
-      if (!live()) return;
-      // 手で置きかえた建物（「建物」）：元の建物は描かず、ラベルとピンの高さはその点の屋根の高さに
+      // 手で置きかえた建物（「建物」）：元の建物は描かず、ラベルとピンの高さはその点の屋根の高さに。
+      // 通り抜けの穴は、置きかえた建物には地図の建物のほうではなく、置きかえた形にあける（buildMesh）
       const replaced = replacedBuildings(features, data.buildings);
+      const cut = await cutPassages(data.buildings, built.heights, features.filter((f) => f.type === "passage"), ground, replaced);
+      if (!live()) return;
+      cutRef.current = cut;
+      replacedRef.current = replaced;
       built.heights0 ||= built.heights.slice();
       built.heights = built.heights0.map((h, i) => (replaced.has(i) ? buildingRoof(replaced.get(i)).hAt(toXY([data.buildings[i].c[1], data.buildings[i].c[0]])) : h));
       built.labels.forEach((l) => {
@@ -735,12 +838,508 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         return hlRef.current && spots.includes(hlRef.current) ? built.hl : spots.length ? built.pal.bld : built.pal.bldMuted;
       };
       // 建物のくり抜き（ベランダ）は多角形の重ね合わせで作る
-      const clip = features.some((f) => f.type === "building" && f.carves) ? await loadClipper() : null;
+      const clip = features.some((f) => f.type === "building" && buildingOpenings(f, features).length) ? await loadClipper() : null;
       if (!live()) return;
       meshRef.current = () => extrasRef.current?.setMesh(buildMesh(features, { groundAt: ground, slopes: dem.slopes, terraces: dem.terraces, ceilings: cut.ceilings, pal: built.pal, dark, selectedId: selectedFeatureId, accent, bldColor, clip, tone: lookRef.current?.tone }));
       meshRef.current();
+      // 夜の街灯：手で足した道路・建物・橋などをよけて置き、柱の足もとは焼き込んだ地面の高さ。置き直すのは関係する構造物が
+      // 変わったときだけ（選んだだけ・横断歩道や白線を直しただけでは置き直さない。全体で 0.1 秒ほどかかる）
+      const lampKey = JSON.stringify(features.filter((f) => !isPaint(f.type) || f.type === "road"));
+      if (lampKey !== lampKeyRef.current) {
+        const lamps = streetLamps(data, features, regionOf(data));
+        await dem.ensure(lampBounds(lamps));
+        if (!live()) return;
+        lampKeyRef.current = lampKey;
+        lampsRef.current = lamps;
+        lightsRef.current?.setLamps(lampMesh(lamps, ground));
+        showLampLight();
+      }
     })().catch((err) => console.warn("[3D map] features:", err?.message || err));
   }, [loaded, features, selectedFeatureId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 夜の街灯が道に落とす光の輪：夜（lamp > 0）に、街灯から画像を作って地形に貼る（地図の端の帯の前）。街灯が変わったら作り直す
+  // （エディタで続けて直すときは、少し待ってからまとめて）。昼は applyLook が隠す
+  function showLampLight() {
+    const map = mapRef.current;
+    const look = lookRef.current;
+    const lamps = lampsRef.current;
+    if (!map || !look || !lamps || look.lamp <= 0.01) return;
+    const st = lampLightRef.current;
+    const show = () => {
+      if (!map.getLayer(LAMP_LIGHT_LAYER)) return;
+      map.setLayoutProperty(LAMP_LIGHT_LAYER, "visibility", "visible");
+      map.setPaintProperty(LAMP_LIGHT_LAYER, "raster-opacity", lampLightOpacity(lookRef.current));
+    };
+    if (st.lamps === lamps) return show();
+    const src = map.getSource(LAMP_LIGHT_SOURCE);
+    const draw = () => {
+      st.timer = 0;
+      if (mapRef.current !== map) return;
+      const now = lampsRef.current;
+      const { canvas, coordinates } = lampLightCanvas(now, data, regionOf(data), st.canvas);
+      st.lamps = now;
+      st.canvas = canvas;
+      const s = map.getSource(LAMP_LIGHT_SOURCE);
+      if (s) {
+        // canvas のソースは、動かしているあいだだけ描き直す：1回描いたら止める
+        s.play();
+        map.once("render", () => s.pause());
+        map.triggerRepaint();
+      } else {
+        map.addSource(LAMP_LIGHT_SOURCE, { type: "canvas", canvas, coordinates, animate: false });
+        map.addLayer({ id: LAMP_LIGHT_LAYER, type: "raster", source: LAMP_LIGHT_SOURCE, paint: { "raster-opacity": 0, "raster-fade-duration": 0 } }, map.getLayer(LAMP_LIGHT_BEFORE) ? LAMP_LIGHT_BEFORE : undefined);
+      }
+      show();
+    };
+    clearTimeout(st.timer);
+    if (src) st.timer = setTimeout(draw, 300);
+    else draw();
+  }
+
+  // ── 歩いて見る：目の高さで Minecraft のように動く（campus3dWalk.js）。PC はクリックでマウスを固定して見回し、WASD で移動・
+  // Space でジャンプ・Shift（か W 2回）でダッシュ・C でしゃがむ。スマホは左のスティックで移動・画面をなぞって見回す・ジャンプのボタン。
+  // はじめに歩きはじめるところを選ぶ（地図をタップ：屋上・橋の上も。画面のまん中・ルートの出発点・現在地からも）。
+  // ルートがあれば自動でたどれる。カメラは毎フレーム目の位置から決める（中心は視線の先の宙。centerClampedToGround を切る）。
+  // はじめとおわりは、上からの視点と目の高さのあいだをなめらかにつなぐ ──
+  const inRegion = (ll) => {
+    const R = regionOf(data);
+    return !!ll && ll.lng > R.w && ll.lng < R.e && ll.lat > R.s && ll.lat < R.n;
+  };
+  // 地面の高さで建物の中か（ルートの上の点。出発点・目的地のスポットは建物の中にある）
+  const routeBlocked = (world, path, al) => {
+    const [px, py] = path.at(al);
+    const g = dem.groundAt(toLngLat([px, py]));
+    return world.blocked(px, py, Number.isFinite(g) ? g : 0);
+  };
+
+  async function startWalk() {
+    const map = mapRef.current;
+    if (!map || !builtRef.current || walkRef.current || pickRef.current) return;
+    pickRef.current = { world: null };
+    const p = propsRef.current;
+    const R = regionOf(data);
+    await dem.ensure([R.w, R.s, R.e, R.n]);
+    if (mapRef.current !== map || !pickRef.current) return;
+    // 歩ける範囲：データの端の帯（背景へ溶かすところ）より内側
+    const [bx0, by0] = toXY([R.w, R.s]);
+    const [bx1, by1] = toXY([R.e, R.n]);
+    pickRef.current.world = walkWorld({
+      data, features: p.features || [], cut: cutRef.current, replaced: replacedRef.current, heights: builtRef.current.heights, decks: bridgesRef.current,
+      posts: (lampsRef.current || []).map((l) => [l.x, l.y]), bounds: [bx0 + 40, by0 + 40, bx1 - 40, by1 - 40], groundAt: (ll) => dem.groundAt(ll),
+    });
+    wrapRef.current?.classList.add("cb3-picking");
+    setPicking({ route: !!(p.route && p.route.length > 1), gps: inRegion(p.gps) });
+  }
+
+  function cancelPick() {
+    if (!pickRef.current) return;
+    pickRef.current = null;
+    wrapRef.current?.classList.remove("cb3-picking");
+    setPicking(null);
+  }
+
+  // 選んだところから歩きはじめる。how は "tap"（ev は地図のクリック）・"center"（画面のまん中）・"route"（ルートの出発点。
+  // 案内中は今いるところ）・"gps"（現在地）
+  function pickStart(how, ev) {
+    const map = mapRef.current;
+    const world = pickRef.current?.world;
+    if (!map || !world) return;
+    const p = propsRef.current;
+    const path = p.route && p.route.length > 1 ? routePath(p.route) : null;
+    const groundZ = (x, y) => {
+      const g = dem.groundAt(toLngLat([x, y]));
+      return Number.isFinite(g) ? g : map.getCenterElevation();
+    };
+    let x;
+    let y;
+    let z;
+    let along = 0;
+    let yaw = map.getBearing();
+    if (how === "route" && path) {
+      along = p.guiding && inRegion(p.gps) ? path.nearest(...toXY([p.gps.lng, p.gps.lat])) : 0;
+      // 出発点が建物の中（スポットの点）なら、ルートが建物を出るところから
+      for (let k = 0; k < 160 && along < path.len && routeBlocked(world, path, along); k++) along += 0.5;
+      [x, y] = path.at(along);
+      z = groundZ(x, y);
+      yaw = path.heading(along) ?? yaw;
+    } else if (how === "gps" && inRegion(p.gps)) {
+      [x, y] = toXY([p.gps.lng, p.gps.lat]);
+      z = groundZ(x, y);
+    } else {
+      // 指したところ：カメラから、指した地面の点（画面のまん中なら地図の中心）へのまっすぐな線で最初に当たる、立てるところ
+      const ll = how === "tap" && ev ? ev.lngLat : map.getCenter();
+      const [hx, hy] = toXY([ll.lng, ll.lat]);
+      const hz = how === "tap" ? (map.queryTerrainElevation?.(ll) ?? groundZ(hx, hy)) : map.getCenterElevation();
+      const cam = map.transform.getCameraLngLat();
+      [x, y, z] = world.pick([...toXY([cam.lng, cam.lat]), map.transform.getCameraAltitude()], [hx, hy, hz]);
+    }
+    if (world.blocked(x, y, z)) [x, y, z] = world.freeNear(x, y, z); // 建物の中・壁ぎわなら、近くの外から
+    if (path && how !== "route") along = path.nearest(x, y);
+    pickRef.current = null;
+    wrapRef.current?.classList.remove("cb3-picking");
+    setPicking(null);
+    beginWalk({ world, path, x, y, z, yaw, along });
+  }
+
+  function beginWalk({ world, path, x, y, z, yaw, along }) {
+    const map = mapRef.current;
+    if (!map || walkRef.current) return;
+    // いまのカメラの位置（ここから目の高さへ降りていく）
+    const cam = map.transform.getCameraLngLat();
+    const alt = map.transform.getCameraAltitude();
+    const c = map.getCenter();
+    const [camX, camY] = toXY([cam.lng, cam.lat]);
+    const [cX, cY] = toXY([c.lng, c.lat]);
+    const D0 = Math.max(1, Math.hypot(cX - camX, cY - camY, alt - map.getCenterElevation()));
+    const handlers = ["dragPan", "dragRotate", "scrollZoom", "touchZoomRotate", "touchPitch", "doubleClickZoom", "keyboard", "boxZoom"].filter((h) => map[h]?.isEnabled?.());
+    const restore = { maxZoom: map.getMaxZoom(), maxPitch: map.getMaxPitch(), fov: map.transform.fov, handlers };
+    const touch = !!window.matchMedia?.("(pointer: coarse)").matches;
+    walkRef.current = {
+      world, path, x, y, z, vx: 0, vy: 0, vz: 0, onGround: true, deck: null, yaw, pitch: WALK_PITCH.start, along,
+      eyeOff: 0, bobPhase: 0, bobAmp: 0, fov: WALK_FOV,
+      keys: new Set(), joy: { x: 0, y: 0 }, run: false, sprintLatch: false, lastW: 0, touch,
+      auto: false, done: false, lookHold: 0, locked: false, unlockedAt: 0, restore, last: 0, raf: 0,
+      anim: { t0: performance.now(), dur: 1500, from: { x: camX, y: camY, z: alt, yaw: map.getBearing(), pitch: map.getPitch(), D: D0, fov: restore.fov } },
+    };
+    map.stop();
+    cancelAnimationFrame(followRaf.current);
+    followRaf.current = 0;
+    handlers.forEach((h) => map[h].disable());
+    map.setMaxZoom(24);
+    map.setMaxPitch(180);
+    map.setCenterClampedToGround(false);
+    map.setSky(skyOf(lookRef.current));
+    trainsLayerRef.current?.setXray(false); // トンネルの中の列車を地面ごしに見せない
+    // マーカー（ラベル・駅名・現在地・ピン）は地図から外す。MapLibre は地図が動くたびにマーカーごとに地形の奥行きを
+    // GPU から読む（readPixels）ので、毎フレーム動かすと 2〜3fps まで落ちる。残るマーカー（エディタの点）は奥行きを読ませない
+    const own = [...mk.current.labels.map((x) => x.m), ...mk.current.stations.map((x) => x.m), mk.current.gps, mk.current.pin?.m].filter(Boolean);
+    own.forEach((m) => m.remove());
+    walkRef.current.detached = own;
+    if (map.terrain) map.terrain.depthAtPoint = () => 1; // 1 ＝いちばん奥：マーカーはいつも見えている扱い
+    wrapRef.current?.classList.add("cb3-walking");
+    if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur?.();
+    setWalking(true);
+    setWalkUi({ run: false, auto: false, route: !!path, done: false, hint: true, locked: false, touch });
+    walkRef.current.raf = requestAnimationFrame(walkTick);
+  }
+
+  function walkTick(now) {
+    const w = walkRef.current;
+    const map = mapRef.current;
+    if (!w || !map) return;
+    w.raf = requestAnimationFrame(walkTick);
+    const dt = w.last ? Math.min(0.1, (now - w.last) / 1000) : 0; // 遅い端末（10fps ほど）でも動く速さは変えない。タブを戻したときに飛ばない
+    w.last = now;
+    // はじめ・おわりのつなぎ：カメラの位置・向き・中心までの距離・画角を少しずつ
+    if (w.anim) {
+      const a = w.anim;
+      const k = Math.min(1, (now - a.t0) / a.dur);
+      const e = easeInOut(k);
+      const f = a.from;
+      const to = a.to || { x: w.x, y: w.y, z: w.z + EYE, yaw: w.yaw, pitch: w.pitch, D: VIEW_D, fov: WALK_FOV };
+      const fov = f.fov + (to.fov - f.fov) * e;
+      map.setVerticalFieldOfView(fov);
+      const D = Math.exp(Math.log(f.D) + (Math.log(to.D) - Math.log(f.D)) * e);
+      const pos = { x: f.x + (to.x - f.x) * e, y: f.y + (to.y - f.y) * e, z: f.z + (to.z - f.z) * e };
+      map.jumpTo(eyeCamera(pos, f.yaw + angDiff(to.yaw, f.yaw) * e, f.pitch + (to.pitch - f.pitch) * e, { height: map.transform.height, fov: (fov * Math.PI) / 180 }, D));
+      if (k >= 1) {
+        w.anim = null;
+        if (a.out) finishWalk();
+      }
+      return;
+    }
+    const keys = w.keys;
+    const key = (...codes) => (codes.some((c) => keys.has(c)) ? 1 : 0);
+    const fwd = key("KeyW", "ArrowUp") - key("KeyS", "ArrowDown") + w.joy.y;
+    const side = key("KeyD", "ArrowRight") - key("KeyA", "ArrowLeft") + w.joy.x;
+    const turn = key("KeyE") - key("KeyQ");
+    const look = key("KeyR", "PageUp") - key("KeyF", "PageDown");
+    const sprint = w.run || w.sprintLatch || keys.has("ShiftLeft") || keys.has("ShiftRight");
+    const sneak = keys.has("KeyC");
+    const jump = keys.has("Space");
+    // 自分で動いたら、ルートの自動はやめる
+    if (w.auto && (Math.abs(fwd) > 0.05 || Math.abs(side) > 0.05 || jump)) {
+      w.auto = false;
+      setWalkUi((u) => ({ ...u, auto: false }));
+    }
+    let s = { x: w.x, y: w.y, z: w.z, vx: w.vx, vy: w.vy, vz: w.vz, onGround: w.onGround, deck: w.deck, yaw: w.yaw, pitch: w.pitch, along: w.along };
+    if (w.auto && w.path) {
+      // 見回しているあいだ（マウス・ドラッグ・回すキー）は、進む向きへ顔を戻さない
+      s = stepRoute(s, w.path, dt, w.world, { run: sprint, steer: !turn && now > w.lookHold });
+      if (turn) s.yaw = (s.yaw + turn * 120 * dt + 360) % 360;
+      // 建物に入るところ：この先で建物を出るなら、出たところまで進む（建物の中を通るルート）。出なければ、入口で着いた
+      if (routeBlocked(w.world, w.path, s.along) && !routeBlocked(w.world, w.path, w.along)) {
+        let t = s.along;
+        while (t < w.path.len && routeBlocked(w.world, w.path, t)) t += 0.5;
+        const at = (al) => {
+          const [nx, ny] = w.path.at(al);
+          const f = w.world.floorBelow(nx, ny, w.z + 0.6);
+          return { x: nx, y: ny, z: f ? f.z : w.z, along: al, stepUp: 0 };
+        };
+        // 目的地の建物の入口：壁の目の前ではなく、4m 手前から建物を見上げる
+        s = t >= w.path.len ? { ...s, ...at(Math.max(0, w.along - 4)), pitch: 92, done: true } : { ...s, ...at(t) };
+      }
+      if (s.done) {
+        w.auto = false;
+        w.done = true;
+        setWalkUi((u) => ({ ...u, auto: false, done: true }));
+      }
+    } else s = stepBody(s, { fwd, side, turn, jump, sprint, sneak, autoJump: w.touch }, dt, w.world);
+    s.pitch = Math.min(WALK_PITCH.max, Math.max(WALK_PITCH.min, s.pitch + look * 80 * dt));
+    Object.assign(w, s);
+    // 目：段を上り下りしたときはなめらかに追いつく。歩いているあいだは少し上下にゆれる（Minecraft の「画面の揺れ」）
+    w.eyeOff = (w.eyeOff - (s.stepUp || 0)) * Math.exp(-dt * 12);
+    const hs = Math.hypot(w.vx, w.vy);
+    w.bobAmp += ((w.onGround && !w.auto ? Math.min(1, hs / SPEED.walk) : 0) - w.bobAmp) * Math.min(1, dt * 8);
+    w.bobPhase += hs * dt * (Math.PI / 0.8);
+    const bob = -Math.abs(Math.sin(w.bobPhase)) * 0.05 * w.bobAmp;
+    // ダッシュ中は画角を少し広げる
+    const fovTarget = WALK_FOV + (sprint && hs > SPEED.walk + 0.3 ? SPRINT_FOV : 0);
+    w.fov += (fovTarget - w.fov) * Math.min(1, dt * 8);
+    if (Math.abs(w.fov - map.transform.fov) > 0.05) map.setVerticalFieldOfView(w.fov);
+    map.jumpTo(eyeCamera({ x: w.x, y: w.y, z: w.z + EYE + w.eyeOff + bob }, w.yaw, w.pitch, { height: map.transform.height, fov: map.transform.fovInRadians }));
+  }
+
+  // やめる：目の高さから、歩いていたところを上から見下ろす視点へ戻してから、地図の設定を元に戻す
+  function stopWalk() {
+    const w = walkRef.current;
+    const map = mapRef.current;
+    if (!w || !map || w.anim?.out) return;
+    if (document.pointerLockElement) document.exitPointerLock?.();
+    const pitch = 55;
+    const zoom = 18.8;
+    const lat = toLngLat([w.x, w.y])[1];
+    const ppm = (512 * 2 ** zoom) / (40075016.686 * Math.cos((lat * Math.PI) / 180)); // 1m が何 px か
+    const D = (0.5 * map.transform.height) / Math.tan((w.restore.fov * Math.PI) / 360) / ppm;
+    const b = (w.yaw * Math.PI) / 180;
+    const p = (pitch * Math.PI) / 180;
+    const to = { x: w.x - D * Math.sin(p) * Math.sin(b), y: w.y - D * Math.sin(p) * Math.cos(b), z: w.z + D * Math.cos(p), yaw: w.yaw, pitch, D, fov: w.restore.fov };
+    w.anim = { t0: performance.now(), dur: 1100, out: true, from: { x: w.x, y: w.y, z: w.z + EYE + w.eyeOff, yaw: w.yaw, pitch: w.pitch, D: VIEW_D, fov: map.transform.fov }, to };
+    w.keys.clear();
+    w.joy = { x: 0, y: 0 };
+    w.auto = false;
+  }
+
+  function finishWalk() {
+    const w = walkRef.current;
+    const map = mapRef.current;
+    if (!w) return;
+    cancelAnimationFrame(w.raf);
+    walkRef.current = null;
+    if (map) {
+      map.setCenterClampedToGround(true);
+      map.setMaxPitch(w.restore.maxPitch);
+      map.setMaxZoom(w.restore.maxZoom);
+      map.setVerticalFieldOfView(w.restore.fov);
+      map.setSky(undefined);
+      w.restore.handlers.forEach((h) => map[h]?.enable());
+      trainsLayerRef.current?.setXray(true);
+      if (map.terrain) delete map.terrain.depthAtPoint; // もとの（地形の奥行きを読む）関数へ
+      // 外したマーカーを戻す（歩いているあいだに入れかわったもの＝消されたピンなどは戻さない）
+      const now = new Set([...mk.current.labels.map((x) => x.m), ...mk.current.stations.map((x) => x.m), mk.current.gps, mk.current.pin?.m].filter(Boolean));
+      (w.detached || []).filter((m) => now.has(m)).forEach((m) => m.addTo(map));
+      mk.current.relayout?.();
+    }
+    wrapRef.current?.classList.remove("cb3-walking");
+    setWalking(false);
+    setWalkUi((u) => ({ ...u, auto: false, done: false, hint: false, locked: false }));
+  }
+
+  // 歩いているあいだの入力。PC：地図をクリックするとマウスを固定（ポインターロック）して、動かした向きを見る。固定できなければ
+  // ドラッグで見回す。Esc でマウスを離し、離れているときの Esc でやめる。W を 2回押すとダッシュ。
+  // スマホ：画面をなぞった向きを見る（右へなぞると右を向く）
+  useEffect(() => {
+    if (!walking) return undefined;
+    const box = boxRef.current;
+    let drag = null;
+    const lookBy = (dx, dy, perPx) => {
+      const w = walkRef.current;
+      if (!w || w.anim) return;
+      w.yaw = (w.yaw + dx * perPx + 360) % 360;
+      w.pitch = Math.min(WALK_PITCH.max, Math.max(WALK_PITCH.min, w.pitch - dy * perPx));
+      w.lookHold = performance.now() + 2500;
+    };
+    const down = (e) => {
+      const w = walkRef.current;
+      if (!w) return;
+      if (e.pointerType === "mouse") {
+        if (e.button !== 0) return;
+        if (!document.pointerLockElement) {
+          try {
+            const r = box.requestPointerLock?.();
+            r?.catch?.(() => {}); // 固定できなければドラッグで
+          } catch {
+            /* ドラッグで見回す */
+          }
+        }
+      } else if (!w.touch) {
+        w.touch = true;
+        setWalkUi((u) => ({ ...u, touch: true }));
+      }
+      if (!document.pointerLockElement) {
+        drag = { id: e.pointerId, x: e.clientX, y: e.clientY, mouse: e.pointerType === "mouse" };
+        try {
+          box.setPointerCapture?.(e.pointerId);
+        } catch {
+          /* マウスがすぐ固定されたとき（固定中は捕まえられない） */
+        }
+      }
+    };
+    const move = (e) => {
+      if (!drag || e.pointerId !== drag.id || document.pointerLockElement) return;
+      lookBy(e.clientX - drag.x, e.clientY - drag.y, drag.mouse ? 0.2 : 0.3);
+      drag.x = e.clientX;
+      drag.y = e.clientY;
+    };
+    const up = (e) => {
+      if (drag && e.pointerId === drag.id) drag = null;
+    };
+    // マウスを固定しているあいだ：動かした量だけ見回す
+    const mouseMove = (e) => {
+      if (document.pointerLockElement === box) lookBy(e.movementX, e.movementY, 0.13);
+    };
+    const lockChange = () => {
+      const w = walkRef.current;
+      if (!w) return;
+      w.locked = document.pointerLockElement === box;
+      if (!w.locked) w.unlockedAt = performance.now();
+      drag = null;
+      setWalkUi((u) => ({ ...u, locked: w.locked, hint: !w.locked || u.hint }));
+    };
+    const keyDown = (e) => {
+      const w = walkRef.current;
+      if (!w || e.target?.closest?.("input,textarea,select,[contenteditable='true']")) return;
+      if (e.code === "Escape") {
+        // マウスを固定しているときの Esc はブラウザが固定をやめる。離れているときの Esc でやめる
+        if (document.pointerLockElement || performance.now() - w.unlockedAt < 500) return;
+        e.preventDefault();
+        stopWalk();
+      } else if (WALK_KEYS.has(e.code)) {
+        e.preventDefault();
+        if (e.code === "KeyW" && !e.repeat) {
+          const t = performance.now();
+          if (t - w.lastW < 300) w.sprintLatch = true; // W を 2回でダッシュ（W を離すまで）
+          w.lastW = t;
+        }
+        w.keys.add(e.code);
+      }
+    };
+    const keyUp = (e) => {
+      const w = walkRef.current;
+      if (!w) return;
+      w.keys.delete(e.code);
+      if (e.code === "KeyW") w.sprintLatch = false;
+    };
+    const blur = () => {
+      const w = walkRef.current;
+      if (!w) return;
+      w.keys.clear();
+      w.sprintLatch = false;
+    };
+    box.addEventListener("pointerdown", down);
+    box.addEventListener("pointermove", move);
+    box.addEventListener("pointerup", up);
+    box.addEventListener("pointercancel", up);
+    document.addEventListener("mousemove", mouseMove);
+    document.addEventListener("pointerlockchange", lockChange);
+    window.addEventListener("keydown", keyDown);
+    window.addEventListener("keyup", keyUp);
+    window.addEventListener("blur", blur);
+    return () => {
+      box.removeEventListener("pointerdown", down);
+      box.removeEventListener("pointermove", move);
+      box.removeEventListener("pointerup", up);
+      box.removeEventListener("pointercancel", up);
+      document.removeEventListener("mousemove", mouseMove);
+      document.removeEventListener("pointerlockchange", lockChange);
+      window.removeEventListener("keydown", keyDown);
+      window.removeEventListener("keyup", keyUp);
+      window.removeEventListener("blur", blur);
+      if (document.pointerLockElement === box) document.exitPointerLock?.();
+    };
+  }, [walking]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 歩きはじめるところを選んでいるあいだの Esc：やめる
+  useEffect(() => {
+    if (!picking) return undefined;
+    const keyDown = (e) => {
+      if (e.code !== "Escape" || e.target?.closest?.("input,textarea,select,[contenteditable='true']")) return;
+      e.preventDefault();
+      cancelPick();
+    };
+    window.addEventListener("keydown", keyDown);
+    return () => window.removeEventListener("keydown", keyDown);
+  }, [picking]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 説明はしばらくしたら消す（マウスを離したとき・スマホで歩きはじめたときにまた出す）
+  useEffect(() => {
+    if (!walking || !walkUi.hint) return undefined;
+    const id = setTimeout(() => setWalkUi((u) => (u.locked || u.touch ? { ...u, hint: false } : u)), 6000);
+    return () => clearTimeout(id);
+  }, [walking, walkUi.hint, walkUi.locked]);
+
+  // 左下のスティック（スマホ）：倒した向きへ動く（上が前、右が右へ横歩き）。つまみは指についてくる
+  const joyId = useRef(null);
+  const joyMove = (e) => {
+    const w = walkRef.current;
+    if (!w || joyId.current !== e.pointerId) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const half = r.width / 2;
+    const lim = half - 14;
+    let dx = e.clientX - (r.left + half);
+    let dy = e.clientY - (r.top + half);
+    const m = Math.hypot(dx, dy);
+    if (m > lim) {
+      dx *= lim / m;
+      dy *= lim / m;
+    }
+    const v = m < lim * 0.12 ? 0 : 1; // まん中の近くは止まる
+    w.joy = { x: (dx / lim) * v, y: (-dy / lim) * v };
+    if (joyKnobRef.current) joyKnobRef.current.style.transform = `translate(${dx}px, ${dy}px)`;
+  };
+  const joyDown = (e) => {
+    joyId.current = e.pointerId;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    joyMove(e);
+  };
+  const joyUp = (e) => {
+    if (joyId.current !== e.pointerId) return;
+    joyId.current = null;
+    if (walkRef.current) walkRef.current.joy = { x: 0, y: 0 };
+    if (joyKnobRef.current) joyKnobRef.current.style.transform = "";
+  };
+  // ジャンプのボタン（押しているあいだは、着地するたびに跳ぶ＝Space と同じ）
+  const jumpDown = (e) => {
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    walkRef.current?.keys.add("Space");
+  };
+  const jumpUp = () => walkRef.current?.keys.delete("Space");
+  const toggleRun = () => {
+    const w = walkRef.current;
+    if (!w) return;
+    w.run = !w.run;
+    setWalkUi((u) => ({ ...u, run: w.run }));
+  };
+  // ルートを自動で歩く／止まる。終わりまで歩いたあとは、はじめから
+  const toggleAuto = () => {
+    const w = walkRef.current;
+    if (!w?.path) return;
+    if (w.auto) {
+      w.auto = false;
+      setWalkUi((u) => ({ ...u, auto: false }));
+      return;
+    }
+    if (w.done) {
+      // 着いたあとは、はじめから（出発点の建物を出るところから）
+      let a = 0;
+      for (let k = 0; k < 160 && a < w.path.len && routeBlocked(w.world, w.path, a); k++) a += 0.5;
+      [w.x, w.y] = w.path.at(a);
+      w.along = a;
+      w.z = (w.world.floorBelow(w.x, w.y, Infinity) || { z: w.z }).z;
+      w.done = false;
+    } else w.along = w.path.nearest(w.x, w.y);
+    w.auto = true;
+    w.lookHold = 0;
+    setWalkUi((u) => ({ ...u, auto: true, done: false }));
+  };
 
   // ── 見え方（時刻に合わせる・昼・夕方・夜）を当てはめる。時刻に合わせるときは 1 分ごとに太陽の位置を測り直す。
   // window に "cb3-clock" を送ると、すぐ測り直す（試すとき：window.__mapClock = { at: "17:05" } と合わせて）──
@@ -766,6 +1365,10 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       if (hazeRef.current) hazeRef.current.style.background = hazeBackground(look);
       extrasRef.current?.setLight(look.light);
       trainsLayerRef.current?.setLight(look.light);
+      lightsRef.current?.setLight(look.light);
+      lightsRef.current?.setGlow(look.lamp);
+      showLampLight();
+      if (walkRef.current) map.setSky(skyOf(look));
       meshRef.current?.();
       paintRef.current?.();
     };
@@ -947,7 +1550,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       cancelAnimationFrame(followRaf.current);
       followRaf.current = 0;
       zoomTgtRef.current = null;
-      map.easeTo({ pitch: Math.min(PITCH, maxPitchAt(map.getZoom(), coverRef.current)), bearing: 0, padding: NO_PAD, duration: 600 });
+      if (!walkRef.current) map.easeTo({ pitch: Math.min(PITCH, maxPitchAt(map.getZoom(), coverRef.current)), bearing: 0, padding: NO_PAD, duration: 600 });
     }
     wasGuiding.current = guiding;
   }, [loaded, guiding, follow]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -968,7 +1571,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const dKey = !rKey && dest ? `${origin ? `${origin.lat},${origin.lng}` : ""}|${dest.id}` : null;
     const changed = { route: f.route !== rKey, group: f.group !== gKey, dest: f.dest !== dKey };
     Object.assign(f, { route: rKey, group: gKey, dest: dKey });
-    if (guiding) return;
+    if (guiding || walkRef.current) return;
     const go = (pts, bearing, extraTop = 0, bottom = pad.bottom) => {
       const box = { ...pad, top: pad.top + extraTop, bottom };
       let cam = fitCamera(ml, map, pts, box, PITCH_FIT, bearing, 19 + ML_ZOOM_OFFSET);
@@ -1003,9 +1606,41 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
 
   const zoomBy = (d) => mapRef.current?.easeTo({ zoom: mapRef.current.getZoom() + d, duration: 250 });
   return (
-    <div ref={wrapRef} style={{ position: "absolute", inset: 0, zIndex: 1 }}>
+    // 歩いているあいだ（歩きはじめるところを選んでいるあいだも）は、地図を画面のほかの部品（検索・ボタン・カード）より上に出す
+    <div ref={wrapRef} style={{ position: "absolute", inset: 0, zIndex: walking || picking ? 1200 : 1 }}>
       <style>{CSS}</style>
       <div ref={boxRef} className="cb3-map" style={{ position: "absolute", inset: 0 }} />
+      {props.walkButton && !walking && !picking && <button type="button" className="cb3-walk" aria-label={t("navi.stroll")} title={t("navi.stroll")} onClick={startWalk}>{WALK_ICON}</button>}
+      {picking && (
+        <div className="cb3-walk-ui">
+          <div className="cb3-walk-hint">{t("navi.strollPick")}</div>
+          <div className="cb3-pick-btns">
+            <button type="button" onClick={() => pickStart("center")}>{t("navi.strollPickHere")}</button>
+            {picking.route && <button type="button" onClick={() => pickStart("route")}>{t("navi.strollPickRoute")}</button>}
+            {picking.gps && <button type="button" onClick={() => pickStart("gps")}>{t("navi.strollPickGps")}</button>}
+            <button type="button" className="cb3-walk-exit" onClick={cancelPick}>{t("navi.strollPickCancel")}</button>
+          </div>
+        </div>
+      )}
+      {walking && (
+        <div className="cb3-walk-ui">
+          <div className="cb3-cross" />
+          {(walkUi.hint || walkUi.done) && (
+            <div className="cb3-walk-hint">{walkUi.done ? t("navi.strollArrived") : walkUi.touch ? t("navi.strollHintTouch") : walkUi.locked ? t("navi.strollHintLocked") : t("navi.strollHintKeys")}</div>
+          )}
+          {walkUi.touch && (
+            <div className="cb3-joy" aria-hidden="true" onPointerDown={joyDown} onPointerMove={joyMove} onPointerUp={joyUp} onPointerCancel={joyUp}>
+              <div ref={joyKnobRef} className="cb3-joy-knob" />
+            </div>
+          )}
+          <div className="cb3-walk-btns">
+            {walkUi.touch && <button type="button" className="cb3-jump" onPointerDown={jumpDown} onPointerUp={jumpUp} onPointerCancel={jumpUp}>{t("navi.strollJump")}</button>}
+            {walkUi.route && <button type="button" className={walkUi.auto ? "on" : ""} aria-pressed={walkUi.auto} onClick={toggleAuto}>{walkUi.auto ? t("navi.strollPause") : t("navi.strollRoute")}</button>}
+            <button type="button" className={walkUi.run ? "on" : ""} aria-pressed={walkUi.run} onClick={toggleRun}>{t("navi.strollRun")}</button>
+            <button type="button" className="cb3-walk-exit" onClick={stopWalk}>{t("navi.strollStop")}</button>
+          </div>
+        </div>
+      )}
       {!controlled && <button type="button" className="cb3-look" aria-label={t("navi.look")} title={`${t("navi.look")}：${t(LOOK_LABEL[lookMode])}`} onClick={cycleLook}>
         {LOOK_ICON[lookMode === "auto" ? lookPhase : lookMode]}
         {lookMode === "auto" && <span className="cb3-look-a">A</span>}

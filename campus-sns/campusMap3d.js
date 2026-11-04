@@ -146,26 +146,13 @@ const bldColorExpr = (hl, pal) => ["case", ["boolean", ["feature-state", "hl"], 
 const STREET_KINDS = ["minor", "ped", "mid", "major", "walk"];
 const caseOf = (pal, k) => (k === "walk" ? pal.walkCase : pal.streetCase);
 const fillOf = (pal, k) => (k === "walk" ? pal.walk : pal.street);
-// 地面に置く円の半径を m で（ズームに合わせて px に）
-const metersExpr = (m) => ["interpolate", ["exponential", 2], ["zoom"], 14, (m * 2 ** 14) / MPP0, 22, (m * 2 ** 22) / MPP0];
 
-// 夜の街灯：道・通路に沿って step m おき（[{ pts: [[緯度, 経度]...] }]）
-function lampsFC(lines, step = 26) {
-  const kx = 111320 * COS;
-  const ky = 110950;
-  const out = [];
-  for (const { pts } of lines) {
-    let s = step / 2;
-    for (let i = 1; i < pts.length; i++) {
-      const [la0, ln0] = pts[i - 1];
-      const [la1, ln1] = pts[i];
-      const L = Math.hypot((ln1 - ln0) * kx, (la1 - la0) * ky);
-      for (; s < L; s += step) out.push({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [ln0 + ((ln1 - ln0) * s) / L, la0 + ((la1 - la0) * s) / L] } });
-      s -= L;
-    }
-  }
-  return fc(out);
-}
+// 夜の街灯が道に落とす光の輪（地形に貼る画像。campus3dLamps.js の lampLightCanvas を CampusMap3D が canvas のソースにして、
+// 夜になってから足す）。地図の端の帯（cb-edge）の前に重ねて、端では背景へ溶かす
+export const LAMP_LIGHT_LAYER = "cb-lamp-light";
+export const LAMP_LIGHT_SOURCE = "cbLampLight";
+export const LAMP_LIGHT_BEFORE = "cb-edge";
+export const lampLightOpacity = (look) => Math.min(1, look.lamp) * 0.92;
 
 // 標高タイル（Terrarium 形式）。MapLibre はタイルをワーカーで読むので、URL は絶対パスにする。
 // 坂を焼き込むときは campusdem://（campusDem.js）のタイルを、ズーム17まで使う
@@ -250,7 +237,6 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868", dem = ST
     cbBuildings: { type: "geojson", data: buildingsFC(data, heights) },
     cbEdge: { type: "geojson", data: edgeFC(regionOf(data)) },
     cbPassShade: { type: "geojson", data: EMPTY_FC }, // 通り抜け（屋根の下）の床の影
-    cbLamps: { type: "geojson", data: lampsFC(streets) }, // 夜の街灯
     // 手で描いた道路・路面と路面標示（campus3dPaint.js。CampusMap3D が入れる）
     cbPaveSurf: { type: "geojson", data: EMPTY_FC },
     cbPaveMark: { type: "geojson", data: EMPTY_FC },
@@ -315,11 +301,6 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868", dem = ST
     // 道路の歩道のふち（縁石）
     { id: "cb-pave-edge", type: "line", source: "cbPaveSurf", filter: ["==", ["get", "edge"], 1], layout: { "line-join": "round" }, paint: { "line-color": ["get", "curb"], "line-width": widthExpr(0.3, 0.6) } },
     { id: "cb-pave-mark", type: "fill", source: "cbPaveMark", paint: { "fill-color": ["get", "color"] } },
-    // 夜の街灯のあかり（道に落ちる光の輪。昼は隠す）
-    {
-      id: "cb-lamps", type: "circle", source: "cbLamps", minzoom: 14.5, layout: { visibility: look && look.lamp > 0.01 ? "visible" : "none" },
-      paint: { "circle-radius": metersExpr(6.5), "circle-color": "#ffc46b", "circle-blur": 1, "circle-opacity": 0.42 * (look?.lamp || 0), "circle-pitch-alignment": "map", "circle-pitch-scale": "map" },
-    },
     // 建物をくぐる通路の床は暗くする（上は屋根で隠れるので、穴の口からだけ見える）
     { id: "cb-passage-shade", type: "fill", source: "cbPassShade", paint: { "fill-color": passage.color, "fill-opacity": passage.opacity } },
     { id: "cb-rail-tunnel", type: "line", source: "cbRailTunnel", paint: { "line-color": pal.rail, "line-width": 2.5, "line-opacity": 0.55, "line-dasharray": [2, 3] } },
@@ -357,9 +338,10 @@ export function buildCampus3D(data, { dark = false, accent = "#28c868", dem = ST
     { id: "nav-route-case", type: "line", source: "navRoute", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#ffffff", "line-width": ["interpolate", ["linear"], ["zoom"], 14, 6, 19, 12] } },
     { id: "nav-route", type: "line", source: "navRoute", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": ROUTE_COL, "line-width": ["interpolate", ["linear"], ["zoom"], 14, 3.5, 19, 7.5] } },
     // 建物の陰に隠れたところも透けて見えるよう、建物より手前に描かれる点（シンボル）を線に沿って並べる。
-    // 線より細い同じ色なので、見えているところでは線に溶け込み、建物の上だけ点線になる（画像 ROUTE_DOT は CampusMap3D が足す）
+    // 線より細い同じ色なので、見えているところでは線に溶け込み、建物の上だけ点線になる（画像 ROUTE_DOT は CampusMap3D が足す）。
+    // 目の高さで歩くとき（ズーム 22 ほど）は出さない：点の間隔は画面の px なので、タイルの中の点が多すぎて MapLibre が描けない
     {
-      id: "nav-route-xray", type: "symbol", source: "navRoute",
+      id: "nav-route-xray", type: "symbol", source: "navRoute", maxzoom: 21,
       layout: {
         "symbol-placement": "line", "symbol-spacing": 9, "icon-image": ROUTE_DOT,
         "icon-allow-overlap": true, "icon-ignore-placement": true,
@@ -423,9 +405,10 @@ export function applyLook(map, built, look, accent) {
   set("cb-edge", "fill-color", pal.outside);
   set("cb-buildings", "fill-extrusion-color", bldColorExpr(built.hl, pal));
   set("cb-buildings", "fill-extrusion-opacity", look.f.night > 0.5 ? 0.94 : 0.97);
-  if (map.getLayer("cb-lamps")) {
-    map.setLayoutProperty("cb-lamps", "visibility", look.lamp > 0.01 ? "visible" : "none");
-    set("cb-lamps", "circle-opacity", 0.42 * look.lamp);
+  // 街灯の光の輪（夜に CampusMap3D が足したあと）
+  if (map.getLayer(LAMP_LIGHT_LAYER)) {
+    map.setLayoutProperty(LAMP_LIGHT_LAYER, "visibility", look.lamp > 0.01 ? "visible" : "none");
+    set(LAMP_LIGHT_LAYER, "raster-opacity", lampLightOpacity(look));
   }
   map.setLight(look.light);
 }

@@ -13,11 +13,17 @@ export const SURFACE_KINDS = {
   road: { label: "車道", light: "#8d959d", dark: "#3a4149" },
   walk: { label: "歩道", light: "#e6e8e3", dark: "#4a5058" },
   plaza: { label: "広場", light: "#cdb49a", dark: "#5f5245" },
+  tile: { label: "石畳（灰）", light: "#bcb9b3", dark: "#46484d" },
+  deck: { label: "木の床", light: "#bab8b3", dark: "#47453f" },
   red: { label: "カラー舗装", light: "#b9665b", dark: "#7a3f39" },
   green: { label: "植え込み", light: "#a9cf95", dark: "#3f5a39" },
   zebra: { label: "導流帯", light: "#8d959d", dark: "#3a4149" },
+  gravel: { label: "黒い砂利", light: "#5f6266", dark: "#25272a" },
+  stones: { label: "白い砂利", light: "#dedbd4", dark: "#55565a" },
+  brick: { label: "れんが（灰）", light: "#a19d99", dark: "#3e3f44" }, // 灰色の炻器質れんが敷き（附属図書館の広場）
+  darkbrick: { label: "れんが（こげ茶）", light: "#5e4b44", dark: "#2b2422" },
 };
-export const SURFACE_ORDER = ["road", "zebra", "red", "plaza", "walk", "green"];
+export const SURFACE_ORDER = ["road", "zebra", "red", "plaza", "brick", "darkbrick", "tile", "deck", "walk", "gravel", "stones", "green"];
 // 白線の種類：幅（m）・色・破線
 export const MARKING_KINDS = {
   solid: { label: "白線", width: 0.15, color: "white" },
@@ -25,6 +31,7 @@ export const MARKING_KINDS = {
   stop: { label: "停止線", width: 0.45, color: "white" },
   yellow: { label: "黄線", width: 0.15, color: "yellow" },
   wide: { label: "太い白線", width: 0.3, color: "white" },
+  tactile: { label: "点字ブロック", width: 0.3, color: "tactile" }, // 視覚障害者誘導用ブロック（黄色の 30cm 角の並び）
 };
 // 道路の中央線
 export const CENTER_KINDS = { dashed: "白の破線", solid: "白線", yellow: "黄線", none: "なし" };
@@ -35,7 +42,7 @@ export const ROAD_PRESETS = {
   minor: { width: 5, lanes: 1, center: "none", edge: true, walk: [0, 0] },
   ped: { width: 4, lanes: 1, center: "none", edge: false, walk: [0, 0] },
 };
-const PAINT = { white: { light: "#ffffff", dark: "#d9dde2" }, yellow: { light: "#f2b705", dark: "#c99a12" } };
+const PAINT = { white: { light: "#ffffff", dark: "#d9dde2" }, yellow: { light: "#f2b705", dark: "#c99a12" }, tactile: { light: "#e9c22e", dark: "#9c8424" } };
 // 歩道のふち（縁石）の線の色。3D表示の cb-pave-edge が描く
 export const CURB = { light: "#b9bdb6", dark: "#5d646c" };
 
@@ -164,6 +171,7 @@ export function bandPolys(xy, dl, dr) {
 // 重ねた車道（polygon-clipping の MultiPolygon。外の輪は反時計回り、穴は時計回り＝中はいつも進む向きの左）の、
 // 中へ凹んだ角（右へ折れる角）を半径 r で丸めるための扇形。両どなりの辺が短いときは、辺の 45% までにおさめる。
 // 辺にぴったり接すると丸めの誤差で離れたかけらになるので、車道の側へ 5cm 食い込ませる
+// r は半径（m）か、角ごとの半径を返す関数 (a, p, b) => [半径, 決めた半径か]（決めた半径は、辺の 98% までおさめる）
 export function cornerFillets(mp, r) {
   const out = [];
   for (const pg of mp) for (const rg of pg) {
@@ -178,7 +186,8 @@ export function cornerFillets(mp, r) {
       if (phi < 5 * DEG || phi > 175 * DEG) continue;
       // 外のすき間（くさび）の角は π−φ。丸めの円が両方の辺に接する点までの長さ t
       const half = (Math.PI - phi) / 2;
-      const t = Math.min(r / Math.tan(half), 0.45 * Math.min(la, lb));
+      const [rad, fixed] = typeof r === "function" ? r(a, p, b) : [r, false];
+      const t = Math.min(rad / Math.tan(half), (fixed ? 0.98 : 0.45) * Math.min(la, lb));
       const rr = t * Math.tan(half);
       if (t < 0.05) continue; // ゆるい曲がりの内側は丸めるほどでない
       const t1 = [p[0] - u[0] * t, p[1] - u[1] * t], t2 = [p[0] + v[0] * t, p[1] + v[1] * t];
@@ -232,16 +241,20 @@ function leaving(xy) {
   return [1, 0];
 }
 // 道 a と b が、端どうしでまっすぐ（35°以内）続いているか（そこでは標示を切らない）
+const endsOf = (xy) => [[xy[0], leaving(xy)], [xy[xy.length - 1], leaving([...xy].reverse())]];
+const joins = ([p, u], [q, v]) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 1 && u[0] * v[0] + u[1] * v[1] < -Math.cos(35 * DEG);
 function continues(a, b) {
-  const ends = (xy) => [[xy[0], leaving(xy)], [xy[xy.length - 1], leaving([...xy].reverse())]];
-  return ends(a).some(([p, u]) => ends(b).some(([q, v]) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 1 && u[0] * v[0] + u[1] * v[1] < -Math.cos(35 * DEG)));
+  return endsOf(a).some((ea) => endsOf(b).some((eb) => joins(ea, eb)));
 }
-// 道 j が道 i の標示を切る範囲：j の車道＋CORNER_R。j の端が i の車道の中（T字路の突き当たり）なら、i の車道へは INTO m だけ入る
-function cutBy(ri, rj) {
+// 道ごとの両端（[始まり, 終わり]）に、ほかの道がまっすぐ続いているか（続いていれば、その端は突き当たりでなく交差点を通り抜ける）
+const throughEnds = (rs) => rs.map((r, j) => endsOf(r.xy).map((e) => rs.some((o, k) => k !== j && endsOf(o.xy).some((eo) => joins(e, eo)))));
+// 道 j が道 i の標示を切る範囲：j の車道＋CORNER_R。j の端が i の車道の中（T字路の突き当たり）なら、i の車道へは INTO m だけ入る。
+// ただし j の端にまっすぐ続く道があれば（十字路を 4 本の道で描いたとき）、j は通り抜ける道なので短くしない（through：[始まり, 終わり]）
+function cutBy(ri, rj, through = [false, false]) {
   let xy = rj.xy;
   const cut = (p) => Math.max(0, ri.hw - INTO - distTo(ri.xy, p));
-  xy = trimStart(xy, cut(xy[0]));
-  if (xy.length >= 2) xy = trimStart([...xy].reverse(), cut(xy[xy.length - 1])).reverse();
+  if (!through[0]) xy = trimStart(xy, cut(xy[0]));
+  if (xy.length >= 2 && !through[1]) xy = trimStart([...xy].reverse(), cut(xy[xy.length - 1])).reverse();
   return xy.length >= 2 ? bandPolys(xy, rj.hw + CORNER_R, rj.hw + CORNER_R) : [];
 }
 // 道の線（外側線・車線境界線・中央線）：[{ pts, dash, color }]
@@ -271,21 +284,38 @@ export function roadGeometry(roads, crosswalks, pc) {
   const rs = roads.map((f) => ({ f, xy: centerline(f), hw: f.width / 2 })).filter((r) => r.xy.length >= 2);
   if (!rs.length) return null;
   const C0 = clip(pc, "union", rs.flatMap((r) => bandPolys(r.xy, r.hw, r.hw)));
-  const fil = cornerFillets(C0, CORNER_R);
+  // 角の丸み：道のふち（radius：[左, 右]）に決めた半径があれば、そのふちが作る角はその半径（2 本とも決めてあれば大きいほう）
+  const sides = rs.map((r) => (r.f.radius ? [offsetLine(r.xy, r.hw), offsetLine(r.xy, -r.hw)] : null));
+  const sideRadius = (s, e) => {
+    const m = [(s[0] + e[0]) / 2, (s[1] + e[1]) / 2];
+    for (let k = 0; k < rs.length; k++) {
+      if (!sides[k]) continue;
+      for (const j of [0, 1]) if (rs[k].f.radius[j] != null && distTo(sides[k][j], m) < 0.05) return rs[k].f.radius[j];
+    }
+    return null;
+  };
+  const radiusAt = (a, p, b) => {
+    const ra = sideRadius(a, p);
+    const rb = sideRadius(p, b);
+    return ra == null && rb == null ? [CORNER_R, false] : [Math.max(ra ?? 0, rb ?? 0), true];
+  };
+  const fil = cornerFillets(C0, sides.some(Boolean) ? radiusAt : CORNER_R);
   const carriage = fil.length ? clip(pc, "union", C0, fil) : C0;
   const walks = rs.filter((r) => r.f.walk[0] > 0 || r.f.walk[1] > 0).flatMap((r) => bandPolys(r.xy, r.hw + r.f.walk[0], r.hw + r.f.walk[1]));
   const sidewalk = walks.length ? clip(pc, "difference", clip(pc, "union", walks), carriage) : [];
   // 横断歩道の上は標示を切る（縞の長さ＋前後 0.5m）
   const xz = crosswalks.map(([a, b, w]) => closed(bar(a, b, w + 1)));
   const lines = { white: [], yellow: [] };
+  const thr = throughEnds(rs);
   rs.forEach((r, i) => {
     const cut = [...xz];
-    rs.forEach((o, j) => { if (j !== i && !continues(r.xy, o.xy)) cut.push(...cutBy(r, o)); });
+    rs.forEach((o, j) => { if (j !== i && !continues(r.xy, o.xy)) cut.push(...cutBy(r, o, thr[j])); });
     const by = { white: [], yellow: [] };
     for (const l of roadLines(r)) for (const q of lineBars(l.pts, LINE_W, l.dash)) by[l.color].push(closed(q));
     for (const c of ["white", "yellow"]) {
       if (!by[c].length) continue;
-      const mp = cut.length ? clip(pc, "difference", by[c], cut) : clip(pc, "union", by[c]);
+      // 切ったあとに残る 2m に満たないかけら（横断歩道の切れ目と、交わる道の切れ目のあいだなど）は消す
+      const mp = (cut.length ? clip(pc, "difference", by[c], cut) : clip(pc, "union", by[c])).filter((pg) => Math.abs(ringArea(pg[0])) >= LINE_W * 2);
       if (mp.length) lines[c].push(mp);
     }
   });

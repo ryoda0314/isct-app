@@ -7,7 +7,7 @@ import { CAMPUS_CENTER, CAMPUS_ZOOM, CAMPUS_BOUNDARY, SPOTS, SPOT_CATS, ENTRANCE
 import { useNavigation, NAV_SPOTS } from "../hooks/useNavigation.js";
 import { createCampusBasemap, isDarkColor } from "../campusBasemap.js";
 import { getNextClass } from "../todayClasses.js";
-import { CampusMap3D, LOOK_ICON, LOOK_LABEL } from "../components/CampusMap3D.jsx";
+import { CampusMap3D, LOOK_ICON, LOOK_LABEL, WALK_ICON } from "../components/CampusMap3D.jsx";
 import { LOOK_MODES } from "../campus3dSky.js";
 import { FEATURES_URL, parseFeatures } from "../campus3dFeatures.js";
 
@@ -1490,6 +1490,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     {LOOK_ICON[look3d==="auto"?lookPhase3d:look3d]}
     {look3d==="auto"&&<span style={{position:"absolute",right:6,bottom:5,fontSize:8,fontWeight:800,lineHeight:1,opacity:.7}}>A</span>}
   </button>);
+  // 目の高さで歩いて見る（ルートがあれば、その出発点から。歩いているあいだは 3D の地図が画面の上に出る）
+  if(view3d&&!loading3d&&(showMapToggle||guiding)&&!pickerOpen)btnStack.push(<button key="walk" onClick={()=>map3dRef.current?.startWalk()} title={t("navi.stroll")} aria-label={t("navi.stroll")} style={sideBtn}>{WALK_ICON}</button>);
   if((showMapToggle||guiding)&&!pickerOpen)btnStack.push(<button key="3d" onClick={toggle3d} title={t("navi.view3d")} aria-label={t("navi.view3d")} aria-pressed={view3d} style={{...sideBtn,fontSize:14,fontWeight:900,letterSpacing:"-.02em",background:view3d?T.accent:T.bg2,color:view3d?"#fff":T.txH,border:`1px solid ${view3d?T.accent:T.bdL}`,animation:loading3d?"nav3dLoad 1s ease-in-out infinite":"none"}}>3D</button>);
   if(showMapToggle&&!pickerOpen)btnStack.push(<button key="loc" title={t("navi.locateMe")} aria-label={t("navi.locateMe")} onClick={()=>{
     if(gpsPos&&view3d&&map3dRef.current){map3dRef.current.flyTo(gpsPos.lat,gpsPos.lng,17.5);return;}

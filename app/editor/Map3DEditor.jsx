@@ -7,8 +7,8 @@ import { useMapLibre } from "../../campus-sns/shared.jsx";
 import { CampusMap3D } from "../../campus-sns/components/CampusMap3D.jsx";
 import { CAMPUS_CENTER } from "../../campus-sns/hooks/useLocationSharing.js";
 import {
-  CANDIDATES_URL, FEATURES_URL, FEATURE_TYPES, SURFACE_LABEL, TYPE_LABEL,
-  aimSlope, azimuthName, baseWidth, buildingRoof, candidateToFeature, pointInRing, createFeature, cumulative, defaultCarve, defaultSlope, edgeAzimuths, extentAlong, featuresBounds, isArea, pitchSlope, slopeAzimuth, slopePitch, lerpAlong, normalizeFeature, offsetLine, vertexShifts, vertexWidths,
+  CANDIDATES_URL, FEATURES_URL, FEATURE_TYPES, STAIRS_MATERIAL_LABEL, SURFACE_LABEL, TREE_KIND_KEYS, TYPE_LABEL,
+  aimSlope, azimuthName, baseWidth, buildingRoof, candidateToFeature, pointInRing, createFeature, cumulative, defaultCarve, defaultSlope, edgeAzimuths, extentAlong, facesDelete, facesInsert, featuresBounds, isArea, isPoint, minPoints, pitchSlope, slopeAzimuth, slopePitch, lerpAlong, normalizeFeature, offsetLine, vertexShifts, vertexWidths,
   ROUTE_ON_BRIDGE, parseFeatures, pathProfile, prepareBridge, prepareTerrace, serializeFeatures, splitByBridges, stairFlights, stairSteps, toLngLat, toXY, withLandings, withSegmentLength,
 } from "../../campus-sns/campus3dFeatures.js";
 import { dem } from "../../campus-sns/campusDem.js";
@@ -18,7 +18,10 @@ import { ROAD_KINDS, alignToLines, buildSnapIndex, nearestOnRoads, streetChain }
 
 /* ── 見た目（2D のマップエディタと同じ暗い配色）── */
 const T = { bg: "#1a1a1f", bg2: "#222228", bg3: "#2a2a32", bg4: "#32323c", tx: "#b0b0b8", txH: "#e8e8f0", txD: "#68687a", bd: "#2e2e38", bdL: "#3a3a48", accent: "#6375f0", green: "#4db88a", red: "#e5534b", yellow: "#f0c040" };
-const TYPE_COL = { terrace: "#b48cff", slope: "#f0c040", stairs: "#ff7eb6", wall: "#e5534b", bridge: "#4db88a", passage: "#60a0ff", building: "#8ecae6", carve: "#f4a261", road: "#d4a373", surface: "#8fb3c9", marking: "#f2f2f2", crosswalk: "#ffd166" };
+const TYPE_COL = { terrace: "#b48cff", slope: "#f0c040", stairs: "#ff7eb6", wall: "#e5534b", bridge: "#4db88a", passage: "#60a0ff", building: "#8ecae6", carve: "#f4a261", board: "#ff4b3a", road: "#d4a373", surface: "#8fb3c9", marking: "#f2f2f2", crosswalk: "#ffd166", tree: "#7ed37e", signal: "#ff8a5c" };
+const REF_API = "/api/dev/map-3d-ref"; // 下絵（なぞる用の写真・図面。開発サーバーだけ）
+// 木の形（campus3dMesh.js の addTree）
+const TREE_KINDS = { broad: "枝の広がる木（ケヤキなど）", round: "丸い木（クスノキ・サクラなど）", ginkgo: "イチョウ", conifer: "針葉樹" };
 const LIFT_COL = "#1a8ef0"; // ルートが橋の上に浮くところ
 const CAND_COL = "#c070f0";
 // 道に合わせる（スナップ）：線の頂点（交差点・曲がり角・端）はこの px 以内、線の上はこの px 以内なら吸い付く
@@ -37,14 +40,69 @@ const HELP = {
   passage: "建物の外から外へ、くぐる道の中心線を描く → 幅と天井の高さの穴が建物にあく",
   building: "地図の建物をクリック → その形と高さで「建物」になる（元の建物は消える）。左で高さを変え、「屋根を斜めに切る」で斜面に。新しい建物は、建物のないところをクリックで囲んで Enter",
   carve: "くり抜く範囲をクリックで囲む（建物のふち・角に吸い付く。Alt で外す）→ ダブルクリックか Enter で確定。建物の外にはみ出してよい（建物と重なるところだけくり抜く）。描いているあいだは建物を隠す。Esc でやめる",
+  board: "板の前のふち（長い辺）の端と端を2回クリック → 3回目で奥のふち（奥行き）。続けて次の板を描ける。ほかの板の角・ふちと建物のふちに吸い付き、前の板とほぼ平行（3°以内）ならぴったり平行に（Alt で外す）。Shift+クリックで板を選ぶ。Esc でやめる",
   road: "地図の道をクリック → 交差点の先へまっすぐ続く道までつないで1本の道路にする（オレンジが取り込む範囲）。地図にない道は、道から離れたところか Alt を押しながら中心線を描いて Enter。幅・車線・歩道は左で。交差点は自動",
   surface: "広場・駅前・植え込み・導流帯など、道の形でない路面をクリックで囲む（3点以上）→ ダブルクリックか Enter で確定。道路は「道路」で引く。航空写真を敷くとなぞりやすい",
   marking: "白線をクリックで描く → ダブルクリックか Enter で確定。停止線・実線・破線・黄線は左で選ぶ（道路の中央線や外側線は自動）",
   crosswalk: "道路の上をクリック → その場所で道を直角に渡る横断歩道（車道のふちからふちへ）。道路のないところは、歩道から歩道へ2点クリック",
+  tree: "木を置くところをクリック（1回で1本。続けて置くときはもう一度「木」）。種類・高さ・枝の広がりは左で。輪は枝の広がり。航空写真を敷くと木の位置がわかる",
 };
 const DRAFT_KEY = "map3dEditorDraft";
 // 囲んで描く道具（範囲の種類と、建物のくり抜き）
 const closedTool = (t) => isArea(t) || t === "carve";
+
+// ── 屋根の板 ──
+// 板の形：前のふち p1→p2 と、奥行きを決める点 p3（前のふちから p3 までの、ふちに直角な距離）→ 長方形の4点（[経度, 緯度]）。
+// 小さすぎれば null
+function boardRect(p1, p2, p3) {
+  const a = toXY(p1);
+  const b = toXY(p2);
+  const c = toXY(p3);
+  const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  if (L < 0.1) return null;
+  const n = [-(b[1] - a[1]) / L, (b[0] - a[0]) / L];
+  const d = (c[0] - a[0]) * n[0] + (c[1] - a[1]) * n[1];
+  if (Math.abs(d) < 0.05) return null;
+  return [a, b, [b[0] + n[0] * d, b[1] + n[1] * d], [a[0] + n[0] * d, a[1] + n[1] * d]].map((p) => toLngLat(p).map((v) => Math.round(v * 1e7) / 1e7));
+}
+// 2点目：p1→p2 が向き dir（平面の m）とほぼ平行（PARALLEL_DEG 以内）なら、ぴったり平行にした点（長さはそのまま）。でなければ null
+const PARALLEL_DEG = 3;
+function alignParallel(p1, p2, dir) {
+  if (!dir) return null;
+  const a = toXY(p1);
+  const b = toXY(p2);
+  const v = [b[0] - a[0], b[1] - a[1]];
+  const L = Math.hypot(v[0], v[1]);
+  const dl = Math.hypot(dir[0], dir[1]);
+  if (L < 0.3 || dl < 1e-6) return null;
+  const u = [dir[0] / dl, dir[1] / dl];
+  const cos = (v[0] * u[0] + v[1] * u[1]) / L;
+  if (Math.abs(cos) < Math.cos((PARALLEL_DEG * Math.PI) / 180)) return null;
+  const s = Math.sign(cos) * L;
+  return { ll: toLngLat([a[0] + u[0] * s, a[1] + u[1] * s]), u: [u[0] * Math.sign(cos), u[1] * Math.sign(cos)], a };
+}
+// 平行にした線（a から向き u）と線分 seg（[経度, 緯度] ×2）の交わる点。なければ null
+function lineSegCross(a, u, seg) {
+  const p = toXY(seg[0]);
+  const q = toXY(seg[1]);
+  const e = [q[0] - p[0], q[1] - p[1]];
+  const den = u[0] * e[1] - u[1] * e[0];
+  if (Math.abs(den) < 1e-9) return null;
+  const w = [p[0] - a[0], p[1] - a[1]];
+  const t = (w[0] * e[1] - w[1] * e[0]) / den;
+  const k = (w[0] * u[1] - w[1] * u[0]) / den;
+  return t > 0 && k >= -0.02 && k <= 1.02 ? toLngLat([a[0] + u[0] * t, a[1] + u[1] * t]) : null;
+}
+// 建物 f の、点 ll（[経度, 緯度]）にある板の番号（重なっていれば上面がいちばん高いもの）。なければ null
+function boardAt(f, ll) {
+  if (!f?.boards?.length) return null;
+  const p = toXY(ll);
+  let best = null;
+  f.boards.forEach((b, i) => {
+    if (pointInRing(p[0], p[1], b.coords.map(toXY)) && (best == null || b.top > f.boards[best].top)) best = i;
+  });
+  return best;
+}
 const PAINT_TYPES = new Set(["road", "surface", "marking", "crosswalk"]);
 const INITIAL_VIEW = { lat: CAMPUS_CENTER.lat, lng: CAMPUS_CENTER.lng, zoom: 17.2, bearing: 0 };
 const EMPTY = { type: "FeatureCollection", features: [] };
@@ -58,6 +116,7 @@ const lengthOf = (coords) => {
 // 範囲（平地）は閉じた輪、幅のある構造物（坂道・階段・橋・通り抜け）は帯の輪郭（坂道・階段は土台の横幅）
 const footprint = (f) => {
   if (isArea(f.type)) return [[...f.coords, f.coords[0]]];
+  if (isPoint(f.type)) return [crownRing(f)];
   if (f.type === "wall" || f.type === "marking" || f.coords.length < 2) return null;
   const xy = f.coords.map(toXY);
   // 坂道・階段は点ごとの横幅（だんだん広がる）に土台のぶんを足す
@@ -68,14 +127,26 @@ const footprint = (f) => {
   const R = offsetLine(xy, hw.map((h, i) => cv[i] - h)).reverse();
   return [[...L, ...R, L[0]].map(toLngLat)];
 };
+// 木の枝の広がり（直径 crown）の円
+function crownRing(f) {
+  const [x, y] = toXY(f.coords[0]);
+  const r = f.type === "signal" ? 0.6 : (f.crown || 4) / 2;
+  return Array.from({ length: 25 }, (_, k) => toLngLat([x + r * Math.cos((k / 24) * 2 * Math.PI), y + r * Math.sin((k / 24) * 2 * Math.PI)]));
+}
 function overlayFC(features, selId) {
   const out = [];
   features.forEach((f) => {
     const p = { id: f.id, col: TYPE_COL[f.type], sel: f.id === selId ? 1 : 0, pt: PAINT_TYPES.has(f.type) ? 1 : 0 };
     const fp = footprint(f);
     if (fp) out.push({ type: "Feature", properties: { ...p, fill: 1 }, geometry: { type: "Polygon", coordinates: fp } });
-    out.push({ type: "Feature", properties: { ...p, fill: 0 }, geometry: { type: "LineString", coordinates: isArea(f.type) ? [...f.coords, f.coords[0]] : f.coords } });
+    out.push({ type: "Feature", properties: { ...p, fill: 0 }, geometry: { type: "LineString", coordinates: isArea(f.type) ? [...f.coords, f.coords[0]] : isPoint(f.type) ? crownRing(f) : f.coords } });
     if (f.id === selId && f.type === "building") (f.cuts || []).forEach((c, ci) => slopeGuides(f, ci).lines.forEach((line) => out.push({ type: "Feature", properties: { ...p, fill: 2 }, geometry: { type: "LineString", coordinates: line } })));
+    // 信号機の腕（柱から腕の先まで）
+    if (f.type === "signal" && f.arm > 0) {
+      const [x, y] = toXY(f.coords[0]);
+      const b = (f.bearing * Math.PI) / 180;
+      out.push({ type: "Feature", properties: { ...p, fill: 2 }, geometry: { type: "LineString", coordinates: [f.coords[0], toLngLat([x + Math.sin(b) * f.arm, y + Math.cos(b) * f.arm])] } });
+    }
     if (f.id === selId && f.type === "building") (f.carves || []).forEach((cv) => out.push({ type: "Feature", properties: { ...p, col: TYPE_COL.carve, fill: 2 }, geometry: { type: "LineString", coordinates: [...cv.coords, cv.coords[0]] } }));
   });
   return { type: "FeatureCollection", features: out };
@@ -153,6 +224,30 @@ const Row = ({ label, children }) => (
     {children}
   </label>
 );
+
+/* ── 信号機：柱の高さ・腕・車の信号の向き・歩行者の信号の向き ── */
+function SignalPanel({ f, update }) {
+  const [peds, setPeds] = useState(f.peds.join(", "));
+  useEffect(() => setPeds(f.peds.join(", ")), [f.id, f.peds]);
+  return (
+    <>
+      <Row label="柱の高さ (m)"><Num value={f.height} min={2.5} max={12} step={0.1} onChange={(v) => update({ height: v }, "height")} /><span style={{ fontSize: 10, color: T.txD }}>腕の高さ</span></Row>
+      <Row label="腕の長さ (m)"><Num value={f.arm} min={0} max={12} step={0.1} onChange={(v) => update({ arm: v }, "arm")} /><span style={{ fontSize: 10, color: T.txD }}>0 は腕なし</span></Row>
+      <Row label="腕の向き (度)"><Num value={f.bearing} min={0} max={360} step={5} onChange={(v) => update({ bearing: v }, "bearing")} /><span style={{ fontSize: 10, color: T.txD }}>北から右回り</span></Row>
+      <Row label="車の信号 (度)"><Num value={f.face} min={0} max={360} step={5} nullable placeholder="なし" onChange={(v) => update({ face: v }, "face")} /><span style={{ fontSize: 10, color: T.txD }}>信号の面が向く方位（空欄はなし）</span></Row>
+      <Row label="歩行者 (度)">
+        <input value={peds} onChange={(e) => {
+          setPeds(e.target.value);
+          const v = e.target.value.split(/[,\s、]+/).filter(Boolean).map(Number);
+          if (v.every(Number.isFinite)) update({ peds: v }, "peds");
+        }} placeholder="例：0, 90" style={{ flex: 1, padding: "4px 6px", borderRadius: 5, border: `1px solid ${T.bdL}`, background: T.bg, color: T.txH, fontSize: 12, fontFamily: "inherit" }} />
+      </Row>
+      <div style={{ fontSize: 10, color: T.txD, lineHeight: 1.6, marginTop: 4 }}>
+        歩行者の信号は柱に付き、面が向く方位をカンマで（4 つまで）。灯は歩行者だけが渡れるとき（車は赤、歩行者は青）。地図の線は腕
+      </div>
+    </>
+  );
+}
 
 /* ── 坂・階段・橋の「横から見た形」「断面」と、各点の高さ ── */
 const SVG_W = 312;
@@ -364,7 +459,72 @@ function Compass({ value, onChange, col }) {
 
 // 建物：高さと、屋根を斜めに切る面（6つまで）。面ごとに低くなる向き・傾き・低い側の高さ。屋根はどの面よりも低いところなので、
 // 向かい合う2面で横から見て台形、4面で寄棟になる
-function BuildingPanel({ f, update, carveIdx, setCarveIdx, onDrawCarve }) {
+// 屋根の板：下絵（図面・写真）の上で、板を1枚ずつ描く。次の板の高さは「自動」（斜めに切った屋根の、その板のまん中の高さ）か
+// 「指定」（描くたびに足す）。選んだ板は高さ・種類を変え、角のひし形・まん中の四角で動かす
+function BoardPanel({ f, update, bi, setBi, next, setNext, drawing, onDraw, hide3d, setHide3d }) {
+  const col = TYPE_COL.board;
+  const boards = f.boards || [];
+  const b = bi != null ? boards[bi] : null;
+  const hint = { fontSize: 10, color: T.txD };
+  const r2 = (v) => Math.round(v * 100) / 100;
+  // 選んでいる板だけ変える（傾いた板は、点ごとの高さもいっしょに動かす）
+  const setBoard = (fn, key) => update((g) => ({ boards: (g.boards || []).map((x, j) => (j === bi ? { ...x, ...fn(x) } : x)) }), key ? `board${bi}:${key}` : undefined);
+  const raise = (x, top) => ({ top, tops: x.tops ? x.tops.map((t) => r2(t + top - x.top)) : undefined });
+  return (
+    <>
+      <div style={{ fontSize: 12, fontWeight: 700, color: T.txH, margin: "12px 0 6px" }}>屋根の板（{boards.length}枚{boards.length ? `・うち植え込み ${boards.filter((x) => x.kind === "green").length}` : ""}）</div>
+      <div style={{ ...hint, lineHeight: 1.6, marginBottom: 6 }}>板があると、屋根は板でできる（板のないところは斜めの屋根の 0.8m 下＝暗いすき間）。左の下の「下絵」で図面を出して、上からなぞる</div>
+      <Row label="次の板の高さ">
+        <div style={{ display: "flex", gap: 4 }}>
+          <Btn col={col} active={next.mode === "auto"} onClick={() => setNext({ ...next, mode: "auto" })} title="斜めに切った屋根の、その板のまん中の高さ（あとで選んで直せる）">自動</Btn>
+          <Btn col={col} active={next.mode === "fixed"} onClick={() => setNext({ ...next, mode: "fixed" })}>指定</Btn>
+        </div>
+      </Row>
+      {next.mode === "fixed" && <>
+        <Row label="高さ (m)">
+          <Num value={next.top} min={0} max={f.height + 5} step={0.05} width={58} onChange={(v) => setNext({ ...next, top: v })} />
+          {[0.2, 0.4, -0.2].map((d) => <Btn key={d} col={col} onClick={() => setNext({ ...next, top: r2(next.top + d) })}>{d > 0 ? "+" : "−"}{Math.abs(d)}</Btn>)}
+        </Row>
+        <Row label="描くたびに (m)"><Num value={next.step} min={-2} max={2} step={0.05} width={58} onChange={(v) => setNext({ ...next, step: v })} /><span style={hint}>次の高さに足す（観客席なら 0.4）</span></Row>
+      </>}
+      <Row label="種類">
+        <div style={{ display: "flex", gap: 4 }}>
+          <Btn col={col} active={next.kind !== "green"} onClick={() => setNext({ ...next, kind: "deck" })}>板</Btn>
+          <Btn col={TYPE_COL.tree} active={next.kind === "green"} onClick={() => setNext({ ...next, kind: "green" })}>植え込み</Btn>
+        </div>
+      </Row>
+      <div style={{ display: "flex", gap: 6, margin: "6px 0", flexWrap: "wrap" }}>
+        <Btn col={col} active={drawing} onClick={onDraw}>{drawing ? "板を描いている（Esc でやめる）" : "板を描く"}</Btn>
+        {boards.length > 0 && <Btn col={T.red} onClick={() => { if (window.confirm(`屋根の板 ${boards.length} 枚を全部消しますか？（「元に戻す」で戻せます）`)) { setBi(null); update({ boards: undefined }); } }}>全部消す</Btn>}
+      </div>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.tx, margin: "4px 0", cursor: "pointer" }}>
+        <input type="checkbox" checked={hide3d} onChange={(e) => setHide3d(e.target.checked)} />立体の屋根を隠す（下絵と板の線だけ見る）
+      </label>
+      <div style={{ ...hint, lineHeight: 1.6 }}>板の線は赤（植え込みは緑）、中の色は高さ（青 → 黄 → 赤で高い）。板の上にマウスを置くと高さが出る。建物を選んだあと、板をクリックで選ぶ</div>
+      {b && <div style={{ border: `1px solid ${col}66`, borderRadius: 6, padding: "6px 8px", marginTop: 8 }}>
+        <div style={{ fontSize: 11, color: col, fontWeight: 700, marginBottom: 2 }}>選んでいる板 #{bi + 1}</div>
+        <Row label="高さ (m)">
+          <Num value={b.top} min={0} max={f.height + 5} step={0.05} width={58} onChange={(v) => setBoard((x) => raise(x, v), "top")} />
+          {[0.2, -0.2].map((d) => <Btn key={d} col={col} onClick={() => setBoard((x) => raise(x, r2(x.top + d)))}>{d > 0 ? "+" : "−"}{Math.abs(d)}</Btn>)}
+        </Row>
+        {b.tops && <div style={{ ...hint, display: "flex", alignItems: "center", gap: 6, margin: "2px 0 4px" }}>傾いた板（角ごとの高さ {b.tops.join(" / ")}）<Btn col={col} onClick={() => setBoard(() => ({ tops: undefined }))}>水平にする</Btn></div>}
+        <Row label="種類">
+          <div style={{ display: "flex", gap: 4 }}>
+            <Btn col={col} active={b.kind !== "green"} onClick={() => setBoard(() => ({ kind: undefined }))}>板</Btn>
+            <Btn col={TYPE_COL.tree} active={b.kind === "green"} onClick={() => setBoard(() => ({ kind: "green" }))}>植え込み</Btn>
+          </div>
+        </Row>
+        <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+          <Btn col={col} onClick={() => setNext({ ...next, mode: "fixed", top: r2(b.top + (next.step || 0)) })} title="この板の高さ（＋描くたびに足す分）を、次の板の高さに">この高さから続ける</Btn>
+          <Btn col={T.red} onClick={() => { update((g) => ({ boards: (g.boards || []).filter((_, j) => j !== bi) })); setBi(null); }}>この板を消す</Btn>
+        </div>
+        <div style={{ ...hint, marginTop: 4 }}>角のひし形をドラッグで角を、まん中の四角で板ごと動かす。Delete で消す</div>
+      </div>}
+    </>
+  );
+}
+
+function BuildingPanel({ f, update, carveIdx, setCarveIdx, onDrawCarve, boards }) {
   const col = TYPE_COL.building;
   const cuts = f.cuts || [];
   const [ci0, setCi] = useState(0);
@@ -409,7 +569,8 @@ function BuildingPanel({ f, update, carveIdx, setCarveIdx, onDrawCarve }) {
   };
   return (
     <>
-      <Row label={cuts.length ? "いちばん高いところ (m)" : "高さ (m)"}><Num value={f.height} min={1} max={250} step={0.5} onChange={(v) => update({ height: v }, "height")} /><span style={hint}>地面から屋上まで</span></Row>
+      <Row label={cuts.length ? "いちばん高いところ (m)" : "高さ (m)"}><Num value={f.height} min={0.1} max={250} step={0.5} onChange={(v) => update({ height: v }, "height")} /><span style={hint}>地面から屋上まで</span></Row>
+      <BoardPanel f={f} update={update} {...boards} />
       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.tx, margin: "6px 0", cursor: "pointer" }}>
         <input type="checkbox" checked={cuts.length > 0} onChange={(e) => { update(e.target.checked ? { cuts: [{ slope: defaultSlope(f.coords), low: 0 }] } : { cuts: undefined }); setCi(0); }} />屋根を斜めに切る
       </label>
@@ -448,6 +609,13 @@ function BuildingPanel({ f, update, carveIdx, setCarveIdx, onDrawCarve }) {
           <Btn col={col} onClick={() => aim(az, true)} title="この面の斜面を建物の端から端までにする（傾きは変わる）">建物いっぱいに</Btn>
           <Btn col={col} onClick={() => aim(az + 180)} title="この面の高い側と低い側を入れかえる">向きを逆に</Btn>
         </div>
+        <Row label="段々にする (m)">
+          <Num value={f.step ?? null} nullable placeholder="しない" min={0.1} max={5} step={0.05} width={64} onChange={(v) => update({ step: v ?? undefined }, "step")} />
+          <div style={{ display: "flex", gap: 4 }}>
+            {[[0.4, "観客席"], [1, "テラス"]].map(([v, l]) => <Btn key={v} col={col} active={f.step === v} onClick={() => update({ step: v })}>{l} {v}m</Btn>)}
+          </div>
+        </Row>
+        <div style={{ fontSize: 10, color: T.txD, lineHeight: 1.6, margin: "-2px 0 4px" }}>斜めの屋根を、この高さごとの水平な段にする（段の境目は斜面の同じ高さの線。線を回した面なら扇のように開く）。段の板は「軒の出」だけ、段の向きに壁の外へ張り出す（斜めに交わる壁ではのこぎりの歯のように）。歩いて見るときは段を上れる（0.6m まで）</div>
         <div style={{ fontSize: 11, color: T.tx, margin: "8px 0 4px" }}>辺に沿って切る（その辺へ向かって低く、建物いっぱいに）</div>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {edges.filter((e) => e.len >= 2).map((e) => (
@@ -467,6 +635,35 @@ function BuildingPanel({ f, update, carveIdx, setCarveIdx, onDrawCarve }) {
         {cut ? "屋根はどの面よりも低いところ：向かい合う2面で台形、4面で寄棟。向きは円をクリック・ドラッグ（15° ごと、Shift で 1° ごと）か度で。「低」は建物のいちばん低い側の端に来て、向きを変えても傾きはそのまま。地図の点線は面ごとの「低」「高」の線で、四角はドラッグでも動かせる" : ""}
       </div>
       <CarvePanel f={f} update={update} ci={carveIdx} setCi={setCarveIdx} onDraw={onDrawCarve} />
+      <div style={{ fontSize: 12, fontWeight: 700, color: T.txH, margin: "12px 0 6px" }}>見た目</div>
+      <Row label="ガラス張り (m)"><Num value={f.glass ?? null} nullable placeholder="なし" min={0.5} max={f.height} step={0.5} onChange={(v) => update({ glass: v ?? undefined }, "glass")} /><span style={hint}>地面からこの高さまで（窓の桟つき）。空ならなし</span></Row>
+      {f.glass > 0 && <Row label="桟の間隔 (m)"><Num value={f.glassPitch ?? 1.5} min={0.5} max={6} step={0.1} onChange={(v) => update({ glassPitch: v }, "glassPitch")} />
+        <Btn active={f.glassFrame === "light"} col={col} title="細い明るい枠（アルミ）⇔ 太い暗い枠" onClick={() => update({ glassFrame: f.glassFrame === "light" ? undefined : "light" })}>明るい枠</Btn></Row>}
+      {f.glass > 0 && <Row label="ガラスの辺">
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {f.coords.map((_, i) => {
+            const on = !f.glassSides || f.glassSides[i] !== false;
+            const e = edges.find((x) => x.i === i);
+            return <Btn key={i} col={col} active={on} title={`点${i + 1}と点${(i + 1) % f.coords.length + 1}のあいだの辺（${e ? e.len.toFixed(1) : "?"} m）。押すとガラス ⇔ 壁`} onClick={() => update((g) => ({ glassSides: g.coords.map((_, j) => (j === i ? !on : !g.glassSides || g.glassSides[j] !== false)) }))}>点{i + 1}–{(i + 1) % f.coords.length + 1}{e ? ` ${azimuthName(e.az)}` : ""}</Btn>;
+          })}
+        </div>
+      </Row>}
+      <Row label="軒の出 (m)"><Num value={f.eave ?? null} nullable placeholder="なし" min={0.1} max={10} step={0.1} onChange={(v) => update({ eave: v ?? undefined }, "eave")} /><span style={hint}>屋根のふちから外へ出る板（屋根が 1m より低い辺は出さない）。段々の屋根では段の板の張り出し</span></Row>
+      {f.eave > 0 && <Row label="軒を出す辺">
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {f.coords.map((_, i) => {
+            const on = !f.eaveSides || f.eaveSides[i] !== false;
+            const e = edges.find((x) => x.i === i);
+            return <Btn key={i} col={col} active={on} title={`点${i + 1}と点${(i + 1) % f.coords.length + 1}のあいだの辺（${e ? e.len.toFixed(1) : "?"} m）。押すと軒あり ⇔ なし`} onClick={() => update((g) => ({ eaveSides: g.coords.map((_, j) => (j === i ? !on : !g.eaveSides || g.eaveSides[j] !== false)) }))}>点{i + 1}–{(i + 1) % f.coords.length + 1}{e ? ` ${azimuthName(e.az)}` : ""}</Btn>;
+          })}
+        </div>
+      </Row>}
+      <Row label="屋上">
+        <div style={{ display: "flex", gap: 4 }}>
+          {[[undefined, "ふつう"], ["green", "緑"], ["deck", "木の床"]].map(([v, l]) => <Btn key={l} col={col} active={f.roof === v} onClick={() => update({ roof: v })}>{l}</Btn>)}
+        </div>
+        <span style={hint}>緑は草の塊を散らし、軒は暗い色に（段々の屋根なら、段ごとに植え込みか木の段）</span>
+      </Row>
     </>
   );
 }
@@ -566,6 +763,16 @@ function TerracePanel({ f, demTick, update }) {
         {f.side > 0 ? <Btn onClick={() => update({ side: 0 })}>垂直に切る</Btn> : <Btn onClick={() => update({ side: 3 })}>斜面にする</Btn>}
       </Row>
       <Muted>0 なら、ふちを垂直に切って壁を立てる。段差をつなぐには、ふちをまたいで坂道か階段を描く（そこだけ壁があく）</Muted>
+      {!(f.side > 0) && <>
+        <Row label="壁の上の色">
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            <Btn active={!f.wallTop} col={col} title="壁の外の高い側の路面の色（路面がなければ壁の色）" onClick={() => update({ wallTop: undefined })}>自動（まわりの路面）</Btn>
+            <Btn active={f.wallTop === "wall"} col={col} onClick={() => update({ wallTop: "wall" })}>壁の色</Btn>
+            {Object.entries(SURFACE_KINDS).map(([k, v]) => <Btn key={k} active={f.wallTop === k} col={col} onClick={() => update({ wallTop: k })}>{v.label}</Btn>)}
+          </div>
+        </Row>
+        <Muted>壁の横の面は壁の色のまま。上の面（ふちから外へ 1.7m の帯）を、まわりの地面になじむ色にする</Muted>
+      </>}
     </div>
   );
 }
@@ -869,6 +1076,11 @@ function ShapeEditor({ f, demTick, selVertex, setSelVertex, update, lift, onAlig
         {manual
           ? <Row label="一段の高さ"><span style={{ fontSize: 12, color: T.txH }}>{rises.length ? `${fmt2(Math.min(...rises))}${Math.max(...rises) - Math.min(...rises) > 0.005 ? `〜${fmt2(Math.max(...rises))}` : ""} m（自動）` : "—"}</span><Btn onClick={() => update({ steps: undefined })} title="段数を、一段の高さから自動で決める">段数を自動に戻す</Btn></Row>
           : <Row label="一段の高さ (m)"><Num value={f.riser} min={0.08} max={0.4} step={0.01} onChange={(v) => update({ riser: v }, "riser")} /></Row>}
+        <Row label="段の材質">
+          <div style={{ display: "flex", gap: 6 }}>
+            {Object.entries(STAIRS_MATERIAL_LABEL).map(([k, v]) => <Btn key={k} active={(f.material || "") === k} col={TYPE_COL.stairs} onClick={() => update({ material: k || undefined })}>{v}</Btn>)}
+          </div>
+        </Row>
         <Muted>
           {totalSteps ? `${totalSteps}段・踏面 ${treads.length ? fmt2(Math.min(...treads)) : "—"}${treads.length && Math.max(...treads) - Math.min(...treads) > 0.01 ? `〜${fmt2(Math.max(...treads))}` : ""} m` : "高さの差がないので段はない（両端の高さを変える）"}
           {treads.length > 0 && Math.min(...treads) < 0.22 && <span style={{ color: T.yellow }}>　踏面がせまい（急な階段）。点のあいだを長くするか、一段を高く</span>}
@@ -913,6 +1125,13 @@ export default function Map3DEditor() {
   const [carveIdx, setCarveIdx] = useState(0); // 選んでいる建物の、選んでいるくり抜き
   const carveRedraw = useRef(null); // くり抜きを描き直すときの番号
   useEffect(() => setCarveIdx(0), [selId]);
+  const [boardIdx, setBoardIdx] = useState(null); // 選んでいる建物の、選んでいる屋根の板
+  const [boardNext, setBoardNext] = useState({ mode: "auto", top: 1, step: 0.4, kind: "deck" }); // 次に描く板
+  const [hide3d, setHide3d] = useState(false); // 立体の屋根を隠して、下絵と板の線だけ見る
+  const lastBoardDir = useRef(null); // 前に描いた板の向き（平面の m。次の板を平行にそろえる）
+  useEffect(() => setBoardIdx(null), [selId]);
+  const [refs, setRefs] = useState([]); // 下絵（開発サーバーの data/map-3d-ref）
+  const [refShow, setRefShow] = useState({}); // 出している下絵：id → 濃さ
   const [selVertex, setSelVertex] = useState(null);
   const [cands, setCands] = useState([]);
   const [showCands, setShowCands] = useState(true);
@@ -959,6 +1178,7 @@ export default function Map3DEditor() {
       });
     fetch(CANDIDATES_URL).then((r) => (r.ok ? r.json() : null)).catch(() => null).then((j) => setCands((j && j.candidates) || []));
     fetch(API).then((r) => setCanSave(r.ok)).catch(() => setCanSave(false));
+    fetch(REF_API).then((r) => (r.ok ? r.json() : null)).catch(() => null).then((j) => setRefs((j && j.refs) || []));
   }, []);
 
   const dirty = useMemo(() => features != null && serializeFeatures(features) !== savedText, [features, savedText]);
@@ -1053,6 +1273,22 @@ export default function Map3DEditor() {
     const d = Array.isArray(full) ? full : Array.isArray(add) ? [...d0, add] : d0;
     const pts = d.filter((p, i) => i === 0 || !near(p, d[i - 1])); // ダブルクリックで重なった点は1つに
     setDraft([]);
+    // 屋根の板：選んでいる建物に足す（道具はそのまま＝続けて次の板を描く）。高さは「自動」なら斜めに切った屋根の、板のまん中の高さ
+    if (tl === "board") {
+      const b = S.current.sel;
+      if (!b || b.type !== "building" || pts.length < 3) return;
+      const ring = boardRect(pts[0], pts[1], pts[2]);
+      if (!ring) return;
+      const nx = S.current.boardNext;
+      const xy = ring.map(toXY);
+      const mid = xy.reduce((a, p) => [a[0] + p[0] / 4, a[1] + p[1] / 4], [0, 0]);
+      const top = nx.mode === "auto" ? Math.round(Math.max(0, buildingRoof({ ...b, boards: undefined }).hSmooth(mid)) * 20) / 20 : nx.top;
+      lastBoardDir.current = [xy[1][0] - xy[0][0], xy[1][1] - xy[0][1]];
+      updateFeature(b.id, (g) => ({ boards: [...(g.boards || []), { coords: ring, top, ...(nx.kind === "green" ? { kind: "green" } : {}) }] }));
+      setBoardIdx((b.boards || []).length);
+      if (nx.mode === "fixed" && nx.step) setBoardNext((v) => ({ ...v, top: Math.round((v.top + v.step) * 100) / 100 }));
+      return;
+    }
     // 建物のくり抜き：選んでいる建物に足す（描き直しなら、その範囲を置きかえる）
     if (tl === "carve") {
       const redo = carveRedraw.current;
@@ -1069,7 +1305,7 @@ export default function Map3DEditor() {
       setCarveIdx(idx);
       return;
     }
-    if (tl === "select" || pts.length < (isArea(tl) ? 3 : 2)) return;
+    if (tl === "select" || pts.length < minPoints(tl)) return;
     const f = createFeature(tl, pts, extra);
     if (!f) return;
     commit((list) => [...list, f]);
@@ -1079,10 +1315,10 @@ export default function Map3DEditor() {
     setSelCand(null);
   }, [commit, updateFeature]);
 
-  // 描いている形に点を1つ足す。横断歩道は渡る向きの2点で決まる：2点目で確定
+  // 描いている形に点を1つ足す。横断歩道は渡る向きの2点で決まる：2点目で確定。木は1点で確定。屋根の板は3点目で確定
   const addDraftPoint = useCallback((pt) => {
     const s = S.current;
-    if (s.tool === "crosswalk" && s.draft.length >= 1) s.finishDraft(pt);
+    if ((s.tool === "crosswalk" && s.draft.length >= 1) || (s.tool === "board" && s.draft.length >= 2) || isPoint(s.tool)) s.finishDraft(pt);
     else setDraft((d) => [...d, pt]);
   }, []);
 
@@ -1094,7 +1330,14 @@ export default function Map3DEditor() {
       // 段数を手で決めているときは、つないだ区間の段数を足す
       const st = g.steps;
       const steps = !st ? st : v === 0 ? st.slice(1) : v === g.coords.length - 1 ? st.slice(0, -1) : [...st.slice(0, v - 1), (st[v - 1] || 0) + (st[v] || 0) || null, ...st.slice(v + 1)];
-      return { coords: g.coords.filter((_, i) => i !== v), z: g.z ? g.z.filter((_, i) => i !== v) : g.z, flat, steps, widths: g.widths ? g.widths.filter((_, i) => i !== v) : g.widths, shifts: g.shifts ? g.shifts.filter((_, i) => i !== v) : g.shifts };
+      // 建物のガラスの辺（辺 i は点 i → 点 i+1、輪）：消した点の前後の辺は1つになり、どちらかがガラスならガラス
+      // 軒を出す辺も同じ
+      const n = g.coords.length;
+      const sides = (gs) => (!gs ? gs : v === 0 ? [...gs.slice(1, n - 1), gs[n - 1] || gs[0]] : [...gs.slice(0, v - 1), gs[v - 1] || gs[v], ...gs.slice(v + 1)]);
+      // 平地の辺ごとの面（ガラス・れんが）も同じく1つに（扉の位置はつないだ辺の上に直す）
+      const xy = g.coords.map(toXY);
+      const lens = xy.map((p, i) => Math.hypot(xy[(i + 1) % n][0] - p[0], xy[(i + 1) % n][1] - p[1]));
+      return { coords: g.coords.filter((_, i) => i !== v), z: g.z ? g.z.filter((_, i) => i !== v) : g.z, flat, steps, widths: g.widths ? g.widths.filter((_, i) => i !== v) : g.widths, shifts: g.shifts ? g.shifts.filter((_, i) => i !== v) : g.shifts, glassSides: sides(g.glassSides), eaveSides: sides(g.eaveSides), faces: facesDelete(g.faces, v, lens) };
     });
     setSelVertex(null);
   }, [updateFeature]);
@@ -1103,13 +1346,18 @@ export default function Map3DEditor() {
     setSelId(null);
     setSelVertex(null);
   }, [commit]);
-  // Delete キー：点を選んでいればその点（2点より多いとき）、でなければ構造物ごと
+  // Delete キー：屋根の板を選んでいればその板、点を選んでいればその点（2点より多いとき）、でなければ構造物ごと
   const removeSelected = useCallback(() => {
-    const { sel: f, selVertex: v } = S.current;
+    const { sel: f, selVertex: v, boardIdx: bi } = S.current;
     if (!f) return;
-    if (v != null && f.coords.length > (isArea(f.type) ? 3 : 2)) removeVertex(f.id, v);
+    if (f.type === "building" && bi != null && f.boards?.[bi]) {
+      updateFeature(f.id, (g) => ({ boards: (g.boards || []).filter((_, j) => j !== bi) }));
+      setBoardIdx(null);
+      return;
+    }
+    if (v != null && f.coords.length > minPoints(f.type)) removeVertex(f.id, v);
     else removeFeature(f.id);
-  }, [removeVertex, removeFeature]);
+  }, [removeVertex, removeFeature, updateFeature]);
 
   const adopt = useCallback((c) => {
     const f = candidateToFeature(c);
@@ -1161,7 +1409,7 @@ export default function Map3DEditor() {
     }).catch(() => say("JSON を読めませんでした", true));
   }, [commit, select, say]);
 
-  S.current = { features, draft, tool, sel, selVertex, showCands, cands, dirty, snapOn, snapIndex, bmData, finishDraft, addDraftPoint, removeSelected, undo, redo, save };
+  S.current = { features, draft, tool, sel, selVertex, boardIdx, boardNext, showCands, cands, dirty, snapOn, snapIndex, bmData, finishDraft, addDraftPoint, removeSelected, undo, redo, save };
 
   // Alt を押しているあいだは道に合わせない（点のドラッグ中はマウスのイベントが来ないので、キーで見る）
   useEffect(() => {
@@ -1226,9 +1474,13 @@ export default function Map3DEditor() {
     map.addSource("ed-snap", { type: "geojson", data: EMPTY });
     map.addSource("ed-lift", { type: "geojson", data: EMPTY });
     map.addSource("ed-pick", { type: "geojson", data: EMPTY });
+    map.addSource("ed-boards", { type: "geojson", data: EMPTY });
     const sel = ["==", ["get", "sel"], 1];
     [
       { id: "ed-fill", type: "fill", source: "ed-feat", filter: ["==", ["get", "fill"], 1], paint: { "fill-color": ["get", "col"], "fill-opacity": ["case", sel, 0.38, ["==", ["get", "pt"], 1], 0.04, 0.18] } },
+      // 選んだ建物の屋根の板：中の色は高さ（t：0 低い〜1 高い）、線は赤（植え込みは緑、選んでいる板は黄色）
+      { id: "ed-board-fill", type: "fill", source: "ed-boards", paint: { "fill-color": ["interpolate", ["linear"], ["get", "t"], 0, "#2b6cff", 0.5, "#f5d000", 1, "#ff3b1f"], "fill-opacity": ["case", sel, 0.5, 0.22] } },
+      { id: "ed-board-line", type: "line", source: "ed-boards", layout: { "line-join": "round" }, paint: { "line-color": ["case", sel, "#ffe100", ["==", ["get", "g"], 1], "#21c25b", "#ff2020"], "line-width": ["case", sel, 3, 1.4] } },
       { id: "ed-cand-line", type: "line", source: "ed-cands", layout: { "line-cap": "round" }, paint: { "line-color": CAND_COL, "line-width": 3, "line-dasharray": [1.5, 1.5], "line-opacity": 0.85 } },
       { id: "ed-cand-hit", type: "line", source: "ed-cands", paint: { "line-color": "rgba(0,0,0,0)", "line-width": 16 } },
       // 道路・白線・横断歩道は、選んでいないときは線を出さない（地面の塗りがそのまま見える。クリックで選べる）
@@ -1250,28 +1502,33 @@ export default function Map3DEditor() {
     const snapAt = (pt, ll, alt = false) => {
       const s = S.current;
       if (!s.snapOn || alt || altRef.current) return null;
-      if (s.tool === "carve" && s.sel?.type === "building") {
-        const r = s.sel.coords;
+      // くり抜き：建物のふち・角。屋根の板：建物のふち・角と、ほかの板のふち・角
+      if ((s.tool === "carve" || s.tool === "board") && s.sel?.type === "building") {
+        const rings = [s.sel.coords, ...(s.tool === "board" ? (s.sel.boards || []).map((b) => b.coords) : [])];
         let best = null;
-        r.forEach((c) => {
-          const q = map.project(c);
-          const d = Math.hypot(q.x - pt.x, q.y - pt.y);
-          if (d <= SNAP_VERTEX_PX && (!best || d < best.d)) best = { ll: c, d, vertex: true };
-        });
+        for (const r of rings) {
+          r.forEach((c) => {
+            const q = map.project(c);
+            const d = Math.hypot(q.x - pt.x, q.y - pt.y);
+            if (d <= SNAP_VERTEX_PX && (!best || d < best.d)) best = { ll: c, d, vertex: true };
+          });
+        }
         if (best) return best;
-        r.forEach((a, i) => {
-          const b = r[(i + 1) % r.length];
-          const A = map.project(a);
-          const B = map.project(b);
-          const dx = B.x - A.x;
-          const dy = B.y - A.y;
-          const l2 = dx * dx + dy * dy;
-          if (l2 < 1) return;
-          const t = Math.max(0, Math.min(1, ((pt.x - A.x) * dx + (pt.y - A.y) * dy) / l2));
-          const d = Math.hypot(A.x + dx * t - pt.x, A.y + dy * t - pt.y);
-          if (d <= SNAP_EDGE_PX && (!best || d < best.d)) best = { ll: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t], d, vertex: false, seg: [a, b] };
-        });
-        if (best) return best;
+        for (const r of rings) {
+          r.forEach((a, i) => {
+            const b = r[(i + 1) % r.length];
+            const A = map.project(a);
+            const B = map.project(b);
+            const dx = B.x - A.x;
+            const dy = B.y - A.y;
+            const l2 = dx * dx + dy * dy;
+            if (l2 < 1) return;
+            const t = Math.max(0, Math.min(1, ((pt.x - A.x) * dx + (pt.y - A.y) * dy) / l2));
+            const d = Math.hypot(A.x + dx * t - pt.x, A.y + dy * t - pt.y);
+            if (d <= SNAP_EDGE_PX && (!best || d < best.d)) best = { ll: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t], d, vertex: false, seg: [a, b] };
+          });
+        }
+        if (best || s.tool === "board") return best;
       }
       if (!s.snapIndex) return null;
       // 許す距離を m に直して近くの道を集め（傾けると奥ほど縮むので広めに）、画面上の距離で確かめる
@@ -1309,8 +1566,62 @@ export default function Map3DEditor() {
     };
     snapFns.current = { snapAt, showSnap, showPick };
 
+    // 屋根の板の道具で、次に置く点：角に吸い付けばその角。2点目は前の板（選んでいる板か、前に描いた板）とほぼ平行なら平行に
+    // （ふちに吸い付いていれば、平行な線とふちの交わる点）
+    const refDir = () => {
+      const s = S.current;
+      const b = s.sel?.boards?.[s.boardIdx];
+      if (b) {
+        const p = b.coords.map(toXY);
+        return [p[1][0] - p[0][0], p[1][1] - p[0][1]];
+      }
+      return lastBoardDir.current;
+    };
+    const boardPoint = (pt, ll, alt) => {
+      const s = S.current;
+      const raw = [ll.lng, ll.lat];
+      const snap = snapAt(pt, ll, alt);
+      if (snap?.vertex) return { ll: snap.ll, snap };
+      if (s.draft.length === 1 && !alt && !altRef.current) {
+        const par = alignParallel(s.draft[0], snap ? snap.ll : raw, refDir());
+        if (par) {
+          const x = snap?.seg ? lineSegCross(par.a, par.u, snap.seg) : null;
+          return { ll: x || par.ll, snap: x ? snap : null };
+        }
+      }
+      return { ll: snap ? snap.ll : raw, snap };
+    };
+    // 選んだ建物の屋根の板の上にマウスを置くと、その板の高さ
+    const tip = document.createElement("div");
+    tip.style.cssText = "position:absolute;pointer-events:none;z-index:6;padding:2px 7px;border-radius:4px;background:rgba(20,20,26,.86);color:#fff;font:11px/1.5 sans-serif;white-space:nowrap;display:none";
+    map.getContainer().appendChild(tip);
+    const showTip = (ev) => {
+      const s = S.current;
+      const i = s.sel?.type === "building" && !s.draft.length ? boardAt(s.sel, [ev.lngLat.lng, ev.lngLat.lat]) : null;
+      if (i == null) {
+        tip.style.display = "none";
+        return;
+      }
+      const b = s.sel.boards[i];
+      tip.textContent = `板 #${i + 1}：高さ ${b.top.toFixed(2)} m${b.kind === "green" ? "・植え込み" : ""}${b.tops ? "・傾いた板" : ""}`;
+      tip.style.left = `${ev.point.x + 14}px`;
+      tip.style.top = `${ev.point.y + 12}px`;
+      tip.style.display = "block";
+    };
+
     const onClick = (ev) => {
       const s = S.current;
+      if (mapApi.current?.isWalking?.()) return; // 歩いて見るあいだのタップは見回すため
+      // 屋根の板：3回のクリックで1枚（Shift+クリックは板を選ぶ）
+      if (s.tool === "board") {
+        if (ev.originalEvent?.shiftKey) {
+          const i = boardAt(s.sel, [ev.lngLat.lng, ev.lngLat.lat]);
+          if (i != null) setBoardIdx(i);
+          return;
+        }
+        s.addDraftPoint(boardPoint(ev.point, ev.lngLat, ev.originalEvent?.altKey).ll);
+        return;
+      }
       if (s.tool !== "select") {
         const alt = ev.originalEvent?.altKey;
         const ll = [ev.lngLat.lng, ev.lngLat.lat];
@@ -1340,6 +1651,14 @@ export default function Map3DEditor() {
         s.addDraftPoint(snap ? snap.ll : ll);
         return;
       }
+      // 選んでいる建物の屋根の板をクリック → その板を選ぶ
+      if (s.sel?.type === "building" && s.sel.boards?.length) {
+        const i = boardAt(s.sel, [ev.lngLat.lng, ev.lngLat.lat]);
+        if (i != null) {
+          setBoardIdx(i);
+          return;
+        }
+      }
       const hit = map.queryRenderedFeatures(ev.point, { layers: ["ed-hit", "ed-fill"] })[0];
       if (hit) {
         setSelId(hit.properties.id);
@@ -1359,14 +1678,28 @@ export default function Map3DEditor() {
       setSelCand(null);
     };
     const onDbl = (ev) => {
-      if (S.current.tool === "select") return;
+      if (S.current.tool === "select" || mapApi.current?.isWalking?.()) return;
       ev.preventDefault();
       S.current.finishDraft();
     };
     // 描く道具のときは、道に合う位置を示す。描いている途中は、最後の点からそこまでの線も出す
     const onMove = (ev) => {
       const s = S.current;
+      if (mapApi.current?.isWalking?.()) return;
+      showTip(ev);
       if (s.tool === "select") return;
+      // 屋根の板：1点目のあとは前のふちの線、2点目のあとは板の形（長方形）
+      if (s.tool === "board") {
+        const bp = boardPoint(ev.point, ev.lngLat, ev.originalEvent?.altKey);
+        showSnap(bp.snap);
+        const col = TYPE_COL.board;
+        const feats = s.draft.map((p) => ({ type: "Feature", properties: { col }, geometry: { type: "Point", coordinates: p } }));
+        if (s.draft.length === 1) feats.push({ type: "Feature", properties: { col }, geometry: { type: "LineString", coordinates: [s.draft[0], bp.ll] } });
+        const r = s.draft.length === 2 ? boardRect(s.draft[0], s.draft[1], bp.ll) : null;
+        if (r) feats.push({ type: "Feature", properties: { col }, geometry: { type: "LineString", coordinates: [...r, r[0]] } });
+        map.getSource("ed-draft")?.setData({ type: "FeatureCollection", features: feats });
+        return;
+      }
       const chain = pickAt(ev.point, ev.lngLat, ev.originalEvent?.altKey);
       showPick(chain);
       const snap = chain ? null : snapAt(ev.point, ev.lngLat, ev.originalEvent?.altKey);
@@ -1382,6 +1715,7 @@ export default function Map3DEditor() {
     const onOut = () => {
       showSnap(null);
       showPick(null);
+      tip.style.display = "none";
     };
     map.on("click", onClick);
     map.on("dblclick", onDbl);
@@ -1392,6 +1726,7 @@ export default function Map3DEditor() {
       map.off("dblclick", onDbl);
       map.off("mousemove", onMove);
       map.off("mouseout", onOut);
+      tip.remove();
       snapFns.current = {};
     };
   }, [mapReady]);
@@ -1402,6 +1737,41 @@ export default function Map3DEditor() {
     if (!map || !features) return;
     map.getSource("ed-feat")?.setData(overlayFC(features, selId));
   }, [mapReady, features, selId]);
+  // 選んだ建物の屋根の板（中の色は高さ：いちばん低い板 0〜いちばん高い板 1）
+  useEffect(() => {
+    const map = mapReady ? mapApi.current?.getMap() : null;
+    const src = map?.getSource("ed-boards");
+    if (!src) return;
+    const bs = sel?.type === "building" ? sel.boards || [] : [];
+    const tops = bs.map((b) => b.top);
+    const lo = Math.min(...tops);
+    const hi = Math.max(...tops);
+    src.setData({ type: "FeatureCollection", features: bs.map((b, i) => ({
+      type: "Feature",
+      properties: { i, t: hi > lo ? (b.top - lo) / (hi - lo) : 0.5, g: b.kind === "green" ? 1 : 0, sel: i === boardIdx ? 1 : 0 },
+      geometry: { type: "Polygon", coordinates: [[...b.coords, b.coords[0]]] },
+    })) });
+  }, [mapReady, sel, boardIdx]);
+  // 下絵（写真・図面）：地面に貼る画像。manifest の順に下から重ねる（写真の上に図面の線）
+  useEffect(() => {
+    const map = mapReady ? mapApi.current?.getMap() : null;
+    if (!map) return;
+    for (const r of refs) {
+      const id = `ed-ref-${r.id}`;
+      const op = refShow[r.id];
+      if (op == null) {
+        if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", "none");
+        continue;
+      }
+      if (!map.getSource(id)) {
+        map.addSource(id, { type: "image", url: `${REF_API}/${encodeURIComponent(r.file)}`, coordinates: r.corners });
+        map.addLayer({ id, type: "raster", source: id, paint: { "raster-opacity": op, "raster-fade-duration": 0 } }, "ed-fill");
+      }
+      map.setLayoutProperty(id, "visibility", "visible");
+      map.setPaintProperty(id, "raster-opacity", op);
+    }
+    for (const r of refs) if (map.getLayer(`ed-ref-${r.id}`)) map.moveLayer(`ed-ref-${r.id}`, "ed-fill");
+  }, [mapReady, refs, refShow]);
   useEffect(() => {
     const map = mapReady ? mapApi.current?.getMap() : null;
     if (!map) return;
@@ -1428,11 +1798,12 @@ export default function Map3DEditor() {
     map.setPaintProperty("cb-buildings", "fill-extrusion-opacity", seeThrough ? 0.5 : 0.97);
     if (map.getLayer("cb-extras")) map.moveLayer("cb-extras", seeThrough ? "cb-buildings" : map.getLayer("nav-route-passed") ? "nav-route-passed" : undefined);
   }, [mapReady, seeThrough]);
-  // くり抜きを描いているあいだは、3Dの構造物（建物の屋根）を隠す：屋根の下になる地面の線や描いている形が見えるように
+  // くり抜き・屋根の板を描いているあいだ（と「立体の屋根を隠す」のとき）は、3Dの構造物（建物の屋根）を隠す：
+  // 屋根の下になる地面の線・下絵や、描いている形が見えるように
   useEffect(() => {
     const map = mapReady ? mapApi.current?.getMap() : null;
-    if (map?.getLayer("cb-extras")) map.setLayoutProperty("cb-extras", "visibility", tool === "carve" ? "none" : "visible");
-  }, [mapReady, tool]);
+    if (map?.getLayer("cb-extras")) map.setLayoutProperty("cb-extras", "visibility", tool === "carve" || tool === "board" || hide3d ? "none" : "visible");
+  }, [mapReady, tool, hide3d]);
   // 航空写真（campusMap3d.js の cb-photo）。道路の上・手で描いた路面の下に敷く
   useEffect(() => {
     const map = mapReady ? mapApi.current?.getMap() : null;
@@ -1502,6 +1873,9 @@ export default function Map3DEditor() {
           widths: g.widths ? [...g.widths.slice(0, i + 1), null, ...g.widths.slice(i + 1)] : g.widths, // 足した点の横幅・ずれは前後を結ぶ
           shifts: g.shifts ? [...g.shifts.slice(0, i + 1), null, ...g.shifts.slice(i + 1)] : g.shifts,
           flat: g.flat ? [...g.flat.slice(0, i + 1), g.flat[i], ...g.flat.slice(i + 1)] : g.flat, // 分けた2つの区間は、元の区間と同じ
+          glassSides: g.glassSides ? [...g.glassSides.slice(0, i + 1), g.glassSides[i], ...g.glassSides.slice(i + 1)] : g.glassSides, // 建物：分けた2つの辺は元の辺と同じ
+          eaveSides: g.eaveSides ? [...g.eaveSides.slice(0, i + 1), g.eaveSides[i], ...g.eaveSides.slice(i + 1)] : g.eaveSides,
+          faces: facesInsert(g.faces, i), // 平地：分けた2つの辺は元の面（扉はある側に）
           // 段数を手で決めているときは、半分ずつに分ける
           steps: g.steps ? [...g.steps.slice(0, i), ...(g.steps[i] ? [Math.max(1, Math.round(g.steps[i] / 2)), Math.max(1, g.steps[i] - Math.round(g.steps[i] / 2))] : [null, null]), ...g.steps.slice(i + 1)] : g.steps,
         }));
@@ -1565,6 +1939,54 @@ export default function Map3DEditor() {
         });
         markers.current.push(mk);
       });
+    }
+    // 建物の選んでいる屋根の板：角のひし形（ドラッグで角を動かす。ほかの板・建物の角に吸い付く）と、まん中の四角（板ごと動かす）
+    if (!drawing && sel.type === "building" && boardIdx != null && sel.boards?.[boardIdx]) {
+      const bcol = TYPE_COL.board;
+      const bc = sel.boards[boardIdx].coords;
+      const cornerSnap = (raw) => {
+        if (!S.current.snapOn || altRef.current) return null;
+        const pt = map.project(raw);
+        let best = null;
+        [sel.coords, ...sel.boards.filter((_, j) => j !== boardIdx).map((b) => b.coords)].forEach((r) => r.forEach((c) => {
+          const q = map.project(c);
+          const d = Math.hypot(q.x - pt.x, q.y - pt.y);
+          if (d <= SNAP_VERTEX_PX && (!best || d < best.d)) best = { ll: c, d, vertex: true };
+        }));
+        return best;
+      };
+      bc.forEach((c, k) => {
+        const d = document.createElement("div");
+        d.title = `板 #${boardIdx + 1} の角${k + 1}`;
+        d.style.cssText = "width:18px;height:18px;cursor:grab;display:flex;align-items:center;justify-content:center";
+        const inner = document.createElement("div");
+        inner.style.cssText = `width:11px;height:11px;transform:rotate(45deg);background:#fff;border:2px solid ${bcol};box-sizing:border-box;box-shadow:0 1px 3px rgba(0,0,0,.5)`;
+        d.appendChild(inner);
+        const mk = new ml.Marker({ element: d, draggable: true, opacityWhenCovered: "1" }).setLngLat(c).addTo(map);
+        mk.on("drag", () => {
+          const snap = cornerSnap(mk.getLngLat());
+          if (snap) mk.setLngLat(snap.ll);
+          snapFns.current.showSnap?.(snap);
+        });
+        mk.on("dragend", () => {
+          snapFns.current.showSnap?.(null);
+          const ll = mk.getLngLat();
+          updateFeature(sel.id, (g) => ({ boards: g.boards.map((b, j) => (j === boardIdx ? { ...b, coords: b.coords.map((q, i) => (i === k ? [ll.lng, ll.lat] : q)) } : b)) }));
+        });
+        markers.current.push(mk);
+      });
+      const mid = bc.reduce((a, p) => [a[0] + p[0] / bc.length, a[1] + p[1] / bc.length], [0, 0]);
+      const sq = document.createElement("div");
+      sq.title = `板 #${boardIdx + 1} を動かす`;
+      sq.style.cssText = `width:12px;height:12px;border-radius:2px;background:${bcol};border:2px solid #fff;box-sizing:border-box;cursor:move;box-shadow:0 1px 3px rgba(0,0,0,.5)`;
+      const mm = new ml.Marker({ element: sq, draggable: true, opacityWhenCovered: "1" }).setLngLat(mid).addTo(map);
+      mm.on("dragend", () => {
+        const ll = mm.getLngLat();
+        const dx = ll.lng - mid[0];
+        const dy = ll.lat - mid[1];
+        updateFeature(sel.id, (g) => ({ boards: g.boards.map((b, j) => (j === boardIdx ? { ...b, coords: b.coords.map((q) => [q[0] + dx, q[1] + dy]) } : b)) }));
+      });
+      markers.current.push(mm);
     }
     // 坂道・階段：各点の左右のふちのつまみ。ドラッグで、反対側のふちはそのままで横幅とずれを変える（その点の横の線の上だけ動く）
     if (!drawing && (sel.type === "slope" || sel.type === "stairs")) {
@@ -1666,7 +2088,7 @@ export default function Map3DEditor() {
       markers.current.forEach((m) => m.remove());
       markers.current = [];
     };
-  }, [mapReady, sel, selVertex, updateFeature, tool, carveIdx]);
+  }, [mapReady, sel, selVertex, updateFeature, tool, carveIdx, boardIdx]);
 
   /* ── カメラ ── */
   const camera = (pitch) => {
@@ -1713,15 +2135,40 @@ export default function Map3DEditor() {
           style={{ flex: 1, padding: "4px 6px", borderRadius: 5, border: `1px solid ${T.bdL}`, background: T.bg, color: T.txH, fontSize: 12, fontFamily: "inherit" }} />
       </Row>
       {sel.type === "wall" && <>
+        <Row label="種類">
+          <div style={{ display: "flex", gap: 6 }}>
+            <Btn active={!sel.kind} col={TYPE_COL.wall} onClick={() => update({ kind: undefined })}>壁</Btn>
+            <Btn active={sel.kind === "hedge"} col={TYPE_COL.tree} onClick={() => update({ kind: "hedge" })}>生け垣</Btn>
+            <Btn active={sel.kind === "fence"} col={TYPE_COL.wall} onClick={() => update({ kind: "fence" })}>柵</Btn>
+            <Btn active={sel.kind === "rail"} col={TYPE_COL.wall} onClick={() => update({ kind: "rail" })}>ガードパイプ</Btn>
+            <Btn active={sel.kind === "glass"} col={TYPE_COL.wall} onClick={() => update({ kind: "glass" })}>ガラスの手すり</Btn>
+          </div>
+        </Row>
         <Row label="高さ (m)"><Num value={sel.height} min={0.1} max={40} onChange={(v) => update({ height: v }, "height")} /><span style={{ fontSize: 10, color: T.txD }}>高いほうの地面から</span></Row>
         <Row label="厚さ (m)"><Num value={sel.thickness} min={0.05} max={5} step={0.05} onChange={(v) => update({ thickness: v }, "thickness")} /></Row>
+        {sel.kind === "glass" && <Row label="下の縁石 (m)"><Num value={sel.curb ?? null} nullable placeholder="なし" min={0.05} max={1.5} step={0.05} onChange={(v) => update({ curb: v ?? undefined }, "curb")} /><span style={{ fontSize: 10, color: T.txD }}>石の縁石の高さ。ガラスはその上</span></Row>}
       </>}
       {sel.type === "terrace" && <TerracePanel f={sel} demTick={demTick} update={update} />}
+      {sel.type === "tree" && <>
+        <Row label="種類">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {TREE_KIND_KEYS.map((k) => <Btn key={k} active={sel.kind === k} col={TYPE_COL.tree} onClick={() => update({ kind: k })}>{TREE_KINDS[k]}</Btn>)}
+          </div>
+        </Row>
+        <Row label="高さ (m)"><Num value={sel.height} min={1} max={40} step={0.5} onChange={(v) => update({ height: v }, "height")} /><span style={{ fontSize: 10, color: T.txD }}>地面からてっぺんまで</span></Row>
+        <Row label="枝の広がり (m)"><Num value={sel.crown} min={1} max={30} step={0.5} onChange={(v) => update({ crown: v }, "crown")} /><span style={{ fontSize: 10, color: T.txD }}>葉の直径（地図の輪）</span></Row>
+        <div style={{ fontSize: 10, color: T.txD, lineHeight: 1.6, marginTop: 4 }}>点をドラッグして動かす。歩いて見るときは幹にぶつかる（葉の下はくぐれる）</div>
+      </>}
+      {sel.type === "signal" && <SignalPanel f={sel} update={update} />}
       {sel.type === "passage" && <>
         <Row label="幅 (m)"><Num value={sel.width} min={0.5} max={60} onChange={(v) => update({ width: v }, "width")} /></Row>
         <Row label="天井の高さ (m)"><Num value={sel.height} min={0.1} max={40} onChange={(v) => update({ height: v }, "height")} /><span style={{ fontSize: 10, color: T.txD }}>屋上より高いと切り通し</span></Row>
       </>}
-      {sel.type === "building" && <BuildingPanel key={sel.id} f={sel} update={update} carveIdx={carveIdx} setCarveIdx={setCarveIdx} onDrawCarve={(redo) => { carveRedraw.current = redo; setTool("carve"); setDraft([]); }} />}
+      {sel.type === "building" && <BuildingPanel key={sel.id} f={sel} update={update} carveIdx={carveIdx} setCarveIdx={setCarveIdx} onDrawCarve={(redo) => { carveRedraw.current = redo; setTool("carve"); setDraft([]); }}
+        boards={{
+          bi: boardIdx, setBi: setBoardIdx, next: boardNext, setNext: setBoardNext, hide3d, setHide3d, drawing: tool === "board",
+          onDraw: () => { if (tool === "board") { setTool("select"); setDraft([]); } else { setTool("board"); setDraft([]); camera(0); } },
+        }} />}
       {sel.type === "road" && <>
         <Row label="車道の幅 (m)"><Num value={sel.width} min={2} max={40} step={0.5} onChange={(v) => update({ width: v }, "width")} /><span style={{ fontSize: 10, color: T.txD }}>歩道は含まない</span></Row>
         <Row label="車線の数"><Num value={sel.lanes} min={1} max={8} step={1} onChange={(v) => update({ lanes: v }, "lanes")} /><span style={{ fontSize: 10, color: T.txD }}>1 は線なし。偶数ならまん中が中央線</span></Row>
@@ -1735,6 +2182,8 @@ export default function Map3DEditor() {
         </label>
         <Row label="歩道 左 (m)"><Num value={sel.walk[0]} min={0} max={15} step={0.5} onChange={(v) => update({ walk: [v, sel.walk[1]] }, "walkL")} /></Row>
         <Row label="歩道 右 (m)"><Num value={sel.walk[1]} min={0} max={15} step={0.5} onChange={(v) => update({ walk: [sel.walk[0], v] }, "walkR")} /><span style={{ fontSize: 10, color: T.txD }}>0 は歩道なし</span></Row>
+        <Row label="角の丸み 左 (m)"><Num value={sel.radius?.[0] ?? null} min={0.5} max={20} step={0.5} nullable placeholder={String(CORNER_R)} onChange={(v) => update({ radius: [v, sel.radius?.[1] ?? null] }, "radL")} /></Row>
+        <Row label="角の丸み 右 (m)"><Num value={sel.radius?.[1] ?? null} min={0.5} max={20} step={0.5} nullable placeholder={String(CORNER_R)} onChange={(v) => update({ radius: [sel.radius?.[0] ?? null, v] }, "radR")} /><span style={{ fontSize: 10, color: T.txD }}>交差点の角の縁石の半径（空欄は {CORNER_R}m）</span></Row>
         <div style={{ fontSize: 10, color: T.txD, lineHeight: 1.6, marginTop: 4 }}>
           左右は点1から点2を見て。交差点は自動：車道は1つにつながり、角は半径 {CORNER_R}m で丸まり、歩道は相手の車道の手前で切れる。中央線や外側線は交わる道の手前と横断歩道の上で切れる（T字路の突き当たりでは、相手の中央線は通る）。停止線は「白線」で足す
         </div>
@@ -1769,7 +2218,7 @@ export default function Map3DEditor() {
       )}
       <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
         <Btn onClick={() => flyTo(sel.coords)}>ここへ移動</Btn>
-        {selVertex != null && sel.coords.length > (isArea(sel.type) ? 3 : 2) && <Btn col={T.red} onClick={() => removeVertex(sel.id, selVertex)}>点{selVertex + 1}を削除</Btn>}
+        {selVertex != null && sel.coords.length > minPoints(sel.type) && <Btn col={T.red} onClick={() => removeVertex(sel.id, selVertex)}>点{selVertex + 1}を削除</Btn>}
         <Btn col={T.red} onClick={() => removeFeature(sel.id)}>この{TYPE_LABEL[sel.type]}を削除</Btn>
       </div>
     </div>
@@ -1896,6 +2345,22 @@ export default function Map3DEditor() {
               <span style={{ width: 32, textAlign: "right", color: T.txD }}>{Math.round(photoOpacity * 100)}%</span>
             </div>}
             {photo && <div style={{ fontSize: 10, color: T.txD, margin: "2px 0 0 22px" }}>Imagery © Esri。「真上から」にすると、交差点の線や横断歩道をなぞりやすい</div>}
+            {refs.length > 0 && <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 11, color: T.txH, marginBottom: 2 }}>下絵（なぞる用。開発サーバーの data/map-3d-ref）</div>
+              {refs.map((r) => (
+                <div key={r.id} style={{ marginTop: 4 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                    <input type="checkbox" checked={refShow[r.id] != null} onChange={(e) => setRefShow((v) => { const n = { ...v }; if (e.target.checked) n[r.id] = 0.9; else delete n[r.id]; return n; })} />
+                    <span>{r.label}</span>
+                  </label>
+                  {refShow[r.id] != null && <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 0 22px", fontSize: 11, color: T.tx }}>
+                    濃さ <input type="range" min={0.1} max={1} step={0.05} value={refShow[r.id]} onChange={(e) => setRefShow((v) => ({ ...v, [r.id]: +e.target.value }))} style={{ flex: 1 }} />
+                    <span style={{ width: 32, textAlign: "right", color: T.txD }}>{Math.round(refShow[r.id] * 100)}%</span>
+                  </div>}
+                  {r.note && refShow[r.id] != null && <div style={{ fontSize: 10, color: T.txD, margin: "2px 0 0 22px", lineHeight: 1.5 }}>{r.note}</div>}
+                </div>
+              ))}
+            </div>}
             <div style={{ fontSize: 10, color: T.txD, marginTop: 8 }}>候補は scripts/gen-campus-3d-candidates.mjs で作り直せる</div>
           </div>
         </aside>
@@ -1909,6 +2374,7 @@ export default function Map3DEditor() {
             accent={T.accent}
             lookKey="cb3LookEditor"
             defaultLook="day"
+            walkButton
             initialView={INITIAL_VIEW}
             features={mapFeatures}
             editable
