@@ -52,6 +52,8 @@ const COLORS = {
     // 建物の材質のこげ茶のれんが・白っぽい石（ガラスの手すりの下の縁石も）・壁面緑化（植物で覆った壁）
     darkBrick: "#5e4b44", stone: "#d8d2c5", greenWall: "#64824a", redPanel: "#c23b33", // 赤い板（日よけ・屋上の看板の塔）
     concrete: "#a9a8a3", // 打ち放しのコンクリート
+    // 格子のスクリーン（trellis）の鋼・プランター・つる草（3 色）、看板の印（マクドナルドの黄・東急の赤）
+    trellis: "#5d6268", planter: "#8e8f8a", vine1: "#5e7c38", vine2: "#7a9142", vine3: "#a7a04a", mcdYellow: "#ffbc0d", tokyuRed: "#e84a2e",
     // 看板：ステンレスの箱（面・側面）と暗い文字、白い板と薄い灰色の文字
     signFace: "#d4d9dd", signSide: "#a9b0b6", signText: "#30353a", plateFace: "#f3f4f5", plateText: "#c3c8cd", signDark: "#26282b", // 黒い板（店の看板）
     signSwoosh: "#f5f7f9", plateSwoosh: "#dce0e4", // 校章のまん中の明るい帯
@@ -73,6 +75,7 @@ const COLORS = {
     signalPole: "#2a2826", signalBox: "#1b1d20", signalOff: "#24272a", lampRed: "#ff4a36", lampGreen: "#23f0a0", rail: "#5a6168", letter: "#6c737b",
     solar: "#151a24", solarLine: "#2c333d", parapet: "#4a525c", fin: "#4b535d", member: "#5d656f", glassRail: "#3d4e57", fritWhite: "#9a8c70",
     darkBrick: "#2a2320", stone: "#4f4c46", greenWall: "#1d2a18", redPanel: "#5a1f1b", concrete: "#3f4043",
+    trellis: "#26292c", planter: "#323331", vine1: "#1d2814", vine2: "#253019", vine3: "#33321a", mcdYellow: "#6b5208", tokyuRed: "#5c1f15",
     signFace: "#4a5159", signSide: "#353b42", signText: "#15181b", plateFace: "#5a6168", plateText: "#454b52", signDark: "#101113",
     signSwoosh: "#6c747d", plateSwoosh: "#50575e",
     noticeGreen: "#21401c",
@@ -893,6 +896,17 @@ const GLYPHS = {
   科: { w: 1, s: [[[0.4, 0.98], [0.08, 0.88]], [[0.04, 0.68], [0.44, 0.68]], [[0.24, 0.9], [0.24, 0]], [[0.23, 0.62], [0.04, 0.24]], [[0.26, 0.56], [0.42, 0.42]], [[0.6, 0.9], [0.7, 0.82]], [[0.58, 0.7], [0.7, 0.6]], [[0.5, 0.4], [0.98, 0.48]], [[0.8, 1], [0.8, 0]]] },
   学: { w: 1, s: [[[0.26, 0.98], [0.33, 0.86]], [[0.5, 1], [0.52, 0.86]], [[0.76, 0.98], [0.66, 0.86]], [[0.08, 0.7], [0.08, 0.8], [0.92, 0.8], [0.9, 0.7]], [[0.28, 0.66], [0.7, 0.66], [0.5, 0.52]], [[0.5, 0.52], [0.5, 0.02], [0.4, 0.08]], [[0.06, 0.38], [0.94, 0.38]]] },
   大: { w: 1, s: [[[0.08, 0.66], [0.92, 0.66]], [[0.5, 1], [0.5, 0.6], [0.06, 0.02]], [[0.52, 0.56], [0.94, 0.02]]] },
+  // 駅と病院の看板の漢字（大岡山駅・中央改札・東急病院）
+  岡: { w: 1, s: [[[0.1, 0], [0.1, 0.94], [0.9, 0.94], [0.9, 0.06], [0.8, 0]], [[0.33, 0.84], [0.4, 0.74]], [[0.67, 0.84], [0.6, 0.74]], [[0.24, 0.68], [0.76, 0.68]], [[0.5, 0.68], [0.5, 0.18]], [[0.28, 0.48], [0.28, 0.18], [0.72, 0.18]], [[0.72, 0.48], [0.72, 0.18]]] },
+  山: { w: 1, s: [[[0.5, 0.96], [0.5, 0.06]], [[0.12, 0.66], [0.12, 0.06], [0.88, 0.06]], [[0.88, 0.66], [0.88, 0.06]]] },
+  駅: { w: 1, s: [[[0.06, 0.95], [0.06, 0.34]], [[0.06, 0.95], [0.42, 0.95]], [[0.06, 0.79], [0.38, 0.79]], [[0.06, 0.63], [0.38, 0.63]], [[0.22, 0.95], [0.22, 0.47]], [[0.06, 0.47], [0.44, 0.47], [0.44, 0.07], [0.37, 0.02]], [[0.1, 0.31], [0.08, 0.18]], [[0.18, 0.31], [0.17, 0.18]], [[0.26, 0.31], [0.26, 0.18]], [[0.34, 0.31], [0.35, 0.18]], [[0.55, 0.92], [0.93, 0.92], [0.93, 0.67], [0.55, 0.67]], [[0.55, 0.92], [0.55, 0.45], [0.49, 0.04]], [[0.67, 0.67], [0.98, 0.04]]] },
+  中: { w: 1, s: [[[0.14, 0.76], [0.86, 0.76], [0.86, 0.36], [0.14, 0.36], [0.14, 0.76]], [[0.5, 0.98], [0.5, 0.02]]] },
+  央: { w: 1, s: [[[0.2, 0.46], [0.2, 0.78], [0.8, 0.78], [0.8, 0.46]], [[0.04, 0.46], [0.96, 0.46]], [[0.5, 0.98], [0.5, 0.46], [0.12, 0.03]], [[0.54, 0.4], [0.94, 0.03]]] },
+  改: { w: 1, s: [[[0.06, 0.9], [0.38, 0.9], [0.38, 0.62], [0.08, 0.62], [0.08, 0.12], [0.42, 0.27]], [[0.66, 0.98], [0.54, 0.62]], [[0.6, 0.78], [0.97, 0.78]], [[0.88, 0.78], [0.56, 0.03]], [[0.64, 0.48], [0.98, 0.03]]] },
+  札: { w: 1, s: [[[0.04, 0.72], [0.46, 0.72]], [[0.25, 0.98], [0.25, 0]], [[0.24, 0.64], [0.04, 0.26]], [[0.27, 0.55], [0.44, 0.42]], [[0.62, 0.95], [0.62, 0.12], [0.69, 0.05], [0.98, 0.05], [0.98, 0.26]]] },
+  急: { w: 1, s: [[[0.42, 0.98], [0.24, 0.78]], [[0.35, 0.88], [0.74, 0.88], [0.62, 0.74]], [[0.2, 0.74], [0.8, 0.74], [0.8, 0.42], [0.2, 0.42]], [[0.24, 0.58], [0.8, 0.58]], [[0.12, 0.3], [0.05, 0.12]], [[0.3, 0.33], [0.3, 0.06], [0.74, 0.06], [0.78, 0.17]], [[0.5, 0.32], [0.56, 0.22]], [[0.8, 0.32], [0.93, 0.14]]] },
+  病: { w: 1, s: [[[0.5, 1], [0.5, 0.9]], [[0.2, 0.9], [0.96, 0.9]], [[0.2, 0.9], [0.2, 0.4], [0.04, 0]], [[0.04, 0.76], [0.12, 0.68]], [[0.03, 0.56], [0.12, 0.5]], [[0.32, 0.75], [0.92, 0.75]], [[0.38, 0.61], [0.38, 0.02]], [[0.38, 0.61], [0.87, 0.61], [0.87, 0.06], [0.8, 0.02]], [[0.62, 0.75], [0.62, 0.46], [0.47, 0.3]], [[0.64, 0.42], [0.78, 0.29]]] },
+  院: { w: 1, s: [[[0.08, 0.98], [0.08, 0]], [[0.08, 0.98], [0.26, 0.98], [0.16, 0.72], [0.28, 0.55], [0.21, 0.42], [0.12, 0.42]], [[0.68, 1], [0.68, 0.92]], [[0.4, 0.84], [0.4, 0.92], [0.96, 0.92], [0.96, 0.84]], [[0.52, 0.72], [0.84, 0.72]], [[0.4, 0.52], [0.98, 0.52]], [[0.58, 0.52], [0.51, 0.19], [0.38, 0.04]], [[0.76, 0.52], [0.76, 0.09], [0.98, 0.09], [0.98, 0.2]]] },
   ".": { w: 0.06, s: [[[0.03, 0], [0.03, 0.06]]] },
   " ": { w: 0.3, s: [] },
 };
@@ -983,9 +997,10 @@ function addSign(m, f, groundAt, cols, tint) {
   const W = f.width, H = f.height, T = f.thickness;
   const white = f.style === "white";
   const notice = f.style === "notice"; // 白い板の上に緑の帯（帯の中の行は白い字）
-  const dark = f.style === "dark"; // 黒い板に白い字（店の看板。縁なし）
-  const face = tint(rgba(cols[dark ? "signDark" : white || notice ? "plateFace" : "signFace"]));
-  const side = tint(rgba(cols[dark ? "signDark" : white ? "plateText" : "signSide"]));
+  const dark = f.style === "dark" || f.style === "red"; // 黒い板（red は赤い板）に白い字（店の看板。縁なし）
+  const board = f.style === "red" ? "redPanel" : "signDark";
+  const face = tint(rgba(cols[dark ? board : white || notice ? "plateFace" : "signFace"]));
+  const side = tint(rgba(cols[dark ? board : white ? "plateText" : "signSide"]));
   const ink = tint(rgba(cols[dark ? "plateFace" : white ? "plateText" : "signText"]));
   const inkSide = ink.map((v, i) => (i < 3 ? v * 0.8 : v));
   const at = (x, y, d) => {
@@ -1030,7 +1045,8 @@ function addSign(m, f, groundAt, cols, tint) {
   }
   for (const r of f.rules) planeBar(m, plane, r[0], r[1], r[2], r[3], 0.008, d0, d1, ink, inkSide);
   // 校章：形ごとに面の上の平らな多角形（面から少し浮かせる）。明るい帯はステンレスの看板では白く、白い板では板より少し暗く
-  if (f.logo) {
+  if (f.logo && f.logo[3]) addLogo(m, plane, f.logo, cols, tint);
+  else if (f.logo) {
     const [lx, ly, lh] = f.logo;
     const swoosh = tint(rgba(cols[white ? "plateSwoosh" : "signSwoosh"]));
     for (const sh of LOGO_SHAPES) {
@@ -1041,6 +1057,106 @@ function addSign(m, f, groundAt, cols, tint) {
       }
     }
   }
+}
+
+// 看板の印（校章でないもの）：[左下の x, y, 高さ, 種類]。mcd マクドナルドの黄色い M（2 つの弧と、まん中で合わさって下へ下りる脚）/
+// tokyu 東急の赤い丸と白い逆三角 / tokyustore 東急ストアの赤い四角と白い輪・2 人の頭と腕
+function addLogo(m, plane, logo, cols, tint) {
+  const [lx, ly, lh, kind] = logo;
+  const { P, N } = plane;
+  const fill = (pts, col, d) => {
+    for (const i of earcut(pts.flat(), null, 2)) {
+      const [p, z] = P(lx + pts[i][0] * lh, ly + pts[i][1] * lh, d);
+      m.vert(p, z, N, col);
+    }
+  };
+  const circle = (cx, cy, r, n = 28) => Array.from({ length: n }, (_, k) => [cx + r * Math.cos((2 * Math.PI * k) / n), cy + r * Math.sin((2 * Math.PI * k) / n)]);
+  const bar = (pts, w, col, d0, d1) => {
+    for (let k = 0; k + 1 < pts.length; k++) planeBar(m, plane, lx + pts[k][0] * lh, ly + pts[k][1] * lh, lx + pts[k + 1][0] * lh, ly + pts[k + 1][1] * lh, w * lh, d0, d1, col, col);
+  };
+  const white = tint(rgba(cols.plateFace));
+  if (kind === "mcd") {
+    const yellow = tint(rgba(cols.mcdYellow));
+    const arch = Array.from({ length: 17 }, (_, k) => [0.31 - 0.24 * Math.cos((Math.PI * k) / 16), 0.45 + 0.48 * Math.sin((Math.PI * k) / 16)]);
+    const left = [[0.07, 0], ...arch, [0.59, 0]];
+    bar(left, 0.15, yellow, 0.004, 0.03);
+    bar(left.map(([x, y]) => [1.18 - x, y]), 0.15, yellow, 0.004, 0.03);
+  } else if (kind === "tokyu") {
+    fill(circle(0.5, 0.5, 0.5), tint(rgba(cols.tokyuRed)), 0.004);
+    fill([[0.27, 0.68], [0.52, 0.22], [0.78, 0.68]], white, 0.007);
+  } else if (kind === "tokyustore") {
+    fill([[0, 0], [1, 0], [1, 1], [0, 1]], tint(rgba(cols.tokyuRed)), 0.004);
+    bar([...circle(0.5, 0.5, 0.34, 24), [0.84, 0.5]], 0.06, white, 0.006, 0.009);
+    fill(circle(0.4, 0.62, 0.07, 12), white, 0.008);
+    fill(circle(0.6, 0.62, 0.07, 12), white, 0.008);
+    bar([[0.3, 0.47], [0.5, 0.3], [0.7, 0.47]], 0.07, white, 0.006, 0.009);
+  }
+}
+
+// 決まった乱数（0〜1）：位置などの数から
+const leafHash = (a, b, c) => {
+  const h = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453;
+  return h - Math.floor(h);
+};
+// 壁面緑化（material green）の壁：1m ほどの区画ごとに緑の濃さを変える（葉の茂みのむら。ところどころ赤く・黄色く色づいた葉）。
+// 区画の色は平面の位置と高さで決まる（となりの区間とつながる）
+function greenWall(m, p, q, bp, bq, tp, tq, n, c) {
+  const L = Math.hypot(q[0] - p[0], q[1] - p[1]);
+  if (L < 1e-3) return;
+  const K = Math.max(1, Math.round(L / 0.8));
+  const R = Math.max(1, Math.round(Math.max(tp - bp, tq - bq) / 0.7));
+  for (let i = 0; i < K; i++) {
+    const t0 = i / K, t1 = (i + 1) / K;
+    const P0 = [p[0] + (q[0] - p[0]) * t0, p[1] + (q[1] - p[1]) * t0];
+    const P1 = [p[0] + (q[0] - p[0]) * t1, p[1] + (q[1] - p[1]) * t1];
+    const b0 = bp + (bq - bp) * t0, b1 = bp + (bq - bp) * t1, e0 = tp + (tq - tp) * t0, e1 = tp + (tq - tp) * t1;
+    for (let j = 0; j < R; j++) {
+      const z0a = b0 + ((e0 - b0) * j) / R, z0b = b0 + ((e0 - b0) * (j + 1)) / R;
+      const z1a = b1 + ((e1 - b1) * j) / R, z1b = b1 + ((e1 - b1) * (j + 1)) / R;
+      const r = leafHash(Math.round((P0[0] + P1[0]) * 1.3), Math.round((P0[1] + P1[1]) * 1.3), Math.round((z0a + z0b) * 0.8));
+      const k = 0.88 + r * 0.22;
+      let col = [c[0] * k, c[1] * k, c[2] * k, c[3]];
+      if (r > 0.985) col = mix(col, [Math.min(1, c[0] * 1.6), c[1] * 0.85, c[2] * 0.75, c[3]], 0.6);
+      else if (r < 0.03) col = mix(col, [Math.min(1, c[0] * 1.3), Math.min(1, c[1] * 1.1), c[2] * 0.75, c[3]], 0.6);
+      m.quad([[P0, z0a], [P1, z1a], [P1, z1b], [P0, z0b]], n, col);
+    }
+  }
+}
+
+// 格子のスクリーン（建物の trellis）：壁の前の鋼の格子。縦の柱を pitch m おき、rows の高さに横の材。planters の高さに
+// つる草のプランター（灰色の箱と上の低い緑）を掛け、プランターから上の段へつるがのぼる（区画ごとに 2 本、高さは決まった乱数 × vines）
+const TRELLIS_BAR = 0.16;
+function addTrellis(m, tr, q, n, g0, look) {
+  const L = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]);
+  if (L < 0.3) return;
+  const u = [(q[1][0] - q[0][0]) / L, (q[1][1] - q[0][1]) / L];
+  const at = (s, d) => [q[0][0] + u[0] * s + n[0] * d, q[0][1] + u[1] * s + n[1] * d];
+  const d = tr.depth;
+  const K = Math.max(1, Math.round(L / tr.pitch));
+  const posts = Array.from({ length: K + 1 }, (_, k) => (L * k) / K);
+  for (const s of posts) addBeam(m, [at(s, d), g0 + tr.bottom], [at(s, d), g0 + tr.top], TRELLIS_BAR, look.trellis);
+  const rows = [...new Set([tr.bottom, ...tr.rows, tr.top])].filter((r) => r >= tr.bottom && r <= tr.top).sort((a, b) => a - b);
+  for (const r of rows) addBeam(m, [at(0, d), g0 + r], [at(L, d), g0 + r], TRELLIS_BAR * 0.75, look.trellis);
+  const pl = (tr.planters || []).filter((r) => r >= tr.bottom && r < tr.top).sort((a, b) => a - b);
+  const vines = tr.vines ?? 0.6;
+  const nn = [n[0], n[1], 0];
+  pl.forEach((r, k) => {
+    const z = g0 + r;
+    m.prism([at(0, d - 0.3), at(L, d - 0.3)], [at(0, d + 0.32), at(L, d + 0.32)], [z - 0.4, z - 0.4], [z + 0.08, z + 0.08], { top: look.planter, side: look.planter, bottom: look.planter }, { bottom: true });
+    m.prism([at(0.05, d - 0.22), at(L - 0.05, d - 0.22)], [at(0.05, d + 0.24), at(L - 0.05, d + 0.24)], [z + 0.08, z + 0.08], [z + 0.3, z + 0.3], { top: look.vine[0], side: look.vine[1] });
+    const span = (k + 1 < pl.length ? pl[k + 1] : tr.top) - r - 0.3;
+    if (span <= 0 || vines <= 0) return;
+    for (let i = 0; i < K; i++) {
+      for (let j = 0; j < 2; j++) {
+        const s0 = posts[i] + (posts[i + 1] - posts[i]) * (0.1 + 0.8 * leafHash(i * 3.1 + j, r, q[0][0] * 0.37 + q[0][1] * 0.11));
+        const w = 0.12 + 0.22 * leafHash(j * 5.7 + i, r * 1.3, q[0][1] * 0.29);
+        const h = span * vines * (0.35 + 0.65 * leafHash(i + j * 1.7, r * 2.1, 3.3));
+        const col = look.vine[Math.min(2, Math.floor(leafHash(i * 1.9 + j, r, 7.7) * 3))];
+        const a = Math.max(0, s0 - w / 2), b = Math.min(L, s0 + w / 2);
+        m.quad([[at(a, d + 0.03), z + 0.3], [at(b, d + 0.03), z + 0.3], [at(b, d + 0.03), z + 0.3 + h], [at(a, d + 0.03), z + 0.3 + h]], nn, col);
+      }
+    }
+  });
 }
 
 function addBridge(m, f, groundAt, pal, cols, tint) {
@@ -1912,7 +2028,8 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
     const bp = from ? g0 + from[0] : bAt(p);
     const bq = from ? g0 + from[1] : bAt(q);
     if (!glassTop || !glassy) {
-      m.quad([[p, bp], [q, bq], [q, g0 + hq], [p, g0 + hp]], n, c);
+      if (f.material === "green") greenWall(m, p, q, bp, bq, g0 + hp, g0 + hq, n, c);
+      else m.quad([[p, bp], [q, bq], [q, g0 + hq], [p, g0 + hp]], n, c);
       return;
     }
     const gp = Math.min(glassTop, hp);
@@ -2283,6 +2400,18 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
       const u = [(q[1][0] - q[0][0]) / L, (q[1][1] - q[0][1]) / L];
       const n = u[1] * h.n[0] - u[0] * h.n[1] >= 0 ? [u[1], -u[0]] : [-u[1], u[0]];
       addLetters(m, l, { a: q[0], b: q[1], u, n, L }, g0, l.color === "red" ? look.redPanel : look.letter);
+    }
+  }
+  // 格子のスクリーン：外向きは、線の向きに直角で壁（いちばん近い辺）の外向きに近いほう
+  if (look && f.trellis) {
+    const hosts = wallHosts(ring, carves);
+    for (const tr of f.trellis) {
+      const q = tr.coords.map(toXY);
+      const h = hostOf(hosts, q, false);
+      if (!h) continue;
+      const L = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]);
+      const u = [(q[1][0] - q[0][0]) / L, (q[1][1] - q[0][1]) / L];
+      addTrellis(m, tr, q, u[1] * h.n[0] - u[0] * h.n[1] >= 0 ? [u[1], -u[0]] : [-u[1], u[0]], g0, look);
     }
   }
   // 窓・扉と小さなひさし（壁の面に貼る）
@@ -2986,6 +3115,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
         perforated: tint(rgba(cols.perforated)), dome: tint(rgba(cols.dome)), domeCurb: c, letter: tint(rgba(cols.letter)),
         solar: tint(rgba(cols.solar)), solarLine: tint(rgba(cols.solarLine)), parapet: tint(rgba(cols.parapet)), fin: tint(rgba(cols.fin)), member: tint(rgba(cols.member)),
         redPanel: tint(rgba(cols.redPanel)),
+        trellis: tint(rgba(cols.trellis)), planter: tint(rgba(cols.planter)), vine: [tint(rgba(cols.vine1)), tint(rgba(cols.vine2)), tint(rgba(cols.vine3))],
       };
       addBuilding(m, { ...f, carves: buildingOpenings(f, features) }, groundAt, c, clip, look);
     }

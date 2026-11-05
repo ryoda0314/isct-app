@@ -272,7 +272,7 @@ function LeansRow({ f, update }) {
 }
 
 /* ── 看板：面の向き・大きさ・高さ・倒し・見た目・脚と、文字の行 ── */
-const SIGN_STYLE_LABEL = { steel: "ステンレス（暗い文字）", white: "白い板（薄い文字）", notice: "お知らせ（緑の帯）", dark: "黒い板（白い文字）" };
+const SIGN_STYLE_LABEL = { steel: "ステンレス（暗い文字）", white: "白い板（薄い文字）", notice: "お知らせ（緑の帯）", dark: "黒い板（白い文字）", red: "赤い板（白い文字）" };
 function SignPanel({ f, update }) {
   const inp = { flex: 1, minWidth: 0, padding: "4px 6px", borderRadius: 5, border: `1px solid ${T.bdL}`, background: T.bg, color: T.txH, fontSize: 12, fontFamily: "inherit" };
   const setLine = (i, patch) => update({ lines: f.lines.map((l, k) => (k === i ? { ...l, ...patch } : l)) }, `line${i}`);

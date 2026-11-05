@@ -89,6 +89,9 @@
 //             letters（壁の文字＝ステンレスの切り文字。12 行まで）：[{ coords（壁の面の上の 2 点＝行の左端と右端。文字はこの 2 点を結ぶ線に
 //             並び、幅に合わせて字のあいだが決まる。外向きはいちばん近い壁の向き）, z（文字の下の端。地面から m）, size（大文字の高さ m）, text（A〜Z・0〜9・& - . と空白）,
 //             line（true なら文字の下の端に行の幅の横線）, color（"red" なら赤い文字＝店の看板の切り文字。なしはステンレス） }]
+//             trellis（壁の前の鋼の格子のスクリーン。12 まで）：[{ coords（壁ぞいの両端の 2 点）, bottom・top（地面から m）, depth（壁から外へ m）,
+//             pitch（縦の柱の間隔 m）, rows（横の材の高さ。地面から m）, planters（つる草のプランターを掛ける高さ。地面から m）,
+//             vines（つるが上の段までのぼる割合 0〜1。なしは 0.6） }]
 //             step（段の高さ m）：斜めに切った屋根を step m ごとの水平な段にする（段の境目は斜面の同じ高さの線＝線を回した面なら
 //             扇のように開く段）。段の板は軒の出（eave）だけ、段の向きに壁の外へ張り出す（斜めに交わる壁ではのこぎりの歯のように）
 //             地図の建物のうち、中心がこの形の中にあるものは描かず（replacedBuildings）、campus3dMesh.js が代わりに描く
@@ -109,10 +112,11 @@
 //             灯は歩行者だけが渡れるとき（車の信号は赤、歩行者の信号は青。campus3dMesh.js の addSignal）
 //   sign    : 看板（立て看板・柵に付けた銘板）。coords は板の下の端のまん中の真下の地面の 1 点。bearing（面が向く方位）, width・height（板の幅・高さ m）,
 //             thickness（板の厚さ m）, z（板の下の端の高さ。地面から m）, tilt（後ろへ倒す角度。度）, style（steel ステンレスの箱に暗い文字 /
-//             white 白い板に薄い灰色の文字 / notice 白い板の上に緑の帯（帯の中の行は白、ほかは暗い文字） / dark 黒い板に白い文字（店の看板））,
+//             white 白い板に薄い灰色の文字 / notice 白い板の上に緑の帯（帯の中の行は白、ほかは暗い文字） / dark 黒い板に白い文字（店の看板） / red 赤い板に白い文字）,
 //             legs（脚の数。0 は柵などに付けた板）,
 //             lines（文字の行：[{ text（A〜Z・0〜9・& - . ' 空白と、漢字 東京科学大）, x・y（行の左下。板の左下の角から m）, size（字の高さ m） }]。8 行まで）,
-//             rules（細い線：[[x0, y0, x1, y1]]。区切りの縦線など）, logo（校章＝Science Tokyo のシンボルマーク：[左下の x, y, 高さ]。幅は高さの 0.72 倍。なしは null）
+//             rules（細い線：[[x0, y0, x1, y1]]。区切りの縦線など）, logo（印：[左下の x, y, 高さ] は校章＝Science Tokyo のシンボルマーク（幅は高さの 0.72 倍）。[x, y, 高さ, 種類] の種類は
+//             mcd マクドナルドの M（幅は高さの 1.18 倍）/ tokyu 東急の赤い丸 / tokyustore 東急ストアの赤い四角。なしは null）
 // z が null の点は、両端なら地面の高さ、途中なら前後の決まった点のあいだを距離で直線に結ぶ。
 // 地面は「元の地面 → 平地 → 坂道・階段」の順に重ねて作る（坂道・階段の高さは平地を入れたあとの地面から）
 // DOM も MapLibre も使わない（3D表示・エディタ・テストから共通で使う）
@@ -174,9 +178,10 @@ export const DEFAULTS = {
   signal: { height: 5.5, arm: 3.5, bearing: 90, face: 180, peds: [] },
   sign: { bearing: 0, width: 2, height: 0.5, thickness: 0.15, z: 0.5, tilt: 0, style: "steel", legs: 2, lines: [], rules: [], logo: null },
 };
-export const SIGN_STYLES = ["steel", "white", "notice", "dark"];
+export const SIGN_STYLES = ["steel", "white", "notice", "dark", "red"];
 // 看板の文字に使える字（campus3dMesh.js の GLYPHS にある字）
-export const SIGN_CHARS = /[A-Z0-9&.'\- 東京科学大]/;
+export const SIGN_CHARS = /[A-Z0-9&.'\- 東京科学大岡山駅中央改札急病院]/;
+export const LOGO_KINDS = ["isct", "mcd", "tokyu", "tokyustore"];
 // 入力できる範囲（m）
 export const RANGE = {
   height: [0.1, 40], thickness: [0.05, 5], width: [0.5, 60], side: [0, 30], riser: [0.08, 0.4], z: [-30, 60], elev: [-50, 200], base: [0.5, 80], shift: [-30, 30],
@@ -301,7 +306,7 @@ export function normalizeFeature(f) {
     out.width = round2(clampTo(f.width, [0.2, 12], d.width));
     out.height = round2(clampTo(f.height, [0.1, 5], d.height));
     out.thickness = round2(clampTo(f.thickness, [0.01, 1], d.thickness));
-    out.z = round2(clampTo(f.z, [0, 10], d.z));
+    out.z = round2(clampTo(f.z, [0, 40], d.z)); // 屋上の看板も
     out.tilt = round2(clampTo(f.tilt, [-30, 80], d.tilt));
     out.style = SIGN_STYLES.includes(f.style) ? f.style : d.style;
     out.legs = Math.round(clampTo(f.legs, [0, 4], d.legs));
@@ -314,7 +319,9 @@ export function normalizeFeature(f) {
     out.rules = (Array.isArray(f.rules) ? f.rules : []).filter((r) => Array.isArray(r) && r.length === 4 && r.every((v) => Number.isFinite(+v)))
       .map((r) => [round2(clampTo(r[0], [0, W], 0)), round2(clampTo(r[1], [0, H], 0)), round2(clampTo(r[2], [0, W], 0)), round2(clampTo(r[3], [0, H], 0))]).slice(0, 8);
     const lg = f.logo;
-    out.logo = Array.isArray(lg) && lg.length === 3 && lg.every((v) => Number.isFinite(+v)) && +lg[2] > 0 ? [round2(clampTo(lg[0], [0, W], 0)), round2(clampTo(lg[1], [0, H], 0)), round2(clampTo(lg[2], [0.02, H], 0.2))] : null;
+    const lk = Array.isArray(lg) && lg.length === 4 && LOGO_KINDS.includes(lg[3]) && lg[3] !== "isct" ? lg[3] : null;
+    out.logo = Array.isArray(lg) && (lg.length === 3 || lk) && lg.slice(0, 3).every((v) => Number.isFinite(+v)) && +lg[2] > 0
+      ? [round2(clampTo(lg[0], [0, W], 0)), round2(clampTo(lg[1], [0, H], 0)), round2(clampTo(lg[2], [0.02, H], 0.2)), ...(lk ? [lk] : [])] : null;
   } else if (f.type === "tree") {
     out.coords = coords.slice(0, 1);
     out.height = round2(clampTo(f.height, RANGE.theight, d.height));
@@ -465,6 +472,20 @@ export function normalizeFeature(f) {
       return ol;
     }).filter(Boolean).slice(0, 12);
     if (letters.length) out.letters = letters;
+    const trellis = (Array.isArray(f.trellis) ? f.trellis : []).map((t) => {
+      const cs = twoPts(t?.coords);
+      if (!cs || !Number.isFinite(+t.bottom) || !Number.isFinite(+t.top) || +t.top <= +t.bottom) return null;
+      const nums = (a) => (Array.isArray(a) ? a : []).map(Number).filter(Number.isFinite).map(round2).slice(0, 12);
+      const o = {
+        coords: cs, bottom: round2(clampTo(t.bottom, [-10, out.height + 5], 0)), top: round2(clampTo(t.top, [-10, out.height + 10], 1)),
+        depth: round2(clampTo(t.depth, [0, 4], 0.8)), pitch: round2(clampTo(t.pitch, [0.4, 12], 3)), rows: nums(t.rows),
+      };
+      const pl = nums(t.planters);
+      if (pl.length) o.planters = pl;
+      if (t.vines != null && t.vines !== "" && Number.isFinite(+t.vines)) o.vines = round2(clampTo(t.vines, [0, 1], 0.6));
+      return o;
+    }).filter(Boolean).slice(0, 12);
+    if (trellis.length) out.trellis = trellis;
     const fins = (Array.isArray(f.fins) ? f.fins : []).map((r) => {
       const cs = twoPts(r?.coords);
       if (!cs) return null;
