@@ -10,6 +10,9 @@ import { cumulative, offsetLine, ringArea, toLngLat, toXY } from "./campus3dFeat
 
 // 路面の種類（塗る色は明るい地図・暗い地図それぞれ）
 export const SURFACE_KINDS = {
+  // 地図の公園の緑と同じ色（まわりの芝生と境目なくつながる）。いちばん下に描くので、上に飛び石・道を重ねられる。
+  // 芝生の下になった地図の通路の帯は隠れ、街灯も立てない（campus3dLamps.js）
+  lawn: { label: "芝生", light: "#d3e8c5", dark: "#1c3024" },
   road: { label: "車道", light: "#8d959d", dark: "#3a4149" },
   walk: { label: "歩道", light: "#e6e8e3", dark: "#4a5058" },
   plaza: { label: "広場", light: "#cdb49a", dark: "#5f5245" },
@@ -23,8 +26,9 @@ export const SURFACE_KINDS = {
   brick: { label: "れんが（灰）", light: "#a19d99", dark: "#3e3f44" }, // 灰色の炻器質れんが敷き（附属図書館の広場）
   darkbrick: { label: "れんが（こげ茶）", light: "#5e4b44", dark: "#2b2422" },
   wood: { label: "古い木の床", light: "#a39889", dark: "#3d3a35" }, // 雨風で灰色がかった木の板（本館前のウッドデッキの、桜の下）
+  slab: { label: "敷石（濃い灰）", light: "#77797c", dark: "#2b2d30" }, // 芝生の中の飛び石（細長い御影石の板）。いちばん上に描く
 };
-export const SURFACE_ORDER = ["road", "zebra", "red", "plaza", "brick", "darkbrick", "tile", "deck", "wood", "walk", "gravel", "stones", "green"];
+export const SURFACE_ORDER = ["lawn", "road", "zebra", "red", "plaza", "brick", "darkbrick", "tile", "deck", "wood", "walk", "gravel", "stones", "green", "slab"];
 // 白線の種類：幅（m）・色・破線
 export const MARKING_KINDS = {
   solid: { label: "白線", width: 0.15, color: "white" },

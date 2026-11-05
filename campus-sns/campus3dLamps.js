@@ -102,6 +102,16 @@ export function streetLamps(data, features = [], R, { walk = walkSegments() } = 
     for (let i = 1; i < pts.length; i++) userRoads.add(boxOf([pts[i - 1], pts[i]], reach), { a: pts[i - 1], b: pts[i], half: reach });
   }
   const nearUserRoad = (x, y) => userRoads.some(x, y, 0, (o) => segDist(x, y, o.a, o.b) < o.half);
+  // 手で描いた芝生（路面の lawn）：その下を通る地図の通路は本当の道ではない（飛び石・れんがの道などで描き直した）ので街灯を置かず、
+  // ほかの道の街灯も芝生の上には立てない
+  const lawns = new Grid(60);
+  for (const f of features) {
+    if (f.type !== "surface" || f.kind !== "lawn" || !(f.coords?.length > 2)) continue;
+    const ring = f.coords.map(toXY);
+    const box = boxOf(ring);
+    lawns.add(box, { ring, box });
+  }
+  const onLawn = (x, y) => lawns.some(x, y, 0, (o) => x >= o.box[0] && x <= o.box[2] && y >= o.box[1] && y <= o.box[3] && pointInRing(x, y, o.ring));
   const bands = new Grid(40);
   const addBand = (pts, half) => {
     for (let i = 1; i < pts.length; i++) bands.add(boxOf([pts[i - 1], pts[i]], half), { a: pts[i - 1], b: pts[i], half });
@@ -179,6 +189,7 @@ export function streetLamps(data, features = [], R, { walk = walkSegments() } = 
         const cy = a[1] + uy * t;
         if (inArea(cx, cy, true)) continue; // 建物の中を通る通路
         if (!road && nearUserRoad(cx, cy)) continue; // 手で描いた道路が置く
+        if (!road && onLawn(cx, cy)) continue; // 芝生の下の地図の通路
         if (placed.some(cx, cy, K.gap, (o) => Math.hypot(o.cx - cx, o.cy - cy) < K.gap)) continue;
         const fade = fadeAt(cx, cy);
         if (fade < 0.2) continue;
@@ -187,7 +198,7 @@ export function streetLamps(data, features = [], R, { walk = walkSegments() } = 
           const off = offset(sg);
           const x = cx - uy * sg * off;
           const y = cy + ux * sg * off;
-          if (inArea(x, y, false) || onBand(x, y)) continue;
+          if (inArea(x, y, false) || onBand(x, y) || onLawn(x, y)) continue;
           const arm = Math.min(K.arm, Math.max(0, off - 0.6));
           lamps.push({
             x, y, hx: x + uy * sg * arm, hy: y - ux * sg * arm, cx, cy, dir: [ux, uy], k: kind,

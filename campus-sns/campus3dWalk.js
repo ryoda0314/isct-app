@@ -361,7 +361,18 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
       if (L < 1e-6) continue;
       const nx = ((b[1] - a[1]) / L) * out;
       const ny = (-(b[0] - a[0]) / L) * out;
-      const at = (t, w = 0) => [a[0] + (b[0] - a[0]) * t + (oa[0] - a[0] + (ob[0] - oa[0] - b[0] + a[0]) * t) * w, a[1] + (b[1] - a[1]) * t + (oa[1] - a[1] + (ob[1] - oa[1] - b[1] + a[1]) * t) * w];
+      // 帯の上の点（w 0 ふち〜1 壁の外の面）：ふちの点から外へ直角に。出隅の角の点（t = 0・1）だけ留め継ぎの外の点（描く帯と同じ）。
+      // 外の面の線を角の点のあいだで比例で割ると、角のそばでは辺の向きに最大 WALL_T ずれて、坂・階段の通り道があいた帯が外の側で斜めにふさがる。
+      // 入隅の留め継ぎの点は辺の先へ出る（1 区間より遠いと四角がねじれる）ので使わない（となりの辺の帯と重なって角はふさがる）
+      const ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
+      const convexA = (oa[0] - a[0] - nx * WALL_T) * ux + (oa[1] - a[1] - ny * WALL_T) * uy < -1e-6;
+      const convexB = (ob[0] - b[0] - nx * WALL_T) * ux + (ob[1] - b[1] - ny * WALL_T) * uy > 1e-6;
+      const at = (t, w = 0) => {
+        const p = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+        if (w === 0) return p;
+        const q = t <= 1e-9 && convexA ? oa : t >= 1 - 1e-9 && convexB ? ob : [p[0] + nx * WALL_T, p[1] + ny * WALL_T];
+        return [p[0] + (q[0] - p[0]) * w, p[1] + (q[1] - p[1]) * w];
+      };
       const n = Math.max(1, Math.ceil(L));
       for (let k = 0; k < n; k++) {
         const m = at((k + 0.5) / n);

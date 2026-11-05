@@ -272,7 +272,7 @@ function LeansRow({ f, update }) {
 }
 
 /* ── 看板：面の向き・大きさ・高さ・倒し・見た目・脚と、文字の行 ── */
-const SIGN_STYLE_LABEL = { steel: "ステンレス（暗い文字）", white: "白い板（薄い文字）", notice: "お知らせ（緑の帯）" };
+const SIGN_STYLE_LABEL = { steel: "ステンレス（暗い文字）", white: "白い板（薄い文字）", notice: "お知らせ（緑の帯）", dark: "黒い板（白い文字）" };
 function SignPanel({ f, update }) {
   const inp = { flex: 1, minWidth: 0, padding: "4px 6px", borderRadius: 5, border: `1px solid ${T.bdL}`, background: T.bg, color: T.txH, fontSize: 12, fontFamily: "inherit" };
   const setLine = (i, patch) => update({ lines: f.lines.map((l, k) => (k === i ? { ...l, ...patch } : l)) }, `line${i}`);
@@ -1036,6 +1036,13 @@ function ShapeEditor({ f, demTick, selVertex, setSelVertex, update, lift, onAlig
           <Btn active={f.side > 0} col={col} onClick={() => update({ side: f.side > 0 ? f.side : 3, walls: undefined })} title="壁を立てず、まわりの地面へ斜面でつなぐ">斜面</Btn>
           {f.type === "stairs" && <Btn active={f.side === 0 && f.walls === false} col={col} onClick={() => update({ side: 0, walls: false })} title="壁も斜面も作らない（平地の中に置いて、平地の壁を両わきの壁にするとき）">なし</Btn>}
         </Row>
+        {f.type === "slope" && f.side === 0 && f.walls !== false && (
+          <Row label="壁の材質">
+            <div style={{ display: "flex", gap: 6 }}>
+              {Object.entries(STAIRS_MATERIAL_LABEL).map(([k, v]) => <Btn key={k} active={(f.material || "") === k} col={col} onClick={() => update({ material: k || undefined })} title="両わき・両端の壁の色（芝生を渡る木の歩道の縁は「木」）">{v}</Btn>)}
+            </div>
+          </Row>
+        )}
         {autoOpen && (
           <div style={{ fontSize: 10, color: T.yellow, lineHeight: 1.6, margin: "0 0 6px" }}>
             両わきとも平地のふちに沿っているので、階段の壁は立てずに平地の壁を両わきの壁にしています（自動。「なし」と同じ）。高さのそろった1枚の壁になる

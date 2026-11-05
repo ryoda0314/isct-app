@@ -18,7 +18,8 @@
 //             widths（各点の横幅。null は、両端なら width、途中は前後の決まった点のあいだを距離で直線に結ぶ＝だんだん広がる）,
 //             shifts（各点の帯の中心のずれ。中心線から左へ m、右はマイナス。null は widths と同じ決まりで、両端は 0。
 //             上底を横にずらした台形など、中心線に対して左右が同じでない形）,
-//             walls（false なら両わき・両端に壁を立てない。平地の中に置いて、平地の壁を両わきの壁にするときなど）
+//             walls（false なら両わき・両端に壁を立てない。平地の中に置いて、平地の壁を両わきの壁にするときなど）,
+//             material（坂だけ：両わき・両端の壁の色＝STAIRS_MATERIALS。芝生を渡る木の歩道の縁など。なしはコンクリート）
 //   stairs  : slope と同じ（width, z, side, flat, corner, base）に riser（一段の高さ）, rails（手すりの位置。段の幅に対する割合で、
 //             0 が左の端・1 が右の端（点1から点2を見て）。0 未満・1 より大は土台の上）。坂の面にそって riser ごとに段を刻む。
 //             steps（区間ごとの段数）があれば、段数は手で決めたもの。蹴上げはどの段も同じ（高さの差 ÷ 段数の合計）。
@@ -69,7 +70,8 @@
 //             格子の床の台：{ end（0 か 1）, from・to（軸から左へ m。軸の向きに見て左が +）, depth（端の面から外へ m）, z（床の高さ。
 //             地面から m） }） }]。建物の形の外へ出たところが張り出し（建物の中は壁と屋根に隠れる）
 //             material（壁と屋根の材質：rust さびた鉄 / perforated 穴あきの金属板 / steel ステンレス / darkbrick こげ茶のれんが /
-//             stone 白っぽい石。なしは地図の建物の色）,
+//             stone 白っぽい石 / green 壁面緑化＝植物で覆った壁（大岡山駅） / red 赤く塗った板（屋上の看板の塔など） /
+//             concrete 打ち放しのコンクリート（灰色）。なしは地図の建物の色）,
 //             joints（外の壁のパネルの目地：[横の間隔, 縦の間隔, 横の目地の基準の高さ]。縦の目地は辺ごとに等間隔、窓の奥に隠れる）
 //             frame（true なら壁でなく鉄骨の外階段：角と辺の柱、levels（踊り場の高さ。地面から m）ごとの床と手すり、そのあいだの段の板）
 //             roof "glass"（ガラスの屋根。縦の桟は斜面の向きに glassPitch m ごと） / "solar"（太陽光パネル。ふちに白い笠木）
@@ -81,12 +83,12 @@
 //             members（白い鋼の柱・梁＝V 字の柱など。20 まで）：[{ coords（点の並び）, zs（点ごとの高さ。地面から m）, size（太さ m） }]
 //             panels（空中の平らな板：ひさし・穴あきの衝立・ガラスの箱の面・V 字の柱など。40 まで）：[{ coords（点の位置。40 点まで）,
 //             zs（点ごとの高さ。地面から m）, kind（PANEL_KINDS：perforated 穴あきの金属板 / glass ガラス / steel ステンレス / dark 暗い鋼 /
-//             wall 建物の色 / white 白い鋼）, thickness（m） }]。点は同じ平面の上（凸でない形も可。点の順に囲む）。
+//             wall 建物の色 / white 白い鋼 / red 赤い板＝店の日よけなど）, thickness（m） }]。点は同じ平面の上（凸でない形も可。点の順に囲む）。
 //             立った板は、歩いて見るときにぶつかる（panelSlices）
 //             domes（屋根の丸い天窓。20 まで）：[{ coords（中心の 1 点）, r（半径 m）, z（台の上の高さ。地面から m。なければ屋根の高さ） }]
 //             letters（壁の文字＝ステンレスの切り文字。12 行まで）：[{ coords（壁の面の上の 2 点＝行の左端と右端。文字はこの 2 点を結ぶ線に
 //             並び、幅に合わせて字のあいだが決まる。外向きはいちばん近い壁の向き）, z（文字の下の端。地面から m）, size（大文字の高さ m）, text（A〜Z・0〜9・& - . と空白）,
-//             line（true なら文字の下の端に行の幅の横線） }]
+//             line（true なら文字の下の端に行の幅の横線）, color（"red" なら赤い文字＝店の看板の切り文字。なしはステンレス） }]
 //             step（段の高さ m）：斜めに切った屋根を step m ごとの水平な段にする（段の境目は斜面の同じ高さの線＝線を回した面なら
 //             扇のように開く段）。段の板は軒の出（eave）だけ、段の向きに壁の外へ張り出す（斜めに交わる壁ではのこぎりの歯のように）
 //             地図の建物のうち、中心がこの形の中にあるものは描かず（replacedBuildings）、campus3dMesh.js が代わりに描く
@@ -95,7 +97,9 @@
 //             radius（[左, 右] の車道のふちが作る交差点の角の丸みの半径 m。null は既定の CORNER_R＝3m）。
 //             交差点（車道を重ねて角を丸める・標示を切る）は campus3dPaint.js が自動で作る
 //   surface : 路面の塗り。coords は囲む範囲。kind（road 車道 / walk 歩道 / plaza 広場 / tile 石畳 / deck 木の床 / red カラー舗装 / green 植え込み / zebra 導流帯 /
-//             gravel 黒い砂利 / stones 白い砂利 / brick 灰色のれんが / darkbrick こげ茶のれんが / wood 古い木の床）,
+//             gravel 黒い砂利 / stones 白い砂利 / brick 灰色のれんが / darkbrick こげ茶のれんが / wood 古い木の床 /
+//             lawn 芝生＝地図の公園と同じ色でいちばん下に描く（下の地図の通路の帯を隠し、その通路には街灯を立てない） /
+//             slab 敷石（飛び石）＝いちばん上に描く）,
 //             angle（導流帯の縞の向き、度）, boards（板の目地：[板の幅 m, 板の向き＝北から右回りの度]。目地は寄って見たときだけ描く）。
 //             地面に貼って描く（campus3dPaint.js）
 //   marking : 白線。coords は折れ線。kind（solid 白線 / dashed 白の破線 / stop 停止線 / yellow 黄線 / wide 太い白線 / tactile 点字ブロック（黄 30cm））
@@ -105,8 +109,9 @@
 //             灯は歩行者だけが渡れるとき（車の信号は赤、歩行者の信号は青。campus3dMesh.js の addSignal）
 //   sign    : 看板（立て看板・柵に付けた銘板）。coords は板の下の端のまん中の真下の地面の 1 点。bearing（面が向く方位）, width・height（板の幅・高さ m）,
 //             thickness（板の厚さ m）, z（板の下の端の高さ。地面から m）, tilt（後ろへ倒す角度。度）, style（steel ステンレスの箱に暗い文字 /
-//             white 白い板に薄い灰色の文字 / notice 白い板の上に緑の帯（帯の中の行は白、ほかは暗い文字））, legs（脚の数。0 は柵などに付けた板）,
-//             lines（文字の行：[{ text（A〜Z・0〜9・& - . 空白と、漢字 東京科学大）, x・y（行の左下。板の左下の角から m）, size（字の高さ m） }]。8 行まで）,
+//             white 白い板に薄い灰色の文字 / notice 白い板の上に緑の帯（帯の中の行は白、ほかは暗い文字） / dark 黒い板に白い文字（店の看板））,
+//             legs（脚の数。0 は柵などに付けた板）,
+//             lines（文字の行：[{ text（A〜Z・0〜9・& - . ' 空白と、漢字 東京科学大）, x・y（行の左下。板の左下の角から m）, size（字の高さ m） }]。8 行まで）,
 //             rules（細い線：[[x0, y0, x1, y1]]。区切りの縦線など）, logo（校章＝Science Tokyo のシンボルマーク：[左下の x, y, 高さ]。幅は高さの 0.72 倍。なしは null）
 // z が null の点は、両端なら地面の高さ、途中なら前後の決まった点のあいだを距離で直線に結ぶ。
 // 地面は「元の地面 → 平地 → 坂道・階段」の順に重ねて作る（坂道・階段の高さは平地を入れたあとの地面から）
@@ -118,22 +123,22 @@ export const CANDIDATES_URL = "/map-3d/osm-candidates.json";
 export const FEATURE_TYPES = ["terrace", "slope", "stairs", "wall", "bridge", "passage", "building", "road", "crosswalk", "marking", "surface", "tree", "signal", "sign"];
 export const TYPE_LABEL = { terrace: "平地", slope: "坂道", stairs: "階段", wall: "壁", bridge: "橋", passage: "通り抜け", building: "建物", road: "道路", surface: "路面", marking: "白線", crosswalk: "横断歩道", tree: "木", signal: "信号機", sign: "看板" };
 // 路面と白線の種類（色・幅は campus3dPaint.js）
-export const SURFACE_KIND_KEYS = ["road", "walk", "plaza", "tile", "deck", "red", "green", "zebra", "gravel", "stones", "brick", "darkbrick", "wood"];
+export const SURFACE_KIND_KEYS = ["road", "walk", "plaza", "tile", "deck", "red", "green", "zebra", "gravel", "stones", "brick", "darkbrick", "wood", "lawn", "slab"];
 export const MARKING_KIND_KEYS = ["solid", "dashed", "stop", "yellow", "wide", "tactile"];
 // 壁の種類（なしは壁）：生け垣・縦の格子の柵・ガードパイプ
 export const WALL_KIND_KEYS = ["hedge", "fence", "rail", "glass", "slant", "xbrace", "bench"];
 export const CENTER_KIND_KEYS = ["dashed", "solid", "yellow", "none"];
 // 木の形（campus3dMesh.js の addTree）：枝の広がる木（ケヤキなど）・丸い木（クスノキ・サクラなど）・イチョウ・針葉樹
 export const TREE_KIND_KEYS = ["broad", "round", "ginkgo", "conifer", "cherry"];
-// 階段の段の材質（campus3dMesh.js の色）。なしはコンクリート
+// 階段の段の材質・坂の両わきの壁の材質（campus3dMesh.js の色）。なしはコンクリート
 export const STAIRS_MATERIALS = ["wood", "stone", "brick"];
 export const STAIRS_MATERIAL_LABEL = { "": "コンクリート", wood: "木", stone: "石", brick: "れんが" };
 // 建物の窓・扉の種類（campus3dMesh.js の addWindows）：ガラス・奥の暗いガラス・格子・扉・ガラスの扉
 export const WINDOW_KINDS = ["glass", "dark", "grille", "door", "glassdoor"];
 // 建物の壁と屋根の材質（campus3dMesh.js の色）：さびた鉄・穴あきの金属板・ステンレス。なしは地図の建物の色
-export const BUILDING_MATERIALS = ["rust", "perforated", "steel", "darkbrick", "stone"];
+export const BUILDING_MATERIALS = ["rust", "perforated", "steel", "darkbrick", "stone", "green", "red", "concrete"];
 // 空中の板（panels）の見た目：穴あきの金属板・ガラス・ステンレス・暗い鋼・建物の色
-export const PANEL_KINDS = ["perforated", "glass", "steel", "dark", "wall", "white"];
+export const PANEL_KINDS = ["perforated", "glass", "steel", "dark", "wall", "white", "red"];
 export const CURB_W = 0.32; // ガラスの手すり（wall の glass）の下の石の縁石の幅 m
 // 縁石の幅：斜めの格子は足もとの幅より 0.15m 広く（少なくとも CURB_W）
 export const curbWidth = (f) => (f.kind === "slant" ? Math.max(CURB_W, f.thickness + 0.15) : CURB_W);
@@ -169,9 +174,9 @@ export const DEFAULTS = {
   signal: { height: 5.5, arm: 3.5, bearing: 90, face: 180, peds: [] },
   sign: { bearing: 0, width: 2, height: 0.5, thickness: 0.15, z: 0.5, tilt: 0, style: "steel", legs: 2, lines: [], rules: [], logo: null },
 };
-export const SIGN_STYLES = ["steel", "white", "notice"];
+export const SIGN_STYLES = ["steel", "white", "notice", "dark"];
 // 看板の文字に使える字（campus3dMesh.js の GLYPHS にある字）
-export const SIGN_CHARS = /[A-Z0-9&.\- 東京科学大]/;
+export const SIGN_CHARS = /[A-Z0-9&.'\- 東京科学大]/;
 // 入力できる範囲（m）
 export const RANGE = {
   height: [0.1, 40], thickness: [0.05, 5], width: [0.5, 60], side: [0, 30], riser: [0.08, 0.4], z: [-30, 60], elev: [-50, 200], base: [0.5, 80], shift: [-30, 30],
@@ -456,6 +461,7 @@ export function normalizeFeature(f) {
       if (!cs || !text.trim() || !Number.isFinite(+l.z) || !Number.isFinite(+l.size)) return null;
       const ol = { coords: cs, z: round2(clampTo(l.z, [-10, out.height + 5], 1)), size: round2(clampTo(l.size, [0.05, 5], 0.5)), text };
       if (l.line) ol.line = true;
+      if (l.color === "red") ol.color = "red";
       return ol;
     }).filter(Boolean).slice(0, 12);
     if (letters.length) out.letters = letters;
@@ -514,6 +520,8 @@ export function normalizeFeature(f) {
       if (Array.isArray(f.widths) && f.widths.some(wOk)) out.widths = coords.map((_, i) => (wOk(f.widths[i]) ? round2(clampTo(f.widths[i], RANGE.width, out.width)) : null));
       // 壁を立てないとき（既定は立てる）
       if (f.walls === false) out.walls = false;
+      // 坂の両わきの壁の材質（階段は段の材質。下）
+      if (f.type === "slope" && STAIRS_MATERIALS.includes(f.material)) out.material = f.material;
       // 各点の中心のずれ（どれかに数があるときだけ持つ）
       if (Array.isArray(f.shifts) && f.shifts.some(wOk)) out.shifts = coords.map((_, i) => (wOk(f.shifts[i]) ? round2(clampTo(f.shifts[i], RANGE.shift, 0)) : null));
       if (f.type === "stairs") {
