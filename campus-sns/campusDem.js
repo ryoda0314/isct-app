@@ -1,10 +1,10 @@
 // 3D表示の地面の高さ。public/map-dem の標高タイル（ズーム15まで、scripts/gen-campus-terrain.mjs）を読み、
-// 手で足した平地・坂道・階段（campus3dFeatures.js）を「元の地面 → 平地 → 坂道・階段」の順に焼き込む。
+// 手で足した平地・坂道・階段（campus3dFeatures.js）を「元の地面 → 平地 → ねじれた面（建物の shells）→ 坂道・階段」の順に焼き込む。
 // - dem.groundAt([lng, lat])：ぜんぶ入れた地面の標高（m）。まだ読み込んでいないところは NaN（先に dem.ensure で読む）
 // - dem.levelAt：平地だけ入れた地面（坂道・階段の高さの基準）、dem.baseAt：元の地面
 // - MapLibre には campusdem://{z}/{x}/{y} のタイルとして渡す。坂のないタイルは元のまま、ズーム16・17は15から補間して作る
 import { TERRAIN } from "./campusTerrain.js";
-import { isOpenStairs, prepareSlope, prepareTerrace, stairsOpening, toXY, withAutoOpenStairs } from "./campus3dFeatures.js";
+import { isOpenStairs, prepareShellBurns, prepareSlope, prepareTerrace, stairsOpening, toXY, withAutoOpenStairs } from "./campus3dFeatures.js";
 
 export const DEM_PROTOCOL = "campusdem";
 export const BURN_MAXZOOM = 18; // 段差が壁の中に収まるよう、ズーム18（1px ≒ 0.5m）まで作る
@@ -79,6 +79,7 @@ class Dem {
     this.tiles = new Map(); // "x/y"（ズーム15）→ Float32Array | null（取れなかった）
     this.loading = new Map();
     this.terraces = []; // prepareTerrace の結果
+    this.shells = []; // ねじれた面の下とふちの外の地面（prepareShellBurns の結果）
     this.slopes = []; // 坂道・階段（prepareSlope の結果）
     this.burnKey = "[]";
     this.version = 0; // 坂が変わるたびに増やす（タイルの URL に入れて作り直させる）
@@ -141,12 +142,13 @@ class Dem {
     return this._bilinear(lngToX(lng, BZ) * 256 - 0.5, latToY(lat, BZ) * 256 - 0.5);
   }
 
-  // 平地だけ入れた地面の標高（坂道・階段の高さの基準）。shown なら表示する地面（壁なしの階段が横切るふちの外は掘らない）
+  // 平地（とねじれた面）だけ入れた地面の標高（坂道・階段の高さの基準）。shown なら表示する地面（壁なしの階段が横切るふちの外は掘らない）
   levelAt(ll, shown = false) {
     let v = this.baseAt(ll);
-    if (!this.terraces.length || !Number.isFinite(v)) return v;
+    if ((!this.terraces.length && !this.shells.length) || !Number.isFinite(v)) return v;
     const [x, y] = toXY(ll);
     for (const t of this.terraces) v = shown ? t.burn(x, y, v) : t.level(x, y, v);
+    for (const s of this.shells) v = s.burn(x, y, v);
     return v;
   }
 
@@ -168,6 +170,9 @@ class Dem {
     const features = withAutoOpenStairs(features0);
     const opens = features.filter(isOpenStairs).map(stairsOpening); // 壁なしの階段が横切る平地のふちは掘らない
     this.terraces = features.filter((f) => f.type === "terrace").map((f) => prepareTerrace(f, (ll) => this.baseAt(ll), opens)).filter(Boolean);
+    // ねじれた面：建物の地面（g0）は平地まで入れた地面で測る（前の面の焼き込みを入れないように、先に空にする）
+    this.shells = [];
+    this.shells = features.flatMap((f) => prepareShellBurns(f, (ll) => this.levelAt(ll)));
     this.slopes = features.filter((f) => f.type === "slope" || f.type === "stairs").map((f) => prepareSlope(f, (ll) => this.levelAt(ll))).filter(Boolean);
     this.version++;
     this.cache.clear();
@@ -190,7 +195,7 @@ class Dem {
     // このタイルにかかるものだけ見る（平地 → 坂道・階段の順）
     const [x0m, y1m] = toXY([xToLng(x, z), yToLat(y, z)]);
     const [x1m, y0m] = toXY([xToLng(x + 1, z), yToLat(y + 1, z)]);
-    const slopes = [...this.terraces, ...this.slopes].filter((s) => !(s.box[2] < x0m || s.box[0] > x1m || s.box[3] < y0m || s.box[1] > y1m));
+    const slopes = [...this.terraces, ...this.shells, ...this.slopes].filter((s) => !(s.box[2] < x0m || s.box[0] > x1m || s.box[3] < y0m || s.box[1] > y1m));
     let vals;
     if (z <= BZ) {
       const r = await fetch(staticUrl(z, x, y));

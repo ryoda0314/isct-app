@@ -27,8 +27,12 @@ export const SURFACE_KINDS = {
   darkbrick: { label: "れんが（こげ茶）", light: "#5e4b44", dark: "#2b2422" },
   wood: { label: "古い木の床", light: "#a39889", dark: "#3d3a35" }, // 雨風で灰色がかった木の板（本館前のウッドデッキの、桜の下）
   slab: { label: "敷石（濃い灰）", light: "#77797c", dark: "#2b2d30" }, // 芝生の中の飛び石（細長い御影石の板）。いちばん上に描く
+  soil: { label: "土（木の根もと）", light: "#8d7a68", dark: "#2f2823" }, // 木の根もとの花壇の土とバークチップ（植え込みの上に描く）
+  blue: { label: "青いタイル", light: "#8495ab", dark: "#2c3440" }, // 百年記念館の入口・南西のひさしの下の青い磁器タイル
+  // 植え込みの低木：地面は濃い緑、上にこんもりした低木の塊を並べる（campus3dMesh.js の addShrubs）
+  shrubs: { label: "植え込み（こんもりした低木）", light: "#5f7a40", dark: "#1b2616" },
 };
-export const SURFACE_ORDER = ["lawn", "road", "zebra", "red", "plaza", "brick", "darkbrick", "tile", "deck", "wood", "walk", "gravel", "stones", "green", "slab"];
+export const SURFACE_ORDER = ["lawn", "road", "zebra", "red", "plaza", "brick", "darkbrick", "tile", "blue", "deck", "wood", "walk", "gravel", "stones", "green", "shrubs", "soil", "slab"];
 // 白線の種類：幅（m）・色・破線
 export const MARKING_KINDS = {
   solid: { label: "白線", width: 0.15, color: "white" },

@@ -21,7 +21,7 @@ const T = { bg: "#1a1a1f", bg2: "#222228", bg3: "#2a2a32", bg4: "#32323c", tx: "
 const TYPE_COL = { terrace: "#b48cff", slope: "#f0c040", stairs: "#ff7eb6", wall: "#e5534b", bridge: "#4db88a", passage: "#60a0ff", building: "#8ecae6", carve: "#f4a261", board: "#ff4b3a", road: "#d4a373", surface: "#8fb3c9", marking: "#f2f2f2", crosswalk: "#ffd166", tree: "#7ed37e", signal: "#ff8a5c", sign: "#c9d2dc" };
 const REF_API = "/api/dev/map-3d-ref"; // 下絵（なぞる用の写真・図面。開発サーバーだけ）
 // 木の形（campus3dMesh.js の addTree）
-const TREE_KINDS = { broad: "枝の広がる木（ケヤキなど）", round: "丸い木（クスノキなど）", ginkgo: "イチョウ", conifer: "針葉樹", cherry: "サクラ（横に広い傘）" };
+const TREE_KINDS = { broad: "枝の広がる木（ケヤキなど）", round: "丸い木（クスノキなど）", ginkgo: "イチョウ", conifer: "針葉樹", cherry: "サクラ（横に広い傘）", cedar: "ヒマラヤスギ（横に張り出す層）" };
 const LIFT_COL = "#1a8ef0"; // ルートが橋の上に浮くところ
 const CAND_COL = "#c070f0";
 // 道に合わせる（スナップ）：線の頂点（交差点・曲がり角・端）はこの px 以内、線の上はこの px 以内なら吸い付く
@@ -2213,6 +2213,8 @@ export default function Map3DEditor() {
             <Btn active={sel.kind === "glass"} col={TYPE_COL.wall} onClick={() => update({ kind: "glass" })}>ガラスの手すり</Btn>
             <Btn active={sel.kind === "slant"} col={TYPE_COL.wall} onClick={() => update({ kind: "slant" })}>斜めの格子</Btn>
             <Btn active={sel.kind === "xbrace"} col={TYPE_COL.wall} onClick={() => update({ kind: "xbrace" })}>クロスの柵</Btn>
+            <Btn active={sel.kind === "chain"} col={TYPE_COL.wall} onClick={() => update({ kind: "chain" })}>菱形金網</Btn>
+            <Btn active={sel.kind === "mesh"} col={TYPE_COL.wall} onClick={() => update({ kind: "mesh" })}>メッシュの柵</Btn>
             <Btn active={sel.kind === "bench"} col={TYPE_COL.wall} onClick={() => update({ kind: "bench" })}>ベンチ</Btn>
           </div>
         </Row>
@@ -2226,9 +2228,10 @@ export default function Map3DEditor() {
             <Btn active={sel.upright === "right"} col={TYPE_COL.wall} onClick={() => update({ upright: "right" })}>右が直角</Btn>
           </div>
         </Row>}
-        {sel.kind === "xbrace" && <Row label="柱の間隔 (m)"><Num value={sel.bay ?? 1.8} min={0.5} max={6} step={0.1} onChange={(v) => update({ bay: v }, "bay")} /><span style={{ fontSize: 10, color: T.txD }}>柱のあいだに X の筋交い</span></Row>}
+        {(sel.kind === "xbrace" || sel.kind === "chain" || sel.kind === "mesh") && <Row label="柱の間隔 (m)"><Num value={sel.bay ?? (sel.kind === "xbrace" ? 1.8 : 2)} min={0.5} max={6} step={0.1} onChange={(v) => update({ bay: v }, "bay")} /><span style={{ fontSize: 10, color: T.txD }}>{sel.kind === "xbrace" ? "柱のあいだに X の筋交い" : "柱のあいだに網"}</span></Row>}
         {sel.kind === "bench" && <div style={{ fontSize: 10, color: T.txD, lineHeight: 1.6, marginBottom: 4 }}>高さは座面の高さ、厚さは座面の奥行き。最後の点を最初の点に重ねると木のまわりを囲むベンチ</div>}
-        {(sel.kind === "fence" || sel.kind === "rail" || sel.kind === "xbrace") && <Row label="立てる場所">
+        {(sel.kind === "chain" || sel.kind === "mesh") && <Row label="足もとの高さ (m)"><Num value={sel.base ?? null} nullable placeholder="地面" min={0} max={20} step={0.05} onChange={(v) => update({ base: v ?? undefined }, "base")} /><span style={{ fontSize: 10, color: T.txD }}>段・台の上に立てるとき</span></Row>}
+        {["fence", "rail", "xbrace", "chain", "mesh", "hedge"].includes(sel.kind) && <Row label="立てる場所">
           <div style={{ display: "flex", gap: 6 }}>
             <Btn active={!sel.rim} col={TYPE_COL.wall} onClick={() => update({ rim: undefined })}>足もとの地面</Btn>
             <Btn active={!!sel.rim} col={TYPE_COL.wall} onClick={() => update({ rim: true })}>穴のふちの上</Btn>

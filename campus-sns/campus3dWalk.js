@@ -5,7 +5,7 @@
 // ぶつかり：建物（高さのぶんだけ。通り抜け・くり抜きはくぐれる）・手で足した壁・木の幹・池・街灯の柱・地図の外。橋や階段の横、くり抜きの床のふち
 // （手すり）、平地の段差のふち（柵）からは落ちない。どこからでも歩きはじめられるよう、画面で指したところの立てる面も出す（pick）。
 // ここは位置・速さ・向きの計算と、目の位置から MapLibre のカメラ（中心・ズーム・中心の標高）を出す計算。DOM も MapLibre も使わない
-import { BOARD_T, STAIRS_CLEAR, WALL_T, buildingOpenings, buildingRoof, buildingSoffit, cumulative, edgeOpen, isOpenStairs, curbWidth, offsetLine, panelSlices, pointInRing, prepareBridge, railGround, signFrame, ringArea, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexShifts, vertexWidths, withAutoOpenStairs } from "./campus3dFeatures.js";
+import { BOARD_T, STAIRS_CLEAR, WALL_T, buildingOpenings, buildingRoof, buildingSoffit, cumulative, densify, edgeOpen, isOpenStairs, curbWidth, offsetLine, overLids, panelSlices, pointInRing, prepareBridge, railGround, signFrame, ringArea, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexShifts, vertexWidths, withAutoOpenStairs } from "./campus3dFeatures.js";
 import { carveSurfaces, reachOut, trunkRadius } from "./campus3dMesh.js";
 
 const DEG = Math.PI / 180;
@@ -159,6 +159,8 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
     addSolid(rings[0], rings.slice(1), () => span);
   });
   (data.water || []).forEach((w) => addSolid(w.map(ll2xy), [], () => ALL));
+  // 壁・柵の足もと：天井のある平地のふたの上では、ふたの上（焼き込んだ地面は下の部屋の床）
+  const wallGround = overLids(groundAt, features.filter((f) => f.type === "terrace" && f.ceiling > 0 && !(f.side > 0) && f.coords?.length > 2).map((f) => terraceLid(f, f.coords.map(toXY), f.elev, ground)).filter(Boolean));
   for (const f of features) {
     if (f.type === "building") {
       // 手で足した建物：屋根の高さはその点の屋根（斜めに切った面）。くり抜き・建物を通る通り抜けのところは、床より下と天井より上だけ
@@ -257,14 +259,21 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
       const [b] = fr.at(f.width, f.height / 2, -f.thickness / 2);
       addEdge(a, b, reach + BODY, [[-Infinity, Number.isFinite(g) ? g + f.z + f.height * fr.ey[1] : Infinity]], null, false);
     } else if (f.type === "wall") {
-      const pts = f.coords.map(toXY);
+      // 長い区間は 2m ごとに分ける（足もとの高さ・ふたの上かどうかは、分けた区間のまん中で測る）
+      const { pts } = densify(f.coords.map(toXY), 2);
       for (let i = 1; i < pts.length; i++) {
         const mid = [(pts[i - 1][0] + pts[i][0]) / 2, (pts[i - 1][1] + pts[i][1]) / 2];
         const L = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]) || 1;
-        // ガラスの手すり・rim の柵は描くのと同じ足もと（両わきの高いほうの地面。掘り下げた平地のふちの上に立つものも）
-        const g = f.kind === "glass" || f.rim ? railGround(groundAt, mid, [-(pts[i][1] - pts[i - 1][1]) / L, (pts[i][0] - pts[i - 1][0]) / L]) : ground(mid[0], mid[1]);
+        // ガラスの手すり・rim の柵は描くのと同じ足もと（両わきの高いほうの地面。掘り下げた平地のふちの上に立つものも）。
+        // 天井のある平地のふたの上では、ふたの上から（描くときと同じ）
+        const nn = [-(pts[i][1] - pts[i - 1][1]) / L, (pts[i][0] - pts[i - 1][0]) / L];
+        const footAt = (gnd) => (f.kind === "glass" || f.rim ? railGround(gnd, mid, nn) : gnd(toLngLat(mid)));
+        const g = footAt(wallGround);
         const t = f.curb ? Math.max(f.thickness || 0.3, curbWidth(f)) : f.thickness || 0.3; // 縁石があればその幅
-        addEdge(pts[i - 1], pts[i], t / 2 + BODY, [[-Infinity, Number.isFinite(g) ? g + (f.height || 1.2) : Infinity]]);
+        // ふたの上に立つ柵（下は部屋の口：くぐれる）と、段の上に立てた柵（base）は、その足もとから上だけ
+        const raised = Number.isFinite(g) && (f.base > 0 || g > footAt(groundAt) + 0.3);
+        const lo = raised ? g + (f.base || 0) - 0.05 : -Infinity;
+        addEdge(pts[i - 1], pts[i], t / 2 + BODY, [[lo, Number.isFinite(g) ? g + (f.base || 0) + (f.height || 1.2) : Infinity]]);
       }
     }
   }

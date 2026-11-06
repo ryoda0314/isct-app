@@ -4,6 +4,8 @@ import { MERC_SCALE, ORIGIN, worldOf } from "./campus3dMesh.js";
 
 export const EXTRAS_LAYER_ID = "cb-extras";
 const GLASS_ALPHA = 0.3; // ガラスの手すりの板の濃さ
+const SCREEN_ALPHA = 0.85; // 穴あきの金属板の濃さ（穴から向こうが透ける）
+const HAZE_ALPHA = 0.12; // 金網の柵の網の面の濃さ（針金が遠くで見えなくなっても網の濃さが残る）
 
 // 光の当て方は MapLibre の fill-extrusion と同じ式（建物と同じ見え方にする）
 const VS_SOLID = `
@@ -236,7 +238,7 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
   let gl = null;
   let solid = null;
   let ribbon = null;
-  const buf = { mesh: null, thin: null, glass: null, rib: null };
+  const buf = { mesh: null, thin: null, glass: null, screen: null, haze: null, rib: null };
   let mesh = null;
   let rib = null;
   let lt = lightState(light);
@@ -275,10 +277,14 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
       free(buf.mesh, ["pos", "nrm", "col"]);
       free(buf.thin, ["pos", "nrm", "col"]);
       free(buf.glass, ["pos", "nrm", "col"]);
+      free(buf.screen, ["pos", "nrm", "col"]);
+      free(buf.haze, ["pos", "nrm", "col"]);
       free(buf.rib, ["pos", "off"]);
       buf.mesh = null;
       buf.thin = null;
       buf.glass = null;
+      buf.screen = null;
+      buf.haze = null;
       buf.rib = null;
       if (gl) {
         if (solid) gl.deleteProgram(solid.p);
@@ -291,9 +297,13 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
         free(buf.mesh, ["pos", "nrm", "col"]);
         free(buf.thin, ["pos", "nrm", "col"]);
         free(buf.glass, ["pos", "nrm", "col"]);
+        free(buf.screen, ["pos", "nrm", "col"]);
+        free(buf.haze, ["pos", "nrm", "col"]);
         buf.mesh = mesh.count ? upload(mesh, ["pos", "nrm", "col"]) : null;
         buf.thin = mesh.thin?.count ? upload(mesh.thin, ["pos", "nrm", "col"]) : null;
         buf.glass = mesh.glass?.count ? upload(mesh.glass, ["pos", "nrm", "col"]) : null;
+        buf.screen = mesh.screen?.count ? upload(mesh.screen, ["pos", "nrm", "col"]) : null;
+        buf.haze = mesh.haze?.count ? upload(mesh.haze, ["pos", "nrm", "col"]) : null;
         mesh = null;
       }
       if (rib) {
@@ -301,14 +311,14 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
         buf.rib = rib.count ? upload(rib, ["pos", "off"]) : null;
         rib = null;
       }
-      if (!buf.mesh && !buf.thin && !buf.glass && !buf.rib) return;
+      if (!buf.mesh && !buf.thin && !buf.glass && !buf.screen && !buf.haze && !buf.rib) return;
       const ws = map.transform.worldSize;
       const M = matrixFor(args.modelViewProjectionMatrix, ws, exaggeration);
       const enabled = [];
 
       // 形（壁・段・橋）。手すり（thin）は奥行きを書かずに描く：段や壁には隠れるが、あとで描くルートの線を支柱で途切れさせない。
-      // ガラスの手すりの板（glass）は最後に半透明で重ねる（奥行きは書かない）
-      [[buf.mesh, true, 1], [buf.thin, false, 1], [buf.glass, false, GLASS_ALPHA]].forEach(([b, writeDepth, alpha]) => {
+      // 穴あきの金属板（screen）・金網の網の面（haze）・ガラスの手すりの板（glass）は最後に半透明で重ねる（奥行きは書かない）
+      [[buf.mesh, true, 1], [buf.thin, false, 1], [buf.screen, false, SCREEN_ALPHA], [buf.haze, false, HAZE_ALPHA], [buf.glass, false, GLASS_ALPHA]].forEach(([b, writeDepth, alpha]) => {
         if (!b) return;
         gl.useProgram(solid.p);
         gl.uniformMatrix4fv(solid.loc("u_matrix"), false, M);

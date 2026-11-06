@@ -2,7 +2,7 @@
 // 位置はメルカトル座標の「キャンパスの中心からの差 × MERC_SCALE」と標高(m)。float32 でも桁が落ちないように中心からの差で持つ
 import earcut from "earcut";
 import { CAMPUS_CENTER } from "./hooks/useLocationSharing.js";
-import { BOARD_BASE_DROP, BOARD_T, DECK_FASCIA, DECK_POST, WALL_CAP, WALL_T, buildingOpenings, cumulative, curbWidth, railGround, signFrame, buildingRoof, buildingSoffit, clipHalf, offsetRingBy, densify, edgeOpen, isOpenStairs, lerpAlong, offsetLine, pointInRing, ringArea, roofPieces, roofRisers, stairSteps, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexElevations } from "./campus3dFeatures.js";
+import { BOARD_BASE_DROP, BOARD_T, DECK_FASCIA, DECK_POST, WALL_CAP, WALL_T, buildingOpenings, cumulative, curbWidth, overLids, railGround, signFrame, buildingRoof, buildingSoffit, clipHalf, offsetRingBy, densify, edgeOpen, isOpenStairs, lerpAlong, offsetLine, pointInRing, ringArea, roofPieces, roofRisers, shellGeom, stairSteps, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexElevations } from "./campus3dFeatures.js";
 import { SURFACE_KINDS, SURFACE_ORDER } from "./campus3dPaint.js";
 
 export const MERC_SCALE = 2 ** 20;
@@ -52,6 +52,9 @@ const COLORS = {
     // 建物の材質のこげ茶のれんが・白っぽい石（ガラスの手すりの下の縁石も）・壁面緑化（植物で覆った壁）
     darkBrick: "#5e4b44", stone: "#d8d2c5", greenWall: "#64824a", redPanel: "#c23b33", // 赤い板（日よけ・屋上の看板の塔）
     concrete: "#a9a8a3", // 打ち放しのコンクリート
+    glazed: "#e2e0da", glazedGray: "#8f918f", // 白い施釉れんが（附属図書館の東の箱・ねじれた面）と、まざる灰色のれんが
+    soffitWood: "#f4d3a2", // 薄い屋根の裏の木の板（正門わきのガラスの建物。下向きで光が当たらないぶん明るめ）
+    shrub1: "#6f8f45", shrub2: "#8fa552", shrub3: "#55743a", shrub4: "#8a6a4a", // 植え込みの低木（shrubs）：黄緑・明るい緑・濃い緑・赤み
     // 格子のスクリーン（trellis）の鋼・プランター・つる草（3 色）、看板の印（マクドナルドの黄・東急の赤）
     trellis: "#5d6268", planter: "#8e8f8a", vine1: "#5e7c38", vine2: "#7a9142", vine3: "#a7a04a", mcdYellow: "#ffbc0d", tokyuRed: "#e84a2e",
     // 看板：ステンレスの箱（面・側面）と暗い文字、白い板と薄い灰色の文字
@@ -61,6 +64,8 @@ const COLORS = {
     // ウッドデッキの縁（木の板・奥の暗いすき間・灰色の束）・クロスの柵（亜鉛めっきの鋼）・ベンチの木・サクラの幹と葉
     deckFace: "#8f8478", deckGap: "#3b3833", deckPost: "#9a9c9a", xbrace: "#a7adb2", benchWood: "#8a7766",
     barkCherry: "#4b4039", leafCherry: "#7f8f4f",
+    // 金網の柵：菱形金網（亜鉛めっきの明るい枠と針金）・溶接の格子の網（濃い灰色の枠と針金）
+    chainFrame: "#aeb3b6", chainWire: "#c4c7c9", meshFrame: "#5d636b", meshWire: "#80868c",
   },
   dark: {
     wall: "#353d47", deckSide: "#2c333c", railing: "#4a5460", pier: "#2a3139", ceiling: "#20252c", stairs: "#3b424c", bridgeDeck: "#44423d",
@@ -74,18 +79,20 @@ const COLORS = {
     dome: "#59616b",
     signalPole: "#2a2826", signalBox: "#1b1d20", signalOff: "#24272a", lampRed: "#ff4a36", lampGreen: "#23f0a0", rail: "#5a6168", letter: "#6c737b",
     solar: "#151a24", solarLine: "#2c333d", parapet: "#4a525c", fin: "#4b535d", member: "#5d656f", glassRail: "#3d4e57", fritWhite: "#9a8c70",
-    darkBrick: "#2a2320", stone: "#4f4c46", greenWall: "#1d2a18", redPanel: "#5a1f1b", concrete: "#3f4043",
+    darkBrick: "#2a2320", stone: "#4f4c46", greenWall: "#1d2a18", redPanel: "#5a1f1b", concrete: "#3f4043", glazed: "#4a4d52", glazedGray: "#303236", soffitWood: "#4a3a2a",
+    shrub1: "#1e2a18", shrub2: "#26301b", shrub3: "#18231a", shrub4: "#2a221b",
     trellis: "#26292c", planter: "#323331", vine1: "#1d2814", vine2: "#253019", vine3: "#33321a", mcdYellow: "#6b5208", tokyuRed: "#5c1f15",
     signFace: "#4a5159", signSide: "#353b42", signText: "#15181b", plateFace: "#5a6168", plateText: "#454b52", signDark: "#101113",
     signSwoosh: "#6c747d", plateSwoosh: "#50575e",
     noticeGreen: "#21401c",
     deckFace: "#34312d", deckGap: "#121110", deckPost: "#3a3c3d", xbrace: "#454b51", benchWood: "#302a25",
     barkCherry: "#1d1916", leafCherry: "#20291a",
+    chainFrame: "#454b51", chainWire: "#50565c", meshFrame: "#2a2f35", meshWire: "#30353b",
   },
 };
 
 // 建物の材質（material）の色の名前
-const MATERIAL_COLOR = { rust: "rust", perforated: "perforated", steel: "steelHi", darkbrick: "darkBrick", stone: "stone", green: "greenWall", red: "redPanel", concrete: "concrete" };
+const MATERIAL_COLOR = { rust: "rust", perforated: "perforated", steel: "steelHi", darkbrick: "darkBrick", stone: "stone", green: "greenWall", red: "redPanel", concrete: "concrete", glazed: "glazed" };
 
 // 三角形の並び（位置・法線・色）。電車（campus3dTrains.js）も使う
 export class Mesh {
@@ -341,9 +348,9 @@ function addCone(m, c, r, h, col, shade, rnd, sides = 10) {
 }
 
 // 木：幹と、形の種類ごとの葉の塊。高さ height・枝の広がり crown（直径）。葉の下のほうは暗く（木の中の影）
-const TREE_LEAF = { broad: "leafBroad", round: "leafRound", ginkgo: "leafGinkgo", conifer: "leafConifer", cherry: "leafCherry" };
+const TREE_LEAF = { broad: "leafBroad", round: "leafRound", ginkgo: "leafGinkgo", conifer: "leafConifer", cherry: "leafCherry", cedar: "leafConifer" };
 // 枝の下（幹だけのところ）の高さ ÷ 木の高さ。歩くときのぶつかり（幹）にも使う
-export const TREE_CLEAR = { broad: 0.32, round: 0.3, ginkgo: 0.18, conifer: 0.08, cherry: 0.34 };
+export const TREE_CLEAR = { broad: 0.32, round: 0.3, ginkgo: 0.18, conifer: 0.08, cherry: 0.34, cedar: 0.4 };
 export const trunkRadius = (f) => Math.min(0.55, Math.max(0.1, 0.022 * f.height + 0.004 * f.crown));
 function addTree(m, f, groundAt, cols, tint) {
   const p = toXY(f.coords[0]);
@@ -421,21 +428,66 @@ function addTree(m, f, groundAt, cols, tint) {
     for (const [zk, rk, hk] of [[0.24, 0.48, 0.28], [0.54, 0.42, 0.28], [0.8, 0.29, 0.21]]) {
       addBlob(m, at(jit(w * 0.05), jit(w * 0.05), cb + ch * zk), [w * rk, w * rk, ch * hk], leaf, rnd, { shade, lump: 0.12 });
     }
+  } else if (kind === "cedar") {
+    // ヒマラヤスギ（大きく育ったもの）：高い幹から、横に長く張り出す枝の層（平たい塊）が上へ小さく重なる。層ごとにまわりへ枝先の塊
+    addLimb(m, at(0, 0, cb), at(jit(0.15), jit(0.15), top - ch * 0.12), tr * 0.55, tr * 0.3, bark);
+    for (let k = 0; k < 4; k++) {
+      const z = cb + ch * (0.1 + 0.25 * k);
+      const r = (w / 2) * (1 - 0.21 * k);
+      addBlob(m, at(jit(0.3), jit(0.3), z), [r * 0.62, r * 0.62, ch * 0.11], leaf, rnd, { shade, lump: 0.18 });
+      const a0 = rnd() * Math.PI * 2;
+      const nb = 5 - Math.min(2, k);
+      for (let j = 0; j < nb; j++) {
+        const t = a0 + (j / nb) * Math.PI * 2 + jit(0.35);
+        const rr = r * (0.58 + jit(0.08));
+        addBlob(m, at(Math.cos(t) * rr, Math.sin(t) * rr, z - ch * (0.02 + rnd() * 0.04)), [r * 0.42, r * 0.42, ch * 0.08], leaf, rnd, { shade, lump: 0.2 });
+      }
+    }
   } else {
     // 針葉樹：重ねた円すい
     for (let k = 0; k < 3; k++) addCone(m, at(jit(0.1), jit(0.1), cb + ch * k * 0.27), (w / 2) * (1 - 0.27 * k), ch * (k === 2 ? 0.46 : 0.42), leaf, shade, rnd);
   }
 }
 
-// 生け垣：緑の箱に、上と横のでこぼこ（小さな塊を並べる）
+// 植え込みの低木（路面の shrubs）：囲んだ範囲に、こんもりした低木の塊をすきまなく並べる（SHRUB_PITCH m の升目を位置で決まる量だけ
+// ずらす）。大きさ・高さ・緑の色合い（黄緑・濃い緑・ところどころ赤み）も位置で決まる（同じ範囲なら毎回同じ形）
+const SHRUB_PITCH = 1.6;
+function addShrubs(m, f, groundAt, cols, tint) {
+  const ring = f.coords.map(toXY);
+  const xs = ring.map((p) => p[0]);
+  const ys = ring.map((p) => p[1]);
+  const greens = [cols.shrub1, cols.shrub2, cols.shrub3, cols.shrub4].map((c) => tint(rgba(c)));
+  const rnd = seeded(hashStr(f.id));
+  for (let gx = Math.min(...xs) + SHRUB_PITCH / 2; gx < Math.max(...xs); gx += SHRUB_PITCH) {
+    for (let gy = Math.min(...ys) + SHRUB_PITCH / 2; gy < Math.max(...ys); gy += SHRUB_PITCH) {
+      const r1 = leafHash(gx * 1.31, gy * 0.71, 1.7);
+      const r2 = leafHash(gx * 0.93, gy * 1.77, 2.9);
+      const r3 = leafHash(gx * 2.11, gy * 0.37, 4.1);
+      const p = [gx + (r1 - 0.5) * SHRUB_PITCH * 0.7, gy + (r2 - 0.5) * SHRUB_PITCH * 0.7];
+      if (!pointInRing(p[0], p[1], ring)) continue;
+      const g = groundAt(toLngLat(p));
+      if (!Number.isFinite(g)) continue;
+      const R = SHRUB_PITCH * (0.58 + 0.3 * r3);
+      const H = 0.75 + 0.65 * r1;
+      const col = greens[r2 > 0.93 ? 3 : Math.floor(r3 * 2.999)];
+      const shade = (z) => 0.7 + 0.3 * Math.min(1, Math.max(0, (z - g) / H));
+      addBlob(m, [p[0], p[1], g + H * 0.42], [R, R * (0.85 + 0.3 * r2), H * 0.62], col, rnd, { lump: 0.16, shade });
+    }
+  }
+}
+
+// 生け垣：緑の箱に、上と横のでこぼこ（小さな塊を並べる）。rim なら両わきの高いほうの地面から（掘り下げた平地のふちの植え込み）
 function addHedge(m, f, groundAt, col) {
   const { pts } = densify(f.coords.map(toXY), 0.7);
   const rnd = seeded(hashStr(f.id));
   const hw = f.thickness / 2;
   const bot = [];
   const top = [];
-  for (const p of pts) {
-    const g = groundAt(toLngLat(p));
+  for (const [i, p] of pts.entries()) {
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(pts.length - 1, i + 1)];
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const g = f.rim ? railGround(groundAt, p, [-(b[1] - a[1]) / l, (b[0] - a[0]) / l]) : groundAt(toLngLat(p));
     if (!Number.isFinite(g)) return;
     bot.push(g - 0.3);
     top.push(g + f.height - Math.min(0.25, f.height * 0.3));
@@ -732,6 +784,84 @@ function addCrossRail(m, f, groundAt, c) {
   }
 }
 
+// 金網の柵（wall の kind "chain"＝菱形金網、"mesh"＝溶接の格子の網）：角の柱（bay m おき。なしは 2m。折れ目と両端にも）と上の平たい
+// 手すり、柱のあいだに細い針金の網（chain は斜めに交わるひし形 CHAIN_W × CHAIN_H、mesh は縦 MESH_V・横 MESH_H おきの格子で下にも横の枠）。
+// 網の面には薄い半透明の面（hz）も重ねる：針金は遠くでは細すぎて途切れるので、網があることを面の濃さで見せる。
+// 高さは地面から（rim なら両わきの高いほうの地面から。base があればその高さの段の上から）。菱形金網は足もとの 0.05m 下まで垂らす
+// （掘ったふちのきわに立つ）
+const WIRE = 0.008;
+const CHAIN_W = 0.1;
+const CHAIN_H = 0.13;
+const MESH_V = 0.075;
+const MESH_H = 0.15;
+function addWireFence(m, f, groundAt, frame, wire, hz) {
+  const xy = f.coords.map(toXY);
+  const h = f.height;
+  const bay = f.bay || 2;
+  const chain = f.kind === "chain";
+  const POST = 0.05;
+  const RAIL = chain ? 0.035 : 0.03; // 上の手すりの厚さと幅（chain は幅 0.065 の平たい材）
+  const RAIL_W = chain ? 0.065 : 0.04;
+  for (let i = 0; i + 1 < xy.length; i++) {
+    const p = xy[i];
+    const q = xy[i + 1];
+    const L = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (L < 0.1) continue;
+    const u = [(q[0] - p[0]) / L, (q[1] - p[1]) / L];
+    const nn = [-u[1], u[0]];
+    const g0 = (f.rim ? railGround(groundAt, p, nn) : groundAt(toLngLat(p))) + (f.base || 0);
+    const g1 = (f.rim ? railGround(groundAt, q, nn) : groundAt(toLngLat(q))) + (f.base || 0);
+    if (!Number.isFinite(g0) || !Number.isFinite(g1)) continue;
+    const at = (s) => [p[0] + u[0] * s, p[1] + u[1] * s];
+    const gz = (s) => g0 + ((g1 - g0) * s) / L;
+    const P = (s, t) => [at(s), gz(s) + t]; // 柵の面の点（s は区間に沿う距離、t は足もとからの高さ）
+    const n = Math.max(1, Math.round(L / bay));
+    for (let k = 0; k <= n; k++) {
+      if (k === 0 && i > 0) continue; // 折れ目の柱は前の区間で
+      const sv = (L * k) / n;
+      addBeam(m, [at(sv), gz(sv) - 0.05], [at(sv), gz(sv) + h], POST, frame);
+    }
+    const side = (d) => [[at(0), at(L)].map((v) => [v[0] + nn[0] * d, v[1] + nn[1] * d]), [at(0), at(L)].map((v) => [v[0] - nn[0] * d, v[1] - nn[1] * d])];
+    const [Lr, Rr] = side(RAIL_W / 2);
+    m.prism(Lr, Rr, [g0 + h - RAIL, g1 + h - RAIL], [g0 + h, g1 + h], { top: frame, side: frame });
+    if (!chain) {
+      const [Lb, Rb] = side(0.02);
+      m.prism(Lb, Rb, [g0 + 0.05, g1 + 0.05], [g0 + 0.09, g1 + 0.09], { top: frame, side: frame });
+    }
+    const tb = chain ? -0.05 : 0.09;
+    const tt = h - RAIL;
+    const nrm = [nn[0], nn[1], 0];
+    // 針金：柵の面の (s, t) の線分を、太さ WIRE の細い四角に
+    const seg = (s0, t0, s1, t1) => {
+      const dl = Math.hypot(s1 - s0, t1 - t0) || 1;
+      const ps = (-(t1 - t0) / dl) * (WIRE / 2);
+      const pt = ((s1 - s0) / dl) * (WIRE / 2);
+      m.quad([P(s0 - ps, t0 - pt), P(s1 - ps, t1 - pt), P(s1 + ps, t1 + pt), P(s0 + ps, t0 + pt)], nrm, wire);
+    };
+    if (chain) {
+      // ひし形：傾き ±k の 2 組の線 s = a ± (t − tb)/k（a は CHAIN_W おき）を、網の四角（0〜L × tb〜tt）で切る
+      const k = CHAIN_H / CHAIN_W;
+      const span = (tt - tb) / k;
+      for (const sg of [1, -1]) {
+        const j0 = sg > 0 ? Math.ceil(-span / CHAIN_W) : 0;
+        const j1 = sg > 0 ? Math.floor(L / CHAIN_W) : Math.floor((L + span) / CHAIN_W);
+        for (let j = j0; j <= j1; j++) {
+          const a = j * CHAIN_W;
+          const lo = Math.max(tb, sg > 0 ? tb - k * a : tb + k * (a - L));
+          const hi = Math.min(tt, sg > 0 ? tb + k * (L - a) : tb + k * a);
+          if (hi - lo < 1e-3) continue;
+          const sAt = (t) => a + (sg * (t - tb)) / k;
+          seg(sAt(lo), lo, sAt(hi), hi);
+        }
+      }
+    } else {
+      for (let j = 1; j * MESH_V < L - 0.03; j++) seg(j * MESH_V, tb, j * MESH_V, tt);
+      for (let j = 1; tb + j * MESH_H < tt - 0.03; j++) seg(0, tb + j * MESH_H, L, tb + j * MESH_H);
+    }
+    hz.quad([P(0, tb), P(L, tb), P(L, tt), P(0, tt)], nrm, wire);
+  }
+}
+
 // ベンチ（wall の kind "bench"）：木の座面（上の面が高さ height、奥行き thickness、厚さ 0.07）と、BENCH_LEG m おきの木の脚。
 // 点の並びに沿って（閉じた並び＝最初と同じ点で終われば、木のまわりを囲むベンチ。角は留め継ぎ）
 const BENCH_LEG = 1.4;
@@ -907,6 +1037,15 @@ const GLYPHS = {
   急: { w: 1, s: [[[0.42, 0.98], [0.24, 0.78]], [[0.35, 0.88], [0.74, 0.88], [0.62, 0.74]], [[0.2, 0.74], [0.8, 0.74], [0.8, 0.42], [0.2, 0.42]], [[0.24, 0.58], [0.8, 0.58]], [[0.12, 0.3], [0.05, 0.12]], [[0.3, 0.33], [0.3, 0.06], [0.74, 0.06], [0.78, 0.17]], [[0.5, 0.32], [0.56, 0.22]], [[0.8, 0.32], [0.93, 0.14]]] },
   病: { w: 1, s: [[[0.5, 1], [0.5, 0.9]], [[0.2, 0.9], [0.96, 0.9]], [[0.2, 0.9], [0.2, 0.4], [0.04, 0]], [[0.04, 0.76], [0.12, 0.68]], [[0.03, 0.56], [0.12, 0.5]], [[0.32, 0.75], [0.92, 0.75]], [[0.38, 0.61], [0.38, 0.02]], [[0.38, 0.61], [0.87, 0.61], [0.87, 0.06], [0.8, 0.02]], [[0.62, 0.75], [0.62, 0.46], [0.47, 0.3]], [[0.64, 0.42], [0.78, 0.29]]] },
   院: { w: 1, s: [[[0.08, 0.98], [0.08, 0]], [[0.08, 0.98], [0.26, 0.98], [0.16, 0.72], [0.28, 0.55], [0.21, 0.42], [0.12, 0.42]], [[0.68, 1], [0.68, 0.92]], [[0.4, 0.84], [0.4, 0.92], [0.96, 0.92], [0.96, 0.84]], [[0.52, 0.72], [0.84, 0.72]], [[0.4, 0.52], [0.98, 0.52]], [[0.58, 0.52], [0.51, 0.19], [0.38, 0.04]], [[0.76, 0.52], [0.76, 0.09], [0.98, 0.09], [0.98, 0.2]]] },
+  // 駅の案内と交番の看板の漢字（南口・北口・駅前交番）と矢印（< は ←、> は →）
+  南: { w: 1, s: [[[0.06, 0.86], [0.94, 0.86]], [[0.5, 1], [0.5, 0.72]], [[0.14, 0.72], [0.14, 0]], [[0.14, 0.72], [0.86, 0.72], [0.86, 0.06], [0.78, 0]], [[0.36, 0.64], [0.42, 0.54]], [[0.64, 0.64], [0.58, 0.54]], [[0.26, 0.47], [0.74, 0.47]], [[0.3, 0.28], [0.7, 0.28]], [[0.5, 0.47], [0.5, 0.04]]] },
+  北: { w: 1, s: [[[0.38, 0.96], [0.38, 0.04]], [[0.08, 0.64], [0.38, 0.64]], [[0.04, 0.2], [0.38, 0.34]], [[0.64, 0.96], [0.64, 0.12], [0.7, 0.05], [0.96, 0.05], [0.96, 0.2]], [[0.64, 0.6], [0.94, 0.76]]] },
+  口: { w: 0.86, s: [[[0.06, 0.84], [0.06, 0.08]], [[0.06, 0.84], [0.8, 0.84], [0.8, 0.08]], [[0.06, 0.16], [0.8, 0.16]]] },
+  前: { w: 1, s: [[[0.3, 0.98], [0.38, 0.86]], [[0.7, 0.98], [0.62, 0.86]], [[0.04, 0.82], [0.96, 0.82]], [[0.12, 0.66], [0.12, 0.02]], [[0.12, 0.66], [0.48, 0.66], [0.48, 0.06], [0.42, 0]], [[0.12, 0.46], [0.48, 0.46]], [[0.12, 0.27], [0.48, 0.27]], [[0.67, 0.64], [0.67, 0.2]], [[0.86, 0.72], [0.86, 0.06], [0.78, 0]]] },
+  交: { w: 1, s: [[[0.5, 1], [0.5, 0.88]], [[0.06, 0.82], [0.94, 0.82]], [[0.36, 0.7], [0.18, 0.52]], [[0.64, 0.7], [0.82, 0.52]], [[0.3, 0.5], [0.92, 0.02]], [[0.7, 0.5], [0.08, 0.02]]] },
+  番: { w: 1, s: [[[0.76, 0.99], [0.28, 0.92]], [[0.3, 0.88], [0.36, 0.82]], [[0.7, 0.88], [0.64, 0.82]], [[0.08, 0.76], [0.92, 0.76]], [[0.5, 0.92], [0.5, 0.52]], [[0.47, 0.73], [0.12, 0.52]], [[0.53, 0.73], [0.88, 0.52]], [[0.2, 0.46], [0.2, 0]], [[0.2, 0.46], [0.8, 0.46], [0.8, 0]], [[0.2, 0.25], [0.8, 0.25]], [[0.2, 0.04], [0.8, 0.04]], [[0.5, 0.46], [0.5, 0.04]]] },
+  "<": { w: 1, s: [[[0.42, 0.92], [0, 0.5], [0.42, 0.08]], [[0, 0.5], [1, 0.5]]] },
+  ">": { w: 1, s: [[[0.58, 0.92], [1, 0.5], [0.58, 0.08]], [[1, 0.5], [0, 0.5]]] },
   ".": { w: 0.06, s: [[[0.03, 0], [0.03, 0.06]]] },
   " ": { w: 0.3, s: [] },
 };
@@ -991,7 +1130,7 @@ const LOGO_SHAPES = [
   { fill: "swoosh", pts: [[0.722, 0.495], [0.718, 0.504], [0.707, 0.514], [0.644, 0.555], [0.575, 0.591], [0.501, 0.622], [0.423, 0.649], [0.341, 0.671], [0.255, 0.688], [0.211, 0.671], [0.169, 0.652], [0.128, 0.631], [0.087, 0.607], [0.048, 0.581], [0.011, 0.553], [0.003, 0.545], [0, 0.539], [0.002, 0.534], [0.012, 0.532], [0.071, 0.524], [0.132, 0.513], [0.195, 0.499], [0.259, 0.481], [0.322, 0.46], [0.384, 0.436], [0.434, 0.448], [0.485, 0.459], [0.537, 0.468], [0.589, 0.476], [0.642, 0.482], [0.696, 0.486], [0.703, 0.487], [0.71, 0.488], [0.715, 0.489], [0.719, 0.491], [0.722, 0.493]] },
 ];
 function addSign(m, f, groundAt, cols, tint) {
-  const g = groundAt(toLngLat(f.coords[0]));
+  const g = groundAt(f.coords[0]);
   if (!Number.isFinite(g)) return;
   const fr = signFrame(f);
   const W = f.width, H = f.height, T = f.thickness;
@@ -1120,6 +1259,156 @@ function greenWall(m, p, q, bp, bq, tp, tq, n, c) {
       else if (r < 0.03) col = mix(col, [Math.min(1, c[0] * 1.3), Math.min(1, c[1] * 1.1), c[2] * 0.75, c[3]], 0.6);
       m.quad([[P0, z0a], [P1, z1a], [P1, z1b], [P0, z0b]], n, col);
     }
+  }
+}
+
+// 白い施釉れんが（material glazed・ねじれた面）：段の高さ GLAZED_COURSE・長さ GLAZED_BRICK のれんがを一つずつ、少しずつ白さを変えて
+// （ところどころ灰色のれんが）。目地は描かない（遠くで点々になる）。色はれんがの段と番号で決まる
+const GLAZED_COURSE = 0.12;
+const GLAZED_BRICK = 0.3;
+const glazedColor = (c, gray, k, b, seed, grayShare) => {
+  const r = leafHash(k * 1.37 + seed, b * 0.71, seed * 0.13 + 2.9);
+  const r2 = leafHash(b * 1.11 + seed, k * 0.53, 5.3);
+  const col = [c[0] * (0.95 + r2 * 0.06), c[1] * (0.95 + r2 * 0.06), c[2] * (0.95 + r2 * 0.06), c[3]];
+  return r < grayShare ? mix(col, gray, 0.3 + 0.3 * r2) : col;
+};
+// 壁の区間 p → q（下 bp・bq、上 tp・tq は標高）。れんがの段は標高、並びは辺の向きの位置で数える（同じ辺のとなりの区間とつながる）
+function glazedWall(m, p, q, bp, bq, tp, tq, n, c, gray) {
+  const L = Math.hypot(q[0] - p[0], q[1] - p[1]);
+  if (L < 1e-3) return;
+  const u = [(q[0] - p[0]) / L, (q[1] - p[1]) / L];
+  const s0 = p[0] * u[0] + p[1] * u[1];
+  const seed = Math.round(Math.atan2(u[1], u[0]) * 10);
+  const at = (s) => [p[0] + u[0] * s, p[1] + u[1] * s];
+  const bot = (s) => bp + ((bq - bp) * s) / L;
+  const top = (s) => tp + ((tq - tp) * s) / L;
+  const k0 = Math.floor(Math.min(bp, bq) / GLAZED_COURSE);
+  const k1 = Math.ceil(Math.max(tp, tq) / GLAZED_COURSE);
+  for (let k = k0; k < k1; k++) {
+    const z0 = k * GLAZED_COURSE, z1 = z0 + GLAZED_COURSE;
+    const off = (k & 1) * 0.5;
+    for (let b = Math.floor(s0 / GLAZED_BRICK + off); (b - off) * GLAZED_BRICK < s0 + L; b++) {
+      const sa = Math.max(0, (b - off) * GLAZED_BRICK - s0);
+      const sb = Math.min(L, (b + 1 - off) * GLAZED_BRICK - s0);
+      if (sb - sa < 1e-4) continue;
+      const za0 = Math.max(z0, bot(sa)), zb0 = Math.max(z0, bot(sb));
+      const za1 = Math.min(z1, top(sa)), zb1 = Math.min(z1, top(sb));
+      if (za1 - za0 < 1e-4 && zb1 - zb0 < 1e-4) continue;
+      m.quad([[at(sa), za0], [at(sb), zb0], [at(sb), Math.max(zb0, zb1)], [at(sa), Math.max(za0, za1)]], n, glazedColor(c, gray, k, b, seed, 0.06));
+    }
+  }
+}
+
+// ねじれた面（建物の shells）：頂点 A から、ふち（shellGeom がなめらかな曲線の上に取り直した点）の各点へ引いた母線で張った円すいの面。
+// れんがの段は A を中心にした弧（A からの距離で GLAZED_COURSE ごと）、段に沿って GLAZED_BRICK ごと（扇の角を通して数える＝母線の区間を
+// またいでつながる）。法線は点ごとの円すいの面の向き（れんがの四角ごとの平らな向きにすると、面がでこぼこに見える）。
+// 面は内のふち（その奥は花壇の土）で切る：母線ごとに内のふちと交わるところから先だけ。見える側は上と扇の内側。
+// ふちには笠木（外へ SHELL_CAP、少し上。建物の屋根の高さに近いところは屋根が覆うので描かない）とふちの裏（下へ SHELL_BACK）
+const SHELL_CAP = 0.22;
+const SHELL_BACK = 0.8;
+function addShell(m, s, g0, look, roofZ = Infinity) {
+  const sg = shellGeom(s, g0);
+  const A = [sg.A[0], sg.A[1], sg.zA];
+  const R = sg.R.map((p, i) => [p[0], p[1], sg.Z[i]]);
+  const n = R.length;
+  if (n < 2) return;
+  const sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const unit3 = (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+  const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  // 母線 j（ふちの点 j へ）：向き D・長さ L（3D）・平面の長さ Lp
+  const D = [], L = [], Lp = [];
+  for (const q of R) {
+    const d = sub3(q, A);
+    const l = Math.hypot(d[0], d[1], d[2]);
+    L.push(l);
+    Lp.push(Math.hypot(d[0], d[1]));
+    D.push(l > 1e-9 ? [d[0] / l, d[1] / l, d[2] / l] : [0, 0, 1]);
+  }
+  // 扇の角の累積（母線 0 からの角）
+  const cum = [0];
+  for (let j = 0; j + 1 < n; j++) cum.push(cum[j] + Math.acos(Math.max(-1, Math.min(1, dot3(D[j], D[j + 1])))));
+  // 見える側：頂点とふちの中ほどの 6m 上の点を向く
+  const mid = R.reduce((a, q) => [a[0] + q[0] / n, a[1] + q[1] / n], [0, 0]);
+  const C = [(A[0] + mid[0]) / 2, (A[1] + mid[1]) / 2, A[2] + 6];
+  // 母線ごとの面の向き（前後の母線を含む面の法線。円すいでは母線に沿って同じ）
+  const N = D.map((d, j) => {
+    let nn = unit3(cross3(sub3(D[Math.min(n - 1, j + 1)], D[Math.max(0, j - 1)]), d));
+    const pm = [A[0] + d[0] * L[j] * 0.5, A[1] + d[1] * L[j] * 0.5, A[2] + d[2] * L[j] * 0.5];
+    if (dot3(nn, sub3(C, pm)) < 0) nn = [-nn[0], -nn[1], -nn[2]];
+    return nn;
+  });
+  // 母線ごとの内のふちまでの長さ（3D）。頂点で band に入っている向き（内のふちの始まりの向きより、ふちの始まりの側）の母線は頂点まで
+  // 見える（0）。花壇の側の向きの母線は、内のふちといちばん遠くで交わるところから先だけ。交わらなければ全部が花壇の上（描かない）。
+  // （点が band の中かを点で調べると、頂点のそばの短い母線はふちの線に重なって外と判定され、面に穴があいた）
+  const cr2 = (a, b) => a[0] * b[1] - a[1] * b[0];
+  const d0 = sg.inner.length ? [sg.inner[0][0] - A[0], sg.inner[0][1] - A[1]] : null;
+  const firstRim = R.find((q) => Math.hypot(q[0] - A[0], q[1] - A[1]) > 1e-3);
+  const rimSide = d0 && firstRim ? Math.sign(cr2(d0, [firstRim[0] - A[0], firstRim[1] - A[1]])) : 0;
+  const IN = R.map((q, j) => {
+    if (!d0 || Lp[j] < 1e-6) return 0;
+    const u = [(q[0] - A[0]) / Lp[j], (q[1] - A[1]) / Lp[j]];
+    if (Math.sign(cr2(d0, u)) === rimSide || Math.abs(cr2(d0, u)) < 1e-9) return 0;
+    let far = -1;
+    for (let i = 0; i + 1 < sg.inner.length; i++) {
+      const a = sg.inner[i], b = sg.inner[i + 1];
+      const e = [b[0] - a[0], b[1] - a[1]];
+      const den = cr2(u, e);
+      if (Math.abs(den) < 1e-12) continue;
+      const w = [a[0] - A[0], a[1] - A[1]];
+      const sv = cr2(w, e) / den;
+      const t = cr2(w, u) / den;
+      if (t >= 0 && t <= 1 && sv > 1e-6 && sv < Lp[j] - 1e-6) far = Math.max(far, sv);
+    }
+    return far < 0 ? L[j] : (far / Lp[j]) * L[j];
+  });
+  // 区間 j の中の位置 t の母線：向き・長さ・内のふち・法線
+  const genAt = (j, t) => ({ d: unit3(lerp3(D[j], D[j + 1], t)), l: L[j] + (L[j + 1] - L[j]) * t, i: IN[j] + (IN[j + 1] - IN[j]) * t, n: unit3(lerp3(N[j], N[j + 1], t)) });
+  const P = (r, d) => [A[0] + d[0] * r, A[1] + d[1] * r, A[2] + d[2] * r];
+  const vtx = (q, nn, c) => m.vert([q[0], q[1]], q[2], nn, c);
+  const seed = Math.round(A[0] * 3.1 + A[1] * 1.7);
+  for (let j = 0; j + 1 < n; j++) {
+    const span = cum[j + 1] - cum[j];
+    if (span < 1e-7) continue;
+    const kMin = Math.floor(Math.min(IN[j], IN[j + 1]) / GLAZED_COURSE);
+    const Lmax = Math.max(L[j], L[j + 1]);
+    for (let k = kMin; k * GLAZED_COURSE < Lmax; k++) {
+      const r0 = k * GLAZED_COURSE, r1 = r0 + GLAZED_COURSE, rm = (r0 + r1) / 2;
+      const off = (k & 1) * 0.5;
+      for (let b = Math.floor((cum[j] * rm) / GLAZED_BRICK + off); ((b - off) * GLAZED_BRICK) / rm < cum[j + 1]; b++) {
+        const pa = Math.max(cum[j], ((b - off) * GLAZED_BRICK) / rm) - cum[j];
+        const pb = Math.min(cum[j + 1], ((b + 1 - off) * GLAZED_BRICK) / rm) - cum[j];
+        if (pb - pa < 1e-8) continue;
+        const ga = genAt(j, pa / span), gb = genAt(j, pb / span);
+        let a0 = Math.max(r0, ga.i), a1 = Math.min(r1, ga.l), c0 = Math.max(r0, gb.i), c1 = Math.min(r1, gb.l);
+        if (a1 <= a0 && c1 <= c0) continue;
+        if (a1 < a0) a1 = a0 = Math.min(Math.max(r0, ga.i), ga.l);
+        if (c1 < c0) c1 = c0 = Math.min(Math.max(r0, gb.i), gb.l);
+        const col = glazedColor(look.glazed, look.glazedGray, k, b, seed, 0.12);
+        const q = [P(a0, ga.d), P(c0, gb.d), P(c1, gb.d), P(a1, ga.d)];
+        const nn = [ga.n, gb.n, gb.n, ga.n];
+        [0, 1, 2, 0, 2, 3].forEach((i) => vtx(q[i], nn[i], col));
+      }
+    }
+  }
+  // ふちの笠木と裏：点ごとの外向き（ふちの両どなりの辺の法線の平均。扇の中ほどから離れる側）でつなぐ
+  const capCol = [look.glazed[0] * 0.92, look.glazed[1] * 0.92, look.glazed[2] * 0.92, look.glazed[3]];
+  const O = R.map((q, j) => {
+    const a = R[Math.max(0, j - 1)], b = R[Math.min(n - 1, j + 1)];
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    let o = [-(b[1] - a[1]) / l, (b[0] - a[0]) / l];
+    if (o[0] * (q[0] - mid[0]) + o[1] * (q[1] - mid[1]) < 0) o = [-o[0], -o[1]];
+    return o;
+  });
+  for (let j = 0; j + 1 < n; j++) {
+    const a = R[j], b = R[j + 1];
+    if (Math.max(a[2], b[2]) + 0.03 > roofZ - 0.01) continue;
+    const ao = [a[0] + O[j][0] * SHELL_CAP, a[1] + O[j][1] * SHELL_CAP];
+    const bo = [b[0] + O[j + 1][0] * SHELL_CAP, b[1] + O[j + 1][1] * SHELL_CAP];
+    const on = unit3([O[j][0] + O[j + 1][0], O[j][1] + O[j + 1][1], 0]);
+    m.quad([[[a[0], a[1]], a[2] + 0.03], [[b[0], b[1]], b[2] + 0.03], [bo, b[2] + 0.03], [ao, a[2] + 0.03]], [0, 0, 1], capCol);
+    m.quad([[ao, a[2] + 0.03], [bo, b[2] + 0.03], [bo, b[2] - SHELL_BACK], [ao, a[2] - SHELL_BACK]], on, capCol);
   }
 }
 
@@ -1733,6 +2022,7 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
     return;
   }
   const cIn = [c[0] * 0.86, c[1] * 0.86, c[2] * 0.86, c[3]]; // くり抜きの奥（奥の壁・天井）は少し暗く：外の壁と同じ向きでも、へこみが見えるように
+  // 照明のある屋内のくり抜き（lit）：天井と奥の壁は外の光の陰にしない（上向きに近い向きで光を受ける＝明るく、むらなく。litNormal）
   const roof = buildingRoof(f);
   const hAt = roof.hAt;
   const pieces = roofPieces(f, ring);
@@ -2010,7 +2300,7 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
       }
       if (!cv.open && ce) {
         const up = nUp(ce);
-        m.polygon(pg, (p) => g0 + Math.max(planeVal(fl, p), Math.min(planeVal(ce, p), hAt(p))), [-up[0], -up[1], -up[2]], cIn);
+        m.polygon(pg, (p) => g0 + Math.max(planeVal(fl, p), Math.min(planeVal(ce, p), hAt(p))), cv.lit ? [0, 0, 1] : [-up[0], -up[1], -up[2]], cv.lit ? c : cIn);
       }
     }
   }
@@ -2029,7 +2319,15 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
     const bq = from ? g0 + from[1] : bAt(q);
     if (!glassTop || !glassy) {
       if (f.material === "green") greenWall(m, p, q, bp, bq, g0 + hp, g0 + hq, n, c);
+      else if (f.material === "glazed" && look) glazedWall(m, p, q, bp, bq, g0 + hp, g0 + hq, n, c, look.glazedGray);
       else m.quad([[p, bp], [q, bq], [q, g0 + hq], [p, g0 + hp]], n, c);
+      return;
+    }
+    // ガラスの下（glassBase m まで）はふつうの壁：その上からガラス
+    const gb0 = f.glassBase || 0;
+    if (gb0 > 0 && (bp < g0 + gb0 - 1e-3 || bq < g0 + gb0 - 1e-3)) {
+      m.quad([[p, bp], [q, bq], [q, Math.max(bq, g0 + Math.min(gb0, hq))], [p, Math.max(bp, g0 + Math.min(gb0, hp))]], n, c);
+      if (hp > gb0 + 1e-3 || hq > gb0 + 1e-3) wallSeg(p, q, hp, hq, n, glassy, edge, [Math.max(gb0, from ? from[0] : 0), Math.max(gb0, from ? from[1] : 0)]);
       return;
     }
     const gp = Math.min(glassTop, hp);
@@ -2383,7 +2681,7 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
           const ta = zt(pa, hr);
           const tb = zt(pb, hr);
           if (ta - ba < ROOF_MIN && tb - bb < ROOF_MIN) continue;
-          m.quad([[pa, ba], [pb, bb], [pb, tb], [pa, ta]], nin, cIn);
+          m.quad([[pa, ba], [pb, bb], [pb, tb], [pa, ta]], cv.lit ? litNormal(nin) : nin, cv.lit ? c : cIn);
         }
       }
     });
@@ -2439,9 +2737,9 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
   }
   // 筒（屋根の高さに横たわる丸い胴）。上の面は屋根と同じ色
   if (look) for (const v of f.vaults || []) addVault(m, v, g0, { ...look, vaultTop: c, vaultEnd: c });
-  // 宙に浮いた建物の下の面（船底の形なら面ごと。下向き）。光が当たらないので暗く。パネルの目地（soffitJoints）は面のすぐ下の細い帯
+  // 宙に浮いた建物の下の面（船底の形なら面ごと。下向き）。光が当たらないので暗く（soffit "wood" は木の色）。パネルの目地（soffitJoints）は面のすぐ下の細い帯
   if (soff) {
-    const sc = [c[0] * 0.68, c[1] * 0.69, c[2] * 0.71, c[3]];
+    const sc = f.soffit === "wood" && look ? look.soffitWood : [c[0] * 0.68, c[1] * 0.69, c[2] * 0.71, c[3]];
     const jc = [sc[0] * 0.6, sc[1] * 0.6, sc[2] * 0.6, sc[3]];
     for (const { poly, fn, i } of soff.pieces) {
       const l = Math.hypot(fn[0], fn[1], 1);
@@ -2518,17 +2816,21 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
       }
     }
   }
-  // 白い鋼の柱・梁（members）：点の並びに沿った角材
+  // 白い鋼の柱・梁（members。kind "dark" は暗い鋼）：点の並びに沿った角材
   if (look) for (const mb of f.members || []) {
     const P = mb.coords.map(toXY);
-    for (let k = 0; k + 1 < P.length; k++) addBeam(m, [P[k], g0 + mb.zs[k]], [P[k + 1], g0 + mb.zs[k + 1]], mb.size, look.member);
+    for (let k = 0; k + 1 < P.length; k++) addBeam(m, [P[k], g0 + mb.zs[k]], [P[k + 1], g0 + mb.zs[k + 1]], mb.size, mb.kind === "dark" ? look.canopy : look.member);
   }
   if (look) for (const p of f.panels || []) addPanel(m, p, g0, look, c);
+  // ねじれた面（白い施釉れんが）
+  if (look) for (const s of f.shells || []) addShell(m, s, g0, look, g0 + roof.H);
   if (look) for (const d of f.domes || []) addDome(m, d, g0 + (d.z ?? hAt(toXY(d.coords))), look);
 }
 
 // 空中の平らな板（panels）：両面と小口。色は kind（ガラスは下が暗く上が明るい）
-function addPanel(m, p, g0, look, c) {
+function addPanel(m0, p, g0, look, c) {
+  // 穴あきの金属板は半透明の段（look.screen）に描く
+  const m = p.kind === "perforated" && look.screen ? look.screen : m0;
   const P = p.coords.map(toXY);
   const Z = p.zs.map((z) => g0 + z);
   const k = P.length;
@@ -3079,27 +3381,50 @@ function addStairs(m, rm, sl, groundAt, cols, tint) {
  *                    tone（時刻の見え方の色：(昼の色, 夜の色) → いまの色。なければ dark で昼か夜） }
  * @returns          { pos, nrm, col, count, thin（階段の手すり。同じ形の三角形の並び）, glass（ガラスの手すりの板。半透明で重ねる） }
  */
+// 照明のある屋内の形：同じ Mesh に書くが、面の向きを上へ寄せる（光を上から受ける＝明るく、むらなく。くり抜きの lit と同じ）
+const litNormal = (n) => { const v = [n[0] * 0.45, n[1] * 0.45, n[2] * 0.45 + 0.89]; const l = Math.hypot(...v) || 1; return v.map((k) => k / l); };
+function indoorMesh(m) {
+  const mi = Object.create(m);
+  mi.vert = (xy, z, n, c) => m.vert(xy, z, litNormal(n), c);
+  return mi;
+}
+
 export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceilings = [], pal, dark, selectedId = null, accent = "#28c868", bldColor = null, clip = null, tone = null }) {
   const m = new Mesh();
   const thin = new Mesh(); // 階段の手すり：奥行きを書かずに描く（ルートの線を支柱で途切れさせない）
   const glassy = new Mesh(); // ガラスの手すりの板：ほかを描いたあとに半透明で重ねる（向こうの段や穴が透けて見える）
+  const screen = new Mesh(); // 穴あきの金属板（建物の panels の perforated）：ガラスより濃い半透明で重ねる
+  const haze = new Mesh(); // 金網の柵の網の面：ごく薄い半透明で重ねる（遠くで針金が見えなくても網の濃さが残る）
   // tone（時刻の見え方：(昼の色, 夜の色) → いまの色）があれば、昼と夜の色からいまの色に
   const cols = tone ? Object.fromEntries(Object.keys(COLORS.light).map((k) => [k, tone(COLORS.light[k], COLORS.dark[k])])) : dark ? COLORS.dark : COLORS.light;
   const acc = rgba(accent);
+  // 天井のある平地のふた（となりの平地のまぐさも、これで決まる）。壁・柵はふたの上ではふたの上から立てる（wallAt）
+  const groundXY = (x, y) => groundAt(toLngLat([x, y]));
+  const lids = new Map();
+  terraces.forEach((tr) => {
+    if (tr.f.ceiling > 0 && !(tr.side > 0)) {
+      const lid = terraceLid(tr.f, tr.ring, tr.elev, groundXY);
+      if (lid) lids.set(tr, lid);
+    }
+  });
+  const wallAt = overLids(groundAt, [...lids.values()]);
   features.forEach((f) => {
     const tint = f.id === selectedId ? (c) => mix(c, acc, 0.45) : (c) => c;
-    if (f.type === "wall" && f.kind === "hedge") addHedge(m, f, groundAt, tint(rgba(cols.hedge)));
-    else if (f.type === "wall" && f.kind === "fence") addFence(m, f, groundAt, tint(rgba(cols.railing)));
-    else if (f.type === "wall" && f.kind === "rail") addRail(m, f, groundAt, tint(rgba(cols.rail)));
-    else if (f.type === "wall" && f.kind === "glass") addGlassRail(m, f, groundAt, tint(rgba(cols.glassRail)), tint(rgba(cols.rail)), tint(rgba(cols.stone)), glassy);
-    else if (f.type === "wall" && f.kind === "slant") addSlantFence(m, f, groundAt, tint(rgba(cols.rail)), tint(rgba(cols.stone)));
-    else if (f.type === "wall" && f.kind === "xbrace") addCrossRail(m, f, groundAt, tint(rgba(cols.xbrace)));
-    else if (f.type === "wall" && f.kind === "bench") addBench(m, f, groundAt, tint(rgba(cols.benchWood)));
+    if (f.type === "wall" && f.kind === "hedge") addHedge(m, f, wallAt, tint(rgba(cols.hedge)));
+    else if (f.type === "wall" && f.kind === "fence") addFence(m, f, wallAt, tint(rgba(cols.railing)));
+    else if (f.type === "wall" && f.kind === "rail") addRail(m, f, wallAt, tint(rgba(cols.rail)));
+    else if (f.type === "wall" && f.kind === "glass") addGlassRail(m, f, wallAt, tint(rgba(cols.glassRail)), tint(rgba(cols.rail)), tint(rgba(cols.stone)), glassy);
+    else if (f.type === "wall" && f.kind === "slant") addSlantFence(m, f, wallAt, tint(rgba(cols.rail)), tint(rgba(cols.stone)));
+    else if (f.type === "wall" && f.kind === "xbrace") addCrossRail(m, f, wallAt, tint(rgba(cols.xbrace)));
+    else if (f.type === "wall" && f.kind === "chain") addWireFence(m, f, wallAt, tint(rgba(cols.chainFrame)), tint(rgba(cols.chainWire)), haze);
+    else if (f.type === "wall" && f.kind === "mesh") addWireFence(m, f, wallAt, tint(rgba(cols.meshFrame)), tint(rgba(cols.meshWire)), haze);
+    else if (f.type === "wall" && f.kind === "bench") addBench(m, f, wallAt, tint(rgba(cols.benchWood)));
     else if (f.type === "signal") addSignal(m, f, groundAt, cols, tint);
     else if (f.type === "sign") addSign(m, f, groundAt, cols, tint);
-    else if (f.type === "wall") addWall(m, f, groundAt, tint(rgba(cols.wall)));
+    else if (f.type === "wall") addWall(m, f, wallAt, tint(rgba(cols.wall)));
     else if (f.type === "bridge") addBridge(m, f, groundAt, pal, cols, tint);
     else if (f.type === "tree") addTree(m, f, groundAt, cols, tint);
+    else if (f.type === "surface" && f.kind === "shrubs") addShrubs(m, f, groundAt, cols, tint);
     // 建物を通る通り抜けも、くり抜き（地面から通り抜けの高さまで）として穴をあける
     else if (f.type === "building") {
       const c = tint(rgba(f.material ? cols[MATERIAL_COLOR[f.material]] : bldColor ? bldColor(f) : pal?.bld || "#ffffff"));
@@ -3116,8 +3441,11 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
         solar: tint(rgba(cols.solar)), solarLine: tint(rgba(cols.solarLine)), parapet: tint(rgba(cols.parapet)), fin: tint(rgba(cols.fin)), member: tint(rgba(cols.member)),
         redPanel: tint(rgba(cols.redPanel)),
         trellis: tint(rgba(cols.trellis)), planter: tint(rgba(cols.planter)), vine: [tint(rgba(cols.vine1)), tint(rgba(cols.vine2)), tint(rgba(cols.vine3))],
+        glazed: tint(rgba(cols.glazed)), glazedGray: tint(rgba(cols.glazedGray)), soffitWood: tint(rgba(cols.soffitWood)),
+        screen, // 穴あきの金属板（panels の perforated）は半透明で重ねる（向こうが透けて見える）
       };
-      addBuilding(m, { ...f, carves: buildingOpenings(f, features) }, groundAt, c, clip, look);
+      // 屋内に置いた小さなもの（indoor）：面の向きを上へ寄せて描く（照明のある屋内で、外の光の陰にしない）
+      addBuilding(f.indoor ? indoorMesh(m) : m, { ...f, carves: buildingOpenings(f, features) }, groundAt, c, clip, look);
     }
   });
   const bldBots = !terraces.length ? [] : features.filter((f) => f.type === "building" && f.coords.length >= 3).map((f) => {
@@ -3126,16 +3454,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     const gs = [groundAt(f.groundRef || toLngLat(mean)), ...ring.map((p) => groundAt(toLngLat(p)))].filter(Number.isFinite);
     return { ring, bot: gs.length ? Math.min(...gs) - 1 : Infinity };
   });
-  // 天井のある平地のふた（となりの平地のまぐさも、これで決まる）と、その色（床は踊り場と同じ、ふたは地面に貼った路面の色。路面は
-  // 光を当てずに描かれるので、上から光の当たるふたは少し暗く）
-  const groundXY = (x, y) => groundAt(toLngLat([x, y]));
-  const lids = new Map();
-  terraces.forEach((tr) => {
-    if (tr.f.ceiling > 0 && !(tr.side > 0)) {
-      const lid = terraceLid(tr.f, tr.ring, tr.elev, groundXY);
-      if (lid) lids.set(tr, lid);
-    }
-  });
+  // 天井のある平地の色（床は踊り場と同じ、ふたは地面に貼った路面の色。路面は光を当てずに描かれるので、上から光の当たるふたは少し暗く）
   const paints = features.filter((f) => f.type === "surface" && SURFACE_KINDS[f.kind]).map((f) => {
     const ring = f.coords.map(toXY);
     return { f, ring, box: [Math.min(...ring.map((q) => q[0])), Math.min(...ring.map((q) => q[1])), Math.max(...ring.map((q) => q[0])), Math.max(...ring.map((q) => q[1]))] };
@@ -3192,7 +3511,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
   });
   const cc = rgba(cols.ceiling);
   ceilings.forEach(({ rings, z }) => m.polygon(rings.map((r) => r.map(toXY)), z, [0, 0, -1], cc));
-  return { ...m.result(), thin: thin.result(), glass: glassy.result() };
+  return { ...m.result(), thin: thin.result(), glass: glassy.result(), screen: screen.result(), haze: haze.result() };
 }
 
 // 橋の上を通るルート（[[lng, lat, 床の標高], ...] の並び）を、画面上で決まった太さの帯にする。

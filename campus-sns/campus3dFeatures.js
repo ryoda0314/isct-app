@@ -31,13 +31,17 @@
 //             なしは二等辺の A）。
 //             leans（slant の棒の柵の向きの傾き：点ごとの度。点のあいだは距離で直線に。0 は柵に直角な面の中））,
 //             xbrace クロスの柵＝柱と上下の横の棒、柱のあいだに X の筋交い（柱は bay m おき。なしは 1.8m） /
+//             chain 菱形金網の柵＝亜鉛めっきの柱と平たい手すり、ひし形の網（足もとの少し下まで垂らす） /
+//             mesh 溶接の格子の網の柵＝濃い灰色の柱と上下の枠、縦横の格子の網（chain・mesh の柱は bay m おき。なしは 2m。
+//             base があれば、地面からその高さ（段・台の上）に立てる） /
 //             bench ベンチ＝木の座面（高さ height、奥行き thickness）と木の脚。点の並びに沿って（閉じれば木のまわりを囲むベンチ））,
 //             curb（glass・slant の下の石の縁石の高さ m。幅 curbWidth。ガラス・棒はその上から height まで）,
-//             rim（fence・rail・xbrace を、両わき RAIL_REACH m の高いほうの地面から立てる：掘り下げた平地のふちの壁の上・
+//             rim（fence・rail・xbrace・chain・mesh・hedge を、両わき RAIL_REACH m の高いほうの地面から立てる：掘り下げた平地のふちの壁の上・
 //             盛った平地のふちの壁の上（壁の帯の上）に立つ柵。glass はいつも）
 //   bridge  : width, z（各点の床の高さ。真下の地面から、null は自動）, thickness, railing, piers, surface（walk / street / rail / deck 木の床）
 //   tree    : 木。coords は幹の 1 点。height, crown（枝の広がりの直径 m）, kind（broad 枝の広がる木 / round 丸い木 / ginkgo イチョウ /
-//             conifer 針葉樹 / cherry サクラ＝低いところで太い枝に分かれ、横に広い平たい傘の形）
+//             conifer 針葉樹 / cherry サクラ＝低いところで太い枝に分かれ、横に広い平たい傘の形 /
+//             cedar ヒマラヤスギ＝高い幹から横に張り出す枝の層）
 //   passage : width, height（天井の高さ）。建物の外から外へ引いた中心線に沿って、建物に穴をあける
 //   building : 建物の形を変える（地図の建物を置きかえる・新しく足す）。coords は建物の形（囲む範囲）、height（屋上の高さ。地面から m）、
 //             cuts（屋根を斜めに切る面。6つまで）：[{ slope: [[lng, lat], [lng, lat]], low }]。面ごとに点1で low m・点2で height m、
@@ -47,10 +51,12 @@
 //             あいだは2本の線を結ぶねじれた斜面（傾きは場所で変わる）
 //             carves（くり抜き＝ベランダ・テラス。8つまで）：[{ coords（囲む範囲。建物と重なるところだけ）, bottom（床の高さ。地面から m）,
 //             top（天井の高さ。null なら上まで抜く＝屋上テラス）, rail（床のふちの手すり壁 1.1m）,
-//             floors・ceils（点ごとの床・天井の高さ。null の点は bottom・top。点のあいだは連続した斜めの面＝上辺と下辺が平行でなくてよい） }]
+//             floors・ceils（点ごとの床・天井の高さ。null の点は bottom・top。点のあいだは連続した斜めの面＝上辺と下辺が平行でなくてよい）,
+//             lit（true なら照明のある屋内：天井と奥の壁を外の光の陰にせず明るく。駅のコンコースなど） }]
 //             glass（地面からこの高さまでガラス張り）, glassSides（辺ごとにガラスにするか。辺 i は点 i → 点 i+1。なければ全部）,
 //             glassPitch（縦の桟の間隔 m。辺ごとに等間隔。なければ 1.5）, glassFrame（"light" 細い明るい枠）, glassFrit（白い点の模様のガラス）,
-//             glassRows（床の高さの横の桟。地面から m、地下の階はマイナス）,
+//             glassRows（床の高さの横の桟。地面から m、地下の階はマイナス）, glassBase（ガラスはこの高さから。下はふつうの壁＝1 階に店先や
+//             入口があるビル）, indoor（true なら屋内に置いた小さなもの＝改札機・券売機など：外の光の陰にせず、明るく描く）,
 //             roof（"green" 屋上の緑 / "deck" 木の床）, eave（軒の出 m）, eaveSides（辺ごとに軒を出すか。なければ全部）,
 //             boards（屋根の板。800 枚まで）：[{ coords（板の形）, top（板の上の高さ。地面から m）, kind（"green" は植え込み）,
 //             tops（傾いた板：点ごとの上面の高さ。上面はその点を通る平面） }]。
@@ -71,16 +77,23 @@
 //             地面から m） }） }]。建物の形の外へ出たところが張り出し（建物の中は壁と屋根に隠れる）
 //             material（壁と屋根の材質：rust さびた鉄 / perforated 穴あきの金属板 / steel ステンレス / darkbrick こげ茶のれんが /
 //             stone 白っぽい石 / green 壁面緑化＝植物で覆った壁（大岡山駅） / red 赤く塗った板（屋上の看板の塔など） /
-//             concrete 打ち放しのコンクリート（灰色）。なしは地図の建物の色）,
+//             concrete 打ち放しのコンクリート（灰色） / glazed 白い施釉れんが（附属図書館の東の箱）。なしは地図の建物の色）,
 //             joints（外の壁のパネルの目地：[横の間隔, 縦の間隔, 横の目地の基準の高さ]。縦の目地は辺ごとに等間隔、窓の奥に隠れる）
 //             frame（true なら壁でなく鉄骨の外階段：角と辺の柱、levels（踊り場の高さ。地面から m）ごとの床と手すり、そのあいだの段の板）
 //             roof "glass"（ガラスの屋根。縦の桟は斜面の向きに glassPitch m ごと） / "solar"（太陽光パネル。ふちに白い笠木）
 //             base（宙に浮いた建物：外の壁の下の端の高さ。地面から m。下はピロティ）, keel（船底の傾き：base の下の面は、壁の下の端から
 //             中へ keel の傾きで下がる面（keelSides の辺ごと。なければ全部）の組み＝いちばん高い面。0 か なしは平らな下の面）
-//             soffitJoints（下の面のパネルの目地：[辺に沿った間隔, 辺から内への間隔] m。船底の面ごとにその辺に平行・直角。平らな下の面は 1 本目の辺）
+//             soffitJoints（下の面のパネルの目地：[辺に沿った間隔, 辺から内への間隔] m。船底の面ごとにその辺に平行・直角。平らな下の面は 1 本目の辺）,
+//             soffit（"wood" なら下の面は木の色＝薄い屋根の裏の木の板。なしは建物の色を暗く）
 //             fins（縦のルーバー。10 まで）：[{ coords（壁ぞいの両端の2点）, pitch（間隔 m）, depth（出 m）, width（厚さ m） }]。壁の下の端から上まで。
 //             南を向く面は太陽光パネル（暗い色）
-//             members（白い鋼の柱・梁＝V 字の柱など。20 まで）：[{ coords（点の並び）, zs（点ごとの高さ。地面から m）, size（太さ m） }]
+//             members（白い鋼の柱・梁＝V 字の柱など。40 まで）：[{ coords（点の並び）, zs（点ごとの高さ。地面から m）, size（太さ m）,
+//             kind（"dark" は暗い鋼＝ひさしの骨組み・筋かい。なしは白い鋼） }]
+//             shells（ねじれた面＝白い施釉れんがの円すいの面。4 つまで）：[{ apex（頂点の 1 点＝箱の角の足もと）, z（頂点の高さ。地面から m）,
+//             rim（外のふちの点の並び。60 点まで。頂点から見て順に回る）, tops（ふちの点ごとの高さ。地面から m）,
+//             inner（面が地面に入る内のふちの点の並び。頂点から。なければ頂点まで面） }]。rim・inner は点を通るなめらかな曲線にして使う
+//             （smoothPath）。面は頂点から rim の各点へ引いた母線で張った円すい（法線は点ごと）、れんがの段は頂点を中心にした弧、内のふちで切る。
+//             地面は面の下を下げ、内のふちの奥（花壇）は内のふちで面のすぐ下、ふちの外はふちの高さへ寄せる（prepareShellBurns）
 //             panels（空中の平らな板：ひさし・穴あきの衝立・ガラスの箱の面・V 字の柱など。40 まで）：[{ coords（点の位置。40 点まで）,
 //             zs（点ごとの高さ。地面から m）, kind（PANEL_KINDS：perforated 穴あきの金属板 / glass ガラス / steel ステンレス / dark 暗い鋼 /
 //             wall 建物の色 / white 白い鋼 / red 赤い板＝店の日よけなど）, thickness（m） }]。点は同じ平面の上（凸でない形も可。点の順に囲む）。
@@ -102,7 +115,8 @@
 //   surface : 路面の塗り。coords は囲む範囲。kind（road 車道 / walk 歩道 / plaza 広場 / tile 石畳 / deck 木の床 / red カラー舗装 / green 植え込み / zebra 導流帯 /
 //             gravel 黒い砂利 / stones 白い砂利 / brick 灰色のれんが / darkbrick こげ茶のれんが / wood 古い木の床 /
 //             lawn 芝生＝地図の公園と同じ色でいちばん下に描く（下の地図の通路の帯を隠し、その通路には街灯を立てない） /
-//             slab 敷石（飛び石）＝いちばん上に描く）,
+//             slab 敷石（飛び石）＝いちばん上に描く / soil 木の根もとの土 / blue 青いタイル（百年記念館のひさしの下） /
+//             shrubs こんもりした低木の植え込み＝範囲に低木の塊を並べて立体に描く（campus3dMesh.js の addShrubs））,
 //             angle（導流帯の縞の向き、度）, boards（板の目地：[板の幅 m, 板の向き＝北から右回りの度]。目地は寄って見たときだけ描く）。
 //             地面に貼って描く（campus3dPaint.js）
 //   marking : 白線。coords は折れ線。kind（solid 白線 / dashed 白の破線 / stop 停止線 / yellow 黄線 / wide 太い白線 / tactile 点字ブロック（黄 30cm））
@@ -114,7 +128,7 @@
 //             thickness（板の厚さ m）, z（板の下の端の高さ。地面から m）, tilt（後ろへ倒す角度。度）, style（steel ステンレスの箱に暗い文字 /
 //             white 白い板に薄い灰色の文字 / notice 白い板の上に緑の帯（帯の中の行は白、ほかは暗い文字） / dark 黒い板に白い文字（店の看板） / red 赤い板に白い文字）,
 //             legs（脚の数。0 は柵などに付けた板）,
-//             lines（文字の行：[{ text（A〜Z・0〜9・& - . ' 空白と、漢字 東京科学大）, x・y（行の左下。板の左下の角から m）, size（字の高さ m） }]。8 行まで）,
+//             lines（文字の行：[{ text（A〜Z・0〜9・& - . ' 空白・矢印 < > と、漢字 東京科学大岡山駅中央改札急病院南北口前交番）, x・y（行の左下。板の左下の角から m）, size（字の高さ m） }]。8 行まで）,
 //             rules（細い線：[[x0, y0, x1, y1]]。区切りの縦線など）, logo（印：[左下の x, y, 高さ] は校章＝Science Tokyo のシンボルマーク（幅は高さの 0.72 倍）。[x, y, 高さ, 種類] の種類は
 //             mcd マクドナルドの M（幅は高さの 1.18 倍）/ tokyu 東急の赤い丸 / tokyustore 東急ストアの赤い四角。なしは null）
 // z が null の点は、両端なら地面の高さ、途中なら前後の決まった点のあいだを距離で直線に結ぶ。
@@ -127,20 +141,20 @@ export const CANDIDATES_URL = "/map-3d/osm-candidates.json";
 export const FEATURE_TYPES = ["terrace", "slope", "stairs", "wall", "bridge", "passage", "building", "road", "crosswalk", "marking", "surface", "tree", "signal", "sign"];
 export const TYPE_LABEL = { terrace: "平地", slope: "坂道", stairs: "階段", wall: "壁", bridge: "橋", passage: "通り抜け", building: "建物", road: "道路", surface: "路面", marking: "白線", crosswalk: "横断歩道", tree: "木", signal: "信号機", sign: "看板" };
 // 路面と白線の種類（色・幅は campus3dPaint.js）
-export const SURFACE_KIND_KEYS = ["road", "walk", "plaza", "tile", "deck", "red", "green", "zebra", "gravel", "stones", "brick", "darkbrick", "wood", "lawn", "slab"];
+export const SURFACE_KIND_KEYS = ["road", "walk", "plaza", "tile", "deck", "red", "green", "zebra", "gravel", "stones", "brick", "darkbrick", "wood", "lawn", "slab", "soil", "blue", "shrubs"];
 export const MARKING_KIND_KEYS = ["solid", "dashed", "stop", "yellow", "wide", "tactile"];
 // 壁の種類（なしは壁）：生け垣・縦の格子の柵・ガードパイプ
-export const WALL_KIND_KEYS = ["hedge", "fence", "rail", "glass", "slant", "xbrace", "bench"];
+export const WALL_KIND_KEYS = ["hedge", "fence", "rail", "glass", "slant", "xbrace", "bench", "chain", "mesh"];
 export const CENTER_KIND_KEYS = ["dashed", "solid", "yellow", "none"];
 // 木の形（campus3dMesh.js の addTree）：枝の広がる木（ケヤキなど）・丸い木（クスノキ・サクラなど）・イチョウ・針葉樹
-export const TREE_KIND_KEYS = ["broad", "round", "ginkgo", "conifer", "cherry"];
+export const TREE_KIND_KEYS = ["broad", "round", "ginkgo", "conifer", "cherry", "cedar"];
 // 階段の段の材質・坂の両わきの壁の材質（campus3dMesh.js の色）。なしはコンクリート
 export const STAIRS_MATERIALS = ["wood", "stone", "brick"];
 export const STAIRS_MATERIAL_LABEL = { "": "コンクリート", wood: "木", stone: "石", brick: "れんが" };
 // 建物の窓・扉の種類（campus3dMesh.js の addWindows）：ガラス・奥の暗いガラス・格子・扉・ガラスの扉
 export const WINDOW_KINDS = ["glass", "dark", "grille", "door", "glassdoor"];
 // 建物の壁と屋根の材質（campus3dMesh.js の色）：さびた鉄・穴あきの金属板・ステンレス。なしは地図の建物の色
-export const BUILDING_MATERIALS = ["rust", "perforated", "steel", "darkbrick", "stone", "green", "red", "concrete"];
+export const BUILDING_MATERIALS = ["rust", "perforated", "steel", "darkbrick", "stone", "green", "red", "concrete", "glazed"];
 // 空中の板（panels）の見た目：穴あきの金属板・ガラス・ステンレス・暗い鋼・建物の色
 export const PANEL_KINDS = ["perforated", "glass", "steel", "dark", "wall", "white", "red"];
 export const CURB_W = 0.32; // ガラスの手すり（wall の glass）の下の石の縁石の幅 m
@@ -152,8 +166,8 @@ export const DECK_POST = 1.2; // ウッドデッキの縁の下の束の間隔 m
 // 地面に貼る塗り（道路・路面・白線・横断歩道）
 export const isPaint = (type) => type === "road" || type === "surface" || type === "marking" || type === "crosswalk";
 export const SURFACE_LABEL = { walk: "歩道", street: "車道", rail: "線路", deck: "木の床" };
-// 地面の形を変える（標高タイルに焼き込む）種類
-export const burnsGround = (f) => f.type === "terrace" || f.type === "slope" || f.type === "stairs";
+// 地面の形を変える（標高タイルに焼き込む）種類（ねじれた面のある建物も、面の下とふちの外の地面を変える）
+export const burnsGround = (f) => f.type === "terrace" || f.type === "slope" || f.type === "stairs" || (f.type === "building" && Array.isArray(f.shells) && f.shells.length > 0);
 // 帯（中心線と幅）でなく、囲む範囲（多角形）の種類
 export const isArea = (type) => type === "terrace" || type === "surface" || type === "building";
 // 点1つで置く種類
@@ -180,7 +194,7 @@ export const DEFAULTS = {
 };
 export const SIGN_STYLES = ["steel", "white", "notice", "dark", "red"];
 // 看板の文字に使える字（campus3dMesh.js の GLYPHS にある字）
-export const SIGN_CHARS = /[A-Z0-9&.'\- 東京科学大岡山駅中央改札急病院]/;
+export const SIGN_CHARS = /[A-Z0-9&.'\- <>東京科学大岡山駅中央改札急病院南北口前交番]/;
 export const LOGO_KINDS = ["isct", "mcd", "tokyu", "tokyustore"];
 // 入力できる範囲（m）
 export const RANGE = {
@@ -284,8 +298,9 @@ export function normalizeFeature(f) {
     if (WALL_KIND_KEYS.includes(f.kind)) out.kind = f.kind; // 生け垣（緑で、上がでこぼこ）・柵（縦の格子。向こうが透ける）・ガードパイプ
     // ガラスの手すり・斜めの格子の下の石の縁石（ガラス・棒が 0.2m は残る高さまで）
     if ((out.kind === "glass" || out.kind === "slant") && f.curb != null && f.curb !== "" && Number.isFinite(+f.curb) && +f.curb > 0) out.curb = round2(clampTo(f.curb, [0.05, Math.max(0.05, Math.min(1.5, out.height - 0.2))], 0.3));
-    if ((out.kind === "fence" || out.kind === "rail" || out.kind === "xbrace") && f.rim) out.rim = true;
-    if (out.kind === "xbrace" && Number.isFinite(+f.bay) && f.bay != null && f.bay !== "") out.bay = round2(clampTo(f.bay, [0.5, 6], 1.8));
+    if (["fence", "rail", "xbrace", "chain", "mesh", "hedge"].includes(out.kind) && f.rim) out.rim = true;
+    if (["xbrace", "chain", "mesh"].includes(out.kind) && Number.isFinite(+f.bay) && f.bay != null && f.bay !== "") out.bay = round2(clampTo(f.bay, [0.5, 6], out.kind === "xbrace" ? 1.8 : 2));
+    if ((out.kind === "chain" || out.kind === "mesh") && f.base != null && f.base !== "" && Number.isFinite(+f.base) && +f.base > 0) out.base = round2(clampTo(f.base, [0, 20], 0));
     if (out.kind === "slant" && (f.upright === "left" || f.upright === "right")) out.upright = f.upright;
     // 斜めの格子の棒の傾き（点ごと。なければ 10 度）
     if (out.kind === "slant" && Array.isArray(f.leans) && f.leans.some((v) => v != null && v !== "" && Number.isFinite(+v))) {
@@ -353,6 +368,7 @@ export function normalizeFeature(f) {
       const ok = (v) => v != null && v !== "" && Number.isFinite(+v);
       const perPoint = (arr) => (Array.isArray(arr) && arr.some(ok) ? cs.map((_, i) => (ok(arr[i]) ? round2(clampTo(arr[i], [0, RANGE.bheight[1]], 0)) : null)) : null);
       const out2 = { coords: cs, bottom, top, rail: cv.rail !== false };
+      if (cv.lit === true) out2.lit = true;
       const floors = perPoint(cv.floors);
       const ceils = top == null ? null : perPoint(cv.ceils);
       if (floors) out2.floors = floors;
@@ -367,13 +383,16 @@ export function normalizeFeature(f) {
     // ガラスの縦の桟の間隔（辺ごとに等間隔）・枠の色（light 細い明るい枠）・床の高さの横の桟（地面から m。地下の階はマイナス）
     if (out.glass && Number.isFinite(+f.glassPitch) && +f.glassPitch > 0) out.glassPitch = round2(clampTo(f.glassPitch, [0.5, 6], 1.5));
     if (out.glass && f.glassFrame === "light") out.glassFrame = "light";
+    if (out.glass && Number.isFinite(+f.glassBase) && +f.glassBase > 0) out.glassBase = round2(clampTo(f.glassBase, [0, out.glass], 0));
+    if (f.indoor === true) out.indoor = true;
     if (out.glass && f.glassFrit) out.glassFrit = true; // ガラスに白いセラミックの点の模様（明るく見える）
     const gRows = out.glass && Array.isArray(f.glassRows) ? f.glassRows.filter((v) => v != null && v !== "" && Number.isFinite(+v) && +v < out.glass).map((v) => round2(Math.max(-30, +v))) : [];
     if (gRows.length) out.glassRows = [...new Set(gRows)].sort((x, y) => x - y).slice(0, 6);
     if (f.roof === "green" || f.roof === "deck" || f.roof === "glass" || f.roof === "solar") out.roof = f.roof;
     if (Number.isFinite(+f.base) && +f.base > 0) {
-      out.base = round2(clampTo(f.base, [0.5, out.height - 1], 3));
+      out.base = round2(clampTo(f.base, [0.5, out.height - 0.1], 3));
       if (Number.isFinite(+f.keel) && +f.keel > 0) out.keel = round2(clampTo(f.keel, [0.01, 3], 0.2));
+      if (f.soffit === "wood") out.soffit = "wood"; // 下の面は木（正門わきのガラスの建物の屋根の裏）
       if (out.keel && Array.isArray(f.keelSides) && coords.some((_, i) => f.keelSides[i] === false)) out.keelSides = coords.map((_, i) => f.keelSides[i] !== false);
       if (Array.isArray(f.soffitJoints) && f.soffitJoints.length === 2 && f.soffitJoints.every((v) => v != null && v !== "" && Number.isFinite(+v) && +v > 0)) out.soffitJoints = f.soffitJoints.map((v) => round2(clampTo(v, [0.3, 20], 1.5)));
     }
@@ -495,9 +514,24 @@ export function normalizeFeature(f) {
     const members = (Array.isArray(f.members) ? f.members : []).map((r) => {
       const ok = Array.isArray(r?.coords) && Array.isArray(r.zs) && r.coords.length === r.zs.length && r.coords.length >= 2;
       if (!ok || !r.coords.every((q) => Array.isArray(q) && Number.isFinite(+q[0]) && Number.isFinite(+q[1])) || !r.zs.every((z) => Number.isFinite(+z))) return null;
-      return { coords: r.coords.slice(0, 40).map((q) => [round7(+q[0]), round7(+q[1])]), zs: r.zs.slice(0, 40).map((z) => round2(clampTo(z, [-10, out.height + 10], 0))), size: round2(clampTo(r.size, [0.05, 3], 0.4)) };
-    }).filter(Boolean).slice(0, 20);
+      const om = { coords: r.coords.slice(0, 40).map((q) => [round7(+q[0]), round7(+q[1])]), zs: r.zs.slice(0, 40).map((z) => round2(clampTo(z, [-10, out.height + 10], 0))), size: round2(clampTo(r.size, [0.02, 3], 0.4)) };
+      if (r.kind === "dark") om.kind = "dark";
+      return om;
+    }).filter(Boolean).slice(0, 40);
     if (members.length) out.members = members;
+    const onePt = (c) => (Array.isArray(c) && c.length === 2 && c.every((v) => Number.isFinite(+v)) ? [round7(+c[0]), round7(+c[1])] : null);
+    const ptsOf = (a, max) => (Array.isArray(a) ? a.map(onePt).filter(Boolean).slice(0, max) : []);
+    const shells = (Array.isArray(f.shells) ? f.shells : []).map((s) => {
+      const apex = onePt(s?.apex);
+      const rim = ptsOf(s?.rim, 60);
+      const tops = Array.isArray(s?.tops) ? s.tops.slice(0, 60) : [];
+      if (!apex || rim.length < 2 || tops.length !== rim.length || !tops.every((z) => z !== "" && z != null && Number.isFinite(+z))) return null;
+      const os = { apex, z: round2(clampTo(s.z, [-10, 30], 0)), rim, tops: tops.map((z) => round2(clampTo(z, [-10, out.height + 10], 0))) };
+      const inner = ptsOf(s?.inner, 60);
+      if (inner.length >= 2) os.inner = inner;
+      return os;
+    }).filter(Boolean).slice(0, 4);
+    if (shells.length) out.shells = shells;
     const canopies = (Array.isArray(f.canopies) ? f.canopies : []).map((c) => {
       const cs = twoPts(c?.coords);
       if (!cs || !Number.isFinite(+c.z)) return null;
@@ -1911,6 +1945,18 @@ export function railGround(groundAt, p, n) {
   return g.length ? Math.max(...g) : NaN;
 }
 
+// 天井のある平地のふた（lids：terraceLid の並び）の上では、地面はふたの上（lid.top）：焼き込んだ地面は下の部屋の床なので、
+// ふたの上に立つ柵・壁の足もとはこれで測る（通路の下へ続く部屋の上の柵が、部屋の床から立たないように）
+export function overLids(groundAt, lids) {
+  if (!lids.length) return groundAt;
+  return (ll) => {
+    const g = groundAt(ll);
+    const [x, y] = toXY(ll);
+    for (const L of lids) if (pointInRing(x, y, L.poly)) return Number.isFinite(g) ? Math.max(g, L.top) : L.top;
+    return g;
+  };
+}
+
 // 看板（sign）の板の向き：o（板の前の面の左下の角。平面 m）と地面からの高さ z0、ex（板の幅の向き＝前から見て右。水平）、
 // ey（板の上の向き：[水平のずれ, 上]。後ろへ倒すと水平のずれは奥へ）、en（前の面の外向き：[水平, 上]）、n（面の向きの水平の単位ベクトル）。
 // 点は o + ex·x + n·(ey[0]·y + en[0]·d)、高さ z0 + ey[1]·y + en[1]·d（x は幅の向き、y は板の上の向き、d は面から外へ）
@@ -1997,6 +2043,147 @@ export function buildingSoffit(f, ring) {
     return poly.length >= 3 && Math.abs(ringArea(poly)) > 1e-4 ? { poly, fn: pl.fn, i: pl.i } : null;
   }).filter(Boolean);
   return { at, pieces, planes };
+}
+
+// 点の並び [[x, y, z]...] を通るなめらかな曲線（centripetal Catmull-Rom。点のあいだの長さは平面で測る）の上に、平面で step m ほどおきの
+// 点を取り直す（両端の点は通る。端の外は鏡に映した点を足す）
+export function smoothPath(pts, step) {
+  const n = pts.length;
+  if (n < 2) return pts.map((p) => p.slice());
+  const P = (i) => (i < 0 ? pts[0].map((v, k) => 2 * v - pts[1][k]) : i >= n ? pts[n - 1].map((v, k) => 2 * v - pts[n - 2][k]) : pts[i]);
+  const knot = (a, b) => Math.max(1e-4, Math.sqrt(Math.hypot(b[0] - a[0], b[1] - a[1])));
+  const lerp = (a, b, ta, tb, t) => a.map((v, k) => (tb - ta < 1e-9 ? v : ((tb - t) * v + (t - ta) * b[k]) / (tb - ta)));
+  const out = [pts[0].slice()];
+  for (let i = 0; i + 1 < n; i++) {
+    const [p0, p1, p2, p3] = [P(i - 1), P(i), P(i + 1), P(i + 2)];
+    const t0 = 0, t1 = t0 + knot(p0, p1), t2 = t1 + knot(p1, p2), t3 = t2 + knot(p2, p3);
+    const k = Math.max(1, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / step));
+    for (let j = 1; j <= k; j++) {
+      const t = t1 + ((t2 - t1) * j) / k;
+      const a1 = lerp(p0, p1, t0, t1, t), a2 = lerp(p1, p2, t1, t2, t), a3 = lerp(p2, p3, t2, t3, t);
+      const b1 = lerp(a1, a2, t0, t2, t), b2 = lerp(a2, a3, t1, t3, t);
+      out.push(j === k ? p2.slice() : lerp(b1, b2, t1, t2, t));
+    }
+  }
+  return out;
+}
+
+// ねじれた面（建物の shells）の形を平面 m と標高に（g0 は建物の地面の標高）。rim・inner の点は、点を通るなめらかな曲線の上に
+// SHELL_STEP m おきに取り直す（点のあいだを直線で結ぶと、母線の折れ目が面に筋になって見える）：A（頂点）・zA・R（ふちの点）・
+// Z（ふちの標高）・inner（内のふちの点）、fan（頂点とふちで囲む多角形）、band（inner があれば頂点からふちを回って inner を戻る多角形
+// ＝面が見えるところ。なければ fan）、coneAt(p)（平面の点 p の面の標高：頂点から p へ向かう母線がふちと交わる点の高さを、頂点からの
+// 距離で比例に。ふちより外は null）
+export const SHELL_STEP = 0.2;
+export function shellGeom(s, g0) {
+  const A = toXY(s.apex);
+  const zA = g0 + (s.z || 0);
+  const rim = smoothPath(s.rim.map((c, i) => [...toXY(c), g0 + s.tops[i]]), SHELL_STEP);
+  const R = rim.map((p) => [p[0], p[1]]);
+  const Z = rim.map((p) => p[2]);
+  const fan = [A, ...R];
+  const inner = smoothPath((s.inner || []).map((c) => [...toXY(c), 0]), SHELL_STEP).map((p) => [p[0], p[1]]).filter((p) => Math.hypot(p[0] - A[0], p[1] - A[1]) > 1e-3);
+  const band = inner.length ? [A, ...R, ...inner.slice().reverse()] : fan;
+  const coneAt = (p) => {
+    const d = [p[0] - A[0], p[1] - A[1]];
+    if (Math.hypot(d[0], d[1]) < 1e-6) return zA;
+    for (let i = 0; i + 1 < R.length; i++) {
+      // A + sv·d = R[i] + t·(R[i+1] − R[i])
+      const e = [R[i + 1][0] - R[i][0], R[i + 1][1] - R[i][1]];
+      const den = d[0] * e[1] - d[1] * e[0];
+      if (Math.abs(den) < 1e-12) continue;
+      const w = [R[i][0] - A[0], R[i][1] - A[1]];
+      const sv = (w[0] * e[1] - w[1] * e[0]) / den;
+      const t = (w[0] * d[1] - w[1] * d[0]) / den;
+      if (t < -1e-9 || t > 1 + 1e-9 || sv <= 1e-9) continue;
+      if (sv < 1 - 1e-9) return null;
+      return zA + (Z[i] + (Z[i + 1] - Z[i]) * t - zA) / sv;
+    }
+    return null;
+  };
+  return { A, zA, R, Z, inner, fan, band, coneAt };
+}
+
+// ねじれた面の地面（表示の地面は標高タイルの px の角に置いた値の補間で、半 px ずれる。面の上に地面が出ないように）：
+// - 面の下（band の中）：面より SHELL_UNDER＋面の傾き × SHELL_UNDER_SLOPE 下げる（急なところほどずれで地面が面より上に出る）
+// - 内のふちの奥（fan の中で band の外＝花壇の土）：内のふちでは面のすぐ下（面のふちが土からきれいに出る）、SHELL_BED m かけて元の地面へ
+// - ふちの外（SHELL_SHOULDER m まで）：ふちのすぐ外はふちの高さ（丘の土がふちの裏に来る）。外の地面がふちより低ければ外へ下がる盛り、
+//   高ければふちへ下りる斜面（丘の土がふちの笠木にかぶらない）
+// levelAt は平地まで入れた地面（建物の地面 g0 を測る）。焼き込みの並び（Dem の shells）を返す
+export const SHELL_UNDER = 0.08;
+const SHELL_UNDER_SLOPE = 0.2;
+const SHELL_SHOULDER = 4;
+const SHELL_COPING = 0.3; // ふちの笠木の幅（この外から地面がふちの高さを離れる）
+const SHELL_BED = 1.2;
+const smooth01 = (t) => { const u = Math.min(1, Math.max(0, t)); return u * u * (3 - 2 * u); };
+const distToPolyline = (p, line) => {
+  let best = Infinity;
+  for (let i = 0; i + 1 < line.length; i++) {
+    const a = line[i];
+    const dx = line[i + 1][0] - a[0];
+    const dy = line[i + 1][1] - a[1];
+    const t = Math.min(1, Math.max(0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1e-9)));
+    best = Math.min(best, Math.hypot(p[0] - a[0] - dx * t, p[1] - a[1] - dy * t));
+  }
+  return best;
+};
+export function prepareShellBurns(f, levelAt) {
+  if (f.type !== "building" || !Array.isArray(f.shells) || !f.shells.length || f.coords.length < 3) return [];
+  const ring = f.coords.map(toXY);
+  const mean = ring.reduce((a, p) => [a[0] + p[0] / ring.length, a[1] + p[1] / ring.length], [0, 0]);
+  const g0 = levelAt(f.groundRef || toLngLat(mean));
+  if (!Number.isFinite(g0)) return [];
+  return f.shells.map((s) => {
+    const sg = shellGeom(s, g0);
+    const box = bboxOf([...sg.fan, ...sg.band], SHELL_SHOULDER + 1);
+    const innerLine = [sg.A, ...sg.inner];
+    // 面の傾き（平面 1m あたりの高さの差）
+    const slopeAt = (p, z) => {
+      const h = 0.1;
+      let g = 0;
+      for (const [dx, dy] of [[h, 0], [0, h]]) {
+        const a = sg.coneAt([p[0] + dx, p[1] + dy]);
+        const b = sg.coneAt([p[0] - dx, p[1] - dy]);
+        const d = a != null && b != null ? (a - b) / (2 * h) : a != null ? (a - z) / h : b != null ? (z - b) / h : 0;
+        g += d * d;
+      }
+      return Math.sqrt(g);
+    };
+    const burn = (x, y, v) => {
+      if (!inBox(box, x, y)) return v;
+      const p = [x, y];
+      if (pointInRing(x, y, sg.band)) {
+        const z = sg.coneAt(p);
+        return z == null ? v : Math.min(v, z - SHELL_UNDER - Math.min(0.6, SHELL_UNDER_SLOPE * slopeAt(p, z)));
+      }
+      if (pointInRing(x, y, sg.fan)) {
+        const z = sg.coneAt(p);
+        if (z == null || !innerLine.length) return v;
+        const lo = z - 0.02;
+        return lo + (v - lo) * smooth01(distToPolyline(p, innerLine) / SHELL_BED);
+      }
+      // 建物（箱）の中は変えない：ふちの外の盛りが箱の中の面のすぐ裏に来ると、標高タイルの補間で面の外へにじむ（東の面の足もとのとげ）
+      if (pointInRing(x, y, ring)) return v;
+      // いちばん近いふちの辺（ふちの両端の点がいちばん近いなら変えない：箱の角の外・面の終わりの先）
+      let best = null;
+      for (let i = 0; i + 1 < sg.R.length; i++) {
+        const a = sg.R[i];
+        const dx = sg.R[i + 1][0] - a[0];
+        const dy = sg.R[i + 1][1] - a[1];
+        const L2 = dx * dx + dy * dy || 1e-9;
+        const t = Math.min(1, Math.max(0, ((x - a[0]) * dx + (y - a[1]) * dy) / L2));
+        const d = Math.hypot(x - (a[0] + dx * t), y - (a[1] + dy * t));
+        if (!best || d < best.d) best = { d, i, t };
+      }
+      if (!best || best.d > SHELL_SHOULDER || (best.i === 0 && best.t < 1e-6) || (best.i === sg.R.length - 2 && best.t > 1 - 1e-6)) return v;
+      const zr = sg.Z[best.i] + (sg.Z[best.i + 1] - sg.Z[best.i]) * best.t - 0.04;
+      // 頂点（箱の角）のそばは変えない：標高タイルの補間で、角の外（通路）へにじむ（角のそばは建物が覆う）
+      const k = Math.min(1, Math.max(0, (Math.hypot(x - sg.A[0], y - sg.A[1]) - 1.0) / 1.5));
+      if (k <= 0) return v;
+      const zt = v >= zr ? zr + (v - zr) * smooth01((best.d - SHELL_COPING) / (SHELL_SHOULDER - SHELL_COPING)) : Math.max(v, zr - 0.3 * Math.max(0, best.d - SHELL_COPING));
+      return v + (zt - v) * k;
+    };
+    return { f, box, burn };
+  });
 }
 
 // 屋根を斜めに切るときの、最初の2点：形のいちばん長い辺の向きに、端から端まで（点1の側が低い）
