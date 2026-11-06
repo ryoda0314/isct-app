@@ -37,6 +37,9 @@ const PITCH_FIT = 45; // ルート全体などを見せるときの傾き
 const GUIDE_FOCUS = 0.3; // 案内中は画面の上 30% を空けて、現在地を下寄りに置く（先の道が見えるように）
 const ZOOM_CLASSES = ["cb3-z-lo", "cb3-z-mid", "cb3-z-hi", "cb3-z-max"];
 const NO_PAD = { top: 0, bottom: 0, left: 0, right: 0 }; // 案内中に下げた現在地の位置を、ほかの移動では戻す
+// 道路・通路の脇に街灯を自動で立てるか（campus3dLamps.js の streetLamps）。実物にない場所にも立つので止めている
+// （2026-11-07、ユーザー「アプリ自動街灯いらない」）。止めると、夜に道に落ちる光の輪も出ない
+const AUTO_STREET_LAMPS = false;
 // MapLibre は地形の陰に入ったマーカーを薄くする（建物のラベルはそのまま）。駅名・ピン・現在地は谷にあっても必ず見せる
 const ALWAYS = { opacityWhenCovered: "1" };
 
@@ -845,8 +848,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       meshRef.current();
       // 夜の街灯：手で足した道路・建物・橋などをよけて置き、柱の足もとは焼き込んだ地面の高さ。置き直すのは関係する構造物が
       // 変わったときだけ（選んだだけ・横断歩道や白線を直しただけでは置き直さない。全体で 0.1 秒ほどかかる）
-      const lampKey = JSON.stringify(features.filter((f) => !isPaint(f.type) || f.type === "road"));
-      if (lampKey !== lampKeyRef.current) {
+      const lampKey = AUTO_STREET_LAMPS ? JSON.stringify(features.filter((f) => !isPaint(f.type) || f.type === "road")) : null;
+      if (AUTO_STREET_LAMPS && lampKey !== lampKeyRef.current) {
         const lamps = streetLamps(data, features, regionOf(data));
         await dem.ensure(lampBounds(lamps));
         if (!live()) return;

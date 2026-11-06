@@ -272,7 +272,7 @@ function LeansRow({ f, update }) {
 }
 
 /* ── 看板：面の向き・大きさ・高さ・倒し・見た目・脚と、文字の行 ── */
-const SIGN_STYLE_LABEL = { steel: "ステンレス（暗い文字）", white: "白い板（薄い文字）", notice: "お知らせ（緑の帯）", dark: "黒い板（白い文字）", red: "赤い板（白い文字）" };
+const SIGN_STYLE_LABEL = { steel: "ステンレス（暗い文字）", white: "白い板（薄い文字）", notice: "お知らせ（緑の帯）", dark: "黒い板（白い文字）", red: "赤い板（白い文字）", cream: "クリーム色の板（赤い字）" };
 function SignPanel({ f, update }) {
   const inp = { flex: 1, minWidth: 0, padding: "4px 6px", borderRadius: 5, border: `1px solid ${T.bdL}`, background: T.bg, color: T.txH, fontSize: 12, fontFamily: "inherit" };
   const setLine = (i, patch) => update({ lines: f.lines.map((l, k) => (k === i ? { ...l, ...patch } : l)) }, `line${i}`);
@@ -722,7 +722,7 @@ function BuildingPanel({ f, update, carveIdx, setCarveIdx, onDrawCarve, boards }
       </Row>}
       <Row label="屋上">
         <div style={{ display: "flex", gap: 4 }}>
-          {[[undefined, "ふつう"], ["green", "緑"], ["deck", "木の床"]].map(([v, l]) => <Btn key={l} col={col} active={f.roof === v} onClick={() => update({ roof: v })}>{l}</Btn>)}
+          {[[undefined, "ふつう"], ["green", "緑"], ["deck", "木の床"], ["red", "赤い金属"]].map(([v, l]) => <Btn key={l} col={col} active={f.roof === v} onClick={() => update({ roof: v })}>{l}</Btn>)}
         </div>
         <span style={hint}>緑は草の塊を散らし、軒は暗い色に（段々の屋根なら、段ごとに植え込みか木の段）</span>
       </Row>

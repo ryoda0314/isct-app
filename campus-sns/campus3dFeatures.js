@@ -57,7 +57,7 @@
 //             glassPitch（縦の桟の間隔 m。辺ごとに等間隔。なければ 1.5）, glassFrame（"light" 細い明るい枠）, glassFrit（白い点の模様のガラス）,
 //             glassRows（床の高さの横の桟。地面から m、地下の階はマイナス）, glassBase（ガラスはこの高さから。下はふつうの壁＝1 階に店先や
 //             入口があるビル）, indoor（true なら屋内に置いた小さなもの＝改札機・券売機など：外の光の陰にせず、明るく描く）,
-//             roof（"green" 屋上の緑 / "deck" 木の床）, eave（軒の出 m）, eaveSides（辺ごとに軒を出すか。なければ全部）,
+//             roof（"green" 屋上の緑 / "deck" 木の床 / "red" 赤い金属の板）, eave（軒の出 m）, eaveSides（辺ごとに軒を出すか。なければ全部）,
 //             boards（屋根の板。800 枚まで）：[{ coords（板の形）, top（板の上の高さ。地面から m）, kind（"green" は植え込み）,
 //             tops（傾いた板：点ごとの上面の高さ。上面はその点を通る平面） }]。
 //             あれば屋根の高さは「その点にある板のいちばん高い上面」（板のないところは斜めの屋根から BOARD_BASE_DROP 下＝板のあいだの暗いすき間）。
@@ -65,7 +65,7 @@
 //             groundRef（[lng, lat]。高さを測る地面の点。なければ形の点の平均の位置）：つながった建物（建物とスロープ・テラスなど）で
 //             同じ点にすると、まわりの地面の高さがちがっても高さがそろう
 //             windows（壁の窓・扉。200 まで）：[{ coords（壁ぞいの両端の2点。いちばん近い壁＝建物のふちか、くり抜きの奥の壁に描く）,
-//             bottom・top（地面から m）, kind（glass ガラス / dark 奥の暗いガラス / grille 格子 / door 扉 / glassdoor ガラスの扉）,
+//             bottom・top（地面から m）, kind（glass ガラス / dark 奥の暗いガラス / grille 格子 / door 扉 / glassdoor ガラスの扉 / frost すりガラス）,
 //             panes（縦に分ける数）, rows（横の桟の高さ。地面から m）, louver（扉の上のがらり。m） }]
 //             （top2 があれば窓の上の端は斜め：1 点目で top・2 点目で top2。frame "light" は明るい枠）
 //             canopies（小さなひさし。20 まで）：[{ coords（壁ぞいの両端の2点）, z（上の高さ。地面から m）, depth（出）, thickness }]
@@ -77,7 +77,8 @@
 //             地面から m） }） }]。建物の形の外へ出たところが張り出し（建物の中は壁と屋根に隠れる）
 //             material（壁と屋根の材質：rust さびた鉄 / perforated 穴あきの金属板 / steel ステンレス / darkbrick こげ茶のれんが /
 //             stone 白っぽい石 / green 壁面緑化＝植物で覆った壁（大岡山駅） / red 赤く塗った板（屋上の看板の塔など） /
-//             concrete 打ち放しのコンクリート（灰色） / glazed 白い施釉れんが（附属図書館の東の箱）。なしは地図の建物の色）,
+//             concrete 打ち放しのコンクリート（灰色） / glazed 白い施釉れんが（附属図書館の東の箱） /
+//             granite 灰色の御影石（本館の車寄せ） / tile クリーム色がかった白いタイル（本館）。なしは地図の建物の色）,
 //             joints（外の壁のパネルの目地：[横の間隔, 縦の間隔, 横の目地の基準の高さ]。縦の目地は辺ごとに等間隔、窓の奥に隠れる）
 //             frame（true なら壁でなく鉄骨の外階段：角と辺の柱、levels（踊り場の高さ。地面から m）ごとの床と手すり、そのあいだの段の板）
 //             roof "glass"（ガラスの屋根。縦の桟は斜面の向きに glassPitch m ごと） / "solar"（太陽光パネル。ふちに白い笠木）
@@ -96,7 +97,7 @@
 //             地面は面の下を下げ、内のふちの奥（花壇）は内のふちで面のすぐ下、ふちの外はふちの高さへ寄せる（prepareShellBurns）
 //             panels（空中の平らな板：ひさし・穴あきの衝立・ガラスの箱の面・V 字の柱など。40 まで）：[{ coords（点の位置。40 点まで）,
 //             zs（点ごとの高さ。地面から m）, kind（PANEL_KINDS：perforated 穴あきの金属板 / glass ガラス / steel ステンレス / dark 暗い鋼 /
-//             wall 建物の色 / white 白い鋼 / red 赤い板＝店の日よけなど）, thickness（m） }]。点は同じ平面の上（凸でない形も可。点の順に囲む）。
+//             wall 建物の色 / white 白い鋼 / red 赤い板＝店の日よけなど / brick 赤れんが / granite 暗い御影石＝建物の腰の石）, thickness（m） }]。点は同じ平面の上（凸でない形も可。点の順に囲む）。
 //             立った板は、歩いて見るときにぶつかる（panelSlices）
 //             domes（屋根の丸い天窓。20 まで）：[{ coords（中心の 1 点）, r（半径 m）, z（台の上の高さ。地面から m。なければ屋根の高さ） }]
 //             letters（壁の文字＝ステンレスの切り文字。12 行まで）：[{ coords（壁の面の上の 2 点＝行の左端と右端。文字はこの 2 点を結ぶ線に
@@ -126,9 +127,10 @@
 //             灯は歩行者だけが渡れるとき（車の信号は赤、歩行者の信号は青。campus3dMesh.js の addSignal）
 //   sign    : 看板（立て看板・柵に付けた銘板）。coords は板の下の端のまん中の真下の地面の 1 点。bearing（面が向く方位）, width・height（板の幅・高さ m）,
 //             thickness（板の厚さ m）, z（板の下の端の高さ。地面から m）, tilt（後ろへ倒す角度。度）, style（steel ステンレスの箱に暗い文字 /
-//             white 白い板に薄い灰色の文字 / notice 白い板の上に緑の帯（帯の中の行は白、ほかは暗い文字） / dark 黒い板に白い文字（店の看板） / red 赤い板に白い文字）,
+//             white 白い板に薄い灰色の文字 / notice 白い板の上に緑の帯（帯の中の行は白、ほかは暗い文字） / dark 黒い板に白い文字（店の看板） / red 赤い板に白い文字 /
+//             cream クリーム色の板に赤い字（中華料理店の看板））,
 //             legs（脚の数。0 は柵などに付けた板）,
-//             lines（文字の行：[{ text（A〜Z・0〜9・& - . ' 空白・矢印 < > と、漢字 東京科学大岡山駅中央改札急病院南北口前交番）, x・y（行の左下。板の左下の角から m）, size（字の高さ m） }]。8 行まで）,
+//             lines（文字の行：[{ text（A〜Z・0〜9・& - . ' 空白・矢印 < > と、漢字 東京科学大岡山駅中央改札急病院南北口前交番四川屋台華菜房指圧鍼灸・ひらがな あんの）, x・y（行の左下。板の左下の角から m）, size（字の高さ m） }]。8 行まで）,
 //             rules（細い線：[[x0, y0, x1, y1]]。区切りの縦線など）, logo（印：[左下の x, y, 高さ] は校章＝Science Tokyo のシンボルマーク（幅は高さの 0.72 倍）。[x, y, 高さ, 種類] の種類は
 //             mcd マクドナルドの M（幅は高さの 1.18 倍）/ tokyu 東急の赤い丸 / tokyustore 東急ストアの赤い四角。なしは null）
 // z が null の点は、両端なら地面の高さ、途中なら前後の決まった点のあいだを距離で直線に結ぶ。
@@ -152,11 +154,11 @@ export const TREE_KIND_KEYS = ["broad", "round", "ginkgo", "conifer", "cherry", 
 export const STAIRS_MATERIALS = ["wood", "stone", "brick"];
 export const STAIRS_MATERIAL_LABEL = { "": "コンクリート", wood: "木", stone: "石", brick: "れんが" };
 // 建物の窓・扉の種類（campus3dMesh.js の addWindows）：ガラス・奥の暗いガラス・格子・扉・ガラスの扉
-export const WINDOW_KINDS = ["glass", "dark", "grille", "door", "glassdoor"];
+export const WINDOW_KINDS = ["glass", "dark", "grille", "door", "glassdoor", "frost"];
 // 建物の壁と屋根の材質（campus3dMesh.js の色）：さびた鉄・穴あきの金属板・ステンレス。なしは地図の建物の色
-export const BUILDING_MATERIALS = ["rust", "perforated", "steel", "darkbrick", "stone", "green", "red", "concrete", "glazed"];
+export const BUILDING_MATERIALS = ["rust", "perforated", "steel", "darkbrick", "stone", "green", "red", "concrete", "glazed", "granite", "tile"];
 // 空中の板（panels）の見た目：穴あきの金属板・ガラス・ステンレス・暗い鋼・建物の色
-export const PANEL_KINDS = ["perforated", "glass", "steel", "dark", "wall", "white", "red"];
+export const PANEL_KINDS = ["perforated", "glass", "steel", "dark", "wall", "white", "red", "brick", "granite"];
 export const CURB_W = 0.32; // ガラスの手すり（wall の glass）の下の石の縁石の幅 m
 // 縁石の幅：斜めの格子は足もとの幅より 0.15m 広く（少なくとも CURB_W）
 export const curbWidth = (f) => (f.kind === "slant" ? Math.max(CURB_W, f.thickness + 0.15) : CURB_W);
@@ -192,9 +194,9 @@ export const DEFAULTS = {
   signal: { height: 5.5, arm: 3.5, bearing: 90, face: 180, peds: [] },
   sign: { bearing: 0, width: 2, height: 0.5, thickness: 0.15, z: 0.5, tilt: 0, style: "steel", legs: 2, lines: [], rules: [], logo: null },
 };
-export const SIGN_STYLES = ["steel", "white", "notice", "dark", "red"];
+export const SIGN_STYLES = ["steel", "white", "notice", "dark", "red", "cream"];
 // 看板の文字に使える字（campus3dMesh.js の GLYPHS にある字）
-export const SIGN_CHARS = /[A-Z0-9&.'\- <>東京科学大岡山駅中央改札急病院南北口前交番]/;
+export const SIGN_CHARS = /[A-Z0-9&.'\- <>東京科学大岡山駅中央改札急病院南北口前交番四川屋台華菜房あんの指圧鍼灸]/;
 export const LOGO_KINDS = ["isct", "mcd", "tokyu", "tokyustore"];
 // 入力できる範囲（m）
 export const RANGE = {
@@ -388,7 +390,7 @@ export function normalizeFeature(f) {
     if (out.glass && f.glassFrit) out.glassFrit = true; // ガラスに白いセラミックの点の模様（明るく見える）
     const gRows = out.glass && Array.isArray(f.glassRows) ? f.glassRows.filter((v) => v != null && v !== "" && Number.isFinite(+v) && +v < out.glass).map((v) => round2(Math.max(-30, +v))) : [];
     if (gRows.length) out.glassRows = [...new Set(gRows)].sort((x, y) => x - y).slice(0, 6);
-    if (f.roof === "green" || f.roof === "deck" || f.roof === "glass" || f.roof === "solar") out.roof = f.roof;
+    if (f.roof === "green" || f.roof === "deck" || f.roof === "glass" || f.roof === "solar" || f.roof === "red") out.roof = f.roof;
     if (Number.isFinite(+f.base) && +f.base > 0) {
       out.base = round2(clampTo(f.base, [0.5, out.height - 0.1], 3));
       if (Number.isFinite(+f.keel) && +f.keel > 0) out.keel = round2(clampTo(f.keel, [0.01, 3], 0.2));

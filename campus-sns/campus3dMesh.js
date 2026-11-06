@@ -36,7 +36,7 @@ const COLORS = {
     roofGreen: "#7a9556", glassLo: "#5b6f7e", glassHi: "#a2b6c4", mullion: "#3b434a", eaveDark: "#4b4f54",
     stairsWood: "#ada392", stairsStone: "#c9c6bf", stairsBrick: "#68655f", // 階段の材質：木・石・れんが（灰色の炻器質れんが）
     // 段々の屋根（緑の屋上）：段の板（雨にさらされた灰色の木。動画の色）と、段の境目の暗い蹴上げ
-    roofDeck: "#bebbb5", roofRiser: "#55524d",
+    roofDeck: "#bebbb5", roofRiser: "#55524d", redRoof: "#8a4b3d",
     // 平地の壁の面（faces）：すりガラス（下・上）・扉のガラス・アルミの枠・白いれんがと目地
     frostLo: "#bccac7", frostHi: "#dce4e2", doorGlass: "#46535d", frame: "#9ba3aa", brick: "#e3e0d9", brickLine: "#cdc8bf",
     // 建物の窓（windows）：奥の暗いガラス・見込みの影・格子・扉の板・小さなひさし（下・上）
@@ -66,13 +66,18 @@ const COLORS = {
     barkCherry: "#4b4039", leafCherry: "#7f8f4f",
     // 金網の柵：菱形金網（亜鉛めっきの明るい枠と針金）・溶接の格子の網（濃い灰色の枠と針金）
     chainFrame: "#aeb3b6", chainWire: "#c4c7c9", meshFrame: "#5d636b", meshWire: "#80868c",
+    creamFace: "#efe4c4", creamSide: "#d6c9a4", // クリーム色の看板（cream）
+    granite: "#a8a3a2", // 灰色の御影石（本館の車寄せ。濃淡と紫がかった石のまざる灰色）
+    graniteDark: "#6e6865", // 暗い御影石（panels の granite。本館の腰の石）
+    tile: "#e6e1d5", // クリーム色がかった白いタイル張りの壁（本館）
+    redBrick: "#86503f", // 赤れんがの板（panels の brick。70周年記念講堂の入口のわき）
   },
   dark: {
     wall: "#353d47", deckSide: "#2c333c", railing: "#4a5460", pier: "#2a3139", ceiling: "#20252c", stairs: "#3b424c", bridgeDeck: "#44423d",
     stairsWood: "#3a3631", stairsStone: "#46474b", stairsBrick: "#34353a",
     trunk: "#26211d", leafBroad: "#1e2a1a", leafRound: "#1b2619", leafGinkgo: "#2f3420", leafConifer: "#162016", hedge: "#1b2617",
     roofGreen: "#222c1d", glassLo: "#7d6a47", glassHi: "#a88f5e", mullion: "#15191d", eaveDark: "#1a1c1f",
-    roofDeck: "#34322e", roofRiser: "#17181a",
+    roofDeck: "#34322e", roofRiser: "#17181a", redRoof: "#3b2621",
     frostLo: "#857659", frostHi: "#9c8b68", doorGlass: "#6b5a3c", frame: "#1f2328", brick: "#383b40", brickLine: "#2b2e32",
     winDark: "#0e1012", winReveal: "#24272b", grille: "#30353a", doorPanel: "#3f454c", canopy: "#141619", canopyTop: "#25282c",
     steelHi: "#4b525c", steelLo: "#22272e", steelLine: "#171a1f", rust: "#2f231c", perforated: "#3a4048", frameSteel: "#414953", grating: "#1c2025",
@@ -88,11 +93,13 @@ const COLORS = {
     deckFace: "#34312d", deckGap: "#121110", deckPost: "#3a3c3d", xbrace: "#454b51", benchWood: "#302a25",
     barkCherry: "#1d1916", leafCherry: "#20291a",
     chainFrame: "#454b51", chainWire: "#50565c", meshFrame: "#2a2f35", meshWire: "#30353b",
+    creamFace: "#5a5446", creamSide: "#403b30",
+    granite: "#403d3d", graniteDark: "#2d2a29", redBrick: "#3a241e", tile: "#4d4b46",
   },
 };
 
 // 建物の材質（material）の色の名前
-const MATERIAL_COLOR = { rust: "rust", perforated: "perforated", steel: "steelHi", darkbrick: "darkBrick", stone: "stone", green: "greenWall", red: "redPanel", concrete: "concrete", glazed: "glazed" };
+const MATERIAL_COLOR = { rust: "rust", perforated: "perforated", steel: "steelHi", darkbrick: "darkBrick", stone: "stone", green: "greenWall", red: "redPanel", concrete: "concrete", glazed: "glazed", granite: "granite", tile: "tile" };
 
 // 三角形の並び（位置・法線・色）。電車（campus3dTrains.js）も使う
 export class Mesh {
@@ -1044,6 +1051,22 @@ const GLYPHS = {
   前: { w: 1, s: [[[0.3, 0.98], [0.38, 0.86]], [[0.7, 0.98], [0.62, 0.86]], [[0.04, 0.82], [0.96, 0.82]], [[0.12, 0.66], [0.12, 0.02]], [[0.12, 0.66], [0.48, 0.66], [0.48, 0.06], [0.42, 0]], [[0.12, 0.46], [0.48, 0.46]], [[0.12, 0.27], [0.48, 0.27]], [[0.67, 0.64], [0.67, 0.2]], [[0.86, 0.72], [0.86, 0.06], [0.78, 0]]] },
   交: { w: 1, s: [[[0.5, 1], [0.5, 0.88]], [[0.06, 0.82], [0.94, 0.82]], [[0.36, 0.7], [0.18, 0.52]], [[0.64, 0.7], [0.82, 0.52]], [[0.3, 0.5], [0.92, 0.02]], [[0.7, 0.5], [0.08, 0.02]]] },
   番: { w: 1, s: [[[0.76, 0.99], [0.28, 0.92]], [[0.3, 0.88], [0.36, 0.82]], [[0.7, 0.88], [0.64, 0.82]], [[0.08, 0.76], [0.92, 0.76]], [[0.5, 0.92], [0.5, 0.52]], [[0.47, 0.73], [0.12, 0.52]], [[0.53, 0.73], [0.88, 0.52]], [[0.2, 0.46], [0.2, 0]], [[0.2, 0.46], [0.8, 0.46], [0.8, 0]], [[0.2, 0.25], [0.8, 0.25]], [[0.2, 0.04], [0.8, 0.04]], [[0.5, 0.46], [0.5, 0.04]]] },
+  // 店の看板の漢字（中華菜房 四川屋台）
+  四: { w: 1, s: [[[0.08, 0.86], [0.08, 0.04]], [[0.08, 0.86], [0.92, 0.86], [0.92, 0.04]], [[0.08, 0.1], [0.92, 0.1]], [[0.38, 0.86], [0.36, 0.6], [0.22, 0.38]], [[0.62, 0.86], [0.62, 0.5], [0.68, 0.42], [0.84, 0.42]]] },
+  川: { w: 1, s: [[[0.2, 0.94], [0.2, 0.42], [0.08, 0.04]], [[0.5, 0.86], [0.5, 0.16]], [[0.86, 0.98], [0.86, 0.02]]] },
+  屋: { w: 1, s: [[[0.14, 0.92], [0.86, 0.92], [0.86, 0.76], [0.14, 0.76]], [[0.14, 0.92], [0.14, 0.4], [0.04, 0.02]], [[0.26, 0.64], [0.9, 0.64]], [[0.54, 0.64], [0.36, 0.46], [0.84, 0.48]], [[0.72, 0.56], [0.84, 0.44]], [[0.58, 0.44], [0.58, 0.06]], [[0.32, 0.26], [0.86, 0.26]], [[0.22, 0.06], [0.96, 0.06]]] },
+  台: { w: 1, s: [[[0.48, 0.98], [0.16, 0.62], [0.88, 0.66]], [[0.66, 0.84], [0.84, 0.64]], [[0.2, 0.48], [0.2, 0.02]], [[0.2, 0.48], [0.8, 0.48], [0.8, 0.02]], [[0.2, 0.07], [0.8, 0.07]]] },
+  華: { w: 1, s: [[[0.06, 0.88], [0.94, 0.88]], [[0.3, 0.98], [0.3, 0.8]], [[0.7, 0.98], [0.7, 0.8]], [[0.16, 0.72], [0.84, 0.72]], [[0.04, 0.56], [0.96, 0.56]], [[0.16, 0.4], [0.84, 0.4]], [[0.04, 0.24], [0.96, 0.24]], [[0.5, 0.8], [0.5, 0]], [[0.3, 0.72], [0.3, 0.4]], [[0.7, 0.72], [0.7, 0.4]]] },
+  菜: { w: 1, s: [[[0.06, 0.88], [0.94, 0.88]], [[0.3, 0.98], [0.3, 0.8]], [[0.7, 0.98], [0.7, 0.8]], [[0.84, 0.76], [0.16, 0.66]], [[0.28, 0.62], [0.34, 0.54]], [[0.5, 0.64], [0.52, 0.54]], [[0.76, 0.64], [0.68, 0.54]], [[0.06, 0.44], [0.94, 0.44]], [[0.5, 0.56], [0.5, 0]], [[0.47, 0.42], [0.1, 0.1]], [[0.53, 0.42], [0.9, 0.1]]] },
+  房: { w: 1, s: [[[0.5, 1], [0.52, 0.9]], [[0.2, 0.86], [0.88, 0.86]], [[0.2, 0.74], [0.84, 0.74], [0.84, 0.6], [0.2, 0.6]], [[0.2, 0.86], [0.2, 0.42], [0.06, 0.02]], [[0.6, 0.54], [0.62, 0.46]], [[0.32, 0.44], [0.94, 0.44]], [[0.54, 0.44], [0.46, 0.18], [0.3, 0.04]], [[0.52, 0.3], [0.84, 0.3], [0.82, 0.06], [0.72, 0.04]]] },
+  // 指圧の看板（あんのん指圧鍼灸）：ひらがなは線の折れ線で丸く
+  あ: { w: 1, s: [[[0.16, 0.78], [0.76, 0.81]], [[0.42, 0.96], [0.44, 0.5], [0.53, 0.05]], [[0.68, 0.6], [0.47, 0.3], [0.27, 0.12], [0.13, 0.17], [0.16, 0.37], [0.42, 0.52], [0.72, 0.52], [0.9, 0.36], [0.84, 0.14], [0.62, 0.04]]] },
+  ん: { w: 1, s: [[[0.46, 0.96], [0.1, 0.04]], [[0.1, 0.04], [0.3, 0.42], [0.46, 0.5], [0.55, 0.36], [0.56, 0.16], [0.66, 0.05], [0.84, 0.1], [0.95, 0.32]]] },
+  の: { w: 1, s: [[[0.56, 0.74], [0.44, 0.38], [0.32, 0.14], [0.17, 0.14], [0.08, 0.38], [0.17, 0.7], [0.44, 0.88], [0.75, 0.83], [0.93, 0.56], [0.86, 0.22], [0.62, 0.05]]] },
+  指: { w: 1, s: [[[0.04, 0.7], [0.36, 0.72]], [[0.22, 0.98], [0.22, 0.08], [0.12, 0.12]], [[0.04, 0.3], [0.38, 0.48]], [[0.5, 0.98], [0.5, 0.62], [0.62, 0.56], [0.94, 0.56], [0.94, 0.66]], [[0.88, 0.92], [0.52, 0.78]], [[0.54, 0.46], [0.54, 0.02]], [[0.54, 0.46], [0.9, 0.46], [0.9, 0.02]], [[0.54, 0.24], [0.9, 0.24]], [[0.54, 0.04], [0.9, 0.04]]] },
+  圧: { w: 1, s: [[[0.12, 0.9], [0.94, 0.9]], [[0.16, 0.9], [0.14, 0.4], [0.04, 0.02]], [[0.32, 0.58], [0.86, 0.58]], [[0.58, 0.78], [0.58, 0.08]], [[0.24, 0.08], [0.96, 0.08]]] },
+  鍼: { w: 1, s: [[[0.24, 0.98], [0.04, 0.7]], [[0.24, 0.98], [0.44, 0.74]], [[0.12, 0.68], [0.36, 0.68]], [[0.08, 0.5], [0.4, 0.5]], [[0.24, 0.68], [0.24, 0.08]], [[0.12, 0.36], [0.16, 0.24]], [[0.36, 0.36], [0.32, 0.24]], [[0.04, 0.06], [0.42, 0.14]], [[0.56, 0.86], [0.56, 0.44], [0.48, 0.06]], [[0.56, 0.86], [0.96, 0.86]], [[0.62, 0.7], [0.84, 0.7]], [[0.63, 0.56], [0.63, 0.36], [0.82, 0.36], [0.82, 0.56], [0.63, 0.56]], [[0.82, 0.98], [0.86, 0.6], [0.98, 0.04]], [[0.66, 0.16], [0.96, 0.46]], [[0.9, 0.98], [0.96, 0.92]]] },
+  灸: { w: 1, s: [[[0.4, 0.98], [0.14, 0.66]], [[0.36, 0.88], [0.72, 0.88], [0.42, 0.56]], [[0.48, 0.76], [0.88, 0.56]], [[0.5, 0.52], [0.5, 0.26], [0.12, 0.02]], [[0.5, 0.26], [0.9, 0.02]], [[0.22, 0.44], [0.3, 0.32]], [[0.78, 0.44], [0.7, 0.32]]] },
   "<": { w: 1, s: [[[0.42, 0.92], [0, 0.5], [0.42, 0.08]], [[0, 0.5], [1, 0.5]]] },
   ">": { w: 1, s: [[[0.58, 0.92], [1, 0.5], [0.58, 0.08]], [[1, 0.5], [0, 0.5]]] },
   ".": { w: 0.06, s: [[[0.03, 0], [0.03, 0.06]]] },
@@ -1137,10 +1160,11 @@ function addSign(m, f, groundAt, cols, tint) {
   const white = f.style === "white";
   const notice = f.style === "notice"; // 白い板の上に緑の帯（帯の中の行は白い字）
   const dark = f.style === "dark" || f.style === "red"; // 黒い板（red は赤い板）に白い字（店の看板。縁なし）
+  const cream = f.style === "cream"; // クリーム色の板に赤い字（中華料理店の看板。縁なし）
   const board = f.style === "red" ? "redPanel" : "signDark";
-  const face = tint(rgba(cols[dark ? board : white || notice ? "plateFace" : "signFace"]));
-  const side = tint(rgba(cols[dark ? board : white ? "plateText" : "signSide"]));
-  const ink = tint(rgba(cols[dark ? "plateFace" : white ? "plateText" : "signText"]));
+  const face = tint(rgba(cols[cream ? "creamFace" : dark ? board : white || notice ? "plateFace" : "signFace"]));
+  const side = tint(rgba(cols[cream ? "creamSide" : dark ? board : white ? "plateText" : "signSide"]));
+  const ink = tint(rgba(cols[cream ? "redPanel" : dark ? "plateFace" : white ? "plateText" : "signText"]));
   const inkSide = ink.map((v, i) => (i < 3 ? v * 0.8 : v));
   const at = (x, y, d) => {
     const [p, z] = fr.at(x, y, d);
@@ -1166,7 +1190,7 @@ function addSign(m, f, groundAt, cols, tint) {
   const plane = { P: at, N, U, V };
   const d0 = 0, d1 = SIGN_TEXT_DEPTH;
   // ステンレスの縁（前の面のふちを少し浮かせて）
-  if (!white && !dark) {
+  if (!white && !dark && !cream) {
     const r = SIGN_RIM / 2;
     for (const [x0, y0, x1, y1] of [[r, r, W - r, r], [W - r, r, W - r, H - r], [W - r, H - r, r, H - r], [r, H - r, r, r]]) planeBar(m, plane, x0, y0, x1, y1, SIGN_RIM, 0, 0.006, side, side);
   }
@@ -2041,7 +2065,7 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
   };
   // 上のほう（いちばん高いところの 8 割より上）は、植え込みが続かず箱がところどころ（PLANT_CHUNK m ごとに 4 割）
   const greenAt = (p, z) => (!stepped ? f.roof === "green" : planted(z) && depthAt(p) >= PLANT_DEPTH && (z < roof.H * 0.8 || seeded(hashStr(`${f.id}:${Math.round(z * 100)}:${Math.floor(p[0] / PLANT_CHUNK)}`))() < 0.4));
-  const roofCol = (z, p = null) => (!look || !f.roof ? c : f.roof === "deck" ? look.deck : f.roof === "glass" ? look.glassRoof : f.roof === "solar" ? look.parapet : !stepped || (p ? greenAt(p, z) : planted(z)) ? look.green : look.deck);
+  const roofCol = (z, p = null) => (!look || !f.roof ? c : f.roof === "deck" ? look.deck : f.roof === "glass" ? look.glassRoof : f.roof === "solar" ? look.parapet : f.roof === "red" ? look.redRoof : !stepped || (p ? greenAt(p, z) : planted(z)) ? look.green : look.deck);
   // くり抜き：建物と重なるところ（inside）と、天井が屋根より上なら上まで抜ける（open）
   const carves = !clip ? [] : (f.carves || []).map((cv) => {
     const cr = reachOut(cv.coords.map(toXY), ring);
@@ -2850,7 +2874,7 @@ function addPanel(m0, p, g0, look, c) {
   const zmax = Math.max(...Z);
   const colAt = (z) => {
     if (p.kind === "glass") return mix(mix(look.glass[0], look.glass[1], 0.25), look.glass[1], zmax > zmin ? (z - zmin) / (zmax - zmin) : 0.5);
-    return p.kind === "perforated" ? look.perforated : p.kind === "steel" ? look.steelHi : p.kind === "dark" ? look.canopy : p.kind === "white" ? look.member : p.kind === "red" ? look.redPanel : c;
+    return p.kind === "perforated" ? look.perforated : p.kind === "steel" ? look.steelHi : p.kind === "dark" ? look.canopy : p.kind === "white" ? look.member : p.kind === "red" ? look.redPanel : p.kind === "brick" ? look.redBrick : p.kind === "granite" ? look.graniteDark : c;
   };
   // 三角形に分ける：面の上の 2 次元（法線にいちばん直角な軸を落とす）で earcut
   const ax = Math.abs(n[0]) >= Math.abs(n[1]) && Math.abs(n[0]) >= Math.abs(n[2]) ? 0 : Math.abs(n[1]) >= Math.abs(n[2]) ? 1 : 2;
@@ -2993,6 +3017,9 @@ function addWindow(m, w, host, g0, look) {
     const [lo, hi] = look.glass;
     const lo2 = mix(lo, hi, 0.3);
     rect(0, L, z0, z1, WIN_OFF, [lo2, lo2, hi, hi]);
+  } else if (kind === "frost") {
+    // すりガラス（白っぽく、上ほど明るい。70周年記念講堂の入口の上の帯）
+    rect(0, L, z0, z1, WIN_OFF, [look.frost[0], look.frost[0], look.frost[1], look.frost[1]]);
   } else if (kind === "dark") {
     rect(0, L, z0, z1, WIN_OFF, look.dark);
     // 奥まった窓：上と片側の見込み（影）を枠の内に
@@ -3435,11 +3462,12 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
         eave: f.roof === "green" ? tint(rgba(cols.eaveDark)) : c, deck: tint(rgba(cols.roofDeck)), riser: tint(rgba(cols.roofRiser)),
         dark: tint(rgba(cols.winDark)), reveal: tint(rgba(cols.winReveal)), grille: tint(rgba(cols.grille)), door: tint(rgba(cols.doorPanel)),
         frame: tint(rgba(cols.frame)), canopy: tint(rgba(cols.canopy)), canopyTop: tint(rgba(cols.canopyTop)),
-        glassRoof: tint(mix(rgba(cols.glassLo), rgba(cols.glassHi), 0.55)),
+        glassRoof: tint(mix(rgba(cols.glassLo), rgba(cols.glassHi), 0.55)), redRoof: tint(rgba(cols.redRoof)),
         steelHi: tint(rgba(cols.steelHi)), steelLo: tint(rgba(cols.steelLo)), steelLine: tint(rgba(cols.steelLine)), frameSteel: tint(rgba(cols.frameSteel)), grating: tint(rgba(cols.grating)),
         perforated: tint(rgba(cols.perforated)), dome: tint(rgba(cols.dome)), domeCurb: c, letter: tint(rgba(cols.letter)),
         solar: tint(rgba(cols.solar)), solarLine: tint(rgba(cols.solarLine)), parapet: tint(rgba(cols.parapet)), fin: tint(rgba(cols.fin)), member: tint(rgba(cols.member)),
-        redPanel: tint(rgba(cols.redPanel)),
+        redPanel: tint(rgba(cols.redPanel)), redBrick: tint(rgba(cols.redBrick)), graniteDark: tint(rgba(cols.graniteDark)),
+        frost: [tint(rgba(cols.frostLo)), tint(rgba(cols.frostHi))],
         trellis: tint(rgba(cols.trellis)), planter: tint(rgba(cols.planter)), vine: [tint(rgba(cols.vine1)), tint(rgba(cols.vine2)), tint(rgba(cols.vine3))],
         glazed: tint(rgba(cols.glazed)), glazedGray: tint(rgba(cols.glazedGray)), soffitWood: tint(rgba(cols.soffitWood)),
         screen, // 穴あきの金属板（panels の perforated）は半透明で重ねる（向こうが透けて見える）
