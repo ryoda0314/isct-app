@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { isEnrolledInCourse } from '../../../../lib/auth/course-enrollment.js';
+import { stripAnonAuthor } from '../../../../lib/anon-post.js';
 
 const toMoodleId = (id) => id?.startsWith('mc_') ? id.slice(3) : id;
 
@@ -34,7 +35,7 @@ export async function POST(request) {
     for (const post of data) {
       try {
         if (await isEnrolledInCourse(wstoken, userid, toMoodleId(post.course_id))) {
-          filtered.push(post);
+          filtered.push(stripAnonAuthor(post));
         }
       } catch {}
     }

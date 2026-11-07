@@ -10,7 +10,11 @@ export const maxDuration = 60;
  */
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const force = searchParams.get('force') === '1';
+  // force (cache bypass → Puppeteer + 3 external fetches) only for the cron secret;
+  // unauthenticated callers could otherwise spin up Chromium on every request.
+  const secret = process.env.CRON_SECRET;
+  const force = searchParams.get('force') === '1'
+    && !!secret && request.headers.get('authorization') === `Bearer ${secret}`;
 
   const headers = { 'Cache-Control': 'public, max-age=1800' };
 

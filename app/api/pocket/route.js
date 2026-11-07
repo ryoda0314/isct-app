@@ -11,9 +11,21 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const SIGN_TTL = 3600; // 署名URL有効期限(秒)
 const BUCKET = 'post-attachments';
 
+// sign-upload が発行する形 (pocket/<uid>/<ts>_<safe name>) だけを受け付ける。
+// storage-js はパスを URL エンコードせずに連結し、fetch が "../" を正規化するので、
+// 前方一致だけだと "pocket/<uid>/../../../../../bucket/X/empty" のようなパスで
+// service_role 権限の任意の Storage API を叩けてしまう。
+function isOwnPocketPath(path, userid) {
+  return typeof path === 'string'
+    && path.length <= 300
+    && new RegExp(`^pocket/${Number(userid)}/\\d+_[A-Za-z0-9._-]+$`).test(path); // "/" を含めないので "../" 区間は作れない
+}
+
 // 添付の署名URLを付与（取得のたびに再署名）
-async function signAttachment(sb, item) {
+async function signAttachment(sb, item, userid) {
   if (!item.attachment?.path) return item;
+  // 保存済みの行も署名前に検証する (修正前に入った不正パスを再実行させない)
+  if (!isOwnPocketPath(item.attachment.path, userid)) return { ...item, attachment: { ...item.attachment, url: '' } };
   const { data } = await sb.storage.from(BUCKET).createSignedUrl(item.attachment.path, SIGN_TTL);
   return { ...item, attachment: { ...item.attachment, url: data?.signedUrl || '' } };
 }
@@ -44,7 +56,7 @@ export async function GET(request) {
     }
     if (error) throw error;
 
-    const items = await Promise.all((data || []).map(it => signAttachment(sb, it)));
+    const items = await Promise.all((data || []).map(it => signAttachment(sb, it, userid)));
     return NextResponse.json(items);
   } catch (err) {
     console.error('[Pocket] GET error:', err.message, err.stack);
@@ -92,7 +104,7 @@ export async function POST(request) {
     if (body.attachment) {
       const a = body.attachment;
       // セキュリティ: 自分のプレフィックス配下のパスのみ記録可
-      if (typeof a.path !== 'string' || !a.path.startsWith(`pocket/${userid}/`)) {
+      if (!isOwnPocketPath(a.path, userid)) {
         return NextResponse.json({ error: 'invalid path' }, { status: 400 });
       }
       const row = {
@@ -108,7 +120,7 @@ export async function POST(request) {
         .select('id, kind, text, attachment, pinned, created_at')
         .single();
       if (error) throw error;
-      return NextResponse.json(await signAttachment(sb, data));
+      return NextResponse.json(await signAttachment(sb, data, userid));
     }
 
     // 3) テキスト/URL
@@ -178,7 +190,7 @@ export async function DELETE(request) {
     if (fetchErr) throw fetchErr;
     if (!item) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    if (item.attachment?.path) {
+    if (isOwnPocketPath(item.attachment?.path, userid)) {
       const { error: rmErr } = await sb.storage.from(BUCKET).remove([item.attachment.path]);
       if (rmErr) console.error('[Pocket] storage remove:', rmErr.message);
     }

@@ -7,6 +7,7 @@ import { notifyCoursePost } from '../../../lib/course-notify.js';
 import { checkNgWords } from '../../../lib/ng-filter.js';
 import { getBlockedIds } from '../../../lib/blocks.js';
 import { getMutedIds } from '../../../lib/mutes.js';
+import { stripAnonAuthor } from '../../../lib/anon-post.js';
 
 const MAX_TEXT_LENGTH = 5000;
 const VALID_TYPES = ['question', 'material', 'info', 'discussion', 'poll', 'anon'];
@@ -349,7 +350,7 @@ export async function PATCH(request) {
         .single();
 
       if (error) return NextResponse.json({ error: 'Internal error' }, { status: 500 });
-      return NextResponse.json(data);
+      return NextResponse.json(stripAnonAuthor(data));
     }
 
     // --- EDIT ---
@@ -376,7 +377,7 @@ export async function PATCH(request) {
         .single();
 
       if (error) return NextResponse.json({ error: 'Internal error' }, { status: 500 });
-      return NextResponse.json(data);
+      return NextResponse.json(stripAnonAuthor(data));
     }
 
     // --- VOTE ---
@@ -411,7 +412,7 @@ export async function PATCH(request) {
         .single();
 
       if (error) return NextResponse.json({ error: 'Internal error' }, { status: 500 });
-      return NextResponse.json(data);
+      return NextResponse.json(stripAnonAuthor(data));
     }
 
     // --- REACT ---
@@ -452,7 +453,7 @@ export async function PATCH(request) {
         .single();
 
       if (error) return NextResponse.json({ error: 'Internal error' }, { status: 500 });
-      return NextResponse.json(data);
+      return NextResponse.json(stripAnonAuthor(data));
     }
 
     // --- PIN ---
@@ -474,7 +475,7 @@ export async function PATCH(request) {
         .single();
 
       if (error) return NextResponse.json({ error: 'Internal error' }, { status: 500 });
-      return NextResponse.json(data);
+      return NextResponse.json(stripAnonAuthor(data));
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { DEPTS } from '../../../../campus-sns/data.js';
+import { isEnrolledInCourse } from '../../../../lib/auth/course-enrollment.js';
 
 // Member list for a dept / school / unit / sandbox room.
 // Replaces the browser's direct anon-key query on `profiles`, which required
@@ -17,6 +18,11 @@ export async function GET(request) {
     if (auth.error) return auth.error;
 
     const prefix = new URL(request.url).searchParams.get('prefix') || '';
+    // Same membership rule as the room itself (posts/messages use course_id "dept:<prefix>"),
+    // so the roster can't be walked unit by unit to map every student to a unit.
+    if (!prefix || !(await isEnrolledInCourse(auth.wstoken, auth.userid, `dept:${prefix}`))) {
+      return NextResponse.json({ error: 'Not a member of this room' }, { status: 403 });
+    }
     const sb = getSupabaseAdmin();
     let query = sb.from('profiles').select('moodle_id, name, color');
 

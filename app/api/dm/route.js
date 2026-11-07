@@ -140,7 +140,14 @@ export async function POST(request) {
     if (auth.error) return auth.error;
     const { userid, fullname } = auth;
 
-    const { to_user_id, text, stamp_id, conversation_id, call_meta } = await request.json();
+    const body = await request.json();
+    const { text, stamp_id, conversation_id, call_meta } = body;
+    // IDs must be numbers: blocks are a Set of numbers, so "123" (string) slipped
+    // past the block check, and the raw value was interpolated into .or() filters.
+    const to_user_id = body.to_user_id == null || body.to_user_id === '' ? null : Number(body.to_user_id);
+    if (to_user_id !== null && (!Number.isSafeInteger(to_user_id) || to_user_id <= 0)) {
+      return NextResponse.json({ error: 'Invalid to_user_id' }, { status: 400 });
+    }
     const hasText = !!text?.trim();
     const hasStamp = !!stamp_id;
     // 通話ログ: {status, durationSec}。クライアントが信頼できない値を送れるので形を厳格に検証する。
