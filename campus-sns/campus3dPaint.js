@@ -25,6 +25,7 @@ export const SURFACE_KINDS = {
   stones: { label: "白い砂利", light: "#dedbd4", dark: "#55565a" },
   brick: { label: "れんが（灰）", light: "#a19d99", dark: "#3e3f44" }, // 灰色の炻器質れんが敷き（附属図書館の広場）
   darkbrick: { label: "れんが（こげ茶）", light: "#5e4b44", dark: "#2b2422" },
+  redbrick: { label: "れんが（赤）", light: "#8f6b5b", dark: "#3a2a25" }, // 赤茶のれんがの杉綾敷き（南4号館のまわり・通り抜け）
   wood: { label: "古い木の床", light: "#a39889", dark: "#3d3a35" }, // 雨風で灰色がかった木の板（本館前のウッドデッキの、桜の下）
   slab: { label: "敷石（濃い灰）", light: "#77797c", dark: "#2b2d30" }, // 芝生の中の飛び石（細長い御影石の板）。いちばん上に描く
   soil: { label: "土（木の根もと）", light: "#8d7a68", dark: "#2f2823" }, // 木の根もとの花壇の土とバークチップ（植え込みの上に描く）
@@ -32,7 +33,7 @@ export const SURFACE_KINDS = {
   // 植え込みの低木：地面は濃い緑、上にこんもりした低木の塊を並べる（campus3dMesh.js の addShrubs）
   shrubs: { label: "植え込み（こんもりした低木）", light: "#5f7a40", dark: "#1b2616" },
 };
-export const SURFACE_ORDER = ["lawn", "road", "zebra", "red", "plaza", "brick", "darkbrick", "tile", "blue", "deck", "wood", "walk", "gravel", "stones", "green", "shrubs", "soil", "slab"];
+export const SURFACE_ORDER = ["lawn", "road", "zebra", "red", "plaza", "brick", "darkbrick", "redbrick", "tile", "blue", "deck", "wood", "walk", "gravel", "stones", "green", "shrubs", "soil", "slab"];
 // 白線の種類：幅（m）・色・破線
 export const MARKING_KINDS = {
   solid: { label: "白線", width: 0.15, color: "white" },
@@ -373,7 +374,10 @@ export function crosswalkAcross(features, ll) {
  */
 // dark は true/false か、時刻の見え方（campus3dSky.js の lookFor。tone(昼の色, 夜の色) でいまの色）
 export function paintFeatures(features, dark = false, pc = null) {
-  const tone = (k) => (typeof dark?.tone === "function" ? dark.tone(k.light, k.dark) : dark ? k.dark : k.light);
+  const tone0 = (k) => (typeof dark?.tone === "function" ? dark.tone(k.light, k.dark) : dark ? k.dark : k.light);
+  // 見え方に地面の色（ground：濡れ・雪・芝生の季節。campus3dSky の lookFor）があれば、路面・白線はそれで
+  const GROUND_OF = { lawn: "lawn", green: "lawn", shrubs: "lawn", soil: "ground", gravel: "ground", stones: "ground", paint: "paint" };
+  const tone = (k, kind) => (typeof dark?.ground === "function" && kind ? dark.ground(k, GROUND_OF[kind] || "road") : tone0(k));
   const layers = Object.fromEntries(SURFACE_ORDER.map((k) => [k, []]));
   const paint = [];
   const fine = []; // 寄ったときだけ描く細かいもの（木の床の板の目地）
@@ -381,16 +385,16 @@ export function paintFeatures(features, dark = false, pc = null) {
   const crosswalks = features.filter((f) => f.type === "crosswalk" && f.coords.length >= 2).map((f) => [toXY(f.coords[0]), toXY(f.coords[1]), f.width || 4]);
   const rg = pc && roads.length ? roadGeometry(roads, crosswalks, pc) : null;
   if (rg) {
-    if (rg.carriage.length) layers.road.push(multi(rg.carriage, { color: tone(SURFACE_KINDS.road) }));
-    if (rg.sidewalk.length) layers.walk.push(multi(rg.sidewalk, { color: tone(SURFACE_KINDS.walk), edge: 1, curb: tone(CURB) }));
-    for (const { color, mp } of rg.lines) paint.push(multi(mp, { color: tone(PAINT[color]) }));
+    if (rg.carriage.length) layers.road.push(multi(rg.carriage, { color: tone(SURFACE_KINDS.road, "road") }));
+    if (rg.sidewalk.length) layers.walk.push(multi(rg.sidewalk, { color: tone(SURFACE_KINDS.walk, "walk"), edge: 1, curb: tone(CURB, "road") }));
+    for (const { color, mp } of rg.lines) paint.push(multi(mp, { color: tone(PAINT[color], "paint") }));
   }
   for (const f of features) {
     if (f.type !== "surface") continue;
     const pts = f.coords.map(toXY);
     if (pts.length < 3) continue;
     const k = SURFACE_KINDS[f.kind] || SURFACE_KINDS.road;
-    (layers[f.kind] || layers.road).push(poly(pts, { id: f.id, color: tone(k) }));
+    (layers[f.kind] || layers.road).push(poly(pts, { id: f.id, color: tone(k, f.kind) }));
     if (f.boards) {
       const seam = tone({ light: darkHex(k.light, SEAM_DARK), dark: darkHex(k.dark, SEAM_DARK) });
       for (const q of boardSeams(pts, f.boards[0], f.boards[1])) fine.push(poly(q, { id: f.id, color: seam }));

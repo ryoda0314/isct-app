@@ -62,7 +62,10 @@ export function useCourseMaterials(moodleCourseId) {
           setData(result);
         }
       } catch (err) {
-        console.error('[useCourseMaterials]', err.message, 'courseId=', moodleCourseId);
+        // ログインの期限切れ（/api/auth/token が 401）は想定内：画面で「ログインし直す」と出すので、警告だけ
+        // （console.error だと Next.js の開発画面にエラーとして出る）
+        if (err.code === 'AUTH_REQUIRED') console.warn('[useCourseMaterials] not logged in (401) courseId=', moodleCourseId);
+        else console.error('[useCourseMaterials]', err.message, 'courseId=', moodleCourseId);
         if (!cancelled) {
           const error = err.code === 'MOODLE_HTML_RESPONSE' ? 'LMS_UNAVAILABLE'
             : err.code === 'AUTH_REQUIRED' ? 'AUTH_REQUIRED' : 'NETWORK';

@@ -4,7 +4,7 @@
 // - dem.levelAt：平地だけ入れた地面（坂道・階段の高さの基準）、dem.baseAt：元の地面
 // - MapLibre には campusdem://{z}/{x}/{y} のタイルとして渡す。坂のないタイルは元のまま、ズーム16・17は15から補間して作る
 import { TERRAIN } from "./campusTerrain.js";
-import { isOpenStairs, prepareShellBurns, prepareSlope, prepareTerrace, stairsOpening, toXY, withAutoOpenStairs } from "./campus3dFeatures.js";
+import { isOpenStairs, prepareDig, prepareShellBurns, prepareSlope, prepareTerrace, stairsOpening, toXY, withAutoOpenStairs } from "./campus3dFeatures.js";
 
 export const DEM_PROTOCOL = "campusdem";
 export const BURN_MAXZOOM = 18; // 段差が壁の中に収まるよう、ズーム18（1px ≒ 0.5m）まで作る
@@ -81,6 +81,7 @@ class Dem {
     this.terraces = []; // prepareTerrace の結果
     this.shells = []; // ねじれた面の下とふちの外の地面（prepareShellBurns の結果）
     this.slopes = []; // 坂道・階段（prepareSlope の結果）
+    this.digs = []; // 詳細モードで地下の階の下を掘る（prepareDig の結果）。表示の地面と歩く足もとだけ（groundAt は掘らない）
     this.burnKey = "[]";
     this.version = 0; // 坂が変わるたびに増やす（タイルの URL に入れて作り直させる）
     this.cache = new Map(); // `${version}/${z}/${x}/${y}` → Promise<ArrayBuffer | null>
@@ -152,12 +153,21 @@ class Dem {
     return v;
   }
 
-  // 平地・坂道・階段をぜんぶ入れた地面の標高
+  // 平地・坂道・階段をぜんぶ入れた地面の標高（ものを置く地面。詳細モードで掘った地面は入れない）
   groundAt(ll) {
     let v = this.levelAt(ll, true);
     if (!this.slopes.length || !Number.isFinite(v)) return v;
     const [x, y] = toXY(ll);
     for (const s of this.slopes) v = s.burn(x, y, v);
+    return v;
+  }
+
+  // 表示の地面＝歩く足もとの地面（groundAt に、詳細モードで地下の階の下を掘ったもの）
+  surfaceAt(ll) {
+    let v = this.groundAt(ll);
+    if (!this.digs.length || !Number.isFinite(v)) return v;
+    const [x, y] = toXY(ll);
+    for (const d of this.digs) v = d.burn(x, y, v);
     return v;
   }
 
@@ -174,6 +184,9 @@ class Dem {
     this.shells = [];
     this.shells = features.flatMap((f) => prepareShellBurns(f, (ll) => this.levelAt(ll)));
     this.slopes = features.filter((f) => f.type === "slope" || f.type === "stairs").map((f) => prepareSlope(f, (ll) => this.levelAt(ll))).filter(Boolean);
+    // 掘る高さの基準は掘る前の地面（先に空にする）
+    this.digs = [];
+    this.digs = features.filter((f) => f.type === "dig").map((f) => prepareDig(f, (ll) => this.groundAt(ll))).filter(Boolean);
     this.version++;
     this.cache.clear();
     return true;
@@ -195,7 +208,7 @@ class Dem {
     // このタイルにかかるものだけ見る（平地 → 坂道・階段の順）
     const [x0m, y1m] = toXY([xToLng(x, z), yToLat(y, z)]);
     const [x1m, y0m] = toXY([xToLng(x + 1, z), yToLat(y + 1, z)]);
-    const slopes = [...this.terraces, ...this.shells, ...this.slopes].filter((s) => !(s.box[2] < x0m || s.box[0] > x1m || s.box[3] < y0m || s.box[1] > y1m));
+    const slopes = [...this.terraces, ...this.shells, ...this.slopes, ...this.digs].filter((s) => !(s.box[2] < x0m || s.box[0] > x1m || s.box[3] < y0m || s.box[1] > y1m));
     let vals;
     if (z <= BZ) {
       const r = await fetch(staticUrl(z, x, y));

@@ -25,7 +25,7 @@ const CourseMatCard=({course,mob,setCid,setView,setCh,setPendingMat})=>{
           <div style={{fontSize:12,fontWeight:600,color:T.txH,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{course.name}</div>
         </div>
         {loading?<span style={{fontSize:10,color:T.txD}}>{t("common.loading")}</span>
-        :error?<span style={{fontSize:10,color:"#ef4444"}}>{t("todaymat.fetch_failed")}</span>
+        :error?<span style={{fontSize:10,color:"#ef4444"}}>{t(error==="AUTH_REQUIRED"?"todaymat.auth_required":"todaymat.fetch_failed")}</span>
         :<span style={{fontSize:10,color:T.txD,flexShrink:0}}>{t("todaymat.count",{n:totalFiles})}</span>}
         {totalFiles>0&&<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,transform:open?"rotate(90deg)":"none",transition:"transform .15s"}}><polyline points="9 18 15 12 9 6"/></svg>}
       </div>

@@ -5,8 +5,10 @@
 //             faces（辺ごとの壁の面の見た目。辺 i は点 i → 点 i+1、最後は最後の点 → 最初の点。null はふつうの壁）：
 //             { glass（低いほうの地面からこの高さまでガラス。m）, base（ガラスの下の端。同じく m、なければ 0）, frost（すりガラス）,
 //             pitch（縦の桟の間隔 m）, rows（横の桟の高さ。低いほうの地面から m）, doors（扉：[[始まり, 終わり], ...]。辺の上の位置 0〜1）,
+//             auto（true なら扉は自動ドア＝近づくと開くガラスの引き戸。campus3dDoors.js）,
 //             brick（ガラスの上＝ガラスがなければ面ぜんぶをれんが積みに）, deck（ウッドデッキの縁：上の DECK_FASCIA m は木の板、
-//             その下は奥の暗いすき間と、DECK_POST m おきの灰色の束（つか）） }。段差の低いほうに向く面に描く（掘り下げなら中、盛りなら外）,
+//             その下は奥の暗いすき間と、DECK_POST m おきの灰色の束（つか））, wall（true なら天井のある平地のこの辺は壁＝口にしない。
+//             外の地面で決められない短い辺。地下 1 階の玄関の通路の西の壁） }。段差の低いほうに向く面に描く（掘り下げなら中、盛りなら外）,
 //             beams（くぼみの上を渡る梁。8本まで）：[{ coords（両端の2点）, width, depth（梁の下までの深さ）, top（上の高さ。平らにした
 //             地面から m。なければ両端の外の地面） }],
 //             wallTop（壁の上の面の色：なしは自動＝壁の外の高い側の路面の色、"wall" は壁の色、ほかは路面の種類 SURFACE_KIND_KEYS）,
@@ -41,7 +43,7 @@
 //   bridge  : width, z（各点の床の高さ。真下の地面から、null は自動）, thickness, railing, piers, surface（walk / street / rail / deck 木の床）
 //   tree    : 木。coords は幹の 1 点。height, crown（枝の広がりの直径 m）, kind（broad 枝の広がる木 / round 丸い木 / ginkgo イチョウ /
 //             conifer 針葉樹 / cherry サクラ＝低いところで太い枝に分かれ、横に広い平たい傘の形 /
-//             cedar ヒマラヤスギ＝高い幹から横に張り出す枝の層）
+//             cedar ヒマラヤスギ＝高い幹から横に張り出す枝の層 / palm シュロ＝細くまっすぐな幹の先から、柄の長い扇の葉が四方へ放射して垂れる）
 //   passage : width, height（天井の高さ）。建物の外から外へ引いた中心線に沿って、建物に穴をあける
 //   building : 建物の形を変える（地図の建物を置きかえる・新しく足す）。coords は建物の形（囲む範囲）、height（屋上の高さ。地面から m）、
 //             cuts（屋根を斜めに切る面。6つまで）：[{ slope: [[lng, lat], [lng, lat]], low }]。面ごとに点1で low m・点2で height m、
@@ -52,11 +54,13 @@
 //             carves（くり抜き＝ベランダ・テラス。8つまで）：[{ coords（囲む範囲。建物と重なるところだけ）, bottom（床の高さ。地面から m）,
 //             top（天井の高さ。null なら上まで抜く＝屋上テラス）, rail（床のふちの手すり壁 1.1m）,
 //             floors・ceils（点ごとの床・天井の高さ。null の点は bottom・top。点のあいだは連続した斜めの面＝上辺と下辺が平行でなくてよい）,
-//             lit（true なら照明のある屋内：天井と奥の壁を外の光の陰にせず明るく。駅のコンコースなど） }]
+//             lit（true なら照明のある屋内：天井と奥の壁を外の光の陰にせず明るく。駅のコンコースなど）,
+//             glow（lit と一緒に true なら店の明かり：天井・奥の壁・床を光を受けない明るい色で＝夜もガラスの奥が明るく光る。コンビニなど） }]
 //             glass（地面からこの高さまでガラス張り）, glassSides（辺ごとにガラスにするか。辺 i は点 i → 点 i+1。なければ全部）,
+//             glassTops（辺ごとのガラスの上の端：数＝水平、[始点, 終点]＝辺に沿って斜め、null は glass。地面から m）,
 //             glassPitch（縦の桟の間隔 m。辺ごとに等間隔。なければ 1.5）, glassFrame（"light" 細い明るい枠）, glassFrit（白い点の模様のガラス）,
 //             glassRows（床の高さの横の桟。地面から m、地下の階はマイナス）, glassBase（ガラスはこの高さから。下はふつうの壁＝1 階に店先や
-//             入口があるビル）, indoor（true なら屋内に置いた小さなもの＝改札機・券売機など：外の光の陰にせず、明るく描く）,
+//             入口があるビル）, indoor（true なら屋内に置いた小さなもの＝改札機・券売機など：外の光の陰にせず、明るく描く。glow も true なら店の明かりの中の物＝昼の色のまま夜も明るい）,
 //             roof（"green" 屋上の緑 / "deck" 木の床 / "red" 赤い金属の板）, eave（軒の出 m）, eaveSides（辺ごとに軒を出すか。なければ全部）,
 //             boards（屋根の板。800 枚まで）：[{ coords（板の形）, top（板の上の高さ。地面から m）, kind（"green" は植え込み）,
 //             tops（傾いた板：点ごとの上面の高さ。上面はその点を通る平面） }]。
@@ -65,9 +69,12 @@
 //             groundRef（[lng, lat]。高さを測る地面の点。なければ形の点の平均の位置）：つながった建物（建物とスロープ・テラスなど）で
 //             同じ点にすると、まわりの地面の高さがちがっても高さがそろう
 //             windows（壁の窓・扉。200 まで）：[{ coords（壁ぞいの両端の2点。いちばん近い壁＝建物のふちか、くり抜きの奥の壁に描く）,
-//             bottom・top（地面から m）, kind（glass ガラス / dark 奥の暗いガラス / grille 格子 / door 扉 / glassdoor ガラスの扉 / frost すりガラス）,
+//             bottom・top（地面から m）, kind（glass ガラス / dark 奥の暗いガラス / grille 格子 / door 扉 / glassdoor ガラスの扉 / frost すりガラス /
+//             autodoor 自動ドア＝壁とガラスの帯に口をあけ、近づくと開くガラスの引き戸。campus3dDoors.js /
+//             opening 口だけ＝中の見える殻の壁に穴をあけ、ガラスも枠も描かない（中の階の壁がガラスを持つところ。2 階のテラスの東のガラス）),
 //             panes（縦に分ける数）, rows（横の桟の高さ。地面から m）, louver（扉の上のがらり。m） }]
-//             （top2 があれば窓の上の端は斜め：1 点目で top・2 点目で top2。frame "light" は明るい枠）
+//             （top2 があれば窓の上の端は斜め：1 点目で top・2 点目で top2。frame "light" は明るい枠。round が true なら丸窓＝両端の2点と
+//             bottom・top の四角に内接する円のガラスと輪の枠（地球生命研究所棟の講義室の壁）。top2 とは一緒に使わない）
 //             canopies（小さなひさし。20 まで）：[{ coords（壁ぞいの両端の2点）, z（上の高さ。地面から m）, depth（出）, thickness }]
 //             vaults（上が平らで下が半円の筒＝屋根の高さに横たわるステンレスの胴。4 つまで）：[{ coords（筒の軸の折れ線。2〜6 点。
 //             折れ目は留め継ぎ）, width（幅＝半円の直径 m）, top（上の平らな面の高さ。地面から m）, glass（両端の面の窓。端ごとに
@@ -78,7 +85,8 @@
 //             material（壁と屋根の材質：rust さびた鉄 / perforated 穴あきの金属板 / steel ステンレス / darkbrick こげ茶のれんが /
 //             stone 白っぽい石 / green 壁面緑化＝植物で覆った壁（大岡山駅） / red 赤く塗った板（屋上の看板の塔など） /
 //             concrete 打ち放しのコンクリート（灰色） / glazed 白い施釉れんが（附属図書館の東の箱） /
-//             granite 灰色の御影石（本館の車寄せ） / tile クリーム色がかった白いタイル（本館）。なしは地図の建物の色）,
+//             granite 灰色の御影石（本館の車寄せ） / tile クリーム色がかった白いタイル（本館） / brick 赤れんが（南4号館の 1 階） /
+//             terracotta 赤茶の塗り壁（地球生命研究所棟の南の小屋）。なしは地図の建物の色）,
 //             joints（外の壁のパネルの目地：[横の間隔, 縦の間隔, 横の目地の基準の高さ]。縦の目地は辺ごとに等間隔、窓の奥に隠れる）
 //             frame（true なら壁でなく鉄骨の外階段：角と辺の柱、levels（踊り場の高さ。地面から m）ごとの床と手すり、そのあいだの段の板）
 //             roof "glass"（ガラスの屋根。縦の桟は斜面の向きに glassPitch m ごと） / "solar"（太陽光パネル。ふちに白い笠木）
@@ -97,12 +105,14 @@
 //             地面は面の下を下げ、内のふちの奥（花壇）は内のふちで面のすぐ下、ふちの外はふちの高さへ寄せる（prepareShellBurns）
 //             panels（空中の平らな板：ひさし・穴あきの衝立・ガラスの箱の面・V 字の柱など。40 まで）：[{ coords（点の位置。40 点まで）,
 //             zs（点ごとの高さ。地面から m）, kind（PANEL_KINDS：perforated 穴あきの金属板 / glass ガラス / steel ステンレス / dark 暗い鋼 /
-//             wall 建物の色 / white 白い鋼 / red 赤い板＝店の日よけなど / brick 赤れんが / granite 暗い御影石＝建物の腰の石）, thickness（m） }]。点は同じ平面の上（凸でない形も可。点の順に囲む）。
+//             wall 建物の色 / white 白い鋼 / red 赤い板＝店の日よけなど / brick 赤れんが / granite 暗い御影石＝建物の腰の石 /
+//             clear 透明なガラス＝ほかを描いたあとに半透明で重ねる：奥の明るい店の中が透けて見える店先・折れ戸）, thickness（m） }]。点は同じ平面の上（凸でない形も可。点の順に囲む）。
 //             立った板は、歩いて見るときにぶつかる（panelSlices）
 //             domes（屋根の丸い天窓。20 まで）：[{ coords（中心の 1 点）, r（半径 m）, z（台の上の高さ。地面から m。なければ屋根の高さ） }]
 //             letters（壁の文字＝ステンレスの切り文字。12 行まで）：[{ coords（壁の面の上の 2 点＝行の左端と右端。文字はこの 2 点を結ぶ線に
 //             並び、幅に合わせて字のあいだが決まる。外向きはいちばん近い壁の向き）, z（文字の下の端。地面から m）, size（大文字の高さ m）, text（A〜Z・0〜9・& - . と空白）,
-//             line（true なら文字の下の端に行の幅の横線）, color（"red" なら赤い文字＝店の看板の切り文字。なしはステンレス） }]
+//             line（true なら文字の下の端に行の幅の横線）, color（"red" なら赤い文字＝店の看板の切り文字。なしはステンレス）,
+//             front（true なら外向きを壁から決めず、2 点が左端・右端に読める側へ向ける。建物の中の看板など） }]
 //             trellis（壁の前の鋼の格子のスクリーン。12 まで）：[{ coords（壁ぞいの両端の 2 点）, bottom・top（地面から m）, depth（壁から外へ m）,
 //             pitch（縦の柱の間隔 m）, rows（横の材の高さ。地面から m）, planters（つる草のプランターを掛ける高さ。地面から m）,
 //             vines（つるが上の段までのぼる割合 0〜1。なしは 0.6） }]
@@ -117,7 +127,7 @@
 //             gravel 黒い砂利 / stones 白い砂利 / brick 灰色のれんが / darkbrick こげ茶のれんが / wood 古い木の床 /
 //             lawn 芝生＝地図の公園と同じ色でいちばん下に描く（下の地図の通路の帯を隠し、その通路には街灯を立てない） /
 //             slab 敷石（飛び石）＝いちばん上に描く / soil 木の根もとの土 / blue 青いタイル（百年記念館のひさしの下） /
-//             shrubs こんもりした低木の植え込み＝範囲に低木の塊を並べて立体に描く（campus3dMesh.js の addShrubs））,
+//             shrubs こんもりした低木の植え込み＝範囲に低木の塊を並べて立体に描く（campus3dMesh.js の addShrubs） / redbrick 赤茶のれんが（南4号館のまわり・通り抜け））,
 //             angle（導流帯の縞の向き、度）, boards（板の目地：[板の幅 m, 板の向き＝北から右回りの度]。目地は寄って見たときだけ描く）。
 //             地面に貼って描く（campus3dPaint.js）
 //   marking : 白線。coords は折れ線。kind（solid 白線 / dashed 白の破線 / stop 停止線 / yellow 黄線 / wide 太い白線 / tactile 点字ブロック（黄 30cm））
@@ -128,11 +138,32 @@
 //   sign    : 看板（立て看板・柵に付けた銘板）。coords は板の下の端のまん中の真下の地面の 1 点。bearing（面が向く方位）, width・height（板の幅・高さ m）,
 //             thickness（板の厚さ m）, z（板の下の端の高さ。地面から m）, tilt（後ろへ倒す角度。度）, style（steel ステンレスの箱に暗い文字 /
 //             white 白い板に薄い灰色の文字 / notice 白い板の上に緑の帯（帯の中の行は白、ほかは暗い文字） / dark 黒い板に白い文字（店の看板） / red 赤い板に白い文字 /
-//             cream クリーム色の板に赤い字（中華料理店の看板））,
+//             cream クリーム色の板に赤い字（中華料理店の看板） / green 緑の板に白い字（のぼり） / seven 白い板にオレンジ・緑・赤の 3 本の帯
+//             （セブン-イレブンの店先の看板） / sevenstand セブン-イレブンの立て看板＝白い板の上に印、下に緑と赤の帯（帯の中の行は白い字）、上のふちにオレンジの灯 /
+//             hazard 黄色と黒の斜めの縞（地下通路の口の高さ制限の棒など。字は黒））,
 //             legs（脚の数。0 は柵などに付けた板）,
-//             lines（文字の行：[{ text（A〜Z・0〜9・& - . ' 空白・矢印 < > と、漢字 東京科学大岡山駅中央改札急病院南北口前交番四川屋台華菜房指圧鍼灸・ひらがな あんの）, x・y（行の左下。板の左下の角から m）, size（字の高さ m） }]。8 行まで）,
+//             lines（文字の行：[{ text（A〜Z・0〜9・& - . ' 空白・矢印 < > と、漢字 東京科学大岡山駅中央改札急病院南北口前交番四川屋台華菜房指圧鍼灸酒銀行最短分・ひらがな あんの）, x・y（行の左下。板の左下の角から m）, size（字の高さ m） }]。8 行まで）,
 //             rules（細い線：[[x0, y0, x1, y1]]。区切りの縦線など）, logo（印：[左下の x, y, 高さ] は校章＝Science Tokyo のシンボルマーク（幅は高さの 0.72 倍）。[x, y, 高さ, 種類] の種類は
-//             mcd マクドナルドの M（幅は高さの 1.18 倍）/ tokyu 東急の赤い丸 / tokyustore 東急ストアの赤い四角。なしは null）
+//             mcd マクドナルドの M（幅は高さの 1.18 倍）/ tokyu 東急の赤い丸 / tokyustore 東急ストアの赤い四角 / seven セブン-イレブンの 7 と ELEVEn（白い四角）。なしは null）
+//   floor   : 詳細モード（建物の中）の 1 つの階。ふだんは描かず、詳細モードで host（建物の id）の代わりに描く（campus3dInterior.js）。
+//             coords は床の形、level（階の名前 "B2" "1F" など）, order（階の順。地下 2 階 −2・1 階 0・2 階 1…）, z（床の上の面の高さ。
+//             groundRef の地面＝掘る前の地面から m。地下はマイナス）, height（次の階の床まで m。壁はここまで）, slab（床の厚さ）,
+//             finish（床の仕上げ FLOOR_FINISHES）, holes（床の穴＝吹き抜け・階段の口：[{ coords }]）,
+//             rooms（部屋：[{ coords, finish（床の色）, name（部屋の名前。詳細モードで床の上に出す）, at（名前を出す点） }]）,
+//             walls（壁・ガラス・手すり：[{ coords（折れ線）, kind（FLOOR_WALL_KINDS：wall 白い壁 / ext 外の壁（厚い） / glass ガラス /
+//             curtain 外のガラスの壁（太い枠） / mesh 白い格子の手すり / rail 手すり / low 腰の高さの壁）, t（厚さ）, h（高さ。床から）,
+//             z0（下の端。床から）, h2・z02（斜めの壁：折れ線の終わりの点での高さ・下の端。あいだは線形）, auto（true なら扉は自動ドア）,
+//             doors（扉・口：[[始まり, 終わり], ...]。折れ線の始めからの m）,
+//             wins（壁の窓：[[始まり, 終わり, 下, 上], ...]。始まり・終わりは折れ線の始めからの m、下・上は床から m） }]）,
+//             items（家具など：[{ coords（形）, z0・z1（床からの下と上 m）, kind（FLOOR_ITEM_KINDS。tube 横向きの筒＝白い筒の先に暗い穴 / disc 壁に掛けた丸い絵：
+//             どちらも形の 1 点目 → 2 点目の向きが筒の軸、直径は z1 − z0） }]）, under（床の下の面＝下の階の天井の色。FLOOR_FINISHES。なしは白）,
+//             stairs（階段：[{ coords（下の端のまん中 → 上の端のまん中）, width, rise（上がる高さ m）, z0（下の端の高さ。床から）,
+//             kind（wood 木 / white 白 / stone 石）, rails（[左, 右]：mesh 白い格子 / rail 手すり / glass ガラス / null）,
+//             skew（上るにつれて段の帯が左へずれる量 m/m：平行四辺形の階段＝段の線は上る向きに直角のまま、両わきが斜め。小数 4 桁）,
+//             steps（蹴上げの数。なければ rise ÷ 0.17 の四捨五入）, flush（true なら上の端は蹴上げで終わり、その先は上の階の床：
+//             踏面は steps − 1 枚。外の階段の流れ（両端が蹴上げ）と同じ段の割り。なしは一番上の踏面が上の階の高さで、帯の中に描く） }]。
+//             上の階の床には階段の口の穴を）, lids（地面の高さの床：地下の階の上のうち建物の外＝広場・通路の下を覆う。[{ coords }]）,
+//             hides（詳細モードで描かないほかの構造物の id）。z が 0 より下の階（地下）の下の地面は、詳細モードのあいだ掘る（dig）
 // z が null の点は、両端なら地面の高さ、途中なら前後の決まった点のあいだを距離で直線に結ぶ。
 // 地面は「元の地面 → 平地 → 坂道・階段」の順に重ねて作る（坂道・階段の高さは平地を入れたあとの地面から）
 // DOM も MapLibre も使わない（3D表示・エディタ・テストから共通で使う）
@@ -141,24 +172,33 @@ import { CAMPUS_CENTER } from "./hooks/useLocationSharing.js";
 export const FEATURES_URL = "/map-3d/features.json";
 export const CANDIDATES_URL = "/map-3d/osm-candidates.json";
 export const FEATURE_TYPES = ["terrace", "slope", "stairs", "wall", "bridge", "passage", "building", "road", "crosswalk", "marking", "surface", "tree", "signal", "sign"];
-export const TYPE_LABEL = { terrace: "平地", slope: "坂道", stairs: "階段", wall: "壁", bridge: "橋", passage: "通り抜け", building: "建物", road: "道路", surface: "路面", marking: "白線", crosswalk: "横断歩道", tree: "木", signal: "信号機", sign: "看板" };
+// 詳細モード（建物の中）だけで描く種類。エディタの「描く道具」には出さない（FEATURE_TYPES に入れない）が、読み込み・保存では残す
+export const DETAIL_TYPES = ["floor"];
+export const FLOOR_FINISHES = ["oak", "concrete", "tile", "carpet", "stone", "white", "plaza", "gravel", "dark"];
+export const FLOOR_WALL_KINDS = ["wall", "ext", "glass", "curtain", "mesh", "rail", "low"];
+// tentsofa（2026-11-10、ユーザー「ソファー違いすぎ」）：両側に座れる低いソファー。4 点の四角の 1 本目の辺が長さ（背のてっぺんの線）、
+// 両側に座面、まん中に 2 枚の背もたれがもたれ合ったテントの形（z1 がてっぺん）、細い金属の脚（Taki の 1 階のラウンジ・写真 S__47226944）
+export const FLOOR_ITEM_KINDS = ["box", "wood", "white", "dark", "grey", "sofa", "seat", "green", "screen", "glow", "counter", "layered", "platform", "table", "shelf", "kitchen", "vending", "piano", "red", "orange", "art", "core", "lift", "toilet", "tube", "disc", "slats", "walnut", "chalk", "lamp", "bentwood", "mat", "tatami", "steel", "liftdoor", "tentsofa"];
+export const FLOOR_STAIR_KINDS = ["wood", "white", "stone"];
+export const FLOOR_RAIL_KINDS = ["mesh", "rail", "glass"];
+export const TYPE_LABEL = { terrace: "平地", slope: "坂道", stairs: "階段", wall: "壁", bridge: "橋", passage: "通り抜け", building: "建物", road: "道路", surface: "路面", marking: "白線", crosswalk: "横断歩道", tree: "木", signal: "信号機", sign: "看板", floor: "階（建物の中）" };
 // 路面と白線の種類（色・幅は campus3dPaint.js）
-export const SURFACE_KIND_KEYS = ["road", "walk", "plaza", "tile", "deck", "red", "green", "zebra", "gravel", "stones", "brick", "darkbrick", "wood", "lawn", "slab", "soil", "blue", "shrubs"];
+export const SURFACE_KIND_KEYS = ["road", "walk", "plaza", "tile", "deck", "red", "green", "zebra", "gravel", "stones", "brick", "darkbrick", "redbrick", "wood", "lawn", "slab", "soil", "blue", "shrubs"];
 export const MARKING_KIND_KEYS = ["solid", "dashed", "stop", "yellow", "wide", "tactile"];
 // 壁の種類（なしは壁）：生け垣・縦の格子の柵・ガードパイプ
 export const WALL_KIND_KEYS = ["hedge", "fence", "rail", "glass", "slant", "xbrace", "bench", "chain", "mesh"];
 export const CENTER_KIND_KEYS = ["dashed", "solid", "yellow", "none"];
 // 木の形（campus3dMesh.js の addTree）：枝の広がる木（ケヤキなど）・丸い木（クスノキ・サクラなど）・イチョウ・針葉樹
-export const TREE_KIND_KEYS = ["broad", "round", "ginkgo", "conifer", "cherry", "cedar"];
+export const TREE_KIND_KEYS = ["broad", "round", "ginkgo", "conifer", "cherry", "cedar", "palm"];
 // 階段の段の材質・坂の両わきの壁の材質（campus3dMesh.js の色）。なしはコンクリート
 export const STAIRS_MATERIALS = ["wood", "stone", "brick"];
 export const STAIRS_MATERIAL_LABEL = { "": "コンクリート", wood: "木", stone: "石", brick: "れんが" };
 // 建物の窓・扉の種類（campus3dMesh.js の addWindows）：ガラス・奥の暗いガラス・格子・扉・ガラスの扉
-export const WINDOW_KINDS = ["glass", "dark", "grille", "door", "glassdoor", "frost"];
+export const WINDOW_KINDS = ["glass", "dark", "grille", "door", "glassdoor", "frost", "autodoor", "opening"];
 // 建物の壁と屋根の材質（campus3dMesh.js の色）：さびた鉄・穴あきの金属板・ステンレス。なしは地図の建物の色
-export const BUILDING_MATERIALS = ["rust", "perforated", "steel", "darkbrick", "stone", "green", "red", "concrete", "glazed", "granite", "tile"];
+export const BUILDING_MATERIALS = ["rust", "perforated", "steel", "darkbrick", "stone", "green", "red", "concrete", "glazed", "granite", "tile", "brick", "terracotta"];
 // 空中の板（panels）の見た目：穴あきの金属板・ガラス・ステンレス・暗い鋼・建物の色
-export const PANEL_KINDS = ["perforated", "glass", "steel", "dark", "wall", "white", "red", "brick", "granite"];
+export const PANEL_KINDS = ["perforated", "glass", "steel", "dark", "wall", "white", "red", "brick", "granite", "clear"];
 export const CURB_W = 0.32; // ガラスの手すり（wall の glass）の下の石の縁石の幅 m
 // 縁石の幅：斜めの格子は足もとの幅より 0.15m 広く（少なくとも CURB_W）
 export const curbWidth = (f) => (f.kind === "slant" ? Math.max(CURB_W, f.thickness + 0.15) : CURB_W);
@@ -169,9 +209,9 @@ export const DECK_POST = 1.2; // ウッドデッキの縁の下の束の間隔 m
 export const isPaint = (type) => type === "road" || type === "surface" || type === "marking" || type === "crosswalk";
 export const SURFACE_LABEL = { walk: "歩道", street: "車道", rail: "線路", deck: "木の床" };
 // 地面の形を変える（標高タイルに焼き込む）種類（ねじれた面のある建物も、面の下とふちの外の地面を変える）
-export const burnsGround = (f) => f.type === "terrace" || f.type === "slope" || f.type === "stairs" || (f.type === "building" && Array.isArray(f.shells) && f.shells.length > 0);
+export const burnsGround = (f) => f.type === "terrace" || f.type === "slope" || f.type === "stairs" || f.type === "dig" || (f.type === "building" && Array.isArray(f.shells) && f.shells.length > 0);
 // 帯（中心線と幅）でなく、囲む範囲（多角形）の種類
-export const isArea = (type) => type === "terrace" || type === "surface" || type === "building";
+export const isArea = (type) => type === "terrace" || type === "surface" || type === "building" || type === "floor";
 // 点1つで置く種類
 export const isPoint = (type) => type === "tree" || type === "signal" || type === "sign";
 // 形に要る点の数
@@ -193,11 +233,12 @@ export const DEFAULTS = {
   tree: { height: 10, crown: 8, kind: "broad" },
   signal: { height: 5.5, arm: 3.5, bearing: 90, face: 180, peds: [] },
   sign: { bearing: 0, width: 2, height: 0.5, thickness: 0.15, z: 0.5, tilt: 0, style: "steel", legs: 2, lines: [], rules: [], logo: null },
+  floor: { level: "1F", order: 0, z: 0, height: 3.5, slab: 0.3, finish: "oak" },
 };
-export const SIGN_STYLES = ["steel", "white", "notice", "dark", "red", "cream"];
+export const SIGN_STYLES = ["steel", "white", "notice", "dark", "red", "cream", "green", "seven", "sevenstand", "hazard"];
 // 看板の文字に使える字（campus3dMesh.js の GLYPHS にある字）
-export const SIGN_CHARS = /[A-Z0-9&.'\- <>東京科学大岡山駅中央改札急病院南北口前交番四川屋台華菜房あんの指圧鍼灸]/;
-export const LOGO_KINDS = ["isct", "mcd", "tokyu", "tokyustore"];
+export const SIGN_CHARS = /[A-Z0-9&.'\- <>東京科学大岡山駅中央改札急病院南北口前交番四川屋台華菜房あんの指圧鍼灸酒銀行最短分]/;
+export const LOGO_KINDS = ["isct", "mcd", "tokyu", "tokyustore", "seven"];
 // 入力できる範囲（m）
 export const RANGE = {
   height: [0.1, 40], thickness: [0.05, 5], width: [0.5, 60], side: [0, 30], riser: [0.08, 0.4], z: [-30, 60], elev: [-50, 200], base: [0.5, 80], shift: [-30, 30],
@@ -235,9 +276,11 @@ function normalizeFace(fc) {
       .map((d) => [Math.min(+d[0], +d[1]), Math.max(+d[0], +d[1])].map((v) => Math.round(clampTo(v, [0, 1], 0) * 1000) / 1000))
       .filter((d) => d[1] > d[0]);
     if (doors.length) out.doors = doors.slice(0, 8);
+    if (doors.length && fc.auto === true) out.auto = true; // 扉は自動ドア（campus3dDoors.js：近づくと開くガラスの引き戸）
   }
   if (fc.brick) out.brick = true;
   if (fc.deck) out.deck = true;
+  if (fc.wall === true) out.wall = true;
   return Object.keys(out).length ? out : null;
 }
 
@@ -267,7 +310,7 @@ export function facesDelete(faces, v, lens) {
 
 // 1つの構造物を整える（足りない値は既定値、範囲外は範囲内に）。使えないものは null
 export function normalizeFeature(f) {
-  if (!f || !FEATURE_TYPES.includes(f.type) || !Array.isArray(f.coords)) return null;
+  if (!f || !(FEATURE_TYPES.includes(f.type) || DETAIL_TYPES.includes(f.type)) || !Array.isArray(f.coords)) return null;
   const coords = f.coords
     .filter((c) => Array.isArray(c) && Number.isFinite(+c[0]) && Number.isFinite(+c[1]))
     .map((c) => [round7(+c[0]), round7(+c[1])]);
@@ -371,6 +414,7 @@ export function normalizeFeature(f) {
       const perPoint = (arr) => (Array.isArray(arr) && arr.some(ok) ? cs.map((_, i) => (ok(arr[i]) ? round2(clampTo(arr[i], [0, RANGE.bheight[1]], 0)) : null)) : null);
       const out2 = { coords: cs, bottom, top, rail: cv.rail !== false };
       if (cv.lit === true) out2.lit = true;
+      if (cv.lit === true && cv.glow === true) out2.glow = true; // 店の明かり：夜も明るい（天井・奥の壁・床が光を受けない明るい色）
       const floors = perPoint(cv.floors);
       const ceils = top == null ? null : perPoint(cv.ceils);
       if (floors) out2.floors = floors;
@@ -382,11 +426,26 @@ export function normalizeFeature(f) {
     if (Number.isFinite(+f.glass) && +f.glass > 0) out.glass = round2(clampTo(f.glass, [0.5, out.height], 3));
     // ガラスにする辺（辺 i は点 i → 点 i+1、最後は最後の点 → 最初の点）。ないか全部なら、どの辺もガラス
     if (out.glass && Array.isArray(f.glassSides) && coords.some((_, i) => f.glassSides[i] === false)) out.glassSides = coords.map((_, i) => f.glassSides[i] !== false);
+    // 辺ごとのガラスの上の端（地面から m。数＝水平、[始点, 終点]＝辺に沿ってまっすぐ斜め、null はほかの辺と同じ glass）
+    if (out.glass && Array.isArray(f.glassTops) && f.glassTops.some((v) => v != null && v !== "")) {
+      const one = (v) => (v != null && v !== "" && Number.isFinite(+v) ? round2(clampTo(v, [-30, out.glass], out.glass)) : null);
+      const tops = coords.map((_, i) => {
+        const v = f.glassTops[i];
+        if (Array.isArray(v) && v.length === 2) {
+          const a = one(v[0]);
+          const b = one(v[1]);
+          return a == null || b == null ? null : a === b ? a : [a, b];
+        }
+        return one(v);
+      });
+      if (tops.some((v) => v != null)) out.glassTops = tops;
+    }
     // ガラスの縦の桟の間隔（辺ごとに等間隔）・枠の色（light 細い明るい枠）・床の高さの横の桟（地面から m。地下の階はマイナス）
     if (out.glass && Number.isFinite(+f.glassPitch) && +f.glassPitch > 0) out.glassPitch = round2(clampTo(f.glassPitch, [0.5, 6], 1.5));
     if (out.glass && f.glassFrame === "light") out.glassFrame = "light";
     if (out.glass && Number.isFinite(+f.glassBase) && +f.glassBase > 0) out.glassBase = round2(clampTo(f.glassBase, [0, out.glass], 0));
     if (f.indoor === true) out.indoor = true;
+    if (f.indoor === true && f.glow === true) out.glow = true; // 明かりのある店の中の物：昼の色のまま光を受けない（夜も明るい）
     if (out.glass && f.glassFrit) out.glassFrit = true; // ガラスに白いセラミックの点の模様（明るく見える）
     const gRows = out.glass && Array.isArray(f.glassRows) ? f.glassRows.filter((v) => v != null && v !== "" && Number.isFinite(+v) && +v < out.glass).map((v) => round2(Math.max(-30, +v))) : [];
     if (gRows.length) out.glassRows = [...new Set(gRows)].sort((x, y) => x - y).slice(0, 6);
@@ -425,6 +484,18 @@ export function normalizeFeature(f) {
       return ob;
     }).filter(Boolean).slice(0, 800);
     if (boards.length) out.boards = boards;
+    // 屋根の下の骨組み（天井の梁。2026-11-10、ユーザー「なんでこんなに天井がゆがんでるの？規則的にしたんじゃないの？」）：建物の向きの座標
+    // （origin＝[lng, lat] の点が a = b = 0、+a の向きは東から反時計回りに angle 度、+b はそれに直角に左）で、大梁は a = girders の
+    // 直線（b の向き）、小梁は b = c + d·a の直線（ribs [[c, d], ...]。d が 0 なら a の向きに平行、ちがえば扇）。天井は格子の点の RC の面の
+    // 高さを結んだ面になり、梁は点と点のあいだでまっすぐ（設計事務所のアイソメ図の骨組み：大梁 500×1000・小梁 220×700）
+    if (out.boards && f.roofFrame && typeof f.roofFrame === "object") {
+      const rf = f.roofFrame;
+      const r4 = (v) => Math.round(+v * 1e4) / 1e4;
+      const o = Array.isArray(rf.origin) && rf.origin.length === 2 && rf.origin.every((v) => Number.isFinite(+v)) ? [round7(+rf.origin[0]), round7(+rf.origin[1])] : null;
+      const girders = [...new Set((Array.isArray(rf.girders) ? rf.girders : []).filter((v) => v != null && v !== "" && Number.isFinite(+v)).map((v) => round2(+v)))].sort((x, y) => x - y).slice(0, 40);
+      const ribs = (Array.isArray(rf.ribs) ? rf.ribs : []).filter((r) => Array.isArray(r) && r.length === 2 && r.every((v) => v != null && v !== "" && Number.isFinite(+v))).map((r) => [r4(r[0]), r4(r[1])]).slice(0, 160);
+      if (o && Number.isFinite(+rf.angle) && girders.length && ribs.length >= 2) out.roofFrame = { origin: o, angle: r4(rf.angle), girders, ribs };
+    }
     const twoPts = (c) => {
       const cs = Array.isArray(c) ? c.filter((q) => Array.isArray(q) && Number.isFinite(+q[0]) && Number.isFinite(+q[1])).map((q) => [round7(+q[0]), round7(+q[1])]) : [];
       return cs.length === 2 && (cs[0][0] !== cs[1][0] || cs[0][1] !== cs[1][1]) ? cs : null;
@@ -441,6 +512,7 @@ export function normalizeFeature(f) {
       if (Number.isFinite(+w.louver) && +w.louver > 0) ow.louver = round2(clampTo(w.louver, [0.1, top - bottom], 0.4));
       if (w.top2 != null && w.top2 !== "" && Number.isFinite(+w.top2) && round2(+w.top2) !== top) ow.top2 = round2(clampTo(w.top2, [bottom + 0.1, out.height + 5], top));
       if (w.frame === "light") ow.frame = "light"; // 明るい枠（白いアルミ）
+      if (w.round === true && ow.top2 == null) ow.round = true; // 丸窓（四角に内接する円）
       return ow;
     }).filter(Boolean).slice(0, 200);
     if (windows.length) out.windows = windows;
@@ -490,6 +562,7 @@ export function normalizeFeature(f) {
       const ol = { coords: cs, z: round2(clampTo(l.z, [-10, out.height + 5], 1)), size: round2(clampTo(l.size, [0.05, 5], 0.5)), text };
       if (l.line) ol.line = true;
       if (l.color === "red") ol.color = "red";
+      if (l.front) ol.front = true;
       return ol;
     }).filter(Boolean).slice(0, 12);
     if (letters.length) out.letters = letters;
@@ -561,6 +634,8 @@ export function normalizeFeature(f) {
   } else if (f.type === "crosswalk") {
     out.coords = coords.slice(0, 2);
     out.width = round2(clampTo(f.width, RANGE.crosswalk, d.width));
+  } else if (f.type === "floor") {
+    normalizeFloor(f, out, d);
   } else {
     out.width = round2(clampTo(f.width, RANGE.width, d.width));
     out.z = coords.map((_, i) => (f.z && f.z[i] != null && Number.isFinite(+f.z[i]) ? round2(clampTo(f.z[i], RANGE.z, 0)) : null));
@@ -601,6 +676,181 @@ export function normalizeFeature(f) {
     }
   }
   return out;
+}
+
+// ── 詳細モード（建物の中）──
+// 点の並び（[lng, lat]）。閉じた形（ring）なら最後の点が最初と同じとき外す
+const ptsOf = (a, max, ring = false) => {
+  const out = (Array.isArray(a) ? a : []).filter((q) => Array.isArray(q) && Number.isFinite(+q[0]) && Number.isFinite(+q[1])).map((q) => [round7(+q[0]), round7(+q[1])]);
+  if (ring && out.length > 1 && out[0][0] === out[out.length - 1][0] && out[0][1] === out[out.length - 1][1]) out.pop();
+  return out.slice(0, max);
+};
+const numOr = (v, range, dflt) => (v != null && v !== "" && Number.isFinite(+v) ? round2(clampTo(v, range, dflt)) : null);
+function normalizeFloor(f, out, d) {
+  out.host = typeof f.host === "string" ? f.host.slice(0, 60) : "";
+  out.level = typeof f.level === "string" && f.level.trim() ? f.level.trim().slice(0, 6) : d.level;
+  out.order = Math.round(clampTo(f.order, [-9, 60], d.order));
+  out.z = round2(clampTo(f.z, [-60, 200], d.z));
+  out.height = round2(clampTo(f.height, [1.5, 40], d.height));
+  out.slab = round2(clampTo(f.slab, [0.05, 2], d.slab));
+  if (Array.isArray(f.groundRef) && f.groundRef.length === 2 && f.groundRef.every((v) => v !== null && v !== "" && Number.isFinite(+v))) out.groundRef = [round7(+f.groundRef[0]), round7(+f.groundRef[1])];
+  out.finish = FLOOR_FINISHES.includes(f.finish) ? f.finish : d.finish;
+  if (FLOOR_FINISHES.includes(f.under)) out.under = f.under;
+  const holes = (Array.isArray(f.holes) ? f.holes : []).map((h) => ptsOf(h?.coords, 80, true)).filter((c) => c.length >= 3).slice(0, 40).map((coords) => ({ coords }));
+  if (holes.length) out.holes = holes;
+  const rooms = (Array.isArray(f.rooms) ? f.rooms : []).map((r) => {
+    const coords = ptsOf(r?.coords, 80, true);
+    if (coords.length < 3) return null;
+    const o = { coords };
+    if (FLOOR_FINISHES.includes(r.finish)) o.finish = r.finish;
+    if (typeof r.name === "string" && r.name.trim()) o.name = r.name.trim().slice(0, 40);
+    const at = ptsOf([r.at], 1);
+    if (at.length) o.at = at[0];
+    return o;
+  }).filter(Boolean).slice(0, 80);
+  if (rooms.length) out.rooms = rooms;
+  const walls = (Array.isArray(f.walls) ? f.walls : []).map((w) => {
+    const coords = ptsOf(w?.coords, 80);
+    if (coords.length < 2) return null;
+    const o = { coords, kind: FLOOR_WALL_KINDS.includes(w.kind) ? w.kind : "wall" };
+    const t = numOr(w.t, [0.02, 3], 0.15);
+    if (t != null) o.t = t;
+    const h = numOr(w.h, [0.1, 40], 3);
+    if (h != null) o.h = h;
+    const z0 = numOr(w.z0, [-5, 40], 0);
+    if (z0 != null && z0 !== 0) o.z0 = z0;
+    // 斜めの壁：折れ線の終わりの点での高さ h2・下の端 z02（始まりは h・z0、あいだは線形）
+    const h2 = numOr(w.h2, [0.1, 40], 3);
+    if (h2 != null) o.h2 = h2;
+    const z02 = numOr(w.z02, [-5, 40], 0);
+    if (z02 != null) o.z02 = z02;
+    const doors = (Array.isArray(w.doors) ? w.doors : []).filter((p) => Array.isArray(p) && p.length === 2 && p.every((v) => Number.isFinite(+v)) && +p[1] > +p[0]).map((p) => [round2(+p[0]), round2(+p[1])]).slice(0, 30);
+    if (doors.length) o.doors = doors;
+    const wins = (Array.isArray(w.wins) ? w.wins : []).filter((p) => Array.isArray(p) && p.length === 4 && p.every((v) => Number.isFinite(+v)) && +p[1] > +p[0] && +p[3] > +p[2]).map((p) => p.map((v) => round2(+v))).slice(0, 60);
+    if (wins.length) o.wins = wins;
+    if (doors.length && w.auto === true) o.auto = true; // 扉は自動ドア（campus3dDoors.js）
+    // 1 枚のガラス（glass・curtain）：途中の縦の枠・横の枠なし、枠は壁の両端だけ（2026-11-10、ユーザー「窓の中にも線はない。一枚の板」）
+    if ((o.kind === "glass" || o.kind === "curtain") && w.pane === true) o.pane = true;
+    return o;
+  }).filter(Boolean).slice(0, 600);
+  if (walls.length) out.walls = walls;
+  const items = (Array.isArray(f.items) ? f.items : []).map((it) => {
+    const coords = ptsOf(it?.coords, 40, true);
+    if (coords.length < 3) return null;
+    const z0 = round2(clampTo(it.z0, [-5, 40], 0));
+    const z1 = round2(clampTo(it.z1, [z0 + 0.01, 45], z0 + 0.75));
+    const o = { coords, z0, z1, kind: FLOOR_ITEM_KINDS.includes(it.kind) ? it.kind : "box" };
+    // 板を重ねた壁（slats）：壁の厚さ w・下で内へ入る量 lean・壁のない区間 gaps・平らな壁の区間 plain（ふちに沿った距離 [s0, s1]）
+    if (o.kind === "slats") {
+      const w = numOr(it.w, [0.05, 2], 0.45);
+      if (w != null) o.w = w;
+      const lean = numOr(it.lean, [-1, 1.5], 0);
+      if (lean != null && lean !== 0) o.lean = lean;
+      const spans = (a) => (Array.isArray(a) ? a : []).filter((q) => Array.isArray(q) && q.length === 2 && q.every((v) => Number.isFinite(+v)) && +q[1] > +q[0]).map((q) => [round2(+q[0]), round2(+q[1])]).slice(0, 12);
+      const gaps = spans(it.gaps);
+      if (gaps.length) o.gaps = gaps;
+      const plain = spans(it.plain);
+      if (plain.length) o.plain = plain;
+    }
+    return o;
+  }).filter(Boolean).slice(0, 900);
+  if (items.length) out.items = items;
+  const stairs = (Array.isArray(f.stairs) ? f.stairs : []).map((s) => {
+    const coords = ptsOf(s?.coords, 2);
+    if (coords.length < 2 || (coords[0][0] === coords[1][0] && coords[0][1] === coords[1][1])) return null;
+    const o = { coords, width: round2(clampTo(s.width, [0.4, 30], 1.5)), rise: round2(clampTo(s.rise, [-30, 30], 3)), kind: FLOOR_STAIR_KINDS.includes(s.kind) ? s.kind : "white" };
+    const z0 = numOr(s.z0, [-30, 40], 0);
+    if (z0 != null && z0 !== 0) o.z0 = z0;
+    // skew は小数 4 桁（長い階段で両わきをガラスなどの線に平行に保つ。2 桁だと 9m で 2〜3cm ずれる）
+    const skew = s.skew != null && s.skew !== "" && Number.isFinite(+s.skew) ? Math.round(clampTo(s.skew, [-3, 3], 0) * 1e4) / 1e4 : null;
+    if (skew != null && skew !== 0) o.skew = skew;
+    const steps = s.steps != null && Number.isFinite(+s.steps) ? Math.round(clampTo(s.steps, [1, 200], 1)) : null;
+    if (steps != null) o.steps = steps;
+    if (s.flush === true && (steps == null || steps >= 2)) o.flush = true;
+    const rails = (Array.isArray(s.rails) ? s.rails : [s.rails, s.rails]).slice(0, 2).map((k) => (FLOOR_RAIL_KINDS.includes(k) ? k : null));
+    if (rails.some(Boolean)) o.rails = [rails[0] ?? null, rails[1] ?? null];
+    return o;
+  }).filter(Boolean).slice(0, 40);
+  if (stairs.length) out.stairs = stairs;
+  const lids = (Array.isArray(f.lids) ? f.lids : []).map((l) => ptsOf(l?.coords, 80, true)).filter((c) => c.length >= 3).slice(0, 12).map((coords) => ({ coords }));
+  if (lids.length) out.lids = lids;
+  const hides = (Array.isArray(f.hides) ? f.hides : []).filter((s) => typeof s === "string" && s).map((s) => s.slice(0, 60)).slice(0, 60);
+  if (hides.length) out.hides = hides;
+}
+
+// 詳細モードで使う構造物の並び（描く・歩く・焼き込む）。detail が false（ふだん）は level "all" と同じ（外の窓から中が見える）。
+// 階のある建物（host）は、level が "all"（全部の階＝ふだん・歩いて見るとき）なら外から見える殻（detailShell。中からは見えない・
+// 歩くと屋根の板と屋根だけ・ガラスは透ける）、ほかの level（order の数）なら描かない（切り取った階を上から見る）。階は order が level 以下のもの（"all" なら全部）。
+// 地下の階（z < 0）の下の地面を掘る dig は、level によらず全部の地下の階から（階を切りかえても地面を焼き直さない）。
+// 階の hides の構造物は、詳細モードのあいだ描かない。地図の建物を置きかえる（replacedBuildings）のは、ふだんの並びのまま
+export function detailView(features, { detail = false, level = "all" } = {}) {
+  const floors = features.filter((f) => f.type === "floor" && f.host);
+  if (!floors.length) return features;
+  const hosts = new Set(floors.map((f) => f.host));
+  const hostById = new Map(features.filter((f) => f.type === "building" && hosts.has(f.id)).map((f) => [f.id, f]));
+  const hides = new Set(floors.flatMap((f) => f.hides || []));
+  const all = !detail || level === "all";
+  const out = [];
+  for (const f of features) {
+    if (f.type === "floor") {
+      // hostRef：建物（屋根の下の天井の高さ。campus3dMesh.js）
+      // noLid：地下の階を見るときは、地面の高さの床（lids）を描かない（上から地下の階が見えるように）
+      if (f.host && (all || f.order <= level)) out.push({ ...f, cut: !all && f.order === level, noLid: !all && level < 0, hostRef: hostById.get(f.host) || null });
+      continue;
+    }
+    if (detail && hides.has(f.id)) continue;
+    if (f.type === "building" && hosts.has(f.id)) {
+      if (all) out.push({ ...f, detailShell: true });
+      continue;
+    }
+    out.push(f);
+  }
+  for (const f of floors) {
+    if (f.z < -0.5) out.push({ id: `dig:${f.id}`, type: "dig", coords: f.coords, holes: f.holes, groundRef: f.groundRef, depth: round2(f.z - f.slab - 0.35) });
+  }
+  return out;
+}
+// 地下の階（z が −0.5 より下の floor）の形：[{ ring, holes }]（平面の m）。平地の垂直なふちの外（帯の側）がここなら、そこは土でなく
+// 建物の中：平地の壁は土の帯（WALL_T + WALL_CAP）でなく薄い壁（WALL_IN）、透明なガラスの面（clearGlassFace）はガラスの上の端から
+// 上だけの梁で、ガラスは半透明（向こうの建物の中が見える。campus3dMesh の addTerraceWalls・addCovered、歩く当たりは campus3dWalk）。
+// 中の見える建物の殻（detailShell）の壁も、外がここなら地面の少し下まで（地下の階の中へ殻の壁を下ろさない。地下は階の壁）
+export const WALL_IN = 0.3;
+// エレベーター（階の物 kind "lift"：4 点の四角の昇降路。1 本目の辺が扉の面）の扉の口の幅・高さと、昇降路の壁の厚さ（m）
+export const LIFT_DOOR_W = 0.9;
+export const LIFT_DOOR_H = 2.1;
+export const LIFT_WALL = 0.12;
+export function basementRegions(features) {
+  return features
+    .filter((f) => f.type === "floor" && f.host && f.z < -0.5 && f.coords?.length > 2)
+    .map((f) => ({ ring: f.coords.map(toXY), holes: (f.holes || []).map((h) => (h.coords || h).map(toXY)) }));
+}
+export const inBasement = (regions, p) => regions.some((r) => pointInRing(p[0], p[1], r.ring) && !r.holes.some((h) => pointInRing(p[0], p[1], h)));
+// 平地の面（faces の 1 つ）が、向こうの見えるガラス（すりガラスでない）か
+export const clearGlassFace = (fc) => !!(fc && fc.glass > 0 && !fc.frost);
+// 階の並び（詳細モードの階を選ぶボタン）：[{ order, level }]（order の順。同じ order は最初の名前）
+export function floorLevels(features) {
+  const m = new Map();
+  for (const f of features) if (f.type === "floor" && f.host && !m.has(f.order)) m.set(f.order, f.level);
+  return [...m.entries()].sort((a, b) => a[0] - b[0]).map(([order, level]) => ({ order, level }));
+}
+// 地下の階の下を掘る（詳細モード）：形の中（穴の中は除く）の地面を、groundRef の地面 + depth まで下げる（下げるだけ）。
+// ふちの外は WALL_T の帯の中で段差（掘った地面のにじみを帯が隠す。campus3dInterior.js の addDigBand）。groundAt は掘る前の地面
+export function prepareDig(f, groundAt) {
+  const ring = f.coords.map(toXY);
+  if (ring.length < 3) return null;
+  const holes = (f.holes || []).map((h) => h.coords.map(toXY)).filter((h) => h.length > 2);
+  const mean = ring.reduce((a, p) => [a[0] + p[0] / ring.length, a[1] + p[1] / ring.length], [0, 0]);
+  const g0 = groundAt(f.groundRef || toLngLat(mean));
+  if (!Number.isFinite(g0)) return null;
+  const level = g0 + f.depth;
+  const box = bboxOf(ring, WALL_T + 1);
+  const burn = (x, y, v) => {
+    if (!(level < v) || !inBox(box, x, y)) return v;
+    if (holes.some((h) => pointInRing(x, y, h))) return v;
+    if (pointInRing(x, y, ring)) return level;
+    return distToRing(x, y, ring) < WALL_T * 0.75 ? level : v;
+  };
+  return { f, ring, holes, level, g0, box, burn };
 }
 
 export function parseFeatures(json) {
@@ -1158,7 +1408,8 @@ export function terraceLid(f, ring, elev, ground) {
       const v = ground(a[0] + (b[0] - a[0]) * t + nn[0] * reach, a[1] + (b[1] - a[1]) * t + nn[1] * reach);
       if (Number.isFinite(v)) g = Math.max(g, v);
     }
-    if (!(g > under)) return false;
+    // 面の wall（外の地面で決められない短い辺）は外が低くても壁
+    if (!(g > under)) return f.faces?.[i]?.wall === true;
     top = Math.max(top, g);
     return true;
   });
@@ -1770,6 +2021,184 @@ export function roofBoards(f) {
   };
   const out = { list, at, topAt: (p) => at(p)?.zAt(p) ?? null };
   boardCache.set(f, out);
+  return out;
+}
+
+// 屋根の板の下の RC の屋根（スラブ）の上の面（建物の地面から m）。アイソメ図の骨組みと天井の写真（2026-11-09）：屋根は斜めの RC の面
+// （大梁が斜面の向き、小梁がそれに直角に等間隔）で、木の板はその上に段々に浮いている。外の壁の上の端もこの面（板とのあいだは暗いすき間）。
+// 板の上面（いちばん高い板）を SLAB_CELL m の升目に取り、ガウス（σ SLAB_SIGMA m）で板のあるところだけを平均して段をなめらかな斜面にし、
+// ROOF_SLAB_DROP 下げる。板の上面より SLAB_CLEAR 下を超えるところ（段の急なところで角が丸まる）は、超えた分を広げてならして下げ、
+// 最後に上限で切る（へこみがなめらか）。板から遠いところ（まわり 3σ に板がない）は null。
+// { at(p), grad(p)（上り坂の向きの傾き [dz/dx, dz/dy]）, atC(p)・gradC(p)（σ SLAB_SIGMA_C で大きくならした面：梁の並びと向き用）}。
+// 同じ板の並びには同じもの
+export const ROOF_SLAB_DROP = 0.6;
+const SLAB_CELL = 0.5;
+const SLAB_SIGMA = 1.2;
+const SLAB_SIGMA_C = 3;
+const SLAB_CLEAR = 0.05;
+const slabCache = new WeakMap();
+export function roofSlab(f) {
+  if (!f.boards?.length) return null;
+  const hit = slabCache.get(f.boards);
+  if (hit) return hit;
+  const bd = roofBoards(f);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const b of bd.list) {
+    x0 = Math.min(x0, b.box[0]);
+    y0 = Math.min(y0, b.box[1]);
+    x1 = Math.max(x1, b.box[2]);
+    y1 = Math.max(y1, b.box[3]);
+  }
+  for (const p of f.coords.map(toXY)) {
+    x0 = Math.min(x0, p[0]);
+    y0 = Math.min(y0, p[1]);
+    x1 = Math.max(x1, p[0]);
+    y1 = Math.max(y1, p[1]);
+  }
+  const C = SLAB_CELL;
+  const R = Math.ceil((3 * SLAB_SIGMA_C) / C);
+  x0 -= R * C;
+  y0 -= R * C;
+  const nx = Math.ceil((x1 + R * C - x0) / C) + 1;
+  const ny = Math.ceil((y1 + R * C - y0) / C) + 1;
+  const n = nx * ny;
+  // 升目の点 (x0 + i·C, y0 + j·C) の板の上面（T）と、板があるか（M）
+  const T = new Float64Array(n);
+  const M = new Float64Array(n);
+  const top = new Float64Array(n).fill(Infinity); // その点のまわり（±C/2）の板の上面のいちばん低いところ（ならした面の上限。点のあいだも越えない）
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const x = x0 + i * C;
+      const y = y0 + j * C;
+      const t = bd.topAt([x, y]);
+      if (t == null) continue;
+      T[j * nx + i] = t;
+      M[j * nx + i] = 1;
+      let lo = t;
+      for (const dx of [-C / 2, 0, C / 2]) {
+        for (const dy of [-C / 2, 0, C / 2]) {
+          if (!dx && !dy) continue;
+          const u = bd.topAt([x + dx, y + dy]);
+          if (u != null && u < lo) lo = u;
+        }
+      }
+      top[j * nx + i] = lo;
+    }
+  }
+  // ガウスの重み（横 → 縦の順に。升の外は 0）
+  const blur = (src, sig) => {
+    const r = Math.ceil((3 * sig) / C);
+    const w = Array.from({ length: 2 * r + 1 }, (_, k) => Math.exp(-(((k - r) * C) ** 2) / (2 * sig * sig)));
+    const tmp = new Float64Array(n);
+    const out = new Float64Array(n);
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        let s = 0;
+        for (let k = -r; k <= r; k++) {
+          const ii = i + k;
+          if (ii >= 0 && ii < nx) s += w[k + r] * src[j * nx + ii];
+        }
+        tmp[j * nx + i] = s;
+      }
+    }
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        let s = 0;
+        for (let k = -r; k <= r; k++) {
+          const jj = j + k;
+          if (jj >= 0 && jj < ny) s += w[k + r] * tmp[jj * nx + i];
+        }
+        out[j * nx + i] = s;
+      }
+    }
+    return { out, wsum: w.reduce((a, v) => a + v, 0) ** 2 };
+  };
+  // 板のあるところだけの平均（まわりの重みが 5% 未満なら NaN）
+  const smooth = (sig) => {
+    const { out: TM, wsum } = blur(T, sig);
+    const { out: MM } = blur(M, sig);
+    const S = new Float64Array(n).fill(NaN);
+    for (let k = 0; k < n; k++) if (MM[k] >= 0.05 * wsum) S[k] = TM[k] / MM[k] - ROOF_SLAB_DROP;
+    return S;
+  };
+  const S = smooth(SLAB_SIGMA);
+  // 上限（板の上面 − SLAB_CLEAR）を超えた分：まわり 1m のいちばん大きい値に広げてならし、それだけ下げる。残りは上限で切る
+  const over = new Float64Array(n);
+  for (let k = 0; k < n; k++) if (Number.isFinite(S[k])) over[k] = Math.max(0, S[k] - (top[k] - SLAB_CLEAR));
+  if (over.some((v) => v > 0)) {
+    const RD = Math.round(1 / C);
+    const dil = new Float64Array(n);
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        let mx = 0;
+        for (let dj = -RD; dj <= RD; dj++) {
+          const jj = j + dj;
+          if (jj < 0 || jj >= ny) continue;
+          for (let di = -RD; di <= RD; di++) {
+            const ii = i + di;
+            if (ii >= 0 && ii < nx && di * di + dj * dj <= RD * RD) mx = Math.max(mx, over[jj * nx + ii]);
+          }
+        }
+        dil[j * nx + i] = mx;
+      }
+    }
+    const { out: sm, wsum } = blur(dil, 0.6);
+    for (let k = 0; k < n; k++) if (Number.isFinite(S[k])) S[k] = Math.min(S[k] - sm[k] / wsum, top[k] - SLAB_CLEAR);
+  }
+  // 升の点のあいだ（C/2 おき）でも板の上面 − SLAB_CLEAR を越えないよう、越えたぶん升の 4 隅を下げる（2 回）
+  for (let it = 0; it < 2; it++) {
+    const drop = new Float64Array(n);
+    let any = false;
+    for (let j = 0; j + 1 < ny; j++) {
+      for (let i = 0; i + 1 < nx; i++) {
+        const ks = [j * nx + i, j * nx + i + 1, (j + 1) * nx + i, (j + 1) * nx + i + 1];
+        if (!ks.every((k) => Number.isFinite(S[k]))) continue;
+        for (const [u, v] of [[0.5, 0], [0, 0.5], [0.5, 0.5], [1, 0.5], [0.5, 1]]) {
+          const t = bd.topAt([x0 + (i + u) * C, y0 + (j + v) * C]);
+          if (t == null) continue;
+          const z = S[ks[0]] * (1 - u) * (1 - v) + S[ks[1]] * u * (1 - v) + S[ks[2]] * (1 - u) * v + S[ks[3]] * u * v;
+          const over2 = z - (t - SLAB_CLEAR);
+          if (over2 <= 0) continue;
+          any = true;
+          for (const k of ks) drop[k] = Math.max(drop[k], over2);
+        }
+      }
+    }
+    if (!any) break;
+    for (let k = 0; k < n; k++) S[k] -= drop[k];
+  }
+  const SC = smooth(SLAB_SIGMA_C);
+  const sample = (G) => {
+    const val = (i, j) => (i >= 0 && j >= 0 && i < nx && j < ny ? G[j * nx + i] : NaN);
+    return (p) => {
+      const fx = (p[0] - x0) / C;
+      const fy = (p[1] - y0) / C;
+      const i = Math.floor(fx);
+      const j = Math.floor(fy);
+      const u = fx - i;
+      const v = fy - j;
+      let s = 0;
+      let ws = 0;
+      for (const [z, wt] of [[val(i, j), (1 - u) * (1 - v)], [val(i + 1, j), u * (1 - v)], [val(i, j + 1), (1 - u) * v], [val(i + 1, j + 1), u * v]]) {
+        if (!Number.isFinite(z)) continue;
+        s += z * wt;
+        ws += wt;
+      }
+      return ws > 1e-6 ? s / ws : null;
+    };
+  };
+  const gradOf = (at) => (p) => {
+    const e = C;
+    const zx1 = at([p[0] + e, p[1]]), zx0 = at([p[0] - e, p[1]]);
+    const zy1 = at([p[0], p[1] + e]), zy0 = at([p[0], p[1] - e]);
+    if (zx1 == null || zx0 == null || zy1 == null || zy0 == null) return null;
+    return [(zx1 - zx0) / (2 * e), (zy1 - zy0) / (2 * e)];
+  };
+  const at = sample(S);
+  const atC = sample(SC);
+  // 升目そのもの（等高線を引く用）：{ x0, y0, cell, nx, ny, coarse（Float64Array、NaN は板から遠い）}
+  const out = { at, grad: gradOf(at), atC, gradC: gradOf(atC), grid: { x0, y0, cell: C, nx, ny, coarse: SC } };
+  slabCache.set(f.boards, out);
   return out;
 }
 

@@ -18,10 +18,10 @@ import { ROAD_KINDS, alignToLines, buildSnapIndex, nearestOnRoads, streetChain }
 
 /* ── 見た目（2D のマップエディタと同じ暗い配色）── */
 const T = { bg: "#1a1a1f", bg2: "#222228", bg3: "#2a2a32", bg4: "#32323c", tx: "#b0b0b8", txH: "#e8e8f0", txD: "#68687a", bd: "#2e2e38", bdL: "#3a3a48", accent: "#6375f0", green: "#4db88a", red: "#e5534b", yellow: "#f0c040" };
-const TYPE_COL = { terrace: "#b48cff", slope: "#f0c040", stairs: "#ff7eb6", wall: "#e5534b", bridge: "#4db88a", passage: "#60a0ff", building: "#8ecae6", carve: "#f4a261", board: "#ff4b3a", road: "#d4a373", surface: "#8fb3c9", marking: "#f2f2f2", crosswalk: "#ffd166", tree: "#7ed37e", signal: "#ff8a5c", sign: "#c9d2dc" };
+const TYPE_COL = { terrace: "#b48cff", slope: "#f0c040", stairs: "#ff7eb6", wall: "#e5534b", bridge: "#4db88a", passage: "#60a0ff", building: "#8ecae6", carve: "#f4a261", board: "#ff4b3a", road: "#d4a373", surface: "#8fb3c9", marking: "#f2f2f2", crosswalk: "#ffd166", tree: "#7ed37e", signal: "#ff8a5c", sign: "#c9d2dc", floor: "#c39bff" };
 const REF_API = "/api/dev/map-3d-ref"; // 下絵（なぞる用の写真・図面。開発サーバーだけ）
 // 木の形（campus3dMesh.js の addTree）
-const TREE_KINDS = { broad: "枝の広がる木（ケヤキなど）", round: "丸い木（クスノキなど）", ginkgo: "イチョウ", conifer: "針葉樹", cherry: "サクラ（横に広い傘）", cedar: "ヒマラヤスギ（横に張り出す層）" };
+const TREE_KINDS = { broad: "枝の広がる木（ケヤキなど）", round: "丸い木（クスノキなど）", ginkgo: "イチョウ", conifer: "針葉樹", cherry: "サクラ（横に広い傘）", cedar: "ヒマラヤスギ（横に張り出す層）", palm: "シュロ（細い幹の先に扇の葉）" };
 const LIFT_COL = "#1a8ef0"; // ルートが橋の上に浮くところ
 const CAND_COL = "#c070f0";
 // 道に合わせる（スナップ）：線の頂点（交差点・曲がり角・端）はこの px 以内、線の上はこの px 以内なら吸い付く
@@ -272,7 +272,7 @@ function LeansRow({ f, update }) {
 }
 
 /* ── 看板：面の向き・大きさ・高さ・倒し・見た目・脚と、文字の行 ── */
-const SIGN_STYLE_LABEL = { steel: "ステンレス（暗い文字）", white: "白い板（薄い文字）", notice: "お知らせ（緑の帯）", dark: "黒い板（白い文字）", red: "赤い板（白い文字）", cream: "クリーム色の板（赤い字）" };
+const SIGN_STYLE_LABEL = { steel: "ステンレス（暗い文字）", white: "白い板（薄い文字）", notice: "お知らせ（緑の帯）", dark: "黒い板（白い文字）", red: "赤い板（白い文字）", cream: "クリーム色の板（赤い字）", green: "緑の板（白い字・のぼり）", seven: "セブン-イレブンの帯", sevenstand: "セブン-イレブンの立て看板", hazard: "黄色と黒の縞" };
 function SignPanel({ f, update }) {
   const inp = { flex: 1, minWidth: 0, padding: "4px 6px", borderRadius: 5, border: `1px solid ${T.bdL}`, background: T.bg, color: T.txH, fontSize: 12, fontFamily: "inherit" };
   const setLine = (i, patch) => update({ lines: f.lines.map((l, k) => (k === i ? { ...l, ...patch } : l)) }, `line${i}`);
@@ -707,6 +707,27 @@ function BuildingPanel({ f, update, carveIdx, setCarveIdx, onDrawCarve, boards }
             const on = !f.glassSides || f.glassSides[i] !== false;
             const e = edges.find((x) => x.i === i);
             return <Btn key={i} col={col} active={on} title={`点${i + 1}と点${(i + 1) % f.coords.length + 1}のあいだの辺（${e ? e.len.toFixed(1) : "?"} m）。押すとガラス ⇔ 壁`} onClick={() => update((g) => ({ glassSides: g.coords.map((_, j) => (j === i ? !on : !g.glassSides || g.glassSides[j] !== false)) }))}>点{i + 1}–{(i + 1) % f.coords.length + 1}{e ? ` ${azimuthName(e.az)}` : ""}</Btn>;
+          })}
+        </div>
+      </Row>}
+      {f.glass > 0 && <Row label="ガラスの上 (m)">
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {f.coords.map((_, i) => {
+            if (f.glassSides && f.glassSides[i] === false) return null;
+            const t = f.glassTops?.[i];
+            const a = t == null ? null : Array.isArray(t) ? t[0] : t;
+            const b = Array.isArray(t) ? t[1] : null;
+            // 数＝水平、[始まり, 終わり]＝辺に沿って斜め。どちらも空なら「ガラス張り」の高さ
+            const set = (na, nb) => update((g) => {
+              const arr = g.coords.map((__, j) => g.glassTops?.[j] ?? null);
+              arr[i] = na == null ? null : nb == null || nb === na ? na : [na, nb];
+              return { glassTops: arr.some((x) => x != null) ? arr : undefined };
+            }, "glassTops");
+            return <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 3 }} title={`点${i + 1}–${(i + 1) % f.coords.length + 1} の辺のガラスの上の端（地面から m）。左は始まりの点、右は終わりの点（右が空なら水平）。空なら「ガラス張り」の高さ`}>
+              <span style={hint}>{i + 1}–{(i + 1) % f.coords.length + 1}</span>
+              <Num value={a} nullable placeholder={String(f.glass)} min={-30} max={f.glass} step={0.1} width={52} onChange={(v) => set(v, v == null ? null : b)} />
+              <Num value={b} nullable placeholder="→" min={-30} max={f.glass} step={0.1} width={52} onChange={(v) => set(a ?? f.glass, v)} />
+            </span>;
           })}
         </div>
       </Row>}
@@ -1403,10 +1424,19 @@ export default function Map3DEditor() {
       // 軒を出す辺も同じ
       const n = g.coords.length;
       const sides = (gs) => (!gs ? gs : v === 0 ? [...gs.slice(1, n - 1), gs[n - 1] || gs[0]] : [...gs.slice(0, v - 1), gs[v - 1] || gs[v], ...gs.slice(v + 1)]);
+      // 辺ごとのガラスの上の端（glassTops：数か [始まり, 終わり]）：つないだ辺は、前の辺の始まりから後の辺の終わりまで
+      const topEnd = (t, k) => (t == null ? null : Array.isArray(t) ? t[k] : t);
+      const joinTop = (t1, t2) => {
+        if (t1 == null && t2 == null) return null;
+        const s0 = topEnd(t1, 0) ?? topEnd(t2, 0);
+        const s1 = topEnd(t2, 1) ?? topEnd(t1, 1);
+        return s0 === s1 ? s0 : [s0, s1];
+      };
+      const tops = (gs) => (!gs ? gs : v === 0 ? [...gs.slice(1, n - 1), joinTop(gs[n - 1], gs[0])] : [...gs.slice(0, v - 1), joinTop(gs[v - 1], gs[v]), ...gs.slice(v + 1)]);
       // 平地の辺ごとの面（ガラス・れんが）も同じく1つに（扉の位置はつないだ辺の上に直す）
       const xy = g.coords.map(toXY);
       const lens = xy.map((p, i) => Math.hypot(xy[(i + 1) % n][0] - p[0], xy[(i + 1) % n][1] - p[1]));
-      return { coords: g.coords.filter((_, i) => i !== v), z: g.z ? g.z.filter((_, i) => i !== v) : g.z, flat, steps, widths: g.widths ? g.widths.filter((_, i) => i !== v) : g.widths, shifts: g.shifts ? g.shifts.filter((_, i) => i !== v) : g.shifts, glassSides: sides(g.glassSides), eaveSides: sides(g.eaveSides), faces: facesDelete(g.faces, v, lens) };
+      return { coords: g.coords.filter((_, i) => i !== v), z: g.z ? g.z.filter((_, i) => i !== v) : g.z, flat, steps, widths: g.widths ? g.widths.filter((_, i) => i !== v) : g.widths, shifts: g.shifts ? g.shifts.filter((_, i) => i !== v) : g.shifts, glassSides: sides(g.glassSides), glassTops: tops(g.glassTops), eaveSides: sides(g.eaveSides), faces: facesDelete(g.faces, v, lens) };
     });
     setSelVertex(null);
   }, [updateFeature]);
@@ -1943,6 +1973,8 @@ export default function Map3DEditor() {
           shifts: g.shifts ? [...g.shifts.slice(0, i + 1), null, ...g.shifts.slice(i + 1)] : g.shifts,
           flat: g.flat ? [...g.flat.slice(0, i + 1), g.flat[i], ...g.flat.slice(i + 1)] : g.flat, // 分けた2つの区間は、元の区間と同じ
           glassSides: g.glassSides ? [...g.glassSides.slice(0, i + 1), g.glassSides[i], ...g.glassSides.slice(i + 1)] : g.glassSides, // 建物：分けた2つの辺は元の辺と同じ
+          // 建物：辺ごとのガラスの上の端。斜め（[始まり, 終わり]）ならまん中の高さで 2 つに
+          glassTops: g.glassTops ? [...g.glassTops.slice(0, i), ...(Array.isArray(g.glassTops[i]) ? [[g.glassTops[i][0], (g.glassTops[i][0] + g.glassTops[i][1]) / 2], [(g.glassTops[i][0] + g.glassTops[i][1]) / 2, g.glassTops[i][1]]] : [g.glassTops[i] ?? null, g.glassTops[i] ?? null]), ...g.glassTops.slice(i + 1)] : g.glassTops,
           eaveSides: g.eaveSides ? [...g.eaveSides.slice(0, i + 1), g.eaveSides[i], ...g.eaveSides.slice(i + 1)] : g.eaveSides,
           faces: facesInsert(g.faces, i), // 平地：分けた2つの辺は元の面（扉はある側に）
           // 段数を手で決めているときは、半分ずつに分ける

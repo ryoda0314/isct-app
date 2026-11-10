@@ -7,7 +7,7 @@ import { CAMPUS_CENTER, CAMPUS_ZOOM, CAMPUS_BOUNDARY, SPOTS, SPOT_CATS, ENTRANCE
 import { useNavigation, NAV_SPOTS } from "../hooks/useNavigation.js";
 import { createCampusBasemap, isDarkColor } from "../campusBasemap.js";
 import { getNextClass } from "../todayClasses.js";
-import { CampusMap3D, LOOK_ICON, LOOK_LABEL, WALK_ICON } from "../components/CampusMap3D.jsx";
+import { CampusMap3D, DETAIL_ICON, LOOK_ICON, LOOK_LABEL, WALK_ICON } from "../components/CampusMap3D.jsx";
 import { LOOK_MODES } from "../campus3dSky.js";
 import { FEATURES_URL, parseFeatures } from "../campus3dFeatures.js";
 
@@ -410,6 +410,9 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   // 3D の見え方：時刻に合わせる（auto）・昼・夕方・夜。いまの昼・夕方・夜はアイコンに出す
   const [look3d,setLook3d]=useState(()=>{try{const v=localStorage.getItem("cb3Look");return LOOK_MODES.includes(v)?v:"auto";}catch{return "auto";}});
   const [lookPhase3d,setLookPhase3d]=useState("day");
+  // 3D の詳細モード（建物の中を見る。階のある建物だけ）
+  const [detail3d,setDetail3d]=useState(()=>{try{return localStorage.getItem("cb3Detail")==="1";}catch{return false;}});
+  const toggleDetail3d=()=>{const n=!detail3d;setDetail3d(n);try{localStorage.setItem("cb3Detail",n?"1":"0");}catch{}};
   const [lookNote,setLookNote]=useState(null);
   const lookNoteTimer=useRef(0);
   const cycleLook3d=()=>{
@@ -1492,6 +1495,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   </button>);
   // 目の高さで歩いて見る（ルートがあれば、その出発点から。歩いているあいだは 3D の地図が画面の上に出る）
   if(view3d&&!loading3d&&(showMapToggle||guiding)&&!pickerOpen)btnStack.push(<button key="walk" onClick={()=>map3dRef.current?.startWalk()} title={t("navi.stroll")} aria-label={t("navi.stroll")} style={sideBtn}>{WALK_ICON}</button>);
+  // 詳細モード（建物の中）：階のある建物があるときだけ。階を選ぶボタンは 3D の地図の上（ボタンの列の左）に出る
+  if(view3d&&!loading3d&&(showMapToggle||guiding)&&!pickerOpen&&features3d?.some(f=>f.type==="floor"))btnStack.push(<button key="detail" onClick={toggleDetail3d} title={t("navi.detail")} aria-label={t("navi.detail")} aria-pressed={detail3d} style={{...sideBtn,background:detail3d?T.accent:T.bg2,color:detail3d?"#fff":T.txH,border:`1px solid ${detail3d?T.accent:T.bdL}`}}>{DETAIL_ICON}</button>);
   if((showMapToggle||guiding)&&!pickerOpen)btnStack.push(<button key="3d" onClick={toggle3d} title={t("navi.view3d")} aria-label={t("navi.view3d")} aria-pressed={view3d} style={{...sideBtn,fontSize:14,fontWeight:900,letterSpacing:"-.02em",background:view3d?T.accent:T.bg2,color:view3d?"#fff":T.txH,border:`1px solid ${view3d?T.accent:T.bdL}`,animation:loading3d?"nav3dLoad 1s ease-in-out infinite":"none"}}>3D</button>);
   if(showMapToggle&&!pickerOpen)btnStack.push(<button key="loc" title={t("navi.locateMe")} aria-label={t("navi.locateMe")} onClick={()=>{
     if(gpsPos&&view3d&&map3dRef.current){map3dRef.current.flyTo(gpsPos.lat,gpsPos.lng,17.5);return;}
@@ -1591,6 +1596,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
       onError={()=>{setView3d(false);setNotice3d(true);}}
       lookMode={look3d}
       onLookPhase={setLookPhase3d}
+      detail={detail3d}
+      floorsStyle={{right:mob?64:72,bottom:mob?118:122}}
     />}
     {lookNote&&view3d&&<div style={{position:"absolute",left:0,right:0,bottom:mob?18:24,zIndex:1001,display:"flex",justifyContent:"center",pointerEvents:"none"}}>
       <div style={{padding:"8px 14px",borderRadius:16,background:"rgba(14,32,48,.88)",color:"#fff",fontSize:12.5,fontWeight:700,boxShadow:"0 6px 16px -6px rgba(0,0,0,.5)",animation:"navSlideUp .2s ease-out"}}>{t("navi.look").replace(/（.*$|\s*\(.*$/,"")}：{lookNote==="auto"?`${t("navi.lookAuto")}（${t(LOOK_LABEL[lookPhase3d])}）`:t(LOOK_LABEL[lookNote])}</div>

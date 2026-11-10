@@ -5,6 +5,7 @@
 import { jstNow, todayDayType } from "../lib/api/jp-calendar.js";
 import { cumulative, toLngLat, toXY } from "./campus3dFeatures.js";
 import { GlowMesh, worldOf } from "./campus3dMesh.js";
+import { worldNow } from "./campus3dClock.js";
 
 export const TRAINS_URL = "/map-3d/trains.json";
 const ACC = 0.8; // 加速・減速の強さ（m/s²）
@@ -24,9 +25,9 @@ const LIFT = 6;
 const hex = (h) => { const n = parseInt(h.slice(1, 7), 16); return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, 1]; };
 const mixW = (c, k) => [c[0] + (1 - c[0]) * k, c[1] + (1 - c[1]) * k, c[2] + (1 - c[2]) * k, 1];
 
-// いまの時刻：JST の「運行日」（4時で切り替え、0〜3時は前の日のダイヤの続き）の何秒目か。
+// いまの時刻：JST の「運行日」（4時で切り替え、0〜3時は前の日のダイヤの続き）の何秒目か。世界の時計（campus3dClock）をデバッグで決めていればその時刻。
 // 試すとき：window.__trainClock = { at: "08:15", day: "weekday", speed: 1 } で、その時刻から進める（speed: 0 なら止めておく）
-export function serviceClock(nowMs = Date.now()) {
+export function serviceClock(nowMs = worldNow()) {
   const o = typeof window !== "undefined" ? window.__trainClock : null;
   if (o?.at) {
     const [h, m] = String(o.at).split(":").map(Number);

@@ -872,6 +872,7 @@ const LectureMaterials=({sections,totalFiles,totalActivities,loading,error,mob,o
 
   if(loading) return <Loader msg={t("mat.loadingMaterials")}/>;
   if(error==='LMS_UNAVAILABLE') return <div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{t("mat.lmsUnavailable")}</div>;
+  if(error==='AUTH_REQUIRED') return <div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{t("mat.authRequired")}</div>;
   if(error) return <div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{t("mat.materialsFetchFailed")}</div>;
 
   return(

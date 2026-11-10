@@ -6,6 +6,7 @@ export const EXTRAS_LAYER_ID = "cb-extras";
 const GLASS_ALPHA = 0.3; // ガラスの手すりの板の濃さ
 const SCREEN_ALPHA = 0.85; // 穴あきの金属板の濃さ（穴から向こうが透ける）
 const HAZE_ALPHA = 0.12; // 金網の柵の網の面の濃さ（針金が遠くで見えなくなっても網の濃さが残る）
+const VEIL_ALPHA = 0.55; // 詳細モードの建物の中の白い格子の手すりの濃さ
 
 // 光の当て方は MapLibre の fill-extrusion と同じ式（建物と同じ見え方にする）
 const VS_SOLID = `
@@ -25,13 +26,33 @@ void main() {
   color += vec4(0.03, 0.03, 0.03, 1.0);
   float directional = clamp(dot(a_normal, u_lightpos), 0.0, 1.0);
   directional = mix(1.0 - u_lightintensity, max(1.0 - colorvalue + u_lightintensity, 1.0), directional);
+  // 店の明かり・中から光る看板（色のアルファを 0.5 にした面。campus3dMesh.js の glow）は光を受けず、そのままの明るさ（夜も明るい）
+  vec3 lit = a_color.a < 0.75 ? a_color.rgb : clamp(color.rgb * directional * u_lightcolor, mix(vec3(0.0), vec3(0.3), 1.0 - u_lightcolor), vec3(1.0));
   // 半透明（u_alpha < 1）は透明度を掛けた色で出す
-  v_color = vec4(clamp(color.rgb * directional * u_lightcolor, mix(vec3(0.0), vec3(0.3), 1.0 - u_lightcolor), vec3(1.0)) * u_alpha, u_alpha);
+  v_color = vec4(lit * u_alpha, u_alpha);
 }`;
 const FS_SOLID = `
 precision mediump float;
 varying vec4 v_color;
 void main() { gl_FragColor = v_color; }`;
+// 詳細モードで歩いて見るときの建物の殻：カメラから見て裏を向く面（面の向きとカメラからの向きが同じ側）は描かない＝建物の中からは見えない。
+// u_cam はカメラの位置（描く座標）、u_kxy は描く座標の 1 が何 m か（x, y。z は m）
+const VS_CULL = VS_SOLID.replace("varying vec4 v_color;", "varying vec4 v_color;\nuniform vec3 u_cam;\nuniform float u_kxy;\nvarying float v_back;")
+  .replace("gl_Position = u_matrix * vec4(a_pos, 1.0);", "gl_Position = u_matrix * vec4(a_pos, 1.0);\n  v_back = dot(a_normal, vec3((a_pos.xy - u_cam.xy) * u_kxy, a_pos.z - u_cam.z));");
+const FS_CULL = `
+precision mediump float;
+varying vec4 v_color;
+varying float v_back;
+void main() { if (v_back > 0.0) discard; gl_FragColor = v_color; }`;
+// 行列 M（描く座標 → クリップ座標）から、カメラの位置（クリップの x・y・w が 0 になる点）
+export function cameraOf(M) {
+  const r = [0, 1, 3].map((i) => [M[i], M[4 + i], M[8 + i], -M[12 + i]]);
+  const det = (a, b, c) => a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0]);
+  const D = det(r[0], r[1], r[2]);
+  if (Math.abs(D) < 1e-20) return null;
+  const col = (k) => r.map((q) => { const x = q.slice(0, 3); x[k] = q[3]; return x; });
+  return [0, 1, 2].map((k) => { const [a, b, c] = col(k); return det(a, b, c) / D; });
+}
 // 橋の上のルート：画面上で決まった太さ（u_half）の帯
 const VS_RIBBON = `
 attribute vec3 a_pos;
@@ -109,7 +130,7 @@ void main() {
   v_color = vec4(lit, 1.0);
 }`;
 
-function compile(gl, vs, fs) {
+export function compile(gl, vs, fs) {
   const sh = (type, src) => {
     const s = gl.createShader(type);
     gl.shaderSource(s, src);
@@ -145,7 +166,7 @@ export function lightVector([r, azimuthal, polar]) {
 
 // MapLibre の行列（x, y はワールドの px、z は標高 m）に、こちらの座標（中心からの差 × MERC_SCALE）を合わせる。
 // 大きな数どうしの引き算を float64 で済ませてから float32 にする
-function matrixFor(m, worldSize, exaggeration) {
+export function matrixFor(m, worldSize, exaggeration) {
   const sx = worldSize / MERC_SCALE;
   const tx = ORIGIN[0] * worldSize;
   const ty = ORIGIN[1] * worldSize;
@@ -160,7 +181,7 @@ function matrixFor(m, worldSize, exaggeration) {
 }
 
 // 描く座標で東・北へ 1m のベクトル
-const PER_M = (() => {
+export const PER_M = (() => {
   const o = worldOf([0, 0]);
   const e = worldOf([1, 0]);
   const n = worldOf([0, 1]);
@@ -238,7 +259,8 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
   let gl = null;
   let solid = null;
   let ribbon = null;
-  const buf = { mesh: null, thin: null, glass: null, screen: null, haze: null, rib: null };
+  let culler = null;
+  const buf = { mesh: null, thin: null, glass: null, screen: null, haze: null, veil: null, cull: null, rib: null };
   let mesh = null;
   let rib = null;
   let lt = lightState(light);
@@ -272,6 +294,7 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
       gl = g;
       solid = compile(gl, VS_SOLID, FS_SOLID);
       ribbon = compile(gl, VS_RIBBON, FS_RIBBON);
+      culler = compile(gl, VS_CULL, FS_CULL);
     },
     onRemove() {
       free(buf.mesh, ["pos", "nrm", "col"]);
@@ -279,7 +302,11 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
       free(buf.glass, ["pos", "nrm", "col"]);
       free(buf.screen, ["pos", "nrm", "col"]);
       free(buf.haze, ["pos", "nrm", "col"]);
+      free(buf.veil, ["pos", "nrm", "col"]);
+      free(buf.cull, ["pos", "nrm", "col"]);
       free(buf.rib, ["pos", "off"]);
+      buf.veil = null;
+      buf.cull = null;
       buf.mesh = null;
       buf.thin = null;
       buf.glass = null;
@@ -289,6 +316,7 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
       if (gl) {
         if (solid) gl.deleteProgram(solid.p);
         if (ribbon) gl.deleteProgram(ribbon.p);
+        if (culler) gl.deleteProgram(culler.p);
       }
       map = null;
     },
@@ -299,6 +327,10 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
         free(buf.glass, ["pos", "nrm", "col"]);
         free(buf.screen, ["pos", "nrm", "col"]);
         free(buf.haze, ["pos", "nrm", "col"]);
+        free(buf.veil, ["pos", "nrm", "col"]);
+        free(buf.cull, ["pos", "nrm", "col"]);
+        buf.veil = mesh.veil?.count ? upload(mesh.veil, ["pos", "nrm", "col"]) : null;
+        buf.cull = mesh.cull?.count ? upload(mesh.cull, ["pos", "nrm", "col"]) : null;
         buf.mesh = mesh.count ? upload(mesh, ["pos", "nrm", "col"]) : null;
         buf.thin = mesh.thin?.count ? upload(mesh.thin, ["pos", "nrm", "col"]) : null;
         buf.glass = mesh.glass?.count ? upload(mesh.glass, ["pos", "nrm", "col"]) : null;
@@ -311,22 +343,31 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
         buf.rib = rib.count ? upload(rib, ["pos", "off"]) : null;
         rib = null;
       }
-      if (!buf.mesh && !buf.thin && !buf.glass && !buf.screen && !buf.haze && !buf.rib) return;
       const ws = map.transform.worldSize;
       const M = matrixFor(args.modelViewProjectionMatrix, ws, exaggeration);
+      // いま描いた行列（描く座標 → クリップ座標）：目印（campus3dDebug.js）が 3D の点を画面へ・画面の点を光線へ直すのに使う
+      layer.matrix = M;
+      if (!buf.mesh && !buf.thin && !buf.glass && !buf.screen && !buf.haze && !buf.veil && !buf.cull && !buf.rib) return;
       const enabled = [];
 
       // 形（壁・段・橋）。手すり（thin）は奥行きを書かずに描く：段や壁には隠れるが、あとで描くルートの線を支柱で途切れさせない。
       // 穴あきの金属板（screen）・金網の網の面（haze）・ガラスの手すりの板（glass）は最後に半透明で重ねる（奥行きは書かない）
-      [[buf.mesh, true, 1], [buf.thin, false, 1], [buf.screen, false, SCREEN_ALPHA], [buf.haze, false, HAZE_ALPHA], [buf.glass, false, GLASS_ALPHA]].forEach(([b, writeDepth, alpha]) => {
+      // 詳細モードの殻（cull）は形と同じく奥行きを書く（中からは裏の面になって描かれない）。白い格子の手すり（veil）は半透明
+      const cam = buf.cull ? cameraOf(M) : null;
+      [[buf.mesh, true, 1], [cam ? buf.cull : null, true, 1, true], [buf.thin, false, 1], [buf.screen, false, SCREEN_ALPHA], [buf.veil, false, VEIL_ALPHA], [buf.haze, false, HAZE_ALPHA], [buf.glass, false, GLASS_ALPHA]].forEach(([b, writeDepth, alpha, culled]) => {
         if (!b) return;
-        gl.useProgram(solid.p);
-        gl.uniformMatrix4fv(solid.loc("u_matrix"), false, M);
-        gl.uniform3fv(solid.loc("u_lightpos"), lt.pos);
-        gl.uniform1f(solid.loc("u_lightintensity"), lt.intensity);
-        gl.uniform3fv(solid.loc("u_lightcolor"), lt.color);
-        gl.uniform1f(solid.loc("u_alpha"), alpha);
-        enabled.push(bindAttr(solid, "a_pos", b.pos, 3), bindAttr(solid, "a_normal", b.nrm, 3), bindAttr(solid, "a_color", b.col, 4));
+        const prog = culled ? culler : solid;
+        gl.useProgram(prog.p);
+        gl.uniformMatrix4fv(prog.loc("u_matrix"), false, M);
+        gl.uniform3fv(prog.loc("u_lightpos"), lt.pos);
+        gl.uniform1f(prog.loc("u_lightintensity"), lt.intensity);
+        gl.uniform3fv(prog.loc("u_lightcolor"), lt.color);
+        gl.uniform1f(prog.loc("u_alpha"), alpha);
+        if (culled) {
+          gl.uniform3fv(prog.loc("u_cam"), cam);
+          gl.uniform1f(prog.loc("u_kxy"), 1 / Math.hypot(PER_M.e[0], PER_M.e[1]));
+        }
+        enabled.push(bindAttr(prog, "a_pos", b.pos, 3), bindAttr(prog, "a_normal", b.nrm, 3), bindAttr(prog, "a_color", b.col, 4));
         if (alpha < 1) {
           gl.enable(gl.BLEND);
           gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -517,6 +558,85 @@ export function createTrainsLayer({ light, exaggeration = 1, frame }) {
       }
       // 前照灯・尾灯のにじみと、線路に落ちる光（足し算）
       if (f.glow?.count) drawGlow(gl, glowProg, uploadTo(gl, f.glow, GLOW_KEYS, glowBuf, gl.DYNAMIC_DRAW), M, glowBasis(map), 1);
+      gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    },
+  };
+}
+
+// ── 自動ドアの板（campus3dDoors.js）。形は毎フレーム作り直す ──
+export const DOORS_LAYER_ID = "cb-doors";
+export const LIFT_LAYER_ID = "cb-lift"; // エレベーターのかご・扉（campus3dLift の liftMeshes を createDoorsLayer で）
+/**
+ * @param frame  () => { solid, glass }（いまの扉の板。solid は枠、glass はガラス。どちらも Mesh の result）か null
+ */
+export function createDoorsLayer({ id = DOORS_LAYER_ID, light, exaggeration = 1, frame }) {
+  let map = null;
+  let gl = null;
+  let prog = null;
+  const bufs = {};
+  let lt = lightState(light);
+  const put = (key, data) => {
+    if (!bufs[key]) bufs[key] = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, bufs[key]);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+  };
+  const bind = (key, name, size) => {
+    const a = prog.att(name);
+    if (a < 0) return -1;
+    gl.bindBuffer(gl.ARRAY_BUFFER, bufs[key]);
+    gl.enableVertexAttribArray(a);
+    gl.vertexAttribPointer(a, size, gl.FLOAT, false, 0, 0);
+    return a;
+  };
+  return {
+    id, // 自動ドア（cb-doors）と同じ描き方で、エレベーターのかご・扉（LIFT_LAYER_ID）も
+    type: "custom",
+    renderingMode: "3d",
+    setLight(l) {
+      lt = lightState(l);
+      map?.triggerRepaint();
+    },
+    onAdd(m, g) {
+      map = m;
+      gl = g;
+      prog = compile(gl, VS_TRAIN, FS_SOLID);
+    },
+    onRemove() {
+      if (gl) {
+        Object.values(bufs).forEach((b) => gl.deleteBuffer(b));
+        if (prog) gl.deleteProgram(prog.p);
+      }
+      map = null;
+    },
+    render(g, args) {
+      const f = frame();
+      if (!f || (!f.solid.count && !f.glass.count)) return;
+      const M = matrixFor(args.modelViewProjectionMatrix, map.transform.worldSize, exaggeration);
+      gl.useProgram(prog.p);
+      gl.uniformMatrix4fv(prog.loc("u_matrix"), false, M);
+      gl.uniform3fv(prog.loc("u_lightpos"), lt.pos);
+      gl.uniform1f(prog.loc("u_lightintensity"), lt.intensity);
+      gl.uniform3fv(prog.loc("u_lightcolor"), lt.color);
+      const draw = (mesh, key, alpha) => {
+        put(key + "p", mesh.pos);
+        put(key + "n", mesh.nrm);
+        put(key + "c", mesh.col);
+        const on = [bind(key + "p", "a_pos", 3), bind(key + "n", "a_normal", 3), bind(key + "c", "a_color", 4)];
+        gl.uniform1f(prog.loc("u_alpha"), alpha);
+        gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
+        on.forEach((a) => a >= 0 && gl.disableVertexAttribArray(a));
+      };
+      gl.depthFunc(gl.LEQUAL);
+      gl.depthMask(true);
+      if (f.solid.count) draw(f.solid, "s", 1);
+      // ガラスは半透明で重ねる（奥行きは書かない。建物のガラスと同じ濃さ）
+      if (f.glass.count) {
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.depthMask(false);
+        draw(f.glass, "g", GLASS_ALPHA);
+        gl.depthMask(true);
+      }
       gl.bindBuffer(gl.ARRAY_BUFFER, null);
     },
   };
