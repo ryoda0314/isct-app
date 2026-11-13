@@ -4,6 +4,8 @@ import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { QRScanner } from "../components/QRScanner.jsx";
 import { useGym } from "../hooks/useGym.js";
+import { useAuth, openLogin } from "../authState.js";
+import { InlineLoginPrompt } from "../components/FeatureGate.jsx";
 import {
   GYM_QR, todayHours, isOpenNow, lastEntry, monthSchedule,
   congestionKey, STATUS_META, CONGESTION, toISO,
@@ -145,6 +147,9 @@ export function GymView({ mob = false }) {
 
 // ── 施設ダッシュボード（優先順位つき）──────────────────────
 function FacilityDashboard({ today, open, lastIn, state, scanning, setScanning, busy, onQr, announcements, history, loading, goto }) {
+  // ログイン任意化: チェックイン・現在人数・利用履歴は全員で共有するカウンタなのでアカウントのときだけ。
+  // ゲストには営業時間・お知らせ（公開）と、チェックインの代わりにログインの案内を出す。
+  const isAcct = useAuth().status === "account";
   const lvl = congLevel(state.count);
   const inMe = state.myState === "in";
   const heroBg = today.closed ? `linear-gradient(135deg, ${T.bg4}, ${T.bg3})` : `linear-gradient(135deg, ${T.accent}, ${T.accentSoft})`;
@@ -169,7 +174,8 @@ function FacilityDashboard({ today, open, lastIn, state, scanning, setScanning, 
       </div>
 
       {/* 2) QR（主要アクション）*/}
-      <div style={{ marginTop: 12 }}>
+      {!isAcct && <InlineLoginPrompt style={{ marginTop: 12 }} msg={t("gym.loginToCheckin")} onLogin={() => openLogin({ returnTo: "gym" })} />}
+      {isAcct && <div style={{ marginTop: 12 }}>
         {!scanning ? (
           <button onClick={() => setScanning(true)} disabled={busy} style={{
             width: "100%", padding: "16px 0", borderRadius: 18, cursor: busy ? "default" : "pointer", border: "none",
@@ -181,10 +187,10 @@ function FacilityDashboard({ today, open, lastIn, state, scanning, setScanning, 
           <Card><QRScanner onResult={onQr} onClose={() => setScanning(false)} /></Card>
         )}
         {inMe && <div style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12, color: T.green, fontWeight: 700 }}>{G.check(15)}{t("gym.youAreIn")}</div>}
-      </div>
+      </div>}
 
       {/* 3) 混雑（参考値）*/}
-      <Card style={{ marginTop: 12 }}>
+      {isAcct && <Card style={{ marginTop: 12 }}>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
           <span style={{ fontSize: 40, fontWeight: 800, color: T.txH, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{state.count}</span>
           <span style={{ fontSize: 14, color: T.tx, marginBottom: 5 }}>{t("gym.peopleNow")}</span>
@@ -194,7 +200,7 @@ function FacilityDashboard({ today, open, lastIn, state, scanning, setScanning, 
           {[0, 1, 2, 3].map((i) => <div key={i} style={{ flex: 1, height: 8, borderRadius: 999, background: i <= lvl ? congColor(lvl) : T.bg4, opacity: i <= lvl ? 1 : 0.6 }} />)}
         </div>
         <div style={{ marginTop: 10, fontSize: 11, color: T.txD, lineHeight: 1.5 }}>※ {t("gym.refNote")}</div>
-      </Card>
+      </Card>}
 
       {/* 4) 開館予定（深掘りへの導線）*/}
       <RowLink icon={G.cal} title={t("gym.tabSchedule")} sub={today.closed ? t("gym.statusClosed") : `${t("gym.todayHours")} ${today.open}–${today.close}`} onClick={() => goto("schedule")} />
@@ -203,9 +209,9 @@ function FacilityDashboard({ today, open, lastIn, state, scanning, setScanning, 
       <SectionHead title={t("gym.tabAnnounce")} onAll={announcements.length ? () => goto("announce") : null} />
       {loading ? null : topAnn ? <AnnItem a={topAnn} /> : <MiniEmpty icon={G.inbox} text={t("gym.noAnnounce")} />}
 
-      {/* 6) 最近の利用（要約 + すべて見る）*/}
-      <SectionHead title={t("gym.recentUse")} onAll={recent.length ? () => goto("history") : null} />
-      {loading ? null : recent.length ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{recent.map((s, i) => <SessionItem key={i} s={s} />)}</div> : <MiniEmpty icon={G.shoe} text={t("gym.noHistory")} />}
+      {/* 6) 最近の利用（要約 + すべて見る）。アカウントのときだけ */}
+      {isAcct && <SectionHead title={t("gym.recentUse")} onAll={recent.length ? () => goto("history") : null} />}
+      {isAcct && (loading ? null : recent.length ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{recent.map((s, i) => <SessionItem key={i} s={s} />)}</div> : <MiniEmpty icon={G.shoe} text={t("gym.noHistory")} />)}
     </>
   );
 }

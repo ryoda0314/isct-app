@@ -13,6 +13,7 @@ import { useAuth, setAuth, getAuth, setLoginOpener } from "./authState.js";
 import { requiresLogin } from "./features.js";
 import { FeatureGate, featureTitle } from "./components/FeatureGate.jsx";
 import { markAccount, hadAccount, clearAccountStorage } from "./accountStorage.js";
+import { MigrateLocalData, hasLocalDataToMove } from "./components/MigrateLocalData.jsx";
 import { usePresence } from "./hooks/usePresence.js";
 import { useCourseMembers, resetCourseMembersCache } from "./hooks/useCourseMembers.js";
 import { useDeptMembers } from "./hooks/useDeptMembers.js";
@@ -207,6 +208,10 @@ export default function App(){
   const loginReqRef=useRef(null);
   // "expired" … 前回ログインしていたがセッションが切れた（1 回だけ帯で知らせる）
   const [authNotice,setAuthNotice]=useState(null);
+  // ログイン直後の「端末のデータをアカウントに移しますか？」（localStore.js / MigrateLocalData）
+  const [migrateOpen,setMigrateOpen]=useState(false);
+  const userRef=useRef(user);
+  userRef.current=user;
   // ツバメポイント: 起動時に当日分を自動受け取り（View を開かなくても貯まる）。
   //   demo/guest では付与しない（本人セッションのみ）。
   useDailyTsubameClaim({
@@ -291,16 +296,16 @@ export default function App(){
   const [asgn,setAsgn]=useState(ASGN0);
   const [hiddenAsgn,setHiddenAsgn]=useState(()=>{try{return JSON.parse(localStorage.getItem("hiddenAsgn"))||[];}catch{return[];}});
   const saveHidden=ids=>{setHiddenAsgn(ids);try{localStorage.setItem("hiddenAsgn",JSON.stringify(ids));}catch{}};
-  const {tasks:myTasks,setTasks:setMyTasks,addTask:addTaskFn,toggleTask:toggleTaskFn,deleteTask:deleteTaskFn}=useTasks(acct);
+  const {tasks:myTasks,setTasks:setMyTasks,addTask:addTaskFn,toggleTask:toggleTaskFn,deleteTask:deleteTaskFn}=useTasks(ready); // ゲストは端末保存（localStore.js）
   const appLock=useAppLock();
   const {bmarks,toggle:togBmark}=useBookmarks(acct);
-  const {records:attRecords,setStatus:setAttStatus}=useAttendance(acct);
+  const {records:attRecords,setStatus:setAttStatus}=useAttendance(ready); // ゲストは端末保存
   const [attSys,setAttSys]=useState(null); // 出欠管理: 'sci'|'med' 手動切替（両方持つユーザー用）
   const [events,setEvents]=useState(EVENTS0);
   const allEvents=useMemo(()=>[...events,...ACADEMIC_EVENTS.map(e=>({...e,title:locCal(e.title),desc:locCal(e.desc),loc:locCal(e.loc)}))],[events,langPref]);
   // grades are now fetched inside GradeView directly
   const [reviews,setReviews]=useState(REVIEWS0);
-  const {events:myEvents,setEvents:setMyEvents,addEvent:addEventFn,addEvents:addEventsFn,updateEvent:updateEventFn,deleteEvent:deleteEventFn}=useCalendarEvents(acct);
+  const {events:myEvents,setEvents:setMyEvents,addEvent:addEventFn,addEvents:addEventsFn,updateEvent:updateEventFn,deleteEvent:deleteEventFn}=useCalendarEvents(ready); // ゲストは端末保存
   const [rsvps,setRsvps]=useState(()=>{try{const v=localStorage.getItem("eventRsvps");return v?JSON.parse(v):{};}catch{return{};}});
   const handleRsvp=useCallback((eventId,status)=>{
     const prev=rsvps[eventId];
@@ -903,7 +908,11 @@ export default function App(){
     clearTimeout(s.timer);s.timer=setTimeout(()=>putNotifPrefs(prefs),600);
   },[notifEnabled,notifSettings]);// eslint-disable-line react-hooks/exhaustive-deps
   // ログイン画面（SetupView）が成功したとき。終わったら、ログインを求められた機能（returnTo）に戻る
-  const finishLogin=()=>{const req=loginReqRef.current;loginReqRef.current=null;setLoginReq(null);setAuthNotice(null);if(req?.returnTo)setView(req.returnTo);};
+  const finishLogin=()=>{
+    const req=loginReqRef.current;loginReqRef.current=null;setLoginReq(null);setAuthNotice(null);if(req?.returnTo)setView(req.returnTo);
+    // ゲストの間に端末へ保存したデータがあれば、アカウントへ移すか聞く（ユーザー情報の反映を待ってから）
+    setTimeout(()=>{if(!isDemoMode()&&hasLocalDataToMove(userRef.current))setMigrateOpen(true);},600);
+  };
   const onSetupComplete=async()=>{
     let sd=null;
     try{sd=await (await fetchT(`${API}/api/auth/status`)).json();if(sd.loginId==="apple-review"){console.log("[App] review account detected, loading demo");onDemo("ss");return;}}catch{}
@@ -1306,6 +1315,7 @@ export default function App(){
         {!showDeptModal&&!appLock.locked&&<AnnouncementModal setView={setView}/>}
         <DemoBanner/>
         {loginOverlay}
+        {migrateOpen&&<MigrateLocalData user={user} onClose={()=>setMigrateOpen(false)}/>}
         <Toasts/>
         <MiniPlayer mob={false} view={view} ch={ch} onOpen={()=>setView("music")}/>
         {themeMode==="mizukumori"&&<FogOverlay/>}
@@ -1378,6 +1388,7 @@ export default function App(){
       {!showDeptModal&&!appLock.locked&&<AnnouncementModal setView={setView}/>}
       <DemoBanner/>
       {loginOverlay}
+      {migrateOpen&&<MigrateLocalData user={user} onClose={()=>setMigrateOpen(false)}/>}
       <Toasts/>
       {themeMode==="mizukumori"&&<FogOverlay/>}
       <style>{`*{box-sizing:border-box;margin:0;padding:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}input,textarea{-webkit-user-select:text;user-select:text}html,body{background:${T.bg2};overscroll-behavior:none;-webkit-tap-highlight-color:transparent}::-webkit-scrollbar{width:0;display:none}::placeholder{color:${T.txD}}button,input,textarea,select{font-family:inherit;-webkit-appearance:none}input,textarea{font-size:16px}.sa-bottom{height:env(safe-area-inset-bottom,0px)}@keyframes mnSpin{to{transform:rotate(360deg)}}`}</style>
