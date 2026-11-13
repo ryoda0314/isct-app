@@ -4,7 +4,8 @@ import earcut from "earcut";
 import { CAMPUS_CENTER } from "./hooks/useLocationSharing.js";
 import { BOARD_BASE_DROP, BOARD_T, DECK_FASCIA, DECK_POST, WALL_CAP, WALL_IN, WALL_T, basementRegions, buildingOpenings, clearGlassFace, cumulative, inBasement, curbWidth, overLids, railGround, signFrame, buildingRoof, buildingSoffit, roofSlab, clipHalf, offsetRingBy, densify, edgeOpen, isOpenStairs, lerpAlong, offsetLine, pointInRing, ringArea, roofPieces, roofRisers, shellGeom, stairSteps, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexElevations } from "./campus3dFeatures.js";
 import { SURFACE_KINDS, SURFACE_ORDER } from "./campus3dPaint.js";
-import { addDigBand, addFloor, addRoofCeiling, addRoofSlabTop, floorG0, roofCeilAt, roofCeiling } from "./campus3dInterior.js";
+import { addDigBand, addFloor, addRoofCeiling, addRoofSlabTop, addTrack, cutFloorRegions, floorG0, roofCeilAt, roofCeiling, roofWallAt } from "./campus3dInterior.js";
+import { iconCells, textCells } from "./campus3dSignText.js";
 
 export const MERC_SCALE = 2 ** 20;
 const DEG = Math.PI / 180;
@@ -38,6 +39,7 @@ const COLORS = {
     trunk: "#6e5f52", leafBroad: "#6a8c48", leafRound: "#5c8040", leafGinkgo: "#a3b24e", leafConifer: "#45653e", hedge: "#5d7d42",
     roofGreen: "#7a9556", glassLo: "#5b6f7e", glassHi: "#a2b6c4", mullion: "#3b434a", eaveDark: "#4b4f54",
     stairsWood: "#ada392", stairsStone: "#c9c6bf", stairsBrick: "#68655f", // 階段の材質：木・石・れんが（灰色の炻器質れんが）
+    stairsOak: "#a8835f", stairsNose: "#a3a8ac", // オークの段とステンレスの鼻の帯（2026-11-12、写真 S__47366149 の踏面の色 (148,122,103)〜(131,96,66)）
     // 段々の屋根（緑の屋上）：段の板（雨にさらされた灰色の木。動画の色）と、段の境目の暗い蹴上げ
     roofDeck: "#bebbb5", roofRiser: "#55524d", redRoof: "#8a4b3d",
     // 平地の壁の面（faces）：すりガラス（下・上）・扉のガラス・アルミの枠・白いれんがと目地
@@ -82,6 +84,7 @@ const COLORS = {
   dark: {
     wall: "#353d47", deckSide: "#2c333c", railing: "#4a5460", pier: "#2a3139", ceiling: "#20252c", stairs: "#3b424c", bridgeDeck: "#44423d",
     stairsWood: "#3a3631", stairsStone: "#46474b", stairsBrick: "#34353a",
+    stairsOak: "#40342a", stairsNose: "#5a5f64",
     trunk: "#26211d", leafBroad: "#1e2a1a", leafRound: "#1b2619", leafGinkgo: "#2f3420", leafConifer: "#162016", hedge: "#1b2617",
     roofGreen: "#222c1d", glassLo: "#7d6a47", glassHi: "#a88f5e", mullion: "#15191d", eaveDark: "#1a1c1f",
     roofDeck: "#34322e", roofRiser: "#17181a", redRoof: "#3b2621",
@@ -1055,6 +1058,15 @@ const GLYPHS = {
   9: { w: 0.54, s: [[[0.1, 0.05], [0.25, 0], [0.42, 0.1], [0.52, 0.4], [0.52, 0.7], [0.42, 0.94], [0.26, 1], [0.09, 0.94], [0, 0.75], [0.06, 0.55], [0.24, 0.47], [0.42, 0.55], [0.51, 0.7]]] },
   "-": { w: 0.4, s: [[[0, 0.45], [0.4, 0.45]]] },
   "'": { w: 0.06, s: [[[0.03, 0.72], [0.03, 1]]] },
+  // 時刻の区切り（エレベーターの表示の時刻。2026-11-12）
+  ":": { w: 0.08, s: [[[0.04, 0.2], [0.04, 0.3]], [[0.04, 0.62], [0.04, 0.72]]] },
+  // 小文字（計算式の時計の「h」「min」、棚の貼り紙の「FREE to USE」。2026-11-13）：x の高さ 0.62
+  h: { w: 0.48, s: [[[0, 0], [0, 1]], [[0, 0.42], [0.1, 0.56], [0.24, 0.62], [0.4, 0.58], [0.48, 0.44], [0.48, 0]]] },
+  m: { w: 0.78, s: [[[0, 0], [0, 0.62]], [[0, 0.44], [0.1, 0.58], [0.22, 0.62], [0.33, 0.58], [0.39, 0.44], [0.39, 0]], [[0.39, 0.44], [0.49, 0.58], [0.61, 0.62], [0.72, 0.58], [0.78, 0.44], [0.78, 0]]] },
+  n: { w: 0.48, s: [[[0, 0], [0, 0.62]], [[0, 0.42], [0.1, 0.56], [0.24, 0.62], [0.4, 0.58], [0.48, 0.44], [0.48, 0]]] },
+  i: { w: 0, s: [[[0, 0], [0, 0.62]], [[0, 0.82], [0, 0.92]]] },
+  t: { w: 0.34, s: [[[0.12, 0.92], [0.12, 0.12], [0.2, 0.02], [0.34, 0.02]], [[0, 0.62], [0.32, 0.62]]] },
+  o: { w: 0.56, s: [arcPts(0.28, 0.31, 0.28, 0.31, 0, 360, 20)] },
   // 看板の漢字（東京科学大学）：1 の正方形の中の線
   東: { w: 1, s: [[[0.08, 0.86], [0.92, 0.86]], [[0.2, 0.72], [0.2, 0.34]], [[0.2, 0.72], [0.8, 0.72], [0.8, 0.34]], [[0.2, 0.53], [0.8, 0.53]], [[0.2, 0.34], [0.8, 0.34]], [[0.5, 1], [0.5, 0]], [[0.46, 0.34], [0.06, 0.04]], [[0.54, 0.34], [0.94, 0.04]]] },
   京: { w: 1, s: [[[0.5, 1], [0.5, 0.88]], [[0.06, 0.86], [0.94, 0.86]], [[0.24, 0.72], [0.24, 0.46]], [[0.24, 0.72], [0.76, 0.72], [0.76, 0.46]], [[0.24, 0.46], [0.76, 0.46]], [[0.5, 0.46], [0.5, 0.02], [0.4, 0.1]], [[0.3, 0.32], [0.12, 0.1]], [[0.7, 0.32], [0.88, 0.1]]] },
@@ -1196,10 +1208,11 @@ const LOGO_SHAPES = [
 ];
 function addSign(m, f, groundAt, cols0, tint0) {
   // セブン-イレブンの看板（seven・sevenstand）は中から光る看板：昼の色のまま、光を受けない色（アルファ 0.5）で描く
-  const glowSign = f.style === "seven" || f.style === "sevenstand";
+  // 地下の看板（lit。駅のホーム）も光を受けない色
+  const glowSign = f.lit || f.style === "seven" || f.style === "sevenstand";
   const cols = glowSign ? COLORS.light : cols0;
   const tint = glowSign ? (c) => { const t = tint0(c); return [t[0], t[1], t[2], 0.5]; } : tint0; // 選んだときの色の混ぜ（tint0）はそのまま
-  const g = groundAt(f.coords[0]);
+  const g = f.elev != null ? f.elev : groundAt(f.coords[0]); // elev：地下の看板の高さの基準（標高）
   if (!Number.isFinite(g)) return;
   const fr = signFrame(f);
   const W = f.width, H = f.height, T = f.thickness;
@@ -1211,7 +1224,7 @@ function addSign(m, f, groundAt, cols0, tint0) {
   const hazard = f.style === "hazard"; // 黄色と黒の斜めの縞（字は黒）
   const seven = f.style === "seven" || f.style === "sevenstand"; // セブン-イレブン：白い板に帯（店先の看板・立て看板）
   const board = f.style === "red" ? "redPanel" : "signDark";
-  const face = tint(rgba(cols[hazard ? "hazardYellow" : cream ? "creamFace" : greenBoard ? "sevenGreen" : seven ? "plateFace" : dark ? board : white || notice ? "plateFace" : "signFace"]));
+  const face = f.face ? tint(rgba(f.face)) : tint(rgba(cols[hazard ? "hazardYellow" : cream ? "creamFace" : greenBoard ? "sevenGreen" : seven ? "plateFace" : dark ? board : white || notice ? "plateFace" : "signFace"]));
   const side = tint(rgba(cols[hazard ? "hazardBlack" : cream ? "creamSide" : greenBoard ? "sevenGreen" : seven ? "plateFace" : dark ? board : white ? "plateText" : "signSide"]));
   const ink = tint(rgba(cols[hazard ? "hazardBlack" : cream ? "redPanel" : greenBoard ? "plateFace" : seven ? "signText" : dark ? "plateFace" : white ? "plateText" : "signText"]));
   const inkSide = ink.map((v, i) => (i < 3 ? v * 0.8 : v));
@@ -1219,6 +1232,30 @@ function addSign(m, f, groundAt, cols0, tint0) {
     const [p, z] = fr.at(x, y, d);
     return [p, g + z];
   };
+  // 丸い柱に巻いた看板（wrap：半径 m。2026-11-12）：板は描かず、面の色（face）の帯と字・四角・絵を円柱の面に
+  if (f.wrap) {
+    const R = f.wrap;
+    const atW = (x, y, d) => {
+      const phi = (x - W / 2) / R;
+      const [c, cz] = fr.at(W / 2, y, -R);
+      const k = R + d;
+      const dx = Math.sin(phi) * fr.ex[0] + Math.cos(phi) * fr.n[0], dy = Math.sin(phi) * fr.ex[1] + Math.cos(phi) * fr.n[1];
+      return [[c[0] + k * dx, c[1] + k * dy], g + cz];
+    };
+    const nW = (x) => {
+      const phi = (x - W / 2) / R;
+      return [Math.sin(phi) * fr.ex[0] + Math.cos(phi) * fr.n[0], Math.sin(phi) * fr.ex[1] + Math.cos(phi) * fr.n[1], 0];
+    };
+    if (f.face) {
+      const K = Math.max(2, Math.ceil(W / 0.08));
+      for (let k = 0; k < K; k++) {
+        const x0 = (W * k) / K, x1 = (W * (k + 1)) / K;
+        m.quad([atW(x0, 0, 0.002), atW(x1, 0, 0.002), atW(x1, H, 0.002), atW(x0, H, 0.002)], nW((x0 + x1) / 2), face);
+      }
+    }
+    addSignInk(m, f, atW, nW, W, H, T, tint, true);
+    return;
+  }
   const U = [fr.ex[0], fr.ex[1], 0];
   const V = [fr.n[0] * fr.ey[0], fr.n[1] * fr.ey[0], fr.ey[1]];
   const N = [fr.n[0] * fr.en[0], fr.n[1] * fr.en[0], fr.en[1]];
@@ -1291,6 +1328,42 @@ function addSign(m, f, groundAt, cols0, tint0) {
         const [p, z] = at(lx + sh.pts[i][0] * lh, ly + sh.pts[i][1] * lh, 0.004);
         m.vert(p, z, N, sh.fill === "ink" ? ink : swoosh);
       }
+    }
+  }
+  // 日本語の字・色の四角・絵（2026-11-12）
+  addSignInk(m, f, at, () => N, W, H, T, tint, false);
+}
+
+// 看板の日本語の字（texts）・色の四角（panels）・絵（icons）：面（d 0）の少し前に。back なら後ろの面（d −T）にも左右を入れかえて。
+// curved（丸い柱に巻いた看板）なら向き nAt(x) は場所ごと。字・絵の形は campus3dSignText（canvas。なければ字・絵は描かない）
+function addSignInk(m, f, at, nAt, W, H, T, tint, curved) {
+  if (!f.texts && !f.panels && !f.icons) return;
+  const col = (h) => tint(rgba(h));
+  const sides = [{ d: 0, back: false }];
+  if (f.back && !curved) sides.push({ d: -T, back: true });
+  for (const S of sides) {
+    const sg = S.back ? -1 : 1;
+    const X = (x) => (S.back ? W - x : x);
+    const rect = (x0, y0, x1, y1, dz, c) => {
+      const d = S.d + sg * dz;
+      const n0 = nAt((X(x0) + X(x1)) / 2);
+      const nn = S.back ? [-n0[0], -n0[1], -n0[2]] : n0;
+      m.quad([at(X(x0), y0, d), at(X(x1), y0, d), at(X(x1), y1, d), at(X(x0), y1, d)], nn, c);
+    };
+    for (const [x, y, w, h, c] of f.panels || []) rect(x, y, x + w, y + h, 0.003, col(c));
+    for (const t of f.texts || []) {
+      const R = textCells(t.t, t.h, { b: t.b ?? 700, led: !!t.led });
+      if (!R) continue;
+      const sx = t.w && R.w > t.w ? t.w / R.w : 1;
+      const x0 = t.a === "c" ? t.x - (R.w * sx) / 2 : t.a === "r" ? t.x - R.w * sx : t.x;
+      const c = col(t.c);
+      for (const [rx, ry, rw, rh] of R.rects) rect(x0 + rx * sx, t.y + ry, x0 + (rx + rw) * sx, t.y + ry + rh, 0.005, c);
+    }
+    for (const [k, x, y, h, c] of f.icons || []) {
+      const R = iconCells(k, h);
+      if (!R) continue;
+      const cc = col(c);
+      for (const [rx, ry, rw, rh] of R.rects) rect(x + rx, y + ry, x + rx + rw, y + ry + rh, 0.006, cc);
     }
   }
 }
@@ -1693,10 +1766,12 @@ const WALL_SINK = 0.03;
 // 判定は campus3dFeatures.js の edgeOpen：焼き込みでも同じところのふちの外を掘らない）。
 // ふちの外が建物で、その建物の壁が平地の高さより下まであれば、建物の壁が平地の壁（buildings：{ ring, bot }）。
 // 天井のある平地（lids：平地 → terraceLid）は addCovered で描き、そのふちに面した低い平地の壁は、天井から上（まぐさ）だけ
-function addTerraceWalls(m, tr, { groundAt, terraces, paths, buildings = [], lids = null, covered = null, topColor = null, basements = [], glazed = null }, c, look = null) {
+function addTerraceWalls(m, tr, { groundAt, terraces, paths, buildings = [], lids = null, covered = null, topColor = null, basements = [], basementsCov = null, glazed = null }, c, look = null) {
   const lid = lids?.get(tr);
   if (lid) {
-    addCovered(m, tr, lid, c, look, covered, basements, glazed);
+    // 天井のある平地（地下の口）の壁は、外が掘らない地下の階（digMode "cut"）でも地下の階の中として薄い壁・半透明のガラスに（附属図書館の
+    // 入口の踊り場の扉の面が、外向きの暗いガラスと土の帯になっていた。2026-11-13）
+    addCovered(m, tr, lid, c, look, covered, basementsCov || basements, glazed);
     return;
   }
   const { pts } = densify([...tr.ring, tr.ring[0]], 1);
@@ -2174,6 +2249,11 @@ const SEE_THROUGH_WIN = new Set(["glass", "glassdoor", "autodoor", "opening"]);
 // 自動ドアの口（campus3dDoors.js が開き具合ごとに板を描く）。buildMesh のあいだだけ配列（建物の窓 autodoor・平地の面の auto の扉・
 // 階の壁の auto の扉がここに足す）。{ a, b, z0, z1, n, off, kind }
 let autoDoors = null;
+let autoPsd = null; // ホームドアの戸の口（buildMesh のあいだだけ）
+let autoEsc = null; // エスカレーター（段は campus3dEscalator が時刻に合わせて描く。buildMesh のあいだだけ）
+let autoClocks = null; // 計算式の時計の面（光る字は campus3dMathClock が分ごとに描く。buildMesh のあいだだけ）
+// 階の物の字（木の板の表示・貼り紙。campus3dInterior は campus3dMesh を読み込めないので ctx で渡す）
+const FLOOR_TEXT = { planeText, textWidth };
 export const pushAutoDoor = (d) => {
   if (autoDoors) autoDoors.push(d);
 };
@@ -2260,7 +2340,9 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
   const g0 = groundAt(f.groundRef || toLngLat(mean));
   const gs = ring.map((p) => groundAt(toLngLat(p))).filter(Number.isFinite);
   if (!Number.isFinite(g0) || !gs.length) return;
-  const bot = Math.min(g0, ...gs) - 1;
+  // 壁の下の端は地面の 1m 下（坂でも地面とのすき間が出ないように）。屋内の小さなもの（indoor：券売機など）は平らな床に置くので床のすぐ下まで
+  // （1m 下まで下ろすと、大岡山駅の券売機が下のエスカレーターの箱の中に白く突き出た。2026-11-11）
+  const bot = Math.min(g0, ...gs) - (f.indoor ? 0.05 : 1);
   // 宙に浮いた建物（base）：外の壁は下の面（船底の形なら点ごと）から。下の面は下向きに描く
   const soff = buildingSoffit(f, ring);
   const bAt = (p) => (soff ? g0 + soff.at(p) : bot);
@@ -2620,7 +2702,7 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
       }
       if (!cv.open && ce) {
         const up = nUp(ce);
-        m.polygon(pg, (p) => g0 + Math.max(planeVal(fl, p), Math.min(planeVal(ce, p), hAt(p))), cv.lit ? [0, 0, 1] : [-up[0], -up[1], -up[2]], cv.glow ? SHOP_LIGHT : cv.lit ? c : cIn);
+        m.polygon(pg, (p) => g0 + Math.max(planeVal(fl, p), Math.min(planeVal(ce, p), hAt(p))), cv.lit ? [0, 0, 1] : [-up[0], -up[1], -up[2]], cv.glow ? SHOP_LIGHT : cv.lit ? look?.inner || c : cIn);
       }
     }
   }
@@ -3106,7 +3188,7 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
           const ta = zt(pa, hr);
           const tb = zt(pb, hr);
           if (ta - ba < ROOF_MIN && tb - bb < ROOF_MIN) continue;
-          m.quad([[pa, ba], [pb, bb], [pb, tb], [pa, ta]], cv.lit ? litNormal(nin) : nin, cv.glow ? SHOP_LIGHT : cv.lit ? c : cIn);
+          m.quad([[pa, ba], [pb, bb], [pb, tb], [pa, ta]], cv.lit ? litNormal(nin) : nin, cv.glow ? SHOP_LIGHT : cv.lit ? look?.inner || c : cIn);
           // 中の見える殻（look.pane）：建物の中から見た面（くり抜きの壁の裏。2 階のテラスの壁が中から透けていた：目印 9・10、2026-11-09）。
           // 床の下の面（CARVE_SLAB 下）までのばして、床の板の小口もふさぐ
           if (look?.pane && !cv.glow) {
@@ -3806,14 +3888,18 @@ function addFrame(m, f, ring, g0, bot, look) {
 }
 
 // 階段：段ごとの箱（段の下の地面より下から段の上まで）を m に、手すりを rm に
-export const stairsColorKey = (f) => (f.material === "wood" ? "stairsWood" : f.material === "stone" ? "stairsStone" : f.material === "brick" ? "stairsBrick" : "stairs");
+export const stairsColorKey = (f) => (f.material === "wood" ? "stairsWood" : f.material === "stone" ? "stairsStone" : f.material === "brick" ? "stairsBrick" : f.material === "oak" ? "stairsOak" : "stairs");
+const NOSE_TREAD = 0.045; // オークの段の鼻のステンレスの帯：踏面のふちからの奥行き（m）
+const NOSE_DROP = 0.035; // 同じく蹴上げの上の端から下へ（m）
 function addStairs(m, rm, sl, groundAt, cols, tint) {
   const f = sl.f;
   const c = tint(rgba(cols[stairsColorKey(f)]));
+  const noseC = f.material === "oak" ? tint(rgba(cols.stairsNose)) : null; // 段の鼻のステンレスの帯の色（オークだけ）
   const L = offsetLine(sl.xy, sl.hwv.map((h, i) => sl.cv[i] + h));
   const R = offsetLine(sl.xy, sl.hwv.map((h, i) => sl.cv[i] - h));
   const at = (line, i, t) => [line[i][0] + (line[i + 1][0] - line[i][0]) * t, line[i][1] + (line[i + 1][1] - line[i][1]) * t];
-  stairSteps(sl.prof, f.riser, sl.cum).forEach((st) => {
+  const steps = stairSteps(sl.prof, f.riser, sl.cum);
+  steps.forEach((st, k) => {
     const i = st.seg;
     const len = sl.cum[i + 1] - sl.cum[i];
     const t0 = (st.s0 - sl.cum[i]) / len;
@@ -3822,6 +3908,22 @@ function addStairs(m, rm, sl, groundAt, cols, tint) {
     const foot = [at(L, i, t0), at(L, i, t1), at(R, i, t0), at(R, i, t1)].map((q) => groundAt(toLngLat(q))).filter(Number.isFinite);
     const base = Math.min(lerpAlong(sl.under.s, sl.under.e, st.s0) - 0.5, lerpAlong(sl.under.s, sl.under.e, st.s1) - 0.5, ...foot.map((g) => g - 0.3));
     m.prism([at(L, i, t0), at(L, i, t1)], [at(R, i, t0), at(R, i, t1)], [base, base], [st.top, st.top], { top: c, side: c });
+    if (!noseC) return;
+    // 段の鼻（高い側の踏面のふち）に、踏面のふちと蹴上げの上を包むステンレスの帯（蹴上げの面から 4mm 出す。踏面の上 6mm）。
+    // 階段の両端で、上の地面（下りの始まり・上りの終わり）のふちにも
+    const pe = sl.prof.e;
+    const prevTop = k > 0 ? steps[k - 1].top : pe[0];
+    const nextTop = k < steps.length - 1 ? steps[k + 1].top : pe[pe.length - 1];
+    const ends = []; // [端の t, 帯が伸びる t の向き, 高さ]
+    if (nextTop < st.top - 0.02) ends.push([t1, -1, st.top]);
+    if (prevTop < st.top - 0.02) ends.push([t0, 1, st.top]);
+    if (k === 0 && pe[0] > st.top + 0.02) ends.push([t0, -1, pe[0]]);
+    if (k === steps.length - 1 && pe[pe.length - 1] > st.top + 0.02) ends.push([t1, 1, pe[pe.length - 1]]);
+    for (const [te, dir, z] of ends) {
+      const ta = te + (dir * NOSE_TREAD) / len, tb = te - (dir * 0.004) / len;
+      const [u0, u1] = ta < tb ? [ta, tb] : [tb, ta];
+      m.prism([at(L, i, u0), at(L, i, u1)], [at(R, i, u0), at(R, i, u1)], [z - NOSE_DROP, z - NOSE_DROP], [z + 0.006, z + 0.006], { top: noseC, side: noseC });
+    }
   });
   // 手すり：位置ごとに、足もとの線から 0.85〜0.95m の横の棒と、1.2m おきの支柱（板にすると段が隠れる）。
   // 位置 r は段の幅に対する割合（0 が左の端、1 が右の端）。段の上なら足もとは段の角をなぞる線、土台の上なら壁の上（斜面なら路肩）
@@ -3887,6 +3989,9 @@ function indoorMesh(m) {
 // digs は詳細モードで地下の階の下を掘ったもの（dem.digs）
 export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceilings = [], digs = [], pal, dark, selectedId = null, accent = "#28c868", bldColor = null, clip = null, tone = null, trees = true }) {
   autoDoors = [];
+  autoPsd = [];
+  autoEsc = [];
+  autoClocks = [];
   const m = new Mesh();
   const thin = new Mesh(); // 階段の手すり：奥行きを書かずに描く（ルートの線を支柱で途切れさせない）
   const glassy = new Mesh(); // ガラスの手すりの板：ほかを描いたあとに半透明で重ねる（向こうの段や穴が透けて見える）
@@ -3907,6 +4012,10 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     }
   });
   const wallAt = overLids(groundAt, [...lids.values()]);
+  const basementsCov = basementRegions(features, { walk: true }); // 掘らない地下の階も含めた地下の階（天井のある平地の壁・建物の壁の下の端）
+  // 建物の壁の下の端：天井のある平地のふた（と、そのまわり 1.2m：平地を焼き込んだ地面のにじみ）の上では地面をふたの高さとして読む
+  // （附属図書館 1 階のロビーの角が入口の踊り場のにじみにかかり、ガラスの壁が地下 1 階まで下りていた。2026-11-13）
+  const bldGround = lids.size ? overLids(groundAt, [...lids.values()].map((L) => ({ ...L, poly: offsetRingBy(L.poly, L.poly.map(() => 1.2)) }))) : groundAt;
   features.forEach((f) => {
     const tint = f.id === selectedId ? (c) => mix(c, acc, 0.45) : (c) => c;
     if (f.type === "wall" && f.kind === "hedge") addHedge(m, f, wallAt, tint(rgba(cols.hedge)));
@@ -3922,6 +4031,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     else if (f.type === "sign") addSign(m, f, groundAt, cols, tint);
     else if (f.type === "wall") addWall(m, f, wallAt, tint(rgba(cols.wall)));
     else if (f.type === "bridge") addBridge(m, f, groundAt, pal, cols, tint);
+    else if (f.type === "track") addTrack(m, f); // 駅の中の線路：レールとまくらぎ（campus3dInterior.js）
     else if (f.type === "tree") {
       if (trees) addTree(m, f, groundAt, cols, tint); // 木のレイヤー（campus3dVeg。季節・風）が描くときは描かない（trees: false）
     }
@@ -3948,6 +4058,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
         frost: [tintB(rgba(colsB.frostLo)), tintB(rgba(colsB.frostHi))],
         trellis: tintB(rgba(colsB.trellis)), planter: tintB(rgba(colsB.planter)), vine: [tintB(rgba(colsB.vine1)), tintB(rgba(colsB.vine2)), tintB(rgba(colsB.vine3))],
         glazed: tintB(rgba(colsB.glazed)), glazedGray: tintB(rgba(colsB.glazedGray)), soffitWood: tintB(rgba(colsB.soffitWood)),
+        inner: f.inner ? tintB(rgba(colsB[MATERIAL_COLOR[f.inner]])) : null, // くり抜き（lit）の中の壁・天井の色
         screen, // 穴あきの金属板（panels の perforated）は半透明で重ねる（向こうが透けて見える）
         glassy, clear: tintB(rgba(colsB.clearGlass)), // 透明なガラスの板（panels の clear）：ガラスの手すりと同じく半透明で重ねる
       };
@@ -3957,7 +4068,11 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
         const under = basementRegions(features.filter((x) => x.host === f.id));
         addBuilding(cull, { ...f, carves: buildingOpenings(f, features) }, groundAt, c, clip, { ...look, pane: glassy, under });
         addRoofCeiling(cull, f, groundAt, tint, shellCeiling(f, features, groundAt));
-      } else addBuilding(f.indoor ? indoorMesh(m) : m, { ...f, carves: buildingOpenings(f, features) }, groundAt, c, clip, look);
+      } else {
+        // 地下の階（掘らない地下の階も）の上の壁は、外の地面の 0.3m 下から（1m 下まで下ろすと、附属図書館 1 階のロビーの壁が地下 1 階の
+        // 天井の下へ板のように出ていた。2026-11-13。中の見える殻の under と同じ決まり）
+        addBuilding(f.indoor ? indoorMesh(m) : m, { ...f, carves: buildingOpenings(f, features) }, bldGround, c, clip, basementsCov.length ? { ...(look || {}), under: basementsCov } : look);
+      }
     }
   });
   const bldBots = !terraces.length ? [] : features.filter((f) => f.type === "building" && f.coords.length >= 3).map((f) => {
@@ -4016,7 +4131,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     // ウッドデッキの縁（faces の deck）がある平地は、壁の帯も木の縁の色（坂・段が横切るところの帯の端の面・角が白く見えないように。
     // 外の面は縁の板が覆う）
     const deckEdge = tr.f.faces?.some((fc) => fc?.deck);
-    addTerraceWalls(m, tr, { groundAt, terraces, paths: slopes, buildings: bldBots, lids, covered, topColor: (f, p) => { const col = topColor(f, p); return col ? tint(col) : null; }, basements, glazed }, tint(rgba(deckEdge ? cols.deckFace : cols.wall)), look);
+    addTerraceWalls(m, tr, { groundAt, terraces, paths: slopes, buildings: bldBots, lids, covered, topColor: (f, p) => { const col = topColor(f, p); return col ? tint(col) : null; }, basements, basementsCov, glazed }, tint(rgba(deckEdge ? cols.deckFace : cols.wall)), look);
   });
   slopes.forEach((sl) => {
     const tint = sl.f.id === selectedId ? (c) => mix(c, acc, 0.45) : (c) => c;
@@ -4032,12 +4147,23 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     const tint = f.id === selectedId ? (c) => mix(c, acc, 0.45) : (c) => c;
     const host = f.hostRef || null;
     const g0 = floorG0(f, groundAt);
-    addFloor({ m, glassy, veil, cull }, f, { groundAt, tint, paintAt, ceilAt: host ? roofCeilAt(host, groundAt) : null, cutTop: f.cut && Number.isFinite(g0) ? g0 + f.z + f.height - f.slab + 0.05 : Infinity, glazed, doors: autoDoors });
+    addFloor({ m, glassy, veil, cull }, f, { groundAt, tint, paintAt, ceilAt: host ? roofWallAt(host, groundAt) : null, cutTop: f.cut && Number.isFinite(g0) ? g0 + f.z + f.height - f.slab + 0.05 : Infinity, glazed, doors: autoDoors, psd: autoPsd, esc: autoEsc, clocks: autoClocks, text: FLOOR_TEXT });
   });
-  digs.forEach((d) => addDigBand(m, d, digs, groundAt, paintAt, campusGround));
+  // 掘らない地下の階に面したふちの帯は、その床から PASS_CLEAR m より上だけ（連絡通路の口。歩く当たり campus3dWalk と同じ形）
+  const cutFloors = cutFloorRegions(features, groundAt);
+  digs.forEach((d) => addDigBand(m, d, digs, groundAt, paintAt, campusGround, cutFloors));
   const doors = autoDoors;
   autoDoors = null;
-  return { ...m.result(), thin: thin.result(), glass: glassy.result(), screen: screen.result(), haze: haze.result(), veil: veil.result(), cull: cull.result(), doors };
+  // ホームドアの戸の口（電車に合わせて開く。campus3dPsd.js が描く）
+  const psd = autoPsd;
+  autoPsd = null;
+  // エスカレーター（{ e, zf }。段は campus3dEscalator.js が動かす）
+  const esc = autoEsc;
+  autoEsc = null;
+  // 計算式の時計の面（{ o, u, n, z0, w, h, d }。光る字は campus3dMathClock）
+  const clocks = autoClocks;
+  autoClocks = null;
+  return { ...m.result(), thin: thin.result(), glass: glassy.result(), screen: screen.result(), haze: haze.result(), veil: veil.result(), cull: cull.result(), doors, psd, esc, clocks };
 }
 
 // 中のある建物（detailShell）の屋根の下の天井に渡すもの：大梁を通す柱（その建物の階の、屋根の下の天井まで届く細い物の中心）と、

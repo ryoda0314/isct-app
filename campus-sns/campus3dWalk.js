@@ -7,7 +7,7 @@
 // ここは位置・速さ・向きの計算と、目の位置から MapLibre のカメラ（中心・ズーム・中心の標高）を出す計算。DOM も MapLibre も使わない
 import { BOARD_T, STAIRS_CLEAR, WALL_IN, WALL_T, basementRegions, buildingOpenings, buildingRoof, buildingSoffit, clearGlassFace, cumulative, densify, edgeOpen, inBasement, isOpenStairs, curbWidth, offsetLine, overLids, panelSlices, pointInRing, prepareBridge, railGround, signFrame, ringArea, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexShifts, vertexWidths, withAutoOpenStairs } from "./campus3dFeatures.js";
 import { carveSurfaces, reachOut, trunkRadius } from "./campus3dMesh.js";
-import { digWalk, floorWalk } from "./campus3dInterior.js";
+import { cutFloorRegions, digWalk, floorWalk } from "./campus3dInterior.js";
 
 const DEG = Math.PI / 180;
 export const EYE = 1.62; // 目の高さ（m。Minecraft と同じ）
@@ -94,6 +94,8 @@ const segDist = (x, y, a, b) => {
 // surfaceAt は足もとの地面（詳細モードで地下の階の下を掘った地面。なければ groundAt）、digs はその掘ったもの（dem.digs）
 export function walkWorld({ data, features = [], cut = null, replaced = null, heights = null, decks = [], posts = [], bounds = null, groundAt, surfaceAt = null, digs = [] }) {
   const solids = new Grid(40);
+  // 動く床（エスカレーターの段の帯。2026-11-12）：{ ring, box, at(x, y) → { z（足場の標高）, v（[東, 北] m/s） } }
+  const belts = [];
   const edges = new Grid(10);
   const ALL = [[-Infinity, Infinity]];
   const inRings = (x, y, rings) => rings.some((r) => pointInRing(x, y, r));
@@ -136,6 +138,20 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
     }
     return solid;
   };
+  // 地下の駅（digMode "cut" の地下の階：大岡山駅のホーム・線路の溝・乗り換え通路。2026-11-11）の上の建物は、地面（1 階の床）の
+  // UNDER_SLAB m 下から上だけ（下の地下の階を歩ける）。いつも掘る形（帯のない dig：改札の中の床の下）では、くり抜きの床は階の床（floor。
+  // エスカレーター・階段の口の穴がある）が作るので、建物の当たりは天井から上だけ
+  const UNDER_SLAB = 0.6;
+  const cutUnder = features.filter((f) => f.type === "floor" && f.host && f.z < -0.5 && f.digMode === "cut" && f.coords?.length > 2).map((f) => ({ ring: f.coords.map(toXY), holes: [] }));
+  const openDigs = features.filter((f) => f.type === "dig" && f.band === false && f.coords?.length > 2).map((f) => ({ ring: f.coords.map(toXY), holes: [] }));
+  const cutBox = cutUnder.reduce((b, r) => r.ring.reduce((c, p) => [Math.min(c[0], p[0]), Math.min(c[1], p[1]), Math.max(c[2], p[0]), Math.max(c[3], p[1])], b), [Infinity, Infinity, -Infinity, -Infinity]);
+  const overStation = (x, y) => cutUnder.length > 0 && x >= cutBox[0] && x <= cutBox[2] && y >= cutBox[1] && y <= cutBox[3] && inBasement(cutUnder, [x, y]);
+  // 地面から上へ立つ細いもの（木の幹・信号機・街灯の柱）の高さの区間：地下の駅の上では地面の少し下から上だけ
+  const aboveStation = (p) => {
+    if (!overStation(p[0], p[1])) return ALL;
+    const g = ground(p[0], p[1]);
+    return Number.isFinite(g) ? [[g - UNDER_SLAB, Infinity]] : ALL;
+  };
   // 地図の建物：地面から屋上まで（屋上は MapLibre と同じく、輪の点の平均の地面 + 高さ）
   const meanGround = (rings) => {
     let x = 0, y = 0, n = 0;
@@ -152,7 +168,7 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
         const g = meanGround(rings);
         if (!Number.isFinite(g)) continue;
         const span = [[p.b ? g + p.b : -Infinity, g + p.h]];
-        addSolid(rings[0], rings.slice(1), () => span);
+        addSolid(rings[0], rings.slice(1), (x, y) => (overStation(x, y) && !p.b ? [[g - UNDER_SLAB, g + p.h]] : span));
       }
       return;
     }
@@ -160,7 +176,7 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
     const g = meanGround(rings);
     const top = Number.isFinite(g) && heights ? g + heights[i] : Infinity;
     const span = [[-Infinity, top]];
-    addSolid(rings[0], rings.slice(1), () => span);
+    addSolid(rings[0], rings.slice(1), (x, y) => (overStation(x, y) && Number.isFinite(g) ? [[g - UNDER_SLAB, top]] : span));
   });
   (data.water || []).forEach((w) => addSolid(w.map(ll2xy), [], () => ALL));
   // 壁・柵の足もと：天井のある平地のふたの上では、ふたの上（焼き込んだ地面は下の部屋の床）
@@ -200,11 +216,14 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
           const fl = g0 + Math.max(0, c.floorAt([x, y]));
           return fl > g0 + 0.3 ? [[fl - 0.35, fl]] : [];
         }
-        if (!c) return [[soff ? g0 + soff.at([x, y]) : -Infinity, roof]];
+        const under = overStation(x, y);
+        if (!c) return [[soff ? g0 + soff.at([x, y]) : under ? g0 - UNDER_SLAB : -Infinity, roof]];
         const fl = g0 + Math.max(0, c.floorAt([x, y]));
         const ce = c.ceilAt ? g0 + c.ceilAt([x, y]) : Infinity;
-        // 屋根の板のある建物は、床をそのまま（板の下の暗い面の高さに下げない。描くのと同じ）
-        const out = [[-Infinity, roofOf.boards.list.length ? fl : Math.min(fl, roof)]];
+        // 屋根の板のある建物は、床をそのまま（板の下の暗い面の高さに下げない。描くのと同じ）。地下の駅の上のくり抜きは、掘った形の中なら
+        // 床は階の床にまかせる（なし）、ほかは 1 階の床の厚さだけ
+        const top0 = roofOf.boards.list.length ? fl : Math.min(fl, roof);
+        const out = under && openDigs.length && inBasement(openDigs, [x, y]) ? [] : [[under ? g0 - UNDER_SLAB : -Infinity, top0]];
         if (ce < roof - 0.05) out.push([ce, roof]);
         return out;
       };
@@ -254,15 +273,15 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
       }
     } else if (f.type === "floor") {
       // 詳細モードの建物の階：床・壁・ガラス・手すり・家具・階段（campus3dInterior.js）
-      floorWalk(f, groundAt, { solid: addSolid, edge: (a, b, half, spans, stand) => addEdge(a, b, half, spans, null, stand) }, BODY);
+      floorWalk(f, groundAt, { solid: addSolid, edge: (a, b, half, spans, stand) => addEdge(a, b, half, spans, null, stand), belt: (ring, at) => belts.push({ ring, box: boxOf(ring), at }) }, BODY);
     } else if (f.type === "tree") {
-      // 木：幹だけ（葉の下はくぐれる）
+      // 木：幹だけ（葉の下はくぐれる）。地下の駅の上では地面から上だけ（下のホームを歩ける）
       const p = toXY(f.coords[0]);
-      addEdge(p, p, trunkRadius(f) + BODY, ALL, null, false);
+      addEdge(p, p, trunkRadius(f) + BODY, aboveStation(p), null, false);
     } else if (f.type === "signal") {
       // 信号機：柱だけ（腕と灯の下はくぐれる）
       const p = toXY(f.coords[0]);
-      addEdge(p, p, 0.11 + BODY, ALL, null, false);
+      addEdge(p, p, 0.11 + BODY, aboveStation(p), null, false);
     } else if (f.type === "sign" && f.legs > 0) {
       // 立て看板：板の真下（倒した板の奥行きの中ほど）の線。板の上の端まで（柵などに付けた板は、付けたものがふさぐ）
       const g = ground(...toXY(f.coords[0]));
@@ -286,7 +305,8 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
         // ふたの上に立つ柵（下は部屋の口：くぐれる）と、段の上に立てた柵（base）は、その足もとから上だけ。平地のふちの柵（rim）も
         // 足もとから上だけ（下の段は平地のふちの帯と柵がふさぐ。明かり取りのふちの金網の真下の地下 2 階の自動ドアをくぐれるように。2026-11-09）
         const raised = Number.isFinite(g) && (f.base > 0 || f.rim || g > footAt(groundAt) + 0.3);
-        const lo = raised ? g + (f.base || 0) - 0.05 : -Infinity;
+        // 地下の駅の上（広場・交差点の柵・ベンチ）は、地面の少し下から上だけ（下のホームを歩ける）
+        const lo = raised ? g + (f.base || 0) - 0.05 : overStation(mid[0], mid[1]) && Number.isFinite(g) ? g - UNDER_SLAB : -Infinity;
         addEdge(pts[i - 1], pts[i], t / 2 + BODY, [[lo, Number.isFinite(g) ? g + (f.base || 0) + (f.height || 1.2) : Infinity]]);
       }
     }
@@ -330,6 +350,30 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
   const terraces = features.filter((f) => f.type === "terrace" && f.coords?.length > 2).map((f) => ({ f, ring: f.coords.map(toXY) }));
   // 地下の階（中の見える建物）の形
   const basements = basementRegions(features);
+  // 自動ドアの口の判定だけは、掘らない地下の階（digMode "cut"）も地下（附属図書館の入口の穴の自動ドアから地下 1 階へ。2026-11-13）。
+  // ほかの判定（盛った平地のふち・天井のある平地の床など）は今までどおり（丘のふちの柵を消さない）
+  const basementsDoor = basementRegions(features, { walk: true });
+  // 地面より上の建物の階の床（詳細モード）：平地のふちの外に同じ高さの床があれば、そのふちは段差でない（柵を立てない）。
+  // 附属図書館の 2 階の入口のテラスから学習棟の 2 階の床へ（テラスは学習棟の北の面まで。2026-11-13）
+  const levelFloors = features
+    .filter((f) => f.type === "floor" && f.host && f.z > -0.5 && f.coords?.length > 2)
+    .map((f) => {
+      const g0 = groundAt(f.groundRef || f.coords[0]);
+      return Number.isFinite(g0) ? { ring: f.coords.map(toXY), holes: (f.holes || []).map((h) => h.coords.map(toXY)), top: g0 + f.z } : null;
+    })
+    .filter(Boolean);
+  const sameLevelFloor = (p, z) => levelFloors.some((L) => Math.abs(L.top - z) < 0.35 && pointInRing(p[0], p[1], L.ring) && !L.holes.some((h) => pointInRing(p[0], p[1], h)));
+  // 掘らない地下の階（digMode "cut"）の上を通る平地のふちの帯・柵は、その階の天井（上の床の下の面）から上だけ（地面の下の帯が地下の階の
+  // 部屋を横切らない。附属図書館 1 階のロビーの下の地面をならした平地のふちが、地下 1 階の入口ホールのゲートをふさいでいた。2026-11-13）
+  const cutCeils = features
+    .filter((f) => f.type === "floor" && f.digMode === "cut" && f.host && f.z < -0.5 && f.coords?.length > 2)
+    .map((f) => {
+      const g0 = groundAt(f.groundRef || f.coords[0]);
+      return Number.isFinite(g0) ? { ring: f.coords.map(toXY), holes: (f.holes || []).map((h) => h.coords.map(toXY)), ceil: g0 + f.z + f.height - (f.slab || 0.3) } : null;
+    })
+    .filter(Boolean);
+  const cutCeilAt = (p) => { let c = null; for (const L of cutCeils) if (pointInRing(p[0], p[1], L.ring) && !L.holes.some((h) => pointInRing(p[0], p[1], h))) c = c == null ? L.ceil : Math.max(c, L.ceil); return c; };
+  const overCut = (spans, p) => { const c = cutCeils.length ? cutCeilAt(p) : null; return c == null ? spans : spans.map(([lo, hi]) => [Math.max(lo, c), hi]).filter(([lo, hi]) => hi > lo); };
   // 天井のある平地（地下の玄関の穴など）：ふたはまわりの地面の続き（上を歩ける。下は天井まであく）。床の下が地下の階なら、床は厚さ 0.3m の
   // 板（描く addCovered と同じ。地下の階を見せるために掘った地面は下の階の床まで下がっているので、この板の上を歩く。2026-11-09）
   const lids = new Map();
@@ -438,13 +482,15 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
         const top = [[-Infinity, hi + 0.05]];
         // 外（壁の帯の側）が地下の階：帯は WALL_IN の薄い壁。透明なガラスの面なら、帯はガラスの上の端から上だけ（ガラスの線は下の柵で止まる）
         const inB = cut && lowIn && basements.length > 0 && inBasement(basements, [m[0] + nx * 0.6, m[1] + ny * 0.6]);
-        const wB = inB ? WALL_IN / WALL_T : 1;
+        const fcA = f.faces?.[i];
+        const inBDoor = inB || (cut && lowIn && !!(fcA?.auto && fcA.doors?.length) && basementsDoor.length > 0 && inBasement(basementsDoor, [m[0] + nx * 0.6, m[1] + ny * 0.6]));
+        const wB = inBDoor ? WALL_IN / WALL_T : 1;
         const fcI = f.faces?.[i];
         const bandTop = inB && clearGlassFace(fcI) ? [[Math.min(...prof) + fcI.glass, hi + 0.05]] : top;
         // ふちに沿って地面が下がっていくところで、走って跳んでも越えない高さ。天井のある平地のふちは天井まで（上のふたを歩ける）
         const rail = lids.has(f) ? [[-Infinity, lids.get(f).under]] : [[-Infinity, hi + 3]];
         // 自動ドア（面の auto の扉の口）：外が地下の階なら、口のところの帯と柵は扉の上から上だけ（くぐって地下の階へ入る。2026-11-09）
-        const doorTop = inB && fcI?.auto && fcI.doors?.length ? Math.min(...prof) + (fcI.base || 0) + AUTO_DOOR_H : null;
+        const doorTop = inBDoor && fcI?.auto && fcI.doors?.length ? Math.min(...prof) + (fcI.base || 0) + AUTO_DOOR_H : null;
         const inDoor = (t) => doorTop != null && fcI.doors.some(([d0, d1]) => t >= d0 && t <= d1);
         // 0.1m ずつ見て、坂道・階段の通り道でないところだけ（坂道・壁のある階段は壁の厚さのまん中で、壁なしの階段はふちの上で見る）
         const t0 = k / n;
@@ -465,11 +511,16 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
             if (cut && rb - ra > 1e-6 && hi + 0.05 > mouth.under) addSolid([at(ra), at(rb), at(rb, 1), at(ra, 1)], [], () => [[mouth.under, hi + 0.05]]);
             addEdge(at(ra, w), at(rb, w), BODY + 0.05, [[mouth.under, Math.max(rail[0][1], mouth.top + 3)]], null, false);
           } else {
-            if (cut && rb - ra > 1e-6) addSolid([at(ra), at(rb), at(rb, wB), at(ra, wB)], [], () => bandTop);
+            const pc = at((ra + rb) / 2, 0.5);
+            if (cut && rb - ra > 1e-6) { const bt = overCut(bandTop, pc); if (bt.length) addSolid([at(ra), at(rb), at(rb, wB), at(ra, wB)], [], () => bt); }
             // 斜めに切ったふち（side > 0）の柵が地下の階の中に立つときは立てない（となりの掘り下げのふちの段差を拾ったもの。地下の階の中では
             // 見えない壁になり、上の広場は地下の上のふたが受ける。明かり取りのまわりの通路 taki-walk のふちが内部大階段の中にあった）
             const inner = !cut && basements.length > 0 && inBasement(basements, at((ra + rb) / 2, w));
-            if (!inner) addEdge(at(ra, w), at(rb, w), BODY + 0.05, cap == null ? rail : [[-Infinity, Math.min(cap, rail[0][1])]], null, false);
+            // ふちの外（帯の側 0.6m）か柵の立つところのすぐ外に、同じ高さの建物の階の床があれば、柵を立てない（そこは床の続き。斜めのふち
+            // side > 0 は柵が斜面のいちばん急なところに立つ：緑の丘の上のふちの柵が学習棟の 2 階の床の中に立っていた）
+            const qm = at((ra + rb) / 2, 0), gm = at((ra + rb) / 2, w);
+            const level = levelFloors.length > 0 && [0.6, 1.0, 1.5].map((d) => [qm[0] + nx * d, qm[1] + ny * d]).concat([[gm[0] + nx * 0.3, gm[1] + ny * 0.3], gm, [gm[0] - nx * 0.3, gm[1] - ny * 0.3]]).some((p) => sameLevelFloor(p, hi));
+            if (!inner && !level) { const sp = overCut(cap == null ? rail : [[-Infinity, Math.min(cap, rail[0][1])]], pc); if (sp.length) addEdge(at(ra, w), at(rb, w), BODY + 0.05, sp, null, false); }
           }
           run = null;
         };
@@ -495,9 +546,12 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
     }
   }
   // 街灯の柱（太さ 0.24m）：点の辺として
-  for (const p of posts) addEdge(p, p, 0.12 + BODY, ALL);
-  // 詳細モードで地下の階の下を掘ったふちの帯（上は掘る前の地面）
-  for (const d of digs) digWalk(d, digs, groundAt, { solid: addSolid });
+  for (const p of posts) addEdge(p, p, 0.12 + BODY, aboveStation(p));
+  // 詳細モードで地下の階の下を掘ったふちの帯（上は掘る前の地面）。掘らない地下の階（digMode "cut"）の側は、帯をその床から PASS_CLEAR m
+  // より上だけに（下は通れる口、上は地面のまま歩ける。Taki の地下 1 階から附属図書館の地下 1 階への連絡通路。2026-11-13：前は帯をまるごと
+  // 省いたので、掘った地面のにじみの上に地面がなく、通路の上の植え込みのそばで歩く人が落ちた）。見た目の帯（campus3dMesh）も同じ形
+  const cutDigs = cutFloorRegions(features, groundAt);
+  for (const d of digs) digWalk(d, digs, groundAt, { solid: addSolid }, cutDigs);
 
   // 体（足 z の 0.1m 上〜1.8m 上）が区間にかかるか
   const hits = (spans, z) => spans.some(([lo, hi]) => lo < z + 1.8 && hi > z + 0.1);
@@ -695,7 +749,16 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
     }
     return top;
   };
-  return { surfacesAt, floorBelow, blocked, move, freeNear, pick, setDyn, setDynFloor, coverAt };
+  // 足（x, y・足の高さ z）の下が動く床（エスカレーターの段）なら、その速さ [東, 北] m/s（足が段の面から 0.3m 以内）。なければ null
+  const beltAt = (x, y, z) => {
+    for (const b of belts) {
+      if (x < b.box[0] || x > b.box[2] || y < b.box[1] || y > b.box[3] || !pointInRing(x, y, b.ring)) continue;
+      const r = b.at(x, y);
+      if (Math.abs(r.z - z) < 0.3) return r.v;
+    }
+    return null;
+  };
+  return { surfacesAt, floorBelow, blocked, move, freeNear, pick, setDyn, setDynFloor, coverAt, beltAt };
 }
 
 /**
@@ -743,6 +806,18 @@ export function stepBody(s, input, dt, world) {
       z = floor.z;
       deck = floor.deck;
     } else if (onGround && (!floor || floor.z < z)) onGround = false;
+  }
+  // エスカレーター（2026-11-12）：段の帯の上に立っていれば、段の速さで運ばれる（歩いていてもいなくても。壁・手すりにはぶつかる）
+  const bv = onGround && world.beltAt ? world.beltAt(x, y, z) : null;
+  if (bv) {
+    const r = world.move(x, y, z, bv[0] * dt, bv[1] * dt, { onGround, sneak: input.sneak, deck });
+    x = r.x;
+    y = r.y;
+    if (r.floor && Math.abs(r.floor.z - z) < STEP) {
+      stepUp += r.floor.z - z;
+      z = r.floor.z;
+      deck = r.floor.deck;
+    }
   }
   // 壁に押しつけているあいだも速さ（進もうとする勢い）は残す：段の前でジャンプすると、足が上に出たとたんに前へ進んで乗れる
   // （Minecraft で W を押したまま跳ぶと 1 段上がれるのと同じ）

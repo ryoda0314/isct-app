@@ -145,7 +145,9 @@ async function frame(sess, P) {
     w.fly = true;
     w.noclip = true;
     w.vx = 0; w.vy = 0; w.vz = 0;
-    const pp = { x: o.P.x, y: o.P.y, z: o.P.z, yaw: o.P.yaw, pitch: o.P.pitch, D: 8, fov: o.P.fov };
+    // 見る点までの距離 D：画角が狭い（望遠）と、アプリの eyeCamera のズームが地図の上限（24）を超えてカメラがずれ、次のカットまで崩れるので伸ばす
+    const D = 8 * Math.max(1, Math.tan((35 * Math.PI) / 180) / Math.tan((o.P.fov * Math.PI) / 360));
+    const pp = { x: o.P.x, y: o.P.y, z: o.P.z, yaw: o.P.yaw, pitch: o.P.pitch, D, fov: o.P.fov };
     w.anim = { t0: performance.now(), dur: 1e12, from: pp, to: pp };
     window.timeweb.goTo(o.t);
   }, { P, t: sess.vt });
@@ -180,8 +182,20 @@ async function captureShot(sess, S) {
   const dur = n / FPS;
   const speed = env.until ? (jst(env.day, env.until) - ms0) / (dur * 1000) : env.speed ?? 0;
   await setEnv(page, S, ms0, 0);
-  const G = await groundOf(page, S);
   const uOf = (f) => Math.min(1, f / (n - 1));
+  // 基準の地面：地形のタイルがまだ読まれていないと 0 が返る（前のカットのカメラが遠いとき）ので、
+  // まずは仮の高さ（34m）ではじめの位置へ行って読ませてから測る
+  let G = await groundOf(page, S);
+  if (!Number.isFinite(S.groundZ)) {
+    for (let k = 0; k < 15; k++) await frame(sess, pose(S, G > 5 ? G : 34, 0));
+    for (let k = 0; k < 20; k++) {
+      if (await page.evaluate(() => window.__ml.areTilesLoaded())) break;
+      await sleep(250);
+    }
+    const g2 = await groundOf(page, S);
+    if (g2 > 5) G = g2;
+    else if (!(G > 5)) throw new Error(`${S.id}: 地面の高さが取れません（${G}・${g2}）`);
+  }
   const at = (f) => pose(S, G, uOf(f));
   // ならし（タイル・屋根の高さの地図・木の形）：はじめの位置で 1.5 秒（S.warm コマ）
   for (let k = 0; k < (S.warm ?? 45); k++) await frame(sess, at(0));

@@ -88,15 +88,23 @@ export const doyToDay = (doy, year = 2026) => {
 // ── カット ──
 // at：映像の中で始まるフレーム、len：長さ（このあと PAD コマ余分に撮る）、cap：字幕（映像の側で出す）
 const SPRING = '2026-04-02'; // 満月・桜の満開（東京の平年 3/31 ごろ）
+// 向き（方位 yaw・仰角 el。度）で見る点（pos から 100m 先）
+const dirLook = (p, yaw, el) => {
+  const y = (yaw * Math.PI) / 180;
+  const e = (el * Math.PI) / 180;
+  return [p[0] + 100 * Math.sin(y) * Math.cos(e), p[1] + 100 * Math.cos(y) * Math.cos(e), p[2] + 100 * Math.sin(e)];
+};
+const ABS = { ground: [40, 80], groundZ: 0 }; // pos・look の高さを標高（m）で書くカット
+// 1 年を一巡する日付：u → その年の何日目（見どころはゆっくり）は yearDoy
+
 export const SHOTS = [
-  // 前奏：夜明け前のキャンパスを高い空から。星が消えて、東の空が明るくなり、太陽が昇る
+  // 前奏：夜明け前。西の空に沈む満月から、東へ振り向くと日が昇る（4/2 は満月）
   {
-    id: 'dawn', at: 0, len: 204, ground: P.deck, fov: 46,
-    env: { day: SPRING, hm: '04:30', until: '05:44' },
+    id: 'dawn', at: 0, len: 204, ...ABS, fov: 52,
+    env: { day: SPRING, hm: '04:34', until: '05:41' },
     cam: (u) => {
-      const e = easeSine(u);
-      const tilt = easeIO(u / 0.7);
-      return { pos: lerp3([-70, 30, 52], [-20, 60, 44], e), look: [lerp(-40, 200, tilt), lerp(40, 120, tilt), lerp(260, 14, tilt)] };
+      const p = [40, lerp(96, 86, u), lerp(56, 60, easeSine(u))];
+      return { pos: p, look: dirLook(p, 258 + 177 * easeIO(u), lerp(6, 3.5, easeSine(u))) };
     },
   },
   // ── 建物（ビートの 24 小節。1 棟 3 小節）──
@@ -125,41 +133,41 @@ export const SHOTS = [
     },
   },
   {
-    id: 'taki', at: 624, len: 144, ground: P.taki, fov: 52, cap: { ja: 'Taki Plaza', en: 'TAKI PLAZA', sub: '木の屋根と、地下へ光を落とす明かり取り' },
+    id: 'taki', at: 624, len: 144, ...ABS, fov: 52, cap: { ja: 'Taki Plaza', en: 'TAKI PLAZA', sub: '段々の木の屋根と、地下へ光を落とす明かり取り' },
     env: { day: SPRING, hm: '13:00', preset: 'fair' },
-    cam: (u) => {
-      const e = easeIO(u);
-      return { pos: track([[0, [70, 112, 24]], [0.5, [96, 140, 38]], [1, [126, 196, 44]]], e), look: track([[0, [106, 156, 8]], [0.6, [104, 168, 0]], [1, [100, 176, -4]]], e) };
-    },
+    cam: (u) => ({ pos: orbit([104, 170], 82, lerp(76, 68, u), lerp(38, -22, easeIO(u))), look: [104, 167, 30] }),
   },
   {
-    id: 'gate', at: 768, len: 144, ground: P.gate, fov: 48, cap: { ja: '正門', en: 'MAIN GATE', sub: '斜めの格子の柵と、銘板' },
+    id: 'gate', at: 768, len: 144, ...ABS, fov: 50, cap: { ja: '正門', en: 'MAIN GATE', sub: '斜めの格子の柵・ステンレスの輪・銘板' },
     env: { day: SPRING, hm: '08:00', preset: 'fair' },
     cam: (u) => {
-      const e = easeO(u);
-      return { pos: track([[0, [178, 248, 6]], [1, [146, 236, 2.2]]], e), look: track([[0, [126, 228, 3]], [1, [133, 232.5, 1.6]]], e) };
+      const e = easeIO(u);
+      return { pos: track([[0, [142.5, 249, 35.5]], [0.55, [141.8, 238, 35.2]], [1, [141, 230.8, 35.0]]], e), look: track([[0, [132, 228, 34.5]], [0.6, [133, 233, 34.6]], [1, [134.9, 232.7, 34.75]]], e) };
     },
   },
   {
-    id: 'station', at: 912, len: 144, ground: P.station, fov: 50, cap: { ja: '大岡山駅', en: 'OOKAYAMA STATION', sub: '駅ビルと、時刻表どおりに走る電車' },
-    env: { day: SPRING, hm: '08:10', speed: 1, preset: 'fair' },
+    id: 'station', at: 912, len: 144, ...ABS, fov: 52, cap: { ja: '大岡山駅', en: 'OOKAYAMA STATION', sub: '壁面緑化の塔と、ガラスの片流れの屋根' },
+    env: { day: SPRING, hm: '08:10', preset: 'fair' },
     cam: (u) => {
       const e = easeIO(u);
-      return { pos: track([[0, [150, 230, 40]], [1, [190, 250, 34]]], e), look: track([[0, [230, 300, 4]], [1, [262, 318, 2]]], e) };
+      return { pos: track([[0, [146, 252, 45]], [1, [160, 245, 72]]], e), look: track([[0, [204, 284, 48]], [1, [228, 300, 44]]], e) };
     },
   },
   {
-    id: 's4', at: 1056, len: 144, ground: P.s4, fov: 50, cap: { ja: '南4号館', en: 'SOUTH BLDG. 4', sub: 'れんがの 1 階と、浮かぶ上の階' },
-    env: { day: SPRING, hm: '14:30', preset: 'fair' },
+    id: 's4', at: 1056, len: 144, ...ABS, fov: 52, cap: { ja: '南4号館', en: 'SOUTH BLDG. 4', sub: 'れんがの 1 階と、イチョウ並木' },
+    env: { day: '2026-05-10', hm: '14:30', preset: 'fair' },
     cam: (u) => {
       const e = easeIO(u);
-      return { pos: track([[0, [110, -232, 10]], [1, [104, -128, 16]]], e), look: track([[0, [70, -176, 8]], [1, [66, -158, 8]]], e) };
+      return { pos: track([[0, [108, -196, 66]], [1, [102, -127, 47]]], e), look: track([[0, [66, -165, 40]], [1, [66, -160, 38]]], e) };
     },
   },
   {
-    id: 'elsi', at: 1200, len: 144, ground: P.elsi, fov: 50, cap: { ja: '地球生命研究所', en: 'ELSI-1', sub: '柱の外へ張り出した、長さ 85m の箱' },
+    id: 'elsi', at: 1200, len: 144, ...ABS, fov: 52, cap: { ja: '地球生命研究所', en: 'ELSI-1', sub: '柱の外へ張り出した、長さ 85m の箱' },
     env: { day: SPRING, hm: '16:20', preset: 'fair' },
-    cam: (u) => ({ pos: orbit([105.5, -317.4], 72, lerp(14, 22, u), lerp(120, 205, easeIO(u))), look: [100, -317.4, 8] }),
+    cam: (u) => {
+      const e = easeIO(u);
+      return { pos: track([[0, [56, -284, 39]], [1, [152, -289, 40]]], e), look: track([[0, [90, -316, 38]], [1, [120, -319, 38]]], e) };
+    },
   },
   // ── ブレイク：時間が流れる（夕方 → 日の入り → 夜。最後に雷雲がわく）──
   {
@@ -185,12 +193,11 @@ export const SHOTS = [
     },
   },
   {
-    id: 'porch', at: 1920, len: 96, ground: P.porch, fov: 62, cap: { ja: '屋根の下には降らない', en: 'RAIN', sub: '雨粒は屋根・ひさしの高さで止まる' },
+    id: 'porch', at: 1920, len: 96, ...ABS, fov: 64, warm: 90, cap: { ja: '屋根の下には降らない', en: 'RAIN', sub: '雨粒は屋根・ひさしの高さで止まる' },
     env: { day: '2026-06-20', hm: '11:00', preset: 'heavy', set: { wind: 3 } },
-    warm: 90,
     cam: (u) => {
-      const e = easeIO(u);
-      return { pos: track([[0, [40.3, 12.4, 1.6]], [1, [40.3, 17.6, 1.8]]], e), look: track([[0, [40.3, 40, 2.4]], [1, [41, 60, 3.2]]], e) };
+      const x = lerp(32.5, 47.5, easeIO(u));
+      return { pos: [x, 12.8, 34.7], look: [x + 2, 45, 35.8] };
     },
   },
   {
@@ -203,10 +210,10 @@ export const SHOTS = [
   },
   // ── 季節：1年がめぐる ──
   {
-    id: 'year', at: 2112, len: 384, ground: P.deck, fov: 50, cap: { ja: '季節がめぐる', en: 'SEASONS', sub: '樹種ごとの暦：芽吹き・開花・紅葉・落葉' },
+    id: 'year', at: 2112, len: 384, ...ABS, fov: 50, cap: { ja: '季節がめぐる', en: 'SEASONS', sub: '樹種ごとの暦：芽吹き・開花・紅葉・落葉' },
     env: { day: '2026-01-15', hm: '14:00' },
     timeline: (u) => ({ day: doyToDay(yearDoy(u)), hm: '14:00' }),
-    cam: (u) => ({ pos: orbit([40, 84], 62, lerp(30, 22, u), lerp(68, 132, easeSine(u))), look: [38, 78, 3] }),
+    cam: (u) => ({ pos: orbit([40, 84], 56, lerp(69, 64, u), lerp(266, 312, easeSine(u))), look: [40, 80, 36] }),
   },
   {
     id: 'sakura', at: 2496, len: 192, ground: P.deck, fov: 62, cap: { ja: '桜並木', en: 'CHERRY BLOSSOMS', sub: '満開から花吹雪へ' },
@@ -224,92 +231,118 @@ export const SHOTS = [
       return { pos: track([[0, [84, -124, 1.9]], [1, [83, -206, 2.6]]], e), look: track([[0, [83.5, -150, 4]], [1, [82, -240, 6]]], e) };
     },
   },
-  // ── 歩いて見る ──
+  // ── 歩いて見る：駅の改札 → 交差点 → 正門 → 明かり取り → Taki Plaza の中 ──
   {
-    id: 'xing', at: 2880, len: 192, ground: P.xing, fov: 60, cap: { ja: '歩いて見る', en: 'WALK', sub: '駅前から、目の高さで' },
-    env: { day: '2026-05-18', hm: '08:25', speed: 1, preset: 'fair' },
-    cam: (u) => {
-      const e = easeIO(u);
-      return { pos: track([[0, [196, 284, 1.7]], [1, [150, 242, 1.7]]], e), look: track([[0, [170, 262, 2.5]], [1, [120, 222, 3]]], e) };
-    },
-  },
-  {
-    id: 'gatewalk', at: 3072, len: 192, ground: P.gate, fov: 60, cap: { ja: '正門から明かり取りへ', en: 'INTO CAMPUS', sub: '段・坂・手すりまで歩ける' },
-    env: { day: '2026-05-18', hm: '08:40', preset: 'fair' },
-    cam: (u) => {
-      const e = easeIO(u);
-      return { pos: track([[0, [146, 234, 1.7]], [0.55, [124, 214, 1.7]], [1, [112, 197, 1.2]]], e), look: track([[0, [118, 222, 2.5]], [0.55, [108, 196, 0.5]], [1, [104, 182, -2.5]]], e) };
-    },
-  },
-  {
-    id: 'takiin', at: 3264, len: 192, ground: P.taki, fov: 64, detail: true, cap: { ja: '建物の中まで', en: 'INSIDE', sub: 'Taki Plaza の地下 1・2 階（図面から）' },
-    env: { day: '2026-05-18', hm: '12:00', preset: 'fair' },
-    cam: (u) => {
-      const e = easeIO(u);
-      return { pos: track([[0, [108, 178, -2.4]], [1, [104, 150, -2.6]]], e), look: track([[0, [106, 160, -3.5]], [1, [102, 128, -4.2]]], e) };
-    },
-  },
-  {
-    id: 'stnin', at: 3456, len: 192, ground: P.station, fov: 62, detail: true, cap: { ja: '駅の改札も', en: 'STATION', sub: '券売機・改札・コンコース' },
+    id: 'stnin', at: 2880, len: 192, ...ABS, fov: 64, detail: true, cap: { ja: '歩いて見る', en: 'WALK', sub: '駅の改札から、目の高さで' },
     env: { day: '2026-05-18', hm: '08:30', speed: 1, preset: 'fair' },
     cam: (u) => {
       const e = easeIO(u);
-      return { pos: track([[0, [186, 276, 1.7]], [1, [196, 290, 1.7]]], e), look: track([[0, [196, 292, 2.2]], [1, [206, 304, 2.2]]], e) };
+      return {
+        pos: track([[0, [198, 294.2, 34.6]], [0.42, [188, 291.1, 34.5]], [0.8, [177, 286.5, 34.6]], [1, [172.5, 280, 34.6]]], e),
+        look: track([[0, [186, 291, 34.4]], [0.42, [176, 288, 34.4]], [0.8, [166, 276, 34.6]], [1, [160, 266, 34.8]]], e),
+      };
+    },
+  },
+  {
+    id: 'xing', at: 3072, len: 192, ...ABS, fov: 62, cap: { ja: '駅前の交差点', en: 'CROSSING', sub: '信号・横断歩道・点字ブロック' },
+    env: { day: '2026-05-18', hm: '08:31', speed: 1, preset: 'fair' },
+    cam: (u) => {
+      const e = easeIO(u);
+      return { pos: track([[0, [172.5, 279, 34.8]], [0.5, [160, 260, 34.9]], [1, [146, 241, 35.6]]], e), look: track([[0, [160, 263, 35]], [0.5, [146, 241, 35.3]], [1, [132, 228, 35.4]]], e) };
+    },
+  },
+  {
+    id: 'gatewalk', at: 3264, len: 192, ...ABS, fov: 64, cap: { ja: '明かり取りへ', en: 'INTO CAMPUS', sub: '広場から、木の大階段で地下へ' },
+    env: { day: '2026-05-18', hm: '08:35', preset: 'fair' },
+    cam: (u) => {
+      const e = easeIO(u);
+      return {
+        pos: track([[0, [139, 231, 35.6]], [0.22, [137.5, 210, 35.6]], [0.42, [124, 199, 35.6]], [0.64, [107, 189, 34.6]], [0.86, [97, 177, 30.4]], [1, [96.5, 171, 28.4]]], e),
+        look: track([[0, [136, 205, 35.4]], [0.22, [124, 196, 35]], [0.42, [108, 188, 33.5]], [0.64, [95, 172, 29]], [0.86, [100, 160, 28]], [1, [101, 150, 28.6]]], e),
+      };
+    },
+  },
+  {
+    id: 'takiin1', at: 3456, len: 192, ...ABS, fov: 66, detail: true, cap: { ja: 'Taki Plaza の中へ', en: 'INSIDE', sub: '図面から起こした地下 2 階〜3 階' },
+    env: { day: '2026-05-18', hm: '12:00', preset: 'fair' },
+    cam: (u) => {
+      const e = easeIO(u);
+      return {
+        pos: track([[0, [94, 175, 27.6]], [0.32, [96.5, 168, 28.6]], [0.55, [98.5, 163.5, 30.9]], [0.75, [100, 160, 31.1]], [1, [101.5, 157, 31.1]]], e),
+        look: track([[0, [99, 156, 27.2]], [0.35, [100, 150, 29.5]], [0.7, [100, 142, 31]], [1, [99, 138, 31.6]]], e),
+      };
+    },
+  },
+  {
+    id: 'takiin2', at: 3648, len: 192, ...ABS, fov: 66, detail: true, cap: { ja: '吹き抜けを昇る', en: 'UP', sub: '地下 1 階 → 1 階 → 2 階' },
+    env: { day: '2026-05-18', hm: '12:01', preset: 'fair' },
+    cam: (u) => {
+      const e = easeIO(u);
+      return {
+        pos: track([[0, [104, 162, 31.2]], [0.4, [108, 157, 33.4]], [0.75, [107, 151, 36.2]], [1, [104.5, 146, 39.6]]], e),
+        look: track([[0, [108, 150, 31.6]], [0.4, [102, 140, 34.6]], [0.75, [99, 134, 36.6]], [1, [97, 130, 39.2]]], e),
+      };
+    },
+  },
+  {
+    id: 'takiin3', at: 3840, len: 192, ...ABS, fov: 66, detail: true, cap: { ja: '地下 2 階からドライガーデンへ', en: 'LIFT OFF', sub: '' },
+    env: { day: '2026-05-18', hm: '12:03', preset: 'fair' },
+    cam: (u) => {
+      const e = easeIO(u);
+      return {
+        pos: track([[0, [98, 150, 27.4]], [0.35, [107, 157, 27.4]], [0.55, [114.6, 162.5, 28.2]], [0.8, [114.8, 163.4, 44]], [1, [112, 176, 62]]], e),
+        look: track([[0, [106, 158, 27]], [0.35, [115, 163, 27.5]], [0.55, [115, 168, 36]], [0.8, [114, 180, 52]], [1, [106, 158, 30]]], e),
+      };
     },
   },
   // ── 夜 ──
   {
-    id: 'trains', at: 3648, len: 192, ground: P.station, fov: 50, cap: { ja: '電車が走る', en: 'TRAINS', sub: '東急線は時刻表どおりに' },
-    env: { day: '2026-11-10', hm: '17:05', speed: 1, preset: 'fair' },
+    id: 'trains', at: 4032, len: 144, ...ABS, fov: 50, cap: { ja: '電車が走る', en: 'TRAINS', sub: '東急線は時刻表どおりに' },
+    env: { day: '2026-11-10', hm: '17:07:36', speed: 1, preset: 'clear' },
     cam: (u) => {
       const e = easeIO(u);
-      return { pos: track([[0, [300, 240, 30]], [1, [250, 230, 22]]], e), look: track([[0, [240, 300, 2]], [1, [200, 290, 2]]], e) };
+      return { pos: track([[0, [-36, 146, 60]], [1, [-50, 158, 50]]], e), look: track([[0, [-95, 195, 32]], [1, [-92, 200, 33]]], e) };
     },
   },
   {
-    id: 'seven', at: 3840, len: 192, ground: P.s4, fov: 60, cap: { ja: '夜の明かり', en: 'NIGHT', sub: '街灯・窓・お店の灯り' },
+    id: 'moonrise', at: 4176, len: 144, ...ABS, cap: { ja: '月が昇る', en: 'MOONRISE', sub: '満ち欠けも、昇る方角も計算どおり' },
+    env: { day: '2026-11-24', hm: '17:00', speed: 30, preset: 'clear' },
+    cam: (u) => {
+      const p = [lerp(-79, -75.5, u), lerp(-49, -47.6, u), 48];
+      return { pos: p, look: dirLook(p, 69.3, lerp(11.0, 11.5, u)), fov: lerp(15, 12, easeSine(u)) };
+    },
+  },
+  {
+    id: 'seven', at: 4320, len: 96, ground: P.s4, fov: 60, cap: { ja: '夜の明かり', en: 'NIGHT', sub: '街灯・窓・お店の灯り' },
     env: { day: '2026-11-10', hm: '20:20' },
     cam: (u) => {
       const e = easeIO(u);
-      return { pos: track([[0, [96, -190, 1.8]], [1, [88, -166, 2.2]]], e), look: track([[0, [68, -170, 2]], [1, [64, -164, 2.4]]], e) };
+      return { pos: track([[0, [91, -174, 2.0]], [1, [88, -166, 2.2]]], e), look: track([[0, [65, -167, 2.3]], [1, [64, -164, 2.4]]], e) };
     },
-  },
-  {
-    id: 'moon', at: 4032, len: 192, ground: P.deck, fov: 52, cap: { ja: '月と星', en: 'MOON & STARS', sub: '満ち欠けも、昇る方角も' },
-    env: { day: '2026-11-24', hm: '19:10' },
-    cam: (u) => {
-      const e = easeIO(u);
-      return { pos: track([[0, [46, 104, 2]], [1, [44, 64, 6]]], e), look: track([[0, [39, 0, 34]], [1, [38, -4.8, 40]]], e) };
-    },
-  },
-  {
-    id: 'hyakunight', at: 4224, len: 192, ground: P.hyaku, fov: 50, cap: { ja: '百年記念館の夜', en: 'AFTER DARK', sub: '' },
-    env: { day: '2026-11-10', hm: '21:30' },
-    cam: (u) => ({ pos: orbit([115, 224.8], 64, lerp(10, 20, u), lerp(300, 220, easeIO(u))), look: [115, 224.8, 11] }),
   },
   // ── たたみかける（1 小節ずつ）──
   ...[
     { id: 'm_lib', ground: P.lib, env: { day: '2026-10-20', hm: '16:40', preset: 'fair' }, a: [[18, 150, 6], [20, 168, 7]], l: [[46, 168, 6], [46, 180, 6]] },
-    { id: 'm_taki', ground: P.taki, env: { day: '2026-10-20', hm: '15:50', preset: 'fair' }, a: [[140, 130, 16], [140, 150, 18]], l: [[110, 150, 10], [108, 160, 10]] },
+    { id: 'm_hyaku', ground: P.hyaku, env: { day: '2026-11-10', hm: '21:30' }, a: [[150, 260, 14], [160, 236, 16]], l: [[115, 224.8, 11], [115, 224.8, 11]] },
     { id: 'm_elsi', ground: P.elsi, env: { day: '2026-10-20', hm: '10:30', preset: 'fair' }, a: [[110, -280, 6], [96, -282, 7]], l: [[104, -314, 8], [100, -316, 8]] },
     { id: 'm_ud', ground: P.ud, env: { day: '2026-10-20', hm: '12:30', preset: 'fair' }, a: [[74.7, -262, 1.6], [74.7, -272, 1.4]], l: [[74.7, -300, 0], [74.7, -310, -1]] },
     { id: 'm_mc', ground: P.mc, env: { day: '2026-10-20', hm: '19:30' }, a: [[150, 262, 3], [156, 256, 3]], l: [[170, 240, 8], [172, 238, 9]] },
     { id: 'm_s4', ground: P.s4, env: { day: '2026-10-20', hm: '11:30', preset: 'fair' }, a: [[40, -150, 1.7], [44, -158, 1.7]], l: [[60, -160, 2.5], [62, -166, 2.5]] },
-    { id: 'm_gate', ground: P.gate, env: { day: '2026-10-20', hm: '16:50', preset: 'fair' }, a: [[150, 222, 2], [148, 228, 1.8]], l: [[134, 232, 1.4], [134, 233, 1.3]] },
+    { id: 'm_b2', groundZ: 0, ground: [40, 80], detail: true, env: { day: '2026-10-20', hm: '12:00', preset: 'fair' }, a: [[93, 163, 27.4], [100, 151, 27.4]], l: [[104, 151, 26.6], [110, 146, 26.8]] },
     { id: 'm_k70', ground: P.k70, env: { day: '2026-10-20', hm: '09:30', preset: 'fair' }, a: [[30, 160, 16], [36, 150, 13]], l: [[0, 122, 6], [2, 122, 5]] },
   ].map((m, i) => ({
-    id: m.id, at: 4416 + i * BAR, len: BAR, ground: m.ground, fov: 54, env: m.env, montage: true,
+    id: m.id, at: 4416 + i * BAR, len: BAR, ground: m.ground, groundZ: m.groundZ, detail: m.detail, fov: 54, env: m.env, montage: true,
     cam: (u) => ({ pos: lerp3(m.a[0], m.a[1], u), look: lerp3(m.l[0], m.l[1], u) }),
   })),
-  // ── フィナーレ：夕日の中を高く昇って、キャンパス全体へ ──
+  // ── フィナーレ：夕日の中を高く昇って、キャンパス全体へ。日が沈み、街灯がともる ──
   {
     id: 'finale', at: 4800, len: TL.total - 4800, ground: P.deck, fov: 48,
-    env: { day: '2026-11-10', hm: '15:55', until: '16:40' },
+    env: { day: '2026-11-10', hm: '16:08', until: '17:02' },
     cam: (u) => {
-      const e = easeIO(clamp01(u / 0.62));
+      const e = easeIO(clamp01(u / 0.66));
       return {
-        pos: track([[0, [60, 150, 10]], [0.4, [20, 190, 60]], [1, [-120, 330, 230]]], e),
-        look: track([[0, [40, 60, 12]], [1, [50, -20, 0]]], e),
+        pos: track([[0, [60, 150, 10]], [0.4, [20, 190, 55]], [1, [-90, 300, 150]]], e),
+        look: track([[0, [40, 60, 12]], [1, [55, -10, 0]]], e),
       };
     },
   },

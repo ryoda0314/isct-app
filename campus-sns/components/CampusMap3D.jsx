@@ -9,14 +9,14 @@ import { createSkyLayer, rgbHex } from "../campus3dSkyLayer.js";
 import { buildVeg, createVegLayer } from "../campus3dVeg.js";
 import { buildCoverMap, createPrecipLayer } from "../campus3dPrecip.js";
 import { envAt, weatherCreate, weatherStep } from "../campus3dEnv.js";
-import { onWorldClock, worldClock, worldIsSet } from "../campus3dClock.js";
+import { onWorldClock, worldClock, worldIsSet, worldNow } from "../campus3dClock.js";
 import { BURN_MAXZOOM, dem, demTileUrl, registerDemProtocol } from "../campusDem.js";
 import { ROUTE_ON_BRIDGE, buildingOpenings, buildingRoof, burnsGround, detailView, featuresBounds, floorLevels, isPaint, pointInRing, prepareBridge, replacedBuildings, splitByBridges, stairsPath, toLngLat, toXY } from "../campus3dFeatures.js";
 import { floorG0, floorLabels } from "../campus3dInterior.js";
 import { buildMesh, buildRibbons } from "../campus3dMesh.js";
 import { createDoorsLayer, createExtrasLayer, createLightsLayer, createTrainsLayer } from "../campus3dLayer.js";
 import { doorLeaves, stepDoors } from "../campus3dDoors.js";
-import { collectLifts, liftBlocked, liftFloors, liftMeshes, liftPick, liftState, pressButton, stepLift } from "../campus3dLift.js";
+import { collectLifts, liftBlocked, liftClock, liftFloors, liftMeshes, liftPick, liftState, pressButton, stepLift } from "../campus3dLift.js";
 import { lampBounds, lampLightCanvas, lampMesh, streetLamps } from "../campus3dLamps.js";
 import { EYE, PITCH as WALK_PITCH, SPEED, SPRINT_FOV, TURN as TURN_DEG, VIEW_D, WALK_FOV, eyeCamera, routePath, stepBody, stepFly, stepRoute, walkWorld } from "../campus3dWalk.js";
 import { TWIN_SCALES, TWIN_WALLS, TWIN_YAW_GAINS, twinCalCancel, twinCalStart, twinConnect, twinCreate, twinDisconnect, twinFake, twinHaptics, twinInput, twinLevel, twinLine, twinRelease, twinSend, twinSet, twinSupported, twinTilt } from "../campus3dTwin.js";
@@ -24,6 +24,10 @@ import { MapDebugMarks } from "./MapDebugMarks.jsx";
 import { MapEnvDebug } from "./MapEnvDebug.jsx";
 import { paintFeatures } from "../campus3dPaint.js";
 import { TRAINS_URL, prepareTrains, serviceClock, setTrackHeights, trackBounds, trainMesh, trainsAt } from "../campus3dTrains.js";
+import { PSD_LAYER_ID, preparePsd, psdMesh, psdOpen } from "../campus3dPsd.js";
+import { ESC_LAYER_ID, escalatorMesh, prepareEscalators } from "../campus3dEscalator.js";
+import { DEPARTURES_URL, LED_LAYER_ID, departuresKey, departuresMesh, prepareDepartureBoards } from "../campus3dDepartures.js";
+import { MCLOCK_LAYER_ID, mathClockKey, mathClockMesh } from "../campus3dMathClock.js";
 import { TERRAIN } from "../campusTerrain.js";
 // 見え方（昼・夕方・夜の固定）より、デバッグで決めた時刻（世界の時計）を先にする（固定のままだと時刻を変えても太陽が動かない）
 const effLook = (m) => (m !== "auto" && worldIsSet() ? "auto" : m);
@@ -332,10 +336,24 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const lookToastTimer = useRef(0);
   const hazeRef = useRef(null);
   const trainsLayerRef = useRef(null);
+  // 電車（campus3dTrains）：時刻表のデータ（json）・駅の中の線路で置きかえた線（prep）・その線路の構造物（key）・いまのフレームの列車（last）
+  const trainsRef = useRef(null);
+  // ホームドア（campus3dPsd）：buildMesh が集めた戸の口（list）・電車の線に合わせたもの（prepd。prep が変わったら作り直す）・いまの形（mesh、開き具合 key）
+  const psdRef = useRef({ list: [], prep: null, prepd: [], mesh: null, key: "" });
   const lightsRef = useRef(null); // 夜の街灯の柱・灯具を描くレイヤー（campus3dLayer.js）
   // 自動ドア（campus3dDoors.js）：buildMesh が集めた口（list）・開き具合（open）・いまの板の形（leaves。開き具合が変わったら作り直す）
   const doorsRef = useRef({ list: [], open: [], leaves: null, dirty: true });
   const doorsLayerRef = useRef(null);
+  const psdLayerRef = useRef(null); // ホームドアの戸のレイヤー
+  // エスカレーターの段（campus3dEscalator）：buildMesh が集めたエスカレーターの形（geoms）とレイヤー
+  const escRef = useRef({ geoms: [] });
+  const escLayerRef = useRef(null);
+  // 発車標の光る字（campus3dDepartures）：時刻表（data）・看板（boards）・いまの字の形（mesh と分の鍵 key）
+  const ledRef = useRef({ data: null, boards: [], mesh: null, key: "" });
+  const ledLayerRef = useRef(null);
+  // 計算式の時計の光る字（campus3dMathClock）：buildMesh が集めた時計の面（list）・いまの字の形（mesh と分の鍵 key）
+  const mclockRef = useRef({ list: [], mesh: null, key: -1 });
+  const mclockLayerRef = useRef(null);
   // エレベーター（campus3dLift）：台ごとの形と状態（かごの高さ・扉・押したボタン）。かご・扉・ボタンの形は動いたとき・押したとき・照準が
   // 変わったときだけ作り直す。aim は照準が当たっているボタン（liftPick。押すのはクリック・タップ）
   const liftsRef = useRef({ list: [], states: [], mesh: null, dirty: true, aim: null, aimKey: "" });
@@ -657,15 +675,21 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       try {
         const res = await fetch(TRAINS_URL);
         if (!res.ok) return;
-        const prep = prepareTrains(await res.json());
-        const [w, s, e, n] = trackBounds(prep);
+        const json = await res.json();
+        // 駅の中の線路（構造物の track：大岡山駅の地下ホーム）で線・高さ・止まる位置を置きかえる。構造物が変わったら作り直す（下の効果）
+        const tracksNow = () => (propsRef.current.features || []).filter((f) => f.type === "track");
+        const prep0 = prepareTrains(json, { tracks: tracksNow() });
+        const [w, s, e, n] = trackBounds(prep0);
         const tb = TERRAIN.bounds; // 標高タイルのある範囲だけ読む（外はいちばん近い高さ）
         await dem.ensure([Math.max(w, tb[0]), Math.max(s, tb[1]), Math.min(e, tb[2]), Math.min(n, tb[3])]);
         if (mapRef.current !== map) return;
-        setTrackHeights(prep, (ll) => dem.groundAt(ll));
+        setTrackHeights(prep0, (ll) => dem.groundAt(ll));
+        trainsRef.current = { json, prep: prep0, key: JSON.stringify(tracksNow()), last: null };
         const frame = (view) => {
-          const ts = trainsAt(prep, serviceClock());
-          return { ...trainMesh(prep, ts, lookRef.current?.lamp || 0, { ...view, reuse: true }), count: ts.length }; // 夜は窓あかり・前照灯の光
+          const T = trainsRef.current;
+          const ts = trainsAt(T.prep, serviceClock());
+          T.last = ts; // ホームドア（campus3dPsd）が同じフレームの列車を読む
+          return { ...trainMesh(T.prep, ts, lookRef.current?.lamp || 0, { ...view, reuse: true }), count: ts.length }; // 夜は窓あかり・前照灯の光
         };
         const layer = createTrainsLayer({ light: lookRef.current.light, exaggeration: TERRAIN_EXAG, frame });
         map.addLayer(layer, "nav-route-passed");
@@ -734,6 +758,118 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       } catch (err) {
         console.warn("[3D map] doors layer:", err?.message || err);
       }
+      // ホームドアの戸（大岡山駅の地下ホーム）：止まっている電車の扉に合わせて開く。開き具合が変わったときだけ形を作り直す
+      try {
+        const psdLayer = createDoorsLayer({
+          id: PSD_LAYER_ID,
+          light: lookRef.current.light,
+          exaggeration: TERRAIN_EXAG,
+          frame: () => {
+            const P = psdRef.current;
+            if (!P.list.length) return null;
+            const T = trainsRef.current;
+            if (P.prep !== (T?.prep || null)) {
+              P.prep = T?.prep || null;
+              P.prepd = preparePsd(P.list, P.prep, (propsRef.current.features || []).filter((f) => f.type === "track"));
+              P.mesh = null;
+            }
+            const open = psdOpen(P.prepd, T?.last);
+            const key = open.map((v) => v.toFixed(2)).join(",");
+            if (!P.mesh || key !== P.key) {
+              P.mesh = psdMesh(P.prepd, open);
+              P.key = key;
+            }
+            return P.mesh;
+          },
+        });
+        map.addLayer(psdLayer, "nav-route-passed");
+        psdLayerRef.current = psdLayer;
+      } catch (err) {
+        console.warn("[3D map] psd layer:", err?.message || err);
+      }
+      // エスカレーターの段（大岡山駅）：時刻に合わせて動かす。駅の近く（中心から 400m・ズーム 16.5 以上）を見ているあいだは、地図が止まっていても
+      // 1 秒に 25 回描き直す
+      try {
+        let escTimer = 0;
+        const escLayer = createDoorsLayer({
+          id: ESC_LAYER_ID,
+          light: lookRef.current.light,
+          exaggeration: TERRAIN_EXAG,
+          frame: () => {
+            const E = escRef.current;
+            if (!E.geoms.length) return null;
+            const c = map.getCenter();
+            const p = toXY([c.lng, c.lat]);
+            const near = map.getZoom() >= 16.5 && E.geoms.some((G) => Math.hypot(p[0] - G.A[0], p[1] - G.A[1]) < 400);
+            if (near && !escTimer) {
+              escTimer = setTimeout(() => {
+                escTimer = 0;
+                if (mapRef.current === map) map.triggerRepaint();
+              }, 40);
+            }
+            return escalatorMesh(E.geoms, performance.now() / 1000);
+          },
+        });
+        map.addLayer(escLayer, "nav-route-passed");
+        escLayerRef.current = escLayer;
+      } catch (err) {
+        console.warn("[3D map] escalator layer:", err?.message || err);
+      }
+      // 発車標の光る字（大岡山駅）：時刻表から次の 2 本。分が変わったときだけ作り直す（時刻は電車と同じ serviceClock）
+      try {
+        fetch(DEPARTURES_URL)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((j) => {
+            if (!j || mapRef.current !== map) return;
+            ledRef.current.data = j;
+            ledRef.current.mesh = null;
+            map.triggerRepaint();
+          })
+          .catch(() => {});
+        const ledLayer = createDoorsLayer({
+          id: LED_LAYER_ID,
+          light: lookRef.current.light,
+          exaggeration: TERRAIN_EXAG,
+          frame: () => {
+            const L = ledRef.current;
+            if (!L.data || !L.boards.length) return null;
+            const c = serviceClock();
+            const key = departuresKey(c);
+            if (!L.mesh || key !== L.key) {
+              L.mesh = departuresMesh(L.boards, L.data, c);
+              L.key = key;
+            }
+            return L.mesh;
+          },
+        });
+        map.addLayer(ledLayer, "nav-route-passed");
+        ledLayerRef.current = ledLayer;
+      } catch (err) {
+        console.warn("[3D map] departures layer:", err?.message || err);
+      }
+      // 計算式の時計の光る字（Taki Plaza 2 階の本棚の上）：世界の時計の分が変わったときだけ作り直す
+      try {
+        const mclockLayer = createDoorsLayer({
+          id: MCLOCK_LAYER_ID,
+          light: lookRef.current.light,
+          exaggeration: TERRAIN_EXAG,
+          frame: () => {
+            const C = mclockRef.current;
+            if (!C.list.length) return null;
+            const ms = worldNow();
+            const key = mathClockKey(ms);
+            if (!C.mesh || key !== C.key) {
+              C.mesh = mathClockMesh(C.list, ms);
+              C.key = key;
+            }
+            return C.mesh;
+          },
+        });
+        map.addLayer(mclockLayer, "nav-route-passed");
+        mclockLayerRef.current = mclockLayer;
+      } catch (err) {
+        console.warn("[3D map] math clock layer:", err?.message || err);
+      }
       // エレベーターのかご・扉（自動ドアと同じ描き方。動いたときだけ形を作り直す）
       try {
         const liftLayer = createDoorsLayer({
@@ -743,8 +879,11 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
           frame: () => {
             const L = liftsRef.current;
             if (!L.list.length) return null;
-            if (L.dirty || !L.mesh) {
-              L.mesh = liftMeshes(L.list, L.states, L.aim);
+            // かごの表示の日付と時刻（世界の時計。分が変わったら作り直す）
+            const ck = liftClock(worldNow());
+            if (L.dirty || !L.mesh || L.clock !== ck) {
+              L.clock = ck;
+              L.mesh = liftMeshes(L.list, L.states, L.aim, ck);
               L.dirty = false;
             }
             return L.mesh;
@@ -960,6 +1099,17 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const view = useMemo(() => detailView(features, { detail: detailOn && levels.length > 0, level: viewLevel }), [features, detailOn, levels, viewLevel]);
   const viewRef = useRef(view);
   viewRef.current = view;
+  // 駅の中の線路（構造物の track）が変わったら、電車の線・高さ・止まる位置を作り直す（時刻表のデータを読んだあと）
+  useEffect(() => {
+    const T = trainsRef.current;
+    if (!T) return;
+    const tracks = features.filter((f) => f.type === "track");
+    const key = JSON.stringify(tracks);
+    if (key === T.key) return;
+    const prep = prepareTrains(T.json, { tracks });
+    setTrackHeights(prep, (ll) => dem.groundAt(ll));
+    trainsRef.current = { ...T, prep, key };
+  }, [features]); // eslint-disable-line react-hooks/exhaustive-deps
   const pickLevel = (lv) => {
     setDetailLevel(lv);
     try {
@@ -1057,6 +1207,10 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         if (debugRef.current) lastMeshRef.current = res;
         extrasRef.current?.setMesh(res);
         doorsRef.current = { list: res.doors || [], open: (res.doors || []).map(() => 0), leaves: null, dirty: true };
+        psdRef.current = { list: res.psd || [], prep: null, prepd: [], mesh: null, key: "" }; // ホームドアの口（電車の線には次のフレームで合わせる）
+        escRef.current = { geoms: prepareEscalators(res.esc) }; // エスカレーターの段
+        ledRef.current = { ...ledRef.current, boards: prepareDepartureBoards(view), mesh: null }; // 発車標の看板
+        mclockRef.current = { list: res.clocks || [], mesh: null, key: -1 }; // 計算式の時計の面
         // エレベーター：階の物 lift から台を作る。同じ場所の台は前の状態（かごの階・扉）を引きつぐ
         const old = liftsRef.current;
         const list = collectLifts(view.filter((f) => f.type === "floor"), ground, floorG0);
@@ -1299,6 +1453,9 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     map.setCenterClampedToGround(false);
     map.setSky(skyOf(lookRef.current, skyRef.current?.colors));
     trainsLayerRef.current?.setXray(false); // トンネルの中の列車を地面ごしに見せない
+    // 地下の駅（大岡山駅のホーム。掘らない地下の階＝digMode "cut"）を歩けるように、カメラを地形の面の下へ入れてよい。MapLibre は
+    // カメラが地形の下にあると持ち上げる（_elevateCameraIfInsideTerrain）ので、歩くあいだだけ止める（地形は下から見ると描かれない）
+    map._elevateCameraIfInsideTerrain = () => ({});
     // マーカー（ラベル・駅名・現在地・ピン）は地図から外す。MapLibre は地図が動くたびにマーカーごとに地形の奥行きを
     // GPU から読む（readPixels）ので、毎フレーム動かすと 2〜3fps まで落ちる。残るマーカー（エディタの点）は奥行きを読ませない
     const own = [...mk.current.labels.map((x) => x.m), ...mk.current.stations.map((x) => x.m), mk.current.gps, mk.current.pin?.m].filter(Boolean);
@@ -1453,6 +1610,28 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     w.fov += (fovTarget - w.fov) * Math.min(1, dt * 8);
     if (Math.abs(w.fov - map.transform.fov) > 0.05) map.setVerticalFieldOfView(w.fov);
     w.eyeZ = w.z + EYE + w.eyeOff + bob;
+    // 地面の下（大岡山駅の地下ホーム）：目が地面より下のあいだだけ、MapLibre の地形を外し、地図の建物（fill-extrusion）を隠す。
+    // 地形を残すと (1) タイルのふちの継ぎ目を隠す垂直のすそ、(2) 改札の中の床の下を掘ったふちの崖、(3) 地形に合わせて下の端を下げた
+    // 地図の建物の壁が、ホームの中に白い壁として立つ（地形の面そのものは下からは描かれない）。地下からは外の地面と建物は見えない
+    if (map.terrain || w.terrainSpec) {
+      const gEye = dem.groundAt(toLngLat([w.x, w.y]));
+      // 掘って上の開いた地下（Taki Plaza の明かり取りの地下の階など：dig の帯あり）の中は、空や外の建物が見えるので地面の下と見なさない。
+      // 駅の改札の中の床の下（帯なしの dig）は屋根の下なので地面の下のまま
+      const openPit = dem.digs.some((d) => d.f?.band !== false && pointInRing(w.x, w.y, d.ring) && !d.holes.some((h) => pointInRing(w.x, w.y, h)));
+      const under = Number.isFinite(gEye) && w.eyeZ < gEye - 0.5 && !openPit;
+      if (under !== !!w.underTerrain) {
+        w.underTerrain = under;
+        if (under) {
+          w.terrainSpec = map.getTerrain();
+          map.setTerrain(null);
+        } else if (w.terrainSpec) {
+          map.setTerrain(w.terrainSpec);
+          w.terrainSpec = null;
+          if (map.terrain) map.terrain.depthAtPoint = () => 1; // 歩くあいだはマーカーに地形の奥行きを読ませない（はじめと同じ）
+        }
+        if (map.getLayer("cb-buildings")) map.setLayoutProperty("cb-buildings", "visibility", under ? "none" : "visible");
+      }
+    }
     map.jumpTo(eyeCamera({ x: w.x, y: w.y, z: w.eyeZ }, w.yaw, w.pitch, { height: map.transform.height, fov: map.transform.fovInRadians }));
     // エレベーターのボタン：照準（マウスを固定しているとき・スマホは画面のまん中、固定していないマウスはその先）が当たっているボタンを
     // 白いふちで示し、十字の下に名前を出す（変わったときだけ描き直す）
@@ -1460,13 +1639,15 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       const use = w.locked || w.touch || !!w.hover;
       const ray = use ? walkRay(map, w, w.locked || w.touch ? null : w.hover) : null;
       const hit = ray && !w.fly ? liftPick(LF.list, LF.states, ray.o, ray.d) : null;
-      const key = hit ? `${hit.i}:${hit.kind}:${hit.k}:${hit.dir}` : "";
+      const key = hit ? `${hit.i}:${hit.kind}:${hit.k}:${hit.dir}${hit.wc ? ":wc" : ""}` : ""; // wc：車いす用の呼びボタン（附属図書館）
       if (key !== LF.aimKey) {
         LF.aimKey = key;
         LF.aim = hit;
         LF.dirty = true;
         map.triggerRepaint();
-        const lb = hit ? (hit.kind === "car" ? LF.list[hit.i].levels[hit.k]?.label || "" : `${t("navi.liftCall")} ${hit.dir > 0 ? "▲" : "▼"}`) : null;
+        const lb = hit
+          ? hit.kind === "car" ? LF.list[hit.i].levels[hit.k]?.label || "" : hit.kind === "door" ? (hit.dir > 0 ? "◀ ▶" : "▶ ◀") : `${t("navi.liftCall")} ${hit.dir > 0 ? "▲" : "▼"}`
+          : null;
         setWalkUi((u) => ({ ...u, aim: lb }));
       }
     }
@@ -1544,6 +1725,9 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       map.setSky(undefined);
       w.restore.handlers.forEach((h) => map[h]?.enable());
       trainsLayerRef.current?.setXray(true);
+      delete map._elevateCameraIfInsideTerrain; // もとの（カメラを地形の上へ持ち上げる）関数へ
+      if (w.terrainSpec) map.setTerrain(w.terrainSpec); // 地下で歩くのをやめたら地形を戻す
+      if (w.underTerrain && map.getLayer("cb-buildings")) map.setLayoutProperty("cb-buildings", "visibility", "visible"); // 地図の建物を戻す
       if (map.terrain) delete map.terrain.depthAtPoint; // もとの（地形の奥行きを読む）関数へ
       // 外したマーカーを戻す（歩いているあいだに入れかわったもの＝消されたピンなどは戻さない）
       const now = new Set([...mk.current.labels.map((x) => x.m), ...mk.current.stations.map((x) => x.m), mk.current.gps, mk.current.pin?.m].filter(Boolean));
@@ -1959,7 +2143,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       const lk = JSON.stringify(look.light);
       if (lk !== lightKey) {
         lightKey = lk;
-        [extrasRef, trainsLayerRef, doorsLayerRef, liftLayerRef, lightsRef].forEach((r) => r.current?.setLight(look.light));
+        [extrasRef, trainsLayerRef, doorsLayerRef, psdLayerRef, escLayerRef, ledLayerRef, mclockLayerRef, liftLayerRef, lightsRef].forEach((r) => r.current?.setLight(look.light));
         map.setLight(look.light);
       }
       // 歩いて見るときの空の霧の色

@@ -97,6 +97,8 @@ const API="";
 // disk-IO throttling) can't freeze startup forever. On timeout the promise
 // rejects, letting callers fall back to cache / setup instead of hanging.
 const fetchT=(url,opts={},ms=12000)=>fetch(url,{...opts,signal:AbortSignal.timeout(ms)});
+// p を最長 ms ミリ秒だけ待つ（返らなくても先へ進む）
+const within=(p,ms)=>Promise.race([p,new Promise(r=>setTimeout(r,ms))]);
 
 // Lock screen – defined outside App to avoid remount on parent re-render
 const LockScreen=({appLock,onLogout})=>{
@@ -334,6 +336,9 @@ export default function App(){
   const [notifEnabled,setNotifEnabled]=useState(()=>{try{const v=localStorage.getItem("notifEnabled");return v!==null?JSON.parse(v):true;}catch{return true;}});
   const [notifSettings,setNotifSettings]=useState(()=>{try{const v=localStorage.getItem("notifSettings");return v?JSON.parse(v):{course:true,deadline:true,dm:true,event:true};}catch{return{course:true,deadline:true,dm:true,event:true};}});
   const refreshRef=useRef(null);
+  // ログアウトのたびに 1 増やす。読み込みの途中でログアウトしたら、その結果は捨てる
+  // （捨てないと、消したばかりの dataAllCache / userPref が書き戻され、次に開いたときログインしたままに見える）
+  const sessGenRef=useRef(0);
   const [splashPhase,setSplashPhase]=useState("show");
   const [telecomRestricted,setTelecomRestricted]=useState(false);
   const [telecomMsg,setTelecomMsg]=useState("");
@@ -400,6 +405,7 @@ export default function App(){
   /** Client-side Moodle API flow: fetch token, call Moodle directly, then send to server for transforms */
   const fetchDataClientSide=async(opts={})=>{
     const t0=performance.now();
+    const gen=opts.gen??sessGenRef.current;
     let step='init';
     const tag=(s)=>{step=s;console.log(`[ClientFetch] step=${s} t=${(performance.now()-t0).toFixed(0)}ms`);};
     try{
@@ -450,6 +456,7 @@ export default function App(){
       }
       tag('parse');
       const d=await metaR.json();
+      if(gen!==sessGenRef.current){console.log('[App] logged out during fetch — result dropped');return false;}
       saveDataCache(d);
       setLmsDown(false);
       const asnList=applyData(d);
@@ -466,6 +473,7 @@ export default function App(){
   /** Original server-side flow (fallback) */
   const fetchDataServerSide=async(opts={})=>{
     const t0=performance.now();
+    const gen=opts.gen??sessGenRef.current;
     const r=await fetchT(`${API}/api/data/all`,{},15000);
     console.log(`[Timing] /api/data/all fetch: ${(performance.now()-t0).toFixed(0)}ms`);
     if(r.status===401){console.warn('[App] fetchData: 401 — not authenticated');if(!opts.silentAuth)setAppState("setup");return false;}
@@ -475,6 +483,7 @@ export default function App(){
     }
     if(!r.ok){console.error(`[App] /api/data/all failed: ${r.status} ${r.statusText}`);return loadCachedData();}
     const d=await r.json();
+    if(gen!==sessGenRef.current){console.log('[App] logged out during fetch — result dropped');return false;}
     saveDataCache(d);
     setLmsDown(false);
     const asnList=applyData(d);
@@ -483,6 +492,7 @@ export default function App(){
   };
 
   const fetchData=async(opts={})=>{
+    opts={...opts,gen:sessGenRef.current}; // 途中でログアウトしたら、サーバー経由の予備の読み込みも結果を捨てる
     try{
       // Try client-side Moodle API first (bypasses server-side 403 block)
       return await fetchDataClientSide(opts);
@@ -525,6 +535,7 @@ export default function App(){
   };
 
   const fetchSubmissionStatuses=async(assignList)=>{
+    const gen=sessGenRef.current;
     try{
       const t0=performance.now();
       let currentAsgn=[];
@@ -569,6 +580,7 @@ export default function App(){
         }
       }
 
+      if(gen!==sessGenRef.current) return; // 途中でログアウトした
       // Merge with cache
       let merged={};
       try{merged=JSON.parse(localStorage.getItem('asnStatusCache')||'{}');}catch{}
@@ -865,7 +877,15 @@ export default function App(){
   const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,fetchGraph,fetchRecommendations,openProfile,isAdmin:!!user?.isAdmin,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat,blockUser,unblockUser,isBlocked,blocks:blockList,muteUser,unmuteUser,isMuted,mutes:muteList,refetch:refetchFriends};
   const profileProps={userId:profileId,user,lookupById,onStartDM:startDMFromFriend,sendRequest,acceptRequest,unfriend,blockUser,muteUser,unmuteUser,isMuted,onEditProfile:()=>setView("profile"),goBack,refetch:refetchFriends};
   const togTheme=()=>setThemePref(p=>p==="dark"?"light":"dark");
-  const onLogout=async()=>{notifSyncRef.current.hydrated=false;notifSyncRef.current.last=null;setDataAt(null);setAnalyticsEnabled(false);analyticsStartedRef.current=false;setDemoMode(false);clearClientToken();try{await fetch("/api/auth/logout",{method:"POST"});}catch{}await clearNativeCookies();try{const{clearCreds}=await import("./secureCreds.js");await clearCreds();}catch{}if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");};
+  const onLogout=async()=>{sessGenRef.current++;notifSyncRef.current.hydrated=false;notifSyncRef.current.last=null;setDataAt(null);setAnalyticsEnabled(false);analyticsStartedRef.current=false;setDemoMode(false);clearClientToken();if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");
+    // 画面はもうログイン画面。サーバーのセッション Cookie を消すのはその後で（開発サーバーの初回コンパイルや遅い回線で、
+    // ボタンを押しても何も起きないように見えないように）。返らない・失敗したときは 10 秒で打ち切って 3 回まで
+    let ok=false;
+    for(let i=0;i<3&&!ok;i++){try{const r=await fetchT("/api/auth/logout",{method:"POST"},10000);ok=r.ok;if(!ok)console.warn('[Logout] server',r.status);}catch(e){console.warn('[Logout] request failed:',e.message);}}
+    await within(clearNativeCookies(),3000);
+    try{const{clearCreds}=await import("./secureCreds.js");await within(clearCreds(),3000);}catch{}
+    clearClientToken(); // 途中で走っていたトークン取得が入れ直した分も消す
+  };
 
   // Telecom restriction overlay — shown when regulated features are disabled
   const TelecomBlockView=({title,onBack})=><div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,gap:16}}>

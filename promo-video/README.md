@@ -368,3 +368,23 @@ npm run zunda:render   # → out/zunda-promo.mp4
 - 立ち絵：坂本アヒル「ずんだもん立ち絵素材2.3」（readme：改変・加工・商用は公式ガイドラインに準じて可、表記は任意。[公式ガイドライン](https://zunko.jp/guideline.html)）
 - BGM・効果音：このリポジトリのスクリプトで合成したオリジナル
 - 映像の最後にもクレジットを出している
+
+---
+
+# 大岡山キャンパス 3D マップ紹介映像（CampusMapFilm・約3分）
+
+アプリの 3D 地図（キャンパスナビの「歩いて見る」）を、そのまま 1 コマずつ撮って並べた紹介映像。曲は AppPromoFilm と同じ
+`promo/bgm.mp3`（150BPM。前奏 0–192、ビート 192–1344、ブレイク 1344–1728、ドロップ 1728、終わり 5184〜）。
+
+1. アプリの開発サーバを動かしておく（既定 `http://localhost:3000`。`APP_URL` で変える）
+2. `node capture/capture_campus3d.mjs [カットの id,...] [--scout]` … 3D の連番を `out/c3d_public/shots/<id>/` に撮る
+   （`--scout` は各カット 4 枚だけ `out/c3d_scout/` に。`--views=<json>` は好きな位置から 1 枚ずつ）
+3. `python capture/make_c3d_sfx.py` … 雷鳴・雨の効果音（numpy で合成）を `out/c3d_public/c3d/sfx/` に
+4. 字体・曲・効果音・粒子を `out/c3d_public/` にコピー（`fonts/`・`promo/`・`film/sfx/`・`film/grain/`）
+5. `node render_campus3d.mjs` … `out/campus3d-film.mp4`（`--scale=0.5` で確かめ用、`--stills=0,192` でそのコマだけ）
+
+- カット表（時刻・天気・カメラの道筋）は `src/campus3d/shots.js`、映像（字幕・時計・暦・切り替え・音）は `src/campus3d/CampusMapFilm.jsx`
+- 撮り方：timeweb で時間を仮想にし、「歩いて見る」の歩く人の `w.anim` に毎コマ同じ位置を入れてカメラを決める。時刻・天気・雷は
+  デバッグの `window.__campusEnv`（開発サーバでだけ出る）。アプリのコードは変えない
+- 素材（連番 約 2GB）は `out/`（git に入れない）
+- 曲（soundorbis「Hey So Jungle」）は**公開前に配布元の規約とクレジット表記を確認すること**

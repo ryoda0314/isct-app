@@ -2,8 +2,11 @@
 // 線路は OpenStreetMap の路線、ダイヤは駅探の時刻表から作った「基準の駅（大岡山・石川台・自由が丘）の前後の駅の時刻（分）」。位置は時刻表どおり
 // （遅れは反映しない）。駅と駅のあいだは「加速 → 一定 → 減速」で走り、駅には少し止まる。区間の端の外から入ってくる電車・
 // 外へ出ていく電車は、一定の速さで出入りする。描くのは campus3dLayer.js の createTrainsLayer（トンネルの中は透かして薄く）
+// 駅の中（2026-11-11、大岡山駅の地下ホーム）：構造物の track（駅の中の線路の中心線・レールの高さ・止まる位置）があれば、その区間の
+// 線と高さを置きかえ、1 号車の外の端を track の stop.at に合わせて止める（ホームドアの位置に扉がそろう）。止まっているあいだは扉が開く（open）。
+// トンネルの中は車内の明かりをつけ、光を受けない色で描く（地下の駅の照明の下で、昼も夜も同じ明るさ）
 import { jstNow, todayDayType } from "../lib/api/jp-calendar.js";
-import { cumulative, toLngLat, toXY } from "./campus3dFeatures.js";
+import { cumulative, toLngLat, toXY, trackZs } from "./campus3dFeatures.js";
 import { GlowMesh, worldOf } from "./campus3dMesh.js";
 import { worldNow } from "./campus3dClock.js";
 
@@ -41,8 +44,8 @@ export function serviceClock(nowMs = worldNow()) {
   return { day, sec: min * 60 + d.getUTCSeconds() + d.getUTCMilliseconds() / 1000 };
 }
 
-// 線路を平面（m）に。停車位置・トンネルは、データの距離をこちらの長さに合わせ直す
-export function prepareTrains(data) {
+// 線路を平面（m）に。停車位置・トンネルは、データの距離をこちらの長さに合わせ直す。tracks（構造物の track）があれば、その区間を置きかえる
+export function prepareTrains(data, { tracks = [] } = {}) {
   const routes = data.routes.map((r) => {
     const xy = r.pts.map((p) => toXY(p));
     const cum = cumulative(xy);
@@ -56,10 +59,65 @@ export function prepareTrains(data) {
       bridges: (r.bridges || []).map(([a, b, lv]) => [a * k, b * k, lv]),
       cols: { side: c, top: mixW(c, 0.45) },
       hz: null,
+      fixed: [],
     };
   });
+  for (const t of tracks) if (t && t.type === "track") applyTrack(routes, t);
   return { routes, patterns: data.patterns, days: data.days, dwell: data.dwell || 25 };
 }
+
+// 駅の中の線路（track）で、電車の線の区間を置きかえる：track の始めと終わりの点を線に投げた位置のあいだを、track の点の並びに。
+// あとの停車位置・トンネル・橋の距離はずらす。高さは fixed（setTrackHeights が線のあいだは track の z、両端の外 blend m でもとの高さへ）。
+// stop があれば、その駅の止まる位置は 1 号車の外の端（stop.at）：track の向き（点の並び）に走る電車はそこが先頭、逆向きなら最後尾。
+// stop.side（"left" / "right"：track の向きに見てホームのある側）は扉の開く側
+function applyTrack(routes, t) {
+  const pts0 = t.coords.map((p) => toXY(p));
+  if (pts0.length < 2) return;
+  const zs0 = trackZs(t);
+  for (const key of t.routes || []) {
+    const r = routes.find((x) => x.key === key);
+    if (!r) continue;
+    const pa = projectOn(r, pts0[0]), pb = projectOn(r, pts0[pts0.length - 1]);
+    if (pa.d > 40 || pb.d > 40 || Math.abs(pb.s - pa.s) < 10) continue;
+    const fwd = pb.s > pa.s;
+    const pts = fwd ? pts0 : [...pts0].reverse();
+    const zs = zs0 ? (fwd ? zs0 : [...zs0].reverse()) : null;
+    const sa = Math.min(pa.s, pb.s), sb = Math.max(pa.s, pb.s);
+    const before = [], after = [];
+    r.xy.forEach((p, i) => {
+      if (r.cum[i] < sa - 0.5) before.push(p);
+      else if (r.cum[i] > sb + 0.5) after.push(p);
+    });
+    const xy = [...before, ...pts, ...after];
+    const cum = cumulative(xy);
+    const s0n = cum[before.length], s1n = cum[before.length + pts.length - 1];
+    const remap = (s) => (s <= sa ? (s * s0n) / (sa || 1) : s >= sb ? s1n + (s - sb) : s0n + ((s - sa) * (s1n - s0n)) / (sb - sa));
+    r.stops.forEach((st) => { st.s = remap(st.s); if (st.anchor) st.anchor.s = remap(st.anchor.s); });
+    r.tunnels = r.tunnels.map(([a, b]) => [remap(a), remap(b)]);
+    r.bridges = r.bridges.map(([a, b, lv]) => [remap(a), remap(b), lv]);
+    r.fixed = r.fixed.map((fx) => ({ ...fx, a: remap(fx.a), b: remap(fx.b), zs: fx.zs.map(([s, z]) => [remap(s), z]) }));
+    r.xy = xy;
+    r.cum = cum;
+    r.len = cum[cum.length - 1];
+    if (zs) r.fixed.push({ a: s0n, b: s1n, zs: pts.map((_, i) => [cum[before.length + i], zs[i]]), blend: t.blend ?? 60 });
+    if (t.stop) {
+      const st = r.stops.find((x) => x.name === t.stop.name);
+      if (st) {
+        const pe = projectOn(r, toXY(t.stop.at));
+        const side = t.stop.side === "right" ? -1 : t.stop.side === "left" ? 1 : 0;
+        st.anchor = { s: pe.s, head: fwd, door: fwd ? side : -side };
+        st.s = pe.s + (fwd ? -60 : 60); // 長さを知らない使い道（駅のあいだの距離）のための目安：まん中あたり
+      }
+    }
+  }
+}
+// fixed の区間の高さ（区間の点のあいだは直線）
+const fixedZ = (fx, s) => {
+  const z = fx.zs;
+  if (s <= z[0][0]) return z[0][1];
+  for (let i = 1; i < z.length; i++) if (s <= z[i][0]) return z[i - 1][1] + ((z[i][1] - z[i - 1][1]) * (s - z[i - 1][0])) / (z[i][0] - z[i - 1][0] || 1);
+  return z[z.length - 1][1];
+};
 
 // 線路の上の距離 s の点（平面 m）
 function pointAt(r, s) {
@@ -89,6 +147,8 @@ function projectOn(r, p) {
   }
   return { s: bs, d: best };
 }
+// 平面の点にいちばん近い線路の上の距離 { s, d }（ホームドアの口を電車の線に合わせる。campus3dPsd）
+export const projectOnRoute = (r, p) => projectOn(r, p);
 // 長い橋：自分の向きの橋と、同じ路線の反対向きの橋（上下線で OSM の区切りがちがうことがある）を合わせる
 function longBridges(prep, r) {
   const out = r.bridges.filter(([a, b]) => b - a >= VIADUCT).map(([a, b]) => [a, b]);
@@ -148,8 +208,20 @@ export function setTrackHeights(prep, groundAt) {
       }
       span(a, b, cnt && diff / cnt > 2 ? 0 : LIFT);
     }
+    // 駅の中の線路（track の z）：区間の中はその高さ、両端の外 blend m で、もとの高さへなめらかに（はじめと終わりがゆっくり）
+    for (const fx of r.fixed || []) {
+      const za = fixedZ(fx, fx.a), zb = fixedZ(fx, fx.b);
+      const B = Math.max(1, fx.blend || 0);
+      for (let i = 0; i < n; i++) {
+        const s = i * STEP;
+        if (s >= fx.a && s <= fx.b) r.hz[i] = fixedZ(fx, s);
+        else if (s < fx.a && s > fx.a - B) r.hz[i] += (za - r.hz[i]) * smooth01((s - (fx.a - B)) / B);
+        else if (s > fx.b && s < fx.b + B) r.hz[i] += (zb - r.hz[i]) * smooth01((fx.b + B - s) / B);
+      }
+    }
   }
 }
+const smooth01 = (t) => { const x = Math.min(1, Math.max(0, t)); return x * x * (3 - 2 * x); };
 const sampleAt = (arr, s) => {
   const f = Math.min(arr.length - 1, Math.max(0, s / STEP));
   const i = Math.floor(f);
@@ -181,15 +253,28 @@ const leaveAt = (u) => { const t1 = VMAX / ACC; return u < t1 ? 0.5 * ACC * u * 
 const leaveTime = (D) => { const t1 = VMAX / ACC, d1 = 0.5 * VMAX * t1; return D < d1 ? Math.sqrt((2 * D) / ACC) : t1 + (D - d1) / VMAX; };
 
 // 列車ひとつの、時刻 sec（運行日の秒）での位置（列車のまん中の、線路の上の距離）。走っていなければ null
+// 扉の開き具合（止まる駅が track の stop のとき）：着いて DOOR_AFTER 秒から DOOR_MOVE 秒で開き、発車の DOOR_BEFORE 秒前に閉じ終わる
+const DOOR_AFTER = 3;
+const DOOR_MOVE = 2;
+const DOOR_BEFORE = 6;
+const doorOpen = (sec, arr, dep) => Math.max(0, Math.min(1, (sec - arr - DOOR_AFTER) / DOOR_MOVE, (dep - DOOR_BEFORE - sec) / DOOR_MOVE));
+// 列車の長さ（m）
+export const trainLength = (cars, carLen) => cars * carLen + (cars - 1) * GAP;
+
+// 列車ひとつの、時刻 sec（運行日の秒）での位置：{ s（列車のまん中の、線路の上の距離）, open（扉の開き具合 0〜1）, door（開く側：
+// 進む向きの左 1・右 −1・不明 0） }。走っていなければ null
 function positionOf(prep, pat, depMin, sec) {
   const r = prep.routes[pat.route];
-  // 駅ごとの着・発（秒）。着の時刻があって発より前なら（待ち合わせ）その分だけ長く止まる。ほかは発の dwell 秒前に着く
+  const total = trainLength(pat.cars, pat.carLen);
+  // 駅ごとの着・発（秒）。着の時刻があって発より前なら（待ち合わせ）その分だけ長く止まる。ほかは発の dwell 秒前に着く。
+  // 1 号車の端を合わせる駅（anchor）は、まん中の位置が列車の長さで決まる
   const ev = pat.ev.map(([si, rel, arrRel]) => {
     const st = r.stops[si];
     const dep = (depMin + rel) * 60;
     const dwell = st.name === "大岡山" ? prep.dwell + 10 : prep.dwell;
     const arr = arrRel != null && arrRel < rel ? Math.min((depMin + arrRel) * 60 + 30, dep - dwell) : dep - dwell;
-    return { s: st.s, dep, arr };
+    const s = st.anchor ? st.anchor.s + ((st.anchor.head ? -1 : 1) * total) / 2 : st.s;
+    return { s, dep, arr, anchor: st.anchor || null };
   });
   if (!ev.length) return null;
   // 時刻表は分単位なので、駅のあいだが短すぎることがある：走れる時間まで着くのを遅らせ、次の発車も（10秒は止まるよう）ずらす
@@ -205,23 +290,24 @@ function positionOf(prep, pat, depMin, sec) {
   // 区間の始まりから最初の駅まで、VMAX で入ってきて止まる。始発の駅が区間の中なら（start）、発車の HOLD 秒前にそこに現れる
   const tIn = pat.start ? first.dep - HOLD : first.arr - leaveTime(first.s);
   if (sec < tIn) return null;
-  if (!pat.start && sec < first.arr) return first.s - leaveAt(first.arr - sec);
+  const at = (s, e = null) => ({ s, open: e && e.anchor ? doorOpen(sec, e.arr, e.dep) : 0, door: e && e.anchor ? e.anchor.door : 0 });
+  if (!pat.start && sec < first.arr) return at(first.s - leaveAt(first.arr - sec));
   for (let k = 0; k < ev.length; k++) {
     const e = ev[k];
-    if (sec <= e.dep || (k === ev.length - 1 && pat.end && sec <= e.arr + HOLD)) return sec >= e.arr || k === 0 ? e.s : null;
+    if (sec <= e.dep || (k === ev.length - 1 && pat.end && sec <= e.arr + HOLD)) return sec >= e.arr || k === 0 ? at(e.s, sec >= e.arr ? e : null) : null;
     const n = ev[k + 1];
     if (!n) break;
     if (sec < n.arr) {
-      return e.s + runAt(Math.max(0, n.s - e.s), Math.max(1, n.arr - e.dep), sec - e.dep);
+      return at(e.s + runAt(Math.max(0, n.s - e.s), Math.max(1, n.arr - e.dep), sec - e.dep));
     }
   }
   if (pat.end) return null;
   // 最後の駅を出て、区間の終わりまで
   const s = last.s + leaveAt(sec - last.dep);
-  return s <= r.len + 400 ? s : null;
+  return s <= r.len + 400 ? at(s) : null;
 }
 
-// いま走っている列車：{ route, s（まん中）, cars, carLen, type }
+// いま走っている列車：{ route, s（まん中）, cars, carLen, type, open（扉の開き具合）, door（扉の開く側） }
 export function trainsAt(prep, { day, sec }) {
   const list = prep.days[day] || prep.days.weekday || [];
   const min = sec / 60;
@@ -232,8 +318,8 @@ export function trainsAt(prep, { day, sec }) {
   for (let i = lo; i < list.length && list[i][1] <= min + 20; i++) {
     const [pi, depMin] = list[i];
     const pat = prep.patterns[pi];
-    const s = positionOf(prep, pat, depMin, sec);
-    if (s != null) out.push({ route: pat.route, s, cars: pat.cars, carLen: pat.carLen, type: pat.type });
+    const p = positionOf(prep, pat, depMin, sec);
+    if (p) out.push({ route: pat.route, s: p.s, cars: pat.cars, carLen: pat.carLen, type: pat.type, open: p.open, door: p.door });
   }
   return out;
 }
@@ -391,45 +477,88 @@ function endPanel(m, F, a, n, l0, l1, h0, h1, c) {
   m.quad(Q, n, c);
 }
 
-function carBody(m, F, cols) {
+// 車体の色（2026-11-11）：横はステンレス、窓の上と下に路線の色の帯、屋根は路線の色を薄めた色（上から見て線がわかる）。
+// トンネルの中（地下の駅の照明の下）は光を受けない色（アルファ 0.5）で、面の向きの陰は色に入れる。客室はいつも明るい
+const STAINLESS = [0.8, 0.82, 0.84];
+const DOOR_STEEL = [0.72, 0.74, 0.76];
+const CAB_DARK = [0.13, 0.14, 0.16];
+const STRIPE_HI = [WIN[1] + 0.12, WIN[1] + 0.3]; // 窓の上の帯
+const STRIPE_LO = [WIN[0] - 0.2, WIN[0] - 0.1]; // 窓の下の細い帯
+const unlit = (c, k = 1) => [c[0] * k, c[1] * k, c[2] * k, 0.5];
+function carLook(r, inTunnel, open) {
+  const line = r.cols.side;
+  if (!inTunnel) {
+    return { body: [...STAINLESS, 1], end: [...STAINLESS, 1], top: r.cols.top, stripe: line, door: [...DOOR_STEEL, 1], cab: [...CAB_DARK, 1], winLo: open.winLo, winHi: open.winHi, glass: GLASS, sign: open.sign, room: lit3(ROOM_LO) };
+  }
+  return {
+    body: unlit(STAINLESS, 0.93), end: unlit(STAINLESS, 0.82), top: unlit(r.cols.top, 0.97), stripe: unlit(line, 0.95), door: unlit(DOOR_STEEL, 0.9), cab: unlit(CAB_DARK),
+    winLo: lit3(ROOM_LO), winHi: lit3(ROOM_HI), glass: unlit(GLASS, 1.2), sign: lit3(SIGN_NIGHT), room: lit3(ROOM_LO),
+  };
+}
+
+function carBody(m, F, c) {
   const { L } = F;
   const H = HALF_W;
   F.put(0, 0, H, ROOF);
   F.put(1, L, H, ROOF);
   F.put(2, L, -H, ROOF);
   F.put(3, 0, -H, ROOF);
-  m.quad(Q, UP, cols.top);
-  sidePanel(m, F, H, F.left, 0, L, FLOOR, ROOF, cols.side);
-  sidePanel(m, F, -H, F.right, 0, L, FLOOR, ROOF, cols.side);
-  endPanel(m, F, L, F.fwd, -H, H, FLOOR, ROOF, cols.side);
-  endPanel(m, F, 0, F.back, -H, H, FLOOR, ROOF, cols.side);
+  m.quad(Q, UP, c.top);
+  sidePanel(m, F, H, F.left, 0, L, FLOOR, ROOF, c.body);
+  sidePanel(m, F, -H, F.right, 0, L, FLOOR, ROOF, c.body);
+  endPanel(m, F, L, F.fwd, -H, H, FLOOR, ROOF, c.end);
+  endPanel(m, F, 0, F.back, -H, H, FLOOR, ROOF, c.end);
+  // 路線の色の帯（両わき）
+  for (const sg of [1, -1]) {
+    const l = sg * (HALF_W + 0.006);
+    const n = sg > 0 ? F.left : F.right;
+    sidePanel(m, F, l, n, 0.05, L - 0.05, STRIPE_HI[0], STRIPE_HI[1], c.stripe);
+    sidePanel(m, F, l, n, 0.05, L - 0.05, STRIPE_LO[0], STRIPE_LO[1], c.stripe);
+  }
 }
 
 // 両わきの扉（車体より少し暗い色）・扉の窓・客室の窓・乗務員扉の窓。窓と扉は車体の面から少し浮かせる（同じ面だとちらつく）
-function carSides(m, F, lay, c) {
+// open（0〜1）・side（開く側：左 1・右 −1）：駅に止まっているあいだ、その側の扉は 2 枚の戸が両わきへ開き、口から明るい客室が見える
+function carSides(m, F, lay, c, open = 0, side = 0) {
   for (const sg of [1, -1]) {
     const n = sg > 0 ? F.left : F.right;
     const l1 = sg * (HALF_W + 0.012);
     const l2 = sg * (HALF_W + 0.024);
+    const l3 = sg * (HALF_W + 0.036);
+    const op = open > 0 && sg === side ? open : 0;
     for (const [a0, a1] of lay.doors) {
-      sidePanel(m, F, l1, n, a0, a1, DOOR[0], DOOR[1], c.door);
       const mid = (a0 + a1) / 2;
+      if (op > 0) {
+        // 口（明るい客室の色）と、両わきへ引いた 2 枚の戸（戸の窓つき）
+        sidePanel(m, F, l1, n, a0, a1, DOOR[0], DOOR[1], c.room, c.winHi);
+        const shift = (DOOR_W / 2) * op;
+        for (const k of [-1, 1]) {
+          const c0 = mid + (k * DOOR_W) / 4 + k * shift;
+          sidePanel(m, F, l3, n, c0 - DOOR_W / 4, c0 + DOOR_W / 4, DOOR[0], DOOR[1], c.door);
+          sidePanel(m, F, l3 + sg * 0.012, n, c0 - DOOR_WIN / 2, c0 + DOOR_WIN / 2, WIN[0], WIN[1] - 0.05, c.winLo, c.winHi);
+        }
+        continue;
+      }
+      sidePanel(m, F, l1, n, a0, a1, DOOR[0], DOOR[1], c.door);
       for (const k of [-1, 1]) {
         const cx = mid + (k * DOOR_W) / 4;
         sidePanel(m, F, l2, n, cx - DOOR_WIN / 2, cx + DOOR_WIN / 2, WIN[0], WIN[1] - 0.05, c.winLo, c.winHi);
       }
     }
     for (const [a0, a1] of lay.wins) sidePanel(m, F, l2, n, a0, a1, WIN[0], WIN[1], c.winLo, c.winHi);
-    for (const [a0, a1] of lay.cabs) sidePanel(m, F, l2, n, a0, a1, WIN[0], WIN[1], GLASS);
+    for (const [a0, a1] of lay.cabs) sidePanel(m, F, l2, n, a0, a1, WIN[0], WIN[1], c.glass);
   }
 }
 
 // 運転台の面：前の窓・行き先の表示・前照灯（先頭）か尾灯（最後尾）
-function cabFace(m, F, front, sign) {
+function cabFace(m, F, front, c) {
   const a = front ? F.L + 0.02 : -0.02;
   const n = front ? F.fwd : F.back;
-  endPanel(m, F, a, n, -1.2, 1.2, CAB_WIN[0], CAB_WIN[1], GLASS);
-  endPanel(m, F, a, n, -0.62, 0.62, SIGN[0], SIGN[1], sign);
+  // 前の面：窓のまわりの黒い面・路線の色の帯・窓・行き先の表示・灯
+  endPanel(m, F, front ? F.L + 0.01 : -0.01, n, -1.38, 1.38, LAMP[0] - 0.25, SIGN[1] + 0.12, c.cab);
+  endPanel(m, F, front ? F.L + 0.015 : -0.015, n, -1.38, 1.38, LAMP[0] - 0.42, LAMP[0] - 0.27, c.stripe);
+  endPanel(m, F, a, n, -1.2, 1.2, CAB_WIN[0], CAB_WIN[1], c.glass);
+  endPanel(m, F, a, n, -0.62, 0.62, SIGN[0], SIGN[1], c.sign);
   const lamp = lit3(front ? HEAD : TAIL);
   endPanel(m, F, a, n, 0.72, 1.18, LAMP[0], LAMP[1], lamp);
   endPanel(m, F, a, n, -1.18, -0.72, LAMP[0], LAMP[1], lamp);
@@ -508,7 +637,6 @@ export function trainMesh(prep, trains, glow = 0, { zoom = 18, reuse = false, bo
     }
     const total = t.cars * t.carLen + (t.cars - 1) * GAP;
     const head = t.s + total / 2;
-    const door = [...r.cols.side.slice(0, 3).map((v) => v * 0.8), 1];
     for (let i = 0; i < t.cars; i++) {
       const sf = head - i * (t.carLen + GAP);
       const sb = sf - t.carLen;
@@ -518,11 +646,17 @@ export function trainMesh(prep, trains, glow = 0, { zoom = 18, reuse = false, bo
       const m = inTunnel ? tunnel : surface;
       const lead = i === 0;
       const last = i === t.cars - 1;
-      carBody(m, F, r.cols);
-      carSides(m, F, sideLayout(F.L, lead, last, detail), { winLo, winHi, door });
-      if (lead) cabFace(m, F, true, sign);
-      if (last) cabFace(m, F, false, sign);
-      if (inTunnel) continue;
+      const c = carLook(r, inTunnel, { winLo, winHi, sign });
+      carBody(m, F, c);
+      carSides(m, F, sideLayout(F.L, lead, last, detail), c, t.open || 0, t.door || 0);
+      if (lead) cabFace(m, F, true, c);
+      if (last) cabFace(m, F, false, c);
+      if (inTunnel) {
+        // トンネル・地下の駅の中：前照灯・尾灯のにじみだけ（線路・地面に落ちる光はなし）
+        if (lead) headLights(light, F, r, sf, 0);
+        if (last) tailLights(light, F, 0);
+        continue;
+      }
       if (lead) headLights(light, F, r, sf, g);
       if (last) tailLights(light, F, g);
       if (night && nearGround(r, sb) && nearGround(r, sf)) windowSpill(light, F, g);

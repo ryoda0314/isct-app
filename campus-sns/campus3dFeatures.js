@@ -92,7 +92,7 @@
 //             roof "glass"（ガラスの屋根。縦の桟は斜面の向きに glassPitch m ごと） / "solar"（太陽光パネル。ふちに白い笠木）
 //             base（宙に浮いた建物：外の壁の下の端の高さ。地面から m。下はピロティ）, keel（船底の傾き：base の下の面は、壁の下の端から
 //             中へ keel の傾きで下がる面（keelSides の辺ごと。なければ全部）の組み＝いちばん高い面。0 か なしは平らな下の面）
-//             soffitJoints（下の面のパネルの目地：[辺に沿った間隔, 辺から内への間隔] m。船底の面ごとにその辺に平行・直角。平らな下の面は 1 本目の辺）,
+//             keelMin（船底の下の面の下限：地面から m。幅の広いところは平らに）, soffitJoints（下の面のパネルの目地：[辺に沿った間隔, 辺から内への間隔] m。船底の面ごとにその辺に平行・直角。平らな下の面は 1 本目の辺）,
 //             soffit（"wood" なら下の面は木の色＝薄い屋根の裏の木の板。なしは建物の色を暗く）
 //             fins（縦のルーバー。10 まで）：[{ coords（壁ぞいの両端の2点）, pitch（間隔 m）, depth（出 m）, width（厚さ m） }]。壁の下の端から上まで。
 //             南を向く面は太陽光パネル（暗い色）
@@ -148,7 +148,8 @@
 //   floor   : 詳細モード（建物の中）の 1 つの階。ふだんは描かず、詳細モードで host（建物の id）の代わりに描く（campus3dInterior.js）。
 //             coords は床の形、level（階の名前 "B2" "1F" など）, order（階の順。地下 2 階 −2・1 階 0・2 階 1…）, z（床の上の面の高さ。
 //             groundRef の地面＝掘る前の地面から m。地下はマイナス）, height（次の階の床まで m。壁はここまで）, slab（床の厚さ）,
-//             finish（床の仕上げ FLOOR_FINISHES）, holes（床の穴＝吹き抜け・階段の口：[{ coords }]）,
+//             finish（床の仕上げ FLOOR_FINISHES）, holes（床の穴＝吹き抜け・階段の口：[{ coords, ceil（false ならこの階の天井には穴をあけない＝
+//             下の階へだけ抜ける階段の口。なしはふつうどおり天井にも穴） }]）,
 //             rooms（部屋：[{ coords, finish（床の色）, name（部屋の名前。詳細モードで床の上に出す）, at（名前を出す点） }]）,
 //             walls（壁・ガラス・手すり：[{ coords（折れ線）, kind（FLOOR_WALL_KINDS：wall 白い壁 / ext 外の壁（厚い） / glass ガラス /
 //             curtain 外のガラスの壁（太い枠） / mesh 白い格子の手すり / rail 手すり / low 腰の高さの壁）, t（厚さ）, h（高さ。床から）,
@@ -156,7 +157,8 @@
 //             doors（扉・口：[[始まり, 終わり], ...]。折れ線の始めからの m）,
 //             wins（壁の窓：[[始まり, 終わり, 下, 上], ...]。始まり・終わりは折れ線の始めからの m、下・上は床から m） }]）,
 //             items（家具など：[{ coords（形）, z0・z1（床からの下と上 m）, kind（FLOOR_ITEM_KINDS。tube 横向きの筒＝白い筒の先に暗い穴 / disc 壁に掛けた丸い絵：
-//             どちらも形の 1 点目 → 2 点目の向きが筒の軸、直径は z1 − z0） }]）, under（床の下の面＝下の階の天井の色。FLOOR_FINISHES。なしは白）,
+//             どちらも形の 1 点目 → 2 点目の向きが筒の軸、直径は z1 − z0 / lift エレベーター：1 本目の辺が扉の面、hall（乗り場の壁の外の面までの出 m）・
+//             panel（"strip" 縦長の乗り場の操作盤）） }]）, under（床の下の面＝下の階の天井の色。FLOOR_FINISHES。なしは白）,
 //             stairs（階段：[{ coords（下の端のまん中 → 上の端のまん中）, width, rise（上がる高さ m）, z0（下の端の高さ。床から）,
 //             kind（wood 木 / white 白 / stone 石）, rails（[左, 右]：mesh 白い格子 / rail 手すり / glass ガラス / null）,
 //             skew（上るにつれて段の帯が左へずれる量 m/m：平行四辺形の階段＝段の線は上る向きに直角のまま、両わきが斜め。小数 4 桁）,
@@ -173,15 +175,53 @@ export const FEATURES_URL = "/map-3d/features.json";
 export const CANDIDATES_URL = "/map-3d/osm-candidates.json";
 export const FEATURE_TYPES = ["terrace", "slope", "stairs", "wall", "bridge", "passage", "building", "road", "crosswalk", "marking", "surface", "tree", "signal", "sign"];
 // 詳細モード（建物の中）だけで描く種類。エディタの「描く道具」には出さない（FEATURE_TYPES に入れない）が、読み込み・保存では残す
-export const DETAIL_TYPES = ["floor"];
-export const FLOOR_FINISHES = ["oak", "concrete", "tile", "carpet", "stone", "white", "plaza", "gravel", "dark"];
-export const FLOOR_WALL_KINDS = ["wall", "ext", "glass", "curtain", "mesh", "rail", "low"];
+// track（2026-11-11、大岡山駅の地下ホーム）：駅の中の線路の中心線。電車（campus3dTrains.js）の走る線と高さ・止まる位置をここで上書きし、
+// レールとまくらぎを描く（campus3dMesh.js の addTrack）。エディタの描く道具には出さない
+export const DETAIL_TYPES = ["floor", "track"];
+// checker：市松のタイル（床の grid の向き・大きさ。駅のホーム）、ballast：線路の砂利（暗い灰）
+// tile2：1 階のベージュのタイル（近い 2 つの色の市松。grid の大きさ）、brown：赤茶のタイル（1 階のベンチの前の丸い床）。2026-11-12
+// tactile：点字ブロックの黄色（部屋の床の色。ホームのふち・誘導の線。2026-11-12 に足した：前は落ちていて描かれなかった）
+// rubber＝図書館の地下の灰色のゴムの床（丸い粒の模様。2026-11-13、動画 IMG_1077）
+// herring＝灰色の濃淡のれんがの杉綾敷き（図書館の 1 階のロビー・地下 1 階の入口ホール。grid＝[V の並ぶ向き（度。+x から反時計回り）, れんがの幅 m]。
+// 長さは幅の HERRING_K 倍。部屋（rooms）にも grid を書ける。なければ階の grid、それもなければ [0, 0.1]。2026-11-13）
+export const FLOOR_FINISHES = ["oak", "concrete", "tile", "carpet", "stone", "white", "plaza", "gravel", "dark", "checker", "ballast", "tile2", "brown", "tactile", "rubber", "herring"];
+// psd：ホームドア（固定の箱と、doors の口の引き戸。style "mg" 白にオレンジの帯・オレンジの戸、"om" 窓のある白）、bars：鋼の縦の格子の柵、
+// tiles：大きなタイルの市松の壁（下は暗い腰）、dark：暗い壁（トンネル・天井のふちの幕板）
+// 2026-11-12（大岡山駅の階段・エスカレーターのまわりと 1 階）：mtile 小さなベージュのタイルの壁（目地・白っぽい縦の帯。階段の壁）、
+// wains 腰まで小さなタイル・上は明るい壁（th：タイルの高さ m。1 階）、slat 木の縦の格子（暗い板の前に細い木の棒）、maroon ローソンの
+// えんじ色の板、wtile 白いタイルの壁（エレベーターの前の壁）
+// conc 打ち放しのコンクリート（P コンの穴）、wbrick 白いれんが（附属図書館の地下。2026-11-13）
+export const FLOOR_WALL_KINDS = ["wall", "ext", "glass", "curtain", "mesh", "rail", "low", "psd", "bars", "tiles", "dark", "mtile", "wains", "slat", "maroon", "wtile", "conc", "wbrick"];
 // tentsofa（2026-11-10、ユーザー「ソファー違いすぎ」）：両側に座れる低いソファー。4 点の四角の 1 本目の辺が長さ（背のてっぺんの線）、
 // 両側に座面、まん中に 2 枚の背もたれがもたれ合ったテントの形（z1 がてっぺん）、細い金属の脚（Taki の 1 階のラウンジ・写真 S__47226944）
-export const FLOOR_ITEM_KINDS = ["box", "wood", "white", "dark", "grey", "sofa", "seat", "green", "screen", "glow", "counter", "layered", "platform", "table", "shelf", "kitchen", "vending", "piano", "red", "orange", "art", "core", "lift", "toilet", "tube", "disc", "slats", "walnut", "chalk", "lamp", "bentwood", "mat", "tatami", "steel", "liftdoor", "tentsofa"];
-export const FLOOR_STAIR_KINDS = ["wood", "white", "stone"];
+// column（駅のホームの丸柱：4 点の四角に内接する円。下から赤茶・オレンジと黄の市松の帯・クリーム色のタイル、上に白い丸い笠）、
+// bench（オレンジの座面が並ぶベンチ。1 本目の辺の左が前）、board（吊り下げの発車標：暗い箱に 2 段の光る字の帯。1 本目の辺の左が表）、
+// light（天井の照明の帯：白く光る板）
+// 2026-11-12（大岡山駅の階段の上・1 階）：soffit 段々の天井の箱（下の面に丸い照明）、sdoor 壁の鉄の扉（1 本目の辺の面が表）、
+// gate 自動改札機（長い辺が通る向き。color は横の板：ピンク・銀）、cyl 丸い柱（4 点の四角に内接。color・split より上は color2）、
+// locker コインロッカー、machine 機械（券売機・精算機。color の箱、1 本目の辺の面に画面）、arrow 床の矢印（暗い四角に color の矢印。
+// 1 点目 → 2 点目の向き）、poster 額の広告（1 本目の辺の面。color 中・color2 額）、dlight 天井の丸い照明、hatch 天井の点検口、
+// hydrant 消火栓の箱（白い箱に赤い灯）、rack パンフレットの棚（1 本目の辺の面に色とりどりの冊子）
+// 2026-11-12（Taki Plaza 2 階の学習スペース。ユーザー「6,7,8,9,10 の机。数がおかしい」）：椅子とソファー。どれも 4 点の四角の 1 本目の辺が背、
+// z1 が背のてっぺん。chair 殻の椅子（座面と背が color の一枚・脚は color2 の細い金属）、woodchair 木の枠の椅子（color2 の枠・脚・背の横木、
+// color の座面＝編んだ座など）、lounge ソファー・ひじ掛けいす（color の布の台・座・背・ひじ掛け、color2 の短い脚。長い四角ならソファー）
+// 2026-11-12（Taki Plaza 地下 2 階のキッチンとイベントスペース。動画 IMG_1063）：どれも 4 点の四角の 1 本目の辺が前。microwave 電子レンジ、
+// drinks 自販機（前に商品の窓）、stool 背のない高い椅子（楕円の座 color・木の脚 color2）、tatamibox 畳の台（合板の側面・2 枚の畳。color は畳）、
+// wboard 移動式のホワイトボード（1 本目の辺が板の面）、bincab ゴミ箱の棚（0.6m ごとの区画）、aframe A 型の看板、louver 黒いがらり
+// 2026-11-13（附属図書館の入口・動画 IMG_1077）：flapgate フラップゲート（4 点の四角の長い向きが通る向き。ステンレスの台・暗いガラスの天板・
+// 青い灯・たたんだガラスの羽。z1 は台の高さ）、secgate 防犯ゲート（白い枠の板。長い向きが板の幅、z1 が高さ）、
+// wedge 斜めの板の屋根（附属図書館 地下 1 階の三角の階段の口のコンクリートの斜めの屋根：zs＝形の点ごとの上の面の高さ（床から m。平らな面）、
+// thick 板の厚さ、open 側の面を描かない辺の番号（口）。側の面は z0 から上の面まで。歩くときは上れない・側の面は壁）
+export const FLOOR_ITEM_KINDS = ["box", "wood", "white", "dark", "grey", "sofa", "seat", "green", "screen", "glow", "counter", "layered", "platform", "table", "shelf", "kitchen", "vending", "piano", "red", "orange", "art", "core", "lift", "toilet", "tube", "disc", "slats", "walnut", "chalk", "lamp", "bentwood", "mat", "tatami", "steel", "liftdoor", "tentsofa", "column", "bench", "board", "light", "soffit", "sdoor", "gate", "cyl", "locker", "machine", "arrow", "poster", "dlight", "hatch", "hydrant", "rack", "tvm", "chair", "woodchair", "lounge", "microwave", "drinks", "stool", "tatamibox", "wboard", "bincab", "aframe", "louver", "cubeshelf", "openshelf", "mathclock", "woodcut", "woodsign", "note", "stars", "stack", "flapgate", "secgate", "wedge"];
+// 板を重ねた切り抜き（woodcut）の形（campus3dInterior の WOODCUT_SHAPES）
+export const WOODCUT_SHAPE_KEYS = ["man", "woman", "bldg"];
+// escalator：エスカレーター（黒い段に黄色い線・ステンレスの側板）、oak：オークの段に段の鼻のステンレスの帯（2026-11-12。外の階段の
+// 材質 oak と同じ見え方：Taki の明かり取りの大階段はガラスの外と中で一続き）
+// rubber：黒いゴムの踏面に明るい灰の段鼻（附属図書館。2026-11-13）、glass：暗い鉄の枠にすりガラスの踏面（附属図書館の地下 2 階から
+// 地下 1 階への東の階段。動画 IMG_1077 の 570〜584 秒）
+export const FLOOR_STAIR_KINDS = ["wood", "white", "stone", "escalator", "oak", "rubber", "glass"];
 export const FLOOR_RAIL_KINDS = ["mesh", "rail", "glass"];
-export const TYPE_LABEL = { terrace: "平地", slope: "坂道", stairs: "階段", wall: "壁", bridge: "橋", passage: "通り抜け", building: "建物", road: "道路", surface: "路面", marking: "白線", crosswalk: "横断歩道", tree: "木", signal: "信号機", sign: "看板", floor: "階（建物の中）" };
+export const TYPE_LABEL = { terrace: "平地", slope: "坂道", stairs: "階段", wall: "壁", bridge: "橋", passage: "通り抜け", building: "建物", road: "道路", surface: "路面", marking: "白線", crosswalk: "横断歩道", tree: "木", signal: "信号機", sign: "看板", floor: "階（建物の中）", track: "線路（駅の中）" };
 // 路面と白線の種類（色・幅は campus3dPaint.js）
 export const SURFACE_KIND_KEYS = ["road", "walk", "plaza", "tile", "deck", "red", "green", "zebra", "gravel", "stones", "brick", "darkbrick", "redbrick", "wood", "lawn", "slab", "soil", "blue", "shrubs"];
 export const MARKING_KIND_KEYS = ["solid", "dashed", "stop", "yellow", "wide", "tactile"];
@@ -191,8 +231,10 @@ export const CENTER_KIND_KEYS = ["dashed", "solid", "yellow", "none"];
 // 木の形（campus3dMesh.js の addTree）：枝の広がる木（ケヤキなど）・丸い木（クスノキ・サクラなど）・イチョウ・針葉樹
 export const TREE_KIND_KEYS = ["broad", "round", "ginkgo", "conifer", "cherry", "cedar", "palm"];
 // 階段の段の材質・坂の両わきの壁の材質（campus3dMesh.js の色）。なしはコンクリート
-export const STAIRS_MATERIALS = ["wood", "stone", "brick"];
-export const STAIRS_MATERIAL_LABEL = { "": "コンクリート", wood: "木", stone: "石", brick: "れんが" };
+// oak（2026-11-12、ユーザー「階段の材質は基本は木だけど縁が金属」＋写真 S__47366149：Taki Plaza の明かり取りの大階段）：明るいオークの段に、
+// 段の鼻（下の段との境）のステンレスの帯（踏面のふち 4.5cm と蹴上げの上 3.5cm）。wood は外の木のデッキの古びた段（灰がかった色）のまま
+export const STAIRS_MATERIALS = ["wood", "stone", "brick", "oak"];
+export const STAIRS_MATERIAL_LABEL = { "": "コンクリート", wood: "木", stone: "石", brick: "れんが", oak: "オーク（縁が金属）" };
 // 建物の窓・扉の種類（campus3dMesh.js の addWindows）：ガラス・奥の暗いガラス・格子・扉・ガラスの扉
 export const WINDOW_KINDS = ["glass", "dark", "grille", "door", "glassdoor", "frost", "autodoor", "opening"];
 // 建物の壁と屋根の材質（campus3dMesh.js の色）：さびた鉄・穴あきの金属板・ステンレス。なしは地図の建物の色
@@ -234,8 +276,13 @@ export const DEFAULTS = {
   signal: { height: 5.5, arm: 3.5, bearing: 90, face: 180, peds: [] },
   sign: { bearing: 0, width: 2, height: 0.5, thickness: 0.15, z: 0.5, tilt: 0, style: "steel", legs: 2, lines: [], rules: [], logo: null },
   floor: { level: "1F", order: 0, z: 0, height: 3.5, slab: 0.3, finish: "oak" },
+  track: { blend: 60 },
 };
 export const SIGN_STYLES = ["steel", "white", "notice", "dark", "red", "cream", "green", "seven", "sevenstand", "hazard"];
+// 看板の絵（icons の種類。campus3dSignText の SVG の形）：man 男・woman 女・wheel 車いす・baby おむつ替え・ostomy オストメイト・esc エスカレーター・
+// lift エレベーター・exit 非常口の人・arrow 矢印（右向き。rotate は種類の名前 arrowL / arrowU / arrowD / arrowUL / arrowDL / arrowUR / arrowDR）・
+// uturn 戻る矢印・drink 飲み物・onigiri おにぎり・sandwich サンドイッチ・cigarette たばこ
+export const SIGN_ICONS = ["man", "woman", "wheel", "baby", "ostomy", "esc", "lift", "exit", "arrow", "arrowL", "arrowU", "arrowD", "arrowUL", "arrowDL", "arrowUR", "arrowDR", "uturn", "drink", "onigiri", "sandwich", "cigarette", "tokyu"];
 // 看板の文字に使える字（campus3dMesh.js の GLYPHS にある字）
 export const SIGN_CHARS = /[A-Z0-9&.'\- <>東京科学大岡山駅中央改札急病院南北口前交番四川屋台華菜房あんの指圧鍼灸酒銀行最短分]/;
 export const LOGO_KINDS = ["isct", "mcd", "tokyu", "tokyustore", "seven"];
@@ -367,6 +414,9 @@ export function normalizeFeature(f) {
     out.height = round2(clampTo(f.height, [0.1, 5], d.height));
     out.thickness = round2(clampTo(f.thickness, [0.01, 1], d.thickness));
     out.z = round2(clampTo(f.z, [0, 40], d.z)); // 屋上の看板も
+    // 地下の看板（駅のホーム。2026-11-11）：elev は z の基準の標高（なければ置いた点の地面）、lit は照明のある屋内の色（光を受けない）
+    if (f.elev != null && f.elev !== "" && Number.isFinite(+f.elev)) out.elev = round2(clampTo(f.elev, [-50, 200], 0));
+    if (f.lit === true) out.lit = true;
     out.tilt = round2(clampTo(f.tilt, [-30, 80], d.tilt));
     out.style = SIGN_STYLES.includes(f.style) ? f.style : d.style;
     out.legs = Math.round(clampTo(f.legs, [0, 4], d.legs));
@@ -382,6 +432,39 @@ export function normalizeFeature(f) {
     const lk = Array.isArray(lg) && lg.length === 4 && LOGO_KINDS.includes(lg[3]) && lg[3] !== "isct" ? lg[3] : null;
     out.logo = Array.isArray(lg) && (lg.length === 3 || lk) && lg.slice(0, 3).every((v) => Number.isFinite(+v)) && +lg[2] > 0
       ? [round2(clampTo(lg[0], [0, W], 0)), round2(clampTo(lg[1], [0, H], 0)), round2(clampTo(lg[2], [0.02, H], 0.2)), ...(lk ? [lk] : [])] : null;
+    // 2026-11-12（大岡山駅の 1 階・階段の上の広告）：texts（日本語も描ける字：[{ t（字）, x・y（左下・まん中・右下。板の左下の角から m）,
+    // h（字の高さ m）, c（色 #rrggbb）, w（あれば横をこの m に詰める）, b（太さ 100〜900）, a（そろえ "l" / "c" / "r"）, led（光る点の粗い字） }]。
+    // 画面の字（canvas）を升目にして描く。canvas のないところ（テスト）では描かない）、panels（色の四角：[[x, y, w, h, 色]]）、
+    // icons（絵：[[種類, x, y, h, 色]]。SIGN_ICONS）、back（後ろの面にも同じものを左右を入れかえて＝吊り看板の両面）、face（板の色 #rrggbb）、
+    // wrap（丸い柱に巻いた看板の半径 m：板は描かず、字・四角を円柱の面に）
+    const hx = (v) => (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : null);
+    const texts = (Array.isArray(f.texts) ? f.texts : []).map((t) => {
+      const s = typeof t?.t === "string" ? t.t.replace(/[\u0000-\u001f]/g, "").slice(0, 60) : "";
+      if (!s.trim() || !hx(t.c)) return null;
+      const o = { t: s, x: round2(clampTo(t.x, [0, W], 0)), y: round2(clampTo(t.y, [-0.5, H], 0)), h: round2(clampTo(t.h, [0.01, H + 0.5], 0.1)), c: hx(t.c) };
+      const w = numOr(t.w, [0.02, W], W);
+      if (w != null) o.w = w;
+      if (Number.isFinite(+t.b)) o.b = Math.round(clampTo(t.b, [100, 900], 700) / 100) * 100;
+      if (t.a === "c" || t.a === "r") o.a = t.a;
+      if (t.led === true) o.led = true;
+      return o;
+    }).filter(Boolean).slice(0, 40);
+    if (texts.length) out.texts = texts;
+    const panels = (Array.isArray(f.panels) ? f.panels : []).filter((p) => Array.isArray(p) && p.length === 5 && p.slice(0, 4).every((v) => Number.isFinite(+v)) && hx(p[4]))
+      .map((p) => [round2(clampTo(p[0], [0, W], 0)), round2(clampTo(p[1], [0, H], 0)), round2(clampTo(p[2], [0.005, W], 0.1)), round2(clampTo(p[3], [0.005, H], 0.1)), hx(p[4])]).slice(0, 40);
+    if (panels.length) out.panels = panels;
+    const icons = (Array.isArray(f.icons) ? f.icons : []).filter((p) => Array.isArray(p) && p.length === 5 && SIGN_ICONS.includes(p[0]) && p.slice(1, 4).every((v) => Number.isFinite(+v)) && hx(p[4]))
+      .map((p) => [p[0], round2(clampTo(p[1], [0, W], 0)), round2(clampTo(p[2], [0, H], 0)), round2(clampTo(p[3], [0.02, H], 0.2)), hx(p[4])]).slice(0, 24);
+    if (icons.length) out.icons = icons;
+    if (f.back === true) out.back = true;
+    if (hx(f.face)) out.face = hx(f.face);
+    const wrap = numOr(f.wrap, [0.1, 3], 0);
+    if (wrap) out.wrap = wrap;
+    // 発車標（2026-11-12）：dep＝[[番線, x, y, 幅]]：その番線の次の 2 本（種別・行き先・時刻）を、時刻表（public/map-3d/departures.json）から
+    // 光る字で（campus3dDepartures）。x・y は 1 段目の左下（2 段目は 0.21m 下）
+    const dep = (Array.isArray(f.dep) ? f.dep : []).filter((d) => Array.isArray(d) && d.length === 4 && d.every((v) => v !== null && v !== "" && Number.isFinite(+v)))
+      .map((d) => [Math.round(clampTo(d[0], [1, 9], 1)), round2(clampTo(d[1], [0, W], 0)), round2(clampTo(d[2], [0, H], 0)), round2(clampTo(d[3], [0.1, W], 1))]).slice(0, 4);
+    if (dep.length) out.dep = dep;
   } else if (f.type === "tree") {
     out.coords = coords.slice(0, 1);
     out.height = round2(clampTo(f.height, RANGE.theight, d.height));
@@ -455,9 +538,13 @@ export function normalizeFeature(f) {
       if (Number.isFinite(+f.keel) && +f.keel > 0) out.keel = round2(clampTo(f.keel, [0.01, 3], 0.2));
       if (f.soffit === "wood") out.soffit = "wood"; // 下の面は木（正門わきのガラスの建物の屋根の裏）
       if (out.keel && Array.isArray(f.keelSides) && coords.some((_, i) => f.keelSides[i] === false)) out.keelSides = coords.map((_, i) => f.keelSides[i] !== false);
+      // keelMin：船底の下の面はこの高さ（地面から m）より下がらない（附属図書館の学習棟：幅の広い北の部分は 1 階のロビーの平らな天井。2026-11-13）
+      if (out.keel && Number.isFinite(+f.keelMin) && +f.keelMin > 0) out.keelMin = round2(clampTo(f.keelMin, [0.3, out.base], out.base));
       if (Array.isArray(f.soffitJoints) && f.soffitJoints.length === 2 && f.soffitJoints.every((v) => v != null && v !== "" && Number.isFinite(+v) && +v > 0)) out.soffitJoints = f.soffitJoints.map((v) => round2(clampTo(v, [0.3, 20], 1.5)));
     }
     if (BUILDING_MATERIALS.includes(f.material)) out.material = f.material;
+    // くり抜き（lit）の中の壁・天井の材質（2026-11-11、大岡山駅：壁面緑化の塔の中の改札の中が緑の壁になっていた）。なしは建物の色
+    if (BUILDING_MATERIALS.includes(f.inner)) out.inner = f.inner;
     // 外の壁のパネルの目地：[横の間隔, 縦の間隔, 横の目地の基準の高さ（地面から m。なしは 0）]
     if (Array.isArray(f.joints) && f.joints.length >= 2 && f.joints.slice(0, 3).every((v) => Number.isFinite(+v))) {
       out.joints = [round2(clampTo(f.joints[0], [0.3, 5], 1)), round2(clampTo(f.joints[1], [0.3, 5], 2))];
@@ -636,6 +723,8 @@ export function normalizeFeature(f) {
     out.width = round2(clampTo(f.width, RANGE.crosswalk, d.width));
   } else if (f.type === "floor") {
     normalizeFloor(f, out, d);
+  } else if (f.type === "track") {
+    normalizeTrack(f, out, d);
   } else {
     out.width = round2(clampTo(f.width, RANGE.width, d.width));
     out.z = coords.map((_, i) => (f.z && f.z[i] != null && Number.isFinite(+f.z[i]) ? round2(clampTo(f.z[i], RANGE.z, 0)) : null));
@@ -661,7 +750,7 @@ export function normalizeFeature(f) {
         // 手すり（以前の railing: true/false も読む）。12本まで。並べ替えない（エディタで入力中の行がずれないように）
         const rails = Array.isArray(f.rails) ? f.rails : f.railing === false ? [] : d.rails;
         out.rails = rails.map((r) => +r).filter(Number.isFinite).map((r) => Math.round(Math.min(3, Math.max(-2, r)) * 1000) / 1000).slice(0, 12);
-        // 段の材質（wood 木 / stone 石。なければコンクリート）
+        // 段の材質（wood 木 / stone 石 / brick れんが / oak オークに金属の縁。なければコンクリート）
         if (STAIRS_MATERIALS.includes(f.material)) out.material = f.material;
         // 段数を手で決めたとき：段の区間は 1〜200 段、踊り場は null
         if (Array.isArray(f.steps) && f.steps.some((v) => +v >= 1)) {
@@ -686,6 +775,39 @@ const ptsOf = (a, max, ring = false) => {
   return out.slice(0, max);
 };
 const numOr = (v, range, dflt) => (v != null && v !== "" && Number.isFinite(+v) ? round2(clampTo(v, range, dflt)) : null);
+// 駅の中の線路（type "track"、2026-11-11）：coords は中心線（2〜400 点）、routes はこの線を走る電車の路線（trains.json の routes[].key）、
+// z は点ごとのレールの上の面の標高 m（null の点は前後の点から距離で直線に。全部 null なら電車の高さは変えない）、blend は線の両端の外で
+// もとの高さへなめらかにつなぐ長さ m、stop は { name（駅の名前）, at（[lng, lat]：1 号車の外の端＝東の端をここに合わせて止める）,
+// side（"left" / "right"：点の並びの向きに見てホームのある側＝扉の開く側） }、
+// bed が false ならレール・まくらぎを描かない
+function normalizeTrack(f, out, d) {
+  out.coords = out.coords.slice(0, 400);
+  out.routes = (Array.isArray(f.routes) ? f.routes : []).filter((k) => typeof k === "string" && k).map((k) => k.slice(0, 40)).slice(0, 8);
+  const zs = out.coords.map((_, i) => numOr(Array.isArray(f.z) ? f.z[i] : null, [-50, 200], 0));
+  if (zs.some((v) => v != null)) out.z = zs;
+  out.blend = round2(clampTo(f.blend, [0, 600], d.blend));
+  const st = f.stop;
+  const at = Array.isArray(st?.at) && st.at.length === 2 && st.at.every((v) => v !== null && v !== "" && Number.isFinite(+v)) ? [round7(+st.at[0]), round7(+st.at[1])] : null;
+  // side：track の点の並びの向きに見て、ホームのある側（"left" / "right"）＝扉の開く側
+  if (st && typeof st.name === "string" && st.name.trim() && at) out.stop = { name: st.name.trim().slice(0, 20), at, ...(st.side === "left" || st.side === "right" ? { side: st.side } : {}) };
+  if (f.bed === false) out.bed = false;
+}
+// 駅の中の線路（type "track"）の点ごとのレールの上の面の標高（z の null は前後の決まった点から、線に沿った長さで直線に）。z がなければ null
+export function trackZs(f) {
+  if (!f.z) return null;
+  const pts = f.coords.map(toXY);
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const known = f.z.map((v, i) => (v != null ? i : -1)).filter((i) => i >= 0);
+  if (!known.length) return null;
+  return f.z.map((v, i) => {
+    if (v != null) return v;
+    const lo = [...known].reverse().find((k) => k < i), hi = known.find((k) => k > i);
+    if (lo == null) return f.z[hi];
+    if (hi == null) return f.z[lo];
+    return f.z[lo] + ((f.z[hi] - f.z[lo]) * (cum[i] - cum[lo])) / (cum[hi] - cum[lo] || 1);
+  });
+}
 function normalizeFloor(f, out, d) {
   out.host = typeof f.host === "string" ? f.host.slice(0, 60) : "";
   out.level = typeof f.level === "string" && f.level.trim() ? f.level.trim().slice(0, 6) : d.level;
@@ -696,13 +818,37 @@ function normalizeFloor(f, out, d) {
   if (Array.isArray(f.groundRef) && f.groundRef.length === 2 && f.groundRef.every((v) => v !== null && v !== "" && Number.isFinite(+v))) out.groundRef = [round7(+f.groundRef[0]), round7(+f.groundRef[1])];
   out.finish = FLOOR_FINISHES.includes(f.finish) ? f.finish : d.finish;
   if (FLOOR_FINISHES.includes(f.under)) out.under = f.under;
-  const holes = (Array.isArray(f.holes) ? f.holes : []).map((h) => ptsOf(h?.coords, 80, true)).filter((c) => c.length >= 3).slice(0, 40).map((coords) => ({ coords }));
+  // 2026-11-11（大岡山駅の地下ホーム）：grid＝市松のタイル（checker）の [向き（度。+x から反時計回り）, 目の大きさ m]、
+  // ceiling＝床の形の上の天井 { z（床から m）, kind（slats 白い細い板の天井 / plain 白 / dark 暗い構造の天井）, holes（天井の穴） }、
+  // digMode "cut"＝この地下の階の下の地面は、詳細モードで地下の階を切り取って見るときだけ掘る（ふだんは地面をそのまま＝道路の塗りを守る。
+  // 歩いて見るときはカメラが地面の下に入れる）、digs＝いつも掘る形（エスカレーターの口など。深さはこの階の床の下）
+  if (Array.isArray(f.grid) && f.grid.length === 2 && f.grid.every((v) => v !== null && v !== "" && Number.isFinite(+v)) && +f.grid[1] > 0) {
+    out.grid = [Math.round(((+f.grid[0] % 360) + 360) % 360 * 100) / 100, round2(clampTo(f.grid[1], [0.1, 5], 0.6))];
+  }
+  if (f.ceiling && typeof f.ceiling === "object" && Number.isFinite(+f.ceiling.z)) {
+    const c = { z: round2(clampTo(f.ceiling.z, [0.5, 30], 3)), kind: ["slats", "plain", "dark"].includes(f.ceiling.kind) ? f.ceiling.kind : "plain" };
+    const ch = (Array.isArray(f.ceiling.holes) ? f.ceiling.holes : []).map((h) => ptsOf(h?.coords, 80, true)).filter((q) => q.length >= 3).slice(0, 20).map((coords) => ({ coords }));
+    if (ch.length) c.holes = ch;
+    out.ceiling = c;
+  }
+  if (f.digMode === "cut") out.digMode = "cut";
+  const extraDigs = (Array.isArray(f.digs) ? f.digs : []).map((h) => ptsOf(h?.coords, 80, true)).filter((q) => q.length >= 3).slice(0, 12).map((coords) => ({ coords }));
+  if (extraDigs.length) out.digs = extraDigs;
+  // ceil: false＝この階の天井には穴をあけない（下の階へだけ抜ける口。2026-11-13 附属図書館の地下 1 階の階段の口）
+  const holes = (Array.isArray(f.holes) ? f.holes : []).map((h) => ({ coords: ptsOf(h?.coords, 80, true), noCeil: h?.ceil === false })).filter((h) => h.coords.length >= 3).slice(0, 40).map((h) => (h.noCeil ? { coords: h.coords, ceil: false } : { coords: h.coords }));
   if (holes.length) out.holes = holes;
   const rooms = (Array.isArray(f.rooms) ? f.rooms : []).map((r) => {
-    const coords = ptsOf(r?.coords, 80, true);
+    // 点は 240 まで（2026-11-12：80 までだと、長い点字ブロックの帯が途中で切られて斜めの大きな三角になった）
+    const coords = ptsOf(r?.coords, 240, true);
     if (coords.length < 3) return null;
     const o = { coords };
     if (FLOOR_FINISHES.includes(r.finish)) o.finish = r.finish;
+    // 部屋の床の模様の向き・大きさ（herring の杉綾。階の grid と同じ形。2026-11-13）
+    if (Array.isArray(r.grid) && r.grid.length === 2 && r.grid.every((v) => v !== null && v !== "" && Number.isFinite(+v)) && +r.grid[1] > 0) {
+      o.grid = [Math.round((((+r.grid[0] % 360) + 360) % 360) * 100) / 100, round2(clampTo(r.grid[1], [0.05, 5], 0.1))];
+    }
+    // over：床の穴（平地の床が見える穴）の上にも模様を描く（附属図書館の入口の踊り場＝地下 1 階の床の穴の中の平地。2026-11-13）
+    if (r.over === true) o.over = true;
     if (typeof r.name === "string" && r.name.trim()) o.name = r.name.trim().slice(0, 40);
     const at = ptsOf([r.at], 1);
     if (at.length) o.at = at[0];
@@ -724,13 +870,30 @@ function normalizeFloor(f, out, d) {
     if (h2 != null) o.h2 = h2;
     const z02 = numOr(w.z02, [-5, 40], 0);
     if (z02 != null) o.z02 = z02;
-    const doors = (Array.isArray(w.doors) ? w.doors : []).filter((p) => Array.isArray(p) && p.length === 2 && p.every((v) => Number.isFinite(+v)) && +p[1] > +p[0]).map((p) => [round2(+p[0]), round2(+p[1])]).slice(0, 30);
+    const doors = (Array.isArray(w.doors) ? w.doors : []).filter((p) => Array.isArray(p) && p.length === 2 && p.every((v) => Number.isFinite(+v)) && +p[1] > +p[0]).map((p) => [round2(+p[0]), round2(+p[1])]).slice(0, 64); // ホームドアの列は 1 両 4 か所 × 8 両
     if (doors.length) o.doors = doors;
     const wins = (Array.isArray(w.wins) ? w.wins : []).filter((p) => Array.isArray(p) && p.length === 4 && p.every((v) => Number.isFinite(+v)) && +p[1] > +p[0] && +p[3] > +p[2]).map((p) => p.map((v) => round2(+v))).slice(0, 60);
     if (wins.length) o.wins = wins;
     if (doors.length && w.auto === true) o.auto = true; // 扉は自動ドア（campus3dDoors.js）
     // 1 枚のガラス（glass・curtain）：途中の縦の枠・横の枠なし、枠は壁の両端だけ（2026-11-10、ユーザー「窓の中にも線はない。一枚の板」）
     if ((o.kind === "glass" || o.kind === "curtain") && w.pane === true) o.pane = true;
+    // すりガラスの菱形の模様の帯（glass）：band＝[下, 上]（壁の下の端から m）か [下, 上, 大きさの倍率]（附属図書館の学習棟：3 階のグループ研究室の
+    // ガラスは 1、外まわりの窓のフリットは大きめ。2026-11-13）
+    if (o.kind === "glass" && Array.isArray(w.band) && (w.band.length === 2 || w.band.length === 3) && w.band.every((v) => v != null && v !== "" && Number.isFinite(+v)) && +w.band[1] > +w.band[0]) {
+      o.band = [round2(clampTo(w.band[0], [0, 5], 0.5)), round2(clampTo(w.band[1], [0.1, 6], 1.4))];
+      if (w.band.length === 3 && +w.band[2] !== 1) o.band.push(round2(clampTo(w.band[2], [0.5, 4], 1)));
+    }
+    // ホームドア（psd）：style（"mg" 白い箱にオレンジの帯・オレンジの戸 / "om" 窓のある白い箱と戸）、track（この線路 track に電車が
+    // 止まっているあいだ戸が開く。track の id）。doors は戸の口（折れ線の始めからの m）
+    if (o.kind === "psd") {
+      o.style = w.style === "om" ? "om" : "mg";
+      if (typeof w.track === "string" && w.track) o.track = w.track.slice(0, 60);
+    }
+    // 腰のタイルの高さ（wains）
+    if (o.kind === "wains") {
+      const th = numOr(w.th, [0.2, 4], 1.3);
+      if (th != null) o.th = th;
+    }
     return o;
   }).filter(Boolean).slice(0, 600);
   if (walls.length) out.walls = walls;
@@ -752,8 +915,56 @@ function normalizeFloor(f, out, d) {
       const plain = spans(it.plain);
       if (plain.length) o.plain = plain;
     }
+    // 色（2026-11-12）：color・color2（#rrggbb）、split（cyl の色の変わる高さ。床から m）
+    const hx = (v) => (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : null);
+    if (hx(it.color)) o.color = hx(it.color);
+    if (hx(it.color2)) o.color2 = hx(it.color2);
+    const split = numOr(it.split, [0, 40], 0);
+    if (split != null && o.kind === "cyl") o.split = split;
+    // ゴミ箱の棚の区画の数（bincab。なければ 0.6m ごと）
+    if (o.kind === "bincab" && Number.isFinite(+it.n) && +it.n >= 1) o.n = Math.min(12, Math.round(+it.n));
+    // 棚（2026-11-13）：列・段の数、本の割合（cubeshelf）、下の引き出しの段の数・両面・木の天板（openshelf）
+    if (o.kind === "cubeshelf" || o.kind === "openshelf") {
+      if (Number.isFinite(+it.cols) && +it.cols >= 1) o.cols = Math.min(20, Math.round(+it.cols));
+      if (Number.isFinite(+it.rows) && +it.rows >= 1) o.rows = Math.min(12, Math.round(+it.rows));
+      if (o.kind === "cubeshelf" && Number.isFinite(+it.books) && +it.books > 0) o.books = Math.round(Math.min(1, +it.books) * 100) / 100;
+      if (o.kind === "openshelf") {
+        if (Number.isFinite(+it.drawers) && +it.drawers >= 1) o.drawers = Math.min(12, Math.round(+it.drawers));
+        if (it.double === true) o.double = true;
+        if (it.top === "wood") o.top = "wood";
+      }
+    }
+    // 斜めの板の屋根（wedge）：点ごとの上の面の高さ zs（床から m）・板の厚さ thick・口の辺 open（2026-11-13）
+    if (o.kind === "wedge") {
+      const zs = Array.isArray(it.zs) && it.zs.length === coords.length && it.zs.every((v) => Number.isFinite(+v)) ? it.zs.map((v) => round2(clampTo(v, [z0, 45], z0))) : null;
+      if (!zs) return null;
+      o.zs = zs;
+      o.z1 = Math.max(o.z1, ...zs);
+      const th = numOr(it.thick, [0.05, 2], 0.3);
+      if (th != null) o.thick = th;
+      const open = (Array.isArray(it.open) ? it.open : []).filter((k) => Number.isInteger(k) && k >= 0 && k < coords.length);
+      if (open.length) o.open = [...new Set(open)];
+    }
+    // 図書館の書架（stack）：段の数・本の割合（2026-11-13）
+    if (o.kind === "stack") {
+      if (Number.isFinite(+it.rows) && +it.rows >= 1) o.rows = Math.min(12, Math.round(+it.rows));
+      if (Number.isFinite(+it.books) && +it.books >= 0) o.books = Math.round(Math.min(1, +it.books) * 100) / 100;
+    }
+    // 板を重ねた切り抜きの形（woodcut）・木の板の表示の字（woodsign。英字・数字・空白 24 字まで）
+    if (o.kind === "woodcut" && WOODCUT_SHAPE_KEYS.includes(it.shape)) o.shape = it.shape;
+    if (o.kind === "woodsign" && typeof it.text === "string") {
+      const tx = it.text.replace(/[^A-Za-z0-9 &'.:-]/g, "").slice(0, 24);
+      if (tx) o.text = tx;
+    }
+    // エレベーター（lift）の乗り場（2026-11-13、附属図書館）：hall＝乗り場の壁の外の面が扉の面（1 本目の辺）からどれだけ外か（m。厚い打ち放しの
+    // 壁の奥の扉。呼びボタンはこの面に付く）、panel "strip"＝縦長のステンレスの操作盤（表示・上下・車いす用のボタン）。なしは Taki の細いボタン
+    if (o.kind === "lift") {
+      const hall = numOr(it.hall, [0, 1.5], 0);
+      if (hall != null && hall > 0) o.hall = hall;
+      if (it.panel === "strip") o.panel = "strip";
+    }
     return o;
-  }).filter(Boolean).slice(0, 900);
+  }).filter(Boolean).slice(0, 1400);
   if (items.length) out.items = items;
   const stairs = (Array.isArray(f.stairs) ? f.stairs : []).map((s) => {
     const coords = ptsOf(s?.coords, 2);
@@ -772,7 +983,51 @@ function normalizeFloor(f, out, d) {
     return o;
   }).filter(Boolean).slice(0, 40);
   if (stairs.length) out.stairs = stairs;
-  const lids = (Array.isArray(f.lids) ? f.lids : []).map((l) => ptsOf(l?.coords, 80, true)).filter((c) => c.length >= 3).slice(0, 12).map((coords) => ({ coords }));
+  // 2026-11-12（大岡山駅、ユーザー「階段とエスカレーター周辺がダメすぎ。既存のものを流用するのではなくしっかり再現するためにないものは
+  // 新しく作って。エスカレーターは動かさないと」）：
+  // escalators（エスカレーター：[{ coords（下のくし → 上のくしのまん中の線）, rise（上がる高さ m）, z0（下の床。この階の床から m）,
+  // width（段の幅 m）, flats（[下, 上]：くしから斜めの始まりまでの平らなところ m）, dir（"up" 上り / "down" 下り / "stop" 止まっている）,
+  // speed（段の速さ m/s）, newel（欄干がくしの外へ出る長さ m）, panel（欄干の板 "glass" / "steel"） }]。段は campus3dEscalator が動かす）
+  const escalators = (Array.isArray(f.escalators) ? f.escalators : []).map((e) => {
+    const coords = ptsOf(e?.coords, 2);
+    if (coords.length < 2 || (coords[0][0] === coords[1][0] && coords[0][1] === coords[1][1])) return null;
+    const o = { coords, rise: round2(clampTo(e.rise, [0.2, 30], 3)), width: round2(clampTo(e.width, [0.5, 1.4], 1)) };
+    const z0 = numOr(e.z0, [-30, 40], 0);
+    if (z0) o.z0 = z0;
+    if (Array.isArray(e.flats) && e.flats.length === 2 && e.flats.every((v) => Number.isFinite(+v))) o.flats = e.flats.map((v) => round2(clampTo(v, [0.3, 5], 1.2)));
+    o.dir = ["up", "down", "stop"].includes(e.dir) ? e.dir : "up";
+    o.speed = round2(clampTo(e.speed, [0, 1.5], 0.5));
+    o.newel = round2(clampTo(e.newel, [0.3, 2], 0.9));
+    o.panel = e.panel === "steel" ? "steel" : "glass";
+    return o;
+  }).filter(Boolean).slice(0, 12);
+  if (escalators.length) out.escalators = escalators;
+  // flights（踊り場のある石の階段：[{ coords（いちばん下の蹴上げのまん中 → いちばん上の段の角＝上の階の床のふちのまん中）, width, rise, z0,
+  // runs（下からの流れごとの蹴上げの数）, landings（流れのあいだの踊り場の長さ m）, marks（段の角の両はしの黄と赤の印）,
+  // bands（ピンクの帯の蹴上げ：[[下からの蹴上げの番号（0 から）, 左, 右]]。左右は幅の割合 0〜1、上る向きに見て左から）,
+  // rails（[左, 右]：wall2 壁の 2 段の手すり / frost すりガラスの仕切りと手すり / null）,
+  // arrows（踊り場の床の矢印：[[踊り場の番号, 横の位置（割合）, 向き 1 上り / −1 下り]]）, tactile（上と下の点字ブロック） }]）
+  const flights = (Array.isArray(f.flights) ? f.flights : []).map((s) => {
+    const coords = ptsOf(s?.coords, 2);
+    if (coords.length < 2 || (coords[0][0] === coords[1][0] && coords[0][1] === coords[1][1])) return null;
+    const runs = (Array.isArray(s.runs) ? s.runs : []).map((v) => Math.round(clampTo(v, [1, 40], 10))).slice(0, 6);
+    const o = { coords, width: round2(clampTo(s.width, [0.6, 12], 2)), rise: round2(clampTo(s.rise, [0.1, 30], 3)), runs: runs.length ? runs : [Math.max(1, Math.round(clampTo(s.rise, [0.1, 30], 3) / 0.17))] };
+    const z0 = numOr(s.z0, [-30, 40], 0);
+    if (z0) o.z0 = z0;
+    o.landings = o.runs.slice(1).map((_, i) => round2(clampTo(Array.isArray(s.landings) ? s.landings[i] : s.landings, [0.6, 8], 1.5)));
+    if (s.marks === true) o.marks = true;
+    if (s.tactile === true) o.tactile = true;
+    const nR = o.runs.reduce((a, b) => a + b, 0);
+    const bands = (Array.isArray(s.bands) ? s.bands : []).filter((b) => Array.isArray(b) && b.length === 3 && b.every((v) => Number.isFinite(+v))).map((b) => [Math.round(clampTo(b[0], [0, nR - 1], 0)), round2(clampTo(b[1], [0, 1], 0)), round2(clampTo(b[2], [0, 1], 1))]).filter((b) => b[2] > b[1]).slice(0, 80);
+    if (bands.length) o.bands = bands;
+    const rails = (Array.isArray(s.rails) ? s.rails : []).slice(0, 2).map((k) => (k === "wall2" || k === "frost" ? k : null));
+    if (rails.some(Boolean)) o.rails = [rails[0] ?? null, rails[1] ?? null];
+    const arrows = (Array.isArray(s.arrows) ? s.arrows : []).filter((a) => Array.isArray(a) && a.length === 3 && a.every((v) => Number.isFinite(+v))).map((a) => [Math.round(clampTo(a[0], [0, 5], 0)), round2(clampTo(a[1], [0, 1], 0.5)), +a[2] < 0 ? -1 : 1]).slice(0, 12);
+    if (arrows.length) o.arrows = arrows;
+    return o;
+  }).filter(Boolean).slice(0, 12);
+  if (flights.length) out.flights = flights;
+  const lids =(Array.isArray(f.lids) ? f.lids : []).map((l) => ptsOf(l?.coords, 80, true)).filter((c) => c.length >= 3).slice(0, 12).map((coords) => ({ coords }));
   if (lids.length) out.lids = lids;
   const hides = (Array.isArray(f.hides) ? f.hides : []).filter((s) => typeof s === "string" && s).map((s) => s.slice(0, 60)).slice(0, 60);
   if (hides.length) out.hides = hides;
@@ -805,8 +1060,15 @@ export function detailView(features, { detail = false, level = "all" } = {}) {
     }
     out.push(f);
   }
+  // digMode "cut" の地下の階（大岡山駅の地下ホーム：広場・道路の下）は、詳細モードで地下の階を切り取って見るときだけ掘る（ふだんは
+  // 地面をそのまま＝道路・横断歩道の塗りを守る。歩いて見るときは CampusMap3D がカメラを地面の下へ入れる）。digs（エスカレーターの口・
+  // 改札の中の床の下など）はいつも掘る。帯（band: false）は描かない：ふちの壁は階の壁で作る
+  const cutBasement = detail && level !== "all" && level < 0;
   for (const f of floors) {
-    if (f.z < -0.5) out.push({ id: `dig:${f.id}`, type: "dig", coords: f.coords, holes: f.holes, groundRef: f.groundRef, depth: round2(f.z - f.slab - 0.35) });
+    if (!(f.z < -0.5)) continue;
+    const depth = round2(f.z - f.slab - 0.35);
+    if (f.digMode !== "cut" || cutBasement) out.push({ id: `dig:${f.id}`, type: "dig", coords: f.coords, holes: f.holes, groundRef: f.groundRef, depth });
+    (f.digs || []).forEach((d, i) => out.push({ id: `dig:${f.id}:${i}`, type: "dig", coords: d.coords, groundRef: f.groundRef, depth, band: false }));
   }
   return out;
 }
@@ -819,9 +1081,12 @@ export const WALL_IN = 0.3;
 export const LIFT_DOOR_W = 0.9;
 export const LIFT_DOOR_H = 2.1;
 export const LIFT_WALL = 0.12;
-export function basementRegions(features) {
+export function basementRegions(features, { walk = false } = {}) {
+  // 掘らない地下の階（digMode "cut" で、いまの並びに掘る dig がない）は、上の地面が土のまま：平地の壁は土の帯のまま。
+  // 歩く世界（walk）では digMode "cut" の地下の階も地下（歩く人は地面の下へ入る。附属図書館の入口の穴の自動ドアから地下 1 階へ。2026-11-13）
+  const dug = new Set(features.filter((f) => f.type === "dig").map((f) => f.id));
   return features
-    .filter((f) => f.type === "floor" && f.host && f.z < -0.5 && f.coords?.length > 2)
+    .filter((f) => f.type === "floor" && f.host && f.z < -0.5 && f.coords?.length > 2 && (walk || f.digMode !== "cut" || dug.has(`dig:${f.id}`)))
     .map((f) => ({ ring: f.coords.map(toXY), holes: (f.holes || []).map((h) => (h.coords || h).map(toXY)) }));
 }
 export const inBasement = (regions, p) => regions.some((r) => pointInRing(p[0], p[1], r.ring) && !r.holes.some((h) => pointInRing(p[0], p[1], h)));
@@ -1327,6 +1592,47 @@ export function pointInRing(x, y, ring) {
     if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
+}
+
+// 杉綾（ヘリンボーン）敷きのれんが（2026-11-13、附属図書館の 1 階のロビー・地下 1 階の入口ホール・入口の踊り場：動画 IMG_1077 の 612・654・870 秒。
+// 灰色の濃淡の細長いれんが 0.3 × 0.1m）：幅 w・長さ HERRING_K × w のれんがを、run（杉綾の V が並ぶ向き。平面の単位ベクトル）から ±45° の 2 つの向きに
+// 互い違いに（階段状の列を (k, −k) ずつずらして敷きつめる）。形 ring の中・穴 holes の外に 4 隅が入るれんがだけ（ふちは下の目地の色のまま）。
+// gap は目地の幅（れんがを内へ gap/2 ずつ縮める）。返すのは [{ q: 4 点（平面の m）, tone: 0〜3（濃さ。位置で決まる：明るい 30%・中 35%・濃い 25%・いちばん濃い 10%） }]
+export const HERRING_K = 3;
+export function herringboneBricks(ring, holes, run, w, gap = 0.006, k = HERRING_K) {
+  const r = Math.hypot(run[0], run[1]) || 1;
+  const ru = [run[0] / r, run[1] / r];
+  const c = Math.SQRT1_2;
+  const e1 = [(ru[0] + ru[1]) * c, (ru[1] - ru[0]) * c]; // run を −45° 回した向き
+  const e2 = [(ru[0] - ru[1]) * c, (ru[0] + ru[1]) * c]; // run を +45° 回した向き
+  const loc = ring.map((p) => [(p[0] * e1[0] + p[1] * e1[1]) / w, (p[0] * e2[0] + p[1] * e2[1]) / w]);
+  const xs = loc.map((q) => q[0]), ys = loc.map((q) => q[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  // 横のれんが H(s, n)：x [n + sk, n + sk + k]・y [n − sk, n − sk + 1]、縦のれんが V(s, n)：x [n + sk + k, n + sk + k + 1]・y [n − sk + 1 − k, n − sk + 1]
+  // 範囲に触れうる a = n + sk ∈ [x0 − k − 1, x1]・b = n − sk ∈ [y0 − 1, y1 + k − 1] から n・s の範囲（1 ずつ余分に）
+  const n0 = Math.floor((x0 + y0 - k - 3) / 2), n1 = Math.ceil((x1 + y1 + k + 1) / 2);
+  const s0 = Math.floor((x0 - y1 - 2 * k - 2) / (2 * k)), s1 = Math.ceil((x1 - y0 + 2) / (2 * k));
+  if ((n1 - n0) * (s1 - s0) > 600000) return [];
+  const g = gap / 2 / w;
+  const P = (x, y) => [(x * e1[0] + y * e2[0]) * w, (x * e1[1] + y * e2[1]) * w];
+  const ok = (p) => pointInRing(p[0], p[1], ring) && !holes.some((h) => pointInRing(p[0], p[1], h));
+  const toneOf = (s, n, t) => {
+    let h = (Math.imul(s, 73856093) ^ Math.imul(n, 19349663) ^ Math.imul(t + 1, 83492791)) >>> 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+    const v = (h % 1000) / 1000;
+    return v < 0.3 ? 0 : v < 0.65 ? 1 : v < 0.9 ? 2 : 3;
+  };
+  const out = [];
+  for (let s = s0; s <= s1; s++) {
+    for (let n = n0; n <= n1; n++) {
+      const a = n + s * k, b = n - s * k;
+      for (const [t, xa, xb, ya, yb] of [[0, a, a + k, b, b + 1], [1, a + k, a + k + 1, b + 1 - k, b + 1]]) {
+        const q = [P(xa + g, ya + g), P(xb - g, ya + g), P(xb - g, yb - g), P(xa + g, yb - g)];
+        if (q.every(ok)) out.push({ q, tone: toneOf(s, n, t) });
+      }
+    }
+  }
+  return out;
 }
 // 多角形のふちまでの距離
 function distToRing(x, y, ring) {
@@ -2465,6 +2771,8 @@ export function buildingSoffit(f, ring) {
       planes.push({ i, fn: [-f.keel * nin[0], -f.keel * nin[1], f.base + f.keel * d0] });
     });
   }
+  // 船底の下の面の下限（keelMin）：水平な面を足す（いちばん高い面の組みなので、それより下がらない）
+  if (planes.length && f.keelMin > 0 && f.keelMin < f.base) planes.push({ i: undefined, fn: [0, 0, f.keelMin] });
   const val = (fn, p) => fn[0] * p[0] + fn[1] * p[1] + fn[2];
   if (!planes.length) return { at: () => f.base, pieces: [{ poly: ring, fn: [0, 0, f.base] }], planes: [] };
   const at = (p) => Math.max(...planes.map((pl) => val(pl.fn, p)));

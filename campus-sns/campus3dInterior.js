@@ -5,7 +5,7 @@
 // 家具など・階段（段・裏の面・手すり）・地下の上を覆う地面の高さの床（lids）。歩いて見るとき（全部の階）は、建物の屋根の下の天井と梁（addRoofCeiling）。
 // 地下の階の下を掘ったふち（dig）の帯は addDigBand
 import polygonClipping from "polygon-clipping";
-import { LIFT_DOOR_H, LIFT_DOOR_W, LIFT_WALL, WALL_CAP, WALL_T, buildingRoof, offsetRingBy, pointInRing, ringArea, roofSlab, toLngLat, toXY } from "./campus3dFeatures.js";
+import { LIFT_DOOR_H, LIFT_DOOR_W, LIFT_WALL, WALL_CAP, WALL_T, buildingRoof, herringboneBricks, offsetRingBy, pointInRing, ringArea, roofSlab, toLngLat, toXY, trackZs } from "./campus3dFeatures.js";
 
 const hex = (h, a = 0.5) => {
   const n = parseInt(h.slice(1, 7), 16);
@@ -24,7 +24,59 @@ const PAL = {
   tatamiA: "#d2cb9c", tatamiB: "#c6bf8d", tatamiSide: "#77767a", steel: "#c4c9cd", steelEdge: "#8f969c",
   // 両側に座れるテントの形のソファー（灰色の布・背もたれの裏・細い金属の脚。写真 S__47226944・動画 IMG_0723 の t042〜t081）
   tentsofa: "#bdbbb6", tentsofaBack: "#b1afaa", sofaLeg: "#8c9196",
+  // Taki Plaza 2 階の学習スペースの椅子とソファー（2026-11-12、動画 IMG_0723 の 124〜148 秒）：殻の椅子（灰）と細い金属の脚、
+  // 木の枠の椅子（明るい木の枠・座面）、ソファー・ひじ掛けいす（灰の布）
+  chairShell: "#b9b8b4", chairLeg: "#9a9ea2", woodFrame: "#cfae7c", chairSeat: "#c9c27a", loungeGrey: "#8f9194",
+  // Taki Plaza 地下 2 階のキッチンとイベントスペース（2026-11-12、動画 IMG_1063）：畳の台の合板の側面と積層の線・畳の緑、電子レンジ・自販機の暗いガラス
+  plywood: "#c4a37a", plywoodLine: "#8c6c4a", tatamiGreen: "#b8ba8b", tatamiGreen2: "#aeb183",
+  // アップライトピアノ（2026-11-12、ユーザーの目印 5「ぴあのをちゃんとつくりたい」。動画 IMG_1063 の 24〜26 秒）：白鍵・黒鍵・ペダルの金・譜面
+  pianoKey: "#f3f1ea", pianoBlackKey: "#0e0f11", pianoGold: "#c8a24a", pianoSheet: "#f7f5ee", pianoInk: "#55575b",
   stairWood: "#cdb38a", stairWhite: "#efeeea", stairStone: "#b6b2aa", stairEdge: "#9f9a91",
+  // オークの段とステンレスの鼻の帯（2026-11-12、ユーザー「階段外だけじゃなくて中もつながってるんだから分けないでよ」：Taki の明かり取りの
+  // 大階段のガラスの内の段。外の段 stairsOak（campus3dMesh）が昼の光で見える色にそろえる）
+  stairOak: "#af8a66", stairNose: "#aaaeb2",
+  // 大岡山駅の地下ホーム（2026-11-11、動画 IMG_1009）：市松の床（クリーム・ベージュ）・点字ブロック・線路の砂利・まくらぎ・レール・
+  // 壁の大きなタイル（クリーム・赤茶・オリーブ・灰・からし色、下の暗い腰）・ホームドア（白・オレンジ・窓の暗いガラス）・鋼の柵・
+  // 丸柱（赤茶・オレンジと黄の市松の帯・クリーム色のタイル・白い笠）・ベンチ（オレンジ）・発車標（暗い箱と光る字）・エスカレーター・天井
+  checkerA: "#ece5d5", checkerB: "#d5c3a3", tactile: "#e2b93b", ballast: "#57554f", sleeper: "#8d8983", railSteel: "#5f6164", railHead: "#bfc3c7",
+  tileCream: "#e8dec6", tileTerra: "#c66a43", tileOlive: "#ae9c58", tileGrey: "#cac7bf", tileKhaki: "#cbb47c", tileBase: "#3a3b3e",
+  psdWhite: "#f2f1ec", psdOrange: "#ee8a1e", psdTop: "#c3c5c6", psdGlass: "#3a4047", psdFrame: "#dadbdc",
+  colTerra: "#c1653e", colOrange: "#e8892f", colYellow: "#e6c34c", colCream: "#ece4cf", colCap: "#f3f2ee", barSteel: "#9ca1a6",
+  benchSeat: "#e5852b", benchFrame: "#a2a7ac", boardBox: "#25282c", ledOrange: "#ff9a3a", ledGreen: "#66e477", ledRed: "#ff5d42",
+  escStep: "#2b2d30", escLine: "#e3bf3a", escSide: "#c5cace", ceilSlat: "#e9e7e1", ceilLine: "#d0cdc6", ceilDark: "#45484d", darkWall: "#565a60", lightStrip: "#ffffff",
+  // 大岡山駅の階段・エスカレーターのまわりと 1 階（2026-11-12、動画 IMG_1009 の 6〜80 秒）：階段の壁の小さなベージュのタイル（目地・白っぽい縦の帯）、
+  // 石の段（明るい御影石・蹴上げ・段の角の黄と赤の印・ピンクの帯）、エスカレーター（黒い段・黄色い線・ステンレス・黒い手すり・ガラスの欄干）、
+  // すりガラスの仕切り、段々の天井と丸い照明、鉄の扉、床の矢印、1 階の腰のタイル・木の格子・えんじ色の板・白いタイル、改札機・柱・ロッカー・機械・
+  // 額の広告・消火栓の箱・パンフレットの棚
+  mtile: "#c6b59b", mtileGrout: "#ab9b83", mtileBand: "#d9d5cb", mtileBandGrout: "#bdb8ad",
+  stairTread: "#d6cfc2", stairRiser: "#bdb5a8", stairNose: "#9c9488", stairSide: "#c9c1b3", markYellow: "#f3c21f", markRed: "#dc3b2a", riserPink: "#ea5a95",
+  escTread: "#35373b", escRiser: "#222427", escSkirt: "#cfd3d6", escDeck: "#d9dcdf", escHand: "#1b1c1e", escClad: "#c3c8cc", escPit: "#1e1f21", escPlate: "#a4a9ad", escComb: "#e5bd2c",
+  glassBal: "#6f7b82", frost: "#f2f4f3", railSteel: "#c9ced2",
+  soffit: "#eceae5", soffitUnder: "#e1dfd9", dlight: "#fffef6",
+  doorLeaf: "#e9e3d3", doorFrame: "#d6cfbd", doorKnob: "#9ea3a7", arrowBg: "#45484d", arrowFg: "#f6f6f4",
+  wainsTile: "#c9bda7", wainsGrout: "#ada190",wainsTop: "#ebe8e1", wainsTrim: "#b9b3a8", slatWood: "#7b4f37", slatBack: "#3d2a20", maroon: "#7a2140", wtile: "#f1f0ec", wtileGrout: "#dcdad5",
+  gateBody: "#c9cdd1", gateTop: "#2f3236", gateFlap: "#e3e4e5", gateRead: "#4fb3ff", gateScreen: "#1b2633",
+  cylDark: "#4a4648", locker: "#f3f3f0", lockerLine: "#c6c7c8", lockerLed: "#36d05b", machine: "#e6e7e5", screenDark: "#20262e",
+  tile2A: "#d9cdb7", tile2B: "#d2c6af", floorBrown: "#a9715a",
+  tvmBody: "#e8eaeb", tvmTop: "#1f3b6e", tvmScreen: "#16202c", tvmMenu: "#4f9ad6", tvmMenu2: "#f2f4f6", tvmSlot: "#2a2d31", tvmTray: "#3a3d42", tvmIc: "#3f8de0",
+  posterFrame: "#6e4a32", posterIn: "#eae6dc", hydrant: "#f0eee8", hydrantRed: "#d9322b", rackFrame: "#c8ccd0", hatch: "#d8d6d0", ceilPlain: "#f1f0ec",
+  // Taki Plaza 2 階の小物（2026-11-13、動画 IMG_1080）：窓ぎわの本棚（白い鉄の枠・木目の段の板・奥の板）、Attic Studio の白い棚（板・足もと・
+  // 引き出しの木の前板・取っ手）、計算式の時計（木の箱・黒い面）、板を重ねた切り抜き（明るい木・中の色・濃い線）、トイレの木の板の表示
+  // （3 つの木目）、貼り紙と字の色、星の飾りのひもと紙
+  shelfSteel: "#eef0f0", shelfWood: "#d6c3a0", shelfBack: "#cbb894", shelfWhite: "#f1f1ee", shelfToe: "#d2d2cf", drawerWood: "#d9c8a7", handle: "#8a8d91",
+  clockWood: "#c9a46c", clockFace: "#0c0d0f", cutLight: "#dcc394", cutMid: "#c6a473", cutDark: "#6f5838",
+  signWood: "#d9c49b", signWood2: "#cdb488", signWood3: "#e3d2ae", paper: "#fbfaf6", noteInk: "#e2708c", noteGreen: "#4f9a5e", string: "#e9e6dc", starWhite: "#f4f3ee", starPale: "#ece4a6",
+  // 附属図書館の地下（2026-11-13、動画 IMG_1077）：灰色のゴムの床、鉄の書架（明るい灰の板・段の板・奥の背の板）
+  rubber: "#9a9ea2", stackSteel: "#dfe1e2", stackShelf: "#cfd2d4", stackBack: "#a9adb1",
+  // 杉綾のれんが（herring。2026-11-13、動画 IMG_1077 の 612・654・870 秒）：目地と、れんがの 4 つの濃さ（明るい灰〜濃い灰）
+  herring: "#8c8a85", herring0: "#c8c6c1", herring1: "#b2b0ab", herring2: "#9d9b96", herring3: "#86847f",
+  // 図書館のゲート（2026-11-13、動画 IMG_1077 の 145〜148・600〜606・864 秒）：ステンレスの台・暗いガラスの天板・青い灯・白い防犯ゲートの枠
+  gateSteel: "#b9bec2", gateSteelDark: "#8e9397", gateGlassTop: "#2a2e33", gateBlue: "#3d7bff", gateReader: "#1f2a44", secWhite: "#f2f2ef",
+  // 打ち放しのコンクリートの壁（P コンの穴）と白いれんがの壁（図書館の地下。動画 IMG_1077）
+  concWall: "#c9c8c3", concHole: "#9d9c97", wbrick: "#ecebe6", wbrickJoint: "#d3d1ca",
+  stairRubber: "#45484c", stairRubberNose: "#c9cdd0",
+  // 図書館の東の階段（暗い鉄の枠にすりガラスの踏面）と、三角の階段の口の斜めのコンクリートの屋根（2026-11-13、動画 IMG_1077 の 190・380・570〜598 秒）
+  stairGlass: "#c3cbcf", stairSteel: "#3c4044", wedgeConc: "#d3d1cb",
 };
 const COL = Object.fromEntries(Object.entries(PAL).map(([k, v]) => [k, hex(v)]));
 const GLASS = hex(PAL.glass, 0.5);
@@ -34,15 +86,30 @@ const shade = (c, n) => {
   const k = n[2] > 0.7 ? 1 : n[2] < -0.7 ? 0.8 : 0.86 + 0.07 * n[0] + 0.03 * n[1];
   return [c[0] * k, c[1] * k, c[2] * k, c[3]];
 };
-const FINISH_COL = { oak: "oak", concrete: "concrete", tile: "tile", carpet: "carpet", stone: "stone", white: "white", plaza: "plaza", gravel: "gravel", dark: "dark" };
+const FINISH_COL = { oak: "oak", concrete: "concrete", tile: "tile", carpet: "carpet", stone: "stone", white: "white", plaza: "plaza", gravel: "gravel", dark: "dark", checker: "checkerA", ballast: "ballast", tactile: "tactile", tile2: "tile2A", brown: "floorBrown", rubber: "rubber", herring: "herring" };
 const ITEM_COL = {
   box: "whiteItem", wood: "wood", white: "whiteItem", dark: "darkItem", grey: "grey", sofa: "sofa", seat: "seat", green: "green", screen: "screen", glow: "glow",
   counter: "counter", layered: "counter", slats: "birch", platform: "platform", table: "wood", shelf: "whiteItem", kitchen: "kitchen", vending: "vending", piano: "piano",
   red: "red", orange: "orange", art: "art", core: "core", lift: "lift", toilet: "toilet", walnut: "walnut", chalk: "chalk", lamp: "lamp", bentwood: "bentwood", mat: "mat",
-  tatami: "tatamiA", steel: "steel", liftdoor: "steel", tentsofa: "tentsofa",
+  tatami: "tatamiA", steel: "steel", liftdoor: "steel", tentsofa: "tentsofa", column: "colCream", bench: "benchSeat", board: "boardBox", light: "lightStrip",
+  chair: "chairShell", woodchair: "woodFrame", lounge: "loungeGrey",
+  microwave: "whiteItem", drinks: "vending", stool: "whiteItem", tatamibox: "plywood", wboard: "whiteItem", bincab: "whiteItem", aframe: "red", louver: "darkItem",
+  cubeshelf: "shelfWood", openshelf: "shelfWhite", mathclock: "clockWood", woodcut: "cutLight", woodsign: "signWood", note: "paper", stars: "starWhite", stack: "stackSteel",
+  flapgate: "gateSteel", secgate: "secWhite",
 };
+// 椅子とソファー（addSeatItem が描く。4 点の四角の 1 本目の辺が背）
+const SEAT_ITEMS = new Set(["chair", "woodchair", "lounge"]);
+// キッチンとイベントスペースの物（addKitchenItem が描く。4 点の四角の 1 本目の辺が前）
+const KITCHEN_ITEMS = new Set(["microwave", "drinks", "stool", "tatamibox", "wboard", "bincab", "aframe", "louver"]);
+// 2026-11-12（大岡山駅の階段の上・1 階）の物（addStationItem が描く）。床の上に置かない平らなもの（矢印・天井の照明・点検口）は歩く当たりにしない
+const STATION_ITEMS = new Set(["soffit", "sdoor", "gate", "cyl", "locker", "machine", "arrow", "poster", "dlight", "hatch", "hydrant", "rack", "tvm"]);
+// 壁に貼った薄い物（木の板の表示・貼り紙・星の飾り。2026-11-13）も当たりにしない
+const FLAT_ITEMS = new Set(["arrow", "dlight", "hatch", "woodsign", "note", "stars"]);
 const TATAMI = 0.88; // 畳（半畳の琉球畳）の目の大きさ（m）
-const STAIR_COL = { wood: "stairWood", white: "stairWhite", stone: "stairStone" };
+// rubber：黒いゴムの踏面に明るい灰の段鼻（附属図書館の地下・学習棟の階段。2026-11-13、動画 IMG_1077）
+const STAIR_COL = { wood: "stairWood", white: "stairWhite", stone: "stairStone", escalator: "escStep", oak: "stairOak", rubber: "stairRubber", glass: "stairGlass" };
+const NOSE_TREAD = 0.045; // オークの段の鼻のステンレスの帯：踏面のふちからの奥行き（m。外の階段と同じ）
+const NOSE_DROP = 0.035; // 同じく蹴上げの上の端から下へ（m）
 const DOOR_H = 2.2; // 扉の口の高さ（上はまぐさ）
 const GLAZED_TOL = 0.25; // 平地の中の見えるガラスの面と「同じ線」とみなす、ガラスの壁の線からの距離（m）
 const SOFFIT = 0.45; // 階段の段の角から裏の面まで
@@ -73,6 +140,61 @@ function prismPoly(m, ring, z0, z1, c, { bottom = false, sideCol = null, top = t
 
 // 両側に座れるテントの形のソファー（物 tentsofa の四角 r。1 本目の辺が長さ＝背のてっぺんの線、z0〜z1 がてっぺん）：細い金属の脚 4 本、
 // 両側に座面（角を落とした厚いクッション）、まん中に 2 枚の背もたれが寄りかかり合った三角の形（写真 S__47226944：背の端が「Λ」に見える）
+// 斜めの板の屋根（物 wedge）の上の面：形の点 r（平面の m）と点ごとの高さ zs の平らな面 (x, y) → 高さ（一直線でない 3 点から）
+export function wedgeTopAt(r, zs) {
+  for (let k = 1; k + 1 < r.length; k++) {
+    const [x0, y0] = r[0], [x1, y1] = r[k], [x2, y2] = r[k + 1];
+    const det = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
+    if (Math.abs(det) < 1e-6) continue;
+    const dz1 = zs[k] - zs[0], dz2 = zs[k + 1] - zs[0];
+    const cx = (dz1 * (y2 - y0) - dz2 * (y1 - y0)) / det;
+    const cy = ((x1 - x0) * dz2 - (x2 - x0) * dz1) / det;
+    return (x, y) => zs[0] + cx * (x - x0) + cy * (y - y0);
+  }
+  const zm = Math.max(...zs);
+  return () => zm;
+}
+
+// 斜めの板の屋根（物 wedge。附属図書館 地下 1 階の三角の階段の口の、床から立ち上がる打ち放しの斜めの板。2026-11-13、動画 IMG_1077 の
+// 190・380・596 秒）：上の面（点ごとの高さ zs）・下の面（厚さ thick）・側の面（z0 から上の面まで。open の辺は口＝板の小口だけ）。形は凸
+function addWedge(m, it, r, zf, T, tint) {
+  const n = r.length;
+  const col = it.color ? tint(COL_HEX(it.color)) : T("wedgeConc");
+  const th = it.thick > 0 ? it.thick : 0.3;
+  const zBot = zf + it.z0;
+  const zt = it.zs.map((v) => zf + v);
+  const zb = zt.map((v) => Math.max(zBot, v - th));
+  // 上の面の向き（上向き）
+  let nn = [0, 0, 1];
+  for (let k = 1; k + 1 < n; k++) {
+    const u = [r[k][0] - r[0][0], r[k][1] - r[0][1], zt[k] - zt[0]], v = [r[k + 1][0] - r[0][0], r[k + 1][1] - r[0][1], zt[k + 1] - zt[0]];
+    const cr = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    const L = Math.hypot(...cr);
+    if (L > 1e-6) {
+      nn = cr.map((x) => x / L);
+      if (nn[2] < 0) nn = nn.map((x) => -x);
+      break;
+    }
+  }
+  for (let k = 1; k + 1 < n; k++) {
+    face(m, [[r[0], zt[0]], [r[k], zt[k]], [r[k + 1], zt[k + 1]], [r[k + 1], zt[k + 1]]], nn, col);
+    face(m, [[r[0], zb[0]], [r[k + 1], zb[k + 1]], [r[k], zb[k]], [r[k], zb[k]]], nn.map((x) => -x), col);
+  }
+  const ccw = ringArea(r) > 0;
+  const open = new Set(it.open || []);
+  for (let k = 0; k < n; k++) {
+    const k2 = (k + 1) % n;
+    const a = r[k], b = r[k2];
+    const d = sub(b, a);
+    const L = len(d);
+    if (L < 1e-4) continue;
+    const out = ccw ? [d[1] / L, -d[0] / L, 0] : [-d[1] / L, d[0] / L, 0];
+    const lo0 = open.has(k) ? zb[k] : zBot, lo1 = open.has(k) ? zb[k2] : zBot;
+    if (zt[k] - lo0 < 0.005 && zt[k2] - lo1 < 0.005) continue;
+    face(m, [[a, lo0], [b, lo1], [b, zt[k2]], [a, zt[k]]], out, col);
+  }
+}
+
 function addTentSofa(m, r, z0, z1, T) {
   const L = len(sub(r[1], r[0])), W = len(sub(r[2], r[1]));
   if (L < 0.3 || W < 0.3) return;
@@ -112,6 +234,239 @@ function addTentSofa(m, r, z0, z1, T) {
     for (const [x, nx] of [[x0, -1], [x1, 1]]) {
       const pts = sec.map(([y, z]) => [P(x, y), z]);
       face(m, [pts[0], pts[1], pts[2], pts[3]], [u[0] * nx, u[1] * nx, 0], backC);
+    }
+  }
+}
+
+// 椅子とソファー（物 chair・woodchair・lounge の四角 r。1 本目の辺が背、z1 が背のてっぺん。2026-11-12、Taki Plaza 2 階の学習スペース）：
+// chair 殻の椅子（座面と背が color の一枚、color2 の細い金属の脚）、woodchair 木の枠の椅子（color2 の枠・脚・背の横木 2 本、color の座面）、
+// lounge ソファー・ひじ掛けいす（color の布の台・座・背・ひじ掛け、color2 の短い脚）
+function addSeatItem(m, it, r, z0, z1, T, tint) {
+  const col = it.color ? tint(COL_HEX(it.color)) : null;
+  const col2 = it.color2 ? tint(COL_HEX(it.color2)) : null;
+  const L = len(sub(r[1], r[0])), D = len(sub(r[3], r[0]));
+  if (L < 0.2 || D < 0.2) return;
+  const u = [(r[1][0] - r[0][0]) / L, (r[1][1] - r[0][1]) / L]; // 背に沿って
+  const v = [(r[3][0] - r[0][0]) / D, (r[3][1] - r[0][1]) / D]; // 背から前へ
+  const P = (x, y) => [r[0][0] + u[0] * x + v[0] * y, r[0][1] + u[1] * x + v[1] * y];
+  const rect = (x0, y0, x1, y1) => [P(x0, y0), P(x1, y0), P(x1, y1), P(x0, y1)];
+  const H = z1 - z0;
+  if (it.kind === "lounge") {
+    const cloth = col || T("loungeGrey"), legC = col2 || T("sofaLeg");
+    const zl = z0 + 0.07, zs = z0 + Math.min(0.42, H * 0.55);
+    const arm = Math.min(0.14, L * 0.16), back = Math.min(0.2, D * 0.25);
+    for (const x of [0.07, L - 0.07]) for (const y of [0.07, D - 0.07]) bar(m, [P(x, y), z0], [P(x, y), zl + 0.01], 0.035, legC);
+    prismPoly(m, rect(0.01, 0.01, L - 0.01, D - 0.01), zl, zs - 0.12, cloth, { bottom: true }); // 台
+    prismPoly(m, rect(arm, back, L - arm, D - 0.02), zs - 0.12, zs, cloth); // 座のクッション
+    prismPoly(m, rect(0, 0, L, back), zs - 0.12, z1, cloth); // 背
+    for (const [xa, xb] of [[0, arm], [L - arm, L]]) prismPoly(m, rect(xa, back, xb, D), zs - 0.12, Math.min(z1, zs + 0.2), cloth); // ひじ掛け
+    return;
+  }
+  const zs = z0 + Math.min(0.45, H * 0.56); // 座面の高さ
+  if (it.kind === "chair") {
+    const shell = col || T("chairShell"), legC = col2 || T("chairLeg");
+    for (const x of [0.05, L - 0.05]) for (const y of [0.06, D - 0.05]) bar(m, [P(x, y), z0], [P(x, y), zs - 0.03], 0.024, legC);
+    prismPoly(m, rect(0.01, 0.03, L - 0.01, D - 0.01), zs - 0.035, zs, shell, { bottom: true });
+    prismPoly(m, rect(0.03, 0, L - 0.03, 0.035), zs, z1, shell, { bottom: true });
+    return;
+  }
+  // woodchair：後ろの 2 本の脚は背のてっぺんまで（背の柱）
+  const fr = col2 || T("woodFrame"), seat = col || T("chairSeat");
+  for (const x of [0.03, L - 0.03]) {
+    bar(m, [P(x, 0.03), z0], [P(x, 0.03), z1], 0.032, fr);
+    bar(m, [P(x, D - 0.03), z0], [P(x, D - 0.03), zs], 0.032, fr);
+  }
+  prismPoly(m, rect(0.02, 0.02, L - 0.02, D - 0.02), zs - 0.03, zs, seat, { bottom: true });
+  bar(m, [P(0.03, 0.03), z1 - 0.04], [P(L - 0.03, 0.03), z1 - 0.04], 0.05, fr);
+  bar(m, [P(0.03, 0.03), zs + 0.18], [P(L - 0.03, 0.03), zs + 0.18], 0.025, fr);
+  for (const y of [0.03, D - 0.03]) bar(m, [P(0.03, y), z0 + 0.16], [P(L - 0.03, y), z0 + 0.16], 0.018, fr);
+}
+
+// アップライトピアノ（物 piano の四角 r。1 本目の辺が鍵盤の側＝前。2026-11-12、ユーザー「ぴあのをちゃんとつくりたい」）：奥の本体（下の板・上の箱・
+// ふた）、前へ出た鍵盤の台（拍子木＝両はしの腕木と前の脚 2 本）、白鍵 52 と黒鍵 36（A0〜C8 の並び）、譜面台と譜面、足もとのペダル 3（金）
+function addPiano(m, r, z0, z1, T) {
+  const F = frontOf(r);
+  const L = F.L, D = len(sub(r[3], r[0]));
+  if (L < 0.6 || D < 0.3) return;
+  const inw = [-F.nf[0], -F.nf[1]];
+  const P = (x, y) => [F.a[0] + F.u[0] * x + inw[0] * y, F.a[1] + F.u[1] * x + inw[1] * y];
+  const box = (x0, y0, x1, y1) => [P(x0, y0), P(x1, y0), P(x1, y1), P(x0, y1)];
+  const body = T("piano"), key = T("pianoKey"), bkey = T("pianoBlackKey"), gold = T("pianoGold");
+  const H = z1 - z0;
+  const bodyD = Math.min(0.4, D * 0.62); // 奥の本体の奥行き
+  const yb = D - bodyD; // 本体の前の面
+  const zKb = z0 + Math.min(0.66, H * 0.53); // 鍵盤の台の下
+  const zKey = zKb + 0.07; // 白鍵の上
+  // 奥の本体：下の板（ペダルの上まで）と上の箱、ふた
+  prismPoly(m, box(0.02, yb, L - 0.02, D), z0 + 0.02, zKb, body, { sideCol: body });
+  prismPoly(m, box(0, yb, L, D), zKb, z1 - 0.03, body, { sideCol: body });
+  prismPoly(m, box(-0.01, yb - 0.02, L + 0.01, D + 0.005), z1 - 0.03, z1, body, { sideCol: body, bottom: true });
+  // 台座（床の帯）
+  prismPoly(m, box(0, yb - 0.01, L, D), z0, z0 + 0.02, T("darkItem"), { sideCol: T("darkItem") });
+  // 鍵盤の台（拍子木）と両はしの腕木、前の脚
+  prismPoly(m, box(0.0, 0.02, L, yb + 0.01), zKb, zKb + 0.05, body, { sideCol: body, bottom: true });
+  for (const [x0, x1] of [[0, 0.1], [L - 0.1, L]]) prismPoly(m, box(x0, 0.0, x1, yb + 0.01), zKb, zKey + 0.08, body, { sideCol: body, bottom: true });
+  for (const x of [0.05, L - 0.05]) bar(m, [P(x, 0.05), z0 + 0.02], [P(x, 0.05), zKb], 0.05, body);
+  // 白鍵 52（境目の細い線）と黒鍵 36
+  const kx0 = 0.1, kx1 = L - 0.1, kw = (kx1 - kx0) / 52;
+  prismPoly(m, box(kx0, 0.03, kx1, 0.19), zKb + 0.05, zKey, key, { sideCol: key });
+  for (let i = 1; i < 52; i++) {
+    const x = kx0 + i * kw;
+    m.quad([[P(x - 0.0012, 0.03), zKey + 0.001], [P(x + 0.0012, 0.03), zKey + 0.001], [P(x + 0.0012, 0.19), zKey + 0.001], [P(x - 0.0012, 0.19), zKey + 0.001]], [0, 0, 1], T("pianoInk"));
+  }
+  // 白鍵の名前（A0 から）：A B C D E F G のくり返し。黒鍵はその白鍵の右の境目（B・E のあとにはない）
+  const names = "ABCDEFG";
+  for (let i = 0; i < 51; i++) {
+    const n = names[i % 7];
+    if (n === "B" || n === "E") continue;
+    const x = kx0 + (i + 1) * kw;
+    prismPoly(m, box(x - kw * 0.29, 0.1, x + kw * 0.29, 0.19), zKey, zKey + 0.012, bkey, { sideCol: bkey });
+  }
+  // 鍵盤の奥の蓋の受け（暗い帯）と譜面台・譜面
+  prismPoly(m, box(0.1, 0.19, L - 0.1, yb), zKb + 0.05, zKey + 0.05, body, { sideCol: body });
+  const zM0 = zKey + 0.12, zM1 = Math.min(z1 - 0.12, zKey + 0.36);
+  const lean = 0.05;
+  face(m, [[P(0.18, yb - 0.004 - lean), zM0], [P(L - 0.18, yb - 0.004 - lean), zM0], [P(L - 0.18, yb - 0.004), zM1], [P(0.18, yb - 0.004), zM1]], [F.nf[0], F.nf[1], 0.3], body);
+  const sx = L / 2;
+  face(m, [[P(sx - 0.17, yb - 0.008 - lean * 0.85), zM0 + 0.03], [P(sx + 0.17, yb - 0.008 - lean * 0.85), zM0 + 0.03], [P(sx + 0.17, yb - 0.008 - lean * 0.1), zM1 - 0.02], [P(sx - 0.17, yb - 0.008 - lean * 0.1), zM1 - 0.02]], [F.nf[0], F.nf[1], 0.3], T("pianoSheet"));
+  // ペダル 3（金）
+  for (const dx of [-0.09, 0, 0.09]) prismPoly(m, box(sx + dx - 0.022, yb - 0.11, sx + dx + 0.022, yb), z0 + 0.05, z0 + 0.075, gold, { sideCol: gold });
+}
+
+// キッチンとイベントスペースの物（2026-11-12、Taki Plaza 地下 2 階。動画 IMG_1063）。4 点の四角の 1 本目の辺が前（frontOf）、x はその辺にそって、
+// y は前から奥へ（0〜D）：microwave 電子レンジ（暗いガラスの扉と右の操作の帯）、drinks 自販機（上に商品の窓と色とりどりの段、右にお金の口、
+// 下に取り出し口）、stool 背のない高い椅子（楕円の座 color・木の脚 4 本 color2・足かけ）、tatamibox 畳の台（下がり込んだ暗い台座・
+// 合板の側面と積層の線・上に 2 枚の畳。color は畳）、wboard 移動式のホワイトボード（板の面が 1 本目の辺にそう・灰の枠・受け・脚と車輪）、
+// bincab ゴミ箱の棚（0.6m ごとの区画：上に暗い棚の口、下に扉とラベル）、aframe A 型の看板（2 枚の板）、louver 黒いがらり（横の羽根）
+function addKitchenItem(m, it, r, z0, z1, T, tint) {
+  const col = it.color ? tint(COL_HEX(it.color)) : null;
+  const col2 = it.color2 ? tint(COL_HEX(it.color2)) : null;
+  const F = frontOf(r);
+  const D = len(sub(r[3], r[0]));
+  const H = z1 - z0;
+  if (F.L < 0.05 || D < 0.01 || !(H > 0.01)) return;
+  const inw = [-F.nf[0], -F.nf[1]];
+  const P = (x, y) => [F.a[0] + F.u[0] * x + inw[0] * y, F.a[1] + F.u[1] * x + inw[1] * y];
+  const box = (x0, y0, x1, y1) => [P(x0, y0), P(x1, y0), P(x1, y1), P(x0, y1)];
+  if (it.kind === "microwave") {
+    const body = col || T("whiteItem");
+    prismPoly(m, r, z0, z1, body, { sideCol: body });
+    frontQuad(m, F, F.L * 0.06, F.L * 0.68, z0 + H * 0.14, z0 + H * 0.86, 0.004, T("screenDark"));
+    frontQuad(m, F, F.L * 0.74, F.L * 0.94, z0 + H * 0.6, z0 + H * 0.76, 0.004, T("tvmScreen"));
+    return;
+  }
+  if (it.kind === "drinks") {
+    const body = col || T("vending");
+    prismPoly(m, r, z0, z1, body, { sideCol: body });
+    const xw0 = F.L * 0.07, xw1 = F.L * 0.71;
+    frontQuad(m, F, xw0, xw1, z0 + H * 0.42, z0 + H * 0.94, 0.004, T("screenDark"));
+    const cs = ["#d8452f", "#f2c037", "#3d8fd6", "#f4f4f2", "#4caf50", "#e07b2a", "#7a4a2a"];
+    for (let row = 0; row < 4; row++) {
+      const zr = z0 + H * (0.46 + row * 0.12);
+      for (let k = 0; k < 7; k++) {
+        const x0 = xw0 + ((xw1 - xw0) * (k + 0.18)) / 7, x1 = xw0 + ((xw1 - xw0) * (k + 0.82)) / 7;
+        frontQuad(m, F, x0, x1, zr, zr + H * 0.075, 0.008, tint(COL_HEX(cs[(row * 3 + k) % cs.length])));
+      }
+      frontQuad(m, F, xw0, xw1, zr - H * 0.012, zr - H * 0.004, 0.01, T("whiteItem"));
+    }
+    frontQuad(m, F, F.L * 0.76, F.L * 0.93, z0 + H * 0.45, z0 + H * 0.78, 0.004, T("grey"));
+    frontQuad(m, F, F.L * 0.12, F.L * 0.66, z0 + H * 0.09, z0 + H * 0.2, 0.004, T("screenDark"));
+    return;
+  }
+  if (it.kind === "stool") {
+    const seatC = col || T("whiteItem"), legC = col2 || T("woodFrame");
+    const ce = centroid(r);
+    for (const q of r) {
+      const foot = lerp2(q, ce, Math.min(0.4, 0.05 / (len(sub(ce, q)) || 1)));
+      bar(m, [foot, z0], [lerp2(q, ce, 0.5), z1 - 0.04], 0.03, legC);
+    }
+    const zr = z0 + H * 0.38;
+    const rr = r.map((q) => lerp2(q, ce, 0.28));
+    for (let i = 0; i < 4; i++) bar(m, [rr[i], zr], [rr[(i + 1) % 4], zr], 0.016, T("railSteel"));
+    const seat = Array.from({ length: 18 }, (_, k) => {
+      const t = (2 * Math.PI * k) / 18;
+      return P(F.L / 2 + F.L * 0.5 * Math.cos(t), D / 2 + D * 0.5 * Math.sin(t));
+    });
+    prismPoly(m, seat, z1 - 0.04, z1, seatC, { bottom: true });
+    return;
+  }
+  if (it.kind === "tatamibox") {
+    const ce = centroid(r);
+    const plinth = r.map((q) => lerp2(q, ce, Math.min(0.4, 0.09 / (len(sub(ce, q)) || 1))));
+    prismPoly(m, plinth, z0, z0 + 0.06, T("darkItem"), { sideCol: T("darkItem") });
+    const ply = col2 || T("plywood");
+    prismPoly(m, r, z0 + 0.06, z1, ply, { sideCol: ply, bottom: true });
+    // 側面の積層の線（暗い細い帯）
+    const out = ringArea(r) > 0 ? 1 : -1;
+    r.forEach((a, i) => {
+      const b = r[(i + 1) % r.length];
+      const L = len(sub(b, a));
+      if (L < 1e-3) return;
+      const n = [((b[1] - a[1]) / L) * out, (-(b[0] - a[0]) / L) * out, 0];
+      const off = (p) => [p[0] + n[0] * 0.002, p[1] + n[1] * 0.002];
+      for (const f of [0.22, 0.4, 0.58, 0.76]) {
+        const z = z0 + 0.06 + (H - 0.06) * f;
+        face(m, [[off(a), z], [off(b), z], [off(b), z + 0.006], [off(a), z + 0.006]], n, T("plywoodLine"));
+      }
+    });
+    // 上の 2 枚の畳（1 本目の辺に平行な継ぎ目で前と奥に分ける。ふちは合板が見える）
+    const mat1 = col || T("tatamiGreen"), mat2 = col ? col : T("tatamiGreen2");
+    const e = 0.03, g = 0.006;
+    m.polygon([box(e, e, F.L - e, D / 2 - g)], z1 + 0.003, [0, 0, 1], shade(mat1, [0, 0, 1]));
+    m.polygon([box(e, D / 2 + g, F.L - e, D - e)], z1 + 0.003, [0, 0, 1], shade(mat2, [0, 0, 1]));
+    return;
+  }
+  if (it.kind === "wboard") {
+    const yc = D / 2;
+    const frame = col2 || T("grey"), board = col || T("whiteItem");
+    const zb0 = z0 + Math.min(0.78, H * 0.4), zb1 = z1 - 0.03;
+    for (const x of [0.025, F.L - 0.025]) bar(m, [P(x, yc), z0 + 0.09], [P(x, yc), z1], 0.035, frame);
+    segBox(m, P(0.045, yc), P(F.L - 0.045, yc), 0.022, zb0, zb0, zb1, zb1, board, { bottom: true });
+    bar(m, [P(0.045, yc), zb1 + 0.012], [P(F.L - 0.045, yc), zb1 + 0.012], 0.028, frame);
+    bar(m, [P(0.045, yc), zb0 - 0.012], [P(F.L - 0.045, yc), zb0 - 0.012], 0.028, frame);
+    segBox(m, P(0.12, yc - 0.055), P(F.L - 0.12, yc - 0.055), 0.07, zb0 - 0.05, zb0 - 0.05, zb0 - 0.02, zb0 - 0.02, T("darkItem"), { bottom: true });
+    for (const x of [0.025, F.L - 0.025]) {
+      bar(m, [P(x, 0.03), z0 + 0.09], [P(x, D - 0.03), z0 + 0.09], 0.03, frame);
+      for (const y of [0.04, D - 0.04]) prismPoly(m, box(x - 0.025, y - 0.025, x + 0.025, y + 0.025), z0, z0 + 0.075, T("darkItem"), { sideCol: T("darkItem") });
+    }
+    return;
+  }
+  if (it.kind === "bincab") {
+    const body = col || T("whiteItem");
+    prismPoly(m, r, z0, z1, body, { sideCol: body });
+    const n = it.n || Math.max(1, Math.round(F.L / 0.6));
+    const bw = F.L / n;
+    for (let k = 0; k < n; k++) {
+      const x0 = k * bw, x1 = (k + 1) * bw;
+      frontQuad(m, F, x0 + 0.025, x1 - 0.025, z1 - 0.21, z1 - 0.06, 0.003, T("screenDark"));
+      if (k) frontQuad(m, F, x0 - 0.004, x0 + 0.004, z0 + 0.04, z1 - 0.22, 0.003, T("grey"));
+      frontQuad(m, F, x0 + bw * 0.22, x0 + bw * 0.78, z1 - 0.44, z1 - 0.34, 0.004, T("whiteItem"));
+      frontQuad(m, F, x0 + bw * 0.3, x0 + bw * 0.7, z1 - 0.405, z1 - 0.39, 0.006, T("darkItem"));
+    }
+    return;
+  }
+  if (it.kind === "aframe") {
+    const c = col || T("red");
+    const yc = D / 2;
+    for (const yf of [0, D]) {
+      const a0 = P(0.02, yf), a1 = P(F.L - 0.02, yf), t0 = P(0.02, yc), t1 = P(F.L - 0.02, yc);
+      const s = [inw[0] * (yc - yf), inw[1] * (yc - yf), H];
+      const u3 = [F.u[0], F.u[1], 0];
+      let n = [u3[1] * s[2] - u3[2] * s[1], u3[2] * s[0] - u3[0] * s[2], u3[0] * s[1] - u3[1] * s[0]];
+      const nl = Math.hypot(...n) || 1;
+      n = n.map((v) => v / nl);
+      face(m, [[a0, z0], [a1, z0], [t1, z1], [t0, z1]], n, c);
+      face(m, [[a1, z0], [a0, z0], [t0, z1], [t1, z1]], n.map((v) => -v), c);
+    }
+    return;
+  }
+  if (it.kind === "louver") {
+    const c = col || T("darkItem");
+    prismPoly(m, r, z0, z1, c, { sideCol: c });
+    const n = Math.floor(H / 0.045);
+    for (let k = 1; k < n; k++) {
+      const z = z0 + k * 0.045;
+      frontQuad(m, F, 0.025, F.L - 0.025, z, z + 0.012, 0.004, T("grey"));
     }
   }
 }
@@ -231,14 +586,25 @@ export function wallPieces(pts, doors = [], wins = []) {
   return out;
 }
 
+// 折れ線 pts の始めから長さ s の点
+function polyAt(pts, s) {
+  let acc = 0;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const L = len(sub(pts[i + 1], pts[i]));
+    if (s <= acc + L || i === pts.length - 2) return lerp2(pts[i], pts[i + 1], Math.min(1, Math.max(0, (s - acc) / (L || 1))));
+    acc += L;
+  }
+  return pts[0];
+}
+
 // 階の高さの基準（掘る前の地面）
 export const floorG0 = (f, groundAt) => {
   const ring = f.coords.map(toXY);
   return groundAt(f.groundRef || toLngLat(centroid(ring)));
 };
 // 壁の既定の高さ（次の階の床の下の面より少し上まで＝床にもぐる）
-const wallTop = (f, w) => (w.h != null ? w.h : w.kind === "mesh" ? 1.1 : w.kind === "rail" ? 0.95 : w.kind === "low" ? 1.1 : f.height - f.slab + 0.05 - (w.z0 || 0));
-const wallT = (w) => (w.t != null ? w.t : w.kind === "ext" ? 0.25 : w.kind === "glass" || w.kind === "curtain" ? 0.08 : w.kind === "mesh" || w.kind === "rail" ? 0.06 : 0.15);
+const wallTop = (f, w) => (w.h != null ? w.h : w.kind === "mesh" ? 1.1 : w.kind === "rail" ? 0.95 : w.kind === "low" ? 1.1 : w.kind === "psd" ? (w.style === "om" ? 1.5 : 1.35) : w.kind === "bars" ? 1.15 : f.height - f.slab + 0.05 - (w.z0 || 0));
+const wallT = (w) => (w.t != null ? w.t : w.kind === "ext" ? 0.25 : w.kind === "glass" || w.kind === "curtain" ? 0.08 : w.kind === "mesh" || w.kind === "rail" ? 0.06 : w.kind === "psd" ? 0.32 : w.kind === "bars" ? 0.06 : w.kind === "tiles" || w.kind === "dark" ? 0.3 : 0.15);
 // 壁の下の端・上の端（標高。点 → 標高）：始まりの点で z0・z0 + 高さ（wallTop）、終わりの点で z02・z02 + h2（なければ始まりと同じ）、
 // あいだは折れ線に沿った長さで線形。上の端は cutTop まで。any：どこかで上の端が下の端より上
 function wallSlope(f, w, pts, zf, cutTop = Infinity) {
@@ -510,10 +876,18 @@ export function addFloor(M, f, ctx) {
       face(m, [[a, zf - f.slab], [b, zf - f.slab], [b, zf], [a, zf]], n, T("slabEdge"));
     });
   }
-  // 部屋の床の色
+  // 市松のタイル（checker）：grid の向き・大きさの升目の 1 つおきに濃い色（形の中に入りきる升目だけ）
+  if (f.finish === "checker") addChecker(m, ring, holes, zf + 0.004, f.grid || [0, 0.6], T("checkerB"));
+  // 1 階の床のタイル（tile2：ベージュの 2 つの近い色の市松＝目地の見えるタイル。2026-11-12）
+  if (f.finish === "tile2") addChecker(m, ring, holes, zf + 0.004, f.grid || [0, 0.3], T("tile2B"));
+  // 杉綾のれんが（herring。附属図書館の 1 階のロビー。2026-11-13）
+  if (f.finish === "herring") addHerring(m, ring, holes, zf + 0.004, f.grid, T);
+  // 部屋の床の色（herring の部屋は目地の色の上にれんが。向きは部屋の grid、なければ階の grid）
   for (const r of f.rooms || []) {
     if (!r.finish || r.finish === f.finish) continue;
-    m.polygon([r.coords.map(toXY)], zf + 0.012, [0, 0, 1], shade(T(FINISH_COL[r.finish]), [0, 0, 1]));
+    const rr = r.coords.map(toXY);
+    m.polygon([rr], zf + 0.012, [0, 0, 1], shade(T(FINISH_COL[r.finish]), [0, 0, 1]));
+    if (r.finish === "herring") addHerring(m, rr, r.over ? [] : holes, zf + 0.016, r.grid || f.grid, T);
   }
   // 平地の中の見えるガラスの面（ctx.glazed：[p, q]。明かり取りのガラスなど）と同じ線のガラスの壁は描かない（ガラスと桟が二重になる）
   const glazed = ctx.glazed || [];
@@ -566,9 +940,20 @@ export function addFloor(M, f, ctx) {
       }
     }
     // 屋根の下の天井より上へは出さない（天井の高さが変わるところで区切る）
-    const cutByCeil = ceilAt && (w.kind === "wall" || w.kind === "ext" || w.kind === "glass" || w.kind === "curtain");
+    const cutByCeil = ceilAt && (w.kind === "wall" || w.kind === "ext" || w.kind === "glass" || w.kind === "curtain" || w.kind === "conc" || w.kind === "wbrick");
     const runs = (pc) => (cutByCeil ? ceilRuns(pc, S.top, S.bot, ceilAt) : [{ ...pc, ta: S.top(pc.a), tb: S.top(pc.b) }]);
     const glassy0 = w.kind === "glass" || w.kind === "curtain";
+    // ホームドアの戸の口：口ごとに 1 組の戸（折れ線の点をまたいでも 1 つ）。線路 track があれば電車に合わせて開く（ctx.psd に足して
+    // campus3dPsd が描く）、なければ閉じた戸
+    if (w.kind === "psd") {
+      for (const [d0, d1] of w.doors || []) {
+        const A = polyAt(pts, d0), B = polyAt(pts, d1);
+        const L = len(sub(B, A)) || 1;
+        const d = { a: A, b: B, z0: S.bot(A), z1: Math.min(S.top(A), S.top(B)) - 0.05, n: [-(B[1] - A[1]) / L, (B[0] - A[0]) / L], style: w.style, track: w.track || null };
+        if (ctx.psd && w.track) ctx.psd.push(d);
+        else psdLeaves(m, glassy, d, 0, T);
+      }
+    }
     for (const pc of wallPieces(pts, w.doors || [], w.wins || []).flatMap((pc) => (glassy0 ? offGlazed(pc) : [pc])).flatMap(runs)) {
       const { ta, tb } = pc;
       const ba = S.bot(pc.a), bb = S.bot(pc.b);
@@ -622,6 +1007,9 @@ export function addFloor(M, f, ctx) {
         if (Math.min(ta - gA, tb - gB) > 0.05) {
           glassy.quad([[pc.a, gA], [pc.b, gB], [pc.b, tb], [pc.a, ta]], [-(pc.b[1] - pc.a[1]) / (L || 1), (pc.b[0] - pc.a[0]) / (L || 1), 0], tint(GLASS));
         }
+        // すりガラスの帯（w.band：[下, 上]＝壁の下の端から m）：小さな菱形を互い違いの列に、ガラスの両面に（附属図書館 3 階のグループ研究室。
+        // 2026-11-13、動画 IMG_1077 の 794〜800 秒：膝から胸の高さの菱形の模様）
+        if (w.kind === "glass" && w.band && !pc.door && L > 0.2) addFrostBand(glassy, pc, L, ba, bb, ta, tb, w.band, tint(hex(PAL.frost, 0.5)));
         // 縦の枠（区間の両端と、間隔ごと）・下と上の枠・扉の上の横の枠。1 枚のガラス（pane）は途中の縦の枠・横の枠なしで、縦の枠は
         // 壁の折れ線の両端だけ（天井で区切った区間の境には枠を描かない）
         const n = w.pane ? 1 : Math.max(1, Math.round(L / pitch));
@@ -653,10 +1041,50 @@ export function addFloor(M, f, ctx) {
           const p = lerp2(pc.a, pc.b, k / n);
           bar(m, [p, ba + ((bb - ba) * k) / n], [p, ta + ((tb - ta) * k) / n], 0.04, w.kind === "mesh" ? T("mesh") : railC);
         }
+      } else if (w.kind === "psd") {
+        // ホームドア：固定の箱（戸の口は下で、口ごとに 1 組の戸）
+        if (!pc.door) addPsdUnit(m, glassy, pc.a, pc.b, t, ba, Math.min(ta, tb), w.style, T);
+      } else if (w.kind === "bars") {
+        if (pc.door) continue;
+        addBars(m, pc.a, pc.b, ba, bb, ta, tb, T("barSteel"));
+      } else if (w.kind === "tiles" || w.kind === "dark") {
+        if (pc.door) {
+          if (Math.min(ta - ba, tb - bb) > DOOR_H + 0.1) segBox(m, pc.a, pc.b, t, ba + DOOR_H, bb + DOOR_H, ta, tb, T(w.kind === "dark" ? "darkWall" : "tileBase"), { bottom: true });
+          continue;
+        }
+        segBox(m, pc.a, pc.b, t, ba, bb, ta, tb, T(w.kind === "dark" ? "darkWall" : "tileBase"));
+        if (w.kind === "tiles") addTilePanels(m, pc, t, ba, bb, ta, tb, T);
+      } else if (w.kind === "conc" || w.kind === "wbrick") {
+        // 2026-11-13（附属図書館の地下）：打ち放しのコンクリート（P コンの穴 0.9×0.6m おき）・白いれんが（目地 0.24×0.075m）。扉の口は口の上だけ
+        const za = pc.door ? ba + DOOR_H : ba, zb = pc.door ? bb + DOOR_H : bb;
+        if (!(ta > za + 0.02 || tb > zb + 0.02)) continue;
+        segBox(m, pc.a, pc.b, t, za, zb, ta, tb, T(w.kind === "conc" ? "concWall" : "wbrick"), { bottom: !!pc.door });
+        if (w.kind === "wbrick") addSmallTiles(m, pc, t, za, zb, ta, tb, T, { tw: 0.24, th: 0.075, tile: "wbrick", grout: "wbrickJoint" });
+        else addTieHoles(m, pc, t, za, zb, ta, tb, T("concHole"));
+      } else if (w.kind === "mtile" || w.kind === "wains" || w.kind === "wtile" || w.kind === "maroon" || w.kind === "slat") {
+        // 2026-11-12（大岡山駅）：小さなタイルの壁・腰のタイル・白いタイル・えんじ色の板・木の格子。扉の口は口の上だけ
+        const za = pc.door ? ba + DOOR_H : ba, zb = pc.door ? bb + DOOR_H : bb;
+        if (!(ta > za + 0.02 || tb > zb + 0.02)) continue;
+        if (w.kind === "slat") {
+          addSlatWall(m, pc, t, za, zb, ta, tb, T);
+          continue;
+        }
+        const base = { mtile: "mtile", wtile: "wtile", maroon: "maroon", wains: "wainsTop" }[w.kind];
+        segBox(m, pc.a, pc.b, t, za, zb, ta, tb, T(base), { bottom: !!pc.door });
+        if (w.kind === "mtile") addSmallTiles(m, pc, t, za, zb, ta, tb, T, { band: [0.45, 2.7] });
+        else if (w.kind === "wtile") addSmallTiles(m, pc, t, za, zb, ta, tb, T, { tw: 0.2, th: 0.2, tile: "wtile", grout: "wtileGrout" });
+        else if (w.kind === "wains" && !pc.door) {
+          const th = w.th ?? 1.3;
+          const ka = Math.min(ta, ba + th), kb = Math.min(tb, bb + th);
+          addSmallTiles(m, pc, t, ba, bb, ka, kb, T, { tw: 0.1, th: 0.1, tile: "wainsTile", grout: "wainsGrout" });
+          // 腰の上の見切り（細い帯）
+          segBox(m, pc.a, pc.b, t + 0.03, ka - 0.01, kb - 0.01, ka + 0.025, kb + 0.025, T("wainsTrim"), { ends: false, bottom: true });
+        }
       }
     }
   }
   // 家具など
+  const ctxG = { ...ctx, glassy }; // 小物の半透明の板（ゲートのガラス）
   for (const it of f.items || []) {
     const r = it.coords.map(toXY);
     const z0 = zf + it.z0;
@@ -667,7 +1095,8 @@ export function addFloor(M, f, ctx) {
     if (Number.isFinite(cutTop) && z0 > cutTop - 0.9) continue;
     const c = T(ITEM_COL[it.kind] || "whiteItem");
     if (it.kind === "table" && z1 - z0 > 0.2) {
-      prismPoly(m, r, z1 - 0.035, z1, c, { bottom: true });
+      // 天板の色は color があればそれ（白い丸テーブルなど。2026-11-12）
+      prismPoly(m, r, z1 - 0.035, z1, it.color ? tint(COL_HEX(it.color)) : c, { bottom: true });
       // 脚：角ごと（4 点の形なら角から 0.06m 内）、ほかはまん中に 1 本
       const legC = T("grey");
       if (r.length === 4) {
@@ -693,28 +1122,58 @@ export function addFloor(M, f, ctx) {
     } else if (it.kind === "slats") {
       addSlats(m, it, r, z0, z1, T);
     } else if (it.kind === "platform") {
-      prismPoly(m, r, z0, z1, T("platform"), { sideCol: T("platformSide") });
+      // 踊り場の台。color があればその色（図書館の階段の暗い灰の踊り場。2026-11-13）
+      if (it.color) { const pc = tint(COL_HEX(it.color)); prismPoly(m, r, z0, z1, pc, { sideCol: pc }); } else prismPoly(m, r, z0, z1, T("platform"), { sideCol: T("platformSide") });
+    } else if (it.kind === "wedge" && Array.isArray(it.zs) && it.zs.length === r.length) {
+      addWedge(m, it, r, zf, T, tint);
     } else if (it.kind === "tatami") {
       // 畳の小上がり：灰色の石の台に、半畳の琉球畳を目ごとに 2 つの色で（目は平面の原点からの升目＝となりの小上がりと目がそろう）
       prismPoly(m, r, z0, z1, T("tatamiA"), { sideCol: T("tatamiSide") });
       if (r.length === 4) addTatamiTiles(m, r, z1 + 0.003, T("tatamiB"));
     } else if (it.kind === "tentsofa" && r.length === 4) {
       addTentSofa(m, r, z0, z1, T);
+    } else if (SEAT_ITEMS.has(it.kind) && r.length === 4) {
+      addSeatItem(m, it, r, z0, z1, T, tint);
+    } else if (KITCHEN_ITEMS.has(it.kind) && r.length === 4) {
+      addKitchenItem(m, it, r, z0, z1, T, tint);
+    } else if (it.kind === "piano" && r.length === 4) {
+      addPiano(m, r, z0, z1, T);
     } else if (it.kind === "lift" && r.length === 4) {
       addLiftShaft(m, r, z0, z1, c, T("steel"));
     } else if (it.kind === "liftdoor") {
       // エレベーターの扉（ステンレスの板）：前の面も縦の面なので、縦の面ぜんぶ板の色（合わせ目はデータの暗い細い板）
       prismPoly(m, r, z0, z1, c, { sideCol: c });
+    } else if (it.kind === "column" && r.length >= 3) {
+      addColumn(m, r, z0, z1, T);
+    } else if (it.kind === "bench" && r.length === 4) {
+      addStationBench(m, r, z0, z1, T, it.color ? tint(COL_HEX(it.color)) : null);
+    } else if (it.kind === "board" && r.length === 4) {
+      addBoard(m, r, z0, z1, T);
+    } else if (r.length === 4 && addSmallItem(m, it, r, z0, z1, T, tint, ctxG)) {
+      // 2026-11-13（Taki Plaza 2 階の小物）：本棚・白い棚・計算式の時計・板を重ねた切り抜き・木の板の表示・貼り紙・星の飾り
+    } else if (STATION_ITEMS.has(it.kind) && addStationItem(m, it, r, zf, z0, z1, T, tint)) {
+      // 2026-11-12（大岡山駅の階段の上・1 階）：段々の天井・鉄の扉・改札機・丸い柱・ロッカー・機械・床の矢印・額の広告・照明・点検口・消火栓・棚
     } else if ((it.kind === "tube" || it.kind === "disc") && r.length >= 4) {
       // 軸：1 点目 → 2 点目の向き（形の両はしのまん中どうし）。直径は z1 − z0
       const A0 = lerp2(r[0], r[3], 0.5), A1 = lerp2(r[1], r[2], 0.5);
       addCylinder(m, A0, A1, (zf + it.z0 + zf + it.z1) / 2, (it.z1 - it.z0) / 2, it.kind === "tube" ? T("beam") : c, it.kind === "tube" ? T("tubeIn") : c, it.kind === "tube");
     } else {
-      prismPoly(m, r, z0, z1, c, { bottom: z0 > zf + 0.05 });
+      // color があればその色（青いゴミ箱など。2026-11-12）
+      prismPoly(m, r, z0, z1, it.color ? tint(COL_HEX(it.color)) : c, { bottom: z0 > zf + 0.05 });
     }
   }
   // 階段
   for (const s of f.stairs || []) addFloorStairs(M, s, zf, T, tint, cutTop);
+  // エスカレーター（動かない部分。段は ctx.esc に足して campus3dEscalator が時刻に合わせて描く。なければ止まった段をここで）と、踊り場のある石の階段
+  for (const e of f.escalators || []) {
+    addEscalator(M, e, zf, T, tint);
+    if (ctx.esc) ctx.esc.push({ e, zf });
+    else addEscalatorSteps(m, escalatorGeom(e, zf), 0, T);
+  }
+  for (const s of f.flights || []) addFlight(M, s, zf, T, tint, cutTop);
+  // 天井（切り取った階を上から見るときは描かない）
+  // 床の穴のうち ceil: false（下の階へだけ抜ける階段の口）は天井に穴をあけない
+  if (f.ceiling && !Number.isFinite(cutTop)) addCeiling(m, f, ring, holes.filter((_, i) => f.holes[i].ceil !== false), zf, T);
   // 地下の上を覆う、地面の高さの床（広場・通路の下）：掘る前の地面の高さ、色は地面に貼った路面の色
   for (const l of f.noLid ? [] : f.lids || []) {
     const r = l.coords.map(toXY);
@@ -757,19 +1216,33 @@ function addFloorStairs(M, s, zf, T, tint, cutTop) {
   const { m, glassy, veil } = M;
   const G = stairGeom(s, zf);
   const { zA, nT, riser, tread, hw, P, u, n, L, R } = G;
+  const esc = s.kind === "escalator"; // エスカレーター：黒い段の前のふちに黄色い線、横はステンレス
   const c = T(STAIR_COL[s.kind] || "stairWhite");
-  const edge = T("stairEdge");
+  // glass：側の桁・蹴上げ・段の鼻は暗い鉄（すりガラスの踏面を鉄の枠が囲む）
+  const steel = s.kind === "glass" ? T("stairSteel") : null;
+  const edge = steel || T(esc ? "escSide" : "stairEdge");
   const soff = (sv) => Math.max(zA - 0.01, zA + (R * sv) / L - SOFFIT);
+  // オーク（oak）：段の鼻（踏面の前のふちと蹴上げの上）を包むステンレスの帯（外の階段の addStairs と同じ寸法）
+  const noseC = s.kind === "oak" ? T("stairNose") : s.kind === "rubber" ? T("stairRubberNose") : steel;
+  const addNose = (sv, z) => {
+    const a0 = sv - 0.004, a1 = sv + NOSE_TREAD;
+    face(m, [[P(a0, -hw), z + 0.006], [P(a1, -hw), z + 0.006], [P(a1, hw), z + 0.006], [P(a0, hw), z + 0.006]], [0, 0, 1], noseC);
+    face(m, [[P(a0, hw), z - NOSE_DROP], [P(a0, -hw), z - NOSE_DROP], [P(a0, -hw), z + 0.006], [P(a0, hw), z + 0.006]], [-u[0], -u[1], 0], noseC);
+  };
   // 踏面 nT 枚（flush なら一番上の蹴上げは上の階の床のふちの面）
   for (let k = 0; k < nT; k++) {
     const s0 = k * tread, s1 = (k + 1) * tread;
     const zt = zA + (k + 1) * riser;
     if (zt > cutTop + 1e-6) break;
     face(m, [[P(s0, -hw), zt], [P(s1, -hw), zt], [P(s1, hw), zt], [P(s0, hw), zt]], [0, 0, 1], c);
-    face(m, [[P(s0, hw), zt - riser], [P(s0, -hw), zt - riser], [P(s0, -hw), zt], [P(s0, hw), zt]], [-u[0], -u[1], 0], k ? c : edge);
+    if (noseC) addNose(s0, zt);
+    if (esc) face(m, [[P(s0, -hw + 0.03), zt + 0.003], [P(s0 + 0.05, -hw + 0.03), zt + 0.003], [P(s0 + 0.05, hw - 0.03), zt + 0.003], [P(s0, hw - 0.03), zt + 0.003]], [0, 0, 1], T("escLine"));
+    face(m, [[P(s0, hw), zt - riser], [P(s0, -hw), zt - riser], [P(s0, -hw), zt], [P(s0, hw), zt]], [-u[0], -u[1], 0], steel || (k ? c : edge));
     face(m, [[P(s0, hw), soff(s0)], [P(s1, hw), soff(s1)], [P(s1, hw), zt], [P(s0, hw), zt]], [n[0], n[1], 0], edge);
     face(m, [[P(s1, -hw), soff(s1)], [P(s0, -hw), soff(s0)], [P(s0, -hw), zt], [P(s1, -hw), zt]], [-n[0], -n[1], 0], edge);
   }
+  // flush の階段の上の端（上の階の床のふち）にも帯
+  if (noseC && s.flush && zA + R <= cutTop + 1e-6) addNose(L, zA + R);
   const sTop = Math.min(L, Math.max(0, ((Math.min(cutTop, zA + R) - zA) / R) * L));
   if (sTop > 0.05) {
     const sl = Math.hypot(R, L);
@@ -794,6 +1267,381 @@ function addFloorStairs(M, s, zf, T, tint, cutTop) {
       bar(m, [p, z - 0.1], [p, z + 1.0], 0.04, T(k === "mesh" ? "mesh" : "rail"));
     }
   });
+}
+
+// ── 大岡山駅の地下ホームの部品（2026-11-11、ユーザー「駅の中も含めて作ってほしい。すでに走ってる電車も併せて、うまく組み合うように」・
+// 動画 IMG_1009：中央改札 → 改札の中 → 1・2 番線 → 西の端の乗り換えの階段と通路 → 3・4 番線 → エスカレーターで改札の中へ）──
+// 整数 (i, j) からの 0〜1 の乱数（いつも同じ。タイルの色・発車標の字の並び）
+const hash2 = (i, j) => {
+  let h = (Math.imul(i | 0, 374761393) + Math.imul(j | 0, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+};
+// 平面の向き deg（度。+x から反時計回り）の単位ベクトル
+const dirOf = (deg) => [Math.cos((deg * Math.PI) / 180), Math.sin((deg * Math.PI) / 180)];
+
+// 市松のタイル：grid [向き, 大きさ] の升目 (i, j) で i + j が奇数のところに濃い色の四角（4 隅が床の形の中・穴の外のものだけ。ふちは明るい色のまま）
+function addChecker(m, ring, holes, z, [deg, size], c) {
+  const u = dirOf(deg), v = [-u[1], u[0]];
+  const loc = ring.map((p) => [p[0] * u[0] + p[1] * u[1], p[0] * v[0] + p[1] * v[1]]);
+  const i0 = Math.floor(Math.min(...loc.map((q) => q[0])) / size), i1 = Math.ceil(Math.max(...loc.map((q) => q[0])) / size);
+  const j0 = Math.floor(Math.min(...loc.map((q) => q[1])) / size), j1 = Math.ceil(Math.max(...loc.map((q) => q[1])) / size);
+  if ((i1 - i0) * (j1 - j0) > 400000) return;
+  const P = (i, j) => [u[0] * i * size + v[0] * j * size, u[1] * i * size + v[1] * j * size];
+  const memo = new Map();
+  const inside = (i, j) => {
+    const k = i * 100003 + j;
+    if (!memo.has(k)) {
+      const p = P(i, j);
+      memo.set(k, pointInRing(p[0], p[1], ring) && !holes.some((h) => pointInRing(p[0], p[1], h)));
+    }
+    return memo.get(k);
+  };
+  const cc = shade(c, [0, 0, 1]);
+  for (let i = i0; i < i1; i++) {
+    for (let j = j0; j < j1; j++) {
+      if (((i + j) & 1) === 0) continue;
+      if (!(inside(i, j) && inside(i + 1, j) && inside(i + 1, j + 1) && inside(i, j + 1))) continue;
+      m.quad([[P(i, j), z], [P(i + 1, j), z], [P(i + 1, j + 1), z], [P(i, j + 1), z]], [0, 0, 1], cc);
+    }
+  }
+}
+
+// すりガラスの帯：区間 pc（長さ L、下の端 ba〜bb、上の端 ta〜tb）の band [下, 上, 倍率（なければ 1）] に、幅 0.16・高さ 0.12m の菱形を
+// 横 0.2m・縦 0.14m おき（どれも倍率倍。1 段おきに半分ずらす）。ガラスの面から 4mm ずつ外の両面に（裏から見ても白く見える）。上の端の 0.05m 下までに収める
+function addFrostBand(mesh, pc, L, ba, bb, ta, tb, band, col) {
+  const k = band[2] || 1;
+  const DW = 0.16 * k, DH = 0.12 * k, SX = 0.2 * k, SY = 0.14 * k;
+  const u = [(pc.b[0] - pc.a[0]) / L, (pc.b[1] - pc.a[1]) / L];
+  const nn = [-u[1], u[0]];
+  const rows = Math.max(1, Math.floor((band[1] - band[0]) / SY));
+  for (let r = 0; r < rows; r++) {
+    const dz = band[0] + SY * (r + 0.5);
+    for (let s = SX / 2 + ((r % 2) * SX) / 2; s < L - DW / 2 - 0.02; s += SX) {
+      const t = s / L;
+      const base = ba + (bb - ba) * t, top = ta + (tb - ta) * t;
+      const zc = base + dz;
+      if (zc + DH / 2 > top - 0.05) continue;
+      const pm = lerp2(pc.a, pc.b, t);
+      const pl = [pm[0] - u[0] * (DW / 2), pm[1] - u[1] * (DW / 2)], pr = [pm[0] + u[0] * (DW / 2), pm[1] + u[1] * (DW / 2)];
+      for (const sg of [1, -1]) {
+        const o = (q) => [q[0] + nn[0] * 0.004 * sg, q[1] + nn[1] * 0.004 * sg];
+        const quad = [[o(pl), zc], [o(pm), zc - DH / 2], [o(pr), zc], [o(pm), zc + DH / 2]];
+        mesh.quad(sg > 0 ? quad : [quad[0], quad[3], quad[2], quad[1]], [nn[0] * sg, nn[1] * sg, 0], col);
+      }
+    }
+  }
+}
+
+// 杉綾のれんが（herring）：目地の色の面（呼ぶ前に描いてある）の上に、れんが（campus3dFeatures の herringboneBricks。4 つの濃さ）。
+// grid [V の並ぶ向き（度。+x から反時計回り）, れんがの幅 m]
+function addHerring(m, ring, holes, z, grid, T) {
+  const [deg, w] = grid || [0, 0.1];
+  const cols = [0, 1, 2, 3].map((t) => shade(T("herring" + t), [0, 0, 1]));
+  for (const b of herringboneBricks(ring, holes, dirOf(deg), w)) m.quad(b.q.map((p) => [p, z]), [0, 0, 1], cols[b.tone]);
+}
+
+// 天井（階の ceiling）：床の形（床の穴・天井の穴を抜く）の z の高さに下向きの面。slats は細い板の継ぎ目の線（grid の向きに 0.2m おき）
+const CEIL_COL = { slats: "ceilSlat", plain: "ceilSlat", dark: "ceilDark" };
+const SLAT_GAP = 0.2;
+function addCeiling(m, f, ring, holes, zf, T) {
+  const C = f.ceiling;
+  const zc = zf + C.z;
+  const hs = [...holes, ...(C.holes || []).map((h) => h.coords.map(toXY))];
+  // 穴が床の形のふちをまたぐと（大岡山駅の西の端の乗り換えの階段：ホームの床は s −171 まで・天井の穴は −177 まで）、earcut は穴を
+  // 抜けず、階段の上を天井がふさいでいた（2026-11-12、ユーザーの目印 10・11「ここふさがってる」）。またぐ穴があれば形の引き算で面を作る
+  const ceilCol = shade(T(CEIL_COL[C.kind] || "ceilSlat"), [0, 0, -1]);
+  const crosses = hs.some((h) => h.some((p) => !pointInRing(p[0], p[1], ring)));
+  const diff = crosses ? clipOp("difference", [closeR(ring)], ...hs.map((h) => [closeR(h)])) : null;
+  if (diff) for (const poly of diff) m.polygon(poly.map(openR), zc, [0, 0, -1], ceilCol);
+  else m.polygon([ring, ...hs], zc, [0, 0, -1], ceilCol);
+  if (C.kind !== "slats") return;
+  let deg = f.grid ? f.grid[0] : null;
+  if (deg == null) {
+    let best = 0;
+    ring.forEach((a, i) => {
+      const d = sub(ring[(i + 1) % ring.length], a);
+      if (len(d) > best) {
+        best = len(d);
+        deg = (Math.atan2(d[1], d[0]) * 180) / Math.PI;
+      }
+    });
+  }
+  const u = dirOf(deg), v = [-u[1], u[0]];
+  const loc = ring.map((p) => [p[0] * u[0] + p[1] * u[1], p[0] * v[0] + p[1] * v[1]]);
+  const W = (a, b) => [u[0] * a + v[0] * b, u[1] * a + v[1] * b];
+  const lc = shade(T("ceilLine"), [0, 0, -1]);
+  const vmin = Math.min(...loc.map((q) => q[1])), vmax = Math.max(...loc.map((q) => q[1]));
+  for (let vv = Math.ceil(vmin / SLAT_GAP) * SLAT_GAP; vv < vmax; vv += SLAT_GAP) {
+    const xs = [];
+    loc.forEach((p, k) => {
+      const q = loc[(k + 1) % loc.length];
+      if ((p[1] - vv) * (q[1] - vv) < 0) xs.push(p[0] + ((q[0] - p[0]) * (vv - p[1])) / (q[1] - p[1]));
+    });
+    xs.sort((x, y) => x - y);
+    // 穴（エスカレーターと階段の箱など）のふちでも線を切る（2026-11-12：前は線のまん中だけ見ていて、長い線が箱の上を通っていた＝
+    // ユーザー「変な線が走ってる」）
+    const cuts = [];
+    for (const h of hs) {
+      const lh = h.map((p) => [p[0] * u[0] + p[1] * u[1], p[0] * v[0] + p[1] * v[1]]);
+      lh.forEach((p, k) => {
+        const q = lh[(k + 1) % lh.length];
+        if ((p[1] - vv) * (q[1] - vv) < 0) cuts.push(p[0] + ((q[0] - p[0]) * (vv - p[1])) / (q[1] - p[1]));
+      });
+    }
+    for (let k = 0; k + 1 < xs.length; k += 2) {
+      const b0 = xs[k] + 0.02, b1 = xs[k + 1] - 0.02;
+      if (b1 <= b0) continue;
+      const stops = [b0, ...cuts.filter((c) => c > b0 && c < b1).sort((x, y) => x - y), b1];
+      for (let j = 0; j + 1 < stops.length; j++) {
+        const a0 = stops[j] + (j ? 0.02 : 0), a1 = stops[j + 1] - (j + 2 < stops.length ? 0.02 : 0);
+        if (a1 <= a0 + 0.01) continue;
+        const mid = W((a0 + a1) / 2, vv);
+        if (hs.some((h) => pointInRing(mid[0], mid[1], h))) continue;
+        m.quad([[W(a0, vv - 0.012), zc - 0.004], [W(a1, vv - 0.012), zc - 0.004], [W(a1, vv + 0.012), zc - 0.004], [W(a0, vv + 0.012), zc - 0.004]], [0, 0, -1], lc);
+      }
+    }
+  }
+}
+
+// ホームドアの固定の箱（a→b、厚さ t、z0〜z1）。mg：白い箱の前後の面の上のほうにオレンジの帯。om：白い枠に前後の大きな窓（半透明のガラス）
+function addPsdUnit(m, glassy, a, b, t, z0, z1, style, T) {
+  const L = len(sub(b, a));
+  if (L < 0.05 || !(z1 > z0 + 0.1)) return;
+  const W = T("psdWhite");
+  const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+  const nl = [-u[1], u[0]];
+  const off = (p, d) => [p[0] + nl[0] * d, p[1] + nl[1] * d];
+  if (style === "om" && L > 0.45 && z1 - z0 > 0.9) {
+    const s = 0.09;
+    const wz0 = z0 + 0.42, wz1 = z1 - 0.16;
+    const A = lerp2(a, b, s / L), B = lerp2(a, b, 1 - s / L);
+    segBox(m, a, b, t, z0, z0, wz0, wz0, W);
+    segBox(m, a, b, t, wz1, wz1, z1, z1, W, { bottom: true });
+    segBox(m, a, A, t, wz0, wz0, wz1, wz1, W, { ends: true });
+    segBox(m, B, b, t, wz0, wz0, wz1, wz1, W, { ends: true });
+    for (const sg of [1, -1]) {
+      const d = sg * (t / 2 - 0.04);
+      glassy.quad([[off(A, d), wz0], [off(B, d), wz0], [off(B, d), wz1], [off(A, d), wz1]], [nl[0] * sg, nl[1] * sg, 0], T("glass"));
+    }
+  } else {
+    segBox(m, a, b, t, z0, z0, z1, z1, W);
+    if (style !== "om") {
+      const bz0 = z1 - 0.5, bz1 = z1 - 0.27;
+      for (const sg of [1, -1]) {
+        const d = sg * (t / 2 + 0.004);
+        face(m, [[off(a, d), bz0], [off(b, d), bz0], [off(b, d), bz1], [off(a, d), bz1]], [nl[0] * sg, nl[1] * sg, 0], T("psdOrange"));
+      }
+    }
+  }
+  segBox(m, a, b, t + 0.02, z1 - 0.03, z1 - 0.03, z1 + 0.005, z1 + 0.005, T("psdTop"));
+}
+
+/**
+ * ホームドアの戸（口 d：{ a, b, z0, z1, style }、開き具合 open 0〜1）：口のまん中で合わさる 2 枚が、開くと両わきの箱の中へ引く。
+ * mg はオレンジの板、om は白い枠に窓（半透明）。m・glassy は quad を持つ入れ物（Mesh）。T は色の名前 → 色（光を受けない色）
+ */
+export function psdLeaves(m, glassy, d, open, T = (k) => COL[k]) {
+  const L = len(sub(d.b, d.a));
+  if (L < 0.2 || !(d.z1 > d.z0 + 0.2)) return;
+  const u = [(d.b[0] - d.a[0]) / L, (d.b[1] - d.a[1]) / L];
+  const half = L / 2;
+  const slide = half * 0.97 * Math.min(1, Math.max(0, open));
+  const z0 = d.z0 + 0.03, z1 = d.z1;
+  const at = (s) => [d.a[0] + u[0] * s, d.a[1] + u[1] * s];
+  const leaf = (s0, s1) => {
+    const A = at(s0), B = at(s1);
+    if (d.style === "om") {
+      const fw = 0.08;
+      const W = T("psdWhite");
+      segBox(m, A, B, 0.05, z0, z0, z0 + 0.38, z0 + 0.38, W);
+      segBox(m, A, B, 0.05, z1 - 0.14, z1 - 0.14, z1, z1, W, { bottom: true });
+      segBox(m, A, at(s0 + fw), 0.05, z0 + 0.38, z0 + 0.38, z1 - 0.14, z1 - 0.14, W);
+      segBox(m, at(s1 - fw), B, 0.05, z0 + 0.38, z0 + 0.38, z1 - 0.14, z1 - 0.14, W);
+      const nl = [-u[1], u[0], 0];
+      glassy.quad([[at(s0 + fw), z0 + 0.38], [at(s1 - fw), z0 + 0.38], [at(s1 - fw), z1 - 0.14], [at(s0 + fw), z1 - 0.14]], nl, T("glass"));
+    } else segBox(m, A, B, 0.05, z0, z0, z1, z1, T("psdOrange"));
+  };
+  leaf(-slide, half - slide);
+  leaf(half + slide, L + slide);
+}
+
+// 鋼の縦の格子の柵：上と下の横の材・2m おきの柱・0.12m おきの細い縦の棒
+function addBars(m, a, b, ba, bb, ta, tb, c) {
+  const L = len(sub(b, a));
+  if (L < 0.05) return;
+  bar(m, [a, ta - 0.03], [b, tb - 0.03], 0.05, c);
+  bar(m, [a, ba + 0.1], [b, bb + 0.1], 0.04, c);
+  const np = Math.max(1, Math.round(L / 2));
+  for (let k = 0; k <= np; k++) {
+    const p = lerp2(a, b, k / np);
+    bar(m, [p, ba + ((bb - ba) * k) / np], [p, ta + ((tb - ta) * k) / np], 0.06, c);
+  }
+  // 細い縦の棒は、柵の線に直角な面 1 枚と、線に沿った面 1 枚（箱にすると長い柵で三角形が多すぎる）
+  const nb = Math.max(1, Math.round(L / 0.12));
+  const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+  const nl = [-u[1], u[0]];
+  const w = 0.011;
+  for (let k = 1; k < nb; k++) {
+    const p = lerp2(a, b, k / nb);
+    const z0 = ba + ((bb - ba) * k) / nb + 0.1, z1 = ta + ((tb - ta) * k) / nb - 0.03;
+    const p0 = [p[0] - u[0] * w, p[1] - u[1] * w], p1 = [p[0] + u[0] * w, p[1] + u[1] * w];
+    const q0 = [p[0] - nl[0] * w, p[1] - nl[1] * w], q1 = [p[0] + nl[0] * w, p[1] + nl[1] * w];
+    face(m, [[p0, z0], [p1, z0], [p1, z1], [p0, z1]], [nl[0], nl[1], 0], c);
+    face(m, [[q1, z0], [q0, z0], [q0, z1], [q1, z1]], [u[0], u[1], 0], c);
+  }
+}
+
+// 大きなタイルの市松の壁（tiles）：下の TILE_BASE m は暗い腰、その上に TILE 角のタイル（色は升目の番号から。目地は暗い腰の色）。
+// 升目は壁の折れ線の始めからの長さで数える（区間をまたいでもそろう）
+const TILE = 1.25;
+const TILE_BASE = 1.45;
+const TILE_GAP = 0.016;
+const TILE_COLS = ["tileCream", "tileCream", "tileGrey", "tileCream", "tileTerra", "tileGrey", "tileOlive", "tileCream", "tileKhaki", "tileGrey", "tileTerra", "tileCream"];
+function addTilePanels(m, pc, t, ba, bb, ta, tb, T) {
+  const L = len(sub(pc.b, pc.a));
+  if (L < 0.05) return;
+  const u = [(pc.b[0] - pc.a[0]) / L, (pc.b[1] - pc.a[1]) / L];
+  const nl = [-u[1], u[0]];
+  const z0 = Math.min(ba, bb) + TILE_BASE;
+  const top = Math.min(ta, tb) - 0.02;
+  const k0 = Math.floor(pc.s0 / TILE), k1 = Math.ceil(pc.s1 / TILE);
+  for (const sg of [1, -1]) {
+    const d = sg * (t / 2 + 0.005);
+    const P = (s) => [pc.a[0] + u[0] * (s - pc.s0) + nl[0] * d, pc.a[1] + u[1] * (s - pc.s0) + nl[1] * d];
+    const n3 = [nl[0] * sg, nl[1] * sg, 0];
+    for (let k = k0; k < k1; k++) {
+      const s0 = Math.max(pc.s0, k * TILE + TILE_GAP / 2), s1 = Math.min(pc.s1, (k + 1) * TILE - TILE_GAP / 2);
+      if (s1 - s0 < 0.02) continue;
+      for (let r = 0; ; r++) {
+        const za = z0 + r * TILE + TILE_GAP / 2;
+        if (za > top - 0.05) break;
+        const zb = Math.min(top, z0 + (r + 1) * TILE - TILE_GAP / 2);
+        const col = TILE_COLS[Math.floor(hash2(k, r) * TILE_COLS.length)];
+        face(m, [[P(s0), za], [P(s1), za], [P(s1), zb], [P(s0), zb]], n3, T(col));
+      }
+    }
+  }
+}
+
+// 駅のホームの丸柱（4 点の四角に内接する円。直径は辺の短いほう）：下から赤茶（COL_LOW）・オレンジと黄の市松の帯（COL_BAND、3 段）・
+// クリーム色のタイル、てっぺんに白い丸い笠（半径 COL_CAP_R・厚さ COL_CAP_T。天井に付く）
+const COL_SEG = 20;
+const COL_LOW = 1.6;
+const COL_BAND = 0.45;
+const COL_CAP_R = 1.1;
+const COL_CAP_T = 0.22;
+function addColumn(m, r, z0, z1, T) {
+  const c = centroid(r);
+  const R = Math.min(...r.map((p, i) => len(sub(lerp2(p, r[(i + 1) % r.length], 0.5), c))));
+  if (!(R > 0.05)) return;
+  const circle = (rad) => Array.from({ length: COL_SEG }, (_, k) => {
+    const a = (k / COL_SEG) * Math.PI * 2;
+    return [c[0] + Math.cos(a) * rad, c[1] + Math.sin(a) * rad];
+  });
+  const ring0 = circle(R);
+  const zc = z1 - COL_CAP_T;
+  const zt = Math.min(z0 + COL_LOW, zc), zb = Math.min(zt + COL_BAND, zc);
+  prismPoly(m, ring0, z0, zt, T("colTerra"), { top: false });
+  const rows = 3;
+  const rh = (zb - zt) / rows;
+  for (let rr = 0; rr < rows && rh > 0.01; rr++) {
+    for (let k = 0; k < COL_SEG; k++) {
+      const p = ring0[k], q = ring0[(k + 1) % COL_SEG];
+      const mid = lerp2(p, q, 0.5);
+      face(m, [[p, zt + rr * rh], [q, zt + rr * rh], [q, zt + (rr + 1) * rh], [p, zt + (rr + 1) * rh]], [(mid[0] - c[0]) / R, (mid[1] - c[1]) / R, 0], T((k + rr) % 2 ? "colOrange" : "colYellow"));
+    }
+  }
+  prismPoly(m, ring0, zb, zc, T("colCream"), { top: false });
+  prismPoly(m, circle(Math.max(COL_CAP_R, R + 0.3)), zc, z1, T("colCap"), { bottom: true, top: false });
+}
+
+// 駅のベンチ（4 点の四角：1 本目の辺 a→b が背の線、a→d が前へ）：0.5m ごとのオレンジの座面と背、下に鋼の梁と脚 2 本
+function addStationBench(m, r, z0, z1, T, seatC = null) {
+  const [a, b, , d] = r;
+  const L = len(sub(b, a)), D = len(sub(d, a));
+  if (L < 0.4 || D < 0.25) return;
+  const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L], w = [(d[0] - a[0]) / D, (d[1] - a[1]) / D];
+  const P = (x, y) => [a[0] + u[0] * x + w[0] * y, a[1] + u[1] * x + w[1] * y];
+  const seat = seatC || T("benchSeat"), frame = T("benchFrame");
+  const hs = Math.min(0.43, (z1 - z0) * 0.5);
+  segBox(m, P(0.1, D * 0.45), P(L - 0.1, D * 0.45), 0.08, z0 + hs - 0.13, z0 + hs - 0.13, z0 + hs - 0.05, z0 + hs - 0.05, frame);
+  for (const x of [0.3, L - 0.3]) segBox(m, P(x, D * 0.15), P(x, D * 0.75), 0.06, z0, z0, z0 + hs - 0.05, z0 + hs - 0.05, frame);
+  const n = Math.max(1, Math.round(L / 0.5));
+  const sw = L / n;
+  for (let k = 0; k < n; k++) {
+    const x0 = k * sw + 0.03, x1 = (k + 1) * sw - 0.03;
+    prismPoly(m, [P(x0, 0.1), P(x1, 0.1), P(x1, D - 0.02), P(x0, D - 0.02)], z0 + hs - 0.05, z0 + hs, seat, { bottom: true });
+    segBox(m, P(x0, 0.06), P(x1, 0.06), 0.04, z0 + hs, z0 + hs, z1, z1, seat);
+  }
+}
+
+// 吊り下げの発車標（4 点の四角）：暗い箱、表（1 本目の辺の面）と裏（3 本目の辺の面）に 2 段の光る字（種別・行き先・時刻の帯）
+function addBoard(m, r, z0, z1, T) {
+  prismPoly(m, r, z0, z1, T("boardBox"), { bottom: true });
+  const ce = centroid(r);
+  const H = z1 - z0;
+  [[r[0], r[1]], [r[2], r[3]]].forEach(([p, q], side) => {
+    const L = len(sub(q, p));
+    if (L < 0.4) return;
+    const u = [(q[0] - p[0]) / L, (q[1] - p[1]) / L];
+    let nl = [u[1], -u[0]];
+    const mid = lerp2(p, q, 0.5);
+    if ((mid[0] - ce[0]) * nl[0] + (mid[1] - ce[1]) * nl[1] < 0) nl = [-nl[0], -nl[1]];
+    const at = (s) => [p[0] + u[0] * s + nl[0] * 0.006, p[1] + u[1] * s + nl[1] * 0.006];
+    [[0.56, 0.84], [0.18, 0.46]].forEach(([h0, h1], row) => {
+      const za = z0 + H * h0, zb = z0 + H * h1;
+      let s = 0.08;
+      let k = 0;
+      while (s < L - 0.1) {
+        const frac = s / L;
+        const col = frac < 0.16 ? (row ? "ledRed" : "ledOrange") : frac < 0.68 ? "ledOrange" : "ledGreen";
+        const wch = 0.075 + 0.02 * hash2(k + side * 97, row);
+        if (hash2(k, row + side * 11 + 5) > 0.12) face(m, [[at(s), za], [at(Math.min(L - 0.08, s + wch)), za], [at(Math.min(L - 0.08, s + wch)), zb], [at(s), zb]], [nl[0], nl[1], 0], T(col));
+        s += wch + 0.025;
+        if (Math.abs(frac - 0.16) < 0.02 || Math.abs(frac - 0.68) < 0.02) s += 0.12;
+        k++;
+      }
+    });
+  });
+}
+
+// 駅の中の線路（type "track"）：まくらぎ（RAIL_SLEEPER m おき）と 2 本のレール。高さは点ごとの z（レールの上の面の標高。null は前後の点から）
+const GAUGE = 1.067;
+const RAIL_H = 0.17;
+const RAIL_SLEEPER = 0.62;
+export function addTrack(m, f) {
+  if (f.bed === false) return;
+  const zs = trackZs(f);
+  if (!zs) return;
+  const pts = f.coords.map(toXY);
+  const T = (k) => COL[k];
+  const steel = T("railSteel"), head = T("railHead"), sl = T("sleeper");
+  let carry = 0;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const L = len(sub(b, a));
+    if (L < 1e-3) continue;
+    const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L], nl = [-u[1], u[0]];
+    const za = zs[i], zb = zs[i + 1];
+    // レール：腹（暗い鋼）と頭（光る上の面）。端は少し重ねる（折れ目にすき間を作らない）
+    for (const g of [GAUGE / 2 + 0.035, -(GAUGE / 2 + 0.035)]) {
+      const A = [a[0] + nl[0] * g - u[0] * 0.02, a[1] + nl[1] * g - u[1] * 0.02], B = [b[0] + nl[0] * g + u[0] * 0.02, b[1] + nl[1] * g + u[1] * 0.02];
+      segBox(m, A, B, 0.065, za - RAIL_H, zb - RAIL_H, za - 0.025, zb - 0.025, steel, { ends: false });
+      segBox(m, A, B, 0.07, za - 0.025, zb - 0.025, za, zb, head, { ends: false });
+    }
+    // まくらぎ（コンクリート）：レールの下から RAIL_H 下まで、長さ 2.0m・幅 0.24m
+    // まくらぎは上の面と、前後の 2 つの面だけ（両端・下は砂利に埋まる。長い線路で三角形を減らす）
+    let s = carry;
+    for (; s < L; s += RAIL_SLEEPER) {
+      const z = za + ((zb - za) * s) / L - RAIL_H;
+      const P = (ds, l) => [a[0] + u[0] * (s + ds) + nl[0] * l, a[1] + u[1] * (s + ds) + nl[1] * l];
+      face(m, [[P(-0.12, -1), z], [P(0.12, -1), z], [P(0.12, 1), z], [P(-0.12, 1), z]], [0, 0, 1], sl);
+      face(m, [[P(-0.12, 1), z - 0.16], [P(-0.12, -1), z - 0.16], [P(-0.12, -1), z], [P(-0.12, 1), z]], [-u[0], -u[1], 0], sl);
+      face(m, [[P(0.12, -1), z - 0.16], [P(0.12, 1), z - 0.16], [P(0.12, 1), z], [P(0.12, -1), z]], [u[0], u[1], 0], sl);
+    }
+    carry = s - L; // 次の区間の最初のまくらぎまで
+  }
 }
 
 // ── 屋根の下の天井（作り直し 2026-11-09）──
@@ -1024,13 +1872,46 @@ export function roofCeiling(f, groundAt) {
         return zs == null ? zf : Math.min(zf, g0 + zs - 0.05);
       }
     : (q) => slabTop(q) - SLAB_T;
+  // 上まで抜けたくり抜きのふちから CEIL_EDGE_TOL m 以内（くり抜きの中）は、ふちの外（屋根の下）の天井。くり抜きのふちと同じ線の階の壁
+  // （Taki の 2 階テラスのまわりの 3 階の北の壁・2 階の東の壁）が、くり抜きの中へ少し入っているだけで天井で切られず、屋根の板より上へ
+  // 白い板のように突き出ていた（2026-11-12、ユーザーの目印 2・3・4「2,3,4の板じゃま。ここにあるのおかしい」。写真 013：テラスの奥の
+  // 白い壁は屋根の板の下で終わる）
+  const openSign = open.map((o) => (ringArea(o) > 0 ? 1 : -1));
+  const openEdgeOut = (q) => {
+    let best = null;
+    open.forEach((o, k) => {
+      if (!pointInRing(q[0], q[1], o)) return;
+      o.forEach((p, i) => {
+        const b = o[(i + 1) % o.length];
+        const u = sub(b, p);
+        const uu = u[0] * u[0] + u[1] * u[1];
+        if (uu < 1e-12) return;
+        const t = Math.max(0, Math.min(1, ((q[0] - p[0]) * u[0] + (q[1] - p[1]) * u[1]) / uu));
+        const c = [p[0] + u[0] * t, p[1] + u[1] * t];
+        const d = len(sub(q, c));
+        if (d < CEIL_EDGE_TOL && (!best || d < best.d)) {
+          const L = Math.sqrt(uu);
+          const nOut = [(u[1] / L) * openSign[k], (-u[0] / L) * openSign[k]]; // くり抜きの外へ
+          best = { d, p: [c[0] + nOut[0] * (CEIL_EDGE_TOL + 0.05), c[1] + nOut[1] * (CEIL_EDGE_TOL + 0.05)] };
+        }
+      });
+    });
+    return best ? best.p : null;
+  };
+  // 天井の面（くり抜きの中は Infinity）
   const at = (q) => ((!pointInRing(q[0], q[1], ring) && !nearRing(q)) || isOpen(q) ? Infinity : soffit(q));
+  // 階の壁・物を切る高さ（roofCeilAt）：天井の面と同じで、くり抜きのふちのすぐ中だけはふちの外の天井
+  const wallAt = (q) => {
+    if (!isOpen(q)) return at(q);
+    const p = openEdgeOut(q);
+    return p && !isOpen(p) && (pointInRing(p[0], p[1], ring) || nearRing(p)) ? soffit(p) : Infinity;
+  };
   const pieces = region
     .map((poly) => poly.map(openR).filter((r) => r.length >= 3))
     .filter((pg) => pg.length && Math.abs(ringArea(pg[0])) > 1e-3)
     .map((pg) => ({ poly: pg, box: boxOf(pg[0]), zAt: at }));
   const pieceAt = (q) => pieces.find((pc) => q[0] >= pc.box[0] && q[0] <= pc.box[2] && q[1] >= pc.box[1] && q[1] <= pc.box[3] && inPoly(q, pc.poly)) || null;
-  const out = { ring, g0, roof, slab, pieces, pieceAt, at, slabTop, soffit, frame, isOpen, visByIndex };
+  const out = { ring, g0, roof, slab, pieces, pieceAt, at, wallAt, slabTop, soffit, frame, isOpen, visByIndex };
   ceilCache.set(key, out);
   return out;
 }
@@ -1416,6 +2297,11 @@ export function roofCeilAt(f, groundAt) {
   const C = roofCeiling(f, groundAt);
   return (q) => C.at(q);
 }
+// 階の壁・物を切る高さ（addFloor の ceilAt）：roofCeilAt と同じで、上まで抜けたくり抜きのふちのすぐ中だけはふちの外の天井（2026-11-12）
+export function roofWallAt(f, groundAt) {
+  const C = roofCeiling(f, groundAt);
+  return (q) => C.wallAt(q);
+}
 
 // 地下の階の下を掘ったふち（dig）の帯：形の外へ WALL_T + WALL_CAP、下は掘った地面・上は掘る前の地面の少し下（上の面の色は路面）。
 // 外がほかの dig でもっと深く掘ってあるところは描かない
@@ -1423,7 +2309,22 @@ export function roofCeilAt(f, groundAt) {
 // （前は辺の両端の外のふちの地面を直線で結んでいたので、辺の途中から外が掘り下げた平地になると、広場の上で帯が何 m も下がって
 // 地下が見える穴になった：Taki の北西の角、ユーザーの目印 13「近くに穴が開いてる」）
 const DIG_BAND_STEP = 1;
-export function digBandPieces(dig, digs, groundAt) {
+// 掘らない地下の階（digMode "cut"・いまの並びに dig がない）の形：[{ ring, holes, level（掘るときの底）, top（床の上の面の標高） }]。
+// 掘ったふちの外がここなら、帯は床から PASS_CLEAR m より上だけ（下は通れる口・上は地面のまま歩ける。Taki の地下 1 階から附属図書館の
+// 地下 1 階への連絡通路。2026-11-13：前は帯をまるごと省いたので、掘った地面のにじみ〔ふちの外 0.7m ほど〕の上に地面がなく、歩く人が落ちた）
+export const PASS_CLEAR = 2.6;
+export function cutFloorRegions(features, groundAt) {
+  const dug = new Set(features.filter((f) => f.type === "dig").map((f) => f.id));
+  return features
+    .filter((f) => f.type === "floor" && f.digMode === "cut" && f.host && f.z < -0.5 && f.coords?.length > 2 && !dug.has(`dig:${f.id}`))
+    .map((f) => {
+      const g0 = groundAt(f.groundRef || f.coords[0]);
+      return Number.isFinite(g0) ? { ring: f.coords.map(toXY), holes: (f.holes || []).map((h) => (h.coords || h).map(toXY)), level: g0 + f.z - f.slab - 0.35, top: g0 + f.z } : null;
+    })
+    .filter(Boolean);
+}
+export function digBandPieces(dig, digs, groundAt, cuts = []) {
+  if (dig.f?.band === false) return []; // 帯なし（駅のエスカレーターの口など：ふちの壁は階の壁で作る）
   const ring = ringArea(dig.ring) > 0 ? dig.ring : dig.ring.slice().reverse();
   const outer = offsetRingBy(ring, ring.map(() => WALL_T + WALL_CAP));
   const out = [];
@@ -1448,7 +2349,11 @@ export function digBandPieces(dig, digs, groundAt) {
       const cap = outer2.length ? Math.min(...outer2.map((o) => o.level)) : null;
       const ga = cap ?? topAt(pa, qa), gb = cap ?? topAt(pb, qb);
       if (!Number.isFinite(ga) || !Number.isFinite(gb)) continue;
-      out.push({ a: pa, b: pb, oa: qa, ob: qb, ta: ga, tb: gb, level: dig.level, mo, capped: cap != null });
+      // 外が掘らない地下の階（同じか低い）なら、帯はその床から PASS_CLEAR m より上だけ（lintel＝帯の下の端）
+      const near = cap == null ? cuts.filter((c) => c.level <= dig.level + 0.05 && pointInRing(probe[0], probe[1], c.ring) && !c.holes.some((h) => pointInRing(probe[0], probe[1], h))) : [];
+      const lintel = near.length ? Math.max(...near.map((c) => c.top)) + PASS_CLEAR : null;
+      if (lintel != null && Math.max(ga, gb) < lintel + 0.05) continue;
+      out.push({ a: pa, b: pb, oa: qa, ob: qb, ta: ga, tb: gb, level: dig.level, mo, capped: cap != null, ...(lintel != null ? { lintel } : {}) });
     }
   });
   return out;
@@ -1456,12 +2361,15 @@ export function digBandPieces(dig, digs, groundAt) {
 // 帯の上の面は、ふちに沿って 1m ごとに、ふちのすぐ外（帯の幅の 1/4）の路面の色（なければ、となりの区切りの色・地面の色）。
 // 上の面は、標高タイルの補間で外の地面が帯の上より下がるところだけ見える（明かり取りのガラスの足もとなど）ので、そこの床と同じ色に
 // （帯のまん中の 1 点で測ると、明かり取りでは大階段の下で路面がなく、白いぎざぎざが出ていた）
-export function addDigBand(m, dig, digs, groundAt, paintAt, ground) {
-  for (const p of digBandPieces(dig, digs, groundAt)) {
+export function addDigBand(m, dig, digs, groundAt, paintAt, ground, cuts = []) {
+  for (const p of digBandPieces(dig, digs, groundAt, cuts)) {
     if (Math.max(p.ta, p.tb) < p.level + 0.05) continue;
     const L = len(sub(p.b, p.a)) || 1;
     const n = [(p.b[1] - p.a[1]) / L, -(p.b[0] - p.a[0]) / L, 0]; // 外向き（左回りの輪の右）
-    face(m, [[p.b, p.level], [p.a, p.level], [p.a, p.ta], [p.b, p.tb]], [-n[0], -n[1], 0], COL.wall);
+    const zb = p.lintel ?? p.level; // 帯の下の端（通路の口の上の帯は lintel から）
+    face(m, [[p.b, zb], [p.a, zb], [p.a, p.ta], [p.b, p.tb]], [-n[0], -n[1], 0], COL.wall);
+    // 口の上の帯の下の面（天井）
+    if (p.lintel != null) m.quad([[p.a, zb], [p.b, zb], [p.ob, zb], [p.oa, zb]], [0, 0, -1], COL.wall);
     const k = Math.max(1, Math.ceil(L / 1));
     const cols = [];
     for (let i = 0; i < k; i++) {
@@ -1493,14 +2401,16 @@ export function floorWalk(f, groundAt, add, BODY) {
     const pts = w.coords.map(toXY);
     const t = wallT(w);
     const S = wallSlope(f, w, pts, zf);
-    for (const pc of wallPieces(pts, w.doors || [])) {
+    // ホームドアは戸の口も通れない（線路へ落ちない。電車には乗れない）
+    for (const pc of wallPieces(pts, w.kind === "psd" ? [] : w.doors || [])) {
       // 斜めの壁（h2・z02）は区間の両端の低い下の端・高い上の端（まっすぐな壁は前と同じ）
       const z0 = Math.min(S.bot(pc.a), S.bot(pc.b));
       const z1 = Math.max(S.top(pc.a), S.top(pc.b));
-      const lo = pc.door ? (w.kind === "mesh" || w.kind === "rail" || w.kind === "low" ? null : z0 + DOOR_H) : z0;
+      const low = w.kind === "mesh" || w.kind === "rail" || w.kind === "bars" || w.kind === "psd"; // 腰の高さ：越えられない高さまで
+      const lo = pc.door ? (low || w.kind === "low" ? null : z0 + DOOR_H) : z0;
       if (lo == null || !(z1 > lo)) continue;
       const stand = w.kind === "low";
-      add.edge(pc.a, pc.b, t / 2 + BODY, [[lo, w.kind === "mesh" || w.kind === "rail" ? Math.max(z1, z0 + 1.5) : z1]], stand);
+      add.edge(pc.a, pc.b, t / 2 + BODY, [[lo, low ? Math.max(z1, z0 + 1.5) : z1]], stand);
     }
   }
   // 家具など（上に立てる。低いもの＝0.6m までは段として上れる）。エレベーターの昇降路（lift）は中空：4 面の壁の線（扉の面は口をあける。
@@ -1520,7 +2430,60 @@ export function floorWalk(f, groundAt, add, BODY) {
       }
       continue;
     }
+    // 斜めの板の屋根（wedge）：板（上の面から厚さぶん下まで。上れないように床から 1.2m より低くしない）と、閉じた辺の側の壁
+    // （z0 から上の面の高いほうまで）。口の辺（open）は板の下を通れる
+    if (it.kind === "wedge" && Array.isArray(it.zs) && it.zs.length === r.length) {
+      const th = it.thick > 0 ? it.thick : 0.3;
+      const topAt = wedgeTopAt(r, it.zs);
+      add.solid(r, [], (x, y) => {
+        const t = topAt(x, y);
+        return [[zf + t - th, zf + Math.max(t, 1.2)]];
+      }, 0.5);
+      const open = new Set(it.open || []);
+      r.forEach((a, k) => {
+        if (open.has(k)) return;
+        const k2 = (k + 1) % r.length;
+        add.edge(a, r[k2], BODY + 0.1, [[zf + it.z0, zf + Math.max(it.zs[k], it.zs[k2], 1.2)]], false);
+      });
+      continue;
+    }
+    if (FLAT_ITEMS.has(it.kind)) continue;
     add.solid(r, [], () => span, 0.5);
+  }
+  // エスカレーター（2026-11-12）：段の帯は段の角の線の高さの床（動く向きに体を運ぶ：add.belt）、両わき（くしの横の板〜外の箱）は手すりの高さまでの立体
+  for (const e of f.escalators || []) {
+    const G = escalatorGeom(e, zf);
+    const box = (lv0, lv1, s0, s1) => [G.P(s0, lv0), G.P(s1, lv0), G.P(s1, lv1), G.P(s0, lv1)];
+    const zAt = (x, y) => G.zA + G.zLine(Math.min(G.L, Math.max(0, G.local(x, y)[0])));
+    const band = box(-G.hs - ESC.skirt, G.hs + ESC.skirt, 0, G.L);
+    add.solid(band, [], (x, y) => [[G.zA - 0.6, zAt(x, y)]], 0.25);
+    for (const sg of [1, -1]) {
+      add.solid(box(sg * (G.hs + ESC.skirt), sg * (G.hs + ESC.outer), -G.newel, G.L + G.newel), [], (x, y) => [[G.zA - 0.6, zAt(x, y) + ESC.rail + ESC.railT]], 0.25);
+    }
+    if (add.belt && G.dirSign) {
+      add.belt(band, (x, y) => {
+        const sv = G.local(x, y)[0];
+        const v = (G.dirSign * G.speed) / Math.hypot(1, G.slope(sv));
+        return { z: zAt(x, y), v: [G.u[0] * v, G.u[1] * v] };
+      });
+    }
+  }
+  // 踊り場のある石の階段：段と踊り場の上の面に立てる（下の床から）。手すり・仕切りの側は落ちない
+  for (const s of f.flights || []) {
+    const G = flightGeom(s, zf);
+    const ring = [G.P(0, -G.hw), G.P(G.L, -G.hw), G.P(G.L, G.hw), G.P(0, G.hw)];
+    add.solid(ring, [], (x, y) => {
+      const z = G.topAt(x, y);
+      return z == null ? [] : [[G.zA - 0.3, z]];
+    }, 0.3);
+    (s.rails || []).forEach((k, i) => {
+      if (!k) return;
+      const lv = (i === 0 ? 1 : -1) * (G.hw + 0.03);
+      for (let a = 0; a < G.L; a += 0.3) {
+        const b = Math.min(G.L, a + 0.3);
+        add.edge(G.P(a, lv), G.P(b, lv), 0.03 + BODY, [[G.zA + G.noseAt(a) - 0.6, G.zA + G.noseAt(b) + 1.1]], false);
+      }
+    });
   }
   // 階段：段の上の面に立てる（裏は段の角から SOFFIT 下まで）。手すりの側は落ちない
   for (const s of f.stairs || []) {
@@ -1552,12 +2515,13 @@ export function floorWalk(f, groundAt, add, BODY) {
   }
 }
 // 掘ったふちの帯：上は掘る前の地面（上を歩ける）、下は掘った地面
-export function digWalk(dig, digs, groundAt, add) {
-  for (const p of digBandPieces(dig, digs, groundAt)) {
+export function digWalk(dig, digs, groundAt, add, cuts = []) {
+  for (const p of digBandPieces(dig, digs, groundAt, cuts)) {
+    const lo = p.lintel ?? -Infinity; // 通路の口の上の帯は lintel から上だけ
     add.solid([p.a, p.b, p.ob, p.oa], [], (x, y) => {
-      if (p.capped) return [[-Infinity, Math.max(p.ta, p.tb)]];
+      if (p.capped) return [[lo, Math.max(p.ta, p.tb)]];
       const g = groundAt(toLngLat([x, y]));
-      return [[-Infinity, Number.isFinite(g) ? g - 0.03 : Math.max(p.ta, p.tb)]];
+      return [[lo, Number.isFinite(g) ? g - 0.03 : Math.max(p.ta, p.tb)]];
     }, 0.5);
   }
 }
@@ -1567,4 +2531,1067 @@ export function floorLabels(f, groundAt) {
   const g0 = floorG0(f, groundAt);
   if (!Number.isFinite(g0)) return [];
   return (f.rooms || []).filter((r) => r.name).map((r) => ({ name: r.name, xy: r.at ? toXY(r.at) : centroid(r.coords.map(toXY)), z: g0 + f.z + 0.3 }));
+}
+
+// ── 大岡山駅の階段・エスカレーターのまわりと 1 階（2026-11-12、ユーザー「階段とエスカレーター周辺がダメすぎ。既存のものを流用するのではなく
+// しっかり再現するためにないものは新しく作って。エスカレーターは動かさないと。あと階段の途中に変な線あるし、登り切ったとこにも変な面あるよ。
+// あとえき１階もちゃんと再現して」・動画 IMG_1009 の 6〜80 秒）──
+
+// エスカレーター（階の escalators）：A（下のくし）→ B（上のくし）のまん中の線。段の角の線の高さ zLine(sv)（A からの水平の距離 sv で、
+// 下の平ら → 曲がり → 斜め → 曲がり → 上の平ら。曲がりは 2 次の曲線でなめらか）。横は段のふち hs から：くしの横の板（skirt）・
+// 内のふた（〜inner）・欄干の板（panel）・外のふた（〜outer）・外の箱の側板。手すりは段の角の線の rail m 上、くしの外 newel m まで出て
+// 半径 newelR の半円で下へ回る。段は pitch m おき（踏面 tread・蹴上げ riser）で、時刻とともに動く（addEscalatorSteps。campus3dEscalator）
+export const ESC = { skirt: 0.025, inner: 0.1, panel: 0.11, outer: 0.3, deck: 0.3, rail: 0.9, railT: 0.07, railW: 0.08, pitch: 0.406, tread: 0.4, riser: 0.205, newelR: 0.42 };
+const ESC_LIFT = 0.008; // 段の面を床の面から浮かす m（addEscalatorSteps）
+export function escalatorGeom(e, zf) {
+  const [A, B] = e.coords.map(toXY);
+  const zA = zf + (e.z0 || 0);
+  const d = sub(B, A);
+  const L = len(d) || 1e-3;
+  const u = [d[0] / L, d[1] / L];
+  const n = [-u[1], u[0]];
+  const rise = Math.max(0.1, e.rise);
+  const fl = e.flats || [1.2, 1.4];
+  const c0 = Math.min(fl[0], L * 0.3), c1 = L - Math.min(fl[1], L * 0.3);
+  const k = rise / Math.max(0.5, c1 - c0);
+  const w = Math.max(0.05, Math.min(0.8, c0 * 0.9, (L - c1) * 0.9, (c1 - c0) / 2));
+  const zLine = (sv) => {
+    if (sv <= c0 - w) return 0;
+    if (sv < c0 + w) return (k * (sv - c0 + w) ** 2) / (4 * w);
+    if (sv <= c1 - w) return k * (sv - c0);
+    if (sv < c1 + w) return rise - (k * (c1 + w - sv) ** 2) / (4 * w);
+    return rise;
+  };
+  const slope = (sv) => {
+    if (sv <= c0 - w || sv >= c1 + w) return 0;
+    if (sv < c0 + w) return (k * (sv - c0 + w)) / (2 * w);
+    if (sv <= c1 - w) return k;
+    return (k * (c1 + w - sv)) / (2 * w);
+  };
+  const hs = (e.width || 1) / 2;
+  const P = (sv, lv) => [A[0] + u[0] * sv + n[0] * lv, A[1] + u[1] * sv + n[1] * lv];
+  const local = (x, y) => [(x - A[0]) * u[0] + (y - A[1]) * u[1], (x - A[0]) * n[0] + (y - A[1]) * n[1]];
+  const dirSign = e.dir === "down" ? -1 : e.dir === "stop" ? 0 : 1;
+  return { A, B, zA, L, u, n, rise, c0, c1, k, w, zLine, slope, hs, P, local, newel: e.newel ?? 0.9, dirSign, speed: e.speed ?? 0.5, panel: e.panel || "glass" };
+}
+// sv の点の並び（a〜b。曲がりのところは細かく）
+function escSamples(G, a, b) {
+  const out = [a];
+  let s = a;
+  while (s < b - 1e-6) {
+    const curve = Math.abs(s - G.c0) < G.w + 0.1 || Math.abs(s - G.c1) < G.w + 0.1;
+    s = Math.min(b, s + (curve ? 0.1 : 0.5));
+    out.push(s);
+  }
+  return out;
+}
+// 縦の帯（横の位置 lv、sv の並び ss の下 zb(sv)・上 zt(sv)）。向き sg（+1 は左＝n の向き）
+function escWall(m, G, ss, lv, zb, zt, sg, c) {
+  const nn = [G.n[0] * sg, G.n[1] * sg, 0];
+  for (let i = 0; i + 1 < ss.length; i++) {
+    const a = ss[i], b = ss[i + 1];
+    face(m, [[G.P(a, lv), zb(a)], [G.P(b, lv), zb(b)], [G.P(b, lv), zt(b)], [G.P(a, lv), zt(a)]], nn, c);
+  }
+}
+// 横の帯（lv0〜lv1、高さ z0(sv)・z1(sv)）
+function escTop(m, G, ss, lv0, lv1, z0, z1, c, nrm = [0, 0, 1]) {
+  for (let i = 0; i + 1 < ss.length; i++) {
+    const a = ss[i], b = ss[i + 1];
+    face(m, [[G.P(a, lv0), z0(a)], [G.P(b, lv0), z0(b)], [G.P(b, lv1), z1(b)], [G.P(a, lv1), z1(a)]], nrm, c);
+  }
+}
+// 手すりの通り道（[sv, z] の折れ線。下の端の半円 → 斜め → 上の端の半円）。z は手すりのまん中の高さ（標高）
+function escRailPath(G) {
+  const R = ESC.newelR;
+  const top = ESC.rail + ESC.railT / 2;
+  const Z = (sv) => G.zA + G.zLine(Math.min(G.L, Math.max(0, sv)));
+  const out = [];
+  const sb = -G.newel + R, st = G.L + G.newel - R;
+  const cb = [sb, G.zA + top - R], ct = [st, G.zA + G.rise + top - R];
+  for (let k = 0; k <= 10; k++) {
+    const a = Math.PI * (1.5 - k / 10); // 270° → 90°（外を回って上へ）
+    out.push([cb[0] + R * Math.cos(a), cb[1] + R * Math.sin(a)]);
+  }
+  for (const s of escSamples(G, sb, st)) if (s > sb + 1e-6 && s < st - 1e-6) out.push([s, Z(s) + top]);
+  for (let k = 0; k <= 10; k++) {
+    const a = Math.PI * (0.5 - k / 10); // 90° → −90°
+    out.push([ct[0] + R * Math.cos(a), ct[1] + R * Math.sin(a)]);
+  }
+  return { pts: out, cb, ct, R };
+}
+// 動かない部分：欄干（ガラスかステンレスの板・黒い手すり）・くしの横の板・ふた・外の箱・乗り口の床の板とくし・段の下の暗いところ
+export function addEscalator(M, e, zf, T, tint) {
+  const { m, glassy } = M;
+  const G = escalatorGeom(e, zf);
+  const { zA, L, hs, newel } = G;
+  const Z = (sv) => zA + G.zLine(Math.min(L, Math.max(0, sv)));
+  const all = escSamples(G, -newel, L + newel);
+  const mid = escSamples(G, 0, L);
+  const steel = T("escClad"), deck = T("escDeck"), skirt = T("escSkirt");
+  const rp = escRailPath(G);
+  const panelC = G.panel === "steel" ? T("escClad") : tint(hex(PAL.glassBal, 0.5));
+  for (const sg of [1, -1]) {
+    const lv = (d) => sg * (hs + d);
+    // くしの横の板（段の面の 0.12m 下〜0.22m 上）と、内のふた（斜め）。乗り口の外（くしの外）は床から
+    escWall(m, G, all, lv(ESC.skirt), (s) => (s < 0 || s > L ? Z(s) : Z(s) - 0.12), (s) => Z(s) + 0.22, -sg, skirt);
+    escTop(m, G, all, lv(ESC.skirt), lv(ESC.inner), (s) => Z(s) + 0.22, (s) => Z(s) + ESC.deck, deck, [-G.n[0] * sg * 0.6, -G.n[1] * sg * 0.6, 0.8]);
+    // 欄干の板（手すりの下の縁まで。両端は半円の中）
+    const pTop = (s) => Z(s) + ESC.rail;
+    const pBot = (s) => Z(s) + ESC.deck;
+    const ps = all.filter((s) => s >= -newel + rp.R - 1e-6 && s <= L + newel - rp.R + 1e-6);
+    const pl = lv(ESC.panel);
+    const nn = [G.n[0] * sg, G.n[1] * sg, 0];
+    const panelQuad = (q) => {
+      if (G.panel === "steel") {
+        face(m, q, nn, panelC);
+        face(m, q.map(([p, z]) => [[p[0] - G.n[0] * sg * 0.02, p[1] - G.n[1] * sg * 0.02], z]), [-nn[0], -nn[1], 0], panelC);
+      } else glassy.quad(q, nn, panelC);
+    };
+    for (let i = 0; i + 1 < ps.length; i++) {
+      const a = ps[i], b = ps[i + 1];
+      panelQuad([[G.P(a, pl), pBot(a)], [G.P(b, pl), pBot(b)], [G.P(b, pl), pTop(b)], [G.P(a, pl), pTop(a)]]);
+    }
+    // 両端の半円の板（中心から手すりの内の縁まで）
+    for (const [c, a0, a1] of [[rp.cb, 1.5, 0.5], [rp.ct, 0.5, -0.5]]) {
+      const r = rp.R - ESC.railT / 2;
+      for (let k = 0; k < 10; k++) {
+        const t0 = Math.PI * (a0 + ((a1 - a0) * k) / 10), t1 = Math.PI * (a0 + ((a1 - a0) * (k + 1)) / 10);
+        panelQuad([[G.P(c[0], pl), c[1]], [G.P(c[0] + r * Math.cos(t0), pl), c[1] + r * Math.sin(t0)], [G.P(c[0] + r * Math.cos(t1), pl), c[1] + r * Math.sin(t1)], [G.P(c[0], pl), c[1]]]);
+      }
+    }
+    // 外のふた（平ら）と外の箱の側板（下の床から）
+    escTop(m, G, all, lv(ESC.panel + 0.012), lv(ESC.outer), (s) => Z(s) + ESC.deck, (s) => Z(s) + ESC.deck - 0.02, deck);
+    escWall(m, G, all, lv(ESC.outer), () => zA, (s) => Z(s) + ESC.deck - 0.02, sg, steel);
+    // 端の面（外のふたの高さまでの箱）
+    for (const s of [-newel, L + newel]) {
+      const zb = s < 0 ? zA : zA + G.rise;
+      const en = s < 0 ? [-G.u[0], -G.u[1], 0] : [G.u[0], G.u[1], 0];
+      face(m, [[G.P(s, lv(ESC.skirt)), zb], [G.P(s, lv(ESC.outer)), zb], [G.P(s, lv(ESC.outer)), zb + ESC.deck], [G.P(s, lv(ESC.skirt)), zb + ESC.deck]], en, steel);
+    }
+    // 黒い手すり（通り道に沿った帯：外・内・両わき）
+    const hand = T("escHand");
+    const pts = rp.pts;
+    const hw = ESC.railW / 2, ht = ESC.railT / 2;
+    const lc = sg * (hs + ESC.panel);
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const [s0, z0] = pts[i], [s1, z1] = pts[i + 1];
+      const dl = Math.hypot(s1 - s0, z1 - z0) || 1;
+      const ns = -(z1 - z0) / dl, nz = (s1 - s0) / dl; // 通り道の左（上）へ
+      const C = (s, z, a, b) => [G.P(s + ns * b, lc + a), z + nz * b];
+      const q = (a0, b0, a1, b1) => [C(s0, z0, a0, b0), C(s1, z1, a0, b0), C(s1, z1, a1, b1), C(s0, z0, a1, b1)];
+      face(m, q(-hw, ht, hw, ht), [0, 0, 1], hand);
+      face(m, q(-hw, -ht, hw, -ht), [0, 0, -1], hand);
+      face(m, q(hw, -ht, hw, ht), [G.n[0], G.n[1], 0], hand);
+      face(m, q(-hw, -ht, -hw, ht), [-G.n[0], -G.n[1], 0], hand);
+    }
+  }
+  // 乗り口の床の板（ステンレス）と、くしの黄色い線・板の溝
+  const plate = T("escPlate"), comb = T("escComb");
+  for (const [s0, s1, z, cs] of [[-newel, 0, zA, -0.07], [L, L + newel, zA + G.rise, L]]) {
+    face(m, [[G.P(s0, -hs - ESC.skirt), z + 0.012], [G.P(s1, -hs - ESC.skirt), z + 0.012], [G.P(s1, hs + ESC.skirt), z + 0.012], [G.P(s0, hs + ESC.skirt), z + 0.012]], [0, 0, 1], plate);
+    face(m, [[G.P(cs, -hs), z + 0.016], [G.P(cs + 0.07, -hs), z + 0.016], [G.P(cs + 0.07, hs), z + 0.016], [G.P(cs, hs), z + 0.016]], [0, 0, 1], comb);
+    for (let k = 1; k < 6; k++) {
+      const sv = s0 + ((s1 - s0) * k) / 6;
+      face(m, [[G.P(sv - 0.006, -hs), z + 0.014], [G.P(sv + 0.006, -hs), z + 0.014], [G.P(sv + 0.006, hs), z + 0.014], [G.P(sv - 0.006, hs), z + 0.014]], [0, 0, 1], skirt);
+    }
+  }
+  // 段の下の暗いところ（段と段のすき間から見える）
+  escTop(m, G, mid, -hs, hs, (s) => Z(s) - 0.3, (s) => Z(s) - 0.3, T("escPit"));
+}
+// 段（動く）：時刻 t（秒）の段の並び。段の角の線に沿った長さ λ で pitch m おき、dirSign × speed で進む
+export function addEscalatorSteps(m, G, t, T = (k) => COL[k]) {
+  const { L, hs, P, zLine, zA } = G;
+  if (!G.tab) {
+    const N = Math.max(8, Math.ceil(L / 0.05));
+    const sv = [], lam = [];
+    let acc = 0, pz = zLine(0);
+    for (let i = 0; i <= N; i++) {
+      const s = (L * i) / N, z = zLine(s);
+      if (i) acc += Math.hypot(L / N, z - pz);
+      sv.push(s);
+      lam.push(acc);
+      pz = z;
+    }
+    G.tab = { sv, lam, total: acc };
+  }
+  const { sv: SV, lam: LAM, total } = G.tab;
+  const svAt = (l) => {
+    let lo = 0, hi = LAM.length - 1;
+    while (hi - lo > 1) {
+      const mi = (lo + hi) >> 1;
+      if (LAM[mi] <= l) lo = mi;
+      else hi = mi;
+    }
+    const f = (l - LAM[lo]) / (LAM[hi] - LAM[lo] || 1);
+    return SV[lo] + (SV[hi] - SV[lo]) * f;
+  };
+  const pitch = ESC.pitch;
+  const phase = (((G.dirSign * G.speed * t) % pitch) + pitch) % pitch;
+  const tread = T("escTread"), riser = T("escRiser"), line = T("escLine");
+  const up = [0, 0, 1], back = [-G.u[0], -G.u[1], 0];
+  for (let l = phase; l <= total + 1e-6; l += pitch) {
+    const s = svAt(Math.min(l, total));
+    // 段の面は床の面より ESC_LIFT 上（下の平らなところで段がホームの床と同じ高さになり、床と取り合って模様のように欠けていた。
+    // 2026-11-12、ユーザーの目印 13・14「表示がおかしくなってる」）。乗り口の板（+0.012）・くし（+0.016）より下
+    const z = zA + zLine(s) + ESC_LIFT;
+    const s1 = Math.min(L, s + ESC.tread);
+    if (s1 - s < 0.03) continue;
+    face(m, [[P(s, -hs), z], [P(s1, -hs), z], [P(s1, hs), z], [P(s, hs), z]], up, tread);
+    // 黄色い線：前の縁と両わき
+    const zl = z + 0.003;
+    const sl = Math.min(s1, s + 0.045);
+    face(m, [[P(s, -hs), zl], [P(sl, -hs), zl], [P(sl, hs), zl], [P(s, hs), zl]], up, line);
+    for (const sg of [1, -1]) {
+      const a = sg * (hs - 0.04), b = sg * hs;
+      face(m, [[P(sl, a), zl], [P(s1, a), zl], [P(s1, b), zl], [P(sl, b), zl]], up, line);
+    }
+    if (s > 0.02) face(m, [[P(s, hs), z - ESC.riser], [P(s, -hs), z - ESC.riser], [P(s, -hs), z], [P(s, hs), z]], back, riser);
+  }
+}
+
+// 踊り場のある石の階段（階の flights）：A（いちばん下の蹴上げのまん中）→ B（いちばん上の段の角＝上の階の床のふち）。runs（流れごとの
+// 蹴上げの数）、landings（流れのあいだの踊り場の長さ）。踏面の奥行き Tr は残りの長さを踏面の数（流れごとに蹴上げ − 1）で割ったもの。
+// steps：段と踊り場の並び { s0, s1, z（上の面。A の床から）, riser（下からの蹴上げの番号）, land（踊り場の番号） }。いちばん上の蹴上げは B
+export function flightGeom(s, zf) {
+  const [A, B] = s.coords.map(toXY);
+  const zA = zf + (s.z0 || 0);
+  const d = sub(B, A);
+  const L = len(d) || 1e-3;
+  const u = [d[0] / L, d[1] / L];
+  const n = [-u[1], u[0]];
+  const runs = s.runs?.length ? s.runs : [Math.max(1, Math.round(s.rise / 0.17))];
+  const landings = runs.slice(1).map((_, i) => s.landings?.[i] ?? 1.5);
+  const nR = runs.reduce((a, b) => a + b, 0);
+  const R = s.rise / nR;
+  const nT = runs.reduce((a, b) => a + b - 1, 0);
+  const Tr = (L - landings.reduce((a, b) => a + b, 0)) / Math.max(1, nT);
+  const steps = [];
+  let sv = 0, k = 0;
+  runs.forEach((nr, fi) => {
+    for (let j = 0; j < nr - 1; j++) {
+      k++;
+      steps.push({ s0: sv, s1: sv + Tr, z: k * R, riser: k - 1, flight: fi });
+      sv += Tr;
+    }
+    k++;
+    if (fi < runs.length - 1) {
+      steps.push({ s0: sv, s1: sv + landings[fi], z: k * R, riser: k - 1, flight: fi, land: fi });
+      sv += landings[fi];
+    }
+  });
+  const hw = s.width / 2;
+  const P = (a, l) => [A[0] + u[0] * a + n[0] * l, A[1] + u[1] * a + n[1] * l];
+  const local = (x, y) => [(x - A[0]) * u[0] + (y - A[1]) * u[1], (x - A[0]) * n[0] + (y - A[1]) * n[1]];
+  const topAt = (x, y) => {
+    const [a, l] = local(x, y);
+    if (a < -1e-6 || a > L + 1e-6 || Math.abs(l) > hw + 1e-6) return null;
+    for (const st of steps) if (a < st.s1) return zA + st.z;
+    return zA + s.rise;
+  };
+  // 段の角の線（手すりの高さの基準。流れごとに段の角を通る斜めの線、踊り場は平ら。下と上は 0.3m 平らに出す）
+  const nose = [[-Tr - 0.3, 0], [-Tr, 0]];
+  let s0 = 0, zb = 0;
+  runs.forEach((nr, fi) => {
+    const sEnd = s0 + (nr - 1) * Tr, zEnd = zb + nr * R;
+    nose.push([sEnd, zEnd]);
+    if (fi < runs.length - 1) {
+      nose.push([sEnd + landings[fi] - Tr, zEnd]);
+      s0 = sEnd + landings[fi];
+      zb = zEnd;
+    }
+  });
+  nose.push([L + 0.3, s.rise]);
+  const noseAt = (a) => {
+    if (a <= nose[0][0]) return nose[0][1];
+    for (let i = 0; i + 1 < nose.length; i++) if (a <= nose[i + 1][0]) return nose[i][1] + ((nose[i + 1][1] - nose[i][1]) * (a - nose[i][0])) / (nose[i + 1][0] - nose[i][0] || 1);
+    return nose[nose.length - 1][1];
+  };
+  return { A, B, zA, L, u, n, R, Tr, steps, hw, P, local, topAt, nose, noseAt, rise: s.rise, runs, landings };
+}
+// 床の矢印（角の丸い暗い四角に矢印。c：中心、dir：矢印の向き（平面の単位ベクトル）、a：四角の大きさ）
+function addFloorArrow(m, c, dir, a, z, fg, bg) {
+  const v = [-dir[1], dir[0]];
+  const Q = (x, y) => [c[0] + dir[0] * x + v[0] * y, c[1] + dir[1] * x + v[1] * y];
+  const up = [0, 0, 1];
+  const h = a / 2, r = a * 0.12;
+  m.polygon([[Q(-h + r, -h), Q(h - r, -h), Q(h, -h + r), Q(h, h - r), Q(h - r, h), Q(-h + r, h), Q(-h, h - r), Q(-h, -h + r)]], z, up, bg);
+  face(m, [[Q(-h * 0.62, -a * 0.075), z + 0.002], [Q(h * 0.05, -a * 0.075), z + 0.002], [Q(h * 0.05, a * 0.075), z + 0.002], [Q(-h * 0.62, a * 0.075), z + 0.002]], up, fg);
+  m.polygon([[Q(h * 0.62, 0), Q(-h * 0.02, -h * 0.5), Q(-h * 0.02, h * 0.5)]], z + 0.002, up, fg);
+}
+export function addFlight(M, s, zf, T, tint, cutTop = Infinity) {
+  const { m, glassy } = M;
+  const G = flightGeom(s, zf);
+  const { zA, R, steps, hw, P, u, n, L } = G;
+  const tread = T("stairTread"), riser = T("stairRiser"), side = T("stairSide"), nose = T("stairNose");
+  const yel = T("markYellow"), red = T("markRed"), pink = T("riserPink");
+  const up = [0, 0, 1], back = [-u[0], -u[1], 0];
+  const marks = (s0, z, withTop) => {
+    for (const sg of [1, -1]) {
+      for (const [a, b, c] of [[0.05, 0.16, yel], [0.16, 0.27, red]]) {
+        const la = sg * (hw - a), lb = sg * (hw - b);
+        if (withTop) face(m, [[P(s0, la), z + 0.003], [P(s0 + 0.045, la), z + 0.003], [P(s0 + 0.045, lb), z + 0.003], [P(s0, lb), z + 0.003]], up, c);
+        face(m, [[P(s0 - 0.003, lb), z - 0.035], [P(s0 - 0.003, la), z - 0.035], [P(s0 - 0.003, la), z + (withTop ? 0 : 0.012)], [P(s0 - 0.003, lb), z + (withTop ? 0 : 0.012)]], back, c);
+      }
+    }
+  };
+  for (const st of steps) {
+    const z = zA + st.z;
+    if (z > cutTop + 1e-6) break;
+    face(m, [[P(st.s0, -hw), z], [P(st.s1, -hw), z], [P(st.s1, hw), z], [P(st.s0, hw), z]], up, tread);
+    face(m, [[P(st.s0, hw), z - R], [P(st.s0, -hw), z - R], [P(st.s0, -hw), z], [P(st.s0, hw), z]], back, riser);
+    // 段の角の細い線（すべり止め）と、両はしの黄と赤の印
+    face(m, [[P(st.s0, -hw), z + 0.002], [P(st.s0 + 0.025, -hw), z + 0.002], [P(st.s0 + 0.025, hw), z + 0.002], [P(st.s0, hw), z + 0.002]], up, nose);
+    if (s.marks) marks(st.s0, z, true);
+    // ピンクの帯（広告。左右は上る向きに見て左から幅の割合）
+    for (const [ri, f0, f1] of s.bands || []) {
+      if (ri !== st.riser) continue;
+      const la = hw - f0 * 2 * hw, lb = hw - f1 * 2 * hw;
+      face(m, [[P(st.s0 - 0.004, lb), z - R + 0.025], [P(st.s0 - 0.004, la), z - R + 0.025], [P(st.s0 - 0.004, la), z - 0.04], [P(st.s0 - 0.004, lb), z - 0.04]], back, pink);
+    }
+    // 両わきの面（床まで）
+    for (const sg of [1, -1]) face(m, [[P(st.s0, sg * hw), zA], [P(st.s1, sg * hw), zA], [P(st.s1, sg * hw), z], [P(st.s0, sg * hw), z]], [n[0] * sg, n[1] * sg, 0], side);
+  }
+  // いちばん上の蹴上げ（上の階の床のふち）
+  const zTop = zA + G.rise;
+  face(m, [[P(L, hw), zTop - R], [P(L, -hw), zTop - R], [P(L, -hw), zTop], [P(L, hw), zTop]], back, riser);
+  if (s.marks) marks(L, zTop, false);
+  for (const [ri, f0, f1] of s.bands || []) {
+    if (ri !== G.runs.reduce((a, b) => a + b, 0) - 1) continue;
+    const la = hw - f0 * 2 * hw, lb = hw - f1 * 2 * hw;
+    face(m, [[P(L - 0.004, lb), zTop - R + 0.025], [P(L - 0.004, la), zTop - R + 0.025], [P(L - 0.004, la), zTop - 0.04], [P(L - 0.004, lb), zTop - 0.04]], back, pink);
+  }
+  // 踊り場の床の矢印
+  for (const [li, fr, dsg] of s.arrows || []) {
+    const st = steps.find((q) => q.land === li);
+    if (!st) continue;
+    const c = P((st.s0 + st.s1) / 2, hw - fr * 2 * hw);
+    addFloorArrow(m, c, [u[0] * dsg, u[1] * dsg], 0.5, zA + st.z + 0.004, T("arrowFg"), T("arrowBg"));
+  }
+  // 点字ブロック（下の床と上の床。段から 0.3m あけて 0.6m）
+  if (s.tactile) {
+    const tc = T("tactile");
+    face(m, [[P(-0.9, -hw), zA + 0.006], [P(-0.3, -hw), zA + 0.006], [P(-0.3, hw), zA + 0.006], [P(-0.9, hw), zA + 0.006]], up, tc);
+    face(m, [[P(L + 0.3, -hw), zTop + 0.018], [P(L + 0.9, -hw), zTop + 0.018], [P(L + 0.9, hw), zTop + 0.018], [P(L + 0.3, hw), zTop + 0.018]], up, tc);
+  }
+  // 手すり：wall2 壁の 2 段（0.85m・0.65m）と壁からの支え、frost すりガラスの仕切り（段の角の線の 0.15m 下〜0.95m 上）とステンレスの丸い笠木（1.0m）・柱
+  const railC = T("railSteel");
+  (s.rails || []).forEach((k, i) => {
+    if (!k) return;
+    const sg = i === 0 ? 1 : -1;
+    const pts = G.nose;
+    if (k === "wall2") {
+      const lv = sg * (hw - 0.07);
+      for (const h of [0.85, 0.65]) {
+        for (let j = 0; j + 1 < pts.length; j++) bar(m, [P(pts[j][0], lv), zA + pts[j][1] + h], [P(pts[j + 1][0], lv), zA + pts[j + 1][1] + h], 0.04, railC);
+      }
+      for (let sv = pts[0][0] + 0.2; sv < pts[pts.length - 1][0]; sv += 1.2) {
+        for (const h of [0.82, 0.62]) bar(m, [P(sv, lv), zA + G.noseAt(sv) + h], [P(sv, sg * (hw + 0.02)), zA + G.noseAt(sv) + h], 0.025, railC);
+      }
+    } else if (k === "frost") {
+      const lv = sg * (hw + 0.03);
+      const fc = tint(hex(PAL.frost, 0.5));
+      const nn = [n[0] * sg, n[1] * sg, 0];
+      for (let j = 0; j + 1 < pts.length; j++) {
+        const a0 = Math.max(pts[j][0], -0.2), b0 = Math.min(pts[j + 1][0], L + 0.2);
+        if (b0 <= a0 + 1e-3) continue;
+        const za = zA + G.noseAt(a0), zb = zA + G.noseAt(b0);
+        for (const dd of [0, 0.012]) {
+          const l2 = lv + (i === 0 ? dd : -dd);
+          glassy.quad([[P(a0, l2), za - 0.15], [P(b0, l2), zb - 0.15], [P(b0, l2), zb + 0.95], [P(a0, l2), za + 0.95]], nn, fc);
+        }
+        bar(m, [P(a0, lv), za + 1.0], [P(b0, lv), zb + 1.0], 0.05, railC);
+      }
+      for (let sv = -0.2; sv <= L + 0.2 + 1e-6; sv += 1.4) {
+        const z = zA + G.noseAt(sv);
+        bar(m, [P(sv, lv), z - 0.15], [P(sv, lv), z + 1.0], 0.045, railC);
+      }
+    }
+  });
+}
+
+// 壁の小さなタイル：区間 pc の両面に、壁の面から少し浮かせて（目地の線・白っぽい縦の帯）。z0a・z0b・z1a・z1b：貼る下と上（区間の両端の標高）、
+// tw・th：タイルの幅・高さ、band：[幅, 間隔]（縦の帯）
+function addSmallTiles(m, pc, t, z0a, z0b, z1a, z1b, T, { tw = 0.1, th = 0.15, tile = "mtile", grout = "mtileGrout", band = null, bandC = "mtileBand", bandGrout = "mtileBandGrout" } = {}) {
+  const L = len(sub(pc.b, pc.a));
+  if (L < 0.05) return;
+  const u = [(pc.b[0] - pc.a[0]) / L, (pc.b[1] - pc.a[1]) / L];
+  const nl = [-u[1], u[0]];
+  const lo = (s) => z0a + ((z0b - z0a) * s) / L, hi = (s) => z1a + ((z1b - z1a) * s) / L;
+  const bands = [];
+  if (band) for (let s = band[1] * 0.5; s < L; s += band[1]) bands.push([Math.max(0, s), Math.min(L, s + band[0])]);
+  const inBand = (s) => bands.some(([a, b]) => s >= a && s <= b);
+  const g = 0.008;
+  for (const sg of [1, -1]) {
+    const nn = [nl[0] * sg, nl[1] * sg, 0];
+    const Q = (o) => (s, z) => [[pc.a[0] + u[0] * s + nl[0] * sg * o, pc.a[1] + u[1] * s + nl[1] * sg * o], z];
+    const q1 = Q(t / 2 + 0.002), q2 = Q(t / 2 + 0.004), q3 = Q(t / 2 + 0.006);
+    face(m, [q1(0, lo(0)), q1(L, lo(L)), q1(L, hi(L)), q1(0, hi(0))], nn, T(tile));
+    for (const [s0, s1] of bands) face(m, [q2(s0, lo(s0)), q2(s1, lo(s1)), q2(s1, hi(s1)), q2(s0, hi(s0))], nn, T(bandC));
+    // 横の目地（th おき。壁の下と上の線のあいだだけ）
+    const zMin = Math.min(z0a, z0b), zMax = Math.max(z1a, z1b);
+    for (let z = Math.ceil((zMin + 0.001) / th) * th; z < zMax; z += th) {
+      // 区間の中で z が下と上のあいだにある部分
+      const segs = [];
+      const N = 8;
+      let open = null;
+      for (let i = 0; i <= N; i++) {
+        const s = (L * i) / N;
+        const inside = z > lo(s) + 0.005 && z < hi(s) - 0.005;
+        if (inside && open == null) open = s;
+        if ((!inside || i === N) && open != null) {
+          segs.push([open, inside ? s : Math.max(open, s - L / N)]);
+          open = null;
+        }
+      }
+      for (const [s0, s1] of segs) if (s1 > s0 + 0.01) face(m, [q3(s0, z - g / 2), q3(s1, z - g / 2), q3(s1, z + g / 2), q3(s0, z + g / 2)], nn, T(grout));
+    }
+    for (let s = tw; s < L - 0.01; s += tw) face(m, [q3(s - g / 2, lo(s)), q3(s + g / 2, lo(s)), q3(s + g / 2, hi(s)), q3(s - g / 2, hi(s))], nn, T(inBand(s) ? bandGrout : grout));
+  }
+}
+// 打ち放しのコンクリートの P コンの穴（両面。横 0.9m・縦 0.6m おき、径 0.035m の暗い点。壁の下と上の線のあいだだけ）
+function addTieHoles(m, pc, t, z0a, z0b, z1a, z1b, col) {
+  const L = len(sub(pc.b, pc.a));
+  if (L < 0.3) return;
+  const u = [(pc.b[0] - pc.a[0]) / L, (pc.b[1] - pc.a[1]) / L];
+  const nl = [-u[1], u[0]];
+  const lo = (s) => z0a + ((z0b - z0a) * s) / L, hi = (s) => z1a + ((z1b - z1a) * s) / L;
+  const r = 0.0175;
+  const s0 = ((L % 0.9) || 0.9) / 2;
+  for (const sg of [1, -1]) {
+    const nn = [nl[0] * sg, nl[1] * sg, 0];
+    const Q = (s, z) => [[pc.a[0] + u[0] * s + nl[0] * sg * (t / 2 + 0.003), pc.a[1] + u[1] * s + nl[1] * sg * (t / 2 + 0.003)], z];
+    for (let s = s0; s < L - 0.1; s += 0.9) {
+      for (let z = Math.ceil((lo(s) + 0.25) / 0.6) * 0.6; z < hi(s) - 0.2; z += 0.6) face(m, [Q(s - r, z - r), Q(s + r, z - r), Q(s + r, z + r), Q(s - r, z + r)], nn, col);
+    }
+  }
+}
+// 木の縦の格子：暗い板（両面）の前に、幅 0.06・奥行き 0.09 の木の棒を 0.16m おき
+function addSlatWall(m, pc, t, ba, bb, ta, tb, T) {
+  segBox(m, pc.a, pc.b, t, ba, bb, ta, tb, T("slatBack"));
+  const L = len(sub(pc.b, pc.a));
+  if (L < 0.1) return;
+  const u = [(pc.b[0] - pc.a[0]) / L, (pc.b[1] - pc.a[1]) / L];
+  const nl = [-u[1], u[0]];
+  const c = T("slatWood");
+  for (const sg of [1, -1]) {
+    for (let s = 0.08; s < L - 0.03; s += 0.16) {
+      const z0 = ba + ((bb - ba) * s) / L, z1 = ta + ((tb - ta) * s) / L;
+      const o0 = sg * (t / 2), o1 = sg * (t / 2 + 0.09);
+      const p = (ds, o) => [pc.a[0] + u[0] * (s + ds) + nl[0] * o, pc.a[1] + u[1] * (s + ds) + nl[1] * o];
+      prismPoly(m, [p(-0.03, o0), p(0.03, o0), p(0.03, o1), p(-0.03, o1)], z0, z1, c, { top: false });
+    }
+  }
+}
+
+// 物の前の面（1 本目の辺。形のまん中から外へ向く）：{ a, b, u（a → b）, nf（外への向き）, L }
+function frontOf(r) {
+  const a = r[0], b = r[1];
+  const L = len(sub(b, a)) || 1e-3;
+  const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+  let nf = [-u[1], u[0]];
+  const c = centroid(r);
+  const mid = lerp2(a, b, 0.5);
+  if ((c[0] - mid[0]) * nf[0] + (c[1] - mid[1]) * nf[1] > 0) nf = [-nf[0], -nf[1]];
+  return { a, b, u, nf, L };
+}
+// 前の面の上の四角（x：a から b へ m、z：標高、d：面から前へ m）
+function frontQuad(m, F, x0, x1, z0, z1, d, c) {
+  const P = (x) => [F.a[0] + F.u[0] * x + F.nf[0] * d, F.a[1] + F.u[1] * x + F.nf[1] * d];
+  face(m, [[P(x0), z0], [P(x1), z0], [P(x1), z1], [P(x0), z1]], [F.nf[0], F.nf[1], 0], c);
+}
+const COL_HEX = (h) => hex(h, 0.5);
+// 円柱（4 点の四角に内接。z0〜z1。色 c、split より上は c2）と足もとのステンレスの帯
+function addCyl(m, r, z0, z1, c, c2, split, steel) {
+  const ce = centroid(r);
+  const R = Math.min(len(sub(r[1], r[0])), len(sub(r[2], r[1]))) / 2;
+  const K = 28;
+  const parts = c2 && split != null && split > z0 && split < z1 ? [[z0, split, c], [split, z1, c2]] : [[z0, z1, c]];
+  const ring = (RR, za, zb, col) => {
+    for (let k = 0; k < K; k++) {
+      const a0 = (2 * Math.PI * k) / K, a1 = (2 * Math.PI * (k + 1)) / K;
+      const p0 = [ce[0] + RR * Math.cos(a0), ce[1] + RR * Math.sin(a0)], p1 = [ce[0] + RR * Math.cos(a1), ce[1] + RR * Math.sin(a1)];
+      const am = (a0 + a1) / 2;
+      face(m, [[p0, za], [p1, za], [p1, zb], [p0, zb]], [Math.cos(am), Math.sin(am), 0], col);
+    }
+  };
+  for (const [za, zb, col] of parts) ring(R, za, zb, col);
+  ring(R + 0.008, z0, z0 + 0.1, steel);
+}
+// 自動改札機：長い辺が通る向き。足もと・胴（横の板の色）・上の暗い板・両はしの青く光る読み取り部と小さな画面・まん中の扉
+function addGate(m, r, z0, T, sideC) {
+  const e0 = len(sub(r[1], r[0])), e1 = len(sub(r[2], r[1]));
+  const [a, b, , d] = e0 >= e1 ? r : [r[1], r[2], r[3], r[0]];
+  const Lg = len(sub(b, a)) || 1;
+  const u = [(b[0] - a[0]) / Lg, (b[1] - a[1]) / Lg];
+  const W = len(sub(d, a)) || 0.2;
+  const v = [(d[0] - a[0]) / W, (d[1] - a[1]) / W];
+  const P = (x, y) => [a[0] + u[0] * x + v[0] * y, a[1] + u[1] * x + v[1] * y];
+  const box = (x0, x1, y0, y1, za, zb, col, top = col) => prismPoly(m, [P(x0, y0), P(x1, y0), P(x1, y1), P(x0, y1)], za, zb, top, { sideCol: col });
+  box(0.05, Lg - 0.05, 0.02, W - 0.02, z0, z0 + 0.08, T("gateTop"));
+  box(0.08, Lg - 0.08, 0, W, z0 + 0.08, z0 + 0.9, sideC, T("gateTop"));
+  box(0.02, Lg - 0.02, -0.01, W + 0.01, z0 + 0.9, z0 + 1.0, T("gateTop"));
+  for (const [x0, x1] of [[0.1, 0.32], [Lg - 0.32, Lg - 0.1]]) face(m, [[P(x0, 0.03), z0 + 1.004], [P(x1, 0.03), z0 + 1.004], [P(x1, W - 0.03), z0 + 1.004], [P(x0, W - 0.03), z0 + 1.004]], [0, 0, 1], T("gateRead"));
+  for (const x of [0.4, Lg - 0.5]) box(x, x + 0.1, W * 0.2, W * 0.8, z0 + 1.0, z0 + 1.12, T("gateTop"), T("gateScreen"));
+  for (const [y0, y1] of [[-0.2, 0], [W, W + 0.2]]) box(Lg * 0.5 - 0.03, Lg * 0.5 + 0.03, y0, y1, z0 + 0.55, z0 + 0.88, T("gateFlap"));
+}
+// コインロッカー：白い箱の前の面に扉の線（横 0.45m・縦 0.38m おき）と緑の小さな灯
+function addLocker(m, r, z0, z1, T) {
+  prismPoly(m, r, z0, z1, T("locker"), { sideCol: T("locker") });
+  const F = frontOf(r);
+  const line = T("lockerLine"), led = T("lockerLed");
+  const nx = Math.max(1, Math.round(F.L / 0.45)), ny = Math.max(1, Math.round((z1 - z0 - 0.15) / 0.38));
+  for (let i = 1; i < nx; i++) {
+    const x = (F.L * i) / nx;
+    frontQuad(m, F, x - 0.006, x + 0.006, z0 + 0.1, z1 - 0.05, 0.004, line);
+  }
+  for (let j = 0; j <= ny; j++) {
+    const z = z0 + 0.1 + ((z1 - z0 - 0.15) * j) / ny;
+    frontQuad(m, F, 0.02, F.L - 0.02, z - 0.006, z + 0.006, 0.004, line);
+    if (j < ny) for (let i = 0; i < nx; i++) {
+      const x = (F.L * (i + 0.85)) / nx;
+      frontQuad(m, F, x - 0.015, x + 0.015, z + 0.2, z + 0.24, 0.006, led);
+    }
+  }
+}
+// 機械（券売機・精算機）：color の箱、前の面に暗い画面とお金の口
+function addMachine(m, r, z0, z1, T, body) {
+  prismPoly(m, r, z0, z1, body, { sideCol: body });
+  const F = frontOf(r);
+  const H = z1 - z0;
+  frontQuad(m, F, F.L * 0.15, F.L * 0.85, z0 + H * 0.52, z0 + H * 0.8, 0.004, T("screenDark"));
+  frontQuad(m, F, F.L * 0.2, F.L * 0.45, z0 + H * 0.38, z0 + H * 0.44, 0.004, T("gateTop"));
+  frontQuad(m, F, F.L * 0.55, F.L * 0.8, z0 + H * 0.38, z0 + H * 0.44, 0.004, T("gateTop"));
+}
+// 券売機（2026-11-12、ユーザー「券売機も再現したい」）：明るい灰の箱、前の面の上に紺の帯（color2）、斜めに寝た画面（暗い面に青と白の
+// ボタン）、右に硬貨・紙幣・カードの口と IC の読み取り（青）、下にきっぷとおつりの口。1 本目の辺の面が前
+function addTvm(m, r, z0, z1, T, top) {
+  const body = T("tvmBody");
+  prismPoly(m, r, z0, z1, body, { sideCol: body });
+  const F = frontOf(r);
+  const H = z1 - z0, Wd = F.L;
+  frontQuad(m, F, 0.02, Wd - 0.02, z1 - 0.2, z1 - 0.03, 0.004, top || T("tvmTop"));
+  // 斜めの画面：下の端は前へ 0.12m、上の端は面の上（左の 3/4）
+  const P = (x, d) => [F.a[0] + F.u[0] * x + F.nf[0] * d, F.a[1] + F.u[1] * x + F.nf[1] * d];
+  const sx0 = 0.06, sx1 = Wd * 0.7, zb = z0 + H * 0.56, zt = z0 + H * 0.84;
+  const nS = [F.nf[0] * 0.6, F.nf[1] * 0.6, 0.8];
+  face(m, [[P(sx0, 0.13), zb], [P(sx1, 0.13), zb], [P(sx1, 0.01), zt], [P(sx0, 0.01), zt]], nS, T("tvmScreen"));
+  // 画面の下の縁（前へ出た台）
+  face(m, [[P(sx0, 0), zb - 0.04], [P(sx1, 0), zb - 0.04], [P(sx1, 0.13), zb], [P(sx0, 0.13), zb]], [F.nf[0], F.nf[1], 0.3], body);
+  for (const x of [sx0, sx1]) face(m, [[P(x, 0), zb - 0.04], [P(x, 0.13), zb], [P(x, 0.01), zt], [P(x, 0), zt]], [F.u[0], F.u[1], 0], body);
+  // 画面のボタン（3 行 × 2 列の青、上に白い帯）
+  const lerpS = (fx, fz, dd) => { const d = 0.13 - (0.12 * fz) + dd; return [P(sx0 + (sx1 - sx0) * fx, d), zb + (zt - zb) * fz]; };
+  const btn = (fx0, fz0, fx1, fz1, c) => face(m, [lerpS(fx0, fz0, 0.004), lerpS(fx1, fz0, 0.004), lerpS(fx1, fz1, 0.004), lerpS(fx0, fz1, 0.004)], nS, c);
+  btn(0.08, 0.78, 0.92, 0.92, T("tvmMenu2"));
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) btn(0.1 + j * 0.42, 0.1 + i * 0.22, 0.46 + j * 0.42, 0.27 + i * 0.22, T("tvmMenu"));
+  // 右の口：硬貨（細い横の口）・紙幣・カード、IC の読み取り
+  const rx0 = Wd * 0.75, rx1 = Wd - 0.06;
+  frontQuad(m, F, rx0, rx1, z0 + H * 0.74, z0 + H * 0.76, 0.006, T("tvmSlot"));
+  frontQuad(m, F, rx0, rx1, z0 + H * 0.66, z0 + H * 0.685, 0.006, T("tvmSlot"));
+  frontQuad(m, F, rx0 + 0.02, rx1 - 0.02, z0 + H * 0.6, z0 + H * 0.615, 0.006, T("tvmSlot"));
+  frontQuad(m, F, rx0, rx1, z0 + H * 0.5, z0 + H * 0.56, 0.008, T("tvmIc"));
+  // きっぷの口・おつりの口（下の暗いくぼみ）
+  frontQuad(m, F, Wd * 0.2, Wd * 0.6, z0 + H * 0.36, z0 + H * 0.4, 0.005, T("tvmSlot"));
+  frontQuad(m, F, Wd * 0.15, Wd * 0.85, z0 + H * 0.16, z0 + H * 0.26, 0.005, T("tvmTray"));
+  // 足もとの暗い帯
+  frontQuad(m, F, 0, Wd, z0, z0 + 0.08, 0.003, T("tvmSlot"));
+}
+// 額の広告・掲示板：額（color2）の中に紙（color）、紙の上に色の四角（紙ごと。いつも同じ並び）
+function addPoster(m, r, z0, z1, T, it, tint) {
+  const F = frontOf(r);
+  const frame = it.color2 ? tint(COL_HEX(it.color2)) : T("posterFrame");
+  const paper = it.color ? tint(COL_HEX(it.color)) : T("posterIn");
+  prismPoly(m, r, z0, z1, frame, { sideCol: frame });
+  frontQuad(m, F, 0.04, F.L - 0.04, z0 + 0.04, z1 - 0.04, 0.003, paper);
+  const n = Math.max(1, Math.round(F.L / 0.75));
+  const w = (F.L - 0.08) / n;
+  const pal = ["#d24b5a", "#3e7cc4", "#f0c33c", "#5aa36a", "#8a5bb5", "#e98a3a", "#2b2f36", "#f5f3ee"];
+  const seed = Math.round((F.a[0] + F.a[1]) * 10);
+  const h = z1 - z0 - 0.08;
+  for (let i = 0; i < n; i++) {
+    const x0 = 0.04 + i * w + 0.03, x1 = 0.04 + (i + 1) * w - 0.03;
+    const c1 = tint(COL_HEX(pal[Math.floor(hash2(seed, i) * pal.length)])), c2 = tint(COL_HEX(pal[Math.floor(hash2(seed + 7, i) * pal.length)]));
+    frontQuad(m, F, x0, x1, z0 + 0.06 + h * 0.45, z0 + 0.04 + h * 0.95, 0.005, c1);
+    frontQuad(m, F, x0, x0 + (x1 - x0) * 0.7, z0 + 0.06 + h * 0.18, z0 + 0.06 + h * 0.36, 0.005, c2);
+  }
+}
+
+// ── Taki Plaza 2 階の小物（2026-11-13、ユーザー「小物も作って」。動画 IMG_1080）──
+// 4 点の四角の 1 本目の辺が前（frontOf）。前から見て右の向きと、前の辺の前から見て左の端（字・形の左右）、前の辺から奥の辺までの長さ
+const rightOf = (F) => [-F.nf[1], F.nf[0]];
+const leftEnd = (F) => {
+  const ux = rightOf(F);
+  return (F.b[0] - F.a[0]) * ux[0] + (F.b[1] - F.a[1]) * ux[1] > 0 ? F.a : F.b;
+};
+const depthOf = (F, r) => Math.abs((r[2][0] - r[1][0]) * F.nf[0] + (r[2][1] - r[1][1]) * F.nf[1]);
+const BOOK_PAL = ["#2f4f7f", "#b23a3a", "#e8e4d8", "#3c6e47", "#d9a441", "#5b4a7a", "#f2f0ea", "#1f2328", "#c96f2d", "#7aa6c9", "#e0c9a8", "#8c2f4b"];
+
+// 描いたら true
+function addSmallItem(m, it, r, z0, z1, T, tint, ctx) {
+  if (it.kind === "cubeshelf" || it.kind === "openshelf") addShelfUnit(m, it, r, z0, z1, T, tint);
+  else if (it.kind === "mathclock") addMathClockCase(m, it, r, z0, z1, T, tint, ctx.clocks);
+  else if (it.kind === "woodcut") addWoodCut(m, it, r, z0, z1, T);
+  else if (it.kind === "woodsign") addWoodSign(m, it, r, z0, z1, T, tint, ctx.text);
+  else if (it.kind === "note") addNote(m, r, z0, z1, T, ctx.text);
+  else if (it.kind === "stars") addStars(m, r, z0, z1, T);
+  else if (it.kind === "stack") addStack(m, it, r, z0, z1, T, tint);
+  else if (it.kind === "flapgate") addFlapGate(m, ctx.glassy || m, r, z0, z1, T);
+  else if (it.kind === "secgate") addSecGate(m, ctx.glassy || m, r, z0, z1, T);
+  else return false;
+  return true;
+}
+
+// フラップゲート（図書館の入口。2026-11-13、動画 IMG_1077 の 145〜148・603〜604・864 秒）：4 点の四角の長い向きが通る向き。ステンレスの台
+// （角を落とした箱）・暗いガラスの天板・天板のふちの青い灯・カードを読む青い板（両端）と、両わきの面に沿ってたたんだガラスの羽（開いた形。
+// 歩く当たりは台の四角だけ）。z1 は台の高さ（なければ 1.0）
+function addFlapGate(m, glassy, r, z0, z1, T) {
+  const e0 = len(sub(r[1], r[0])), e1 = len(sub(r[2], r[1]));
+  const [a, b, , d] = e0 >= e1 ? r : [r[1], r[2], r[3], r[0]];
+  const L = len(sub(b, a)) || 1, W = len(sub(d, a)) || 0.2;
+  const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L], v = [(d[0] - a[0]) / W, (d[1] - a[1]) / W];
+  const P = (x, y) => [a[0] + u[0] * x + v[0] * y, a[1] + u[1] * x + v[1] * y];
+  const H = Math.max(0.6, Math.min(1.2, z1 - z0));
+  const steel = T("gateSteel"), dark = T("gateSteelDark"), top = T("gateGlassTop"), blue = T("gateBlue"), reader = T("gateReader");
+  const c = Math.min(0.06, W * 0.25); // 角の落とし
+  const body = [P(c, 0), P(L - c, 0), P(L, c), P(L, W - c), P(L - c, W), P(c, W), P(0, W - c), P(0, c)];
+  prismPoly(m, body, z0 + 0.04, z0 + H - 0.03, steel, { sideCol: steel });
+  prismPoly(m, [P(0.03, 0.02), P(L - 0.03, 0.02), P(L - 0.03, W - 0.02), P(0.03, W - 0.02)], z0, z0 + 0.04, dark, { sideCol: dark });
+  prismPoly(m, body, z0 + H - 0.03, z0 + H, top, { sideCol: top });
+  // 天板のふちの青い灯（両わきの長い辺）と、両端のカードを読む板
+  for (const y of [0, W]) {
+    const o = y === 0 ? -1 : 1;
+    face(m, [[P(c, y + o * 0.004), z0 + H - 0.05], [P(L - c, y + o * 0.004), z0 + H - 0.05], [P(L - c, y + o * 0.004), z0 + H - 0.025], [P(c, y + o * 0.004), z0 + H - 0.025]], [v[0] * o, v[1] * o, 0], blue);
+  }
+  for (const [x0, x1] of [[0.06, 0.26], [L - 0.26, L - 0.06]]) {
+    face(m, [[P(x0, W * 0.2), z0 + H + 0.003], [P(x1, W * 0.2), z0 + H + 0.003], [P(x1, W * 0.8), z0 + H + 0.003], [P(x0, W * 0.8), z0 + H + 0.003]], [0, 0, 1], reader);
+    face(m, [[P(x0 + 0.05, W * 0.35), z0 + H + 0.005], [P(x1 - 0.05, W * 0.35), z0 + H + 0.005], [P(x1 - 0.05, W * 0.65), z0 + H + 0.005], [P(x0 + 0.05, W * 0.65), z0 + H + 0.005]], [0, 0, 1], blue);
+  }
+  // たたんだガラスの羽（両わきの面から 0.02m 外、長さのまん中 0.55m、台の上 0.2m まで）と、羽の上のふちの青い灯
+  const fx0 = L * 0.5 - 0.28, fx1 = L * 0.5 + 0.28;
+  for (const y of [-0.025, W + 0.025]) {
+    const o = y < 0 ? -1 : 1;
+    glassy.quad([[P(fx0, y), z0 + 0.3], [P(fx1, y), z0 + 0.3], [P(fx1, y), z0 + H + 0.2], [P(fx0, y), z0 + H + 0.2]], [v[0] * o, v[1] * o, 0], GLASS);
+    face(m, [[P(fx0, y), z0 + H + 0.18], [P(fx1, y), z0 + H + 0.18], [P(fx1, y), z0 + H + 0.2], [P(fx0, y), z0 + H + 0.2]], [v[0] * o, v[1] * o, 0], blue);
+    face(m, [[P(fx1, y), z0 + H + 0.18], [P(fx0, y), z0 + H + 0.18], [P(fx0, y), z0 + H + 0.2], [P(fx1, y), z0 + H + 0.2]], [-v[0] * o, -v[1] * o, 0], blue);
+  }
+}
+// 防犯ゲート（白い枠の板。図書館の入口。動画 600〜602 秒）：4 点の四角の長い向きが板の幅。両端の白い柱・上下の枠と、あいだの半透明の板
+function addSecGate(m, glassy, r, z0, z1, T) {
+  const e0 = len(sub(r[1], r[0])), e1 = len(sub(r[2], r[1]));
+  const [a, b, , d] = e0 >= e1 ? r : [r[1], r[2], r[3], r[0]];
+  const L = len(sub(b, a)) || 0.6, W = len(sub(d, a)) || 0.08;
+  const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L], v = [(d[0] - a[0]) / W, (d[1] - a[1]) / W];
+  const P = (x, y) => [a[0] + u[0] * x + v[0] * y, a[1] + u[1] * x + v[1] * y];
+  const wc = T("secWhite");
+  const box = (x0, x1, za, zb) => prismPoly(m, [P(x0, 0), P(x1, 0), P(x1, W), P(x0, W)], za, zb, wc, { sideCol: wc, bottom: true });
+  const pw = Math.min(0.07, L * 0.15);
+  box(0, pw, z0, z1); box(L - pw, L, z0, z1);
+  box(pw, L - pw, z1 - 0.07, z1); box(pw, L - pw, z0 + 0.08, z0 + 0.14);
+  for (const o of [1, -1]) glassy.quad([[P(pw, W / 2), z0 + 0.14], [P(L - pw, W / 2), z0 + 0.14], [P(L - pw, W / 2), z1 - 0.07], [P(pw, W / 2), z1 - 0.07]], [v[0] * o, v[1] * o, 0], GLASS);
+}
+
+// 図書館の書架（附属図書館の地下。2026-11-13、動画 IMG_1077・パンフレットの平面図の細長い四角）：両面の鉄の書架。四角の長い向きに、
+// 両端の板・まん中の背の板・足もとの板・段の板（rows 段。なければ 0.32m くらい）・天板と、両面の段ごとの本の並び（色の帯を前の面に。
+// books の割合〔なければ 0.75〕。帯の長さ・高さ・色は位置で決まる乱数）。集密書架（すき間なく並んだ四角）も同じ
+// 背表紙の色：動画（171 秒）では白・生成り・ベージュ・明るい灰が多く、濃い色はところどころ
+const STACK_BOOKS = ["#f1ede2", "#e7e0cf", "#d9cfb8", "#ece9e2", "#c9c2b0", "#e3ddd0", "#b7aa8c", "#d4cbb6", "#f4f2ec", "#cfc8bb", "#3d4b63", "#7b3a3a", "#4b5e46", "#2b2d33", "#8a7d5c", "#5e6f86"];
+function addStack(m, it, r, z0, z1, T, tint) {
+  const e0 = len(sub(r[1], r[0])), e1 = len(sub(r[2], r[1]));
+  const [a, b, , d] = e0 >= e1 ? r : [r[1], r[2], r[3], r[0]];
+  const L = len(sub(b, a)), D = len(sub(d, a)), H = z1 - z0;
+  if (L < 0.3 || D < 0.15 || H < 0.4) return;
+  const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L], v = [(d[0] - a[0]) / D, (d[1] - a[1]) / D];
+  const P = (x, y) => [a[0] + u[0] * x + v[0] * y, a[1] + u[1] * x + v[1] * y];
+  const box = (x0, x1, y0, y1, za, zb, c) => {
+    if (!(x1 > x0 + 1e-4 && y1 > y0 + 1e-4 && zb > za + 1e-4)) return;
+    prismPoly(m, [P(x0, y0), P(x1, y0), P(x1, y1), P(x0, y1)], za, zb, c, { bottom: true });
+  };
+  const steel = T("stackSteel"), shelfC = T("stackShelf"), back = T("stackBack");
+  const pt = 0.02, zb0 = z0 + 0.09, zt = z1 - 0.025;
+  box(0, pt, 0, D, z0, z1, steel); // 両端の板
+  box(L - pt, L, 0, D, z0, z1, steel);
+  box(0, L, 0, D, zt, z1, steel); // 天板
+  box(pt, L - pt, 0.03, D - 0.03, z0, zb0, back); // 足もと
+  box(pt, L - pt, D / 2 - 0.01, D / 2 + 0.01, zb0, zt, back); // 背の板
+  const rows = Math.max(1, Math.round(it.rows || (zt - zb0) / 0.32));
+  const rh = (zt - zb0) / rows;
+  const bk = it.books == null ? 0.75 : it.books;
+  const seed = Math.round((a[0] * 13 + a[1] * 7) * 10);
+  for (let k = 0; k < rows; k++) {
+    const zs = zb0 + k * rh;
+    if (k > 0) box(pt, L - pt, 0.01, D - 0.01, zs - 0.012, zs + 0.006, shelfC);
+    // 本：両面（y = 0 の面は −v 向き、y = D の面は +v 向き）
+    for (const side of [0, 1]) {
+      const y = side ? D - 0.035 : 0.035;
+      const nrm = side ? [v[0], v[1], 0] : [-v[0], -v[1], 0];
+      let x = pt + 0.01;
+      let j = 0;
+      while (x < L - pt - 0.05) {
+        const h1 = hash2(seed + k * 17 + side * 5, j);
+        const w = 0.1 + h1 * 0.38;
+        const x1 = Math.min(L - pt - 0.01, x + w);
+        if (hash2(seed + j * 3 + side, k * 11) < bk) {
+          const bh = Math.min(rh - 0.04, 0.17 + hash2(seed + j, k + side * 31) * 0.12);
+          const hc = hash2(seed + j * 7 + side * 13, k);
+          const c = tint(COL_HEX(hc < 0.78 ? STACK_BOOKS[Math.floor((hc / 0.78) * 10)] : STACK_BOOKS[10 + Math.floor(((hc - 0.78) / 0.22) * 6) % 6]));
+          const q = [[P(x, y), zs + 0.008], [P(x1, y), zs + 0.008], [P(x1, y), zs + bh], [P(x, y), zs + bh]];
+          face(m, side ? [q[1], q[0], q[3], q[2]] : q, nrm, c);
+        }
+        x = x1 + 0.004;
+        j++;
+      }
+    }
+  }
+}
+
+// 棚。cols 列 × rows 段の升（なければ 0.42m・0.4m くらい）
+// cubeshelf（窓ぎわの本棚）：白い鉄の枠（前と後ろの柱、段ごとの前・後ろ・奥行きの枠）と木目の板（段の板・奥の板・両端の板）。升の仕切りの板は
+//   ない（となりの升が見える）。books（0〜1）の割合の升に立てた本
+// openshelf（Attic Studio の白い棚）：白い板（両端と仕切りの板・段の板・奥の板。double なら奥も開いた両面の棚）、引っこんだ足もと。
+//   下から drawers 段は木の前板の引き出し（上のふちに取っ手）。top が "wood" なら木の天板
+function addShelfUnit(m, it, r, z0, z1, T, tint) {
+  const F = frontOf(r);
+  const D = depthOf(F, r), L = F.L, H = z1 - z0;
+  if (L < 0.2 || D < 0.1 || H < 0.2) return;
+  const cols = Math.max(1, Math.round(it.cols || L / 0.42));
+  const rows = Math.max(1, Math.round(it.rows || H / 0.4));
+  const P = (x, y) => [F.a[0] + F.u[0] * x - F.nf[0] * y, F.a[1] + F.u[1] * x - F.nf[1] * y];
+  const box = (x0, x1, y0, y1, za, zb, c, opt = {}) => {
+    if (!(x1 > x0 + 1e-4 && y1 > y0 + 1e-4 && zb > za + 1e-4)) return;
+    prismPoly(m, [P(x0, y0), P(x1, y0), P(x1, y1), P(x0, y1)], za, zb, c, { bottom: true, ...opt });
+  };
+  const xi = (i) => (L * i) / cols;
+  const seed = Math.round((F.a[0] * 7 + F.a[1] * 3) * 10);
+  if (it.kind === "cubeshelf") {
+    const steel = T("shelfSteel"), wood = T("shelfWood"), back = T("shelfBack");
+    const t = 0.022, bt = 0.016, zb0 = z0 + 0.025; // 枠の太さ・板の厚さ・いちばん下の枠の高さ（脚）
+    const zr = (k) => zb0 + ((z1 - t - zb0) * k) / rows; // k 段目の枠の下の面
+    const xp = (i) => Math.min(L - t, Math.max(0, xi(i) - t / 2));
+    for (let i = 0; i <= cols; i++) {
+      box(xp(i), xp(i) + t, 0, t, z0, z1, steel);
+      box(xp(i), xp(i) + t, D - t, D, z0, z1, steel);
+    }
+    for (let k = 0; k <= rows; k++) {
+      const z = zr(k);
+      box(0, L, 0, t, z, z + t, steel);
+      box(0, L, D - t, D, z, z + t, steel);
+      for (let i = 0; i <= cols; i++) box(xp(i), xp(i) + t, t, D - t, z, z + t, steel);
+      box(t, L - t, t, D - t, z + t - bt, z + t + 0.001, wood); // 段の板（枠の上の面にそろえる）
+    }
+    box(t, L - t, D - t - 0.012, D - t, zr(0) + t, zr(rows), back); // 奥の板
+    box(t, t + 0.012, t, D - t - 0.012, zr(0) + t, zr(rows), wood); // 両端の板
+    box(L - t - 0.012, L - t, t, D - t - 0.012, zr(0) + t, zr(rows), wood);
+    const bk = it.books || 0;
+    for (let k = 0; k < rows && bk > 0; k++) {
+      const za = zr(k) + t + 0.001, ch = zr(k + 1) - za;
+      for (let i = 0; i < cols; i++) {
+        if (hash2(seed + k * 31, i) >= bk) continue;
+        let x = xi(i) + t / 2 + 0.02 + hash2(seed + 5, i * 7 + k) * 0.1;
+        const xEnd = xi(i + 1) - t / 2 - 0.02;
+        const n = 3 + Math.floor(hash2(seed + 9, i + k * 13) * 9);
+        for (let j = 0; j < n; j++) {
+          const w = 0.016 + hash2(seed + j, i * 17 + k) * 0.03;
+          if (x + w > xEnd) break;
+          const bh = Math.min(ch - 0.03, 0.17 + hash2(seed + j * 3, i + k * 5) * 0.12);
+          const bd = Math.min(D - 2 * t - 0.03, 0.15 + hash2(seed + j * 5, i + k * 7) * 0.07);
+          const c = tint(COL_HEX(BOOK_PAL[Math.floor(hash2(seed + j * 11, i * 3 + k) * BOOK_PAL.length)]));
+          box(x, x + w, D - t - 0.014 - bd, D - t - 0.014, za, za + bh, c);
+          x += w + (hash2(seed + j, k) < 0.15 ? 0.01 : 0.001);
+        }
+      }
+    }
+    return;
+  }
+  const white = it.color ? tint(COL_HEX(it.color)) : T("shelfWhite");
+  const front = it.color2 ? tint(COL_HEX(it.color2)) : T("drawerWood");
+  const pt = 0.02, zTop = z1 - 0.025, zBot = z0 + 0.06;
+  const dbl = !!it.double;
+  box(0.03, L - 0.03, 0.04, dbl ? D - 0.04 : D - 0.012, z0, zBot, T("shelfToe")); // 足もと
+  box(0, L, 0, D, zTop, z1, it.top === "wood" ? T("shelfWood") : white); // 天板
+  if (!dbl) box(pt, L - pt, D - 0.012, D, zBot, zTop, white); // 奥の板
+  for (let i = 0; i <= cols; i++) {
+    const x = Math.min(L - pt, Math.max(0, xi(i) - pt / 2));
+    box(x, x + pt, 0, D, z0, zTop, white); // 両端と仕切りの板
+  }
+  const rh = (zTop - zBot) / rows;
+  const nd = dbl ? 0 : Math.min(rows, Math.max(0, it.drawers || 0));
+  for (let k = 0; k < rows; k++) {
+    const z = zBot + rh * k;
+    if (k < nd) {
+      for (let i = 0; i < cols; i++) {
+        const x0 = xi(i) + pt / 2 + 0.003, x1 = xi(i + 1) - pt / 2 - 0.003;
+        box(x0, x1, -0.004, 0.014, z + 0.003, z + rh - 0.003, front);
+        const xc = (x0 + x1) / 2, hw = Math.min(0.08, (x1 - x0) * 0.2);
+        box(xc - hw, xc + hw, -0.01, -0.004, z + rh - 0.065, z + rh - 0.05, T("handle"));
+      }
+      continue;
+    }
+    box(pt / 2, L - pt / 2, 0.01, dbl ? D - 0.01 : D - 0.012, z - 0.009, z + 0.009, white); // 段の板
+  }
+}
+
+// 計算式の時計の箱（Taki Plaza 2 階の窓ぎわの棚の上。動画 IMG_1080 の 6〜18 秒）：木の箱と黒いガラスの面。光る字（時刻の式）は
+// campus3dMathClock が分ごとに描く（ctx.clocks に面の左下・右の向き・前の向き・大きさを足す）
+function addMathClockCase(m, it, r, z0, z1, T, tint, clocks) {
+  const F = frontOf(r);
+  prismPoly(m, r, z0, z1, it.color ? tint(COL_HEX(it.color)) : T("clockWood"), { bottom: true });
+  const e = 0.006;
+  frontQuad(m, F, e, F.L - e, z0 + e, z1 - e, 0.0012, T("clockFace"));
+  if (!clocks) return;
+  const ux = rightOf(F), lf = leftEnd(F);
+  clocks.push({ o: [lf[0] + ux[0] * e, lf[1] + ux[1] * e], u: ux, n: [F.nf[0], F.nf[1]], z0: z0 + e, w: F.L - 2 * e, h: z1 - z0 - 2 * e, d: 0.0012 });
+}
+
+// 板を重ねた切り抜き（エレベーターの扉の上の建物の飾り bldg、トイレの入口の男女の形 man・woman。動画 IMG_1080 の 85〜106 秒）：
+// 形の面は前の辺を含む縦の面、四角の奥行きが板の幅。形（前から見て左 0〜右 1・下 0〜上 1 の多角形の組。重なりは偶奇＝穴）を厚さ 6mm の
+// 板ごとに横に切り、明るい木 2 枚と濃い線 1 枚の縞に
+const WOODCUT_SHAPES = {
+  // 頭・胴・2 本の脚
+  man: [
+    [[0.37, 0.87], [0.63, 0.87], [0.63, 1], [0.37, 1]],
+    [[0.08, 0.4], [0.92, 0.4], [0.92, 0.87], [0.08, 0.87]],
+    [[0.2, 0], [0.45, 0], [0.45, 0.4], [0.2, 0.4]],
+    [[0.55, 0], [0.8, 0], [0.8, 0.4], [0.55, 0.4]],
+  ],
+  // とがった頭・すそが広がる服・短い脚
+  woman: [
+    [[0.36, 0.78], [0.64, 0.78], [0.64, 0.9], [0.5, 1], [0.36, 0.9]],
+    [[0.04, 0.1], [0.96, 0.1], [0.64, 0.78], [0.36, 0.78]],
+    [[0.32, 0], [0.45, 0], [0.45, 0.1], [0.32, 0.1]],
+    [[0.55, 0], [0.68, 0], [0.68, 0.1], [0.55, 0.1]],
+  ],
+  // 四角い枠（下 0〜0.78）の中に下に縦長の口のある塔 3 本、枠の上に左の十字の塔と右の切妻の家
+  bldg: [
+    [[0, 0], [1, 0], [1, 0.78], [0, 0.78]],
+    [[0.09, 0.07], [0.91, 0.07], [0.91, 0.7], [0.09, 0.7]],
+    [[0.15, 0.07], [0.36, 0.07], [0.36, 0.6], [0.3, 0.6], [0.255, 0.655], [0.21, 0.6], [0.15, 0.6]],
+    [[0.235, 0.07], [0.275, 0.07], [0.275, 0.27], [0.255, 0.29], [0.235, 0.27]],
+    [[0.4, 0.07], [0.6, 0.07], [0.6, 0.58], [0.55, 0.58], [0.55, 0.64], [0.45, 0.64], [0.45, 0.58], [0.4, 0.58]],
+    [[0.48, 0.07], [0.52, 0.07], [0.52, 0.27], [0.48, 0.27]],
+    [[0.64, 0.07], [0.84, 0.07], [0.84, 0.62], [0.79, 0.62], [0.79, 0.68], [0.69, 0.68], [0.69, 0.62], [0.64, 0.62]],
+    [[0.72, 0.07], [0.76, 0.07], [0.76, 0.27], [0.72, 0.27]],
+    [[0.16, 0.78], [0.33, 0.78], [0.33, 0.82], [0.29, 0.82], [0.29, 0.86], [0.32, 0.86], [0.32, 0.89], [0.27, 0.89], [0.27, 0.96], [0.22, 0.96], [0.22, 0.89], [0.17, 0.89], [0.17, 0.86], [0.2, 0.86], [0.2, 0.82], [0.16, 0.82]],
+    [[0.5, 0.78], [0.68, 0.78], [0.68, 0.88], [0.59, 0.98], [0.5, 0.88]],
+    [[0.57, 0.81], [0.61, 0.81], [0.61, 0.87], [0.57, 0.87]],
+  ],
+};
+const CUT_LAYER = 0.006;
+function addWoodCut(m, it, r, z0, z1, T) {
+  const F = frontOf(r);
+  const shape = WOODCUT_SHAPES[it.shape];
+  const D = depthOf(F, r), W = F.L, H = z1 - z0;
+  if (!shape || W < 0.02 || H < 0.02 || D < 0.002) {
+    prismPoly(m, r, z0, z1, T("cutLight"), { bottom: true });
+    return;
+  }
+  const ux = rightOf(F), lf = leftEnd(F);
+  const P = (x, y) => [lf[0] + ux[0] * x - F.nf[0] * y, lf[1] + ux[1] * x - F.nf[1] * y];
+  const n = Math.max(1, Math.round(H / CUT_LAYER));
+  const tones = [T("cutLight"), T("cutMid"), T("cutDark")];
+  for (let k = 0; k < n; k++) {
+    const ym = (k + 0.5) / n;
+    const xs = [];
+    for (const poly of shape) {
+      for (let i = 0; i < poly.length; i++) {
+        const p = poly[i], q = poly[(i + 1) % poly.length];
+        if (p[1] <= ym !== q[1] <= ym) xs.push(p[0] + ((ym - p[1]) * (q[0] - p[0])) / (q[1] - p[1]));
+      }
+    }
+    xs.sort((a, b) => a - b);
+    const c = tones[k % 3];
+    for (let i = 0; i + 1 < xs.length; i += 2) {
+      const xa = xs[i] * W, xb = xs[i + 1] * W;
+      if (xb - xa < 0.002) continue;
+      const ring = [P(xa, 0), P(xb, 0), P(xb, D), P(xa, D)];
+      const za = z0 + (k * H) / n;
+      prismPoly(m, ring, za, z0 + ((k + 1) * H) / n, c);
+      // 下の面は板の面（明るい木）：枠の内の上の縁を見上げたとき濃い線の色の帯にならないように
+      m.polygon([ring], za, [0, 0, -1], shade(tones[0], [0, 0, -1]));
+    }
+  }
+}
+
+// 木の板の表示（トイレの入口の「MEN」「WOMEN」。動画 IMG_1080 の 85〜95 秒）：壁に貼った板（縦の木目の縞）に color の字 text
+function addWoodSign(m, it, r, z0, z1, T, tint, txt) {
+  const F = frontOf(r);
+  const H = z1 - z0;
+  prismPoly(m, r, z0, z1, T("signWood"), { bottom: true });
+  const tones = [T("signWood"), T("signWood2"), T("signWood3")];
+  const n = Math.max(3, Math.round(F.L / 0.016));
+  for (let i = 0; i < n; i++) frontQuad(m, F, (F.L * i) / n, (F.L * (i + 1)) / n, z0 + 0.003, z1 - 0.003, 0.0012, tones[Math.floor(hash2(i, 7) * 3)]);
+  if (!txt || !it.text) return;
+  const ux = rightOf(F), lf = leftEnd(F);
+  const opt = { stroke: 0.15, d0: 0.0012, d1: 0.004 };
+  // 字の高さは板の高さの 0.34。行が板の幅の 0.86 を超えるなら小さく（行の幅は字の高さに比例）
+  const size = Math.min(H * 0.34, (F.L * 0.86) / Math.max(1e-6, txt.textWidth(it.text, 1, opt)));
+  const w = txt.textWidth(it.text, size, opt);
+  const plane = { P: (x, y, d) => [[lf[0] + ux[0] * x + F.nf[0] * d, lf[1] + ux[1] * x + F.nf[1] * d], z0 + y], N: [F.nf[0], F.nf[1], 0], U: [ux[0], ux[1], 0], V: [0, 0, 1] };
+  const c = it.color ? tint(COL_HEX(it.color)) : T("darkItem");
+  txt.planeText(m, plane, it.text, (F.L - w) / 2, (H - size) / 2, size, opt, c, c);
+}
+
+// 貼り紙（窓ぎわの本棚の「ご自由にどうぞ FREE to USE」。動画 IMG_1080 の 7〜12 秒）：白い紙に手書きの桃色の 2 行（日本語の字のかわりに線）と
+// 下に緑の「FREE to USE」
+function addNote(m, r, z0, z1, T, txt) {
+  const F = frontOf(r);
+  const H = z1 - z0, L = F.L;
+  prismPoly(m, r, z0, z1, T("paper"), { bottom: true });
+  const ink = T("noteInk");
+  frontQuad(m, F, L * 0.12, L * 0.62, z0 + H * 0.74, z0 + H * 0.8, 0.0012, ink);
+  frontQuad(m, F, L * 0.3, L * 0.76, z0 + H * 0.55, z0 + H * 0.61, 0.0012, ink);
+  frontQuad(m, F, L * 0.62, L * 0.9, z0 + H * 0.88, z0 + H * 0.91, 0.0012, ink);
+  if (!txt) return;
+  const ux = rightOf(F), lf = leftEnd(F);
+  const size = H * 0.12;
+  const opt = { stroke: 0.12, d0: 0.0012, d1: 0.0025 };
+  const w = Math.min(L * 0.9, txt.textWidth("FREE to USE", size, opt));
+  const plane = { P: (x, y, d) => [[lf[0] + ux[0] * x + F.nf[0] * d, lf[1] + ux[1] * x + F.nf[1] * d], z0 + y], N: [F.nf[0], F.nf[1], 0], U: [ux[0], ux[1], 0], V: [0, 0, 1] };
+  txt.planeText(m, plane, "FREE to USE", (L - w) / 2, H * 0.14, size, opt, T("noteGreen"), T("noteGreen"));
+}
+
+// 星の飾り（2 階のエレベーターの扉の左の縁。動画 IMG_1080 の 101〜107 秒）：前の辺のまん中の前に、上から下へ細いひもと 0.24m おきの
+// 紙の星（白とうすい黄色を交互・少しずつ回す。両面）
+function addStars(m, r, z0, z1, T) {
+  const F = frontOf(r);
+  const ux = rightOf(F);
+  const c = lerp2(F.a, F.b, 0.5);
+  const p = [c[0] + F.nf[0] * 0.012, c[1] + F.nf[1] * 0.012];
+  bar(m, [p, z0], [p, z1], 0.003, T("string"));
+  const R = 0.05;
+  let k = 0;
+  for (let z = z1 - 0.12; z > z0 + 0.04; z -= 0.24, k++) {
+    const col = k % 2 ? T("starPale") : T("starWhite");
+    const rot = (hash2(k, 3) - 0.5) * 0.9;
+    const pts = Array.from({ length: 10 }, (_, j) => {
+      const a = Math.PI / 2 + rot + (j * Math.PI) / 5;
+      const rr = j % 2 ? R * 0.42 : R;
+      return [Math.cos(a) * rr, Math.sin(a) * rr];
+    });
+    for (const s of [1, -1]) {
+      const Q = (x, y) => [[p[0] + ux[0] * x + F.nf[0] * 0.002 * s, p[1] + ux[1] * x + F.nf[1] * 0.002 * s], z + y];
+      const nn = [F.nf[0] * s, F.nf[1] * s, 0];
+      for (let j = 0; j < 10; j++) {
+        const a = pts[j], b = pts[(j + 1) % 10];
+        if (s > 0) face(m, [Q(0, 0), Q(a[0], a[1]), Q(b[0], b[1]), Q(0, 0)], nn, col);
+        else face(m, [Q(0, 0), Q(b[0], b[1]), Q(a[0], a[1]), Q(0, 0)], nn, col);
+      }
+    }
+  }
+}
+
+// 1 階・階段の上の新しい物（addFloor の家具から）：描いたら true
+function addStationItem(m, it, r, zf, z0, z1, T, tint) {
+  const color = it.color ? tint(COL_HEX(it.color)) : null;
+  const color2 = it.color2 ? tint(COL_HEX(it.color2)) : null;
+  if (it.kind === "soffit") {
+    // 段々の天井の箱：横は明るい灰、下の面に丸い照明（長い向きに 1.6m おき、幅が広ければ 2 列）
+    prismPoly(m, r, z0, z1, T("soffit"), { sideCol: T("soffit"), top: false });
+    m.polygon([r], z0, [0, 0, -1], shade(T("soffitUnder"), [0, 0, -1]));
+    if (r.length === 4) {
+      const e0 = len(sub(r[1], r[0])), e1 = len(sub(r[2], r[1]));
+      const [a, b, , d] = e0 >= e1 ? r : [r[1], r[2], r[3], r[0]];
+      const Lx = len(sub(b, a)), Ly = len(sub(d, a));
+      const nx = Math.max(1, Math.round(Lx / 1.6));
+      for (let i = 0; i < nx; i++) {
+        for (const fy of Ly > 1.6 ? [0.25, 0.75] : [0.5]) {
+          const fx = (i + 0.5) / nx;
+          const p = [a[0] + (b[0] - a[0]) * fx + (d[0] - a[0]) * fy, a[1] + (b[1] - a[1]) * fx + (d[1] - a[1]) * fy];
+          m.polygon([Array.from({ length: 12 }, (_, k) => [p[0] + 0.08 * Math.cos((Math.PI * k) / 6), p[1] + 0.08 * Math.sin((Math.PI * k) / 6)])], z0 - 0.004, [0, 0, -1], T("dlight"));
+        }
+      }
+    }
+    return true;
+  }
+  if (it.kind === "sdoor" && r.length === 4) {
+    const F = frontOf(r);
+    // 枠の色は color2 があればそれ（白い壁の閉じた扉。2026-11-12）
+    const frame = color2 || T("doorFrame");
+    prismPoly(m, r, z0, z1, frame, { sideCol: frame });
+    frontQuad(m, F, 0.05, F.L - 0.05, z0 + 0.01, z1 - 0.05, 0.003, color || T("doorLeaf"));
+    frontQuad(m, F, F.L - 0.17, F.L - 0.1, z0 + 0.95, z0 + 1.12, 0.025, T("doorKnob"));
+    return true;
+  }
+  if (it.kind === "gate" && r.length === 4) {
+    addGate(m, r, z0, T, color || T("gateBody"));
+    return true;
+  }
+  if (it.kind === "cyl" && r.length === 4) {
+    addCyl(m, r, z0, z1, color || T("cylDark"), color2, it.split != null ? zf + it.split : null, T("railSteel"));
+    return true;
+  }
+  if (it.kind === "locker" && r.length === 4) {
+    addLocker(m, r, z0, z1, T);
+    return true;
+  }
+  if (it.kind === "machine" && r.length === 4) {
+    addMachine(m, r, z0, z1, T, color || T("machine"));
+    return true;
+  }
+  if (it.kind === "tvm" && r.length === 4) {
+    addTvm(m, r, z0, z1, T, color2);
+    return true;
+  }
+  if (it.kind === "poster" && r.length === 4) {
+    addPoster(m, r, z0, z1, T, it, tint);
+    return true;
+  }
+  if (it.kind === "arrow" && r.length >= 3) {
+    const c = centroid(r);
+    const a = Math.min(len(sub(r[1], r[0])), len(sub(r[2], r[1])));
+    const d = sub(r[1], r[0]);
+    const L = len(d) || 1;
+    addFloorArrow(m, c, [d[0] / L, d[1] / L], a, z1, color || T("arrowFg"), T("arrowBg"));
+    return true;
+  }
+  if (it.kind === "dlight") {
+    const c = centroid(r);
+    const R = Math.min(len(sub(r[1], r[0])), len(sub(r[2 % r.length], r[1]))) / 2;
+    m.polygon([Array.from({ length: 16 }, (_, k) => [c[0] + R * Math.cos((Math.PI * k) / 8), c[1] + R * Math.sin((Math.PI * k) / 8)])], z1 - 0.003, [0, 0, -1], color || T("dlight"));
+    return true;
+  }
+  if (it.kind === "hatch" && r.length === 4) {
+    const c = T("hatch");
+    const ce = centroid(r);
+    for (let i = 0; i < 4; i++) {
+      const a = r[i], b = r[(i + 1) % 4];
+      const a2 = lerp2(a, ce, 0.03 / (len(sub(ce, a)) || 1)), b2 = lerp2(b, ce, 0.03 / (len(sub(ce, b)) || 1));
+      face(m, [[a, z1 - 0.004], [b, z1 - 0.004], [b2, z1 - 0.004], [a2, z1 - 0.004]], [0, 0, -1], c);
+    }
+    return true;
+  }
+  if (it.kind === "hydrant" && r.length === 4) {
+    const F = frontOf(r);
+    prismPoly(m, r, z0, z1, T("hydrant"), { sideCol: T("hydrant") });
+    const H = z1 - z0;
+    const cx = F.L / 2, cz = z1 - H * 0.12, R = Math.min(0.07, H * 0.08);
+    const P = (x, y) => [[F.a[0] + F.u[0] * x + F.nf[0] * 0.02, F.a[1] + F.u[1] * x + F.nf[1] * 0.02], y];
+    for (let k = 0; k < 12; k++) {
+      const a0 = (Math.PI * k) / 6, a1 = (Math.PI * (k + 1)) / 6;
+      face(m, [P(cx, cz), P(cx + R * Math.cos(a0), cz + R * Math.sin(a0)), P(cx + R * Math.cos(a1), cz + R * Math.sin(a1)), P(cx, cz)], [F.nf[0], F.nf[1], 0], T("hydrantRed"));
+    }
+    frontQuad(m, F, F.L * 0.25, F.L * 0.75, z1 - H * 0.32, z1 - H * 0.24, 0.004, T("hydrantRed"));
+    return true;
+  }
+  if (it.kind === "rack" && r.length === 4) {
+    // パンフレットの棚：ステンレスの台と枠、奥の板（color）、前の面に 4 段の色とりどりの冊子
+    const F = frontOf(r);
+    const frame = T("rackFrame");
+    prismPoly(m, r, z0, z0 + 0.12, frame, { sideCol: frame });
+    for (const x of [0.02, F.L - 0.02]) bar(m, [[F.a[0] + F.u[0] * x, F.a[1] + F.u[1] * x], z0], [[F.a[0] + F.u[0] * x, F.a[1] + F.u[1] * x], z1], 0.03, frame);
+    const ce = centroid(r);
+    const backC = color || frame;
+    prismPoly(m, r.map((p) => lerp2(p, ce, 0.5)), z0 + 0.12, z1, backC, { sideCol: backC });
+    const pal = ["#d8423c", "#f4f1ea", "#3a78c2", "#e9b631", "#e46f9a", "#4fa266", "#f0f0f0", "#c43c3c"];
+    const seed = Math.round((F.a[0] - F.a[1]) * 10);
+    const rows = 4;
+    const ncol = Math.max(1, Math.round(F.L / 0.24));
+    for (let j = 0; j < rows; j++) {
+      const za = z0 + 0.18 + ((z1 - z0 - 0.25) * j) / rows, zb = za + ((z1 - z0 - 0.25) / rows) * 0.8;
+      for (let i = 0; i < ncol; i++) {
+        const x0 = 0.04 + ((F.L - 0.08) * i) / ncol + 0.01, x1 = 0.04 + ((F.L - 0.08) * (i + 1)) / ncol - 0.01;
+        frontQuad(m, F, x0, x1, za, zb, 0.02 + 0.012 * j, tint(COL_HEX(pal[Math.floor(hash2(seed + j, i) * pal.length)])));
+      }
+    }
+    return true;
+  }
+  return false;
 }

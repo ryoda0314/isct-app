@@ -9,6 +9,9 @@
 // 動き：呼ばれた階・行き先の階へ、今の向きの先の近い階から順に。扉が閉まり、LIFT_SPEED m/s で上下して、着いた階で扉が開く。
 // 扉は人が口のあたりにいるあいだは閉まらない。扉の口は扉が開いているときだけ通れる（liftBlocked）。
 // 写真（動画 IMG_0723 の 2 階：t139・t145）：白い壁に、継ぎ目のないステンレスの扉 1 枚（横に引く）、右に細い呼びボタン、扉の上に表示はない。
+// 附属図書館（2026-11-13、動画 IMG_1077 の 654〜666 秒）：扉は厚い打ち放しの壁の奥。乗り場の操作盤は扉の右の柱の手前の面の縦長のステンレスの板
+// （上に黒い表示＝橙の矢印と今の階、上・下の呼びボタン＝黒い四角に白い矢印・押すと橙、銘板、青い車いすの印、車いす用の上・下）。
+// 物 lift の hall（乗り場の壁の外の面までの出 m）・panel "strip" で、階ごとに（壁の厚さは階で違う）。
 import { Mesh, planeText, textWidth } from "./campus3dMesh.js";
 import { LIFT_DOOR_H, LIFT_DOOR_W, LIFT_WALL, toXY } from "./campus3dFeatures.js";
 
@@ -25,22 +28,51 @@ const STEEL_DARK = [0.52, 0.55, 0.58, 1];
 const CAR_FLOOR = [0.36, 0.37, 0.39, 1];
 const CAR_CEIL = [0.92, 0.92, 0.9, 1];
 const LIGHT = [1, 0.99, 0.94, 0.5]; // 光を受けない色（アルファ 0.5）：天井の照明
-const PANEL = [0.16, 0.17, 0.19, 1];
 const BTN = [0.86, 0.87, 0.88, 1]; // 消えているボタン（明るい金属）
 const BTN_SIDE = [0.6, 0.62, 0.64, 1];
-const BTN_LIT = [1, 0.7, 0.26, 0.5]; // 押して光っているボタン（光を受けない色）
+const BTN_LIT = [1, 0.7, 0.26, 0.5]; // 押して光っているボタン（光を受けない色。乗り場の呼び）
 const BTN_TEXT = [0.12, 0.13, 0.15, 1];
-const DISPLAY = [0.05, 0.05, 0.06, 1];
-const DISPLAY_TEXT = [1, 0.6, 0.18, 0.5];
 const AIM = [1, 1, 1, 0.5]; // 照準が当たっているボタンのふち（光を受けない白）
+// かごの中の操作盤（2026-11-12、動画 IMG_1086：Taki Plaza のかご。扉の右の縦長のステンレスの柱）：上から表示（濃い灰の枠に、明るい
+// 画面＝向きの矢印・今の階・日付と時刻、下にもう 1 枚の消えた画面）、ステンレス、黒い帯（非常呼びの橙のボタン SOS）、銘板、階のボタン
+// （丸い銀色。上の階ほど上、左に点字）、いちばん下に開・閉のボタン（開は緑のふち）
+const PANEL_FACE = [0.66, 0.68, 0.7, 1]; // 柱（少し暗いステンレス）
+const PANEL_EDGE = [0.4, 0.42, 0.45, 1];
+const DISP_FRAME = [0.24, 0.25, 0.28, 1];
+const SCREEN = [0.36, 0.42, 0.52, 0.5]; // 光る画面（光を受けない色）
+const SCREEN_OFF = [0.17, 0.18, 0.2, 1];
+const SCREEN_TEXT = [1, 1, 1, 0.5];
+const BAND = [0.07, 0.07, 0.08, 1];
+const SOS = [0.98, 0.46, 0.12, 0.5];
+const BTN_RING_LIT = [1, 0.97, 0.88, 0.5]; // 押して光っているかごのボタンのふち（白く光る）
+const OPEN_RIM = [0.35, 0.85, 0.5, 0.5];
 // 操作盤・ボタンの寸法（m）
-const PANEL_IN = 0.12; // 口の端から操作盤まで
-const PANEL_W = 0.2;
-const CAR_BTN = 0.07;
-const CAR_BTN_STEP = 0.11;
-const CAR_BTN_Z0 = 0.92; // いちばん下のボタンのまん中（かごの床から）
+const PANEL_IN = 0.1; // 口の端から操作盤まで
+const PANEL_W = 0.22;
+const CAR_BTN = 0.046; // 丸いボタンの径
+const CAR_BTN_STEP = 0.062;
+const CAR_BTN_Z0 = 0.86; // いちばん下のボタンのまん中（かごの床から）
+const CAR_BTN_X = 0.025; // ボタンの列の、柱のまん中から右へ
+const DOOR_BTN = 0.05; // 開・閉のボタン（四角）
+const DOOR_BTN_Z = 0.7;
 const HALL_BTN = 0.045;
 const HALL_FACE = 0.019; // 乗り場のボタンの面（壁の外の面から外へ）
+// 乗り場の縦長の操作盤（panel "strip"。附属図書館）：板の幅・下・上（階の床から）・板の面の出（壁の外の面から）、表示の下・上、
+// 上・下の呼び（HALL_UP_Z・HALL_DN_Z）、車いす用の上・下（WC_Z）
+const STRIP_W = 0.12;
+const STRIP_Z0 = 0.76, STRIP_Z1 = 1.76;
+const STRIP_OUT = 0.012;
+const STRIP_DISP = [1.45, 1.7];
+const HALL_UP_Z = 1.19, HALL_DN_Z = 1.11;
+const WC_Z = [0.885, 0.815];
+const BTN_BLACK = [0.07, 0.07, 0.08, 1]; // 黒い四角のボタン
+const BTN_BLACK_SIDE = [0.2, 0.2, 0.22, 1];
+const ARROW_WHITE = [0.9, 0.91, 0.92, 1];
+const ARROW_LIT = [1, 0.72, 0.16, 0.5]; // 押して光っている矢印（光を受けない橙）
+const LED = [1, 0.5, 0.1, 0.5]; // 表示の橙の字
+const DISP_BLACK = [0.04, 0.04, 0.05, 1];
+const WC_BLUE = [0.1, 0.33, 0.74, 1];
+const PLATE_GREY = [0.6, 0.61, 0.63, 1];
 
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
 const lenOf = (v) => Math.hypot(v[0], v[1]);
@@ -74,7 +106,14 @@ export function collectLifts(floors, groundAt, floorG0) {
         L = { ring, frame: liftFrame(ring), levels: [] };
         out.push(L);
       }
-      L.levels.push({ z: g0 + f.z + (it.z0 || 0), h: (it.z1 || f.height || 3) - (it.z0 || 0), label: f.level || "", order: f.order ?? 0, id: f.id });
+      // 乗り場の扉の色（物の color。大岡山駅の黄色い扉。2026-11-12）
+      if (it.color && !L.doorCol) {
+        const n = parseInt(it.color.slice(1, 7), 16);
+        L.doorCol = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, 0.5]; // 光を受けない色（屋内の照明。暗い黄土色にならないように）
+      }
+      // 乗り場（階ごと）：hall＝乗り場の壁の外の面の出（m）、panel＝操作盤の形（"strip" か null）
+      const hall = Number.isFinite(it.hall) ? Math.max(0, Math.min(1.5, it.hall)) : 0;
+      L.levels.push({ z: g0 + f.z + (it.z0 || 0), h: (it.z1 || f.height || 3) - (it.z0 || 0), label: f.level || "", order: f.order ?? 0, id: f.id, hall, panel: it.panel === "strip" ? "strip" : null });
     }
   }
   for (const L of out) L.levels.sort((a, b) => a.z - b.z);
@@ -105,8 +144,8 @@ function sides(F) {
 }
 const levelText = (lb) => String(lb || "").replace(/F$/i, "") || "?";
 
-// ボタンの並び（形と押したときの意味）：{ kind "car"|"hall", k（階の番号）, dir（hall の上 1・下 −1）, c（面のまん中 [x, y, z]）,
-// N（面の外向き。押す人の側）, U（面の上で右）, hu・hv（半分の幅・高さ）, lit（光っている） }
+// ボタンの並び（形と押したときの意味）：{ kind "car"|"hall"|"door", k（階の番号。door は −1）, dir（hall の上 1・下 −1、door の開 1・閉 −1）,
+// c（面のまん中 [x, y, z]）, N（面の外向き。押す人の側）, U（面の上で右）, hu・hv（半分の幅・高さ）, lit（光っている）, round（丸いボタン） }
 export function liftButtons(L, S) {
   const F = L.frame;
   const { u, n, m } = F;
@@ -115,25 +154,37 @@ export function liftButtons(L, S) {
   const hw = LIFT_DOOR_W / 2;
   const { d0 } = carGeom(L);
   const out = [];
-  // かごの中の操作盤：階のボタン
-  const sBtn = sd.panel * (hw + PANEL_IN + PANEL_W / 2);
+  // かごの中の操作盤：階のボタン（柱のまん中から右へ CAR_BTN_X）と、いちばん下の開・閉
+  const sMid = sd.panel * (hw + PANEL_IN + PANEL_W / 2);
   const inN = [-n[0], -n[1], 0];
   const inU = [n[1], -n[0], 0];
+  // 面の上で右（inU）へ x m の、扉の面に沿った位置 s
+  const sAt = (x) => sMid + x * (inU[0] * u[0] + inU[1] * u[1]);
   L.levels.forEach((_, k) => {
-    const p = P(sBtn, d0 + 0.078);
-    out.push({ kind: "car", k, dir: 0, c: [p[0], p[1], S.carZ + CAR_BTN_Z0 + k * CAR_BTN_STEP], N: inN, U: inU, hu: CAR_BTN / 2, hv: CAR_BTN / 2, lit: S.car.includes(k) });
+    const p = P(sAt(CAR_BTN_X), d0 + 0.078);
+    out.push({ kind: "car", k, dir: 0, c: [p[0], p[1], S.carZ + CAR_BTN_Z0 + k * CAR_BTN_STEP], N: inN, U: inU, hu: CAR_BTN / 2, hv: CAR_BTN / 2, lit: S.car.includes(k), round: true });
   });
-  // 乗り場の呼びボタン：上（いちばん上の階はなし）・下（いちばん下の階はなし）
+  for (const [dir, x] of [[1, -0.035], [-1, 0.045]]) {
+    const p = P(sAt(x), d0 + 0.078);
+    out.push({ kind: "door", k: -1, dir, c: [p[0], p[1], S.carZ + DOOR_BTN_Z], N: inN, U: inU, hu: DOOR_BTN / 2, hv: DOOR_BTN / 2, lit: false });
+  }
+  // 乗り場の呼びボタン：上（いちばん上の階はなし）・下（いちばん下の階はなし）。乗り場の壁の外の面（扉の面から lv.hall 外）に付く。
+  // 縦長の操作盤（strip）は黒い四角のボタンで、上・下の高さは決まった位置、その下に車いす用の上・下（wc。押すと同じように呼ぶ）
   const sHall = sd.hall * (hw + 0.2);
   const outN = [n[0], n[1], 0];
   const outU = [-n[1], n[0], 0];
   const top = L.levels.length - 1;
   L.levels.forEach((lv, k) => {
-    const p = P(sHall, -HALL_FACE);
+    const p = P(sHall, -(HALL_FACE + (lv.hall || 0)));
     const dirs = k === 0 ? [1] : k === top ? [-1] : [1, -1];
+    const strip = lv.panel === "strip";
     for (const dir of dirs) {
-      const zc = lv.z + (dirs.length === 1 ? 1.15 : dir > 0 ? 1.19 : 1.11);
-      out.push({ kind: "hall", k, dir, c: [p[0], p[1], zc], N: outN, U: outU, hu: HALL_BTN / 2, hv: HALL_BTN / 2, lit: S.hall.some((h) => h.k === k && h.dir === dir) });
+      const zc = lv.z + (strip ? (dir > 0 ? HALL_UP_Z : HALL_DN_Z) : dirs.length === 1 ? 1.15 : dir > 0 ? 1.19 : 1.11);
+      out.push({ kind: "hall", k, dir, c: [p[0], p[1], zc], N: outN, U: outU, hu: HALL_BTN / 2, hv: HALL_BTN / 2, lit: S.hall.some((h) => h.k === k && h.dir === dir && !h.wc), dark: strip });
+      if (strip) {
+        const zw = lv.z + (dir > 0 ? WC_Z[0] : WC_Z[1]);
+        out.push({ kind: "hall", k, dir, wc: true, c: [p[0], p[1], zw], N: outN, U: outU, hu: HALL_BTN / 2, hv: HALL_BTN / 2, lit: S.hall.some((h) => h.k === k && h.dir === dir && h.wc), dark: true });
+      }
     }
   });
   return out;
@@ -150,14 +201,26 @@ export function liftPick(lifts, states, o, dir, reach = LIFT_REACH) {
       if (!(t > 0 && t <= reach)) continue;
       const h = [o[0] + dir[0] * t - b.c[0], o[1] + dir[1] * t - b.c[1], o[2] + dir[2] * t - b.c[2]];
       if (Math.abs(h[0] * b.U[0] + h[1] * b.U[1]) > b.hu + PICK_PAD || Math.abs(h[2]) > b.hv + PICK_PAD) continue;
-      if (!best || t < best.t) best = { i, kind: b.kind, k: b.k, dir: b.dir, t };
+      if (!best || t < best.t) best = { i, kind: b.kind, k: b.k, dir: b.dir, wc: !!b.wc, t };
     }
   });
   return best;
 }
 
-// ボタンを押す（b：{ kind, k, dir }）。かごが止まっている階なら扉を開ける。ほかの階なら呼び・行き先に足す（着くまで光る）
+// ボタンを押す（b：{ kind, k, dir }）。かごが止まっている階なら扉を開ける。ほかの階なら呼び・行き先に足す（着くまで光る）。
+// 開（door・dir 1）：動いていなければ扉を開けて待つ。閉（door・dir −1）：開いている扉をすぐ閉める（口に人がいれば開き直す）
 export function pressButton(L, S, b) {
+  if (b && b.kind === "door") {
+    if (S.phase === "moving") return false;
+    if (b.dir > 0) {
+      if (S.phase !== "open") S.phase = "opening";
+      S.hold = Math.max(S.hold, HOLD_S);
+    } else if (S.phase === "open" || S.phase === "opening") {
+      S.phase = "closing";
+      S.hold = 0;
+    }
+    return true;
+  }
   if (!b || !(b.k >= 0 && b.k < L.levels.length)) return false;
   if (b.k === S.level && S.phase !== "moving") {
     if (S.phase === "idle" || S.phase === "closing") S.phase = "opening";
@@ -166,7 +229,7 @@ export function pressButton(L, S, b) {
   }
   if (b.kind === "car") {
     if (!S.car.includes(b.k)) S.car.push(b.k);
-  } else if (!S.hall.some((h) => h.k === b.k && h.dir === b.dir)) S.hall.push({ k: b.k, dir: b.dir || 0 });
+  } else if (!S.hall.some((h) => h.k === b.k && h.dir === b.dir && !!h.wc === !!b.wc)) S.hall.push(b.wc ? { k: b.k, dir: b.dir || 0, wc: true } : { k: b.k, dir: b.dir || 0 });
   return true;
 }
 // 行き先を選ぶ（かごの中の階のボタンを押すのと同じ）
@@ -323,11 +386,94 @@ const onFace = (b, x, y, off) => [[b.c[0] + b.U[0] * x + b.N[0] * off, b.c[1] + 
 function faceRect(m, b, x0, y0, x1, y1, off, c) {
   m.quad([onFace(b, x0, y0, off), onFace(b, x1, y0, off), onFace(b, x1, y1, off), onFace(b, x0, y1, off)], b.N, c);
 }
+// 面の上の太さ w の線（(x0, y0) → (x1, y1)）
+function faceBar(m, b, x0, y0, x1, y1, w, off, c) {
+  const l = Math.hypot(x1 - x0, y1 - y0) || 1;
+  const nx = (-(y1 - y0) / l) * (w / 2), ny = ((x1 - x0) / l) * (w / 2);
+  m.quad([onFace(b, x0 - nx, y0 - ny, off), onFace(b, x1 - nx, y1 - ny, off), onFace(b, x1 + nx, y1 + ny, off), onFace(b, x0 + nx, y0 + ny, off)], b.N, c);
+}
+// 面の上の三角（x, y の 3 点）
+const faceTri = (m, b, pts, off, c) => m.quad([onFace(b, ...pts[0], off), onFace(b, ...pts[1], off), onFace(b, ...pts[2], off), onFace(b, ...pts[2], off)], b.N, c);
+// 面の上の丸（まん中 (x, y)、半径 r）
+function faceDisc(m, b, x, y, r, off, c, seg = 20) {
+  for (let k = 0; k < seg; k++) {
+    const a0 = (2 * Math.PI * k) / seg, a1 = (2 * Math.PI * (k + 1)) / seg;
+    faceTri(m, b, [[x, y], [x + r * Math.cos(a0), y + r * Math.sin(a0)], [x + r * Math.cos(a1), y + r * Math.sin(a1)]], off, c);
+  }
+}
+// 柱の面（ボタンの面 c から BASE m 奥）と、ボタンの出（c から手前へ DEP_B）
+const BASE = -0.0075, DEP_B = 0.005;
+// 面の上の四角の筒（x0〜x1・y0〜y1、奥 o0 〜 手前 o1）の 4 つの側面
+function faceSides(m, b, x0, y0, x1, y1, o0, o1, c) {
+  const P = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  for (let k = 0; k < 4; k++) {
+    const [ax, ay] = P[k], [bx, by] = P[(k + 1) % 4];
+    const nx = by - ay, ny = -(bx - ax), l = Math.hypot(nx, ny) || 1;
+    m.quad([onFace(b, ax, ay, o0), onFace(b, bx, by, o0), onFace(b, bx, by, o1), onFace(b, ax, ay, o1)], [b.U[0] * (nx / l), b.U[1] * (nx / l), ny / l], c);
+  }
+}
+// かごの中の丸いボタン：柱の面の輪の上に銀色の丸（筒）、数字。押して光っていれば輪が白く光る。左に点字
+function drawRoundButton(m, b, label, aimed) {
+  const seg = 20, r = b.hu;
+  faceDisc(m, b, 0, 0, r * 1.2, BASE + 0.0003, b.lit ? BTN_RING_LIT : BTN_SIDE, seg);
+  faceDisc(m, b, 0, 0, r, DEP_B, BTN, seg);
+  for (let k = 0; k < seg; k++) {
+    const a0 = (2 * Math.PI * k) / seg, a1 = (2 * Math.PI * (k + 1)) / seg;
+    const am = (a0 + a1) / 2;
+    const N = [b.U[0] * Math.cos(am), b.U[1] * Math.cos(am), Math.sin(am)];
+    m.quad([onFace(b, r * Math.cos(a0), r * Math.sin(a0), BASE), onFace(b, r * Math.cos(a1), r * Math.sin(a1), BASE), onFace(b, r * Math.cos(a1), r * Math.sin(a1), DEP_B), onFace(b, r * Math.cos(a0), r * Math.sin(a0), DEP_B)], N, BTN_SIDE);
+  }
+  const size = 0.019;
+  const opt = { stroke: 0.13, d0: DEP_B + 0.0003, d1: DEP_B + 0.0013 };
+  const w = textWidth(label, size, opt);
+  const plane = { P: (x, y, d) => onFace(b, x, y, d), N: b.N, U: b.U, V: [0, 0, 1] };
+  planeText(m, plane, label, -w / 2, -size / 2, size, opt, BTN_TEXT, BTN_TEXT);
+  // 左の点字（字の数に合わせた小さな点）
+  const nDots = Math.min(4, 1 + label.length);
+  for (let j = 0; j < nDots; j++) faceRect(m, b, -r - 0.024 + j * 0.006, -0.002 + (j % 2) * 0.004, -r - 0.021 + j * 0.006, 0.001 + (j % 2) * 0.004, BASE + 0.0006, BTN_SIDE);
+  if (aimed) drawAim(m, b);
+}
+// 開・閉のボタン：四角に、開は外へ向く 2 つの三角（緑に光るふち）、閉は内へ向く 2 つの三角
+function drawDoorButton(m, b, aimed) {
+  const DEP = DEP_B, { hu, hv } = b;
+  faceRect(m, b, -hu - 0.004, -hv - 0.004, hu + 0.004, hv + 0.004, BASE + 0.0003, b.dir > 0 ? OPEN_RIM : BTN_SIDE);
+  faceRect(m, b, -hu, -hv, hu, hv, DEP, BTN);
+  faceSides(m, b, -hu, -hv, hu, hv, BASE, DEP, BTN_SIDE);
+  const s = b.dir > 0 ? 1 : -1, h = 0.011, g = 0.002;
+  // 開：◀▶（先が外）、閉：▶◀（先が内）
+  faceTri(m, b, [[-g - (s > 0 ? 0.016 : 0), 0], [-g - (s > 0 ? 0 : 0.016), h], [-g - (s > 0 ? 0 : 0.016), -h]], DEP + 0.0008, BTN_TEXT);
+  faceTri(m, b, [[g + (s > 0 ? 0.016 : 0), 0], [g + (s > 0 ? 0 : 0.016), -h], [g + (s > 0 ? 0 : 0.016), h]], DEP + 0.0008, BTN_TEXT);
+  if (aimed) drawAim(m, b);
+}
+// 車いすの印（青い四角の上の白い人と車輪。まん中 (x, y)、面から off）
+function drawWheelchair(m, b, x, y, off) {
+  const Wt = [0.95, 0.96, 0.97, 1];
+  faceDisc(m, b, x - 0.003, y - 0.008, 0.0125, off, Wt, 16); // 車輪（白い丸に青い丸＝輪）
+  faceDisc(m, b, x - 0.003, y - 0.008, 0.0092, off + 0.0002, WC_BLUE, 16);
+  const o2 = off + 0.0004;
+  faceDisc(m, b, x + 0.002, y + 0.016, 0.0042, o2, Wt, 10); // 頭
+  faceBar(m, b, x - 0.002, y - 0.002, x, y + 0.01, 0.005, o2, Wt); // 胴
+  faceBar(m, b, x - 0.002, y - 0.002, x + 0.01, y - 0.002, 0.0045, o2, Wt); // もも
+  faceBar(m, b, x + 0.013, y - 0.014, x + 0.01, y - 0.002, 0.004, o2, Wt); // すね
+  faceBar(m, b, x, y + 0.007, x + 0.009, y + 0.004, 0.0035, o2, Wt); // 腕
+}
+// 照準が当たっている：白く光るふち（Minecraft の当たっているブロックの枠のかわり）
+function drawAim(m, b) {
+  const { hu, hv } = b;
+  const t = 0.005, g = 0.003;
+  faceRect(m, b, -hu - g - t, hv + g, hu + g + t, hv + g + t, 0.006, AIM);
+  faceRect(m, b, -hu - g - t, -hv - g - t, hu + g + t, -hv - g, 0.006, AIM);
+  faceRect(m, b, -hu - g - t, -hv - g, -hu - g, hv + g, 0.006, AIM);
+  faceRect(m, b, hu + g, -hv - g, hu + g + t, hv + g, 0.006, AIM);
+}
 // ボタン 1 つ：少し出っ張った板（面と 4 つの側面）、数字か三角、光っているか、照準のふち
 function drawButton(m, b, label, aimed) {
+  if (b.round) return drawRoundButton(m, b, label, aimed);
+  if (b.kind === "door") return drawDoorButton(m, b, aimed);
   const DEP = 0.006;
   const { hu, hv } = b;
-  const face = b.lit ? BTN_LIT : BTN;
+  // dark：縦長の乗り場の操作盤（附属図書館）の黒い四角のボタン（白い矢印、押すと矢印が橙に光る）
+  const face = b.dark ? BTN_BLACK : b.lit ? BTN_LIT : BTN;
   faceRect(m, b, -hu, -hv, hu, hv, 0, face);
   const corners = [[-hu, -hv], [hu, -hv], [hu, hv], [-hu, hv]];
   for (let k = 0; k < 4; k++) {
@@ -336,7 +482,17 @@ function drawButton(m, b, label, aimed) {
     const nx = y1 - y0, ny = -(x1 - x0); // 面の上の外向き
     const l = Math.hypot(nx, ny) || 1;
     const N = [b.U[0] * (nx / l), b.U[1] * (nx / l), ny / l];
-    m.quad([onFace(b, x0, y0, -DEP), onFace(b, x1, y1, -DEP), onFace(b, x1, y1, 0), onFace(b, x0, y0, 0)], N, BTN_SIDE);
+    m.quad([onFace(b, x0, y0, -DEP), onFace(b, x1, y1, -DEP), onFace(b, x1, y1, 0), onFace(b, x0, y0, 0)], N, b.dark ? BTN_BLACK_SIDE : BTN_SIDE);
+  }
+  if (b.dark && b.kind === "hall") {
+    // 矢印（三角の頭と軸）
+    const s = b.dir > 0 ? 1 : -1;
+    const ink = b.lit ? ARROW_LIT : ARROW_WHITE;
+    const tri = [[0, 0.012 * s], [-0.01 * s, 0.001 * s], [0.01 * s, 0.001 * s]];
+    m.quad([onFace(b, ...tri[0], 0.0015), onFace(b, ...tri[1], 0.0015), onFace(b, ...tri[2], 0.0015), onFace(b, ...tri[2], 0.0015)], b.N, ink);
+    faceBar(m, b, 0, Math.min(-0.011 * s, 0.002 * s), 0, Math.max(-0.011 * s, 0.002 * s), 0.0055, 0.0015, ink);
+    if (aimed) drawAim(m, b);
+    return;
   }
   const ink = b.lit ? [0.35, 0.16, 0.02, 1] : BTN_TEXT;
   if (b.kind === "car") {
@@ -361,10 +517,18 @@ function drawButton(m, b, label, aimed) {
   }
 }
 
+// かごの中の表示の日付と時刻（日本時間 "YYYY-MM-DD HH:MM"。ms は世界の時計の時刻）
+export function liftClock(ms) {
+  if (!Number.isFinite(ms)) return null;
+  const d = new Date(ms + 9 * 3600000);
+  const p2 = (v) => String(v).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())} ${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`;
+}
+
 // 形：かご（床・3 面の壁・扉の面・天井の照明・手すり・操作盤とボタン・今の階の表示）とかごの扉、各階の乗り場の扉（1 枚の引き戸。開くと口の
-// 片側＝u の向きへ引く）と呼びボタン。aim は照準が当たっているボタン（liftPick の返り値。白いふち）。
-// { solid, glass }（createDoorsLayer の形。照明・光っているボタンはアルファ 0.5＝光を受けない色で solid に）
-export function liftMeshes(lifts, states, aim = null) {
+// 片側＝u の向きへ引く）と呼びボタン。aim は照準が当たっているボタン（liftPick の返り値。白いふち）。clock はかごの表示の日付と時刻
+// （liftClock。なければ出さない）。{ solid, glass }（createDoorsLayer の形。照明・光っているボタンはアルファ 0.5＝光を受けない色で solid に）
+export function liftMeshes(lifts, states, aim = null, clock = null) {
   const solid = new Mesh();
   const glow = solid;
   lifts.forEach((L, i) => {
@@ -401,33 +565,72 @@ export function liftMeshes(lifts, states, aim = null) {
     const lp = [P(-W / 2 + 0.25, d0 + 0.25), P(W / 2 - 0.25, d0 + 0.25), P(W / 2 - 0.25, d1 - 0.25), P(-W / 2 + 0.25, d1 - 0.25)];
     glow.quad([[lp[3], z + H - 0.01], [lp[2], z + H - 0.01], [lp[1], z + H - 0.01], [lp[0], z + H - 0.01]], [0, 0, -1], LIGHT);
     box(-W / 2 + 0.2, W / 2 - 0.2, d1 - 0.1, d1 - 0.05, z + 0.85, z + 0.9, STEEL_DARK);
-    // 操作盤（扉の脇の内側の黒い板）：下に階のボタン、上に今の階の表示
+    // 操作盤（扉の右の縦長のステンレスの柱。動画 IMG_1086）：柱・ボタン・表示
     const sd = sides(F);
     const pa = sd.panel * (hw + PANEL_IN), pb = sd.panel * (hw + PANEL_IN + PANEL_W);
-    const zTop = CAR_BTN_Z0 + L.levels.length * CAR_BTN_STEP + 0.1;
-    box(pa, pb, d0 + 0.05, d0 + 0.07, z + CAR_BTN_Z0 - 0.1, z + zTop, PANEL);
+    box(pa, pb, d0 + 0.05, d0 + 0.07, z + 0.04, z + H - 0.06, PANEL_FACE, PANEL_EDGE);
     const btns = liftButtons(L, S);
-    const isAim = (b) => aim && aim.i === i && aim.kind === b.kind && aim.k === b.k && (aim.dir || 0) === (b.dir || 0);
+    const isAim = (b) => aim && aim.i === i && aim.kind === b.kind && aim.k === b.k && (aim.dir || 0) === (b.dir || 0) && !!aim.wc === !!b.wc;
     for (const b of btns) drawButton(solid, b, b.kind === "car" ? levelText(L.levels[b.k].label) : "", isAim(b));
-    // 今の階の表示（黒い窓に光る数字。動いているあいだは近い階と向きの三角）
-    const car0 = btns.find((b) => b.kind === "car");
-    if (car0) {
-      const near = L.levels.reduce((best, lv, k) => (Math.abs(lv.z - S.carZ) < Math.abs(L.levels[best].z - S.carZ) ? k : best), S.level);
-      const disp = { ...car0, c: [car0.c[0], car0.c[1], z + zTop - 0.065], hu: 0.07, hv: 0.04 };
-      faceRect(solid, disp, -disp.hu, -disp.hv, disp.hu, disp.hv, -0.004, DISPLAY);
-      const label = levelText(L.levels[near].label);
-      const size = 0.034;
-      const opt = { stroke: 0.13, d0: -0.0035, d1: -0.002 };
-      const w = textWidth(label, size, opt);
-      const plane = { P: (x, y, d) => onFace(disp, x, y, d), N: disp.N, U: disp.U, V: [0, 0, 1] };
-      planeText(glow, plane, label, -w / 2 + (S.phase === "moving" ? 0.012 : 0), -size / 2, size, opt, DISPLAY_TEXT, DISPLAY_TEXT);
-      if (S.phase === "moving") {
-        const s = S.target != null && L.levels[S.target].z > S.carZ ? 1 : -1;
-        const x0 = -w / 2 - 0.012;
-        const tri = [[x0, 0.013 * s], [x0 - 0.012, -0.009 * s], [x0 + 0.012, -0.009 * s]];
-        glow.quad([onFace(disp, ...tri[0], -0.002), onFace(disp, ...tri[1], -0.002), onFace(disp, ...tri[2], -0.002), onFace(disp, ...tri[2], -0.002)], disp.N, DISPLAY_TEXT);
-      }
+    // 柱の面の上（x：柱のまん中から右、y：かごの床から。面から少し手前に）
+    const pm = P(sd.panel * (hw + PANEL_IN + PANEL_W / 2), d0 + 0.07);
+    const pf = { c: [pm[0], pm[1], z], N: [-n[0], -n[1], 0], U: [n[1], -n[0], 0] };
+    const W2 = PANEL_W / 2;
+    faceRect(solid, pf, -W2, 0.04, -W2 + 0.006, H - 0.06, 0.0006, PANEL_EDGE); // 両わきの溝
+    faceRect(solid, pf, W2 - 0.006, 0.04, W2, H - 0.06, 0.0006, PANEL_EDGE);
+    faceRect(solid, pf, -W2 + 0.012, 1.66, W2 - 0.012, 2.12, 0.0008, DISP_FRAME); // 表示の枠
+    faceRect(solid, pf, -0.072, 1.73, 0.072, 1.87, 0.0016, SCREEN_OFF); // 消えた画面
+    faceRect(solid, pf, -W2 + 0.012, 1.18, W2 - 0.012, 1.38, 0.0008, BAND); // 黒い帯
+    faceRect(solid, pf, -W2 + 0.012, 1.276, W2 - 0.012, 1.282, 0.0012, DISP_FRAME);
+    faceRect(glow, pf, -0.038, 1.196, -0.004, 1.23, 0.0016, SOS); // 非常呼び
+    faceRect(solid, pf, -0.035, 1.128, 0.07, 1.158, 0.0008, DISP_FRAME); // 銘板
+    // 光る画面：向きの矢印と今の階（大きな白い字）、下に日付と時刻（clock）
+    faceRect(glow, pf, -0.072, 1.92, 0.072, 2.07, 0.0016, SCREEN);
+    const near = L.levels.reduce((best, lv, k) => (Math.abs(lv.z - S.carZ) < Math.abs(L.levels[best].z - S.carZ) ? k : best), S.level);
+    const label = levelText(L.levels[near].label);
+    const plane = { P: (x, y, d) => onFace(pf, x, y, d), N: pf.N, U: pf.U, V: [0, 0, 1] };
+    const size = 0.056;
+    const opt = { stroke: 0.08, d0: 0.0022, d1: 0.0028 };
+    planeText(glow, plane, label, 0.006, 1.985, size, opt, SCREEN_TEXT, SCREEN_TEXT);
+    const dir = S.phase === "moving" && S.target != null ? Math.sign(L.levels[S.target].z - S.carZ) : S.dir || 0;
+    if (dir) {
+      // ∧（上）・∨（下）：細い 2 本の線
+      const ax = -0.03, y0 = dir > 0 ? 1.985 : 2.041, y1 = dir > 0 ? 2.041 : 1.985;
+      faceBar(glow, pf, ax - 0.022, y0, ax, y1, 0.0045, 0.0025, SCREEN_TEXT);
+      faceBar(glow, pf, ax, y1, ax + 0.022, y0, 0.0045, 0.0025, SCREEN_TEXT);
     }
+    if (clock) {
+      const cs = 0.0115, copt = { stroke: 0.12, d0: 0.0022, d1: 0.0028 };
+      planeText(glow, plane, clock, -textWidth(clock, cs, copt) / 2, 1.938, cs, copt, SCREEN_TEXT, SCREEN_TEXT);
+    }
+    // 乗り場の縦長の操作盤（panel "strip"。附属図書館の動画 IMG_1077 の 660 秒）：乗り場の壁の外の面（扉の面から lv.hall 外）に、
+    // ステンレスの板・黒い表示の窓（橙の今の階、動いているときは向きの矢印）・銘板・青い車いすの印・下の銘板。ボタンは liftButtons
+    const sStrip = sd.hall * (hw + 0.2);
+    const ledOpt = { stroke: 0.13, d0: 0.0012, d1: 0.0018 };
+    L.levels.forEach((lv) => {
+      if (lv.panel !== "strip") return;
+      const off = lv.hall || 0;
+      box(sStrip - STRIP_W / 2, sStrip + STRIP_W / 2, -off - STRIP_OUT, -off + 0.003, lv.z + STRIP_Z0, lv.z + STRIP_Z1, PANEL_FACE, PANEL_FACE);
+      const hm = P(sStrip, -off - STRIP_OUT);
+      const hf = { c: [hm[0], hm[1], lv.z], N: [n[0], n[1], 0], U: [-n[1], n[0], 0] };
+      const w2 = STRIP_W / 2;
+      faceRect(solid, hf, -w2, STRIP_Z0, -w2 + 0.004, STRIP_Z1, 0.0005, PANEL_EDGE); // 両わきの細い影
+      faceRect(solid, hf, w2 - 0.004, STRIP_Z0, w2, STRIP_Z1, 0.0005, PANEL_EDGE);
+      faceRect(solid, hf, -w2 + 0.012, STRIP_DISP[0], w2 - 0.012, STRIP_DISP[1], 0.0008, DISP_BLACK); // 表示の窓
+      const hp = { P: (x, y, d) => onFace(hf, x, y, d), N: hf.N, U: hf.U, V: [0, 0, 1] };
+      const ls = Math.min(0.07, 0.08 / Math.max(0.01, textWidth(label, 1, ledOpt)));
+      planeText(glow, hp, label, -textWidth(label, ls, ledOpt) / 2, STRIP_DISP[0] + 0.035, ls, ledOpt, LED, LED);
+      if (dir) {
+        const yc = STRIP_DISP[0] + 0.175, s = dir > 0 ? 1 : -1;
+        const tri = [[0, yc + 0.04 * s], [-0.026 * s, yc + 0.006 * s], [0.026 * s, yc + 0.006 * s]];
+        glow.quad([onFace(hf, ...tri[0], 0.0016), onFace(hf, ...tri[1], 0.0016), onFace(hf, ...tri[2], 0.0016), onFace(hf, ...tri[2], 0.0016)], hf.N, LED);
+        faceBar(glow, hf, 0, Math.min(yc + 0.008 * s, yc - 0.04 * s), 0, Math.max(yc + 0.008 * s, yc - 0.04 * s), 0.014, 0.0016, LED);
+      }
+      faceRect(solid, hf, -0.034, 1.034, 0.034, 1.058, 0.0008, PLATE_GREY); // 銘板
+      faceRect(solid, hf, -0.024, 0.935, 0.024, 0.983, 0.0008, WC_BLUE); // 車いすの印
+      drawWheelchair(solid, hf, 0, 0.959, 0.0012);
+      faceRect(solid, hf, -0.03, 0.775, 0.03, 0.792, 0.0008, PLATE_GREY); // 下の銘板
+    });
     // かごの扉と乗り場の扉：1 枚の引き戸（口の幅＋重ね 0.05）。開くと u の向きへ口の幅だけ引く
     const f = ease(S.door);
     const door = (dd, za, zb) => {
@@ -437,7 +640,9 @@ export function liftMeshes(lifts, states, aim = null) {
     door(d0 - 0.035, z, z + LIFT_DOOR_H);
     L.levels.forEach((lv, k) => {
       const sh = k === S.level && Math.abs(S.carZ - lv.z) < 0.02 ? f * (LIFT_DOOR_W + 0.02) : 0;
-      box(-hw - 0.03 + sh, hw + 0.03 + sh, 0.015, 0.045, lv.z, lv.z + LIFT_DOOR_H, STEEL); // 壁の厚さの中（開くと壁の中へ引き込む）
+      box(-hw - 0.03 + sh, hw + 0.03 + sh, 0.015, 0.045, lv.z, lv.z + LIFT_DOOR_H, L.doorCol || STEEL); // 壁の厚さの中（開くと壁の中へ引き込む）
+      // 色のある扉（大岡山駅の黄色い扉）は縦長の暗いガラスの窓
+      if (L.doorCol) box(-0.07 + sh, 0.07 + sh, 0.008, 0.016, lv.z + 0.75, lv.z + 1.85, STEEL_DARK);
     });
   });
   return { solid: solid.result(), glass: new Mesh().result() };

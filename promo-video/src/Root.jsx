@@ -14,6 +14,8 @@ import { TL } from './film/theme.js';
 import { PhoneCheck } from './film/dev/PhoneCheck.jsx';
 import { TX, XPromo, XS } from './x/XPromo.jsx';
 import { ZUNDA_TOTAL, ZundaPromo } from './zundamon/ZundaPromo.jsx';
+import { CampusMapFilm } from './campus3d/CampusMapFilm.jsx';
+import { TL as C3D_TL } from './campus3d/shots.js';
 
 export const RemotionRoot = () => {
   return (
@@ -66,6 +68,8 @@ export const RemotionRoot = () => {
       <Composition id="ZundaPromo" component={ZundaPromo} durationInFrames={ZUNDA_TOTAL} fps={FPS} width={W} height={H} />
       {/* X（Twitter）のタイムライン用（1080x1080・約30秒・工大祭は扱わない） */}
       <Composition id="XPromo" component={XPromo} durationInFrames={TX.total} fps={FPS} width={XS} height={XS} />
+      {/* 大岡山キャンパス 3D マップ紹介映像（アプリの 3D 地図を撮影・約3分。素材は out/c3d_public、render_campus3d.mjs で書き出す） */}
+      <Composition id="CampusMapFilm" component={CampusMapFilm} durationInFrames={C3D_TL.total} fps={FPS} width={W} height={H} />
       {/* 開発用：3Dモデルの端末の見え方の確認 */}
       <Composition id="PhoneCheck" component={PhoneCheck} durationInFrames={1} fps={FPS} width={W} height={H} />
       {/* 開発用：ver2 の3Dキャンパスのカメラ確認（--props で調整） */}
