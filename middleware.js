@@ -52,8 +52,6 @@ const PUBLIC_CACHEABLE = new Set([
   '/api/data/reg-courses',
   '/api/data/reg-sections',
   '/api/data/free-rooms',
-  '/api/data/book-search',
-  '/api/data/book-search-med',
 ]);
 
 function getTier(pathname, method) {
