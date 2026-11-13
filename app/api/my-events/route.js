@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 // NOTE: /api/events is the campus-event RSVP endpoint. Personal calendar events
@@ -29,7 +29,7 @@ const toRow = (e, userId) => {
 // GET: list my calendar events
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const sb = getSupabaseAdmin();
     const { data, error } = await sb
@@ -48,7 +48,7 @@ export async function GET(request) {
 // POST: create one or more events { events: [{ title, color, memo, start, end }] }
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const body = await request.json();
     const list = Array.isArray(body.events) ? body.events : [body];
@@ -77,7 +77,7 @@ export async function POST(request) {
 // PATCH: update an event { id, title?, color?, memo?, start?, end? }
 export async function PATCH(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { id, title, color, memo, start, end } = await request.json();
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
@@ -121,7 +121,7 @@ export async function PATCH(request) {
 // DELETE: remove an event { id }
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { id } = await request.json();
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });

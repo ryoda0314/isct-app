@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 // POST: register/refresh a native push device token (APNs / iOS)
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const { token, platform } = await request.json();
@@ -32,7 +32,7 @@ export async function POST(request) {
 // DELETE: unregister a device token (logout / notifications disabled)
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const { token } = await request.json();

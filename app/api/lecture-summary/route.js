@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { isAdmin } from '../../../lib/auth/is-admin.js';
 
 // 授業の文字起こし全文を受け取り、構造化した要約(Markdown)を返す。
@@ -31,7 +31,7 @@ const SYSTEM_PROMPT = `あなたは大学の講義を要約する優秀なアシ
 
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
 
     // 一旦、管理者のみ利用可能

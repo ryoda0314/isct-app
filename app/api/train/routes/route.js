@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 // ユーザーの登録電車ルート CRUD（出欠ルートと同型）。
@@ -8,7 +8,7 @@ const COLS = 'id, origin_station, dest_station, label, sort_order, on_home, type
 
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const sb = getSupabaseAdmin();
     const { data, error } = await sb
@@ -30,7 +30,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
 
     const { origin_station, dest_station, label, sort_order } = await request.json();
@@ -69,7 +69,7 @@ export async function POST(request) {
 // type_filter: 表示する種別IDの配列。null/空 = 全種別表示（絞り込み無し）。
 export async function PATCH(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
 
     const body = await request.json();
@@ -106,7 +106,7 @@ export async function PATCH(request) {
 
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
 
     const { id } = await request.json();

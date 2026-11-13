@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { deleteCredentials, loadCredentials, saveCredentials } from '../../../../lib/credentials.js';
 import { invalidateToken } from '../../../../lib/auth/token-manager.js';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession, invalidateAuthProfile } from '../../../../lib/auth/require-auth.js';
 import { COOKIE_NAME, destroyUserSessions, verifySession } from '../../../../lib/auth/session.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { generateTOTP } from '../../../../lib/auth/totp.js';
@@ -91,7 +91,7 @@ const isFullMatrix = (m) => !!m && typeof m === 'object' &&
  * Omitted / empty fields keep their stored values.
  */
 export async function PATCH(request) {
-  const auth = await requireAuth(request);
+  const auth = await requireSession(request);
   if (auth.error) return auth.error;
 
   let body;
@@ -140,7 +140,7 @@ export async function PATCH(request) {
  *   - 'all': full account deletion — remove all user data from Supabase
  */
 export async function DELETE(request) {
-  const auth = await requireAuth(request);
+  const auth = await requireSession(request);
   if (auth.error) return auth.error;
 
   let type = null;
@@ -280,6 +280,18 @@ export async function DELETE(request) {
       // Continue with credential deletion even if some data cleanup failed
     }
   }
+
+  // 資格情報を消したら、他の端末のログインも無効にする。requireSession は資格情報を見ないので、
+  // profiles.sessions_valid_after（これより前に発行された Cookie は無効）で止める。
+  // 'all' は profiles 自体を消すので、requireSession は requirePortal に回り、資格情報が無いため 401 になる。
+  if (type !== 'all') {
+    try {
+      const sb = getSupabaseAdmin();
+      const { error } = await sb.from('profiles').update({ sessions_valid_after: new Date().toISOString() }).eq('moodle_id', auth.userid);
+      if (error) console.warn('[Credentials DELETE] session revoke:', error.message);
+    } catch (e) { console.warn('[Credentials DELETE] session revoke failed:', e.message); }
+  }
+  invalidateAuthProfile(auth.userid);
 
   // Delete credentials and sessions (for both default and 'all')
   await deleteCredentials(auth.loginId);

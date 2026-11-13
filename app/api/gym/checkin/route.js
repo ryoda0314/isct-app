@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 // 入口に貼った静的QRのペイロード（クライアント側 GYM_QR と一致させる）。
@@ -11,7 +11,7 @@ const EXPECTED_QR = 'sciencetokyo-gym:ookayama';
 //   なければ入館（行 upsert＋check_in ログ）。
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
 

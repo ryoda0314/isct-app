@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 const COLS = ['A','B','C','D','E','F','G','H','I','J'];
@@ -40,7 +40,7 @@ const PROMPT = `この画像はマトリクス認証カードです。
 export async function POST(request) {
   try {
     // 認証チェック — ログインユーザーのみ利用可能
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
 
     // ユーザー単位レート制限（Supabase永続化）

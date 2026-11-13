@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 // ScienceTokyo Music のアルバム管理。作成/編集/削除は管理者のみ（配信は全員向け=公式）。
@@ -26,7 +26,7 @@ function coverFromBody(body) {
 // POST: アルバム作成  { title, artist?, cover?:{path} }
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();
@@ -68,7 +68,7 @@ export async function POST(request) {
 // PATCH: 編集 { id, title?, artist?, cover? } または 並び替え { order:[id,...] }
 export async function PATCH(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();
@@ -111,7 +111,7 @@ export async function PATCH(request) {
 // DELETE: アルバム削除 ?id=  （曲は消さず album_id=null へ戻る＝DBの on delete set null）
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();

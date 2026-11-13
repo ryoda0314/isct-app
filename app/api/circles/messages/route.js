@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { checkNgWords } from '../../../../lib/ng-filter.js';
 import { getCircleAuthz } from '../../../../lib/circles.js';
@@ -11,7 +11,7 @@ async function channelCircle(sb, channelId) {
 
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();
@@ -61,7 +61,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid, fullname } = auth;
     const { channel_id, text } = await request.json();
@@ -97,7 +97,7 @@ export async function POST(request) {
 
 export async function PATCH(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const { message_id, channel_id, pinned } = await request.json();

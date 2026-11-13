@@ -1,21 +1,15 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
-import { COOKIE_NAME } from '../../../lib/auth/session.js';
+import { requireSession, optionalSession } from '../../../lib/auth/require-auth.js';
 import { isAdmin } from '../../../lib/auth/is-admin.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { TABLE, BUCKET, CURRENT_FESTIVAL, MAX_IMAGE_SIZE, COUPON_START, COUPON_END, COLS, toClient, buildRow } from '../../../lib/festival.js';
 
 // 学園祭の出店・展示の宣伝。閲覧は来場者（未ログイン）にも公開。掲載は代表者の申請 → 運営の承認で行う。
-// ログインしていれば auth を返し、未ログイン（またはセッション無効）なら null。
-async function optionalAuth(request) {
-  if (!request.cookies.get(COOKIE_NAME)?.value) return null;
-  const auth = await requireAuth(request);
-  return auth.error ? null : auth;
-}
+// 閲覧は optionalSession（ログインしていれば auth、未ログイン・無効なら null）。
 
 export async function GET(request) {
   try {
-    const auth = await optionalAuth(request);
+    const auth = await optionalSession(request);
     const userid = auth?.userid || null;
     // 出店ページは管理者も一般と同じ表示。管理画面（scope=admin）のときだけ非表示の出店や管理用の情報を返す
     const admin = userid && new URL(request.url).searchParams.get('scope') === 'admin' ? await isAdmin(userid) : false;
@@ -50,7 +44,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const body = await request.json();
@@ -111,7 +105,7 @@ export async function POST(request) {
 
 export async function PATCH(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const body = await request.json();
@@ -162,7 +156,7 @@ export async function PATCH(request) {
 
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const { id } = await request.json();

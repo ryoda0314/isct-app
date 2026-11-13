@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 
 // =============================================================
 // 空き教室ファインダー API
@@ -137,7 +137,7 @@ function slotRange(ps, pe) {
 }
 
 export async function GET(req) {
-  const auth = await requireAuth(req);
+  const auth = await requireSession(req);
   if (auth.error) return auth.error;
 
   const { searchParams } = new URL(req.url);

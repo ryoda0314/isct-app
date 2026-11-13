@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { isAdmin } from '../../../../lib/auth/is-admin.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { createNotification } from '../../../../lib/notify.js';
@@ -25,7 +25,7 @@ async function removeUnusedImage(sb, app, boothImagePath) {
 
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();
@@ -97,7 +97,7 @@ export async function GET(request) {
 // 申請を出す
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid, loginId, fullname } = auth;
     const body = await request.json();
@@ -206,7 +206,7 @@ export async function POST(request) {
 // 取り下げ（本人） / 承認・却下（管理者）
 export async function PATCH(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const { id, action, reason } = await request.json();

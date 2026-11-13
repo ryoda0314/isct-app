@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 const VALID_REASONS = ['spam', 'harassment', 'inappropriate', 'copyright', 'other'];
@@ -8,7 +8,7 @@ const VALID_TARGETS = ['post', 'comment', 'message', 'dm', 'user', 'circle', 'fe
 // POST /api/reports — ユーザーが通報を送信
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
 
     const { targetType, targetId, targetUserId, reason, detail } = await request.json();

@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { hydrateCircles, applyCirclePatch, ensureAdminRole, getCircleAuthz, newId } from '../../../lib/circles.js';
 
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();
@@ -28,7 +28,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid, fullname } = auth;
     const body = await request.json();
@@ -81,7 +81,7 @@ export async function POST(request) {
 
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const { searchParams } = new URL(request.url);
@@ -117,7 +117,7 @@ export async function DELETE(request) {
 
 export async function PATCH(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid, fullname } = auth;
     const body = await request.json();

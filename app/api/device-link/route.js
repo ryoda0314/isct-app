@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 /**
@@ -19,7 +19,7 @@ const MAX_PUB = 256;
 
 export async function POST(request) {
   // Only a fully authenticated device may hand off credentials.
-  const auth = await requireAuth(request);
+  const auth = await requireSession(request);
   if (auth.error) return auth.error;
 
   let body;

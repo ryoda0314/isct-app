@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { DEPTS } from '../../../../campus-sns/data.js';
 import { isEnrolledInCourse } from '../../../../lib/auth/course-enrollment.js';
@@ -14,7 +14,7 @@ import { isEnrolledInCourse } from '../../../../lib/auth/course-enrollment.js';
 //   ?prefix=global:sandbox      → everyone
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
 
     const prefix = new URL(request.url).searchParams.get('prefix') || '';

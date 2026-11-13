@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { invalidateMuteCache } from '../../../lib/mutes.js';
 
 // GET: list muted users
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const sb = getSupabaseAdmin();
     const { data, error } = await sb
@@ -25,7 +25,7 @@ export async function GET(request) {
 // POST: mute a user
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { muted_id } = await request.json();
     if (!muted_id || muted_id === auth.userid) {
@@ -47,7 +47,7 @@ export async function POST(request) {
 // DELETE: unmute a user
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { muted_id } = await request.json();
     if (!muted_id) {

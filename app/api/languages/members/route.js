@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { isLangCode } from '../../../../campus-sns/languages.js';
 
@@ -8,7 +8,7 @@ import { isLangCode } from '../../../../campus-sns/languages.js';
 // → { members: [{ id, name, avatar, color, role, joined_at }], roleMap: { <uid>: role } }
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
 

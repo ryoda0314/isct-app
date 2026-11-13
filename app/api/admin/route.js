@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession, invalidateAuthProfile } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { sendPushToUser } from '../../../lib/push.js';
 import { createNotification } from '../../../lib/notify.js';
@@ -58,7 +58,7 @@ async function checkNgWords(sb, text) {
 // GET /api/admin?action=stats|users|posts|messages|admins|reports|announcements|audit_log|comments|...
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     if (!(await isAdmin(auth.userid))) {
       // H12: Log unauthorized admin access attempts
@@ -978,7 +978,7 @@ export async function GET(request) {
 // POST /api/admin
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     if (!(await isAdmin(auth.userid))) {
       // H12: Log unauthorized admin access attempts
@@ -1020,6 +1020,7 @@ export async function POST(request) {
         banned: true, banned_at: new Date().toISOString(), ban_reason: reason || null,
       }).eq('moodle_id', moodleUserId);
       if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
+      invalidateAuthProfile(moodleUserId); // この実行環境の認証キャッシュに即反映（他は最大60秒）
       await auditLog(sb, auth.userid, 'ban_user', 'user', moodleUserId, { reason });
       return NextResponse.json({ ok: true });
     }
@@ -1031,6 +1032,7 @@ export async function POST(request) {
         banned: false, banned_at: null, ban_reason: null,
       }).eq('moodle_id', moodleUserId);
       if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
+      invalidateAuthProfile(moodleUserId); // この実行環境の認証キャッシュに即反映（他は最大60秒）
       await auditLog(sb, auth.userid, 'unban_user', 'user', moodleUserId);
       return NextResponse.json({ ok: true });
     }
@@ -1933,7 +1935,7 @@ export async function POST(request) {
 // DELETE /api/admin  { type: 'post'|'message'|'comment', id }
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     if (!(await isAdmin(auth.userid))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

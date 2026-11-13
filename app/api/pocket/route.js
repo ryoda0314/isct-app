@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 // 自分専用クリップボード（端末間同期）。owner_id = 認証ユーザー でのみ読み書き可能。
@@ -33,7 +33,7 @@ async function signAttachment(sb, item, userid) {
 // GET: 自分のポケット一覧
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();
@@ -71,7 +71,7 @@ export async function GET(request) {
 // ファイル本体はサーバーを経由せず、クライアント→Supabase に直接アップロードする（Vercelの本文サイズ制限を回避）。
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();
@@ -147,7 +147,7 @@ export async function POST(request) {
 // PATCH: ピン留めトグル
 export async function PATCH(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();
@@ -171,7 +171,7 @@ export async function PATCH(request) {
 // DELETE: アイテム削除（添付の実体も削除）
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();

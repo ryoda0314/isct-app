@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 // 個人の筋トレ記録。moodle_user_id = 認証ユーザー でのみ読み書き可能（service_role 経由）。
@@ -10,7 +10,7 @@ const numOrNull = (v) => (v === '' || v == null || Number.isNaN(Number(v)) ? nul
 // GET: 自分の記録一覧（新しい順）
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
 
@@ -34,7 +34,7 @@ export async function GET(request) {
 // POST: 記録を追加
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
 
@@ -68,7 +68,7 @@ export async function POST(request) {
 // DELETE: 自分の記録を削除（?id=）
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
 

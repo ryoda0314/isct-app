@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { isLangCode, isLangRole } from '../../../campus-sns/languages.js';
 
@@ -8,7 +8,7 @@ import { isLangCode, isLangRole } from '../../../campus-sns/languages.js';
 export async function GET(request) {
   try {
     const t0 = Date.now();
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const tAuth = Date.now();
@@ -43,7 +43,7 @@ export async function GET(request) {
 // Join a language community, or change your role in one (upsert on (lang_code,user_id)).
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid, fullname } = auth;
 
@@ -87,7 +87,7 @@ export async function POST(request) {
 // DELETE /api/languages  { lang_code }  — leave a community
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 // 管理者判定（admin/route.js・music/route.js と同じ仕組み: ENV_ADMIN_IDS + admin_users テーブル）
@@ -15,7 +15,7 @@ const TYPES = new Set(['info', 'maintenance', 'update', 'urgent']);
 // GET: アクティブなお知らせ一覧（ピン留め優先 → 新しい順）
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
 
     const sb = getSupabaseAdmin();
@@ -39,7 +39,7 @@ export async function GET(request) {
 // POST: お知らせ作成（管理者のみ）
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
 

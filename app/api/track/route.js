@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 // 認証ユーザーの利用イベントをバッチ受信して usage_events に追記する。
@@ -24,7 +24,7 @@ function checkRate(userid) {
 // POST /api/track  body: { events: [{ event, feature?, ts?, sid? }, ...] }
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const moodleId = auth.userid;
 

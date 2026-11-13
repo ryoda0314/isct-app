@@ -1,9 +1,9 @@
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 
 export async function GET(req) {
   // Require authentication
-  const auth = await requireAuth(req);
+  const auth = await requireSession(req);
   if (auth.error) return auth.error;
 
   const { searchParams } = new URL(req.url);

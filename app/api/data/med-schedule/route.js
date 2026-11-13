@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { lookupMedSessionsFromDB } from '../../../../lib/api/syllabus-med.js';
 
 /**
@@ -11,7 +11,7 @@ import { lookupMedSessionsFromDB } from '../../../../lib/api/syllabus-med.js';
  */
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
 
     const { courses } = await request.json();

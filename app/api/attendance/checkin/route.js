@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { checkInsideBuilding } from '../../../../campus-sns/hooks/useLocationSharing.js';
 
@@ -17,7 +17,7 @@ function todayJST() {
 //   付与自体は award_attendance RPC が冪等(授業回ごと1回)＋日次上限で行う。
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
 

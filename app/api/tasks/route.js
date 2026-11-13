@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 const MAX_TITLE = 200;
@@ -10,7 +10,7 @@ const toClient = (r) => ({ id: r.id, t: r.title, d: r.done, due: r.due_at });
 // GET: list my tasks (oldest first, matches add order)
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const sb = getSupabaseAdmin();
     const { data, error } = await sb
@@ -29,7 +29,7 @@ export async function GET(request) {
 // POST: create a task { title, due? }
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { title, due } = await request.json();
     const t = String(title || '').trim();
@@ -64,7 +64,7 @@ export async function POST(request) {
 // PATCH: update a task { id, done?, title?, due? }
 export async function PATCH(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { id, done, title, due } = await request.json();
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
@@ -102,7 +102,7 @@ export async function PATCH(request) {
 // DELETE: remove a task { id }
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { id } = await request.json();
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { getBlockedIds } from '../../../lib/blocks.js';
 import { sendPushToUser } from '../../../lib/push.js';
@@ -61,7 +61,7 @@ async function getMutualCounts(sb, userid, myFriendSet, candidateIds) {
 // GET: list friends, pending requests, sent requests, or search users
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();
@@ -485,7 +485,7 @@ export async function GET(request) {
 // POST: send friend request
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid, fullname } = auth;
     const { to_user_id } = await request.json();
@@ -593,7 +593,7 @@ export async function POST(request) {
 // PATCH: accept or reject friend request
 export async function PATCH(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const { friendship_id, action } = await request.json();
@@ -650,7 +650,7 @@ export async function PATCH(request) {
 // DELETE: unfriend
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const { friend_id } = await request.json();

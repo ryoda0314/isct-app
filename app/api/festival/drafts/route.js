@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { TABLE, BUCKET, APP_TABLE, LINK_TABLE, DRAFT_TABLE } from '../../../../lib/festival.js';
 
@@ -31,7 +31,7 @@ async function roster(sb, userid) {
 
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();
@@ -57,7 +57,7 @@ export async function GET(request) {
 // 下書きを保存（上書き）
 export async function PUT(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const { key, form } = await request.json();
@@ -85,7 +85,7 @@ export async function PUT(request) {
 // 下書きを破棄。一時保存で上げた画像がどこにも使われていなければ消す。
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const { key } = await request.json();

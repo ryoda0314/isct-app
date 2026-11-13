@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 // POST: デイリーログインのツバメポイントを受け取る（JST で 1 日 1 回・冪等）。
@@ -7,7 +7,7 @@ import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 //   2回目以降は { claimed:false } で現状値が返る（エラーにしない）。
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
 

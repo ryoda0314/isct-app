@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getNotifPrefs, saveNotifPrefs } from '../../../../lib/notif-prefs.js';
 
 // GET: the user's push notification preferences.
@@ -7,7 +7,7 @@ import { getNotifPrefs, saveNotifPrefs } from '../../../../lib/notif-prefs.js';
 // client may upload its existing localStorage settings once.
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     return NextResponse.json(await getNotifPrefs(auth.userid));
   } catch (err) {
@@ -19,7 +19,7 @@ export async function GET(request) {
 // PUT: { enabled?, course?, deadline?, dm?, event? } — booleans only
 export async function PUT(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== 'object') {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 const KINDS = new Set(['sci', 'med']);
@@ -8,7 +8,7 @@ const STATUSES = new Set(['present', 'absent', 'late', 'cancelled']);
 // GET: ユーザーの全出欠記録を { [kind]: { [course_key]: { [session_key]: status } } } で返す
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
 
@@ -39,7 +39,7 @@ export async function GET(request) {
 // POST: 1セッションの状態を upsert
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
 
@@ -78,7 +78,7 @@ export async function POST(request) {
 // DELETE: 1セッションの記録を削除（=未記録に戻す）
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { isEnrolledInCourse } from '../../../../lib/auth/course-enrollment.js';
 import { stripAnonAuthor } from '../../../../lib/anon-post.js';
@@ -9,7 +9,7 @@ const toMoodleId = (id) => id?.startsWith('mc_') ? id.slice(3) : id;
 // Fetch multiple posts by IDs (for bookmark view)
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { wstoken, userid } = auth;
 

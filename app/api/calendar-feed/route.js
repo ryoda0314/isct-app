@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { randomBytes, createHash } from 'crypto';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 // Owner-side management of the iCal subscription feed (see supabase/calendar-feed.sql).
@@ -46,7 +46,7 @@ function normItem(it) {
 // GET: feed status { enabled, url, syncedAt }
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const sb = getSupabaseAdmin();
     const { data, error } = await sb
@@ -67,7 +67,7 @@ export async function GET(request) {
 // so the old one stops working.
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { rotate } = await request.json().catch(() => ({}));
     const sb = getSupabaseAdmin();
@@ -107,7 +107,7 @@ export async function POST(request) {
 // content actually changed (disk-IO budget), and never creates a feed.
 export async function PUT(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const body = await request.json().catch(() => ({}));
     if (!Array.isArray(body.items)) return NextResponse.json({ error: 'items required' }, { status: 400 });
@@ -150,7 +150,7 @@ export async function PUT(request) {
 // DELETE: turn the feed off — the URL stops working immediately.
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const sb = getSupabaseAdmin();
     const { error } = await sb.from('calendar_feeds').delete().eq('user_id', auth.userid);

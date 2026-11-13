@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { loadCredentials } from '../../../../lib/credentials.js';
 
@@ -43,7 +43,7 @@ async function resolveStudentId(loginId, profileStudentId) {
 
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
 
     const sb = getSupabaseAdmin();
@@ -92,7 +92,7 @@ export async function GET(request) {
 
 export async function PATCH(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
 
     const body = await request.json();

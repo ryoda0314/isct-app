@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { broadcast, supportAdminTopic, supportUserTopic, supportTicketTopic } from '../../../lib/realtime.js';
 
@@ -20,7 +20,7 @@ function sanitizeDiagnostics(d) {
 // GET /api/support?action=tickets | thread&ticketId=
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const sb = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
@@ -93,7 +93,7 @@ export async function GET(request) {
 // POST /api/support  { action: create | send | read }
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const sb = getSupabaseAdmin();
     const body = await request.json();

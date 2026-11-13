@@ -1,11 +1,11 @@
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 
 /** Normalize fullwidth digits (０-９) to halfwidth (0-9) */
 const norm = s => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
 
 export async function GET(req) {
-  const auth = await requireAuth(req);
+  const auth = await requireSession(req);
   if (auth.error) return auth.error;
 
   const { searchParams } = new URL(req.url);

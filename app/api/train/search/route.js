@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { searchStaticDestinations } from '../../../../lib/api/static-timetables.js';
 
 // 目的地検索: 出発駅(大岡山など)から到達可能な目的地駅を駅名で検索する。
@@ -8,7 +8,7 @@ import { searchStaticDestinations } from '../../../../lib/api/static-timetables.
 
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
 
     const { searchParams } = new URL(request.url);

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { notifyDeadline } from '../../../../lib/deadline-notify.js';
 
 // Assignment data lives client-side (Moodle is fetched from the client), so the
@@ -14,7 +14,7 @@ const MAX_ITEMS = 50;
 
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
 

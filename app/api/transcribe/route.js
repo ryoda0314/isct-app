@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import OpenAI, { toFile } from 'openai';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { isAdmin } from '../../../lib/auth/is-admin.js';
 
 // 準リアルタイム(チャンク)方式: 30秒程度の短い音声セグメントを1件ずつ受け取り、
@@ -13,7 +13,7 @@ const MAX_SEGMENT_SIZE = 8 * 1024 * 1024; // 8MB
 
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
 
     // 一旦、管理者のみ利用可能

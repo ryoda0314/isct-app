@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '../../../lib/auth/require-auth.js';
+import { requireSession } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 // 自分専用ミュージックライブラリ（ScienceTokyo Music）。owner_id = 認証ユーザー でのみ読み書き可能。
@@ -68,7 +68,7 @@ async function signAlbum(sb, row) {
 // { tracks, albums } を返す（useMusic は両形に対応済み）。
 export async function GET(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();
@@ -127,7 +127,7 @@ export async function GET(request) {
 //   2) { audio:{name,path,size,type}, title, artist?, cover?:{path}, duration? } → アップロード済みをDBに記録
 export async function POST(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();
@@ -247,7 +247,7 @@ export async function POST(request) {
 //   { id, title?, artist? }  または  { order: [id, id, ...] }
 export async function PATCH(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();
@@ -299,7 +299,7 @@ export async function PATCH(request) {
 // DELETE: 曲削除（音源・カバーの実体も削除）
 export async function DELETE(request) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requireSession(request);
     if (auth.error) return auth.error;
     const { userid } = auth;
     const sb = getSupabaseAdmin();
