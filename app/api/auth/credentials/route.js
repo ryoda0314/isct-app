@@ -168,6 +168,17 @@ export async function DELETE(request) {
     return NextResponse.json({ success: true });
   }
 
+  // 資格情報の削除・アカウント削除では、他の端末のログインも無効にする。requireSession は資格情報を見ないので、
+  // profiles.sessions_valid_after（これより前に発行された Cookie は無効）で止める。
+  // 'all' でも削除の前に必ず入れる: profiles の削除は外部キー（course_enrollments など）で失敗し得るため、
+  // 「行が消えたから requirePortal に回る」には頼らない（行が残っても失効している状態にする）。
+  try {
+    const sbRevoke = getSupabaseAdmin();
+    const { error } = await sbRevoke.from('profiles').update({ sessions_valid_after: new Date().toISOString() }).eq('moodle_id', auth.userid);
+    if (error) console.warn('[Credentials DELETE] session revoke:', error.message);
+  } catch (e) { console.warn('[Credentials DELETE] session revoke failed:', e.message); }
+  invalidateAuthProfile(auth.userid);
+
   if (type === 'all') {
     // Full account deletion: remove all user data from Supabase
     const sb = getSupabaseAdmin();
@@ -274,23 +285,15 @@ export async function DELETE(request) {
       try { await deleteTimetableExamples(userId); } catch {}
 
       // 17. Profile — LAST (all FK references must be cleared first)
-      await sb.from('profiles').delete().eq('moodle_id', userId);
+      // 外部キーで消せなかった場合は行が残るが、上で sessions_valid_after を入れてあるので Cookie は無効のまま
+      const { error: profErr } = await sb.from('profiles').delete().eq('moodle_id', userId);
+      if (profErr) console.error('[Account Deletion] profile row not deleted (sessions stay revoked):', profErr.message);
     } catch (e) {
       console.error('[Account Deletion] Error deleting user data:', e.message);
       // Continue with credential deletion even if some data cleanup failed
     }
   }
 
-  // 資格情報を消したら、他の端末のログインも無効にする。requireSession は資格情報を見ないので、
-  // profiles.sessions_valid_after（これより前に発行された Cookie は無効）で止める。
-  // 'all' は profiles 自体を消すので、requireSession は requirePortal に回り、資格情報が無いため 401 になる。
-  if (type !== 'all') {
-    try {
-      const sb = getSupabaseAdmin();
-      const { error } = await sb.from('profiles').update({ sessions_valid_after: new Date().toISOString() }).eq('moodle_id', auth.userid);
-      if (error) console.warn('[Credentials DELETE] session revoke:', error.message);
-    } catch (e) { console.warn('[Credentials DELETE] session revoke failed:', e.message); }
-  }
   invalidateAuthProfile(auth.userid);
 
   // Delete credentials and sessions (for both default and 'all')
