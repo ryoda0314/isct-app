@@ -5,6 +5,7 @@ import { I } from "../icons.jsx";
 import { getCurrentQuarter } from "../academicCalendar.js";
 import { REQ_BY_Q, QUARTERS, siblingQ, isSemesterSpan, academicYearOf, CAT_COLORS, UNIT_OPT, LAB_OPT, SCHOOLS, SHARED_DEPTS, DEPT_LABELS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
 import { TimetableExampleCard } from "../components/TimetableExampleCard.jsx";
+import { toGridSlots, buildGrid, mergeCells, useRegCourseSearch } from "../regCore.js";
 import { getAuth } from "../authState.js";
 
 // Per year-level + quarter localStorage
@@ -87,8 +88,6 @@ export const RegView=({mob})=>{
   const [optOpen,setOptOpen]=useState(true);
   const [openCats,setOpenCats]=useState({});
   const [search,setSearch]=useState("");
-  const [searchCats,setSearchCats]=useState(null); // cross-level search results
-  const [searchLoading,setSearchLoading]=useState(false);
   const [detailCourse,setDetailCourse]=useState(null);
   const [syllabusData,setSyllabusData]=useState(null);
   const [syllabusLoading,setSyllabusLoading]=useState(false);
@@ -184,28 +183,10 @@ export const RegView=({mob})=>{
       .catch(()=>{setDbCats([]);setDbLoading(false);});
   },[quarter,browseLevel,level,deptParam]);
 
-  // ── Cross-level search (debounced) ──
-  useEffect(()=>{
-    if(search.length<2){setSearchCats(null);setSearchLoading(false);return;}
-    setSearchLoading(true);
-    const timer=setTimeout(()=>{
-      fetch(`/api/data/reg-courses?year=${REG_YEAR}&quarter=${quarter}&search=${encodeURIComponent(search)}`)
-        .then(r=>r.json()).then(d=>{setSearchCats(d.categories||[]);setSearchLoading(false);})
-        .catch(()=>{setSearchCats([]);setSearchLoading(false);});
-    },300);
-    return ()=>clearTimeout(timer);
-  },[search,quarter]);
+  // ── Cross-level search (debounced) — 時間割をつくる と共通（regCore.js） ──
+  const {cats:searchCats,loading:searchLoading}=useRegCourseSearch(REG_YEAR,quarter,search);
 
-  // ── Convert DB slot to grid positions (handles multi-block spans like 5-8限) ──
-  const toGridSlots=(s)=>{
-    const di={月:0,火:1,水:2,木:3,金:4}[s.day];
-    if(di==null) return [];
-    const startPi=Math.floor((s.period_start-1)/2);
-    const endPi=Math.floor(((s.period_end||s.period_start)-1)/2);
-    const out=[];
-    for(let pi=startPi;pi<=endPi;pi++) if(pi>=0&&pi<5) out.push([di,pi]);
-    return out;
-  };
+  // ── Convert DB slot to grid positions: toGridSlots（regCore.js） ──
 
   // Color helper: strips "N00番台 " prefix for CAT_COLORS lookup
   const catCol=(name)=>CAT_COLORS[name]||CAT_COLORS[name.replace(/^\d00番台\s*/,'')]||'#6b7280';
@@ -236,35 +217,10 @@ export const RegView=({mob})=>{
   },[req,sci,opt,optInfo,quarter,browseLevel]);
 
   // ── Grid ──
-  const grid=useMemo(()=>{
-    const g=Array.from({length:5},()=>Array(5).fill(null));
-    for(const c of active) for(const s of c.sel){
-      const prev=g[s[1]][s[0]];
-      if(prev) g[s[1]][s[0]]={...c,conflict:prev.name};
-      else g[s[1]][s[0]]=c;
-    }
-    return g;
-  },[active]);
+  const grid=useMemo(()=>buildGrid(active),[active]);
 
   // ── Merge vertically adjacent same-course cells ──
-  const cellEntries=useMemo(()=>{
-    const entries=[];
-    const visited=new Set();
-    for(let pi=0;pi<5;pi++) for(let di=0;di<5;di++){
-      if(visited.has(`${pi}-${di}`)) continue;
-      const c=grid[pi][di];
-      let span=1;
-      if(c&&!c.conflict){
-        for(let pj=pi+1;pj<5;pj++){
-          const next=grid[pj][di];
-          if(next&&next.id===c.id&&!next.conflict){span++;visited.add(`${pj}-${di}`);}
-          else break;
-        }
-      }
-      entries.push({di,pi,c,span});
-    }
-    return entries;
-  },[grid]);
+  const cellEntries=useMemo(()=>mergeCells(grid),[grid]);
 
   const credits=active.reduce((s,c)=>s+c.cr,0);
   const slotCount=active.reduce((s,c)=>s+(c.sel?.length||0),0);

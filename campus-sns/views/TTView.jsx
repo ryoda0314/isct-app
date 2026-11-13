@@ -3,7 +3,8 @@ import { T } from "../theme.js";
 import { t } from "../i18n.js";
 import { I } from "../icons.jsx";
 export const TTView=(_p)=>{
-  const {setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefresh,courses=[],hiddenSet=new Set(),goToBuilding,pastTTCache={},fetchPastTimetable,pastTTLoading=false,pastTTError=null}=_p;
+  // onEdit: 端末の時間割（時間割をつくる）を使っているときだけ渡される → 「編集」ボタンと空のときの案内を出す
+  const {onEdit,setCid,setView,setCh,asgn,mob,quarter,setQuarter,qd,onRefresh,courses=[],hiddenSet=new Set(),goToBuilding,pastTTCache={},fetchPastTimetable,pastTTLoading=false,pastTTError=null}=_p;
   const _yr=_p.tty,_setYr=_p.setTty;
   const days=["月","火","水","木","金"],daysFull=["Monday","Tuesday","Wednesday","Thursday","Friday"],dayJP=["月曜日","火曜日","水曜日","木曜日","金曜日"];
   const pds=["1","2","3","4","5"],pdLabel=pds.map(p=>`${p}${t("tt.periodSuffix")}`),pdTimes=["8:50–10:30","10:45–12:25","13:30–15:10","15:25–17:05","17:15–18:55"];
@@ -47,6 +48,20 @@ export const TTView=(_p)=>{
       {merged?t("tt.merge"):t("tt.split")}
     </button>
   );
+  const EditBtn=()=>onEdit?(
+    <button onClick={onEdit}
+      style={{background:`${T.accent}15`,border:`1px solid ${T.accent}40`,borderRadius:6,padding:"3px 10px",cursor:"pointer",
+        display:"flex",alignItems:"center",gap:4,fontSize:mob?12:13,fontWeight:600,color:T.accent}}>
+      {I.pen}{t("tt.edit")}
+    </button>
+  ):null;
+  // 端末の時間割がまだ空のとき（ゲスト・LMS に授業が無い人）: 時間割をつくる への入口
+  const BuildCta=()=>(onEdit&&!isPast&&curC.length===0)?(
+    <div style={{padding:mob?"14px 12px":"18px 20px",borderRadius:12,background:`${T.accent}0c`,border:`1px solid ${T.accent}30`,marginBottom:mob?8:14,display:"flex",flexDirection:mob?"column":"row",alignItems:mob?"stretch":"center",gap:10}}>
+      <div style={{flex:1,fontSize:13,color:T.txH,lineHeight:1.6}}>{t("tt.emptyLocal")}</div>
+      <button onClick={onEdit} style={{padding:"9px 18px",borderRadius:10,border:"none",background:T.accent,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{t("tt.buildCta")}</button>
+    </div>
+  ):null;
   const RefreshBtn=()=>onRefresh?(<>
     <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     <button onClick={handleRefresh} disabled={refreshing}
@@ -153,11 +168,11 @@ export const TTView=(_p)=>{
       <header style={{display:"flex",alignItems:"center",gap:8,padding:"env(safe-area-inset-top) 12px 0",minHeight:46,borderBottom:`1px solid ${T.bd}`,flexShrink:0,background:T.bg2}}>
         <div style={{display:"flex",alignItems:"center",gap:8,width:"100%",height:46}}>
           <h1 style={{flex:1,margin:0,fontSize:16,fontWeight:700,color:T.txH,display:"flex",alignItems:"center",gap:6}}>{t("nav.timetable")} <QDrop/> <YrDrop/></h1>
-          <MergeBtn/><RefreshBtn/>
+          <EditBtn/><MergeBtn/><RefreshBtn/>
         </div>
       </header>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:8}}>
-        <PastBanner/>
+        <PastBanner/><BuildCta/>
         {isPast&&pastTTLoading&&!pastData?null:<><div style={{display:"grid",gridTemplateColumns:"32px repeat(5,1fr)",gridTemplateRows:"auto repeat(5,1fr)",gap:2}}>
           <div/>
           {days.map((d,i)=>{const isT=i===todayIdx;return(
@@ -227,9 +242,9 @@ export const TTView=(_p)=>{
           </div>
           <span style={{fontSize:12,color:T.txD}}>{credits!=null?t("tt.coursesCredits",{courses:curC.length,credits}):t("tt.countCourses",{n:curC.length})}</span>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:6}}><MergeBtn/><RefreshBtn/></div>
+        <div style={{display:"flex",alignItems:"center",gap:6}}><EditBtn/><MergeBtn/><RefreshBtn/></div>
       </div>
-      <PastBanner/>
+      <PastBanner/><BuildCta/>
       {isPast&&pastTTLoading&&!pastData?null:<><div style={{display:"grid",gridTemplateColumns:`52px repeat(5,1fr)`,gridTemplateRows:"44px repeat(5,1fr)",gap:gap}}>
         <div/>
         {days.map((d,i)=>{const isT=i===todayIdx;return(

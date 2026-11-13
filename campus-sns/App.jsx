@@ -14,6 +14,9 @@ import { requiresLogin } from "./features.js";
 import { FeatureGate, featureTitle } from "./components/FeatureGate.jsx";
 import { markAccount, hadAccount, clearAccountStorage } from "./accountStorage.js";
 import { MigrateLocalData, hasLocalDataToMove } from "./components/MigrateLocalData.jsx";
+import { TTBuilderView } from "./views/TTBuilderView.jsx";
+import { LocalCourseCard } from "./components/LocalCourseCard.jsx";
+import { useLocalTimetable } from "./localTimetable.js";
 import { usePresence } from "./hooks/usePresence.js";
 import { useCourseMembers, resetCourseMembersCache } from "./hooks/useCourseMembers.js";
 import { useDeptMembers } from "./hooks/useDeptMembers.js";
@@ -224,8 +227,14 @@ export default function App(){
   const [pastTTLoading,setPastTTLoading]=useState(false);
   const [pastTTError,setPastTTError]=useState(null);
   const [_selY,_setSelY]=useState(()=>{try{const v=localStorage.getItem("tty");if(v)return Number(v);const jd=new Date(Date.now()+9*3600000);return jd.getUTCMonth()>=3?jd.getUTCFullYear():jd.getUTCFullYear()-1;}catch{const jd=new Date(Date.now()+9*3600000);return jd.getUTCMonth()>=3?jd.getUTCFullYear():jd.getUTCFullYear()-1;}});
-  const qd=(qDataLive&&qDataLive[quarter])||QData[quarter]||{C:[],TT:[]};
   const [allCourses,setAllCourses]=useState([]);
+  // 時間割の出どころ（ログイン任意化 Phase 6）: LMS に授業があればそれ、無ければ「時間割をつくる」の端末の時間割
+  // （ゲスト・LMS に授業が無いアカウント。localTimetable.js）。時間割を使う画面には coursesEff / qDataEff を渡す。
+  const ttLocal=useLocalTimetable();
+  const useLocalTT=!isDemoMode()&&allCourses.length===0;
+  const coursesEff=useLocalTT?ttLocal.courses:allCourses;
+  const qDataEff=useLocalTT?ttLocal.qData:(qDataLive||QData);
+  const qd=(qDataEff&&qDataEff[quarter])||{C:[],TT:[]};
   const [medRawCourses,setMedRawCourses]=useState([]);
   const [demoMedKey,setDemoMedKey]=useState(null);
   const [medSessions,setMedSessions]=useState([]);
@@ -349,7 +358,7 @@ export default function App(){
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
-  const calFeed=useCalendarFeed({enabled:acct,asgn,hiddenAsgn,courses:allCourses,qDataAll:qDataLive||QData,pastTTCache,medSessions,records:attRecords,myEvents});
+  const calFeed=useCalendarFeed({enabled:acct,asgn,hiddenAsgn,courses:coursesEff,qDataAll:qDataEff,pastTTCache,medSessions,records:attRecords,myEvents});
   const [pomo,setPomo]=useState({running:false,sec:25*60,mode:"work",sessions:0});
   const [searchQ,setSearchQ]=useState("");
   const [notifEnabled,setNotifEnabled]=useState(()=>{try{const v=localStorage.getItem("notifEnabled");return v!==null?JSON.parse(v):true;}catch{return true;}});
@@ -872,7 +881,7 @@ export default function App(){
   useEffect(()=>{try{localStorage.setItem("quarter",String(quarter));}catch{}},[quarter]);
   // Push the full timetable (all quarters/years) to the iOS widget; it filters by its
   // own year+quarter config. defaultYear/Quarter = what an unconfigured widget shows. Native-only.
-  useEffect(()=>{if(allCourses&&allCourses.length)saveTimetableToWidget({allCourses,pastTTCache,defaultYear:_selY,defaultQuarter:quarter});},[allCourses,pastTTCache,quarter,_selY]);
+  useEffect(()=>{if(coursesEff&&coursesEff.length)saveTimetableToWidget({allCourses:coursesEff,pastTTCache,defaultYear:_selY,defaultQuarter:quarter});},[coursesEff,pastTTCache,quarter,_selY]);
   useEffect(()=>{try{localStorage.setItem("notifEnabled",JSON.stringify(notifEnabled));}catch{}},[notifEnabled]);
   useEffect(()=>{try{localStorage.setItem("notifSettings",JSON.stringify(notifSettings));}catch{}},[notifSettings]);
   // オンライン復帰時、前回データ（キャッシュ）表示中なら自動で取り直す
@@ -937,7 +946,7 @@ export default function App(){
   };
   const onDemo=(personaId)=>{const pd=buildDemoDataForPersona(personaId);setDemoMode(true);setScreenshotMode(personaId==="ss");setAllCourses(pd.courses);setQDataLive(pd.qdata);setAsgn(pd.asgn.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setCurrentUserFromAPI(pd.user);const medRaw=DEMO_MED_RAW_COURSES[personaId];if(medRaw){setMedRawCourses(medRaw);setDemoMedKey(personaId);const ms=buildDemoMedSessions(personaId);setMedSessions(ms.sessions||[]);}else{setMedRawCourses([]);setDemoMedKey(null);setMedSessions([]);}const q2c=pd.courses.find(c=>c.quarter===2);setCid(q2c?q2c.id:pd.courses[0].id);setQuarter(2);circleInit();try{localStorage.setItem("myLocation","lib");}catch{}setAuth({status:"account",portal:"ok",demo:true});loginReqRef.current=null;setLoginReq(null);setAppState("ready");};
 
-  const cc=allCourses.find(c=>c.id===cid);
+  const cc=coursesEff.find(c=>c.id===cid);
   const userDepts=useMemo(()=>{
     // 学系を登録済みのユーザーのみ表示
     if(user.myDept&&DEPTS[user.myDept]){
@@ -964,7 +973,7 @@ export default function App(){
   const [deptModalDone,setDeptModalDone]=useState(false);
   const showDeptModal=acct&&!isDemoMode()&&!deptModalDone&&!user.myDept; // ゲストには出さない（所属はプロフィールで端末に保存）
   const cd=did===SANDBOX.prefix?SANDBOX:userDepts.find(d=>d.prefix===did)||userSchools.find(s=>s.prefix===did)||(userUnit&&did===userUnit.prefix?userUnit:null);
-  const qCourseIds=useMemo(()=>new Set(allCourses.filter(c=>(c.quarters?.length?c.quarters.includes(quarter):c.quarter===quarter)&&(!_selY||!c.year||c.year===_selY)).map(c=>c.id)),[allCourses,quarter,_selY]);
+  const qCourseIds=useMemo(()=>new Set(coursesEff.filter(c=>(c.quarters?.length?c.quarters.includes(quarter):c.quarter===quarter)&&(!_selY||!c.year||c.year===_selY)).map(c=>c.id)),[coursesEff,quarter,_selY]);
   const hiddenSet=useMemo(()=>new Set(hiddenAsgn),[hiddenAsgn]);
   const asgnLoading=asgn.some(a=>a.st==='loading');
   const ac=asgnLoading?null:asgn.filter(a=>a.st!=="completed"&&qCourseIds.has(a.cid)&&!hiddenSet.has(a.id)).length;
@@ -1166,16 +1175,16 @@ export default function App(){
   const TR=telecomRestricted;
   const courseContent=()=>{
     if(!cc) return null;
-    if(ch==="timeline") return <FeedView course={cc} mob={mob} bmarks={bmarks} togBmark={togBmark} courses={allCourses} onOfflineQueue={enqueueOffline}/>;
+    if(ch==="timeline") return <FeedView course={cc} mob={mob} bmarks={bmarks} togBmark={togBmark} courses={coursesEff} onOfflineQueue={enqueueOffline}/>;
     if(ch==="chat") return <ChatView course={cc} mob={mob}/>;
-    if(ch==="assignments") return <AsgnView asgn={asgn} setAsgn={setAsgn} course={cc} mob={mob} courses={allCourses}/>;
+    if(ch==="assignments") return <AsgnView asgn={asgn} setAsgn={setAsgn} course={cc} mob={mob} courses={coursesEff}/>;
     if(ch==="materials") return <MatView course={cc} mob={mob} initialMatId={pendingMat?.courseId===cc.id?pendingMat.matId:null} onInitialConsumed={()=>setPendingMat(null)} onAnnotate={annotateMaterial} onOpenNote={openMaterialNote}/>;
-    if(ch==="reviews") return <ReviewView reviews={reviews} setReviews={setReviews} course={cc} mob={mob} courses={allCourses}/>;
+    if(ch==="reviews") return <ReviewView reviews={reviews} setReviews={setReviews} course={cc} mob={mob} courses={coursesEff}/>;
     return null;
   };
   const deptContent=()=>{
     if(!cd) return null;
-    if(ch==="timeline") return <FeedView dept={cd} mob={mob} courses={allCourses} onOfflineQueue={enqueueOffline}/>;
+    if(ch==="timeline") return <FeedView dept={cd} mob={mob} courses={coursesEff} onOfflineQueue={enqueueOffline}/>;
     if(ch==="chat") return <ChatView dept={cd} mob={mob}/>;
     return null;
   };
@@ -1205,7 +1214,7 @@ export default function App(){
         </div>}
         {eff==="med"
           ?<MedAttendanceView medSessions={medSessions} records={attRecords} setStatus={setAttStatus} mob={m}/>
-          :<SciAttendanceView courses={allCourses} records={attRecords} setStatus={setAttStatus} quarter={quarter} setQuarter={setQuarter} academicYear={_selY} setAcademicYear={_setSelY} mob={m}/>}
+          :<SciAttendanceView courses={coursesEff} records={attRecords} setStatus={setAttStatus} quarter={quarter} setQuarter={setQuarter} academicYear={_selY} setAcademicYear={_setSelY} mob={m}/>}
       </div>
     );
   };
@@ -1249,7 +1258,7 @@ export default function App(){
 
   // --- DESKTOP ---
   if(!mob){
-    const titles={home:t("nav.home"),timetable:t("nav.timetable"),tasks:t("header.taskMgmt"),calendar:t("nav.calendar"),acadCal:t("tool.acadCal"),exams:t("tool.exams"),dm:t("common.dm"),notif:t("nav.notif"),grades:t("tool.grades"),pomo:t("tool.pomo"),events:t("tool.events"),reviews:t("tool.reviews"),bmarks:t("tool.bmarks"),search:t("nav.search"),profile:t("nav.profile"),navigation:t("nav.navigation"),friends:t("nav.friends"),circles:t("nav.circles"),languages:t("nav.languages"),admin:t("nav.admin"),freshman:t("nav.freshman"),festival:t("festival.title"),reg:t("more.regAssist"),freeroom:t("tool.freeroom"),attendance:t("nav.attendance"),music:t("tool.music"),pdftools:t("nav.pdftools"),notes:t("nav.notes")};
+    const titles={home:t("nav.home"),timetable:t("nav.timetable"),tasks:t("header.taskMgmt"),calendar:t("nav.calendar"),acadCal:t("tool.acadCal"),exams:t("tool.exams"),dm:t("common.dm"),notif:t("nav.notif"),grades:t("tool.grades"),pomo:t("tool.pomo"),events:t("tool.events"),reviews:t("tool.reviews"),bmarks:t("tool.bmarks"),search:t("nav.search"),profile:t("nav.profile"),navigation:t("nav.navigation"),friends:t("nav.friends"),circles:t("nav.circles"),languages:t("nav.languages"),admin:t("nav.admin"),freshman:t("nav.freshman"),festival:t("festival.title"),reg:t("more.regAssist"),ttbuild:t("nav.ttbuild"),freeroom:t("tool.freeroom"),attendance:t("nav.attendance"),music:t("tool.music"),pdftools:t("nav.pdftools"),notes:t("nav.notes")};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:t("chan.timeline"),chat:t("chan.chat"),assignments:t("chan.assignments"),materials:t("chan.materials"),reviews:t("chan.reviews")}[ch]}</>;
       if(view==="dept"&&cd){const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?locName(cd):cd.prefix}</span> {nameOnly?"":`${locName(cd)} `}— {{timeline:t("chan.timeline"),chat:t("chan.chat")}[ch]||""}</>;}
@@ -1258,18 +1267,18 @@ export default function App(){
     return(
       <div style={{display:"flex",height:"100dvh",width:"100%",background:T.bg,color:T.tx,fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,'Hiragino Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
 
-        <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} dmUnread={dmUnread} courses={allCourses} depts={userDepts} schools={userSchools} user={user} quarter={quarter} academicYear={_selY} pendingFriendCount={pendingFriendCount} userUnit={userUnit} compact={false} narrow={bp==="tablet"} hasMed={hasMed}/>
+        <DSide cid={cid} did={did} view={view} setView={setView} setCid={setCid} setDid={setDid} setCh={setCh} ac={ac} unreadN={unreadN} dmUnread={dmUnread} courses={coursesEff} depts={userDepts} schools={userSchools} user={user} quarter={quarter} academicYear={_selY} pendingFriendCount={pendingFriendCount} userUnit={userUnit} compact={false} narrow={bp==="tablet"} hasMed={hasMed}/>
         {bp!=="mobile"&&view==="course"&&cc&&<DChan course={cc} ch={ch} setCh={setCh} online={online} members={members} compact={bp==="tablet"}/>}
         {bp!=="mobile"&&view==="dept"&&cd&&<DChan dept={cd} ch={ch} setCh={setCh} online={online} members={deptMembers} compact={bp==="tablet"}/>}
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
           <DTop title={dTitle()} color={view==="course"&&cc?cc.col:view==="dept"&&cd?cd.col:undefined}/>
           {offlineBanner}{authBanner}{lmsDownBanner}
           {refreshingBanner}
-          {view==="home"&&<HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit} medSessions={medSessions} setPendingMat={setPendingMat} records={attRecords} setStatus={setAttStatus}/>}
-  {view==="timetable"&&(gated("timetable")?fg("timetable"):<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob={false} quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={acct?fetchData:null} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={acct?fetchPastTimetable:undefined} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
+          {view==="home"&&<HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={coursesEff} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataEff} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit} medSessions={medSessions} setPendingMat={setPendingMat} records={attRecords} setStatus={setAttStatus}/>}
+  {view==="timetable"&&(gated("timetable")?fg("timetable"):<TTView onEdit={useLocalTT?()=>setView("ttbuild"):null} setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob={false} quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={acct?fetchData:null} courses={coursesEff} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={acct?fetchPastTimetable:undefined} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
           {view==="med-tt"&&(gated("med-tt")?fg("med-tt"):<MedTTView courses={medRawCourses} mob={false} setCid={setCid} setView={setView} setCh={setCh} demoKey={demoMedKey} asgn={asgn} hiddenSet={hiddenSet} onRefresh={acct?fetchData:null}/>)}
-          {view==="tasks"&&(gated("tasks")?fg("tasks"):<AsgnView asgn={asgn} setAsgn={setAsgn} mob={false} myTasks={myTasks} addTask={addTaskFn} toggleTask={toggleTaskFn} deleteTask={deleteTaskFn} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/>)}
-          {view==="course"&&(gated("course")?fg("course"):cc&&courseContent())}
+          {view==="tasks"&&(gated("tasks")?fg("tasks"):<AsgnView asgn={asgn} setAsgn={setAsgn} mob={false} myTasks={myTasks} addTask={addTaskFn} toggleTask={toggleTaskFn} deleteTask={deleteTaskFn} navCourse={navCrs} courses={coursesEff} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/>)}
+          {view==="course"&&(cc?.local?<LocalCourseCard course={cc} mob={false} acct={acct} onLogin={()=>openLoginSheet({intent:"course"})} setView={setView} goToBuilding={goToBuilding}/>:gated("course")?fg("course"):cc&&courseContent())}
           {view==="dept"&&(gated("dept")?fg("dept"):cd&&deptContent())}
           {view==="friends"&&(gated("friends")?fg("friends"):<FriendsView mob={false} setView={setView} {...friendProps}/>)}
           {view==="user"&&(gated("user")?fg("user"):<UserProfileView mob={false} {...profileProps}/>)}
@@ -1277,20 +1286,20 @@ export default function App(){
           {view==="pocket"&&(gated("pocket")?fg("pocket"):<PocketView mob={false}/>)}
           {view==="music"&&(gated("music")?fg("music"):<MusicView mob={false}/>)}
           {view==="pdftools"&&(gated("pdftools")?fg("pdftools"):<PdfToolsView mob={false}/>)}
-          {view==="notes"&&(gated("notes")?fg("notes"):<NotesView mob={false} courses={allCourses} pendingNote={pendingNote} onPendingConsumed={()=>setPendingNote(null)}/>)}
+          {view==="notes"&&(gated("notes")?fg("notes"):<NotesView mob={false} courses={coursesEff} pendingNote={pendingNote} onPendingConsumed={()=>setPendingNote(null)}/>)}
           {view==="notif"&&(gated("notif")?fg("notif"):<NotifView mob={false} pending={friendPending} acceptRequest={acceptRequest} rejectRequest={rejectRequest} onRefetchFriends={refetchFriends}/>)}
           {view==="grades"&&(gated("grades")?fg("grades"):<GradeView mob={false}/>)}
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
-          {view==="calendar"&&(gated("calendar")?fg("calendar"):<CalendarView myEvents={myEvents} addEvent={addEventFn} addEvents={addEventsFn} updateEvent={updateEventFn} deleteEvent={deleteEventFn} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob={false} pastTTCache={pastTTCache} fetchPastTimetable={acct?fetchPastTimetable:undefined} medSessions={medSessions} records={attRecords} setStatus={setAttStatus} calFeed={calFeed}/>)}
+          {view==="calendar"&&(gated("calendar")?fg("calendar"):<CalendarView myEvents={myEvents} addEvent={addEventFn} addEvents={addEventsFn} updateEvent={updateEventFn} deleteEvent={deleteEventFn} asgn={asgn} courses={coursesEff} qd={qd} qDataAll={qDataEff} mob={false} pastTTCache={pastTTCache} fetchPastTimetable={acct?fetchPastTimetable:undefined} medSessions={medSessions} records={attRecords} setStatus={setAttStatus} calFeed={calFeed}/>)}
           {view==="events"&&<EventView events={allEvents} mob={false} rsvps={rsvps} onRsvp={handleRsvp}/>}
-          {view==="reviews"&&(gated("reviews")?fg("reviews"):<ReviewView reviews={reviews} setReviews={setReviews} mob={false} courses={allCourses}/>)}
-          {view==="bmarks"&&(gated("bmarks")?fg("bmarks"):<BookmarkView bmarks={bmarks} mob={false} setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/>)}
+          {view==="reviews"&&(gated("reviews")?fg("reviews"):<ReviewView reviews={reviews} setReviews={setReviews} mob={false} courses={coursesEff}/>)}
+          {view==="bmarks"&&(gated("bmarks")?fg("bmarks"):<BookmarkView bmarks={bmarks} mob={false} setView={setView} setCid={setCid} setCh={setCh} courses={coursesEff}/>)}
           {view==="attendance"&&(gated("attendance")?fg("attendance"):renderAttendance(false))}
-          {view==="search"&&(gated("search")?fg("search"):<SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={allCourses}/>)}
-          {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} sitelenPref={sitelenPref} setSitelenPref={setSitelenPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser} setView={setView}/>}
+          {view==="search"&&(gated("search")?fg("search"):<SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={coursesEff}/>)}
+          {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} sitelenPref={sitelenPref} setSitelenPref={setSitelenPref} asgn={asgn} courses={coursesEff} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser} setView={setView}/>}
           {view==="support"&&gated("support")&&fg("support")}
           {view==="support"&&!gated("support")&&<SupportChat embedded userId={user?.moodleId||user?.id} langPref={langPref} currentView="support" onClose={goBack}/>}
-          {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}} qDataAll={qDataLive||QData}/>}
+          {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}} qDataAll={qDataEff}/>}
           {view==="takiplaza"&&(gated("takiplaza")?fg("takiplaza"):<FacilityReservationView mob={false} onNavigate={goToBuilding}/>)}
           {view==="gym"&&(gated("gym")?fg("gym"):<GymView mob={false}/>)}
           {view==="qr"&&<QRView mob={false}/>}
@@ -1301,11 +1310,12 @@ export default function App(){
           {view==="circles"&&(gated("circles")?fg("circles"):TR?<TelecomBlockView title={t("telecom.circlesUnavailable")}/>:<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs}/>)}
           {view==="languages"&&(gated("languages")?fg("languages"):TR?<TelecomBlockView title={t("telecom.languagesUnavailable")}/>:<LanguagesView mob={false}/>)}
           {view==="acadCal"&&<AcademicCalendarView mob={false}/>}
-          {view==="exams"&&(gated("exams")?fg("exams"):<ExamView courses={allCourses} mob={false} goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/>)}
+          {view==="exams"&&(gated("exams")?fg("exams"):<ExamView courses={coursesEff} mob={false} goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/>)}
           {view==="freeroom"&&(gated("freeroom")?fg("freeroom"):<FreeRoomView mob={false} goToBuilding={goToBuilding}/>)}
           {view==="reg"&&<RegView mob={false}/>}
-          {view==="textbooks"&&(gated("textbooks")?fg("textbooks"):<TextbooksView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/>)}
-          {view==="grading"&&(gated("grading")?fg("grading"):<GradingView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/>)}
+          {view==="ttbuild"&&<TTBuilderView mob={false} goToBuilding={goToBuilding} lmsActive={!useLocalTT}/>}
+          {view==="textbooks"&&(gated("textbooks")?fg("textbooks"):<TextbooksView courses={coursesEff} academicYear={_selY} setAcademicYear={_setSelY}/>)}
+          {view==="grading"&&(gated("grading")?fg("grading"):<GradingView courses={coursesEff} academicYear={_selY} setAcademicYear={_setSelY}/>)}
           {view==="admin"&&<AdminView mob={false} courses={allCourses} depts={userDepts} schools={userSchools}/>}
           {view==="freshman"&&<FreshmanBoardView mob={false} loggedIn={acct} onLogin={()=>openLoginSheet({returnTo:"freshman"})}/>}
           {view==="festival"&&<FestivalView mob={false} loggedIn={acct} onLogin={()=>openLoginSheet({returnTo:"festival"})} goToBuilding={goToBuilding}/>}
@@ -1332,12 +1342,12 @@ export default function App(){
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0,position:"relative"}}>
         {offlineBanner}{authBanner}{lmsDownBanner}
         {refreshingBanner}
-        {view==="home"&&<><MHdr title="ScienceTokyo App" right={<div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>setView("notif")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</button><button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button><button onClick={()=>openProfile(user?.moodleId||user?.id)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",padding:0}}><Av u={user} sz={26}/></button></div>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} setPendingMat={setPendingMat} mob courses={allCourses} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataLive||QData} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit} medSessions={medSessions} records={attRecords} setStatus={setAttStatus}/></>}
-        {view==="timetable"&&(gated("timetable")?<><MHdr title={t("nav.timetable")}/>{fg("timetable")}</>:<TTView setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={acct?fetchData:null} courses={allCourses} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={acct?fetchPastTimetable:undefined} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
+        {view==="home"&&<><MHdr title="ScienceTokyo App" right={<div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>setView("notif")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.bell}{unreadN>0&&<span style={{position:"absolute",top:-3,right:-5,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadN}</span>}</button><button onClick={()=>setView("search")} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.search}</button><button onClick={()=>openProfile(user?.moodleId||user?.id)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",padding:0}}><Av u={user} sz={26}/></button></div>}/><HomeView asgn={asgn} setView={setView} setCid={setCid} setCh={setCh} setPendingMat={setPendingMat} mob courses={coursesEff} user={user} myEvents={myEvents} quarter={quarter} hiddenSet={hiddenSet} qd={qd} qDataAll={qDataEff} goToBuilding={goToBuilding} setDid={setDid} userDepts={userDepts} userSchools={userSchools} userUnit={userUnit} medSessions={medSessions} records={attRecords} setStatus={setAttStatus}/></>}
+        {view==="timetable"&&(gated("timetable")?<><MHdr title={t("nav.timetable")}/>{fg("timetable")}</>:<TTView onEdit={useLocalTT?()=>setView("ttbuild"):null} setCid={setCid} setView={setView} setCh={setCh} asgn={asgn} mob quarter={quarter} setQuarter={setQuarter} qd={qd} onRefresh={acct?fetchData:null} courses={coursesEff} hiddenSet={hiddenSet} goToBuilding={goToBuilding} pastTTCache={pastTTCache} fetchPastTimetable={acct?fetchPastTimetable:undefined} pastTTLoading={pastTTLoading} pastTTError={pastTTError} tty={_selY} setTty={_setSelY}/>)}
         {view==="med-tt"&&(gated("med-tt")?<><MHdr title={t("nav.medTimetable")}/>{fg("med-tt")}</>:<><MHdr title={t("nav.medTimetable")}/><MedTTView courses={medRawCourses} mob setCid={setCid} setView={setView} setCh={setCh} demoKey={demoMedKey} asgn={asgn} hiddenSet={hiddenSet} onRefresh={acct?fetchData:null}/></>)}
-        {view==="tasks"&&(gated("tasks")?<><MHdr title={t("header.taskMgmt")}/>{fg("tasks")}</>:<><MHdr title={t("header.taskMgmt")}/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} addTask={addTaskFn} toggleTask={toggleTaskFn} deleteTask={deleteTaskFn} navCourse={navCrs} courses={allCourses} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/></>)}
-        {view==="courseSelect"&&(gated("courseSelect")?<><MHdr title={t("header.courseSelect")}/>{fg("courseSelect")}</>:<><MHdr title={t("header.courseSelect")}/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={allCourses} depts={userDepts} schools={userSchools} setDid={setDid} userUnit={userUnit} medSessions={medSessions}/></>)}
-        {view==="course"&&(gated("course")?<><MHdr title={t("header.course")} back={goBack}/>{fg("course")}</>:cc&&<><CourseHdr/>{courseContent()}</>)}
+        {view==="tasks"&&(gated("tasks")?<><MHdr title={t("header.taskMgmt")}/>{fg("tasks")}</>:<><MHdr title={t("header.taskMgmt")}/><AsgnView asgn={asgn} setAsgn={setAsgn} mob myTasks={myTasks} addTask={addTaskFn} toggleTask={toggleTaskFn} deleteTask={deleteTaskFn} navCourse={navCrs} courses={coursesEff} quarter={quarter} setQuarter={setQuarter} hiddenAsgn={hiddenSet} saveHidden={saveHidden} academicYear={_selY}/></>)}
+        {view==="courseSelect"&&(gated("courseSelect")?<><MHdr title={t("header.courseSelect")}/>{fg("courseSelect")}</>:<><MHdr title={t("header.courseSelect")}/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={coursesEff} depts={userDepts} schools={userSchools} setDid={setDid} userUnit={userUnit} medSessions={medSessions}/></>)}
+        {view==="course"&&(cc?.local?<><MHdr title={cc.name} back={goBack}/><LocalCourseCard course={cc} mob acct={acct} onLogin={()=>openLoginSheet({intent:"course"})} setView={setView} goToBuilding={goToBuilding}/></>:gated("course")?<><MHdr title={t("header.course")} back={goBack}/>{fg("course")}</>:cc&&<><CourseHdr/>{courseContent()}</>)}
         {view==="dept"&&(gated("dept")?<><MHdr title={t("sidebar.depts")} back={goBack}/>{fg("dept")}</>:cd&&<><MHdr title={<>{(()=>{const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?locName(cd):cd.prefix}</span>{!nameOnly&&<span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{locName(cd)}</span>}</>;})()}</>} back={goBack} right={<button onClick={()=>setShowMembers(true)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.users}{deptMembers.length>0&&<span style={{position:"absolute",top:-4,right:-6,minWidth:14,height:14,borderRadius:7,background:cd.col||T.accent,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{deptMembers.length}</span>}</button>}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:t("chan.timeline"),i:I.feed},{id:"chat",l:t("chan.chat"),i:I.chat}].map(tab=><button key={tab.id} onClick={()=>{setCh(tab.id);trackUsage("feature_open","dept:"+tab.id);}} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===tab.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===tab.id?T.txH:T.txD,fontSize:13,fontWeight:ch===tab.id?600:400,cursor:"pointer"}}>{tab.i}<span>{tab.l}</span></button>)}</div>{deptContent()}</>)}
         {view==="moreMenu"&&<><MHdr title={t("nav.more")}/><MoreMenu setView={setView} unreadN={unreadN} pendingFriendCount={pendingFriendCount} dmUnread={dmUnread} isAdmin={!!user.isAdmin}/></>}
         {view==="friends"&&(gated("friends")?<><MHdr title={t("nav.friends")} back={mBack}/>{fg("friends")}</>:<><MHdr title={t("nav.friends")} back={mBack}/><FriendsView mob setView={setView} {...friendProps}/></>)}
@@ -1346,20 +1356,20 @@ export default function App(){
         {view==="pocket"&&(gated("pocket")?<><MHdr title={t("nav.pocket")} back={mBack}/>{fg("pocket")}</>:<><MHdr title={t("nav.pocket")} back={mBack}/><PocketView mob/></>)}
         {view==="music"&&(gated("music")?<><MHdr title={t("tool.music")} back={mBack}/>{fg("music")}</>:<><MHdr title={t("tool.music")} back={mBack}/><MusicView mob/></>)}
         {view==="pdftools"&&(gated("pdftools")?<><MHdr title={t("nav.pdftools")} back={mBack}/>{fg("pdftools")}</>:<><MHdr title={t("nav.pdftools")} back={mBack}/><PdfToolsView mob/></>)}
-        {view==="notes"&&(gated("notes")?<><MHdr title={t("nav.notes")} back={mBack}/>{fg("notes")}</>:<NotesView mob onExit={mBack} courses={allCourses} pendingNote={pendingNote} onPendingConsumed={()=>setPendingNote(null)}/>)}
+        {view==="notes"&&(gated("notes")?<><MHdr title={t("nav.notes")} back={mBack}/>{fg("notes")}</>:<NotesView mob onExit={mBack} courses={coursesEff} pendingNote={pendingNote} onPendingConsumed={()=>setPendingNote(null)}/>)}
         {view==="notif"&&(gated("notif")?<><MHdr title={t("nav.notif")} back={mBack}/>{fg("notif")}</>:<><MHdr title={t("nav.notif")} back={mBack}/><NotifView mob pending={friendPending} acceptRequest={acceptRequest} rejectRequest={rejectRequest} onRefetchFriends={refetchFriends}/></>)}
         {view==="grades"&&(gated("grades")?<><MHdr title={t("tool.grades")} back={mBack}/>{fg("grades")}</>:<><MHdr title={t("tool.grades")} back={mBack}/><GradeView mob/></>)}
         {view==="pomo"&&<><MHdr title={t("tool.pomo")} back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
-        {view==="calendar"&&(gated("calendar")?<><MHdr title={t("nav.calendar")} back={mBack}/>{fg("calendar")}</>:<><MHdr title={t("nav.calendar")} back={mBack}/><CalendarView myEvents={myEvents} addEvent={addEventFn} addEvents={addEventsFn} updateEvent={updateEventFn} deleteEvent={deleteEventFn} asgn={asgn} courses={allCourses} qd={qd} qDataAll={qDataLive||QData} mob pastTTCache={pastTTCache} fetchPastTimetable={acct?fetchPastTimetable:undefined} medSessions={medSessions} records={attRecords} setStatus={setAttStatus} calFeed={calFeed}/></>)}
+        {view==="calendar"&&(gated("calendar")?<><MHdr title={t("nav.calendar")} back={mBack}/>{fg("calendar")}</>:<><MHdr title={t("nav.calendar")} back={mBack}/><CalendarView myEvents={myEvents} addEvent={addEventFn} addEvents={addEventsFn} updateEvent={updateEventFn} deleteEvent={deleteEventFn} asgn={asgn} courses={coursesEff} qd={qd} qDataAll={qDataEff} mob pastTTCache={pastTTCache} fetchPastTimetable={acct?fetchPastTimetable:undefined} medSessions={medSessions} records={attRecords} setStatus={setAttStatus} calFeed={calFeed}/></>)}
         {view==="events"&&<><MHdr title={t("tool.events")} back={mBack}/><EventView events={allEvents} mob rsvps={rsvps} onRsvp={handleRsvp}/></>}
-        {view==="reviews"&&(gated("reviews")?<><MHdr title={t("tool.reviews")} back={mBack}/>{fg("reviews")}</>:<><MHdr title={t("tool.reviews")} back={mBack}/><ReviewView reviews={reviews} setReviews={setReviews} mob courses={allCourses}/></>)}
-        {view==="bmarks"&&(gated("bmarks")?<><MHdr title={t("tool.bmarks")} back={mBack}/>{fg("bmarks")}</>:<><MHdr title={t("tool.bmarks")} back={mBack}/><BookmarkView bmarks={bmarks} mob setView={setView} setCid={setCid} setCh={setCh} courses={allCourses}/></>)}
+        {view==="reviews"&&(gated("reviews")?<><MHdr title={t("tool.reviews")} back={mBack}/>{fg("reviews")}</>:<><MHdr title={t("tool.reviews")} back={mBack}/><ReviewView reviews={reviews} setReviews={setReviews} mob courses={coursesEff}/></>)}
+        {view==="bmarks"&&(gated("bmarks")?<><MHdr title={t("tool.bmarks")} back={mBack}/>{fg("bmarks")}</>:<><MHdr title={t("tool.bmarks")} back={mBack}/><BookmarkView bmarks={bmarks} mob setView={setView} setCid={setCid} setCh={setCh} courses={coursesEff}/></>)}
         {view==="attendance"&&(gated("attendance")?<><MHdr title={t("nav.attendance")} back={mBack}/>{fg("attendance")}</>:<><MHdr title={t("nav.attendance")} back={mBack}/>{renderAttendance(true)}</>)}
-        {view==="search"&&(gated("search")?<><MHdr title={t("nav.search")} back={mBack}/>{fg("search")}</>:<><MHdr title={t("nav.search")} back={mBack}/><SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob courses={allCourses}/></>)}
-        {view==="profile"&&<><MHdr title={t("nav.profile")} back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} sitelenPref={sitelenPref} setSitelenPref={setSitelenPref} asgn={asgn} courses={allCourses} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser} setView={setView}/></>}
+        {view==="search"&&(gated("search")?<><MHdr title={t("nav.search")} back={mBack}/>{fg("search")}</>:<><MHdr title={t("nav.search")} back={mBack}/><SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob courses={coursesEff}/></>)}
+        {view==="profile"&&<><MHdr title={t("nav.profile")} back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} sitelenPref={sitelenPref} setSitelenPref={setSitelenPref} asgn={asgn} courses={coursesEff} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser} setView={setView}/></>}
         {view==="support"&&gated("support")&&<><MHdr title={t("support.title")} back={mBack}/>{fg("support")}</>}
         {view==="support"&&!gated("support")&&<SupportChat embedded mob userId={user?.moodleId||user?.id} langPref={langPref} currentView="support" onClose={mBack}/>}
-        {view==="navigation"&&<><MHdr title={t("nav.navigation")} back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}} qDataAll={qDataLive||QData}/></>}
+        {view==="navigation"&&<><MHdr title={t("nav.navigation")} back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}} qDataAll={qDataEff}/></>}
         {view==="takiplaza"&&<><MHdr title="Taki Plaza" back={mBack}/>{gated("takiplaza")?fg("takiplaza"):<FacilityReservationView mob onNavigate={goToBuilding}/>}</>}
         {view==="gym"&&<><MHdr title={t("tool.gym")} back={mBack}/>{gated("gym")?fg("gym"):<GymView mob/>}</>}
         {view==="qr"&&<><MHdr title={t("appgrid.qr")} back={mBack}/><QRView mob/></>}
@@ -1370,11 +1380,12 @@ export default function App(){
         {view==="circles"&&(gated("circles")?<><MHdr title={t("nav.circles")} back={mBack}/>{fg("circles")}</>:TR?<><MHdr title={t("nav.circles")} back={mBack}/><TelecomBlockView title={t("telecom.circlesUnavailable")} onBack={goBack}/></>:<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs} onBack={mBack}/>)}
         {view==="languages"&&(gated("languages")?<><MHdr title={t("nav.languages")} back={mBack}/>{fg("languages")}</>:TR?<><MHdr title={t("nav.languages")} back={mBack}/><TelecomBlockView title={t("telecom.languagesUnavailable")} onBack={goBack}/></>:<LanguagesView mob onBack={mBack}/>)}
         {view==="acadCal"&&<AcademicCalendarView mob/>}
-        {view==="exams"&&(gated("exams")?<><MHdr title={t("tool.exams")} back={mBack}/>{fg("exams")}</>:<><MHdr title={t("tool.exams")} back={mBack}/><ExamView courses={allCourses} mob goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/></>)}
+        {view==="exams"&&(gated("exams")?<><MHdr title={t("tool.exams")} back={mBack}/>{fg("exams")}</>:<><MHdr title={t("tool.exams")} back={mBack}/><ExamView courses={coursesEff} mob goToBuilding={goToBuilding} setCid={setCid} setView={setView} setCh={setCh}/></>)}
         {view==="freeroom"&&(gated("freeroom")?<><MHdr title={t("tool.freeroom")} back={mBack}/>{fg("freeroom")}</>:<><MHdr title={t("tool.freeroom")} back={mBack}/><FreeRoomView mob goToBuilding={goToBuilding}/></>)}
         {view==="reg"&&<><MHdr title={t("more.regAssist")} back={mBack}/><RegView mob/></>}
-        {view==="textbooks"&&(gated("textbooks")?<><MHdr title={t("nav.textbooks")} back={mBack}/>{fg("textbooks")}</>:<><MHdr title={t("nav.textbooks")} back={mBack}/><TextbooksView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/></>)}
-        {view==="grading"&&(gated("grading")?<><MHdr title={t("nav.grading")} back={mBack}/>{fg("grading")}</>:<><MHdr title={t("nav.grading")} back={mBack}/><GradingView courses={allCourses} academicYear={_selY} setAcademicYear={_setSelY}/></>)}
+        {view==="ttbuild"&&<><MHdr title={t("nav.ttbuild")} back={mBack}/><TTBuilderView mob goToBuilding={goToBuilding} lmsActive={!useLocalTT}/></>}
+        {view==="textbooks"&&(gated("textbooks")?<><MHdr title={t("nav.textbooks")} back={mBack}/>{fg("textbooks")}</>:<><MHdr title={t("nav.textbooks")} back={mBack}/><TextbooksView courses={coursesEff} academicYear={_selY} setAcademicYear={_setSelY}/></>)}
+        {view==="grading"&&(gated("grading")?<><MHdr title={t("nav.grading")} back={mBack}/>{fg("grading")}</>:<><MHdr title={t("nav.grading")} back={mBack}/><GradingView courses={coursesEff} academicYear={_selY} setAcademicYear={_setSelY}/></>)}
         {view==="admin"&&<><MHdr title={t("nav.admin")} back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
         {view==="freshman"&&<><MHdr title={t("nav.freshman")} back={mBack}/><FreshmanBoardView mob loggedIn={acct} onLogin={()=>openLoginSheet({returnTo:"freshman"})}/></>}
         {view==="festival"&&<><MHdr title={t("festival.title")} back={mBack}/><FestivalView mob loggedIn={acct} onLogin={()=>openLoginSheet({returnTo:"festival"})} goToBuilding={goToBuilding}/></>}

@@ -18,7 +18,7 @@ const SideItem=({icon,label,on,click,badge,compact})=>(
 
 const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,courses=[],depts=[],schools=[],user={},quarter,academicYear,pendingFriendCount=0,userUnit=null,compact=false,narrow=false,hasMed=false})=>{
   const [moreOpen,setMoreOpen]=useState(false);
-  const extras=["grades","grading","reg","exams","acadCal","reviews","textbooks","pdftools","freeroom","events","pomo","music","bmarks"];
+  const extras=["grades","grading","reg","ttbuild","exams","acadCal","reviews","textbooks","pdftools","freeroom","events","pomo","music","bmarks"];
   const isExtra=extras.includes(view);
   const W=compact?56:narrow?150:180;
   const cp=compact;
@@ -136,6 +136,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
               {id:"grades",i:I.grad,l:t("tool.grades"),c:T.accentSoft},
               {id:"grading",i:I.bar,l:t("nav.grading"),c:T.accent},
               {id:"reg",i:I.pen,l:t("tool.reg"),c:T.accent},
+              {id:"ttbuild",i:I.cal,l:t("nav.ttbuild"),c:T.accent},
               {id:"exams",i:I.clip,l:t("tool.exams"),c:T.red},
               {id:"acadCal",i:I.cal,l:t("tool.acadCal"),c:"#6366f1"},
               {id:"reviews",i:I.star,l:t("tool.reviews"),c:"#c6a236"},
@@ -242,7 +243,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
 // ============================================================
 
 const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false})=>{
-  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","languages","admin","acadCal","exams","freeroom","freshman","festival","reg","med-tt","timetable","pocket","takiplaza","gym","tsubame","train","library","pdftools","notes","music","grading","qr","attendance","textbooks","lecrec"];
+  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","languages","admin","acadCal","exams","freeroom","freshman","festival","reg","ttbuild","med-tt","timetable","pocket","takiplaza","gym","tsubame","train","library","pdftools","notes","music","grading","qr","attendance","textbooks","lecrec"];
   const ttId=hasMed?"med-tt":"timetable";
   const isMore=moreViews.includes(view)&&view!==ttId;
   return(
@@ -281,6 +282,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
     {title:t("more.courses"),items:[
       {id:"calendar",i:I.cal,l:t("nav.calendar")},
       {id:"reg",i:I.chk,l:t("more.regAssist")},
+      {id:"ttbuild",i:I.cal,l:t("nav.ttbuild")},
       {id:"acadCal",i:I.flag,l:t("tool.acadCal")},
       {id:"exams",i:I.clip,l:t("tool.exams")},
       {id:"freeroom",i:I.pin,l:t("tool.freeroom")},
