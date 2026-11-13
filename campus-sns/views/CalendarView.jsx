@@ -9,6 +9,9 @@ import { makeClassResolver, matchMyExams } from "../calendarItems.js";
 import { t, locCal } from "../i18n.js";
 import { isDemoMode } from "../demoMode.js";
 import { CalendarFeedPanel } from "../components/CalendarFeedPanel.jsx";
+import { useAuth } from "../authState.js";
+import { buildIcs, saveIcs } from "../icsExport.js";
+import { showToast } from "../hooks/useToast.js";
 const DAY_KEYS=["cal.sun","cal.mon","cal.tue","cal.wed","cal.thu","cal.fri","cal.sat"];
 const COLORS=["#6375f0","#e5534b","#3dae72","#a855c7","#d4843e","#c6a236","#2d9d8f","#c75d8e"];
 const dKey=d=>`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -32,7 +35,20 @@ const rangesOverlap=(s1h,s1m,e1h,e1m,s2h,s2m,e2h,e2m)=>{
 
 const getWeekStart=d=>{const dt=new Date(d);dt.setDate(dt.getDate()-dt.getDay());dt.setHours(0,0,0,0);return dt;};
 
-export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:deleteEventApi,asgn,courses=[],qd,qDataAll={},mob,pastTTCache={},fetchPastTimetable,medSessions=[],records={},setStatus,calFeed})=>{
+export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:deleteEventApi,asgn,courses=[],qd,qDataAll={},mob,pastTTCache={},fetchPastTimetable,medSessions=[],records={},setStatus,calFeed,hiddenAsgn=[]})=>{
+  // ログイン任意化: 購読 URL（サーバー保存）はアカウントのときだけ。.ics の書き出しは誰でも使える（icsExport.js）
+  const isAcct=useAuth().status==="account";
+  const [exporting,setExporting]=useState(false);
+  const exportIcs=async()=>{
+    if(exporting)return;
+    setExporting(true);
+    try{
+      const {text,count}=await buildIcs({qDataAll,pastTTCache,courses,records,medSessions,asgn,hiddenAsgn,myEvents});
+      const r=await saveIcs(text);
+      if(r==="ok")showToast(t("cal.exportDone",{n:count}),"success");
+    }catch(e){console.error("[CalendarView] ics export",e);showToast(t("cal.exportFailed"));}
+    finally{setExporting(false);}
+  };
   const [viewMode,setViewMode]=useState("month");
   const [calMonth,setCalMonth]=useState(()=>({y:NOW.getFullYear(),m:NOW.getMonth()}));
   const [weekStart,setWeekStart]=useState(()=>getWeekStart(NOW));
@@ -287,7 +303,10 @@ export const CalendarView=({myEvents,addEvent,addEvents,updateEvent,deleteEvent:
         {[{k:"ev",l:t("cal.typeEvent"),c:T.accent},{k:"asgn",l:t("cal.typeAssign"),c:T.orange},{k:"cls",l:t("cal.typeClass"),c:T.green},{k:"exam",l:t("cal.typeExam"),c:"#d97706"}].map(f=><button key={f.k} onClick={()=>togFilter(f.k)} style={{padding:"3px 10px",borderRadius:6,border:`1px solid ${filter[f.k]?f.c:T.bd}`,background:filter[f.k]?`${f.c}14`:"transparent",color:filter[f.k]?f.c:T.txD,fontSize:11,fontWeight:filter[f.k]?600:400,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
           <span style={{width:6,height:6,borderRadius:3,background:filter[f.k]?f.c:T.txD}}/>{f.l}
         </button>)}
-        {calFeed&&!isDemoMode()&&<button onClick={()=>setShowFeed(true)} title={t("cal.feedTitle")} style={{marginLeft:"auto",padding:"3px 10px",borderRadius:6,border:`1px solid ${calFeed.status.enabled?T.accent:T.bd}`,background:calFeed.status.enabled?`${T.accent}14`:"transparent",color:calFeed.status.enabled?T.accent:T.txD,fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+        <button onClick={exportIcs} disabled={exporting} title={t("cal.exportIcsTitle")} style={{marginLeft:"auto",padding:"3px 10px",borderRadius:6,border:`1px solid ${T.bd}`,background:"transparent",color:T.txD,fontSize:11,fontWeight:600,cursor:exporting?"default":"pointer",display:"flex",alignItems:"center",gap:4,flexShrink:0,opacity:exporting?.6:1}}>
+          {React.cloneElement(I.dl,{width:13,height:13})}{t("cal.exportIcs")}
+        </button>
+        {calFeed&&isAcct&&!isDemoMode()&&<button onClick={()=>setShowFeed(true)} title={t("cal.feedTitle")} style={{padding:"3px 10px",borderRadius:6,border:`1px solid ${calFeed.status.enabled?T.accent:T.bd}`,background:calFeed.status.enabled?`${T.accent}14`:"transparent",color:calFeed.status.enabled?T.accent:T.txD,fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
           {React.cloneElement(I.upload,{width:13,height:13})}{t("cal.feedBtn")}
         </button>}
       </div>
