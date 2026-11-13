@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
-const VALID_MODES = ['freshman', 'navi', 'reg', 'festival'];
+// app = 深いリンクなしで開いたゲスト（ログイン任意化で、ログインせずにアプリ全体を使えるようになった）
+const VALID_MODES = ['freshman', 'navi', 'reg', 'festival', 'app'];
 
 // Simple in-memory rate limit for unauthenticated endpoint (10 req/min per session)
 const guestHits = new Map();

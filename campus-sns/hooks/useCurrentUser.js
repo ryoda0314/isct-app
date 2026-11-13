@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ME, SCHOOLS } from '../data.js';
+import { getAuth } from '../authState.js';
 
 const SCHOOL_NUM_MAP = {
   "0": "science", "1": "engineering", "2": "matsci",
@@ -40,11 +41,26 @@ function loadPref() {
   } catch { return {}; }
 }
 
-let pref = {}; // ログイン後に setCurrentUserFromAPI 経由で設定される
+let pref = {}; // ログイン後に setCurrentUserFromAPI 経由で設定される（ゲストは guestProfile）
+
+// ゲスト（未ログイン）の所属・表示設定は端末だけに保存する（ログイン任意化）。
+// userPref に書くと「この端末でログインしていた」と誤判定されるので、別のキーにする。
+const GUEST_KEY = "guestProfile";
+function loadGuestPref() {
+  try { return JSON.parse(localStorage.getItem(GUEST_KEY)) || {}; } catch { return {}; }
+}
+/** ゲストになったとき（起動時・ログアウト時）に呼ぶ。端末の所属などを読み込む */
+export function loadGuestProfile() {
+  cached = null;
+  pref = loadGuestPref();
+  notify();
+}
+/** ログイン時の移行用: 端末に保存したゲストの所属 */
+export function getGuestProfile() { return loadGuestPref(); }
 
 function merge() {
-  // pref の null/undefined で cached の有効値を潰さないようマージ
-  const out = { ...cached };
+  // pref の null/undefined で cached の有効値を潰さないようマージ。ゲストは ME（既定値）を土台にする
+  const out = { ...(cached || ME) };
   for (const k of Object.keys(pref)) {
     if (pref[k] != null) out[k] = pref[k];
     else if (!(k in out) || out[k] == null) out[k] = pref[k];
@@ -90,6 +106,12 @@ export function setCurrentUserFromAPI(d) {
 // アバター（av, col）などユーザー設定をローカルに保存・反映
 export function updateUserPref(patch) {
   pref = { ...pref, ...patch };
+  if (getAuth().status !== "account") {
+    // ゲスト: 端末にだけ保存し、サーバー（/api/auth/me）には送らない
+    try { localStorage.setItem(GUEST_KEY, JSON.stringify(pref)); } catch {}
+    notify();
+    return;
+  }
   try { localStorage.setItem("userPref", JSON.stringify(pref)); } catch {}
   notify();
 
@@ -141,7 +163,9 @@ export function updateUserPref(patch) {
 export function resetCurrentUserCache() {
   cached = null;
   pref = {};
-  listeners.clear();
+  // 以前は listeners.clear() していたが、それだと App の useCurrentUser が外れてしまい、
+  // ログアウト → 別の人がログインしても App の user が更新されなかった。既定値（ME）を通知する。
+  notify();
 }
 
 export function useCurrentUser(enabled = true) {
@@ -152,7 +176,7 @@ export function useCurrentUser(enabled = true) {
     listeners.add(handler);
     // cached があっても常にAPIで最新ユーザーを検証する（共有端末対策）
     if (cached) handler(merge());
-    if (enabled) {
+    if (enabled && getAuth().status === "account") {
       (async () => {
         try {
           const r = await fetch('/api/auth/me');

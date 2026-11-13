@@ -14,7 +14,7 @@ export async function POST(request) {
   const cookie = request.cookies.get(COOKIE_NAME)?.value;
   const session = verifySession(cookie);
   if (!session) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    return NextResponse.json({ error: 'Not authenticated', code: 'NO_SESSION' }, { status: 401 });
   }
 
   try {
@@ -27,6 +27,7 @@ export async function POST(request) {
     });
   } catch (e) {
     console.error(`[TokenRefresh] failed for loginId=${session.loginId}:`, e.message);
-    return NextResponse.json({ error: 'Token refresh failed' }, { status: 401 });
+    // ログインは有効だが LMS に入れない（パスワード変更など）。クライアントは LMS の機能だけ再接続を案内する
+    return NextResponse.json({ error: 'Token refresh failed', code: 'PORTAL_REAUTH' }, { status: 401 });
   }
 }

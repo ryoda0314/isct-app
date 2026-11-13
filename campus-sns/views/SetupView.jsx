@@ -536,7 +536,10 @@ function ErrorBanner({ error }) {
    mode="login"  → ログイン（ISCT資格情報のみ）
    mode="signup" → 新規登録ウィザード（step 0〜4: ISCT → ポータル/学籍番号 → プロフィール・登録 → 学系・ユニット → メール連携）
    ================================================================ */
-export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, backLabel }) => {
+// ログイン任意化: アプリの上に重ねて開く。onCancel（または旧 onBackToBoard）で閉じて元の画面に戻る。
+// intent = ログインが必要になった機能の名前（あれば「◯◯を使うにはログインしてください」を出す）
+export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, backLabel, onCancel, intent }) => {
+  const cancel = onCancel || onBackToBoard || null;
   const [mode, setMode] = useState(null);
   const [showPersonaPicker, setShowPersonaPicker] = useState(false);
   const [step, setStep] = useState(0);
@@ -646,6 +649,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
     setError(null);
     setErrorCode(null);
     setPortalSkipped(false);
+    if (mode === null) { cancel?.(); return; }
     if (mode === "login") { setMode(null); setLoginTab("isct"); return; }
     if (mode === "signup" && step === 0) { setMode(null); return; }
     if (mode === "signup" && step >= 3) return; // 完了後の画面からは戻れない
@@ -763,7 +767,7 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
     background: T.bg3, color: T.txD, fontSize: 15, fontWeight: 700, cursor: "pointer",
   };
 
-  const showBack = mode === "login" || (mode === "signup" && step < 3);
+  const showBack = (mode === null && !!cancel) || mode === "login" || (mode === "signup" && step < 3);
   const progress = mode === "signup" ? { current: step, total: 5 } : null;
 
   /* ─────────── Connecting overlay ─────────── */
@@ -803,7 +807,8 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
               margin: "0 auto 12px", boxShadow: `0 6px 20px ${T.accent}30`,
             }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: T.txH, margin: "0 0 4px" }}>ScienceTokyo App</h1>
-            <p style={{ fontSize: 13, color: T.txD, margin: "0 0 16px", lineHeight: 1.5 }}>{t("setup.tagline")}</p>
+            <p style={{ fontSize: 13, color: T.txD, margin: intent ? "0 0 10px" : "0 0 16px", lineHeight: 1.5 }}>{t("setup.tagline")}</p>
+            {intent && <p style={{ fontSize: 13, color: T.txH, fontWeight: 600, margin: "0 0 14px", padding: "8px 12px", borderRadius: 10, background: `${T.accent}10`, border: `1px solid ${T.accent}25`, lineHeight: 1.5 }}>{t("setup.intentLine", { f: intent })}</p>}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
               {FEATURES.map((f, i) => (
                 <div key={i} style={{ padding: "10px 8px", borderRadius: 10, border: `1px solid ${T.bd}`, background: T.bg2, textAlign: "center" }}>
@@ -886,11 +891,11 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 transition: "all .15s",
               }}>{ICN.login} {t("setup.login")}</button>
-              {onBackToBoard&&<button onClick={onBackToBoard} style={{
+              {cancel&&<button onClick={cancel} style={{
                 width: "100%", padding: "10px 0", borderRadius: 10,
                 border: `1px solid ${T.bd}`, background: T.bg2, color: T.txD,
                 fontSize: 12, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>{backLabel||t("setup.backToBoard")}</button>}
+              }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>{backLabel||(onBackToBoard&&!onCancel?t("setup.backToBoard"):t("setup.backToApp"))}</button>}
             </div>
             {!privacyAgreed && <p style={{ fontSize: 11, color: T.txD, textAlign: "center", marginTop: 8 }}>{t("setup.agreeRequired")}</p>}
             <button onClick={() => setShowPersonaPicker(true)} style={{

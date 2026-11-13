@@ -64,11 +64,11 @@ export function useCourseMaterials(moodleCourseId) {
       } catch (err) {
         // ログインの期限切れ（/api/auth/token が 401）は想定内：画面で「ログインし直す」と出すので、警告だけ
         // （console.error だと Next.js の開発画面にエラーとして出る）
-        if (err.code === 'AUTH_REQUIRED') console.warn('[useCourseMaterials] not logged in (401) courseId=', moodleCourseId);
+        if (err.code === 'AUTH_REQUIRED' || err.code === 'PORTAL_REAUTH') console.warn('[useCourseMaterials] not logged in (401) courseId=', moodleCourseId);
         else console.error('[useCourseMaterials]', err.message, 'courseId=', moodleCourseId);
         if (!cancelled) {
           const error = err.code === 'MOODLE_HTML_RESPONSE' ? 'LMS_UNAVAILABLE'
-            : err.code === 'AUTH_REQUIRED' ? 'AUTH_REQUIRED' : 'NETWORK';
+            : (err.code === 'AUTH_REQUIRED' || err.code === 'PORTAL_REAUTH') ? 'AUTH_REQUIRED' : 'NETWORK';
           setData({ sections: [], totalFiles: 0, totalActivities: 0, error });
         }
       } finally {

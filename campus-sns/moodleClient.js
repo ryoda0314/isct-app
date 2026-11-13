@@ -25,6 +25,16 @@ const TOKEN_CLIENT_TTL = 10 * 60 * 1000; // 10 minutes
 // 5 req/min rate limit → 429. Without this, a cold load fires N simultaneous fetches.
 let _tokenInFlight = null;
 
+// 401 の本文の code で 2 つに分ける（ログイン任意化）:
+//   AUTH_REQUIRED … ログインしていない／セッション切れ（NO_SESSION）
+//   PORTAL_REAUTH … ログインは有効だが LMS に入れない（パスワード変更・SSO 障害）。DM などは使える
+async function authError(r) {
+  const body = await r.json().catch(() => ({}));
+  const err = new Error('Not authenticated');
+  err.code = body?.code === 'PORTAL_REAUTH' ? 'PORTAL_REAUTH' : 'AUTH_REQUIRED';
+  return err;
+}
+
 /**
  * Get token from server, with short-lived in-memory cache + single-flight dedup.
  * Never stores token in localStorage/sessionStorage.
@@ -37,11 +47,7 @@ export async function getClientToken() {
   _tokenInFlight = (async () => {
     // Hard timeout so a hung backend can't freeze startup forever.
     const r = await fetch('/api/auth/token', { signal: AbortSignal.timeout(12000) });
-    if (r.status === 401) {
-      const err = new Error('Not authenticated');
-      err.code = 'AUTH_REQUIRED';
-      throw err;
-    }
+    if (r.status === 401) throw await authError(r);
     if (!r.ok) throw new Error(`Token fetch failed: ${r.status}`);
     const { wstoken, userid } = await r.json();
     _cachedToken = wstoken;
@@ -156,11 +162,7 @@ async function refreshClientToken() {
 
     // Fallback: server-side Puppeteer SSO.
     const r = await fetch('/api/auth/token/refresh', { method: 'POST' });
-    if (r.status === 401) {
-      const err = new Error('Not authenticated');
-      err.code = 'AUTH_REQUIRED';
-      throw err;
-    }
+    if (r.status === 401) throw await authError(r);
     if (!r.ok) throw new Error(`Token refresh failed: ${r.status}`);
     const { wstoken, userid } = await r.json();
     _cachedToken = wstoken;

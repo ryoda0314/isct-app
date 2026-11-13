@@ -797,7 +797,7 @@ export async function GET(request) {
       const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
 
       const [total, today, week, month, freshman, navi, reg, converted,
-             todayFreshman, todayNavi, todayReg] = await Promise.all([
+             todayFreshman, todayNavi, todayReg, festival, app, todayFestival, todayApp] = await Promise.all([
         sb.from('guest_sessions').select('*', { count: 'exact', head: true }),
         sb.from('guest_sessions').select('*', { count: 'exact', head: true }).gte('created_at', dayAgo),
         sb.from('guest_sessions').select('*', { count: 'exact', head: true }).gte('created_at', weekAgo),
@@ -809,6 +809,11 @@ export async function GET(request) {
         sb.from('guest_sessions').select('*', { count: 'exact', head: true }).eq('mode', 'freshman').gte('created_at', dayAgo),
         sb.from('guest_sessions').select('*', { count: 'exact', head: true }).eq('mode', 'navi').gte('created_at', dayAgo),
         sb.from('guest_sessions').select('*', { count: 'exact', head: true }).eq('mode', 'reg').gte('created_at', dayAgo),
+        // ログイン任意化: festival（深いリンク）と app（深いリンクなしで開いたゲスト）
+        sb.from('guest_sessions').select('*', { count: 'exact', head: true }).eq('mode', 'festival'),
+        sb.from('guest_sessions').select('*', { count: 'exact', head: true }).eq('mode', 'app'),
+        sb.from('guest_sessions').select('*', { count: 'exact', head: true }).eq('mode', 'festival').gte('created_at', dayAgo),
+        sb.from('guest_sessions').select('*', { count: 'exact', head: true }).eq('mode', 'app').gte('created_at', dayAgo),
       ]);
 
       return NextResponse.json({
@@ -820,11 +825,15 @@ export async function GET(request) {
           freshman: freshman.count || 0,
           navi: navi.count || 0,
           reg: reg.count || 0,
+          festival: festival.count || 0,
+          app: app.count || 0,
         },
         todayByMode: {
           freshman: todayFreshman.count || 0,
           navi: todayNavi.count || 0,
           reg: todayReg.count || 0,
+          festival: todayFestival.count || 0,
+          app: todayApp.count || 0,
         },
         converted: converted.count || 0,
         conversionRate: total.count ? ((converted.count || 0) / total.count * 100).toFixed(1) : '0.0',
@@ -836,7 +845,7 @@ export async function GET(request) {
       const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const { data } = await sb.from('guest_sessions').select('mode, created_at').gte('created_at', since);
       const byDay = {};
-      const byModeDay = { freshman: {}, navi: {}, reg: {} };
+      const byModeDay = { freshman: {}, navi: {}, reg: {}, festival: {}, app: {} };
       (data || []).forEach(r => {
         const day = r.created_at?.slice(0, 10);
         if (!day) return;
