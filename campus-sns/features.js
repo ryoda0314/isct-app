@@ -30,7 +30,6 @@ export const FEATURES = {
   pocket:    { need: "account", icon: "inbox",    titleKey: "nav.pocket",         points: ["gate.p.pocket1", "gate.p.pocket2"] },
   tsubame:   { need: "account", icon: "swallow",  titleKey: "tool.tsubame",       points: ["gate.p.tsubame1"] },
   support:   { need: "account", icon: "chat",     titleKey: "support.title",      points: ["gate.p.support1"], guestNoteKey: "gate.supportGuest" },
-  reviews:   { need: "account", icon: "star",     titleKey: "tool.reviews",       points: ["gate.p.reviews1"] },
 
   // ── 端末保存で使える（ログイン不要） ──
   timetable:  { need: "local" },

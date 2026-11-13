@@ -3,8 +3,8 @@ import { T, updateT, ACCENT_PRESETS, isDarkMode, THEME_MODES } from "./theme.js"
 import { setLang, detectLang, t, locName, locCal } from "./i18n.js";
 import FogOverlay from "./components/FogOverlay.jsx";
 import { I } from "./icons.jsx";
-import { QData, ASGN0, MYTK0, EVENTS0, REVIEWS0, MYEVENTS0, SCHOOLS, DEPTS, UNIT_COL, evCat } from "./data.js";
-import { DEMO_EVENTS, DEMO_REVIEWS, DEMO_MY_EVENTS, DEMO_TASKS, DEMO_PERSONAS, buildDemoDataForPersona, DEMO_MED_RAW_COURSES, buildDemoMedSessions } from "./demoData.js";
+import { QData, ASGN0, MYTK0, EVENTS0, MYEVENTS0, SCHOOLS, DEPTS, UNIT_COL, evCat } from "./data.js";
+import { DEMO_EVENTS, DEMO_MY_EVENTS, DEMO_TASKS, DEMO_PERSONAS, buildDemoDataForPersona, DEMO_MED_RAW_COURSES, buildDemoMedSessions } from "./demoData.js";
 import { setDemoMode, isDemoMode, setScreenshotMode, isScreenshotMode } from "./demoMode.js";
 import { useNotifications } from "./hooks/useNotifications.js";
 import { useDeadlineNotifications } from "./hooks/useDeadlineNotifications.js";
@@ -50,7 +50,6 @@ import { NotifView } from "./views/NotifView.jsx";
 import { EventView } from "./views/EventView.jsx";
 import { GradeView } from "./views/GradeView.jsx";
 import { PomodoroView } from "./views/PomodoroView.jsx";
-import { ReviewView } from "./views/ReviewView.jsx";
 import { ProfileView } from "./views/ProfileView.jsx";
 import { SupportChat } from "./SupportChat.jsx";
 import { SearchView } from "./views/SearchView.jsx";
@@ -314,7 +313,6 @@ export default function App(){
   const [events,setEvents]=useState(EVENTS0);
   const allEvents=useMemo(()=>[...events,...ACADEMIC_EVENTS.map(e=>({...e,title:locCal(e.title),desc:locCal(e.desc),loc:locCal(e.loc)}))],[events,langPref]);
   // grades are now fetched inside GradeView directly
-  const [reviews,setReviews]=useState(REVIEWS0);
   const {events:myEvents,setEvents:setMyEvents,addEvent:addEventFn,addEvents:addEventsFn,updateEvent:updateEventFn,deleteEvent:deleteEventFn}=useCalendarEvents(ready); // ゲストは端末保存
   const [rsvps,setRsvps]=useState(()=>{try{const v=localStorage.getItem("eventRsvps");return v?JSON.parse(v):{};}catch{return{};}});
   const handleRsvp=useCallback((eventId,status)=>{
@@ -708,7 +706,7 @@ export default function App(){
     resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();loadGuestProfile();
     setAllCourses([]);setQDataLive(null);setPastTTCache({});pastTTFailedRef.current=new Set();setPastTTError(null);
     setMedRawCourses([]);setMedSessions([]);setDemoMedKey(null);
-    setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);
+    setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setMyEvents(MYEVENTS0);
     setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");
     setLmsDown(false);setRefreshing(false);setDeptModalDone(false);
     viewHistRef.current=[];setViewRaw("home");
@@ -945,7 +943,7 @@ export default function App(){
     };
     await attempt(1);
   };
-  const onDemo=(personaId)=>{const pd=buildDemoDataForPersona(personaId);setDemoMode(true);setScreenshotMode(personaId==="ss");setAllCourses(pd.courses);setQDataLive(pd.qdata);setAsgn(pd.asgn.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setReviews(DEMO_REVIEWS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setCurrentUserFromAPI(pd.user);const medRaw=DEMO_MED_RAW_COURSES[personaId];if(medRaw){setMedRawCourses(medRaw);setDemoMedKey(personaId);const ms=buildDemoMedSessions(personaId);setMedSessions(ms.sessions||[]);}else{setMedRawCourses([]);setDemoMedKey(null);setMedSessions([]);}const q2c=pd.courses.find(c=>c.quarter===2);setCid(q2c?q2c.id:pd.courses[0].id);setQuarter(2);circleInit();try{localStorage.setItem("myLocation","lib");}catch{}setAuth({status:"account",portal:"ok",demo:true});loginReqRef.current=null;setLoginReq(null);setAppState("ready");};
+  const onDemo=(personaId)=>{const pd=buildDemoDataForPersona(personaId);setDemoMode(true);setScreenshotMode(personaId==="ss");setAllCourses(pd.courses);setQDataLive(pd.qdata);setAsgn(pd.asgn.map(a=>({...a,due:a.due instanceof Date?a.due:new Date(a.due)})));setMyTasks(DEMO_TASKS);setMyEvents(DEMO_MY_EVENTS);setEvents(DEMO_EVENTS);setCurrentUserFromAPI(pd.user);const medRaw=DEMO_MED_RAW_COURSES[personaId];if(medRaw){setMedRawCourses(medRaw);setDemoMedKey(personaId);const ms=buildDemoMedSessions(personaId);setMedSessions(ms.sessions||[]);}else{setMedRawCourses([]);setDemoMedKey(null);setMedSessions([]);}const q2c=pd.courses.find(c=>c.quarter===2);setCid(q2c?q2c.id:pd.courses[0].id);setQuarter(2);circleInit();try{localStorage.setItem("myLocation","lib");}catch{}setAuth({status:"account",portal:"ok",demo:true});loginReqRef.current=null;setLoginReq(null);setAppState("ready");};
 
   const cc=coursesEff.find(c=>c.id===cid);
   const userDepts=useMemo(()=>{
@@ -1055,7 +1053,7 @@ export default function App(){
   // Demo mode banner — persistent login/signup prompt
   const demoReady=isDemoMode()&&appState==="ready";
   // デモを終えてゲストに戻り、ログイン画面を開く（デモの帯の［ログイン / 新規登録］）
-  const exitDemo=()=>{setDemoMode(false);setScreenshotMode(false);if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();loadGuestProfile();setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setMyTasks(MYTK0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setEvents(EVENTS0);setMedRawCourses([]);setMedSessions([]);setDemoMedKey(null);setCid(null);viewHistRef.current=[];setViewRaw("home");setAuth({status:"guest",portal:"ok",demo:false});openLoginSheet({});};
+  const exitDemo=()=>{setDemoMode(false);setScreenshotMode(false);if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();loadGuestProfile();setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setMyTasks(MYTK0);setMyEvents(MYEVENTS0);setEvents(EVENTS0);setMedRawCourses([]);setMedSessions([]);setDemoMedKey(null);setCid(null);viewHistRef.current=[];setViewRaw("home");setAuth({status:"guest",portal:"ok",demo:false});openLoginSheet({});};
   const DemoBanner=()=>(!demoReady||isScreenshotMode())?null:(
     <div style={{position:"fixed",bottom:mob?68:0,left:0,right:0,zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"10px 16px",background:`linear-gradient(135deg,${T.accent}18,${T.accentSoft||T.accent}22)`,borderTop:`1px solid ${T.accent}30`,backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)"}}>
       <span style={{fontSize:13,color:T.txH,fontWeight:500}}>デモモードで表示中</span>
@@ -1108,7 +1106,7 @@ export default function App(){
   };
 
   // Course header (gradient banner + equal-width icon+label tabs)
-  const cTabs=[{id:"materials",l:t("chan.materials"),i:I.clip},{id:"assignments",l:t("chan.assignments"),i:I.tasks},{id:"timeline",l:t("chan.feed"),i:I.feed},{id:"chat",l:t("chan.chat"),i:I.chat},{id:"reviews",l:t("chan.reviews"),i:I.star}];
+  const cTabs=[{id:"materials",l:t("chan.materials"),i:I.clip},{id:"assignments",l:t("chan.assignments"),i:I.tasks},{id:"timeline",l:t("chan.feed"),i:I.feed},{id:"chat",l:t("chan.chat"),i:I.chat}];
   const openLms=async()=>{
     if(!cc?.moodleId||lmsLoading) return;
     setLmsLoading(true);
@@ -1180,7 +1178,6 @@ export default function App(){
     if(ch==="chat") return <ChatView course={cc} mob={mob}/>;
     if(ch==="assignments") return <AsgnView asgn={asgn} setAsgn={setAsgn} course={cc} mob={mob} courses={coursesEff}/>;
     if(ch==="materials") return <MatView course={cc} mob={mob} initialMatId={pendingMat?.courseId===cc.id?pendingMat.matId:null} onInitialConsumed={()=>setPendingMat(null)} onAnnotate={annotateMaterial} onOpenNote={openMaterialNote}/>;
-    if(ch==="reviews") return <ReviewView reviews={reviews} setReviews={setReviews} course={cc} mob={mob} courses={coursesEff}/>;
     return null;
   };
   const deptContent=()=>{
@@ -1293,7 +1290,6 @@ export default function App(){
           {view==="pomo"&&<PomodoroView pomo={pomo} setPomo={setPomo} mob={false}/>}
           {view==="calendar"&&(gated("calendar")?fg("calendar"):<CalendarView myEvents={myEvents} addEvent={addEventFn} addEvents={addEventsFn} updateEvent={updateEventFn} deleteEvent={deleteEventFn} asgn={asgn} courses={coursesEff} qd={qd} qDataAll={qDataEff} mob={false} pastTTCache={pastTTCache} fetchPastTimetable={acct?fetchPastTimetable:undefined} medSessions={medSessions} records={attRecords} setStatus={setAttStatus} calFeed={calFeed} hiddenAsgn={hiddenAsgn}/>)}
           {view==="events"&&<EventView events={allEvents} mob={false} rsvps={rsvps} onRsvp={handleRsvp}/>}
-          {view==="reviews"&&(gated("reviews")?fg("reviews"):<ReviewView reviews={reviews} setReviews={setReviews} mob={false} courses={coursesEff}/>)}
           {view==="bmarks"&&(gated("bmarks")?fg("bmarks"):<BookmarkView bmarks={bmarks} mob={false} setView={setView} setCid={setCid} setCh={setCh} courses={coursesEff}/>)}
           {view==="attendance"&&(gated("attendance")?fg("attendance"):renderAttendance(false))}
           {view==="search"&&(gated("search")?fg("search"):<SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob={false} courses={coursesEff}/>)}
@@ -1364,7 +1360,6 @@ export default function App(){
         {view==="pomo"&&<><MHdr title={t("tool.pomo")} back={mBack}/><PomodoroView pomo={pomo} setPomo={setPomo} mob/></>}
         {view==="calendar"&&(gated("calendar")?<><MHdr title={t("nav.calendar")} back={mBack}/>{fg("calendar")}</>:<><MHdr title={t("nav.calendar")} back={mBack}/><CalendarView myEvents={myEvents} addEvent={addEventFn} addEvents={addEventsFn} updateEvent={updateEventFn} deleteEvent={deleteEventFn} asgn={asgn} courses={coursesEff} qd={qd} qDataAll={qDataEff} mob pastTTCache={pastTTCache} fetchPastTimetable={acct?fetchPastTimetable:undefined} medSessions={medSessions} records={attRecords} setStatus={setAttStatus} calFeed={calFeed} hiddenAsgn={hiddenAsgn}/></>)}
         {view==="events"&&<><MHdr title={t("tool.events")} back={mBack}/><EventView events={allEvents} mob rsvps={rsvps} onRsvp={handleRsvp}/></>}
-        {view==="reviews"&&(gated("reviews")?<><MHdr title={t("tool.reviews")} back={mBack}/>{fg("reviews")}</>:<><MHdr title={t("tool.reviews")} back={mBack}/><ReviewView reviews={reviews} setReviews={setReviews} mob courses={coursesEff}/></>)}
         {view==="bmarks"&&(gated("bmarks")?<><MHdr title={t("tool.bmarks")} back={mBack}/>{fg("bmarks")}</>:<><MHdr title={t("tool.bmarks")} back={mBack}/><BookmarkView bmarks={bmarks} mob setView={setView} setCid={setCid} setCh={setCh} courses={coursesEff}/></>)}
         {view==="attendance"&&(gated("attendance")?<><MHdr title={t("nav.attendance")} back={mBack}/>{fg("attendance")}</>:<><MHdr title={t("nav.attendance")} back={mBack}/>{renderAttendance(true)}</>)}
         {view==="search"&&(gated("search")?<><MHdr title={t("nav.search")} back={mBack}/>{fg("search")}</>:<><MHdr title={t("nav.search")} back={mBack}/><SearchView searchQ={searchQ} setSearchQ={setSearchQ} setView={setView} setCid={setCid} setCh={setCh} mob courses={coursesEff}/></>)}

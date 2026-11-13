@@ -53,7 +53,6 @@ const QA_ALL=[
   {id:"isctportal",icon:null,labelKey:"home.isctPortal"},
   {id:"friends",icon:I.users,labelKey:"nav.friends"},
   {id:"grades",icon:I.grad,labelKey:"tool.grades"},
-  {id:"reviews",icon:I.star,labelKey:"chan.reviews"},
   {id:"pomo",icon:I.play,labelKey:"tool.pomo"},
   {id:"bmarks",icon:I.bmark,labelKey:"tool.bmarks"},
   {id:"dm",icon:I.mail,labelKey:"common.dm"},

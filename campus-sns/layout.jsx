@@ -18,7 +18,7 @@ const SideItem=({icon,label,on,click,badge,compact})=>(
 
 const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,courses=[],depts=[],schools=[],user={},quarter,academicYear,pendingFriendCount=0,userUnit=null,compact=false,narrow=false,hasMed=false})=>{
   const [moreOpen,setMoreOpen]=useState(false);
-  const extras=["grades","grading","reg","ttbuild","exams","acadCal","reviews","textbooks","pdftools","freeroom","events","pomo","music","bmarks"];
+  const extras=["grades","grading","reg","ttbuild","exams","acadCal","textbooks","pdftools","freeroom","events","pomo","music","bmarks"];
   const isExtra=extras.includes(view);
   const W=compact?56:narrow?150:180;
   const cp=compact;
@@ -139,7 +139,6 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
               {id:"ttbuild",i:I.cal,l:t("nav.ttbuild"),c:T.accent},
               {id:"exams",i:I.clip,l:t("tool.exams"),c:T.red},
               {id:"acadCal",i:I.cal,l:t("tool.acadCal"),c:"#6366f1"},
-              {id:"reviews",i:I.star,l:t("tool.reviews"),c:"#c6a236"},
               {id:"textbooks",i:I.book,l:t("nav.textbooks"),c:T.green},
               {id:"pdftools",i:I.file,l:t("nav.pdftools"),c:T.red},
             ]},
@@ -185,7 +184,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
   const isDept=!!dept;
   const chs=isDept
     ?[{id:"timeline",n:t("chan.timeline"),i:I.feed},{id:"chat",n:t("chan.chat"),i:I.chat}]
-    :[{id:"materials",n:t("chan.materials"),i:I.clip},{id:"assignments",n:t("chan.assignments"),i:I.tasks},{id:"timeline",n:t("chan.timeline"),i:I.feed},{id:"chat",n:t("chan.chat"),i:I.chat},{id:"reviews",n:t("chan.reviews"),i:I.star}];
+    :[{id:"materials",n:t("chan.materials"),i:I.clip},{id:"assignments",n:t("chan.assignments"),i:I.tasks},{id:"timeline",n:t("chan.timeline"),i:I.feed},{id:"chat",n:t("chan.chat"),i:I.chat}];
   const col=isDept?dept.col:course?.col;
   const memberIds=new Set(members.map(m=>String(m.id)));
   const onlineMembers=online.filter(u=>memberIds.has(String(u.id)));
@@ -307,7 +306,6 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false,g
       {id:"takiplaza",i:I.clock,l:"Taki Plaza",d:t("more.d.takiplaza"),lock:true},
       {id:"tsubame",i:I.swallow,l:t("tool.tsubame"),d:t("more.d.tsubame"),lock:true},
       {id:"bmarks",i:I.bmark,l:t("tool.bmarks"),d:t("more.d.bmarks"),lock:true},
-      {id:"reviews",i:I.star,l:t("tool.reviews"),d:t("more.d.reviews"),lock:true},
     ]},
   ];
   const otherItems=[{id:"search",i:I.search,l:t("nav.search")},{id:"bmarks",i:I.bmark,l:t("tool.bmarks")}];
@@ -328,7 +326,6 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false,g
     {title:t("more.gradesEval"),items:[
       {id:"grades",i:I.grad,l:t("tool.grades")},
       {id:"grading",i:I.bar,l:t("nav.grading")},
-      {id:"reviews",i:I.star,l:t("tool.reviews")},
     ]},
     {title:t("more.courses"),items:[
       {id:"calendar",i:I.cal,l:t("nav.calendar")},
