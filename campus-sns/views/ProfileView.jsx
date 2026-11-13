@@ -14,6 +14,7 @@ import { TIMEOUT_OPTIONS } from '../hooks/useAppLock.js';
 import { SCHOOLS, DEPTS, UNIT_COL } from '../data.js';
 import { PrivacyPolicyView } from './PrivacyPolicyView.jsx';
 import { TermsOfServiceView } from './TermsOfServiceView.jsx';
+import { useAuth, openLogin } from '../authState.js';
 
 /* ─── 画像 → 正方形クロップ → data URI ─── */
 const AV_SZ=160;
@@ -125,6 +126,9 @@ const CredForm=({form,setForm,showPw,showTotp,setShowPw,setShowTotp,onSave,savin
 
 /* ─── メイン ─── */
 export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accentPref="default",setAccentPref,langPref="ja",setLangPref,sitelenPref=false,setSitelenPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout,appLock,blocks=[],unblockUser,mutes=[],unmuteUser,setView})=>{
+  // ログイン任意化: ゲストには表示設定・所属（端末に保存）・アカウント欄（ログイン）だけを出す。
+  // 接続設定・セキュリティ・データ管理・ログアウトはアカウントのときだけ。
+  const isAcct=useAuth().status==="account";
   const done=asgn.filter(a=>a.st==="completed").length;
   const total=asgn.length;
 
@@ -141,7 +145,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   // 時間割例（/api/timetable-examples）{ optOut: 収集オフ, share: 他の学生に公開 }。
   // null = 未取得（ゲスト・デモ・通信失敗）→ 行を出さない
   const [ttEx,setTtEx]=useState(null);
-  useEffect(()=>{let live=true;fetch("/api/timetable-examples").then(r=>r.ok?r.json():null).then(d=>{if(live&&d?.settings)setTtEx(d.settings);}).catch(()=>{});return()=>{live=false;};},[]);
+  useEffect(()=>{if(!isAcct)return;let live=true;fetch("/api/timetable-examples").then(r=>r.ok?r.json():null).then(d=>{if(live&&d?.settings)setTtEx(d.settings);}).catch(()=>{});return()=>{live=false;};},[]);
   const saveTtEx=async(patch)=>{
     const prev=ttEx;
     // サーバーと同じ連動: 収集オフ → 公開もオフ、公開オン → 収集もオン
@@ -284,7 +288,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
   const saveNavQ=ids=>{setNavQIds(ids);try{localStorage.setItem("navQuickSpots",JSON.stringify(ids));}catch{}};
 
   useEffect(()=>{
-    (async()=>{try{const r=await fetch("/api/auth/status");if(r.ok)setCredStatus(await r.json());}catch{}})();
+    if(isAcct)(async()=>{try{const r=await fetch("/api/auth/status");if(r.ok)setCredStatus(await r.json());}catch{}})();
   },[]);
 
   const handleCredSave=async()=>{
@@ -439,9 +443,9 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               </div>
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:18,fontWeight:700,color:T.txH}}>{user.name||t("profile.defaultName")}</div>
+              <div style={{fontSize:18,fontWeight:700,color:T.txH}}>{user.name||(isAcct?t("profile.defaultName"):t("app.guestName"))}</div>
               <div style={{fontSize:12,color:T.txD,marginTop:2}}>
-                {[user.dept,user.yr?`B${user.yr}`:null,user.moodleId].filter(Boolean).join(" · ")}
+                {isAcct?[user.dept,user.yr?`B${user.yr}`:null,user.moodleId].filter(Boolean).join(" · "):t("profile.guestSub")}
               </div>
             </div>
           </div>
@@ -524,6 +528,14 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
           </div>}
         </div>
 
+        {/* ═══ アカウント（ゲスト） ═══ */}
+        {!isAcct&&<>
+        <GHead>{t("profile.account")}</GHead>
+        <GCard>
+          <GRow icon={I.user1} label={t("app.loginSignup")} sub={t("profile.guestLoginSub")} onClick={()=>openLogin({})} last/>
+        </GCard>
+        </>}
+        {isAcct&&<>
         {/* ═══ 接続設定 ═══ */}
         <GHead>{t("profile.connSettings")}</GHead>
         <GCard>
@@ -691,6 +703,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
           </>}
         </div>}
 
+        </>}
         {/* ═══ ホーム画面 ═══ */}
         <GHead>{t("profile.homeScreen")}</GHead>
         <GCard>
@@ -1009,6 +1022,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             </div>}/>
         </GCard>
 
+        {isAcct&&<>
         {/* ═══ セキュリティ ═══ */}
         <GHead>{t("profile.security")}</GHead>
         <GCard>
@@ -1111,6 +1125,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             }}/>
         </GCard>
 
+        </>}
         {/* ═══ ブロックリスト ═══ */}
         {blocks.length>0&&<>
           <GHead>{t("profile.blockedUsers",{n:blocks.length})}</GHead>
@@ -1179,10 +1194,10 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
               onClick={credStatus?.hasPortal?collectPastTt:undefined}
               right={ttExPast&&ttExPast!=="loading"&&<span style={{color:ttExPast.ok?T.green:T.red,display:"flex"}}>{ttExPast.ok?I.chk:"!"}</span>}/>}
           </>}
-          <GRow
+          {isAcct&&<GRow
             icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>}
             label={t("profile.logout")} last danger
-            onClick={()=>{if(confirm(t("profile.confirmLogout"))){onLogout();}}}/>
+            onClick={()=>{if(confirm(t("profile.confirmLogout"))){onLogout({wipeDevice:confirm(t("profile.logoutWipeConfirm"))});}}}/>}
         </GCard>
 
         {/* フッター */}

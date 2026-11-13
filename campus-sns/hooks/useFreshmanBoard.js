@@ -26,7 +26,8 @@ const mapPost = (p) => ({
   likes: p.likes || [],
   commentCount: p.comment_count || 0,
   ts: new Date(p.created_at),
-  name: p.profiles?.name,
+  // 未ログインの閲覧では投稿者が伏せられて返る（masked）。表示名は言語に合わせる
+  name: p.masked ? t('freshman.maskedAuthor') : p.profiles?.name,
   avatar: p.profiles?.avatar,
   color: p.profiles?.color,
   pinned: p.pinned || false,

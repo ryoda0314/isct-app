@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { getAuth } from '../authState.js';
 import { t } from "../i18n.js";
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { isDemoMode } from '../demoMode.js';
@@ -75,10 +76,12 @@ export function useFestival() {
         setIsAdmin(!!d.isAdmin);
         if (d.couponWindow) setCouponWindow({ start: new Date(d.couponWindow.start), end: new Date(d.couponWindow.end) });
       }
-      // 自分の申請・下書き・メンバー名簿（未ログインなら 401 で空のまま）
-      const [ra, rd] = await Promise.all([fetch('/api/festival/applications'), fetch('/api/festival/drafts')]);
-      if (ra.ok) setMyApps((await ra.json()).applications || []);
-      if (rd.ok) { const d = await rd.json(); setDrafts(d.drafts || []); setMembers(d.members || []); }
+      // 自分の申請・下書き・メンバー名簿（アカウントのときだけ。ゲストは取りに行かない）
+      if (getAuth().status === 'account') {
+        const [ra, rd] = await Promise.all([fetch('/api/festival/applications'), fetch('/api/festival/drafts')]);
+        if (ra.ok) setMyApps((await ra.json()).applications || []);
+        if (rd.ok) { const d = await rd.json(); setDrafts(d.drafts || []); setMembers(d.members || []); }
+      }
     } catch (e) { console.error('[useFestival]', e); }
     setLoading(false);
   }, []);

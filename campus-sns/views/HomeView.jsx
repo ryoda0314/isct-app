@@ -12,6 +12,7 @@ import { getAcademicInfo, getCurrentQuarter } from "../academicCalendar.js";
 import { buildTimetable } from "../../lib/transform/timetable-builder.js";
 import { PERIOD_TIMES } from "../examData.js";
 import { isNative } from "../capacitor.js";
+import { getAuth } from "../authState.js";
 import { openPortal, openIsctPortal } from "../plugins/portalWebView.js";
 import { isDemoMode } from "../demoMode.js";
 import { DEMO_EXAMS } from "../demoData.js";
@@ -74,7 +75,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
   const [qaIds]=useState(getQA);
   const [attBusy,setAttBusy]=useState(null); // 出席チェック中の course.id
   const isMed=medSessions.length>0;
-  const qaItems=qaIds.map(id=>QA_ALL.find(q=>q.id===id)).filter(Boolean).filter(q=>(isNative()||!(q.id==="portal"||q.id==="isctportal"))&&(!isDemoMode()||!(q.id==="portal"||q.id==="isctportal"))&&!(isMed&&q.id==="portal"));
+  const qaItems=qaIds.map(id=>QA_ALL.find(q=>q.id===id)).filter(Boolean).filter(q=>(isNative()||!(q.id==="portal"||q.id==="isctportal"))&&(getAuth().status==="account"||!(q.id==="portal"||q.id==="isctportal"))&&(!isDemoMode()||!(q.id==="portal"||q.id==="isctportal"))&&!(isMed&&q.id==="portal"));
   const [now,setNow]=useState(()=>new Date());
   const [wx,setWx]=useState(()=>{try{const v=localStorage.getItem("wxCache");if(v){const d=JSON.parse(v);if(Date.now()-d._ts<30*60*1000)return d;}return null;}catch{return null;}});
   const [loc,setLoc]=useState(()=>{try{const v=localStorage.getItem("wxLoc");return v?JSON.parse(v):DEF_LOC;}catch{return DEF_LOC;}});
@@ -119,7 +120,7 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
     });
   },[exams,courses]);
   useEffect(()=>{try{localStorage.setItem("wxLoc",JSON.stringify(loc));}catch{}},[loc]);
-  useEffect(()=>{if(!isNative()&&!isDemoMode())fetch("/api/portal/page?warmup=1",{cache:"no-store"}).catch(()=>{});},[]);
+  useEffect(()=>{if(!isNative()&&!isDemoMode()&&getAuth().status==="account")fetch("/api/portal/page?warmup=1",{cache:"no-store"}).catch(()=>{});},[]); // ポータル連携はログインしている人だけ
   useEffect(()=>{
     (async()=>{
       try{
@@ -267,8 +268,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
         const {ok,distance}=checkInsideBuilding(latitude,longitude,co.building,buf);
         if(ok){
           setStatus?.("sci",co.id,sess,"present");showToast(t("toast.attendOk"),"success");
-          // ツバメポイント付与（サーバーがGPSジオフェンスを再検証・授業回ごと1回・1日上限あり）
-          fetch('/api/attendance/checkin',{method:'POST',headers:{'Content-Type':'application/json'},
+          // ツバメポイント付与（サーバーがGPSジオフェンスを再検証・授業回ごと1回・1日上限あり）。ポイントはアカウントのみ
+          if(getAuth().status==="account")fetch('/api/attendance/checkin',{method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({kind:"sci",course_key:co.id,session_key:sess.sessionKey,session_date:sess.dateStr||null,building:co.building,lat:latitude,lng:longitude})})
             .then(r=>r.ok?r.json():null).then(d=>{if(d&&d.awarded>0)showToast(`+${d.awarded} pt`,"success");}).catch(()=>{});
         }

@@ -320,7 +320,7 @@ export default function App(){
     }else{
       if(prev==="going") setMyEvents(p=>p.filter(e=>e.id!==rsvpId));
     }
-    if(isDemoMode()) return;
+    if(isDemoMode()||getAuth().status!=="account") return; // ゲストは端末（eventRsvps）にだけ保存
     (async()=>{try{
       if(next) await fetch('/api/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event_id:eventId,status:next})});
       else await fetch('/api/events',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({event_id:eventId})});

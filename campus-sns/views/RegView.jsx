@@ -5,6 +5,7 @@ import { I } from "../icons.jsx";
 import { getCurrentQuarter } from "../academicCalendar.js";
 import { REQ_BY_Q, QUARTERS, siblingQ, isSemesterSpan, academicYearOf, CAT_COLORS, UNIT_OPT, LAB_OPT, SCHOOLS, SHARED_DEPTS, DEPT_LABELS, DAYS, PERIODS, PER_TIMES, slotLabel, slotKey, unitToSection, unitToLabDay } from "../registrationData.js";
 import { TimetableExampleCard } from "../components/TimetableExampleCard.jsx";
+import { getAuth } from "../authState.js";
 
 // Per year-level + quarter localStorage
 const lsKey=(yr,q)=>`reg_${yr}_${q}`;
@@ -137,6 +138,8 @@ export const RegView=({mob})=>{
   const {req,reqSec,sci,opt,optInfo,unit}=data;
 
   useEffect(()=>{
+    // 時間割例は利用者が提供したデータなのでアカウントのときだけ（ゲストは欄ごと出さない）
+    if(getAuth().status!=="account"){setExamples(null);setExSettings(null);return;}
     let live=true;
     const p=new URLSearchParams({grade:`B${browseLevel}`,quarter:quarter.charAt(0)});
     if(browseLevel>=2&&selSchool)p.set("school",selSchool);

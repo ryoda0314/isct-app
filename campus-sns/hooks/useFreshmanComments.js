@@ -21,7 +21,7 @@ export function useFreshmanComments(postId) {
         const mapped = data.map(c => ({
           id: c.id, postId: c.post_id, uid: c.moodle_user_id,
           text: c.text, ts: new Date(c.created_at),
-          name: c.profiles?.name, avatar: c.profiles?.avatar, color: c.profiles?.color,
+          name: c.masked ? t('freshman.maskedAuthor') : c.profiles?.name, avatar: c.profiles?.avatar, color: c.profiles?.color,
         }));
         mapped.forEach(c => idsRef.current.add(c.id));
         setComments(mapped);
@@ -89,7 +89,7 @@ export function useFreshmanComments(postId) {
           cm.id === tempId ? {
             id: c.id, postId: c.post_id, uid: c.moodle_user_id,
             text: c.text, ts: new Date(c.created_at),
-            name: c.profiles?.name, avatar: c.profiles?.avatar, color: c.profiles?.color,
+            name: c.masked ? t('freshman.maskedAuthor') : c.profiles?.name, avatar: c.profiles?.avatar, color: c.profiles?.color,
           } : cm
         ));
         return true;
