@@ -60,7 +60,7 @@ export async function POST(request) {
     // Ensure a profile row exists (mirrors the messages POST convention).
     const { error: profileErr } = await sb.from('profiles').upsert(
       { moodle_id: userid, name: fullname || `User ${userid}` },
-      { onConflict: 'moodle_id', ignoreDuplicates: false }
+      { onConflict: 'moodle_id', ignoreDuplicates: true }
     );
     if (profileErr) console.error('[Languages POST] profile upsert:', profileErr.message);
 

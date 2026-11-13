@@ -92,7 +92,7 @@ export async function POST(request) {
     // Ensure a profile row exists (FK target) — same guard as /api/my-events.
     await sb.from('profiles').upsert(
       { moodle_id: auth.userid, name: auth.fullname || `User ${auth.userid}` },
-      { onConflict: 'moodle_id', ignoreDuplicates: false }
+      { onConflict: 'moodle_id', ignoreDuplicates: true }
     );
     const { error } = await sb.from('calendar_feeds').insert({ user_id: auth.userid, token });
     if (error) throw error;

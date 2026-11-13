@@ -69,7 +69,7 @@ export async function POST(request) {
     // Upsert profile
     await sb.from('profiles').upsert(
       { moodle_id: userid, name: fullname || `User ${userid}` },
-      { onConflict: 'moodle_id', ignoreDuplicates: false }
+      { onConflict: 'moodle_id', ignoreDuplicates: true }
     );
 
     const { data, error } = await sb

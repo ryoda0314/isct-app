@@ -598,18 +598,31 @@ export default function App(){
     }catch(e){console.error('[App] fetchSubmissionStatuses error:',e);setAsgn(prev=>prev.map(a=>a.st==='loading'?{...a,st:'not_started'}:a));}
   };
 
-  const fetchPastTimetable=async(year)=>{
-    if(pastTTCache[year])return pastTTCache[year];
+  // 過去年度の時間割。CalendarView/TTView の effect 依存に入るので関数の同一性を保つ（useCallback）。
+  // 失敗した年度は覚えておき、自動取得では再試行しない（以前は失敗→再描画→新しい関数→effect 再実行で
+  // /api/data/timetable-past を無限に叩いていた）。TTView の「再試行」ボタンだけ force で取り直す。
+  const pastTTCacheRef=useRef({});
+  useEffect(()=>{pastTTCacheRef.current=pastTTCache;},[pastTTCache]);
+  const pastTTFailedRef=useRef(new Set());
+  const pastTTInflightRef=useRef(new Set());
+  const fetchPastTimetable=useCallback(async(year,{force=false}={})=>{
+    if(pastTTCacheRef.current[year])return pastTTCacheRef.current[year];
+    if(pastTTInflightRef.current.has(year))return null;
+    if(!force&&pastTTFailedRef.current.has(year))return null;
+    const gen=sessGenRef.current;
+    pastTTInflightRef.current.add(year);
     setPastTTLoading(true);setPastTTError(null);
     try{
       const r=await fetch(`${API}/api/data/timetable-past?year=${year}`);
-      if(!r.ok){const d=await r.json().catch(()=>({}));setPastTTError(d.error||`Error ${r.status}`);return null;}
+      if(!r.ok){pastTTFailedRef.current.add(year);const d=await r.json().catch(()=>({}));if(gen===sessGenRef.current)setPastTTError(d.error||`Error ${r.status}`);return null;}
       const d=await r.json();
+      if(gen!==sessGenRef.current)return null; // 途中でログアウトした
+      pastTTFailedRef.current.delete(year);
       setPastTTCache(prev=>({...prev,[year]:d}));
       return d;
-    }catch(e){console.error("[App] fetchPastTimetable error:",e);setPastTTError(e.message);return null;}
-    finally{setPastTTLoading(false);}
-  };
+    }catch(e){pastTTFailedRef.current.add(year);console.error("[App] fetchPastTimetable error:",e);setPastTTError(e.message);return null;}
+    finally{pastTTInflightRef.current.delete(year);setPastTTLoading(false);}
+  },[]);
 
   const fetchSiteSettings=async()=>{
     try{
@@ -877,7 +890,7 @@ export default function App(){
   const friendProps={friends:friendList,pending:friendPending,sent:friendSent,loading:friendLoading,pendingCount:pendingFriendCount,sendRequest,acceptRequest,rejectRequest,unfriend,searchUsers,onStartDM:startDMFromFriend,userId:user?.moodleId||user?.id,lookupById,fetchGraph,fetchRecommendations,openProfile,isAdmin:!!user?.isAdmin,groups:groupList,createGroup,leaveGroup,onOpenGroup:openGroupChat,blockUser,unblockUser,isBlocked,blocks:blockList,muteUser,unmuteUser,isMuted,mutes:muteList,refetch:refetchFriends};
   const profileProps={userId:profileId,user,lookupById,onStartDM:startDMFromFriend,sendRequest,acceptRequest,unfriend,blockUser,muteUser,unmuteUser,isMuted,onEditProfile:()=>setView("profile"),goBack,refetch:refetchFriends};
   const togTheme=()=>setThemePref(p=>p==="dark"?"light":"dark");
-  const onLogout=async()=>{sessGenRef.current++;notifSyncRef.current.hydrated=false;notifSyncRef.current.last=null;setDataAt(null);setAnalyticsEnabled(false);analyticsStartedRef.current=false;setDemoMode(false);clearClientToken();if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");
+  const onLogout=async()=>{sessGenRef.current++;notifSyncRef.current.hydrated=false;notifSyncRef.current.last=null;setDataAt(null);setAnalyticsEnabled(false);analyticsStartedRef.current=false;setDemoMode(false);clearClientToken();if(refreshRef.current){clearInterval(refreshRef.current);refreshRef.current=null;}resetCurrentUserCache();resetCourseMembersCache();resetCourseMaterialsCache();try{localStorage.clear();}catch{}setAllCourses([]);setQDataLive(null);setPastTTCache({});pastTTFailedRef.current=new Set();setPastTTError(null);setAsgn(ASGN0);setHiddenAsgn([]);setMyTasks(MYTK0);setEvents(EVENTS0);setReviews(REVIEWS0);setMyEvents(MYEVENTS0);setRsvps({});setQuarter(2);setNotifEnabled(true);setNotifSettings({course:true,deadline:true,dm:true,event:true});setPomo({running:false,sec:25*60,mode:"work",sessions:0});setSearchQ("");setCid(null);setDid(null);setCh("timeline");viewHistRef.current=[];setView("home");setMockMode(false);setAppState("setup");
     // 画面はもうログイン画面。サーバーのセッション Cookie を消すのはその後で（開発サーバーの初回コンパイルや遅い回線で、
     // ボタンを押しても何も起きないように見えないように）。返らない・失敗したときは 10 秒で打ち切って 3 回まで
     let ok=false;

@@ -715,6 +715,9 @@ export const SetupView = ({ onComplete, onSkip, personas, mob, onBackToBoard, ba
       if (hasMedId) body.studentId = medStudentId;
       await postJson(`${API}/api/auth/setup`, body, t("setup.loginFailed"));
       if (yearGroup) updateUserPref({ yearGroup, ...(school ? { school } : {}) });
+      // ログイン（既存アカウント）はそのままアプリへ。step 3 の案内画面は新規登録（mode==="signup"）でしか描画されないため、
+      // ここで setStep(3) だけにするとログインフォームに留まってしまう。
+      if (mode === "login") { await onComplete(); return; }
       // Show post-registration guidance instead of going directly to main app
       setStep(3);
     } catch (err) {

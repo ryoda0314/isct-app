@@ -139,7 +139,7 @@ export const TTView=(_p)=>{
     if(pastTTError&&!pastData)return <div style={{padding:mob?10:14,borderRadius:10,background:`${T.red}10`,border:`1px solid ${T.red}30`,marginBottom:mob?8:14}}>
       <div style={{fontSize:12,color:T.red,fontWeight:600}}>{t("tt.pastError",{year:_yr})}</div>
       <div style={{fontSize:11,color:T.txD,marginTop:4}}>{pastTTError}</div>
-      {fetchPastTimetable&&<button onClick={()=>fetchPastTimetable(_yr)} style={{marginTop:8,padding:"5px 14px",borderRadius:8,border:`1px solid ${T.accent}`,background:"transparent",color:T.accent,fontSize:12,fontWeight:600,cursor:"pointer"}}>{t("tt.retry")}</button>}
+      {fetchPastTimetable&&<button onClick={()=>fetchPastTimetable(_yr,{force:true})} style={{marginTop:8,padding:"5px 14px",borderRadius:8,border:`1px solid ${T.accent}`,background:"transparent",color:T.accent,fontSize:12,fontWeight:600,cursor:"pointer"}}>{t("tt.retry")}</button>}
     </div>;
     if(pastData?.stats)return <div style={{padding:mob?"6px 10px":"8px 14px",borderRadius:8,background:T.bg3,border:`1px solid ${T.bd}`,marginBottom:mob?8:14,fontSize:11,color:T.txD,display:"flex",alignItems:"center",gap:6}}>
       <span style={{background:`${T.accent}15`,color:T.accent,padding:"2px 8px",borderRadius:6,fontWeight:700,fontSize:10}}>T2SCHOLA</span>

@@ -65,8 +65,9 @@ export function useCircles(enabled = true, userId = null) {
   }, []);
 
   // Subscribe to realtime for any channel we've loaded
+  // ユーザー ID が無い（未ログイン・ログイン直後で未確定）間は購読しない。購読しても読めるメッセージは無い。
   useEffect(() => {
-    if (isDemoMode() || !enabled) return;
+    if (isDemoMode() || !enabled || !userId) return;
     const sb = getSupabaseClient();
     const sub = sb
       .channel('circle_messages_all')
@@ -86,7 +87,7 @@ export function useCircles(enabled = true, userId = null) {
       })
       .subscribe();
     return () => { sb.removeChannel(sub); };
-  }, [enabled, fetchMessages]);
+  }, [enabled, userId, fetchMessages]);
 
   const sendMessage = useCallback(async (channelId, text, user) => {
     if (!text?.trim() || !channelId) return;

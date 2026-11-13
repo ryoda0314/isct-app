@@ -221,7 +221,7 @@ export async function POST(request) {
     const profileData = { moodle_id: userid, name: fullname || `User ${userid}` };
     const { error: profileErr } = await sb.from('profiles').upsert(
       profileData,
-      { onConflict: 'moodle_id', ignoreDuplicates: false }
+      { onConflict: 'moodle_id', ignoreDuplicates: true }
     );
     if (profileErr) console.error('[Posts POST] profile upsert:', profileErr.message);
 

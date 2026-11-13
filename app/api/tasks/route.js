@@ -45,7 +45,7 @@ export async function POST(request) {
     // Ensure a profile row exists (FK target) — same guard as /api/messages.
     await sb.from('profiles').upsert(
       { moodle_id: auth.userid, name: auth.fullname || `User ${auth.userid}` },
-      { onConflict: 'moodle_id', ignoreDuplicates: false }
+      { onConflict: 'moodle_id', ignoreDuplicates: true }
     );
 
     const { data, error } = await sb
