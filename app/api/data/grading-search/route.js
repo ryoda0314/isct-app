@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireSession } from '../../../../lib/auth/require-auth.js';
+import { publicGate, publicCache } from '../../../../lib/public-api.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { getDeptList } from '../../../../lib/api/syllabus-bulk.js';
 
@@ -19,10 +19,8 @@ const PAGE_SIZE = 60;
  *   min_percent / max_percent — そのカテゴリの合算割合フィルタ (category 指定時のみ有効)
  *   page       — 0始まり
  */
-export async function GET(request) {
+async function handleGET(request) {
   try {
-    const auth = await requireSession(request);
-    if (auth.error) return auth.error;
 
     const { searchParams } = new URL(request.url);
 
@@ -239,4 +237,12 @@ export async function GET(request) {
     console.error('[grading-search] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
+}
+
+// 未ログインにも公開（ログイン任意化）。誰が見ても同じ結果なので CDN に 600 秒キャッシュさせる。
+// 入口の判定（guest_access の非常停止）と Cache-Control は lib/public-api.js。
+export async function GET(request) {
+  const gate = await publicGate(request);
+  if (gate) return gate;
+  return publicCache(await handleGET(request), 600);
 }

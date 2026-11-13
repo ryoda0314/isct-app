@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireSession } from '../../../lib/auth/require-auth.js';
+import { guestOrSession } from '../../../lib/public-api.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 // 自分専用ミュージックライブラリ（ScienceTokyo Music）。owner_id = 認証ユーザー でのみ読み書き可能。
@@ -68,16 +69,18 @@ async function signAlbum(sb, row) {
 // { tracks, albums } を返す（useMusic は両形に対応済み）。
 export async function GET(request) {
   try {
-    const auth = await requireSession(request);
-    if (auth.error) return auth.error;
-    const { userid } = auth;
+    // 未ログインでも公式曲（is_public）だけは聴ける（ログイン任意化）。持ち主の ID は返さない
+    const { auth, error: gateErr } = await guestOrSession(request);
+    if (gateErr) return gateErr;
+    const userid = auth?.userid || null;
     const sb = getSupabaseAdmin();
+    const visible = (q) => (userid ? q.or(`owner_id.eq.${userid},is_public.eq.true`) : q.eq('is_public', true));
+    const forViewer = (row) => { if (userid || !row) return row; const { owner_id, ...rest } = row; return rest; };
 
     // 自分の曲 + 管理者が全員へ配信した公式曲（is_public）の両方を返す
-    const { data, error } = await sb
+    const { data, error } = await visible(sb
       .from('music_tracks')
-      .select('id, title, artist, audio, cover, duration, lyrics, is_public, owner_id, sort_order, created_at, album_id')
-      .or(`owner_id.eq.${userid},is_public.eq.true`)
+      .select('id, title, artist, audio, cover, duration, lyrics, is_public, owner_id, sort_order, created_at, album_id'))
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: false })
       .limit(500);
@@ -90,24 +93,22 @@ export async function GET(request) {
     // album_id 列が無い（music-albums.sql 未実行）場合は album 抜きで再取得してフォールバック
     if (error?.code === '42703') {
       console.warn('[Music] album_id 列がありません。supabase/music-albums.sql を実行してください。');
-      const { data: legacy } = await sb
+      const { data: legacy } = await visible(sb
         .from('music_tracks')
-        .select('id, title, artist, audio, cover, duration, lyrics, is_public, owner_id, sort_order, created_at')
-        .or(`owner_id.eq.${userid},is_public.eq.true`)
+        .select('id, title, artist, audio, cover, duration, lyrics, is_public, owner_id, sort_order, created_at'))
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: false })
         .limit(500);
       const tracks = await Promise.all((legacy || []).map((t) => signTrack(sb, t)));
-      return NextResponse.json({ tracks, albums: [] });
+      return NextResponse.json({ tracks: tracks.map(forViewer), albums: [] });
     }
     if (error) throw error;
 
     // アルバム（自分 + 公式）。未作成なら空配列。
     let albums = [];
-    const { data: albumRows, error: albErr } = await sb
+    const { data: albumRows, error: albErr } = await visible(sb
       .from('music_albums')
-      .select('id, title, artist, cover, is_public, owner_id, sort_order, created_at')
-      .or(`owner_id.eq.${userid},is_public.eq.true`)
+      .select('id, title, artist, cover, is_public, owner_id, sort_order, created_at'))
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: false })
       .limit(200);
@@ -115,7 +116,7 @@ export async function GET(request) {
     if (albumRows?.length) albums = await Promise.all(albumRows.map((a) => signAlbum(sb, a)));
 
     const tracks = await Promise.all((data || []).map((t) => signTrack(sb, t)));
-    return NextResponse.json({ tracks, albums });
+    return NextResponse.json({ tracks: tracks.map(forViewer), albums: albums.map(forViewer) });
   } catch (err) {
     console.error('[Music] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });

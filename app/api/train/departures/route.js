@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireSession } from '../../../../lib/auth/require-auth.js';
+import { publicGate, publicCache } from '../../../../lib/public-api.js';
 import { jstNow, todayDayType, departureMinutes } from '../../../../lib/api/jp-calendar.js';
 import { getStaticDestinationDepartures } from '../../../../lib/api/static-timetables.js';
 
@@ -8,10 +8,8 @@ import { getStaticDestinationDepartures } from '../../../../lib/api/static-timet
 //      trainTypeTitle, destination(行先), requiredMin(所要分) }] }
 // ※ 現状は静的同梱(東急)のみ。ODPT 対応は将来拡張。
 
-export async function GET(request) {
+async function handleGET(request) {
   try {
-    const auth = await requireSession(request);
-    if (auth.error) return auth.error;
 
     const { searchParams } = new URL(request.url);
     const origin = searchParams.get('origin');
@@ -73,4 +71,12 @@ export async function GET(request) {
     console.error('[Train departures]', err);
     return NextResponse.json({ available: false, reason: 'error' }, { status: 500 });
   }
+}
+
+// 未ログインにも公開（ログイン任意化）。誰が見ても同じ結果なので CDN に 30 秒キャッシュさせる。
+// 入口の判定（guest_access の非常停止）と Cache-Control は lib/public-api.js。
+export async function GET(request) {
+  const gate = await publicGate(request);
+  if (gate) return gate;
+  return publicCache(await handleGET(request), 30);
 }

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireSession } from '../../../../lib/auth/require-auth.js';
+import { guestOrSession } from '../../../../lib/public-api.js';
+import { maskAuthor } from '../../../../lib/public-mask.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { checkNgWords } from '../../../../lib/ng-filter.js';
 import { getBlockedIds } from '../../../../lib/blocks.js';
@@ -9,9 +11,10 @@ const MAX_TEXT_LENGTH = 2000;
 
 export async function GET(request) {
   try {
-    const auth = await requireSession(request);
-    if (auth.error) return auth.error;
-    const { userid } = auth;
+    // 未ログインでも読める（ログイン任意化）。未ログインには投稿者を伏せて返す（lib/public-mask.js）
+    const { auth, error: gateErr } = await guestOrSession(request);
+    if (gateErr) return gateErr;
+    const userid = auth?.userid || null;
 
     const { searchParams } = new URL(request.url);
     const postId = searchParams.get('post_id');
@@ -31,6 +34,7 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Internal error' }, { status: 500 });
     }
 
+    if (!userid) return NextResponse.json((data || []).map(maskAuthor));
     const [blockedIds, mutedIds] = await Promise.all([getBlockedIds(userid), getMutedIds(userid)]);
     const isHidden = (uid) => blockedIds.has(uid) || mutedIds.has(uid);
     const filtered = (blockedIds.size === 0 && mutedIds.size === 0) ? data : data.filter(c => !isHidden(c.moodle_user_id));

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireSession } from '../../../../lib/auth/require-auth.js';
+import { publicGate, publicCache } from '../../../../lib/public-api.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 const PAGE_SIZE = 40;
@@ -22,10 +22,8 @@ const PAGE_SIZE = 40;
  *   search   — 科目コード/名の部分一致
  *   page     — 0始まり
  */
-export async function GET(request) {
+async function handleGET(request) {
   try {
-    const auth = await requireSession(request);
-    if (auth.error) return auth.error;
 
     const { searchParams } = new URL(request.url);
     const year = String(searchParams.get('year') || '2026');
@@ -163,4 +161,12 @@ export async function GET(request) {
     console.error('[textbook-search] GET error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error', detail: err.message }, { status: 500 });
   }
+}
+
+// 未ログインにも公開（ログイン任意化）。誰が見ても同じ結果なので CDN に 600 秒キャッシュさせる。
+// 入口の判定（guest_access の非常停止）と Cache-Control は lib/public-api.js。
+export async function GET(request) {
+  const gate = await publicGate(request);
+  if (gate) return gate;
+  return publicCache(await handleGET(request), 600);
 }

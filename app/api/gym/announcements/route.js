@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { publicGate, publicCache } from '../../../../lib/public-api.js';
 import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
@@ -13,10 +14,8 @@ async function isAdmin(sb, userid) {
 const TYPES = new Set(['info', 'maintenance', 'update', 'urgent']);
 
 // GET: アクティブなお知らせ一覧（ピン留め優先 → 新しい順）
-export async function GET(request) {
+async function handleGET(request) {
   try {
-    const auth = await requireSession(request);
-    if (auth.error) return auth.error;
 
     const sb = getSupabaseAdmin();
     const { data, error } = await sb
@@ -64,4 +63,12 @@ export async function POST(request) {
     console.error('[Gym announcements POST]', err);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
+}
+
+// 未ログインにも公開（ログイン任意化）。誰が見ても同じ結果なので CDN に 60 秒キャッシュさせる。
+// 入口の判定（guest_access の非常停止）と Cache-Control は lib/public-api.js。
+export async function GET(request) {
+  const gate = await publicGate(request);
+  if (gate) return gate;
+  return publicCache(await handleGET(request), 60);
 }

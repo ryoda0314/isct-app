@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireSession } from '../../../lib/auth/require-auth.js';
+import { guestOrSession } from '../../../lib/public-api.js';
+import { maskAuthor } from '../../../lib/public-mask.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 import { checkNgWords } from '../../../lib/ng-filter.js';
 import { getBlockedIds } from '../../../lib/blocks.js';
@@ -11,9 +13,11 @@ const VALID_TYPES = ['discussion', 'question'];
 
 export async function GET(request) {
   try {
-    const auth = await requireSession(request);
-    if (auth.error) return auth.error;
-    const { userid } = auth;
+    // 未ログインでも読める（ログイン任意化）。未ログインには投稿者を伏せて返す（lib/public-mask.js）
+    const { auth, error: gateErr } = await guestOrSession(request);
+    if (gateErr) return gateErr;
+    const userid = auth?.userid || null;
+    const forViewer = (list) => (userid ? list : list.map(maskAuthor));
 
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
@@ -67,7 +71,9 @@ export async function GET(request) {
     }
 
     // Filter blocked/muted
-    const [blockedIds, mutedIds] = await Promise.all([getBlockedIds(userid), getMutedIds(userid)]);
+    const [blockedIds, mutedIds] = userid
+      ? await Promise.all([getBlockedIds(userid), getMutedIds(userid)])
+      : [new Set(), new Set()];
     const isHidden = (uid) => blockedIds.has(uid) || mutedIds.has(uid);
     const filterBlocked = (list) => (blockedIds.size === 0 && mutedIds.size === 0) ? list : list.filter(p => !isHidden(p.moodle_user_id));
 
@@ -79,7 +85,7 @@ export async function GET(request) {
         comment_count: p.freshman_comments?.[0]?.count || 0,
         freshman_comments: undefined,
       }));
-      return NextResponse.json({ posts, pinnedPosts: [], hasMore: false });
+      return NextResponse.json({ posts: forViewer(posts), pinnedPosts: [], hasMore: false });
     }
 
     const filtered = filterBlocked(data);
@@ -90,7 +96,7 @@ export async function GET(request) {
       freshman_comments: undefined,
     }));
 
-    return NextResponse.json({ posts, pinnedPosts, hasMore });
+    return NextResponse.json({ posts: forViewer(posts), pinnedPosts: forViewer(pinnedPosts), hasMore });
   } catch (err) {
     console.error('[FreshmanBoard GET]', err);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });

@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
-import { requireSession } from '../../../../lib/auth/require-auth.js';
+import { publicGate, publicCache } from '../../../../lib/public-api.js';
 
 // =============================================================
 // 空き教室ファインダー API
@@ -136,9 +136,7 @@ function slotRange(ps, pe) {
   return [Math.max(0, Math.min(4, rs)), Math.max(0, Math.min(4, re))];
 }
 
-export async function GET(req) {
-  const auth = await requireSession(req);
-  if (auth.error) return auth.error;
+async function handleGET(req) {
 
   const { searchParams } = new URL(req.url);
   const year = (searchParams.get('year') || '2026').slice(0, 8).replace(/[^0-9]/g, '');
@@ -261,4 +259,12 @@ export async function GET(req) {
     occ: occOut,
     totalCourses: rows.length,
   });
+}
+
+// 未ログインにも公開（ログイン任意化）。誰が見ても同じ結果なので CDN に 60 秒キャッシュさせる。
+// 入口の判定（guest_access の非常停止）と Cache-Control は lib/public-api.js。
+export async function GET(req) {
+  const gate = await publicGate(req);
+  if (gate) return gate;
+  return publicCache(await handleGET(req), 60);
 }

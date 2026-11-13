@@ -36,6 +36,26 @@ function checkRateLimit(ip, tier) {
   return rec.c <= cfg.max;
 }
 
+// ログイン任意化: 誰が見ても同じ結果を返す公開 GET。ここに載せたパスだけは /api 共通の
+// private, no-store を付けず、ルートが付ける Cache-Control（public, s-maxage=…。lib/public-api.js の publicCache）を生かす。
+// 見る人で結果が変わるルート（掲示板・音楽・学園祭など）は絶対に載せないこと。
+const PUBLIC_CACHEABLE = new Set([
+  '/api/settings',
+  '/api/announcements',
+  '/api/exams',
+  '/api/train/departures',
+  '/api/train/search',
+  '/api/gym/announcements',
+  '/api/data/syllabus-search',
+  '/api/data/grading-search',
+  '/api/data/textbook-search',
+  '/api/data/reg-courses',
+  '/api/data/reg-sections',
+  '/api/data/free-rooms',
+  '/api/data/book-search',
+  '/api/data/book-search-med',
+]);
+
 function getTier(pathname, method) {
   if (pathname === '/api/auth/token' || pathname === '/api/auth/token/refresh') return 'token'; // トークン取得は厳しく制限
   if (pathname.startsWith('/api/auth/')) return 'auth';
@@ -172,7 +192,8 @@ export function middleware(request) {
   }
 
   // ユーザー固有データのキャッシュ防止（CDN/Edge で他人のレスポンスが配信されるのを防ぐ）
-  if (isApi) {
+  // 公開 GET（PUBLIC_CACHEABLE）だけは除く。中身は誰が見ても同じで、Cache-Control はルートが付ける。
+  if (isApi && !(request.method === 'GET' && PUBLIC_CACHEABLE.has(pathname))) {
     res.headers.set('Cache-Control', 'private, no-store, no-cache, must-revalidate');
     res.headers.set('Vary', 'Cookie');
   }

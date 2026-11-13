@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireSession } from '../../../../lib/auth/require-auth.js';
+import { publicGate } from '../../../../lib/public-api.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 
 /**
@@ -15,10 +15,8 @@ import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
  * Server-side Moodle calls fail with 403 (LMS blocks server IPs), so we
  * accept the course list from the client and only do the DB lookup here.
  */
-export async function POST(request) {
+async function handlePOST(request) {
   try {
-    const auth = await requireSession(request);
-    if (auth.error) return auth.error;
 
     const body = await request.json().catch(() => ({}));
     const { searchParams } = new URL(request.url);
@@ -134,4 +132,11 @@ export async function POST(request) {
     console.error('[MyTextbooks] POST error:', err.message, err.stack);
     return NextResponse.json({ error: 'Internal error', detail: err.message }, { status: 500 });
   }
+}
+
+// 未ログインにも公開（ログイン任意化）。送られた科目一覧で DB を引くだけで、本人の情報は使わない。
+export async function POST(request) {
+  const gate = await publicGate(request);
+  if (gate) return gate;
+  return handlePOST(request);
 }

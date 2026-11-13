@@ -1,12 +1,10 @@
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
-import { requireSession } from '../../../../lib/auth/require-auth.js';
+import { publicGate, publicCache } from '../../../../lib/public-api.js';
 
 /** Normalize fullwidth digits (０-９) to halfwidth (0-9) */
 const norm = s => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
 
-export async function GET(req) {
-  const auth = await requireSession(req);
-  if (auth.error) return auth.error;
+async function handleGET(req) {
 
   const { searchParams } = new URL(req.url);
   const year = searchParams.get('year') || '2026';
@@ -96,4 +94,12 @@ export async function GET(req) {
   }
 
   return Response.json({ courses: result });
+}
+
+// 未ログインにも公開（ログイン任意化）。誰が見ても同じ結果なので CDN に 600 秒キャッシュさせる。
+// 入口の判定（guest_access の非常停止）と Cache-Control は lib/public-api.js。
+export async function GET(req) {
+  const gate = await publicGate(req);
+  if (gate) return gate;
+  return publicCache(await handleGET(req), 600);
 }
