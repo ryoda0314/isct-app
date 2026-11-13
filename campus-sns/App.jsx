@@ -16,6 +16,7 @@ import { markAccount, hadAccount, clearAccountStorage } from "./accountStorage.j
 import { MigrateLocalData, hasLocalDataToMove } from "./components/MigrateLocalData.jsx";
 import { TTBuilderView } from "./views/TTBuilderView.jsx";
 import { LocalCourseCard } from "./components/LocalCourseCard.jsx";
+import { LookupHub } from "./components/LookupHub.jsx";
 import { useLocalTimetable } from "./localTimetable.js";
 import { usePresence } from "./hooks/usePresence.js";
 import { useCourseMembers, resetCourseMembersCache } from "./hooks/useCourseMembers.js";
@@ -1258,7 +1259,7 @@ export default function App(){
 
   // --- DESKTOP ---
   if(!mob){
-    const titles={home:t("nav.home"),timetable:t("nav.timetable"),tasks:t("header.taskMgmt"),calendar:t("nav.calendar"),acadCal:t("tool.acadCal"),exams:t("tool.exams"),dm:t("common.dm"),notif:t("nav.notif"),grades:t("tool.grades"),pomo:t("tool.pomo"),events:t("tool.events"),reviews:t("tool.reviews"),bmarks:t("tool.bmarks"),search:t("nav.search"),profile:t("nav.profile"),navigation:t("nav.navigation"),friends:t("nav.friends"),circles:t("nav.circles"),languages:t("nav.languages"),admin:t("nav.admin"),freshman:t("nav.freshman"),festival:t("festival.title"),reg:t("more.regAssist"),ttbuild:t("nav.ttbuild"),freeroom:t("tool.freeroom"),attendance:t("nav.attendance"),music:t("tool.music"),pdftools:t("nav.pdftools"),notes:t("nav.notes")};
+    const titles={home:t("nav.home"),timetable:t("nav.timetable"),tasks:t("header.taskMgmt"),calendar:t("nav.calendar"),acadCal:t("tool.acadCal"),exams:t("tool.exams"),dm:t("common.dm"),notif:t("nav.notif"),grades:t("tool.grades"),pomo:t("tool.pomo"),events:t("tool.events"),reviews:t("tool.reviews"),bmarks:t("tool.bmarks"),search:t("nav.search"),profile:t("nav.profile"),navigation:t("nav.navigation"),friends:t("nav.friends"),circles:t("nav.circles"),languages:t("nav.languages"),admin:t("nav.admin"),freshman:t("nav.freshman"),festival:t("festival.title"),reg:t("more.regAssist"),ttbuild:t("nav.ttbuild"),lookup:t("nav.lookupTitle"),freeroom:t("tool.freeroom"),attendance:t("nav.attendance"),music:t("tool.music"),pdftools:t("nav.pdftools"),notes:t("nav.notes")};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:t("chan.timeline"),chat:t("chan.chat"),assignments:t("chan.assignments"),materials:t("chan.materials"),reviews:t("chan.reviews")}[ch]}</>;
       if(view==="dept"&&cd){const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?locName(cd):cd.prefix}</span> {nameOnly?"":`${locName(cd)} `}— {{timeline:t("chan.timeline"),chat:t("chan.chat")}[ch]||""}</>;}
@@ -1314,6 +1315,7 @@ export default function App(){
           {view==="freeroom"&&(gated("freeroom")?fg("freeroom"):<FreeRoomView mob={false} goToBuilding={goToBuilding}/>)}
           {view==="reg"&&<RegView mob={false}/>}
           {view==="ttbuild"&&<TTBuilderView mob={false} goToBuilding={goToBuilding} lmsActive={!useLocalTT}/>}
+          {view==="lookup"&&<LookupHub mob={false} setView={setView}/>}
           {view==="textbooks"&&(gated("textbooks")?fg("textbooks"):<TextbooksView courses={coursesEff} academicYear={_selY} setAcademicYear={_setSelY}/>)}
           {view==="grading"&&(gated("grading")?fg("grading"):<GradingView courses={coursesEff} academicYear={_selY} setAcademicYear={_setSelY}/>)}
           {view==="admin"&&<AdminView mob={false} courses={allCourses} depts={userDepts} schools={userSchools}/>}
@@ -1349,7 +1351,7 @@ export default function App(){
         {view==="courseSelect"&&(gated("courseSelect")?<><MHdr title={t("header.courseSelect")}/>{fg("courseSelect")}</>:<><MHdr title={t("header.courseSelect")}/><CSelect setCid={setCid} setView={setView} setCh={setCh} courses={coursesEff} depts={userDepts} schools={userSchools} setDid={setDid} userUnit={userUnit} medSessions={medSessions}/></>)}
         {view==="course"&&(cc?.local?<><MHdr title={cc.name} back={goBack}/><LocalCourseCard course={cc} mob acct={acct} onLogin={()=>openLoginSheet({intent:"course"})} setView={setView} goToBuilding={goToBuilding}/></>:gated("course")?<><MHdr title={t("header.course")} back={goBack}/>{fg("course")}</>:cc&&<><CourseHdr/>{courseContent()}</>)}
         {view==="dept"&&(gated("dept")?<><MHdr title={t("sidebar.depts")} back={goBack}/>{fg("dept")}</>:cd&&<><MHdr title={<>{(()=>{const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?locName(cd):cd.prefix}</span>{!nameOnly&&<span style={{fontWeight:400,color:T.txD,fontSize:13,marginLeft:4}}>{locName(cd)}</span>}</>;})()}</>} back={goBack} right={<button onClick={()=>setShowMembers(true)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.users}{deptMembers.length>0&&<span style={{position:"absolute",top:-4,right:-6,minWidth:14,height:14,borderRadius:7,background:cd.col||T.accent,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{deptMembers.length}</span>}</button>}/><div style={{display:"flex",borderBottom:`1px solid ${T.bd}`,background:T.bg2,flexShrink:0}}>{[{id:"timeline",l:t("chan.timeline"),i:I.feed},{id:"chat",l:t("chan.chat"),i:I.chat}].map(tab=><button key={tab.id} onClick={()=>{setCh(tab.id);trackUsage("feature_open","dept:"+tab.id);}} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"10px 14px",border:"none",borderBottom:ch===tab.id?`2px solid ${T.accent}`:"2px solid transparent",background:"transparent",color:ch===tab.id?T.txH:T.txD,fontSize:13,fontWeight:ch===tab.id?600:400,cursor:"pointer"}}>{tab.i}<span>{tab.l}</span></button>)}</div>{deptContent()}</>)}
-        {view==="moreMenu"&&<><MHdr title={t("nav.more")}/><MoreMenu setView={setView} unreadN={unreadN} pendingFriendCount={pendingFriendCount} dmUnread={dmUnread} isAdmin={!!user.isAdmin}/></>}
+        {view==="moreMenu"&&<><MHdr title={t("nav.more")}/><MoreMenu setView={setView} unreadN={unreadN} pendingFriendCount={pendingFriendCount} dmUnread={dmUnread} isAdmin={!!user.isAdmin} guest={auth.status==="guest"}/></>}
         {view==="friends"&&(gated("friends")?<><MHdr title={t("nav.friends")} back={mBack}/>{fg("friends")}</>:<><MHdr title={t("nav.friends")} back={mBack}/><FriendsView mob setView={setView} {...friendProps}/></>)}
         {view==="user"&&(gated("user")?<><MHdr title={t("profile.viewTitle")} back={mBack}/>{fg("user")}</>:<UserProfileView mob {...profileProps}/>)}
         {view==="dm"&&(gated("dm")?<><MHdr title="DM"/>{fg("dm")}</>:TR?<><MHdr title="DM"/><TelecomBlockView title={t("telecom.dmUnavailable")} onBack={goBack}/></>:<><MHdr title="DM"/><DMView mob setView={setView} friends={friendList} groups={groupList} leaveGroup={leaveGroup} markDMSeen={markDMSeen} createGroup={createGroup} dmTarget={dmTarget} onConsumeDmTarget={()=>setDmTarget(null)}/></>)}
@@ -1384,6 +1386,7 @@ export default function App(){
         {view==="freeroom"&&(gated("freeroom")?<><MHdr title={t("tool.freeroom")} back={mBack}/>{fg("freeroom")}</>:<><MHdr title={t("tool.freeroom")} back={mBack}/><FreeRoomView mob goToBuilding={goToBuilding}/></>)}
         {view==="reg"&&<><MHdr title={t("more.regAssist")} back={mBack}/><RegView mob/></>}
         {view==="ttbuild"&&<><MHdr title={t("nav.ttbuild")} back={mBack}/><TTBuilderView mob goToBuilding={goToBuilding} lmsActive={!useLocalTT}/></>}
+        {view==="lookup"&&<><MHdr title={t("nav.lookupTitle")}/><LookupHub mob setView={setView}/></>}
         {view==="textbooks"&&(gated("textbooks")?<><MHdr title={t("nav.textbooks")} back={mBack}/>{fg("textbooks")}</>:<><MHdr title={t("nav.textbooks")} back={mBack}/><TextbooksView courses={coursesEff} academicYear={_selY} setAcademicYear={_setSelY}/></>)}
         {view==="grading"&&(gated("grading")?<><MHdr title={t("nav.grading")} back={mBack}/>{fg("grading")}</>:<><MHdr title={t("nav.grading")} back={mBack}/><GradingView courses={coursesEff} academicYear={_selY} setAcademicYear={_setSelY}/></>)}
         {view==="admin"&&<><MHdr title={t("nav.admin")} back={mBack}/><AdminView mob courses={allCourses} depts={userDepts} schools={userSchools}/></>}
@@ -1391,7 +1394,7 @@ export default function App(){
         {view==="festival"&&<><MHdr title={t("festival.title")} back={mBack}/><FestivalView mob loggedIn={acct} onLogin={()=>openLoginSheet({returnTo:"festival"})} goToBuilding={goToBuilding}/></>}
       </div>
       <MiniPlayer mob view={view} ch={ch} onOpen={()=>setView("music")}/>
-      <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread} hasMed={medPrimary}/>
+      <MNav view={view} setView={setView} ac={ac} unreadN={unreadN} dmUnread={dmUnread} hasMed={medPrimary} guest={auth.status==="guest"}/>
       <div className="sa-bottom" style={{background:T.bg2,flexShrink:0}}/>
       {showMembers&&(view==="course"&&cc?<MemberPanel mList={members} onlineList={online} col={cc.col} onClose={()=>setShowMembers(false)}/>:view==="dept"&&cd?<MemberPanel mList={deptMembers} onlineList={online} col={cd.col||T.accent} onClose={()=>setShowMembers(false)}/>:null)}
       {showDeptModal&&<DeptModal user={user} onClose={()=>setDeptModalDone(true)}/>}

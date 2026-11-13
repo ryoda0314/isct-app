@@ -242,13 +242,17 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
 // MOBILE: Bottom Nav
 // ============================================================
 
-const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false})=>{
-  const moreViews=["friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","languages","admin","acadCal","exams","freeroom","freshman","festival","reg","ttbuild","med-tt","timetable","pocket","takiplaza","gym","tsubame","train","library","pdftools","notes","music","grading","qr","attendance","textbooks","lecrec"];
+// guest: ログインしていない人。課題・DM（ログイン前提）の代わりに「しらべる」を出す（ログインした人は今のまま）
+const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false,guest=false})=>{
+  const moreViews=["lookup","tasks","dm","friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","languages","admin","acadCal","exams","freeroom","freshman","festival","reg","ttbuild","med-tt","timetable","pocket","takiplaza","gym","tsubame","train","library","pdftools","notes","music","grading","qr","attendance","textbooks","lecrec"];
   const ttId=hasMed?"med-tt":"timetable";
-  const isMore=moreViews.includes(view)&&view!==ttId;
+  const tabs=guest
+    ?[{id:"home",i:I.home,l:t("nav.home")},{id:ttId,i:I.cal,l:t("nav.timetable")},{id:"lookup",i:I.search,l:t("nav.lookup")},{id:"navigation",i:I.map,l:t("nav.map")},{id:"moreMenu",i:I.more,l:t("nav.more")}]
+    :[{id:"home",i:I.home,l:t("nav.home")},{id:ttId,i:I.cal,l:t("nav.timetable")},{id:"tasks",i:I.tasks,l:t("nav.tasks"),b:ac},{id:"navigation",i:I.map,l:t("nav.map")},{id:"dm",i:I.mail,l:"DM",b:dmUnread},{id:"moreMenu",i:I.more,l:t("nav.more"),b:unreadN}];
+  const isMore=moreViews.includes(view)&&!tabs.some(n=>n.id===view);
   return(
   <nav className="mnav" style={{display:"flex",background:T.bg2,borderTop:`1px solid ${T.bd}`,flexShrink:0}}>
-    {[{id:"home",i:I.home,l:t("nav.home")},{id:ttId,i:I.cal,l:t("nav.timetable")},{id:"tasks",i:I.tasks,l:t("nav.tasks"),b:ac},{id:"navigation",i:I.map,l:t("nav.map")},{id:"dm",i:I.mail,l:"DM",b:dmUnread},{id:"moreMenu",i:I.more,l:t("nav.more"),b:unreadN}].map(n=>{
+    {tabs.map(n=>{
       const on=n.id==="moreMenu"?isMore:view===n.id;
       return <button key={n.id} onClick={()=>setView(n.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,border:"none",background:"transparent",color:on?T.accent:T.txD,cursor:"pointer",padding:0,position:"relative",height:50}}><div style={{position:"relative"}}>{n.i}{n.b===null?<span style={{position:"absolute",top:-5,right:-8,width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{width:12,height:12,borderRadius:"50%",border:`2px solid ${T.accent}`,borderTopColor:"transparent",animation:"mnSpin .6s linear infinite",display:"block"}}/></span>:n.b>0&&<span style={{position:"absolute",top:-4,right:-7,minWidth:14,height:14,borderRadius:7,background:T.red,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{n.b}</span>}</div><span style={{fontSize:10,fontWeight:on?600:400}}>{n.l}</span></button>;
     })}
@@ -257,8 +261,55 @@ const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false})=>{
 
 // --- More Menu (mobile) ---
 
-const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})=>{
+const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false,guest=false})=>{
   const [q,setQ]=useState("");
+  // ゲスト用: 目的別に並べ、各機能に一言の説明（d）を付ける。ログインが必要なものは最後にまとめて鍵を付ける（lock）。
+  // 機能は消さない（全部ここからたどれる）。
+  const guestSections=[
+    {title:t("more.g.study"),items:[
+      {id:"ttbuild",i:I.cal,l:t("nav.ttbuild"),d:t("more.d.ttbuild")},
+      {id:"tasks",i:I.tasks,l:t("more.g.tasks"),d:t("more.d.tasks")},
+      {id:"calendar",i:I.cal,l:t("nav.calendar"),d:t("more.d.calendar")},
+      {id:"reg",i:I.chk,l:t("more.regAssist"),d:t("more.d.reg")},
+      {id:"grading",i:I.bar,l:t("lookup.gradingT"),d:t("more.d.grading")},
+      {id:"textbooks",i:I.book,l:t("lookup.textbooksT"),d:t("more.d.textbooks")},
+      {id:"exams",i:I.clip,l:t("tool.exams"),d:t("more.d.exams")},
+      {id:"attendance",i:I.attend,l:t("nav.attendance"),d:t("more.d.attendance")},
+      {id:"acadCal",i:I.flag,l:t("tool.acadCal"),d:t("more.d.acadCal")},
+    ]},
+    {title:t("more.campus"),items:[
+      {id:"freeroom",i:I.pin,l:t("tool.freeroom"),d:t("more.d.freeroom")},
+      {id:"library",i:I.tgt,l:t("nav.library"),d:t("more.d.library")},
+      {id:"train",i:I.train,l:t("nav.train"),d:t("more.d.train")},
+      {id:"gym",i:I.dumbbell,l:t("tool.gym"),d:t("more.d.gym")},
+      {id:"events",i:I.event,l:t("tool.events"),d:t("more.d.events")},
+      {id:"festival",i:I.star,l:t("nav.festival"),d:t("more.d.festival")},
+      {id:"freshman",i:I.userPlus,l:t("nav.freshman"),d:t("more.d.freshman")},
+    ]},
+    {title:t("more.g.tools"),items:[
+      {id:"pdftools",i:I.file,l:t("nav.pdftools"),d:t("more.d.pdftools")},
+      {id:"notes",i:I.pen,l:t("nav.notes"),d:t("more.d.notes")},
+      {id:"pomo",i:I.play,l:t("more.pomoTimer"),d:t("more.d.pomo")},
+      {id:"qr",i:I.qr,l:t("appgrid.qr"),d:t("more.d.qr")},
+      {id:"music",i:I.music,l:t("tool.music"),d:t("more.d.music")},
+    ]},
+    {title:t("more.g.settings"),items:[
+      {id:"profile",i:I.user1,l:t("more.g.profile"),d:t("more.d.profile")},
+    ]},
+    {title:t("more.g.login"),items:[
+      {id:"grades",i:I.grad,l:t("tool.grades"),d:t("more.d.grades"),lock:true},
+      {id:"dm",i:I.mail,l:"DM",d:t("more.d.dm"),lock:true},
+      {id:"friends",i:I.users,l:t("nav.friends"),d:t("more.d.friends"),lock:true},
+      {id:"circles",i:I.circle,l:t("nav.circles"),d:t("more.d.circles"),lock:true},
+      {id:"languages",i:I.globe,l:t("nav.languages"),d:t("more.d.languages"),lock:true},
+      {id:"notif",i:I.bell,l:t("nav.notif"),d:t("more.d.notif"),lock:true},
+      {id:"pocket",i:I.inbox,l:t("more.pocketDesc"),d:t("more.d.pocket"),lock:true},
+      {id:"takiplaza",i:I.clock,l:"Taki Plaza",d:t("more.d.takiplaza"),lock:true},
+      {id:"tsubame",i:I.swallow,l:t("tool.tsubame"),d:t("more.d.tsubame"),lock:true},
+      {id:"bmarks",i:I.bmark,l:t("tool.bmarks"),d:t("more.d.bmarks"),lock:true},
+      {id:"reviews",i:I.star,l:t("tool.reviews"),d:t("more.d.reviews"),lock:true},
+    ]},
+  ];
   const otherItems=[{id:"search",i:I.search,l:t("nav.search")},{id:"bmarks",i:I.bmark,l:t("tool.bmarks")}];
   if(isAdmin) otherItems.push({id:"admin",i:I.shield,l:t("nav.admin")});
   const sections=[
@@ -308,15 +359,20 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false})
     ]},
     {title:t("more.other"),items:otherItems},
   ];
-  // 絞り込み: ラベル(表示言語) と id の部分一致
+  const allSections=guest?guestSections:sections;
+  // 絞り込み: ラベル(表示言語)・説明・id の部分一致
   const needle=q.trim().toLowerCase();
   const shown=needle
-    ?sections.map(s=>({...s,items:s.items.filter(n=>String(n.l).toLowerCase().includes(needle)||n.id.toLowerCase().includes(needle))})).filter(s=>s.items.length)
-    :sections;
+    ?allSections.map(s=>({...s,items:s.items.filter(n=>String(n.l).toLowerCase().includes(needle)||String(n.d||"").toLowerCase().includes(needle)||n.id.toLowerCase().includes(needle))})).filter(s=>s.items.length)
+    :allSections;
   const renderItem=(n)=>(
     <button onClick={()=>setView(n.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"11px 14px",cursor:"pointer",border:"none",background:"transparent",textAlign:"left",font:"inherit"}}>
       <span style={{color:T.txD,display:"flex"}} aria-hidden="true">{n.i}</span>
-      <span style={{flex:1,fontSize:14,color:T.txH,fontWeight:500}}>{n.l}</span>
+      <span style={{flex:1,minWidth:0}}>
+        <span style={{display:"block",fontSize:14,color:T.txH,fontWeight:500}}>{n.l}</span>
+        {n.d&&<span style={{display:"block",fontSize:11,color:T.txD,marginTop:1,lineHeight:1.45}}>{n.d}</span>}
+      </span>
+      {n.lock&&<span style={{color:T.txD,display:"flex"}} aria-label={t("app.loginRequired")}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></span>}
       {n.b>0&&<span style={{minWidth:18,height:18,borderRadius:9,background:T.red,color:"#fff",fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px"}}>{n.b}</span>}
       <span style={{color:T.txD,display:"flex"}} aria-hidden="true">{I.arr}</span>
     </button>

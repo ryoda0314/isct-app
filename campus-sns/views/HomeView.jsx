@@ -13,6 +13,7 @@ import { buildTimetable } from "../../lib/transform/timetable-builder.js";
 import { PERIOD_TIMES } from "../examData.js";
 import { isNative } from "../capacitor.js";
 import { getAuth } from "../authState.js";
+import { GuestGuide } from "../components/GuestGuide.jsx";
 import { openPortal, openIsctPortal } from "../plugins/portalWebView.js";
 import { isDemoMode } from "../demoMode.js";
 import { DEMO_EXAMS } from "../demoData.js";
@@ -289,6 +290,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
 
   return(
     <><div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+      {/* ── はじめに（ログインしていない人だけ。何ができるか・何をすればいいかを 4 つに絞って出す） ── */}
+      {getAuth().status==="guest"&&<div style={{padding:"12px 16px 0"}}><GuestGuide setView={setView} mob={mob} hasTimetable={courses.length>0}/></div>}
       {/* ── 工大祭バナー（開催終了まで） ── */}
       {now<FESTIVAL_END&&<div style={{padding:"10px 16px 0"}}>
         <div onClick={()=>setView("festival")} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:12,cursor:"pointer",background:"linear-gradient(135deg,#f59e0b22,#ec489922,#6366f122)",border:`1px solid ${T.bd}`}}>

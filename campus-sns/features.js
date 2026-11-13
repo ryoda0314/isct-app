@@ -41,6 +41,7 @@ export const FEATURES = {
   events:     { need: "local" },
   search:     { need: "local" },
   ttbuild:    { need: "local" },
+  lookup:     { need: "none" },
 
   // ── 管理者 ──
   admin:  { need: "admin" },

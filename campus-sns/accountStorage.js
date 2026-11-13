@@ -22,8 +22,8 @@ const KEEP_EXACT = new Set([
   "calFavPresets", "eventRsvps",
   // 通知の設定（端末の好み）
   "notifEnabled", "notifSettings",
-  // 利用規約への同意
-  "privacyAgreed",
+  // 利用規約への同意・ゲスト向け「はじめに」を閉じた
+  "privacyAgreed", "guideDismissed",
 ]);
 
 // 前方一致で残すもの
