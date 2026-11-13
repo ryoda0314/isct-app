@@ -1,67 +1,39 @@
 import { NextResponse } from 'next/server';
-import { verifySession, COOKIE_NAME } from '../../../../lib/auth/session.js';
-import { loadCredentials } from '../../../../lib/credentials.js';
-import { fetchReservations } from '../../../../lib/api/facility-reservations.js';
+import { requireSession } from '../../../../lib/auth/require-auth.js';
+import { readFacilityWeek } from '../../../../lib/api/facility-cache.js';
 
-export const maxDuration = 60;
+// Taki Plaza の予約状況（週ごと）。以前は開くたびにサーバーのヘッドレスブラウザで教務Webを読み取っていたが、
+// 遅いので定期的に読み取って DB に保存したもの（lib/api/facility-cache.js）を返すだけにした。
+// 予約には団体名などが入るので、公開はせずアカウントのときだけ（ポータルの資格情報は不要になった）。
+// 応答: 保存データ（{ building, weekStart, weekEnd, days, spaces }）＋ fetchedAt。まだ無い週は notCached: true。
 
-function todayYYYYMMDD() {
-  const d = new Date();
+function todayJST() {
+  const d = new Date(Date.now() + 9 * 3600e3);
   const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 }
 
 export async function GET(request) {
-  const cookie = request.cookies.get(COOKIE_NAME)?.value;
-  const session = verifySession(cookie);
-  if (!session) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  }
-
-  let creds;
-  try {
-    creds = await loadCredentials(session.loginId);
-  } catch {
-    return NextResponse.json({ error: 'Credentials not found' }, { status: 400 });
-  }
-
-  if (!creds.portalUserId || !creds.portalPassword || !creds.matrix) {
-    return NextResponse.json({ error: 'Portal credentials not configured' }, { status: 400 });
-  }
+  const auth = await requireSession(request);
+  if (auth.error) return auth.error;
 
   const { searchParams } = new URL(request.url);
-  const rawDate = searchParams.get('date');
-  const date = /^\d{8}$/.test(rawDate || '') ? rawDate : todayYYYYMMDD();
+  const raw = searchParams.get('date') || '';
+  const date = /^\d{8}$/.test(raw) ? `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}` : todayJST();
   const rawB = searchParams.get('b');
   const building = /^\d+$/.test(rawB || '') ? rawB : '1';
-  const debug = searchParams.get('debug') === '1';
-
-  const headers = { 'Cache-Control': debug ? 'no-store' : 'private, max-age=300' };
+  const headers = { 'Cache-Control': 'private, max-age=120' };
 
   try {
-    const data = await fetchReservations({
-      loginId: session.loginId,
-      creds,
-      dateYYYYMMDD: date,
-      building,
-      debug,
-    });
-    if (data?.error && !debug) {
-      return NextResponse.json(data, { status: 502, headers });
-    }
-    return NextResponse.json(data, { headers });
+    const row = await readFacilityWeek({ date, building });
+    if (!row) return NextResponse.json({ notCached: true, days: [], spaces: [], fetchedAt: null }, { headers });
+    return NextResponse.json({ ...row.data, fetchedAt: row.fetched_at }, { headers });
   } catch (err) {
+    // テーブル未作成（supabase/facility-reservations.sql 未実行）
+    if (err.code === '42P01' || err.code === 'PGRST205') {
+      return NextResponse.json({ notCached: true, days: [], spaces: [], fetchedAt: null }, { headers });
+    }
     console.error('[FacilityReservations API] Error:', err.message);
-    const failedStep = err.failedStep;
-    const stepMessages = {
-      connect: 'ポータルサイトに接続できませんでした。時間をおいて再度お試しください。',
-      password: 'ポータルのアカウントまたはパスワードが正しくありません。設定画面から再登録してください。',
-      matrix: 'マトリクス認証に失敗しました。設定画面からマトリクスカードを再登録してください。',
-      network: 'ページの読み込みがタイムアウトしました。通信環境を確認して再度お試しください。',
-    };
-    return NextResponse.json(
-      { error: stepMessages[failedStep] || '予約状況の取得に失敗しました。' },
-      { status: 500, headers },
-    );
+    return NextResponse.json({ error: '予約状況の取得に失敗しました。' }, { status: 500 });
   }
 }

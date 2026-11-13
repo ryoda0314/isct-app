@@ -170,6 +170,10 @@ export const FacilityReservationView = ({ mob, onNavigate }) => {
     </div>
   );
 
+  // 予約状況は定期的に読み取って保存したもの（lib/api/facility-cache.js）。まだ無い週はその旨だけ出す
+  const fetchedNote = data.fetchedAt ? (() => { const f = new Date(data.fetchedAt); return t("facility.asOf", { d: `${f.getMonth() + 1}/${f.getDate()}` }); })() : null;
+  if (data.notCached) return wrap(<>{infoBlock}<div style={{ textAlign: "center", padding: "28px 16px", color: T.txD, fontSize: 13, lineHeight: 1.8 }}>{t("facility.notCached")}</div></>);
+
   // ── Day view (minimal): summary + only what matters (使用中 / 予約) ──
   const items = sortedSpaces.map((sp) => ({
     key: sp.name,
@@ -338,6 +342,7 @@ export const FacilityReservationView = ({ mob, onNavigate }) => {
   return wrap(
     <>
       {infoBlock}
+      {fetchedNote && <div style={{ fontSize: 11, color: T.txD, margin: "-6px 2px 10px", textAlign: "right" }}>{fetchedNote}</div>}
       {roomModalEl}
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>

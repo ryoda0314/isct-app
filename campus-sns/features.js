@@ -15,7 +15,7 @@ export const FEATURES = {
   // ── LMS 連携 ──
   "med-tt":  { need: "lms", icon: "cal",   titleKey: "nav.medTimetable", points: ["gate.p.medtt1", "gate.p.medtt2"] },
   grades:    { need: "lms", icon: "grad",  titleKey: "tool.grades",      points: ["gate.p.grades1", "gate.p.grades2"] },
-  takiplaza: { need: "lms", icon: "pin",   title: "Taki Plaza",          points: ["gate.p.taki1"] },
+  takiplaza: { need: "account", icon: "pin", title: "Taki Plaza",        points: ["gate.p.taki1"] },
   course:    { need: "lms", icon: "book",  titleKey: "header.course",    points: ["gate.p.course1", "gate.p.course2"] },
 
   // ── アカウント ──
