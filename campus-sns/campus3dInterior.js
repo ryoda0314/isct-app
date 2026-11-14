@@ -120,6 +120,14 @@ const sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
 const len = (v) => Math.hypot(v[0], v[1]);
 const lerp2 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 const centroid = (ring) => ring.reduce((a, p) => [a[0] + p[0] / ring.length, a[1] + p[1] / ring.length], [0, 0]);
+// 点 p が形 ring の辺の上（tol m 以内）か
+const onRingEdge = (p, ring, tol = 0.03) => ring.some((a, i) => {
+  const b = ring[(i + 1) % ring.length];
+  const d = sub(b, a);
+  const l2 = d[0] * d[0] + d[1] * d[1];
+  const t = l2 > 0 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * d[0] + (p[1] - a[1]) * d[1]) / l2)) : 0;
+  return len(sub(p, [a[0] + d[0] * t, a[1] + d[1] * t])) < tol;
+});
 // 四角形（[[x, y], z] × 4）を、向き n・色 c（陰をつける）で
 const face = (m, p, n, c) => m.quad(p, n, shade(c, n));
 // 平らな多角形の柱（ring、z0〜z1）。上の面・横の面（下の面は bottom なら）。sideCol があれば横はその色
@@ -923,6 +931,9 @@ export function addFloor(M, f, ctx) {
   // 床の板の帯が立つ（附属図書館 地下 1 階の東の吹き抜けのガラスの前を横切る帯。2026-11-14、ユーザーの写真 S__47464487）
   const solid = holes.length ? clipOp("difference", [closeR(ring)], ...holes.map((h) => [closeR(h)])) : null;
   const edgeRings = solid ? solid.flatMap((pg) => pg.map((r, k) => ({ r: openR(r), outer: k === 0 }))) : [ring, ...holes].map((r, k) => ({ r, outer: k === 0 }));
+  // 浮いた建物の階（ctx.edgeBot：点 → 標高）：外まわりの床の縁は下の階の天井（いちばん下の階は船底）まで下ろす。天井と床のあいだの空洞
+  // （天井ふところ）がガラス越しに見えた（附属図書館の学習棟。2026-11-14 ユーザーの目印「二階の天井と三階の床の隙間が空いている空洞に、うめて」）
+  const edgeBot = ctx.edgeBot || null;
   for (const { r, outer } of edgeRings) {
     const out = (ringArea(r) > 0 ? 1 : -1) * (outer ? 1 : -1);
     r.forEach((a, i) => {
@@ -930,6 +941,14 @@ export function addFloor(M, f, ctx) {
       const L = len(sub(b, a));
       if (L < 1e-6) return;
       const n = [((b[1] - a[1]) / L) * out, (-(b[0] - a[0]) / L) * out, 0];
+      if (edgeBot && outer && onRingEdge(lerp2(a, b, 0.5), ring)) {
+        const k = Math.max(1, Math.ceil(L));
+        for (let j = 0; j < k; j++) {
+          const p = lerp2(a, b, j / k), q = lerp2(a, b, (j + 1) / k);
+          face(m, [[p, Math.min(zf - f.slab, edgeBot(p))], [q, Math.min(zf - f.slab, edgeBot(q))], [q, zf], [p, zf]], n, T("slabEdge"));
+        }
+        return;
+      }
       face(m, [[a, zf - f.slab], [b, zf - f.slab], [b, zf], [a, zf]], n, T("slabEdge"));
     });
   }
@@ -1179,8 +1198,48 @@ export function addFloor(M, f, ctx) {
     } else if (it.kind === "slats") {
       addSlats(m, it, r, z0, z1, T);
     } else if (it.kind === "platform") {
-      // 踊り場の台。color があればその色（図書館の階段の暗い灰の踊り場。2026-11-13）
-      if (it.color) { const pc = tint(COL_HEX(it.color)); prismPoly(m, r, z0, z1, pc, { sideCol: pc }); } else prismPoly(m, r, z0, z1, T("platform"), { sideCol: T("platformSide") });
+      // 踊り場の台。color があればその色（図書館の階段の暗い灰の踊り場。2026-11-13）。color2 は側と下の面の色。z0 が床より上なら宙に浮いた
+      // 薄い踊り場で、下の面も描く（学習棟の白い折れ板の階段の踊り場：床から立ち上がる箱だった。2026-11-14 ユーザーの目印「なにこれ。てぬき？」）
+      const pc = it.color ? tint(COL_HEX(it.color)) : T("platform");
+      const sc = it.color2 ? tint(COL_HEX(it.color2)) : it.color ? pc : T("platformSide");
+      prismPoly(m, r, z0, z1, pc, { sideCol: sc });
+      // 下の面は階段の裏と同じ色（前後の階段の裏の面と続いて見える。ユーザー「つながりが適当じゃない？」）
+      if (it.z0 > 0.01) m.polygon([r], z0, [0, 0, -1], shade(T("ceiling"), [0, 0, -1]));
+      // 手すり（rails：辺ごと）：階段の手すりと同じ作り。辺の端が階段の下の端・上の端に接していれば、その階段の手すりの高さにそろえる
+      if (it.rails) {
+        const baseAt = (p) => {
+          for (const st of f.stairs || []) {
+            const G = stairGeom(st, zf);
+            const a = (p[0] - G.A[0]) * G.u[0] + (p[1] - G.A[1]) * G.u[1], l = (p[0] - G.A[0]) * G.n[0] + (p[1] - G.A[1]) * G.n[1];
+            if (Math.abs(l) > G.hw + 0.06) continue;
+            if (Math.abs(a) < 0.06) return G.zA + G.riser;
+            if (Math.abs(a - G.L) < 0.06) return G.zA + G.R + G.riser * 0.5;
+          }
+          return z1 + 0.13;
+        };
+        it.rails.forEach((k, i) => {
+          if (!k) return;
+          const a = r[i], b = r[(i + 1) % r.length];
+          const L = len(sub(b, a));
+          if (L < 0.05) return;
+          const za = baseAt(a), zb = baseAt(b);
+          const rc = T(k === "mesh" ? "mesh" : "rail");
+          const ctr = centroid(r);
+          const nn0 = [(b[1] - a[1]) / L, -(b[0] - a[0]) / L];
+          const sgn = (ctr[0] - a[0]) * nn0[0] + (ctr[1] - a[1]) * nn0[1] > 0 ? -1 : 1; // 外向き
+          const nn = [nn0[0] * sgn, nn0[1] * sgn, 0];
+          if (k === "mesh") veil.quad([[a, za - 0.1], [b, zb - 0.1], [b, zb + 0.95], [a, za + 0.95]], nn, tint(MESH));
+          if (k === "glass") glassy.quad([[a, za - 0.1], [b, zb - 0.1], [b, zb + 0.95], [a, za + 0.95]], nn, tint(GLASS));
+          bar(m, [a, za + 1.0], [b, zb + 1.0], 0.05, rc);
+          if (k !== "rail") bar(m, [a, za - 0.08], [b, zb - 0.08], 0.05, rc);
+          const np = Math.max(1, Math.round(L / 1.6));
+          for (let j = 0; j <= np; j++) {
+            const p = lerp2(a, b, j / np);
+            const z = za + ((zb - za) * j) / np;
+            bar(m, [p, z - 0.1], [p, z + 1.0], 0.04, rc);
+          }
+        });
+      }
     } else if (it.kind === "wedge" && Array.isArray(it.zs) && it.zs.length === r.length) {
       addWedge(m, it, r, zf, T, tint);
     } else if (it.kind === "tatami") {
@@ -1230,7 +1289,7 @@ export function addFloor(M, f, ctx) {
   for (const s of f.flights || []) addFlight(M, s, zf, T, tint, cutTop);
   // 天井（切り取った階を上から見るときは描かない）
   // 床の穴のうち ceil: false（下の階へだけ抜ける階段の口）は天井に穴をあけない
-  if (f.ceiling && !Number.isFinite(cutTop)) addCeiling(m, f, ring, holes.filter((_, i) => f.holes[i].ceil !== false), zf, T);
+  if (f.ceiling && !Number.isFinite(cutTop)) addCeiling(m, f, ring, holes.filter((_, i) => f.holes[i].ceil !== false), zf, T, ctx.plenumTop ? { top: ctx.plenumTop, outer: !!ctx.plenumOuter } : null);
   // 地下の上を覆う、地面の高さの床（広場・通路の下）：掘る前の地面の高さ、色は地面に貼った路面の色
   for (const l of f.noLid ? [] : f.lids || []) {
     const r = l.coords.map(toXY);
@@ -1278,7 +1337,9 @@ function addFloorStairs(M, s, zf, T, tint, cutTop) {
   // glass：側の桁・蹴上げ・段の鼻は暗い鉄（すりガラスの踏面を鉄の枠が囲む）
   const steel = s.kind === "glass" ? T("stairSteel") : null;
   const edge = steel || T(esc ? "escSide" : "stairEdge");
-  const soff = (sv) => Math.max(zA - 0.01, zA + (R * sv) / L - SOFFIT);
+  // 裏の面：段の角から SOFFIT 下。床から始まる階段は床より下へ出さない。踊り場から始まる階段（z0 > 0）は踊り場の下の面（同じく SOFFIT 下）から
+  // 続ける（前は踊り場の上の面の高さから始まり、踊り場との境で裏の線が段違いになった。2026-11-14 ユーザー「つながりが適当じゃない？」）
+  const soff = (sv) => Math.max((s.z0 || 0) > 0.05 ? zf + 0.01 : zA - 0.01, zA + (R * sv) / L - SOFFIT);
   // オーク（oak）：段の鼻（踏面の前のふちと蹴上げの上）を包むステンレスの帯（外の階段の addStairs と同じ寸法）
   const noseC = s.kind === "oak" ? T("stairNose") : s.kind === "rubber" ? T("stairRubberNose") : steel;
   const addNose = (sv, z) => {
@@ -1401,10 +1462,34 @@ function addHerring(m, ring, holes, z, grid, T) {
 // 天井（階の ceiling）：床の形（床の穴・天井の穴を抜く）の z の高さに下向きの面。slats は細い板の継ぎ目の線（grid の向きに 0.2m おき）
 const CEIL_COL = { slats: "ceilSlat", plain: "ceilSlat", dark: "ceilDark" };
 const SLAT_GAP = 0.2;
-function addCeiling(m, f, ring, holes, zf, T) {
+function addCeiling(m, f, ring, holes, zf, T, plen = null) {
   const C = f.ceiling;
   const zc = zf + C.z;
   const hs = [...holes, ...(C.holes || []).map((h) => h.coords.map(toXY))];
+  // 天井ふところをふさぐ帯（plen：top＝点 → 帯の上の端の標高か null〔そこは帯なし〕、outer＝外まわりにも）：天井の穴のふち（階段・エレベーターの
+  // 吹き抜け）から上の階の床の下の面まで、いちばん上の階は外まわりも屋根の下の天井まで。点は帯の天井の側へ 0.05m 寄せて調べる
+  if (plen?.top) {
+    const solidC = hs.length ? clipOp("difference", [closeR(ring)], ...hs.map((h) => [closeR(h)])) : [[closeR(ring)]];
+    for (const pg of solidC || []) pg.forEach((rr, k) => {
+      const r = openR(rr);
+      const outer = k === 0;
+      const sg = (ringArea(r) > 0 ? 1 : -1) * (outer ? 1 : -1);
+      r.forEach((a, i) => {
+        const b = r[(i + 1) % r.length];
+        const L = len(sub(b, a));
+        if (L < 1e-6) return;
+        if (outer && !plen.outer && onRingEdge(lerp2(a, b, 0.5), ring)) return; // 外まわりは上の階の床の縁を下ろしてふさぐ
+        const n = [((b[1] - a[1]) / L) * sg, (-(b[0] - a[0]) / L) * sg, 0];
+        const kk = Math.max(1, Math.ceil(L));
+        for (let j = 0; j < kk; j++) {
+          const p = lerp2(a, b, j / kk), q = lerp2(a, b, (j + 1) / kk);
+          const tp = plen.top([p[0] - n[0] * 0.05, p[1] - n[1] * 0.05]), tq = plen.top([q[0] - n[0] * 0.05, q[1] - n[1] * 0.05]);
+          if (tp == null || tq == null || Math.min(tp, tq) < zc + 0.02) continue;
+          face(m, [[p, zc], [q, zc], [q, tq], [p, tp]], n, T("slabEdge"));
+        }
+      });
+    });
+  }
   // 穴が床の形のふちをまたぐと（大岡山駅の西の端の乗り換えの階段：ホームの床は s −171 まで・天井の穴は −177 まで）、earcut は穴を
   // 抜けず、階段の上を天井がふさいでいた（2026-11-12、ユーザーの目印 10・11「ここふさがってる」）。またぐ穴があれば形の引き算で面を作る
   const ceilCol = shade(T(CEIL_COL[C.kind] || "ceilSlat"), [0, 0, -1]);
@@ -2510,6 +2595,11 @@ export function floorWalk(f, groundAt, add, BODY) {
     }
     if (FLAT_ITEMS.has(it.kind)) continue;
     add.solid(r, [], () => span, 0.5);
+    // 踊り場の台の手すりの辺：その側からは落ちない（階段の手すりと同じ当たり）
+    if (it.kind === "platform" && it.rails) it.rails.forEach((k, i) => {
+      if (!k) return;
+      add.edge(r[i], r[(i + 1) % r.length], 0.03 + BODY, [[zf + it.z1 - 0.6, zf + it.z1 + 1.1]], false);
+    });
   }
   // エスカレーター（2026-11-12）：段の帯は段の角の線の高さの床（動く向きに体を運ぶ：add.belt）、両わき（くしの横の板〜外の箱）は手すりの高さまでの立体
   for (const e of f.escalators || []) {

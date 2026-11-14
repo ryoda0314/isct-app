@@ -922,6 +922,9 @@ function normalizeFloor(f, out, d) {
     if (hx(it.color2)) o.color2 = hx(it.color2);
     const split = numOr(it.split, [0, 40], 0);
     if (split != null && o.kind === "cyl") o.split = split;
+    // 踊り場の台（platform）の手すり：辺ごと（辺 i は点 i → 点 i+1）の "glass" / "mesh" / "rail" か null（2026-11-14、学習棟の階段の踊り場）
+    const RAILK = ["glass", "mesh", "rail"];
+    if (o.kind === "platform" && Array.isArray(it.rails) && it.rails.some((k) => RAILK.includes(k))) o.rails = coords.map((_, i) => (RAILK.includes(it.rails[i]) ? it.rails[i] : null));
     // ゴミ箱の棚の区画の数（bincab。なければ 0.6m ごと）
     if (o.kind === "bincab" && Number.isFinite(+it.n) && +it.n >= 1) o.n = Math.min(12, Math.round(+it.n));
     // 棚（2026-11-13）：列・段の数、本の割合（cubeshelf）、下の引き出しの段の数・両面・木の天板（openshelf）

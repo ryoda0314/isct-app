@@ -17,6 +17,7 @@ import { buildMesh, buildRibbons } from "../campus3dMesh.js";
 import { createDoorsLayer, createExtrasLayer, createLightsLayer, createTrainsLayer } from "../campus3dLayer.js";
 import { doorLeaves, stepDoors } from "../campus3dDoors.js";
 import { collectLifts, liftBlocked, liftClock, liftFloors, liftMeshes, liftPick, liftState, pressButton, stepLift } from "../campus3dLift.js";
+import { collectSeats, seatPick, sitPose } from "../campus3dSeats.js";
 import { lampBounds, lampLightCanvas, lampMesh, streetLamps } from "../campus3dLamps.js";
 import { EYE, PITCH as WALK_PITCH, SPEED, SPRINT_FOV, TURN as TURN_DEG, VIEW_D, WALK_FOV, eyeCamera, routePath, stepBody, stepFly, stepRoute, walkWorld } from "../campus3dWalk.js";
 import { TWIN_SCALES, TWIN_WALLS, TWIN_YAW_GAINS, twinCalCancel, twinCalStart, twinConnect, twinCreate, twinDisconnect, twinFake, twinHaptics, twinInput, twinLevel, twinLine, twinRelease, twinSend, twinSet, twinSupported, twinTilt } from "../campus3dTwin.js";
@@ -130,6 +131,26 @@ const CSS = `
   font-family:inherit;cursor:pointer;box-shadow:0 6px 16px -6px rgba(0,0,0,.5);white-space:nowrap}
 .cb3-walk-btns button.on{background:var(--cb3-accent);color:#fff}
 .cb3-walk-btns .cb3-walk-exit{background:#fff;color:#0e2030}
+/* スマホで歩く：画面いっぱい（アプリの上の見出し・下のタブの上に重ねる。2026-11-14 ユーザー「スマホの探索は全画面モード」）。
+   画面のふち（ノッチ・角の丸み）の分は safe-area で内へ */
+.cb3-full{position:fixed!important;inset:0!important;z-index:100000!important;background:#0e2030}
+.cb3-full .cb3-joy{left:calc(22px + env(safe-area-inset-left));bottom:calc(30px + env(safe-area-inset-bottom))}
+.cb3-full .cb3-walk-btns{right:calc(12px + env(safe-area-inset-right));bottom:calc(30px + env(safe-area-inset-bottom))}
+.cb3-full .cb3-walk-hint{top:calc(14px + env(safe-area-inset-top))}
+.cb3-full .cb3-dbg-walkbtn{right:calc(12px + env(safe-area-inset-right));top:calc(14px + env(safe-area-inset-top))}
+.cb3-full .cb3-env-btn.walk{left:calc(10px + env(safe-area-inset-left));top:calc(10px + env(safe-area-inset-top))}
+.cb3-full .cb3-attr{display:none}
+/* 横にしたスマホ（マイクラのスマホ版のように）：左下にスティック、右下に大きいジャンプ（飛ぶときは上・下）、ほかのボタンは右上に横に並べる。
+   使い方の案内は下のまん中 */
+@media (orientation:landscape) and (max-height:540px){
+  .cb3-full .cb3-joy{left:calc(34px + env(safe-area-inset-left));bottom:calc(24px + env(safe-area-inset-bottom));width:132px;height:132px}
+  .cb3-full .cb3-joy-knob{width:56px;height:56px;margin:-28px 0 0 -28px}
+  .cb3-full .cb3-walk-btns{top:calc(62px + env(safe-area-inset-top));bottom:auto;right:calc(12px + env(safe-area-inset-right));flex-direction:row;align-items:center;gap:8px}
+  .cb3-full .cb3-walk-btns button{height:36px;padding:0 13px;font-size:12px}
+  .cb3-full .cb3-walk-btns .cb3-jump{position:fixed;right:calc(34px + env(safe-area-inset-right));bottom:calc(30px + env(safe-area-inset-bottom));width:78px;height:78px;padding:0;font-size:13px}
+  .cb3-full .cb3-walk-btns .cb3-jump+.cb3-jump{bottom:calc(120px + env(safe-area-inset-bottom))}
+  .cb3-full .cb3-walk-hint{top:auto;bottom:calc(14px + env(safe-area-inset-bottom));max-width:calc(100% - 400px);font-size:11.5px;padding:6px 12px}
+}
 /* エレベーターのボタンに照準が当たっている：十字を黄色に、下に押すボタンの名前（クリック・タップで押す） */
 .cb3-cross.on:before,.cb3-cross.on:after{background:#ffd27a}
 .cb3-aim{position:absolute;left:50%;top:calc(50% + 16px);transform:translateX(-50%);padding:2px 9px;border-radius:9px;background:rgba(14,32,48,.8);color:#ffd27a;
@@ -305,6 +326,30 @@ function fitCamera(ml, map, pts, pad, pitch, bearing, maxZoom) {
  *                                  なければ開発中（NODE_ENV が production でない）か localStorage の cb3Debug が "1" のとき
  *   onSpotTap(id), onGroupTap(id), onMapClick(), onUserMove(), onRotate(bearing), onLoad(), onError(err)
  */
+// スマホで歩くあいだの全画面（2026-11-14 ユーザー「スマホの探索は全画面モード」「横画面もできるように。マイクラスマホ版みたいに」）：
+// 地図は CSS で画面いっぱい（.cb3-full。iPhone の Safari は要素の全画面ができない）。できるところ（Android など）はブラウザーの全画面にして、
+// 画面の向きの固定を外す（アプリのマニフェストは縦。歩くあいだは横にもできる。やめたら固定に戻す）。どれもできなければ黙ってそのまま
+function enterFullWalk() {
+  try {
+    const el = document.documentElement;
+    const p = !document.fullscreenElement && el.requestFullscreen ? el.requestFullscreen({ navigationUI: "hide" }) : null;
+    Promise.resolve(p).catch(() => {}).then(() => screen.orientation?.lock?.("any")).catch(() => {});
+  } catch {
+    /* CSS の全画面だけ */
+  }
+}
+function exitFullWalk() {
+  try {
+    screen.orientation?.unlock?.();
+  } catch {
+    /* 固定していない */
+  }
+  try {
+    if (document.fullscreenElement) document.exitFullscreen?.()?.catch?.(() => {});
+  } catch {
+    /* 全画面でない */
+  }
+}
 export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const { data, dark, accent, initialView, lookKey = "cb3Look", defaultLook = "auto" } = props;
   // 見え方：auto（時刻に合わせる）・day・evening・night。ボタンで切りかえて覚えておく
@@ -395,7 +440,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   });
   const debugRef = useRef(debugTools);
   const lastMeshRef = useRef(null); // いま描いている三角形（目印を置くときに光線を当てる。デバッグの道具があるときだけ持つ）
-  const [walkUi, setWalkUi] = useState({ run: false, auto: false, route: false, done: false, hint: false, locked: false, touch: false, fly: false, noclip: false, aim: null });
+  const [walkUi, setWalkUi] = useState({ run: false, auto: false, route: false, done: false, hint: false, locked: false, touch: false, fly: false, noclip: false, aim: null, seated: false });
   // 実物のコントローラー（campus3dTwin.js。Arduino のタイヤ＝前後・基板の向き＝向き・傾き＝前後と横、壁でタイヤを止める）：
   // つないでいるあいだの状態（歩くのをやめてもつないだまま）と、パネルの表示。今の値の行は毎フレーム React を描き直さないよう文字だけ書きかえる
   const twinRef = useRef(null);
@@ -992,6 +1037,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
 
     return () => {
       cancelAnimationFrame(walkRef.current?.raf);
+      if (walkRef.current?.touch) exitFullWalk(); // スマホの全画面で歩いているまま地図を閉じた：ブラウザーの全画面・向きの固定を戻す
       walkRef.current = null;
       cancelAnimationFrame(raf);
       cancelAnimationFrame(resizeRaf);
@@ -1441,6 +1487,9 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       // fly：飛んでいる（クリエイティブ）、noclip：すり抜け（スペクテイター）、lastSpace：Space 2回の判定、flyDown：「下」のボタン
       fly, noclip: false, lastSpace: 0, flyDown: false,
       keys: new Set(), joy: { x: 0, y: 0 }, run: false, sprintLatch: false, lastW: 0, touch,
+      // 椅子に座る（campus3dSeats）：seats は座れるものの並び、seat は座っている所（null は立っている）、eyeH は足もとから目まで（座ると下がる）
+      seats: collectSeats(detailRef.current && levels.length ? detailView(propsRef.current.features || [], { detail: true, level: "all" }) : viewRef.current || [], (ll) => dem.groundAt(ll)),
+      seat: null, seatAim: null, eyeH: EYE, noJumpUntil: 0,
       auto: false, done: false, lookHold: 0, locked: false, unlockedAt: 0, restore, last: 0, raf: 0,
       anim: { t0: performance.now(), dur: 1500, from: { x: camX, y: camY, z: alt, yaw: map.getBearing(), pitch: map.getPitch(), D: D0, fov: restore.fov } },
     };
@@ -1463,9 +1512,15 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     walkRef.current.detached = own;
     if (map.terrain) map.terrain.depthAtPoint = () => 1; // 1 ＝いちばん奥：マーカーはいつも見えている扱い
     wrapRef.current?.classList.add("cb3-walking");
+    // スマホ（指で触る）：画面いっぱいで歩く（横にしてもよい）
+    if (touch) {
+      wrapRef.current?.classList.add("cb3-full");
+      enterFullWalk();
+      requestAnimationFrame(() => mapRef.current?.resize());
+    }
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur?.();
     setWalking(true);
-    setWalkUi({ run: false, auto: false, route: !!path, done: false, hint: true, locked: false, touch, fly, noclip: false, aim: null });
+    setWalkUi({ run: false, auto: false, route: !!path, done: false, hint: true, locked: false, touch, fly, noclip: false, aim: null, seated: false });
     walkRef.current.raf = requestAnimationFrame(walkTick);
   }
 
@@ -1505,7 +1560,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const look = key("KeyR", "PageUp") - key("KeyF", "PageDown");
     const sprint = w.run || w.sprintLatch || keys.has("ShiftLeft") || keys.has("ShiftRight") || !!tin?.sprint;
     const sneak = keys.has("KeyC");
-    const jump = keys.has("Space");
+    let jump = keys.has("Space") && now > w.noJumpUntil; // 立った直後（ジャンプのボタン・Space で立つ）は跳ばない
     // 自分で動いたら、ルートの自動はやめる
     if (w.auto && (Math.abs(fwd) > 0.05 || Math.abs(side) > 0.05 || jump)) {
       w.auto = false;
@@ -1534,7 +1589,19 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       });
     }
     const riding = ride >= 0 && LF.states[ride].phase === "moving";
-    if (riding) {
+    // 椅子に座っている（campus3dSeats）：座面の所に止まって向きだけ回せる。Space（ジャンプのボタン）・Shift・動くキー（スティック）で立つ
+    if (w.seat) {
+      if (jump || keys.has("ShiftLeft") || keys.has("ShiftRight") || Math.abs(fwd) > 0.5 || Math.abs(side) > 0.5) {
+        s = { ...s, ...standUp(w) };
+        jump = false;
+      } else {
+        const k = Math.min(1, dt * 10);
+        s = { ...s, x: s.x + (w.seat.x - s.x) * k, y: s.y + (w.seat.y - s.y) * k, z: w.seat.z, vx: 0, vy: 0, vz: 0, onGround: true, deck: null, yaw: (s.yaw + turn * TURN_DEG * dt + 360) % 360 };
+      }
+    }
+    if (w.seat) {
+      /* 座っている（上で決めた） */
+    } else if (riding) {
       s = { ...s, z: s.z + rideDz, vx: 0, vy: 0, vz: 0, onGround: true, deck: null, yaw: (s.yaw + turn * TURN_DEG * dt + 360) % 360 };
     } else if (w.fly) {
       // 飛ぶ（クリエイティブ）：Space で上・Shift で下（「下」のボタンも）・W 2回か「走る」で速く。下りて足場に着いたら飛ぶのをやめる
@@ -1609,7 +1676,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const fovTarget = WALK_FOV + (fast && hs > SPEED.walk + 0.3 ? SPRINT_FOV : 0);
     w.fov += (fovTarget - w.fov) * Math.min(1, dt * 8);
     if (Math.abs(w.fov - map.transform.fov) > 0.05) map.setVerticalFieldOfView(w.fov);
-    w.eyeZ = w.z + EYE + w.eyeOff + bob;
+    w.eyeH += ((w.seat ? w.seat.eye : EYE) - w.eyeH) * Math.min(1, dt * 8); // 座る・立つときはなめらかに
+    w.eyeZ = w.z + w.eyeH + w.eyeOff + bob;
     // 地面の下（大岡山駅の地下ホーム）：目が地面より下のあいだだけ、MapLibre の地形を外し、地図の建物（fill-extrusion）を隠す。
     // 地形を残すと (1) タイルのふちの継ぎ目を隠す垂直のすそ、(2) 改札の中の床の下を掘ったふちの崖、(3) 地形に合わせて下の端を下げた
     // 地図の建物の壁が、ホームの中に白い壁として立つ（地形の面そのものは下からは描かれない）。地下からは外の地面と建物は見えない
@@ -1656,11 +1724,14 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     map.jumpTo(eyeCamera({ x: w.x, y: w.y, z: w.eyeZ }, w.yaw, w.pitch, { height: map.transform.height, fov: map.transform.fovInRadians }));
     // エレベーターのボタン：照準（マウスを固定しているとき・スマホは画面のまん中、固定していないマウスはその先）が当たっているボタンを
     // 白いふちで示し、十字の下に名前を出す（変わったときだけ描き直す）
-    if (LF.list.length) {
+    // 椅子：エレベーターのボタンに当たっていなくて、立っていれば、照準の先の座れるもの（十字の下に「座る」）
+    if (LF.list.length || w.seats?.length) {
       const use = w.locked || w.touch || !!w.hover;
       const ray = use ? walkRay(map, w, w.locked || w.touch ? null : w.hover) : null;
-      const hit = ray && !w.fly ? liftPick(LF.list, LF.states, ray.o, ray.d) : null;
-      const key = hit ? `${hit.i}:${hit.kind}:${hit.k}:${hit.dir}${hit.wc ? ":wc" : ""}` : ""; // wc：車いす用の呼びボタン（附属図書館）
+      const hit = ray && !w.fly && LF.list.length ? liftPick(LF.list, LF.states, ray.o, ray.d) : null;
+      const sh = ray && !hit && !w.fly && !w.seat && w.seats?.length ? seatPick(w.seats, ray.o, ray.d, w.z) : null;
+      w.seatAim = sh;
+      const key = hit ? `${hit.i}:${hit.kind}:${hit.k}:${hit.dir}${hit.wc ? ":wc" : ""}` : sh ? "seat" : ""; // wc：車いす用の呼びボタン（附属図書館）
       if (key !== LF.aimKey) {
         LF.aimKey = key;
         LF.aim = hit;
@@ -1668,7 +1739,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         map.triggerRepaint();
         const lb = hit
           ? hit.kind === "car" ? LF.list[hit.i].levels[hit.k]?.label || "" : hit.kind === "door" ? (hit.dir > 0 ? "◀ ▶" : "▶ ◀") : `${t("navi.liftCall")} ${hit.dir > 0 ? "▲" : "▼"}`
-          : null;
+          : sh ? t("navi.strollSit") : null;
         setWalkUi((u) => ({ ...u, aim: lb }));
       }
     }
@@ -1702,6 +1773,57 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     LF.dirty = true;
     map.triggerRepaint();
     return true;
+  }
+  // 椅子に座る（画面の点 pt。null はまん中の十字）。照準の先に座れるものがあれば座って true（campus3dSeats.sitPose：背のある椅子は前を向く）
+  function sitAt(pt) {
+    const w = walkRef.current;
+    const map = mapRef.current;
+    if (!w || !map || w.anim || w.fly || w.seat || !w.seats?.length) return false;
+    const ray = walkRay(map, w, pt);
+    const hit = seatPick(w.seats, ray.o, ray.d, w.z);
+    if (!hit) return false;
+    const pose = sitPose(hit.seat, hit.p, [w.x, w.y, w.z]);
+    w.seat = { ...pose, from: [w.x, w.y, w.z] }; // from：座る前に立っていた所（立つときはこちらの側へ）
+    // 背のある椅子・ソファー・ベンチは前を向いて、目はまっすぐ前（下を向いて座ると机しか見えない）。背のないものは向きはそのまま、目は下げすぎない
+    if (pose.yaw != null) {
+      w.yaw = pose.yaw;
+      w.pitch = 86;
+    } else w.pitch = Math.max(w.pitch, 78);
+    w.lookHold = performance.now() + 2500;
+    Object.assign(w, { vx: 0, vy: 0, vz: 0, auto: false, seatAim: null });
+    setWalkUi((u) => ({ ...u, seated: true, auto: false }));
+    map.triggerRepaint();
+    return true;
+  }
+  // 立つ：座る前に立っていた側（机・カウンターの椅子は前が机なので、来た側＝通路）へ 0.6〜1m。同じ床の高さで、ふさがっていない所。
+  // なければ座ったものの前（sitPose の stand）、それもなければ座る前の所（2026-11-14：前へ立つと窓ぎわのカウンターの向こう＝建物の外へ落ちた）
+  function standUp(w) {
+    const S = w?.seat;
+    if (!S) return {};
+    const okAt = (px, py) => {
+      const fl = w.world.floorBelow?.(px, py, S.z + 0.6);
+      return fl && Math.abs(fl.z - S.z) < 0.35 && !w.world.blocked(px, py, fl.z) ? fl.z : null;
+    };
+    const F = S.from || [S.stand[0], S.stand[1], S.z];
+    const dv = [F[0] - S.x, F[1] - S.y];
+    const dl = Math.hypot(dv[0], dv[1]) || 1;
+    const cands = [0.8, 0.6, 1.0].map((k) => [S.x + (dv[0] / dl) * Math.min(k, dl), S.y + (dv[1] / dl) * Math.min(k, dl)]);
+    cands.push(S.stand);
+    let x = F[0], y = F[1], z = F[2];
+    for (const [px, py] of cands) {
+      const pz = okAt(px, py);
+      if (pz != null) {
+        [x, y, z] = [px, py, pz];
+        break;
+      }
+    }
+    w.seat = null;
+    w.noJumpUntil = performance.now() + 500;
+    w.keys.delete("Space");
+    const st = { x, y, z, vx: 0, vy: 0, vz: 0, onGround: true, deck: null };
+    Object.assign(w, st);
+    setWalkUi((u) => ({ ...u, seated: false }));
+    return st;
   }
 
   // やめる：目の高さから、歩いていたところを上から見下ろす視点へ戻してから、地図の設定を元に戻す
@@ -1756,6 +1878,12 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       mk.current.relayout?.();
     }
     wrapRef.current?.classList.remove("cb3-walking");
+    // スマホの全画面をやめる（地図はもとの大きさ・画面の向きの固定も戻す）
+    if (wrapRef.current?.classList.contains("cb3-full")) {
+      wrapRef.current.classList.remove("cb3-full");
+      exitFullWalk();
+      requestAnimationFrame(() => mapRef.current?.resize());
+    }
     // エレベーターのボタンの照準のふちを消す
     const LF = liftsRef.current;
     if (LF.aim) {
@@ -1764,7 +1892,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       LF.dirty = true;
     }
     setWalking(false);
-    setWalkUi((u) => ({ ...u, auto: false, done: false, hint: false, locked: false, aim: null }));
+    setWalkUi((u) => ({ ...u, auto: false, done: false, hint: false, locked: false, aim: null, seated: false }));
   }
 
   // 歩いているあいだの入力。PC：地図をクリックするとマウスを固定（ポインターロック）して、動かした向きを見る。固定できなければ
@@ -1794,7 +1922,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         if (e.button !== 0 && e.button !== 2) return;
         // エレベーターのボタン（Minecraft のように）：照準（固定中は画面のまん中、固定していなければマウスの先）が当たっていれば押す。
         // 左・右どちらのクリックでも
-        if (pressLiftAt(document.pointerLockElement ? null : canvasPt(e))) {
+        const pt0 = document.pointerLockElement ? null : canvasPt(e);
+        if (pressLiftAt(pt0) || sitAt(pt0)) {
           e.preventDefault();
           return;
         }
@@ -1835,7 +1964,10 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const up = (e) => {
       if (drag && e.pointerId === drag.id) drag = null;
       if (tap && e.pointerId === tap.id) {
-        if (performance.now() - tap.t < 400) pressLiftAt(canvasPt(e)); // タップしたところのエレベーターのボタン
+        if (performance.now() - tap.t < 400) {
+          const pt = canvasPt(e);
+          if (!pressLiftAt(pt)) sitAt(pt); // タップしたところのエレベーターのボタン・椅子
+        }
         tap = null;
       }
     };
@@ -2531,7 +2663,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
             </div>
           )}
           <div className="cb3-walk-btns">
-            {walkUi.touch && <button type="button" className="cb3-jump" onPointerDown={jumpDown} onPointerUp={jumpUp} onPointerCancel={jumpUp}>{walkUi.fly ? t("navi.strollUp") : t("navi.strollJump")}</button>}
+            {walkUi.touch && <button type="button" className="cb3-jump" onPointerDown={jumpDown} onPointerUp={jumpUp} onPointerCancel={jumpUp}>{walkUi.seated ? t("navi.strollStand") : walkUi.fly ? t("navi.strollUp") : t("navi.strollJump")}</button>}
+            {walkUi.seated && !walkUi.touch && <button type="button" className="on" onClick={() => { const w = walkRef.current; if (w?.seat) standUp(w); }}>{t("navi.strollStand")}</button>}
             {walkUi.touch && walkUi.fly && <button type="button" className="cb3-jump" onPointerDown={downOn} onPointerUp={downOff} onPointerCancel={downOff}>{t("navi.strollDown")}</button>}
             {debugTools && <button type="button" className={walkUi.fly ? "on" : ""} aria-pressed={walkUi.fly} onClick={toggleFly}>{t("navi.strollFly")}</button>}
             {debugTools && walkUi.fly && <button type="button" className={walkUi.noclip ? "on" : ""} aria-pressed={walkUi.noclip} onClick={toggleNoclip}>{t("navi.strollNoclip")}</button>}

@@ -3297,10 +3297,14 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
   if (soff) {
     const sc = f.soffit === "wood" && look ? look.soffitWood : [c[0] * 0.68, c[1] * 0.69, c[2] * 0.71, c[3]];
     const jc = [sc[0] * 0.6, sc[1] * 0.6, sc[2] * 0.6, sc[3]];
+    // 穴（look.soffitTop：中の見える浮いた建物の階段の吹き抜け・エレベーター）は下の面にもあける。目地の帯も穴の中は描かない
+    const sHoles = (look?.soffitTop || []).filter((h) => h.length >= 3);
+    const inSHole = (p) => sHoles.some((h) => pointInRing(p[0], p[1], h));
     for (const { poly, fn, i } of soff.pieces) {
       const l = Math.hypot(fn[0], fn[1], 1);
       const nd = [fn[0] / l, fn[1] / l, -1 / l];
-      m.polygon([poly], (p) => g0 + fn[0] * p[0] + fn[1] * p[1] + fn[2], nd, sc);
+      const downParts = sHoles.length && clip ? clip.difference([[...poly, poly[0]]], ...sHoles.map((h) => [[...h, h[0]]])) : [[poly]];
+      for (const pg of downParts) m.polygon(pg, (p) => g0 + fn[0] * p[0] + fn[1] * p[1] + fn[2], nd, sc);
       if (!look || !f.soffitJoints) continue;
       const a = ring[i ?? 0];
       const b = ring[((i ?? 0) + 1) % ring.length];
@@ -3313,13 +3317,30 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
       const band = (p0, d) => {
         const r = clipLineConvex(poly, p0, d);
         if (!r) return;
-        const [A, B] = r.map((t) => [p0[0] + d[0] * t, p0[1] + d[1] * t]);
+        const [A0, B0] = r.map((t) => [p0[0] + d[0] * t, p0[1] + d[1] * t]);
         const w = [-d[1] * 0.025, d[0] * 0.025];
-        m.quad([A, B, B, A].map((q, k) => { const s = k < 2 ? 1 : -1; const xy = [q[0] + w[0] * s, q[1] + w[1] * s]; return [xy, zAt(xy)]; }), nd, jc);
+        const kj = sHoles.length ? Math.max(1, Math.ceil(Math.hypot(B0[0] - A0[0], B0[1] - A0[1]) / 0.25)) : 1;
+        for (let j = 0; j < kj; j++) {
+          const A = [A0[0] + ((B0[0] - A0[0]) * j) / kj, A0[1] + ((B0[1] - A0[1]) * j) / kj];
+          const B = [A0[0] + ((B0[0] - A0[0]) * (j + 1)) / kj, A0[1] + ((B0[1] - A0[1]) * (j + 1)) / kj];
+          if (kj > 1 && inSHole([(A[0] + B[0]) / 2, (A[1] + B[1]) / 2])) continue;
+          m.quad([A, B, B, A].map((q, k) => { const s = k < 2 ? 1 : -1; const xy = [q[0] + w[0] * s, q[1] + w[1] * s]; return [xy, zAt(xy)]; }), nd, jc);
+        }
       };
       // 辺に平行（中へ across m ごと）と、辺に直角（辺に沿って along m ごと）
       for (let k = 1; k * across < 60; k++) band([a[0] + nin[0] * k * across, a[1] + nin[1] * k * across], u);
       for (let k = 1; k * along < L; k++) band([a[0] + u[0] * k * along, a[1] + u[1] * k * along], nin);
+    }
+    // 中の見える浮いた建物（detailShell。look.soffitTop＝穴の形の並び）：下の面の中側（上向き）も。ないと外から 2 階の高さでガラス越しに見たとき
+    // 箱の底が抜けて、下のロビーの扉の枠・白い箱・白い V の脚が箱の中へ突き抜けて見えた（附属図書館の学習棟。2026-11-14 ユーザー「部品が突き抜けすぎ」）。
+    // 穴は下の面と同じ（sHoles：船底の下の階の天井の穴と、base より上のいちばん低い階の床の穴）
+    if (look && look.soffitTop) {
+      for (const { poly, fn } of soff.pieces) {
+        const l = Math.hypot(fn[0], fn[1], 1);
+        const nu = [-fn[0] / l, -fn[1] / l, 1 / l];
+        const parts = sHoles.length && clip ? clip.difference([[...poly, poly[0]]], ...sHoles.map((h) => [[...h, h[0]]])) : [[poly]];
+        for (const pg of parts) m.polygon(pg, (p) => g0 + fn[0] * p[0] + fn[1] * p[1] + fn[2] + 0.01, nu, sc);
+      }
     }
   }
   // 太陽光パネルの屋根：平らな屋根の上、ふちから SOLAR_EDGE 内側にパネル（行ごとの細い目地つき）。ふちは笠木の色（roofCol）
@@ -4097,7 +4118,19 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
       // 詳細モードで歩いて見るときの殻（detailShell）は、中から見えない段に描き、屋根の下に天井と梁
       if (f.detailShell) {
         const under = basementRegions(features.filter((x) => x.host === f.id));
-        addBuilding(cull, { ...f, carves: buildingOpenings(f, features) }, groundAt, c, clip, { ...look, pane: glassy, under });
+        // 浮いた建物（base）：下の面（上向き・下向きとも）に開ける穴＝船底の下の階の天井の穴（階段の吹き抜け・エレベーター）と、base より上の
+        // いちばん低い階の床の穴（2026-11-14 ユーザーの目印「ふさがってるよ」：1 階から 2 階への階段の上を船底の下の面がふさいでいた）
+        let soffitTop = null;
+        if (f.base > 0) {
+          const fls = features.filter((x) => x.type === "floor" && x.host === f.id);
+          const lowest = fls.filter((x) => x.z >= f.base - 0.01).sort((a, b) => a.z - b.z)[0];
+          const below = fls.filter((x) => x.ceiling && x.z < f.base - 0.01);
+          soffitTop = [
+            ...(lowest?.holes || []).map((h) => (h.coords || []).map(toXY)),
+            ...below.flatMap((x) => [...(x.holes || []).filter((h) => h.ceil !== false), ...(x.ceiling.holes || [])].map((h) => (h.coords || []).map(toXY))),
+          ];
+        }
+        addBuilding(cull, { ...f, carves: buildingOpenings(f, features) }, groundAt, c, clip, { ...look, pane: glassy, under, soffitTop });
         addRoofCeiling(cull, f, groundAt, tint, shellCeiling(f, features, groundAt));
       } else {
         // 地下の階（掘らない地下の階も）の上の壁は、外の地面の 0.3m 下から（1m 下まで下ろすと、附属図書館 1 階のロビーの壁が地下 1 階の
@@ -4197,13 +4230,50 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
   });
   const cc = rgba(cols.ceiling);
   ceilings.forEach(({ rings, z }) => m.polygon(rings.map((r) => r.map(toXY)), z, [0, 0, -1], cc));
+  // 浮いた建物（base。附属図書館の学習棟）の階の天井ふところ（天井と上の階の床のあいだ・船底と下の階の床のあいだの空洞）をふさぐ（2026-11-14
+  // ユーザーの目印「二階の天井と三階の床の隙間が空いている空洞に、うめて」）：edgeBot＝外まわりの床の縁を下ろす先（下の階の天井と船底の高いほう）、
+  // plenumTop＝天井の穴のふちの帯の上の端（上の階の床の下の面。そこが上の階の床の穴なら帯なし）、いちばん上の階は外まわりも屋根の下の天井まで
+  const plenum = new Map();
+  const floatFloors = new Map();
+  features.forEach((f) => {
+    if (f.type !== "floor" || !(f.hostRef?.base > 0)) return;
+    if (!floatFloors.has(f.host)) floatFloors.set(f.host, []);
+    floatFloors.get(f.host).push(f);
+  });
+  for (const fls of floatFloors.values()) {
+    fls.sort((a, b) => a.z - b.z);
+    const host = fls[0].hostRef;
+    const hring = host.coords.map(toXY);
+    const soffH = buildingSoffit(host, hring);
+    const gh = groundAt(host.groundRef || toLngLat(hring[0]));
+    fls.forEach((f, i) => {
+      const below = fls[i - 1] || null, up = fls[i + 1] || null;
+      const o = {};
+      if (soffH && Number.isFinite(gh) && f.z >= host.base - 0.01) {
+        const lc = below?.ceiling ? floorG0(below, groundAt) + below.z + below.ceiling.z : -Infinity;
+        o.edgeBot = (p) => Math.max(lc, gh + soffH.at(p));
+      }
+      if (f.ceiling) {
+        if (up) {
+          const top = floorG0(up, groundAt) + up.z - up.slab;
+          const upRing = up.coords.map(toXY), upHoles = (up.holes || []).map((h) => (h.coords || []).map(toXY));
+          o.plenumTop = (p) => (pointInRing(p[0], p[1], upRing) && !upHoles.some((h) => pointInRing(p[0], p[1], h)) ? top : null);
+        } else {
+          const ca = roofWallAt(host, groundAt);
+          o.plenumTop = (p) => ca(p);
+          o.plenumOuter = true;
+        }
+      }
+      plenum.set(f.id, o);
+    });
+  }
   // 詳細モード：建物の階（切り取った階は、その階の壁の上の端より上を描かない）と、地下の階の下を掘ったふちの帯
   features.forEach((f) => {
     if (f.type !== "floor") return;
     const tint = f.id === selectedId ? (c) => mix(c, acc, 0.45) : (c) => c;
     const host = f.hostRef || null;
     const g0 = floorG0(f, groundAt);
-    addFloor({ m, glassy, veil, cull }, f, { groundAt, tint, paintAt, ceilAt: host ? roofWallAt(host, groundAt) : null, cutTop: f.cut && Number.isFinite(g0) ? g0 + f.z + f.height - f.slab + 0.05 : Infinity, glazed, doors: autoDoors, psd: autoPsd, esc: autoEsc, clocks: autoClocks, text: FLOOR_TEXT });
+    addFloor({ m, glassy, veil, cull }, f, { groundAt, tint, paintAt, ceilAt: host ? roofWallAt(host, groundAt) : null, cutTop: f.cut && Number.isFinite(g0) ? g0 + f.z + f.height - f.slab + 0.05 : Infinity, glazed, doors: autoDoors, psd: autoPsd, esc: autoEsc, clocks: autoClocks, text: FLOOR_TEXT, ...(plenum.get(f.id) || {}) });
   });
   // 掘らない地下の階に面したふちの帯は、その床から PASS_CLEAR m より上だけ（連絡通路の口。歩く当たり campus3dWalk と同じ形）
   const cutFloors = cutFloorRegions(features, groundAt);

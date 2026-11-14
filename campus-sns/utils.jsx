@@ -21,10 +21,14 @@ const parseMention=(text)=>{
 };
 
 // --- useMediaQuery ---
-const useMobile=()=>{const [m,setM]=useState(typeof window!=="undefined"?window.innerWidth<768:true);useEffect(()=>{const h=()=>setM(window.innerWidth<768);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);return m;};
+// 横にしたスマホ（指で触る・短い辺が 500px より小さい）もスマホの画面のまま（幅でパソコン用の画面に切りかわると、3D の「歩いて見る」が
+// 終わってしまい横画面で歩けなかった。2026-11-14 ユーザー「スマホで探索するときは、横画面もできるように」）
+const isPhoneLandscape=()=>typeof window!=="undefined"&&!!window.matchMedia?.("(pointer: coarse)").matches&&Math.min(window.innerWidth,window.innerHeight)<500;
+const isMobileWidth=()=>typeof window==="undefined"||window.innerWidth<768||isPhoneLandscape();
+const useMobile=()=>{const [m,setM]=useState(isMobileWidth);useEffect(()=>{const h=()=>setM(isMobileWidth());window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);return m;};
 
-// breakpoint: mobile(<768) / tablet(768-1079) / desktop(>=1080)
-const getBreakpoint=()=>{if(typeof window==="undefined")return"mobile";const w=window.innerWidth;if(w<768)return"mobile";if(w<1080)return"tablet";return"desktop";};
+// breakpoint: mobile(<768) / tablet(768-1079) / desktop(>=1080)（横にしたスマホは mobile）
+const getBreakpoint=()=>{if(typeof window==="undefined")return"mobile";const w=window.innerWidth;if(w<768||isPhoneLandscape())return"mobile";if(w<1080)return"tablet";return"desktop";};
 const useBreakpoint=()=>{const [bp,setBp]=useState(getBreakpoint);useEffect(()=>{const h=()=>setBp(getBreakpoint());window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);return bp;};
 
 export { NOW, fT, fTs, fDS, fDF, uDue, pDone, tMap, aMap, sMap, pCol, parseMention, useMobile, useBreakpoint };
