@@ -361,9 +361,8 @@ function TipSheet({ open, onClose, mob }) {
 export function CareerView({ mob }) {
   const user = useCurrentUser();
   const isPublic = useCareerPublic();
-  const isAdmin = !!user?.isAdmin;
-  const visible = isPublic || isAdmin;
-  const { items, loading, error, reload } = useCareer(visible);
+  // 限定公開中（メニューに出していない）でも、この画面はリンク（#career）から誰でも開ける
+  const { items, loading, error, reload } = useCareer(true);
   const [prefs, setPrefs] = useCareerPrefs();
   const [kind, setKind] = useState("all");
   const [condOpen, setCondOpen] = useState(false);
@@ -377,7 +376,7 @@ export function CareerView({ mob }) {
   const dept = user?.myDept || null;
 
   // 開いた = 新着を見た（ホームの「興味に合う新着」を消す）
-  useEffect(() => { if (visible) markSeen(); }, [visible]);
+  useEffect(() => { markSeen(); }, []);
 
   const built = useMemo(() => buildList(items, prefs, { kind, dept }), [items, prefs, kind, dept]);
   const { matchedCount, totalCount, useMine } = built;
@@ -395,21 +394,13 @@ export function CareerView({ mob }) {
   const setCond = (patch) => setPrefs((p) => ({ ...p, cond: { ...p.cond, ...patch } }));
   const interests = hasInterests(prefs);
 
-  if (!visible) {
-    return (
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 32, textAlign: "center", color: T.txD }}>
-        <div><div style={{ fontSize: 16, fontWeight: 800, color: T.txH, marginBottom: 6 }}>{t("career.notPublic")}</div><div style={{ fontSize: 13, lineHeight: 1.7 }}>{t("career.notPublicBody")}</div></div>
-      </div>
-    );
-  }
-
   const interestSummary = [...prefs.fields.map((f) => t(`career.f.${f}`)), ...prefs.skills.map((s) => t(`career.s.${s}`))];
 
   return (
     <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
       <div style={{ maxWidth: 860, margin: "0 auto", padding: mob ? "10px 14px 28px" : "18px 22px 36px" }}>
         {!mob && <div style={{ fontSize: 12.5, color: T.txD, marginBottom: 12 }}>{t("career.subtitle")}</div>}
-        {!isPublic && isAdmin && <div style={{ fontSize: 12, color: "#b45309", background: "#b4530912", borderRadius: 9, padding: "7px 10px", marginBottom: 10 }}>{t("career.adminOnly")}</div>}
+        {!isPublic && <div style={{ fontSize: 12, color: "#b45309", background: "#b4530912", borderRadius: 9, padding: "7px 10px", marginBottom: 10, lineHeight: 1.6 }}>{t("career.unlisted")}</div>}
 
         {/* 種類 */}
         <div role="tablist" style={{ display: "flex", gap: 2, padding: 3, borderRadius: 11, background: T.bg2, border: `1px solid ${T.bd}`, marginBottom: 10 }}>

@@ -1,6 +1,7 @@
-// キャリア（インターン・就職・イベント）を一般に公開しているか。
+// キャリア（インターン・就職・イベント）をメニューに出して一般公開しているか。
 // site_settings の career = { public: true } で切り替え、/api/settings が career_public として返す（App.jsx の fetchSiteSettings）。
-// 有効な掲載がそろうまでは false にしておき、管理者にだけ入口を出す（計画書 7 章 Phase 1）。
+// false の間は「限定公開」: メニュー・しらべる・ホームには出さない（管理者には出す）が、
+// リンク（https://sciencetokyo.app/#career）を知っていれば誰でも開ける。
 import { useSyncExternalStore } from "react";
 
 let pub = false;
@@ -23,7 +24,7 @@ export function useCareerPublic() {
   );
 }
 
-/** 入口（メニュー・しらべる・ホーム）を出してよいか: 公開中、または管理者 */
+/** 入口（メニュー・しらべる・ホーム）を出してよいか: 一般公開中、または管理者（限定公開中もリンクからは誰でも開ける） */
 export function useCareerVisible(isAdmin) {
   const p = useCareerPublic();
   return p || !!isAdmin;

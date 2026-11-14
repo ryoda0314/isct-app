@@ -238,10 +238,10 @@ export function CareerAdminTab() {
     <div style={{ padding: 16, maxWidth: 960 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12, padding: "10px 12px", borderRadius: 12, background: T.bg2, border: `1px solid ${T.bd}` }}>
         <div style={{ flex: 1, minWidth: 220 }}>
-          <div style={{ fontSize: 13.5, fontWeight: 800, color: T.txH }}>{pub ? "一般に公開中" : "管理者だけに表示中"}</div>
-          <div style={{ fontSize: 11.5, color: T.txD }}>有効な掲載 {activeCount} 件（公開の目安 {PUBLISH_GOAL} 件）。公開前に労働局・規約の確認を済ませること。</div>
+          <div style={{ fontSize: 13.5, fontWeight: 800, color: T.txH }}>{pub ? "一般に公開中（メニューに出ている）" : "限定公開中（リンクを知っている人だけ）"}</div>
+          <div style={{ fontSize: 11.5, color: T.txD, lineHeight: 1.6 }}>{pub ? "" : <>メニュー・しらべる・ホームには出していません。リンク: <code>https://sciencetokyo.app/#career</code><br /></>}有効な掲載 {activeCount} 件（一般公開の目安 {PUBLISH_GOAL} 件）。一般公開の前に労働局・規約の確認を済ませること。</div>
         </div>
-        <button onClick={async () => { const d = await patch({ action: "public", value: !pub }, pub ? "管理者だけに戻しました" : "公開しました"); if (d) { setPub(d.public); setCareerPublic(d.public); } }} style={{ padding: "8px 14px", borderRadius: 9, border: `1px solid ${pub ? T.bd : T.accent}`, background: pub ? T.bg : T.accent, color: pub ? T.txH : "#fff", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>{pub ? "非公開に戻す" : "一般に公開する"}</button>
+        <button onClick={async () => { const d = await patch({ action: "public", value: !pub }, pub ? "限定公開に戻しました" : "一般に公開しました"); if (d) { setPub(d.public); setCareerPublic(d.public); } }} style={{ padding: "8px 14px", borderRadius: 9, border: `1px solid ${pub ? T.bd : T.accent}`, background: pub ? T.bg : T.accent, color: pub ? T.txH : "#fff", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>{pub ? "限定公開に戻す" : "一般に公開する（メニューに出す）"}</button>
       </div>
 
       {tips.length > 0 && !editing && (
