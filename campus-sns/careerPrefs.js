@@ -157,3 +157,32 @@ export function removeSaved(id) { const next = { ...getSaved() }; delete next[id
 export function useSaved() {
   return useSyncExternalStore((cb) => { savedSubs.add(cb); return () => savedSubs.delete(cb); }, getSaved, () => ({}));
 }
+
+/**
+ * 一覧を「興味に合う」と「そのほか」の 2 つに分ける（興味を選んでいなければ全部「そのほか」= すべて）。
+ * 2 つとも同じ画面に続けて出すので、合わない募集が見えなくなることはない（計画書 2 章）。
+ * test(item) … 画面のキーワード検索（端末の中だけで絞る）
+ */
+export function buildSections(items, p, { kind = "all", dept = null, test = null } = {}) {
+  const interested = hasInterests(p);
+  const matched = [], rest = [];
+  for (const item of items) {
+    if (kind !== "all" && item.kind !== kind) continue;
+    if (!passesCond(item, p.cond)) continue;
+    const elig = eligibility(item, p);
+    if (p.onlyEligible && elig === "no") continue;
+    if (test && !test(item)) continue;
+    const m = matchListing(item, p, dept);
+    (interested && m.matched ? matched : rest).push({ item, m, elig });
+  }
+  const due = (r) => dueOf(r.item) ?? Infinity;
+  const created = (r) => Date.parse(r.item.created_at || 0) || 0;
+  const by = (sort) => (a, b) => {
+    if (sort === "new") return created(b) - created(a) || due(a) - due(b);
+    if (sort === "match" && b.m.score !== a.m.score) return b.m.score - a.m.score;
+    return due(a) - due(b);
+  };
+  matched.sort(by(p.sort === "new" || p.sort === "deadline" ? p.sort : "match"));
+  rest.sort(by(p.sort === "new" ? "new" : "deadline"));
+  return { matched, rest, interested };
+}
