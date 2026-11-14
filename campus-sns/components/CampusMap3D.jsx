@@ -18,6 +18,9 @@ import { createDoorsLayer, createExtrasLayer, createLightsLayer, createTrainsLay
 import { doorLeaves, stepDoors } from "../campus3dDoors.js";
 import { collectLifts, liftBlocked, liftClock, liftFloors, liftMeshes, liftPick, liftState, pressButton, stepLift } from "../campus3dLift.js";
 import { collectSeats, seatPick, sitPose } from "../campus3dSeats.js";
+import { GATE_OPEN_MS, collectInteract, gateBlocked, laneDoors, pickInteract } from "../campus3dInteract.js";
+import { IC_FARE, ITEMS, SLOTS, buyDrink, chargeIc, hasItem, loadInventory, saveInventory, takeItem, yen } from "../campus3dInventory.js";
+import { MapInventory, itemUseLabel } from "./MapInventory.jsx";
 import { lampBounds, lampLightCanvas, lampMesh, streetLamps } from "../campus3dLamps.js";
 import { EYE, PITCH as WALK_PITCH, SPEED, SPRINT_FOV, TURN as TURN_DEG, VIEW_D, WALK_FOV, eyeCamera, routePath, stepBody, stepFly, stepRoute, walkWorld } from "../campus3dWalk.js";
 import { TWIN_SCALES, TWIN_WALLS, TWIN_YAW_GAINS, twinCalCancel, twinCalStart, twinConnect, twinCreate, twinDisconnect, twinFake, twinHaptics, twinInput, twinLevel, twinLine, twinRelease, twinSend, twinSet, twinSupported, twinTilt } from "../campus3dTwin.js";
@@ -131,6 +134,8 @@ const CSS = `
   font-family:inherit;cursor:pointer;box-shadow:0 6px 16px -6px rgba(0,0,0,.5);white-space:nowrap}
 .cb3-walk-btns button.on{background:var(--cb3-accent);color:#fff}
 .cb3-walk-btns .cb3-walk-exit{background:#fff;color:#0e2030}
+/* 持ち物の「使う」ボタン（撮る・見る・飲む） */
+.cb3-walk-btns .cb3-use{background:#fff;color:#0e2030;box-shadow:0 0 0 2px var(--cb3-accent),0 6px 16px -6px rgba(0,0,0,.5)}
 /* スマホで歩く：画面いっぱい（アプリの上の見出し・下のタブの上に重ねる。2026-11-14 ユーザー「スマホの探索は全画面モード」）。
    画面のふち（ノッチ・角の丸み）の分は safe-area で内へ */
 .cb3-full{position:fixed!important;inset:0!important;z-index:100000!important;background:#0e2030}
@@ -441,6 +446,14 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const debugRef = useRef(debugTools);
   const lastMeshRef = useRef(null); // いま描いている三角形（目印を置くときに光線を当てる。デバッグの道具があるときだけ持つ）
   const [walkUi, setWalkUi] = useState({ run: false, auto: false, route: false, done: false, hint: false, locked: false, touch: false, fly: false, noclip: false, aim: null, seated: false });
+  // 持ち物（campus3dInventory。歩くあいだだけ出す。端末に保存）・持ち物のメニュー（自販機・券売機・カード・写真）・お知らせ・使える物（自販機・券売機・改札）
+  const [inv, setInv] = useState(null);
+  const invRef = useRef(null);
+  const [invMenu, setInvMenu] = useState(null);
+  const [invToast, setInvToast] = useState(null);
+  const invToastTimer = useRef(0);
+  const interactRef = useRef(null);
+  const beepCtx = useRef(null);
   // 実物のコントローラー（campus3dTwin.js。Arduino のタイヤ＝前後・基板の向き＝向き・傾き＝前後と横、壁でタイヤを止める）：
   // つないでいるあいだの状態（歩くのをやめてもつないだまま）と、パネルの表示。今の値の行は毎フレーム React を描き直さないよう文字だけ書きかえる
   const twinRef = useRef(null);
@@ -1252,7 +1265,11 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         const res = buildMesh(view, { groundAt: ground, slopes: dem.slopes, terraces: dem.terraces, ceilings: cut.ceilings, digs: dem.digs, pal: built.pal, dark, selectedId: selectedFeatureId, accent, bldColor, clip, tone: lookRef.current?.tone, trees: !vegRef.current });
         if (debugRef.current) lastMeshRef.current = res;
         extrasRef.current?.setMesh(res);
-        doorsRef.current = { list: res.doors || [], open: (res.doors || []).map(() => 0), leaves: null, dirty: true };
+        // 使える物（自販機・券売機・改札）。改札の羽は自動ドアの板として描き、歩くあいだは閉じた羽がふさぐ（campus3dInteract）
+        const inter = collectInteract(view.filter((f) => f.type === "floor"), ground);
+        interactRef.current = inter;
+        const doorList = [...(res.doors || []), ...laneDoors(inter.lanes)];
+        doorsRef.current = { list: doorList, open: doorList.map(() => 0), leaves: null, dirty: true };
         psdRef.current = { list: res.psd || [], prep: null, prepd: [], mesh: null, key: "" }; // ホームドアの口（電車の線には次のフレームで合わせる）
         escRef.current = { geoms: prepareEscalators(res.esc) }; // エスカレーターの段
         ledRef.current = { ...ledRef.current, boards: prepareDepartureBoards(view), mesh: null }; // 発車標の看板
@@ -1469,7 +1486,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       });
     }
     // エレベーターの閉まった扉は通れない（動く壁）
-    world.setDyn?.((x, y, z) => liftBlocked(liftsRef.current.list, liftsRef.current.states, x, y, z));
+    world.setDyn?.((x, y, z) => liftBlocked(liftsRef.current.list, liftsRef.current.states, x, y, z) || gateBlocked(doorsRef.current.list, doorsRef.current.open, x, y, z)); // 閉じた改札の羽もふさぐ
     world.setDynFloor?.((x, y) => liftFloors(liftsRef.current.list, liftsRef.current.states, x, y)); // かごの床（昇降路の階の床には穴）
     // いまのカメラの位置（ここから目の高さへ降りていく）
     const cam = map.transform.getCameraLngLat();
@@ -1521,6 +1538,11 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur?.();
     setWalking(true);
     setWalkUi({ run: false, auto: false, route: !!path, done: false, hint: true, locked: false, touch, fly, noclip: false, aim: null, seated: false });
+    // 持ち物（端末に保存したもの。日が変わっていればお金を補充）
+    const iv = loadInventory();
+    invRef.current = iv;
+    saveInventory(iv);
+    setInv(iv);
     walkRef.current.raf = requestAnimationFrame(walkTick);
   }
 
@@ -1661,6 +1683,20 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     Object.assign(w, s);
     // 自動ドア：歩く人の足もとから DOOR_TRIGGER m の扉は開き、離れると閉じる（動いているあいだは描き直す）
     const D = doorsRef.current;
+    // 改札の羽：ルートを自動で歩くときは持っているカードでかざす。自分で歩いて閉じた羽の前に来たら、かざし方をお知らせ（8 秒に 1 回まで）
+    if (invRef.current) {
+      for (const d of D.list) {
+        if (!d.gate || (d.until || 0) > now) continue;
+        const l = d.gate;
+        const dist = Math.hypot(w.x - l.m[0], w.y - l.m[1]);
+        if (dist > 1.3 || Math.abs(w.z - l.zf) > 0.8) continue;
+        if (w.auto) tapGate(l);
+        else if (dist < 0.9 && now - (w.gateHintAt || 0) > 8000) {
+          w.gateHintAt = now;
+          showToast(t(l.card === "ic" ? "inv.gateHintIc" : "inv.gateHintStudent"));
+        }
+      }
+    }
     if (D.list.length && stepDoors(D.list, D.open, { x: w.x, y: w.y, z: w.z }, dt)) {
       D.dirty = true;
       map.triggerRepaint();
@@ -1725,13 +1761,15 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     // エレベーターのボタン：照準（マウスを固定しているとき・スマホは画面のまん中、固定していないマウスはその先）が当たっているボタンを
     // 白いふちで示し、十字の下に名前を出す（変わったときだけ描き直す）
     // 椅子：エレベーターのボタンに当たっていなくて、立っていれば、照準の先の座れるもの（十字の下に「座る」）
-    if (LF.list.length || w.seats?.length) {
+    if (LF.list.length || w.seats?.length || interactRef.current) {
       const use = w.locked || w.touch || !!w.hover;
       const ray = use ? walkRay(map, w, w.locked || w.touch ? null : w.hover) : null;
       const hit = ray && !w.fly && LF.list.length ? liftPick(LF.list, LF.states, ray.o, ray.d) : null;
-      const sh = ray && !hit && !w.fly && !w.seat && w.seats?.length ? seatPick(w.seats, ray.o, ray.d, w.z) : null;
+      // 使える物（自販機・券売機・改札。持ち物を出しているとき）
+      const ih = ray && !hit && !w.fly && !w.seat && invRef.current && interactRef.current ? pickInteract(interactRef.current, ray.o, ray.d) : null;
+      const sh = ray && !hit && !ih && !w.fly && !w.seat && w.seats?.length ? seatPick(w.seats, ray.o, ray.d, w.z) : null;
       w.seatAim = sh;
-      const key = hit ? `${hit.i}:${hit.kind}:${hit.k}:${hit.dir}${hit.wc ? ":wc" : ""}` : sh ? "seat" : ""; // wc：車いす用の呼びボタン（附属図書館）
+      const key = hit ? `${hit.i}:${hit.kind}:${hit.k}:${hit.dir}${hit.wc ? ":wc" : ""}` : ih ? `ia:${ih.kind}:${ih.kind === "gate" ? ih.target.card : ""}` : sh ? "seat" : ""; // wc：車いす用の呼びボタン（附属図書館）
       if (key !== LF.aimKey) {
         LF.aimKey = key;
         LF.aim = hit;
@@ -1739,7 +1777,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         map.triggerRepaint();
         const lb = hit
           ? hit.kind === "car" ? LF.list[hit.i].levels[hit.k]?.label || "" : hit.kind === "door" ? (hit.dir > 0 ? "◀ ▶" : "▶ ◀") : `${t("navi.liftCall")} ${hit.dir > 0 ? "▲" : "▼"}`
-          : sh ? t("navi.strollSit") : null;
+          : ih ? t(ih.kind === "vend" ? "inv.aimVend" : ih.kind === "tvm" ? "inv.aimTvm" : ih.target.card === "ic" ? "inv.aimGateIc" : "inv.aimGateStudent") : sh ? t("navi.strollSit") : null;
         setWalkUi((u) => ({ ...u, aim: lb }));
       }
     }
@@ -1794,6 +1832,159 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     setWalkUi((u) => ({ ...u, seated: true, auto: false }));
     map.triggerRepaint();
     return true;
+  }
+  // ── 持ち物（campus3dInventory）──
+  // 持ち物を変える（写しを作って fn で変え、端末に保存）。fn の返り値を返す
+  function updateInv(fn) {
+    const cur = invRef.current;
+    if (!cur) return null;
+    const next = { ...cur, slots: cur.slots.map((x) => (x ? { ...x } : null)) };
+    const r = fn(next);
+    invRef.current = next;
+    saveInventory(next);
+    setInv(next);
+    return r;
+  }
+  function showToast(msg) {
+    clearTimeout(invToastTimer.current);
+    setInvToast(msg);
+    invToastTimer.current = setTimeout(() => setInvToast(null), 2400);
+  }
+  // マス i を選ぶ（物の名前と使い方をお知らせに）
+  function selectSlot(i) {
+    if (!invRef.current) return;
+    updateInv((v) => {
+      v.sel = i;
+    });
+    const it = invRef.current.slots[i];
+    if (it) {
+      const def = ITEMS[it.id];
+      showToast(t(def.name) + (def.use ? (walkRef.current?.touch ? "" : `（${t("inv.useKey")}：${t(def.use)}）`) : it.id === "map" ? `（${t("inv.mapShown")}）` : ""));
+    }
+  }
+  function openMenu(m) {
+    if (document.pointerLockElement) document.exitPointerLock?.(); // メニューのボタンを押せるように
+    setInvMenu(m);
+  }
+  function closeMenu() {
+    setInvMenu((m) => {
+      if (m?.kind === "photo" && m.url) setTimeout(() => URL.revokeObjectURL(m.url), 1000);
+      return null;
+    });
+  }
+  // ピッ（カードをかざした音。鳴らせなければ鳴らさない）
+  function beep(ok = true) {
+    try {
+      const A = window.AudioContext || window.webkitAudioContext;
+      if (!A) return;
+      const ac = beepCtx.current || (beepCtx.current = new A());
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.frequency.value = ok ? 2200 : 520;
+      g.gain.value = 0.05;
+      o.connect(g);
+      g.connect(ac.destination);
+      o.start(ac.currentTime);
+      o.stop(ac.currentTime + (ok ? 0.09 : 0.28));
+    } catch {
+      /* 音は出せなくてよい */
+    }
+  }
+  // 選んでいる物を使う（使うボタン・右クリック・Enter）：カメラは撮る、カードは見る、飲み物は飲む（地図は持っているあいだ左上に出る）
+  function applyItem() {
+    const v = invRef.current;
+    const it = v?.slots[v.sel];
+    if (!it || !walkRef.current || !mapRef.current) return;
+    if (it.id === "camera") takePhoto();
+    else if (it.id === "student" || it.id === "ic") openMenu({ kind: "card", id: it.id });
+    else if (ITEMS[it.id]?.drink) {
+      updateInv((x) => takeItem(x, x.sel));
+      showToast(t("inv.drank", { name: t(ITEMS[it.id].name) }));
+    }
+  }
+  // 写真：いまの絵（地図のキャンバスだけ。ボタンなどは写らない）を JPEG に。保存・共有はメニューから（端末に。外へは送らない）
+  function takePhoto() {
+    const map = mapRef.current;
+    if (!map) return;
+    map.once("render", () => {
+      try {
+        map.getCanvas().toBlob((blob) => {
+          if (!blob) return showToast(t("inv.photoFail"));
+          const d = new Date();
+          const p2 = (n) => String(n).padStart(2, "0");
+          const name = `campus-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}.jpg`;
+          let file = null;
+          try {
+            file = new File([blob], name, { type: "image/jpeg" });
+          } catch {
+            /* File が作れない古いブラウザー：保存だけ */
+          }
+          openMenu({ kind: "photo", url: URL.createObjectURL(blob), name, file });
+        }, "image/jpeg", 0.9);
+      } catch {
+        showToast(t("inv.photoFail"));
+      }
+    });
+    map.triggerRepaint();
+  }
+  // 照準の先の使える物（自販機・券売機・改札）を使う。あれば true
+  function interactAt(pt) {
+    const w = walkRef.current;
+    const map = mapRef.current;
+    if (!w || !map || w.anim || w.fly || w.seat || !invRef.current || !interactRef.current) return false;
+    const ray = walkRay(map, w, pt);
+    const hit = pickInteract(interactRef.current, ray.o, ray.d);
+    if (!hit) return false;
+    if (hit.kind === "vend") openMenu({ kind: "vend" });
+    else if (hit.kind === "tvm") openMenu({ kind: "tvm" });
+    else tapGate(hit.target);
+    return true;
+  }
+  // 改札にカードをかざす：駅は IC カード（ゲーム内の残高から IC_FARE 円）、図書館は学生証。通れれば羽を開いて true
+  function tapGate(lane) {
+    const v = invRef.current;
+    const D = doorsRef.current;
+    const i = D.list.findIndex((d) => d.gate === lane);
+    if (i < 0 || !v) return false;
+    const d = D.list[i];
+    const now = performance.now();
+    if ((d.until || 0) > now) return true;
+    if (lane.card === "student") {
+      if (!hasItem(v, "student")) {
+        beep(false);
+        showToast(t("inv.needStudent"));
+        return false;
+      }
+      showToast(t("inv.gateStudent"));
+    } else {
+      if (!hasItem(v, "ic")) {
+        beep(false);
+        showToast(t("inv.needIc"));
+        return false;
+      }
+      if (v.ic < IC_FARE) {
+        beep(false);
+        showToast(t("inv.icShort", { fare: IC_FARE }));
+        return false;
+      }
+      updateInv((x) => {
+        x.ic -= IC_FARE;
+      });
+      showToast(t("inv.gateIc", { fare: IC_FARE, left: yen(invRef.current.ic) }));
+    }
+    beep(true);
+    d.until = now + GATE_OPEN_MS;
+    D.dirty = true;
+    mapRef.current?.triggerRepaint();
+    return true;
+  }
+  function buy(id) {
+    const ok = updateInv((x) => buyDrink(x, id));
+    showToast(ok ? t("inv.bought", { name: t(ITEMS[id].name) }) : t("inv.cantBuy"));
+  }
+  function charge(a) {
+    const ok = updateInv((x) => chargeIc(x, a));
+    showToast(ok ? t("inv.charged", { a: yen(a), left: yen(invRef.current.ic) }) : t("inv.cantCharge"));
   }
   // 立つ：座る前に立っていた側（机・カウンターの椅子は前が机なので、来た側＝通路）へ 0.6〜1m。同じ床の高さで、ふさがっていない所。
   // なければ座ったものの前（sitPose の stand）、それもなければ座る前の所（2026-11-14：前へ立つと窓ぎわのカウンターの向こう＝建物の外へ落ちた）
@@ -1893,6 +2084,9 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     }
     setWalking(false);
     setWalkUi((u) => ({ ...u, auto: false, done: false, hint: false, locked: false, aim: null, seated: false }));
+    closeMenu();
+    invRef.current = null;
+    setInv(null);
   }
 
   // 歩いているあいだの入力。PC：地図をクリックするとマウスを固定（ポインターロック）して、動かした向きを見る。固定できなければ
@@ -1923,8 +2117,13 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         // エレベーターのボタン（Minecraft のように）：照準（固定中は画面のまん中、固定していなければマウスの先）が当たっていれば押す。
         // 左・右どちらのクリックでも
         const pt0 = document.pointerLockElement ? null : canvasPt(e);
-        if (pressLiftAt(pt0) || sitAt(pt0)) {
+        if (pressLiftAt(pt0) || interactAt(pt0) || sitAt(pt0)) {
           e.preventDefault();
+          return;
+        }
+        if (e.button === 2 && invRef.current) {
+          e.preventDefault();
+          applyItem(); // 右クリック：選んでいる物を使う（Minecraft と同じ）
           return;
         }
         if (e.button !== 0) return;
@@ -1966,7 +2165,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       if (tap && e.pointerId === tap.id) {
         if (performance.now() - tap.t < 400) {
           const pt = canvasPt(e);
-          if (!pressLiftAt(pt)) sitAt(pt); // タップしたところのエレベーターのボタン・椅子
+          if (!pressLiftAt(pt) && !interactAt(pt)) sitAt(pt); // タップしたところのエレベーターのボタン・使える物・椅子
         }
         tap = null;
       }
@@ -1995,6 +2194,12 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         if (document.pointerLockElement || performance.now() - w.unlockedAt < 500) return;
         e.preventDefault();
         stopWalk();
+      } else if (/^Digit[1-9]$/.test(e.code) && invRef.current) {
+        e.preventDefault();
+        selectSlot(+e.code.slice(5) - 1);
+      } else if (e.code === "Enter" && invRef.current && !e.repeat) {
+        e.preventDefault();
+        applyItem();
       } else if (e.code === "KeyN" && debugRef.current && w.fly) {
         // 飛んでいるときの N：すり抜け（スペクテイター）を切りかえる
         e.preventDefault();
@@ -2035,6 +2240,17 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     box.addEventListener("pointercancel", up);
     box.addEventListener("pointerleave", leave);
     box.addEventListener("contextmenu", noMenu);
+    // ホイール：持ち物を回す（歩くあいだは地図のズームは止めてある）
+    let wheelAt = 0;
+    const wheel = (e) => {
+      if (!invRef.current) return;
+      e.preventDefault();
+      const now = performance.now();
+      if (now - wheelAt < 110 || Math.abs(e.deltaY) < 1) return;
+      wheelAt = now;
+      selectSlot((invRef.current.sel + (e.deltaY > 0 ? 1 : -1) + SLOTS) % SLOTS);
+    };
+    box.addEventListener("wheel", wheel, { passive: false });
     document.addEventListener("mousemove", mouseMove);
     document.addEventListener("pointerlockchange", lockChange);
     window.addEventListener("keydown", keyDown);
@@ -2047,6 +2263,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       box.removeEventListener("pointercancel", up);
       box.removeEventListener("pointerleave", leave);
       box.removeEventListener("contextmenu", noMenu);
+      box.removeEventListener("wheel", wheel);
       document.removeEventListener("mousemove", mouseMove);
       document.removeEventListener("pointerlockchange", lockChange);
       window.removeEventListener("keydown", keyDown);
@@ -2605,7 +2822,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         </div>
       )}
       {walking && (
-        <div className="cb3-walk-ui">
+        <div className={`cb3-walk-ui${inv ? " cb3-inv-on" : ""}`}>
           <div className={`cb3-cross${walkUi.aim ? " on" : ""}`} />
           {walkUi.aim && <div className="cb3-aim">{walkUi.aim}</div>}
           {(walkUi.hint || walkUi.done) && (
@@ -2662,7 +2879,9 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
               <div className="cb3-twin-hint">{twinUi.st !== "off" ? t("navi.twinHelp") : twinUi.err === "lost" ? t("navi.twinLost") : twinUi.err ? t("navi.twinErr") : t("navi.twinNeed")}</div>
             </div>
           )}
+          <MapInventory inv={inv} touch={walkUi.touch} menu={invMenu} toast={invToast} walkRef={walkRef} data={data} features={props.features} accent={accent} onSelect={selectSlot} onUse={applyItem} onCloseMenu={closeMenu} onBuy={buy} onCharge={charge} onRename={(nm) => updateInv((x) => { x.name = nm; })} />
           <div className="cb3-walk-btns">
+            {inv && itemUseLabel(inv) && <button type="button" className="cb3-use" onClick={applyItem}>{itemUseLabel(inv)}</button>}
             {walkUi.touch && <button type="button" className="cb3-jump" onPointerDown={jumpDown} onPointerUp={jumpUp} onPointerCancel={jumpUp}>{walkUi.seated ? t("navi.strollStand") : walkUi.fly ? t("navi.strollUp") : t("navi.strollJump")}</button>}
             {walkUi.seated && !walkUi.touch && <button type="button" className="on" onClick={() => { const w = walkRef.current; if (w?.seat) standUp(w); }}>{t("navi.strollStand")}</button>}
             {walkUi.touch && walkUi.fly && <button type="button" className="cb3-jump" onPointerDown={downOn} onPointerUp={downOff} onPointerCancel={downOff}>{t("navi.strollDown")}</button>}

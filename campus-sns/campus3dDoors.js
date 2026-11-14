@@ -17,10 +17,14 @@ export const DOOR_GLASS = [0.8, 0.88, 0.92, 1]; // ガラス（レイヤーで�
 // 開き具合を dt 秒すすめる。who（歩く人の足もと { x, y, z }。歩いていなければ null）の近くの扉は開く。動いている扉があれば true
 export function stepDoors(doors, open, who, dt) {
   let moving = false;
+  const now = typeof performance !== "undefined" ? performance.now() : Date.now();
   doors.forEach((d, i) => {
     const cx = (d.a[0] + d.b[0]) / 2;
     const cy = (d.a[1] + d.b[1]) / 2;
-    const near = !!who && Math.hypot(who.x - cx, who.y - cy) < DOOR_TRIGGER && who.z > d.z0 - 1.5 && who.z < d.z1;
+    // 改札の羽（gate。campus3dInteract）：近づいても開かない。カードをかざした（until まで）あいだと、かざしたあとで通り道の中に人がいるあいだだけ開く
+    const near = d.gate
+      ? (d.until || 0) > now || (!!who && (d.until || 0) > now - 8000 && Math.hypot(who.x - cx, who.y - cy) < 0.9 && Math.abs(who.z - d.gate.zf) < 0.8)
+      : !!who && Math.hypot(who.x - cx, who.y - cy) < DOOR_TRIGGER && who.z > d.z0 - 1.5 && who.z < d.z1;
     const target = near ? 1 : 0;
     const v = open[i] || 0;
     if (Math.abs(target - v) < 1e-4) {
