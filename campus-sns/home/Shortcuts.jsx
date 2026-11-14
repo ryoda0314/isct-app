@@ -83,7 +83,7 @@ export function Shortcuts({ setView, careerOn, isMed, portal, mob }) {
         return (
           <button key={q.id} type="button" onClick={() => (isPortalId(q.id) ? portal.open(q.id) : setView(q.id))} disabled={busy}
             style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, minWidth: 0, padding: "10px 4px 9px", borderRadius: 14, border: `1px solid ${T.bd}`, background: T.bg2, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1, font: "inherit" }}>
-            <span style={{ display: "flex", color: T.accent }}>{q.icon || PORTAL_ICONS[q.id]}</span>
+            <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: "50%", background: `${T.accent}16`, color: T.accent }}>{q.icon || PORTAL_ICONS[q.id]}</span>
             <span style={{ maxWidth: "100%", fontSize: 11.5, fontWeight: 600, color: T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{busy ? t("home.loadingShort") : t(q.labelKey)}</span>
           </button>
         );
