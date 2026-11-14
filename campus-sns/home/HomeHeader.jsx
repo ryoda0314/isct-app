@@ -33,26 +33,32 @@ export function academicBadges(now) {
   return out;
 }
 
+/** 学年暦のバッジの列（押すと学年暦へ） */
+function AcademicBadges({ now, setView, style }) {
+  const badges = academicBadges(now);
+  if (!badges.length) return null;
+  return (
+    <button type="button" onClick={() => setView("acadCal")} title={t("tool.acadCal")}
+      style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, padding: 0, background: "none", border: "none", cursor: "pointer", font: "inherit", textAlign: "left", ...style }}>
+      {badges.map((b, i) => (
+        <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 6, fontSize: 11.5, fontWeight: 600, lineHeight: 1.35, background: `${b.col}15`, color: b.col }}>
+          <span style={{ display: "flex" }}>{ICONS[b.icon]}</span>{b.label}
+        </span>
+      ))}
+      <span style={{ fontSize: 13, color: T.txD, padding: "0 2px" }}>›</span>
+    </button>
+  );
+}
+
 /** ホームの一番上: 日付、学年暦（押すと学年暦へ）、天気のチップ */
 export function HomeHeader({ now, mob, setView, weather }) {
-  const badges = academicBadges(now);
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 12, paddingTop: mob ? 14 : 22 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: mob ? 22 : 26, fontWeight: 800, color: T.txH, letterSpacing: -0.3, lineHeight: 1.25 }}>
           {t("home.dateLine", { m: now.getMonth() + 1, d: now.getDate(), dow: t("dow.s." + DAY_NAMES[now.getDay()]) })}
         </div>
-        {badges.length > 0 && (
-          <button type="button" onClick={() => setView("acadCal")} title={t("tool.acadCal")}
-            style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, marginTop: 6, padding: 0, background: "none", border: "none", cursor: "pointer", font: "inherit", textAlign: "left" }}>
-            {badges.map((b, i) => (
-              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 6, fontSize: 11.5, fontWeight: 600, lineHeight: 1.35, background: `${b.col}15`, color: b.col }}>
-                <span style={{ display: "flex" }}>{ICONS[b.icon]}</span>{b.label}
-              </span>
-            ))}
-            <span style={{ fontSize: 13, color: T.txD, padding: "0 2px" }}>›</span>
-          </button>
-        )}
+        <AcademicBadges now={now} setView={setView} style={{ marginTop: 6 }} />
       </div>
       <WeatherChip weather={weather} />
     </div>

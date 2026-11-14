@@ -19,10 +19,12 @@ export function dayWord(d, now) {
 }
 
 /** 欄の見出し（右に「すべて ›」などの移動ボタン） */
-export function SectionHead({ title, action, onAction }) {
+export function SectionHead({ title, action, onAction, icon }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, margin: "0 2px 8px" }}>
-      <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: T.txH }}>{title}</h2>
+      <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: 7, fontSize: 15, fontWeight: 800, color: T.txH }}>
+        {icon && <span style={{ display: "flex", color: T.accent }}>{icon}</span>}{title}
+      </h2>
       {action && <button type="button" onClick={onAction} style={{ background: "none", border: "none", color: T.accent, fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: "4px 2px", whiteSpace: "nowrap" }}>{action} ›</button>}
     </div>
   );

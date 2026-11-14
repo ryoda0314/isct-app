@@ -97,14 +97,16 @@ function RouteCard({ route, now, onRemove, onToggleHome, onSetFilter, variant = 
   }, [visible.length, state, data, load]);
 
   const labelParts = (route.label || route.dest_station || "").split("→").map((s) => s.trim());
+  // ホームでは小さく: 見出し（電車）と重なるアイコンを外し、余白を詰めて、電車を 3 本まで出す
+  const home = variant === "home";
 
   return (
     <div style={{ background: T.bg2, border: `1px solid ${T.bd}`, borderRadius: 16, overflow: "hidden", boxShadow: "0 1px 2px rgba(0,0,0,.04)" }}>
       {/* ヘッダー: 出発 → 目的地 */}
-      <div onClick={variant === "home" ? onOpen : undefined}
-        style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderBottom: `1px solid ${T.bd}`, cursor: variant === "home" ? "pointer" : "default" }}>
-        <div style={{ width: 30, height: 30, borderRadius: 9, background: `${T.accent}1a`, color: T.accent, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{I.train}</div>
-        <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6, fontWeight: 700, color: T.txH, fontSize: 15, overflow: "hidden", whiteSpace: "nowrap" }}>
+      <div onClick={home ? onOpen : undefined}
+        style={{ display: "flex", alignItems: "center", gap: 10, padding: home ? "9px 14px" : "12px 14px", borderBottom: `1px solid ${T.bd}`, cursor: home ? "pointer" : "default" }}>
+        {!home && <div style={{ width: 30, height: 30, borderRadius: 9, background: `${T.accent}1a`, color: T.accent, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{I.train}</div>}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6, fontWeight: 700, color: T.txH, fontSize: home ? 14 : 15, overflow: "hidden", whiteSpace: "nowrap" }}>
           {labelParts.length === 2
             ? <>{labelParts[0]}<span style={{ color: T.txD, display: "flex" }}>{I.arr}</span><span style={{ color: T.accent }}>{labelParts[1]}</span></>
             : (route.label || route.dest_station)}
@@ -121,7 +123,7 @@ function RouteCard({ route, now, onRemove, onToggleHome, onSetFilter, variant = 
         </> : <span style={{ color: T.txD, display: "flex", flexShrink: 0 }}>{I.arr}</span>}
       </div>
 
-      <div style={{ padding: "4px 14px 12px" }}>
+      <div style={{ padding: home ? "0 14px 4px" : "4px 14px 12px" }}>
         {/* 種別フィルタ */}
         {filterOpen && variant === "full" && availableTypes.length > 1 && (
           <div style={{ padding: "10px 0", borderBottom: `1px solid ${T.bd}`, marginBottom: 4 }}>
@@ -158,31 +160,31 @@ function RouteCard({ route, now, onRemove, onToggleHome, onSetFilter, variant = 
 
         {/* 次発（ヒーロー） */}
         {hero && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0 10px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: home ? "9px 0 7px" : "12px 0 10px" }}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: T.green, flexShrink: 0 }} />
             <TypePill title={hero.trainTypeTitle} />
             <div style={{ flex: 1, minWidth: 0 }}>
               {(() => {
                 const s = countdown(hero.targetMs);
-                if (s <= 0) return <div style={{ fontSize: 26, fontWeight: 800, color: T.green, lineHeight: 1.05, letterSpacing: -.5 }}>{t("train.soon")}</div>;
+                if (s <= 0) return <div style={{ fontSize: home ? 22 : 26, fontWeight: 800, color: T.green, lineHeight: 1.05, letterSpacing: -.5 }}>{t("train.soon")}</div>;
                 return (
                   <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                     <span style={{ fontSize: 12, fontWeight: 600, color: T.txD }}>{t("train.untilLabel")}</span>
-                    <span style={{ fontSize: 30, fontWeight: 800, color: T.txH, lineHeight: 1, letterSpacing: -.5, fontVariantNumeric: "tabular-nums" }}>{Math.floor(s / 60)}:{pad2(s % 60)}</span>
+                    <span style={{ fontSize: home ? 25 : 30, fontWeight: 800, color: T.txH, lineHeight: 1, letterSpacing: -.5, fontVariantNumeric: "tabular-nums" }}>{Math.floor(s / 60)}:{pad2(s % 60)}</span>
                   </div>
                 );
               })()}
-              <div style={{ marginTop: 4 }}><Meta d={hero} /></div>
+              <div style={{ marginTop: home ? 3 : 4 }}><Meta d={hero} /></div>
             </div>
           </div>
         )}
 
         {/* 以降の発車 */}
-        {(variant === "home" ? visible.slice(1, 2) : visible.slice(1)).map((d, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: `1px solid ${T.bd}` }}>
+        {(home ? visible.slice(1, 3) : visible.slice(1)).map((d, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: home ? "6px 0" : "9px 0", borderTop: `1px solid ${T.bd}` }}>
             <span style={{ width: 7, flexShrink: 0 }} />
             <TypePill title={d.trainTypeTitle} />
-            <span style={{ fontSize: 15, fontWeight: 700, color: T.txH, minWidth: 64 }}>{fmtUntil(Math.floor(countdown(d.targetMs) / 60))}</span>
+            <span style={{ fontSize: home ? 14 : 15, fontWeight: 700, color: T.txH, minWidth: 64 }}>{fmtUntil(Math.floor(countdown(d.targetMs) / 60))}</span>
             <Meta d={d} />
           </div>
         ))}
@@ -267,7 +269,7 @@ export function HomeTrainWidget({ setView }) {
   if (!pinned.length) return null;
   return (
     <section>
-      <SectionHead title={t("nav.train")} action={t("home.viewAll")} onAction={() => setView("train")} />
+      <SectionHead icon={I.train} title={t("nav.train")} action={t("home.viewAll")} onAction={() => setView("train")} />
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {pinned.map((r) => <RouteCard key={r.id} route={r} now={now} variant="home" onOpen={() => setView("train")} />)}
       </div>

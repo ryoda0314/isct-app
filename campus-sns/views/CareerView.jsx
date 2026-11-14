@@ -17,6 +17,7 @@ import { CAREER_FIELDS, CAREER_SKILLS } from "../../lib/career-tags.js";
 import { buildICalendar } from "../../lib/ical.js";
 import { saveIcs } from "../icsExport.js";
 import { SectionHead as HomeSectionHead, card as homeCard, rowStyle } from "../home/ui.jsx";
+import { I } from "../icons.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // キャリア: インターン・就職・謝礼や賞金のあるイベントを、自分の興味で探すページ。
@@ -910,7 +911,7 @@ export function CareerHomeWidget({ setView, isAdmin }) {
   // 見出しと行の形はホームのほかの欄（campus-sns/home/ui.jsx）とそろえる
   return (
     <section>
-      <HomeSectionHead title={t("career.home.title", { n: fresh.length })} action={t("home.viewAll")} onAction={() => setView("career")} />
+      <HomeSectionHead icon={I.briefcase} title={t("career.home.title", { n: fresh.length })} action={t("home.viewAll")} onAction={() => setView("career")} />
       <div style={homeCard()}>
         {fresh.map((r, i) => {
           const due = dueInfo(r.item);
