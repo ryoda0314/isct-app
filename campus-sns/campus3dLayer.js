@@ -260,7 +260,7 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
   let solid = null;
   let ribbon = null;
   let culler = null;
-  const buf = { mesh: null, thin: null, glass: null, screen: null, haze: null, veil: null, cull: null, rib: null };
+  const buf = { mesh: null, thin: null, glass: null, screen: null, haze: null, veil: null, cull: null, portal: null, under: null, rib: null };
   let mesh = null;
   let rib = null;
   let lt = lightState(light);
@@ -284,6 +284,40 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
     gl.vertexAttribPointer(a, size, gl.FLOAT, false, 0, 0);
     return a;
   };
+  // 掘らない地下の階へのガラスの面（mesh.portal。campus3dMesh の addCovered）：形を描く前に、その面が見えている画素（いままでに描いた
+  // 地形・地図の建物より手前）だけ奥行きを最も遠くにする。地形は掘らない地下の階の上で掘っていないので、ガラスのすぐ向こうに地形の斜面が
+  // あり、地上から見るとガラスの奥が灰色にふさがって見えた（附属図書館の入口の自動ドア）。ガラスより手前の地形・形はそのまま前に描かれる。
+  // ステンシルは MapLibre がタイルの切り抜きに使うので、使ったあと次の層に描き直させる（currentStencilSource）
+  const punchPortals = (b, M) => {
+    gl.useProgram(solid.p);
+    gl.uniformMatrix4fv(solid.loc("u_matrix"), false, M);
+    const a = bindAttr(solid, "a_pos", b.pos, 3);
+    const range = gl.getParameter(gl.DEPTH_RANGE);
+    gl.enable(gl.STENCIL_TEST);
+    gl.stencilMask(0xff);
+    gl.clearStencil(0);
+    gl.clear(gl.STENCIL_BUFFER_BIT);
+    gl.colorMask(false, false, false, false);
+    // 1. ガラスの面がいまの奥行きより手前の画素に 1
+    gl.depthMask(false);
+    gl.depthFunc(gl.LEQUAL);
+    gl.stencilFunc(gl.ALWAYS, 1, 0xff);
+    gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE);
+    gl.drawArrays(gl.TRIANGLES, 0, b.count);
+    // 2. その画素の奥行きを最も遠く（1）に
+    gl.depthMask(true);
+    gl.depthFunc(gl.ALWAYS);
+    gl.depthRange(1, 1);
+    gl.stencilFunc(gl.EQUAL, 1, 0xff);
+    gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
+    gl.drawArrays(gl.TRIANGLES, 0, b.count);
+    gl.depthRange(range[0], range[1]);
+    gl.depthFunc(gl.LEQUAL);
+    gl.colorMask(true, true, true, true);
+    gl.disable(gl.STENCIL_TEST);
+    if (a >= 0) gl.disableVertexAttribArray(a);
+    if (map.painter) map.painter.currentStencilSource = undefined;
+  };
 
   const layer = {
     id: EXTRAS_LAYER_ID,
@@ -304,9 +338,13 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
       free(buf.haze, ["pos", "nrm", "col"]);
       free(buf.veil, ["pos", "nrm", "col"]);
       free(buf.cull, ["pos", "nrm", "col"]);
+      free(buf.portal, ["pos", "nrm", "col"]);
+      free(buf.under, ["pos", "nrm", "col"]);
       free(buf.rib, ["pos", "off"]);
       buf.veil = null;
       buf.cull = null;
+      buf.portal = null;
+      buf.under = null;
       buf.mesh = null;
       buf.thin = null;
       buf.glass = null;
@@ -329,8 +367,12 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
         free(buf.haze, ["pos", "nrm", "col"]);
         free(buf.veil, ["pos", "nrm", "col"]);
         free(buf.cull, ["pos", "nrm", "col"]);
+        free(buf.portal, ["pos", "nrm", "col"]);
+        free(buf.under, ["pos", "nrm", "col"]);
         buf.veil = mesh.veil?.count ? upload(mesh.veil, ["pos", "nrm", "col"]) : null;
         buf.cull = mesh.cull?.count ? upload(mesh.cull, ["pos", "nrm", "col"]) : null;
+        buf.portal = mesh.portal?.count ? upload(mesh.portal, ["pos", "nrm", "col"]) : null;
+        buf.under = mesh.under?.count ? upload(mesh.under, ["pos", "nrm", "col"]) : null;
         buf.mesh = mesh.count ? upload(mesh, ["pos", "nrm", "col"]) : null;
         buf.thin = mesh.thin?.count ? upload(mesh.thin, ["pos", "nrm", "col"]) : null;
         buf.glass = mesh.glass?.count ? upload(mesh.glass, ["pos", "nrm", "col"]) : null;
@@ -354,7 +396,9 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
       // 穴あきの金属板（screen）・金網の網の面（haze）・ガラスの手すりの板（glass）は最後に半透明で重ねる（奥行きは書かない）
       // 詳細モードの殻（cull）は形と同じく奥行きを書く（中からは裏の面になって描かれない）。白い格子の手すり（veil）は半透明
       const cam = buf.cull ? cameraOf(M) : null;
-      [[buf.mesh, true, 1], [cam ? buf.cull : null, true, 1, true], [buf.thin, false, 1], [buf.screen, false, SCREEN_ALPHA], [buf.veil, false, VEIL_ALPHA], [buf.haze, false, HAZE_ALPHA], [buf.glass, false, GLASS_ALPHA]].forEach(([b, writeDepth, alpha, culled]) => {
+      if (buf.portal && map.terrain) punchPortals(buf.portal, M);
+      // 天井のない平地の床（mesh.under）：地形を外しているとき（地面の下を歩くとき）だけ。ふだんは地形が床
+      [[map.terrain ? null : buf.under, true, 1], [buf.mesh, true, 1], [cam ? buf.cull : null, true, 1, true], [buf.thin, false, 1], [buf.screen, false, SCREEN_ALPHA], [buf.veil, false, VEIL_ALPHA], [buf.haze, false, HAZE_ALPHA], [buf.glass, false, GLASS_ALPHA]].forEach(([b, writeDepth, alpha, culled]) => {
         if (!b) return;
         const prog = culled ? culler : solid;
         gl.useProgram(prog.p);

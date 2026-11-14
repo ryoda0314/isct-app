@@ -1725,7 +1725,11 @@ function solidPoly(m, poly, z0, z1, top, side) {
 // 天井まで。faces の面＝ガラスの扉など）、天井と、ふた（上はまわりの地面の 0.02m 上で、地面に貼った路面の色）。colors は buildMesh。
 // 壁の外が地下の階（basements）なら薄い壁（WALL_IN）で、透明なガラスの面ならガラスの上から天井まで（ガラスは半透明で、glazed に
 // その線を足す）。床の下が地下の階なら、床は厚さ 0.3m の板（下の面は下の階の天井）
-function addCovered(m, tr, lid, c, look, colors, basements = [], glazed = null) {
+// portal（{ mesh, dug }）：外が掘らない地下の階（basements のうち dug でない所）の透明なガラスの面を、その面の形で mesh に足す。
+// 描くとき（campus3dLayer の punchPortals）、この面の向こうの地形の奥行きを消してから形を描く：地形は掘らない地下の階の上で
+// 掘っていないので、平地のふちの地形の斜面がガラスのすぐ向こうに立ち、地上から見るとガラスの奥が灰色にふさがって見えた
+// （附属図書館の入口の踊り場の自動ドア。2026-11-14、ユーザー「自動ドアの奥に何か…近づくと見えなくなる」）
+function addCovered(m, tr, lid, c, look, colors, basements = [], glazed = null, portal = null) {
   const ring = tr.ring;
   const n = ring.length;
   const out = ringArea(ring) > 0 ? 1 : -1;
@@ -1752,6 +1756,9 @@ function addCovered(m, tr, lid, c, look, colors, basements = [], glazed = null) 
     if (z1 - lo > 0.01) m.prism([a, b], [off(a), off(b)], [lo, lo], [z1, z1], { top: c, side: c, bottom: c }, { caps: false, bottom: see });
     if (fc && look) addFace(m, fc, { i, s0: 0, s1: L, L }, a, b, [z0, z0], [z1, z1], [-nn[0], -nn[1]], look, see);
     if (see && glazed) glazed.push([a, b]);
+    if (see && portal && !(portal.dug.length && inBasement(portal.dug, [(a[0] + b[0]) / 2 + nn[0] * 0.6, (a[1] + b[1]) / 2 + nn[1] * 0.6]))) {
+      portal.mesh.quad([[a, z0], [b, z0], [b, lo], [a, lo]], [-nn[0], -nn[1], 0], c);
+    }
   });
   m.polygon([lid.poly], z1, [0, 0, -1], colors.ceiling);
   m.polygon([lid.poly], lid.top - WALL_SINK, [0, 0, 1], colors.lid(lid.poly));
@@ -1766,12 +1773,12 @@ const WALL_SINK = 0.03;
 // 判定は campus3dFeatures.js の edgeOpen：焼き込みでも同じところのふちの外を掘らない）。
 // ふちの外が建物で、その建物の壁が平地の高さより下まであれば、建物の壁が平地の壁（buildings：{ ring, bot }）。
 // 天井のある平地（lids：平地 → terraceLid）は addCovered で描き、そのふちに面した低い平地の壁は、天井から上（まぐさ）だけ
-function addTerraceWalls(m, tr, { groundAt, terraces, paths, buildings = [], lids = null, covered = null, topColor = null, basements = [], basementsCov = null, glazed = null }, c, look = null) {
+function addTerraceWalls(m, tr, { groundAt, terraces, paths, buildings = [], lids = null, covered = null, topColor = null, basements = [], basementsCov = null, glazed = null, cull = null, portal = null }, c, look = null) {
   const lid = lids?.get(tr);
   if (lid) {
     // 天井のある平地（地下の口）の壁は、外が掘らない地下の階（digMode "cut"）でも地下の階の中として薄い壁・半透明のガラスに（附属図書館の
     // 入口の踊り場の扉の面が、外向きの暗いガラスと土の帯になっていた。2026-11-13）
-    addCovered(m, tr, lid, c, look, covered, basementsCov || basements, glazed);
+    addCovered(m, tr, lid, c, look, covered, basementsCov || basements, glazed, portal && basementsCov ? { mesh: portal, dug: basements } : null);
     return;
   }
   const { pts } = densify([...tr.ring, tr.ring[0]], 1);
@@ -1849,15 +1856,22 @@ function addTerraceWalls(m, tr, { groundAt, terraces, paths, buildings = [], lid
   });
   // 掘り下げの壁で、外（帯の側）が地下の階（basements）の区間：土の帯でなく薄い壁（WALL_IN）。透明なガラスの面なら see（ガラスの上の端
   // top から上だけの梁。ガラスは半透明で、向こうの建物の中が見える）。ほかの区間は null
+  // 外が掘らない地下の階（digMode "cut"：地面はそのまま、歩いて見るときは中へ入る）で透明なガラスの面の区間は cut：ガラスの上から上は梁、
+  // ガラスのところの土の帯は、平地の側（明かり取り）を向いた片面だけ（cull：裏からは描かない）。平地の側からは今までどおり暗い壁に見え、
+  // 地下の階の中からはガラス越しに外が見える（2026-11-14、附属図書館 地下 1 階の東の窓：ユーザーの目印「窓がこれのせいで外が見えない」）
   const segKind = pts.map((_, j) => {
-    if (!basements.length || j + 1 >= pts.length || ground[j] == null || ground[j + 1] == null || !segs[j]) return null;
+    if (j + 1 >= pts.length || ground[j] == null || ground[j + 1] == null || !segs[j]) return null;
     if (!(ground[j] > tr.elev && ground[j + 1] > tr.elev)) return null;
     const no = nrm(pts[j], pts[j + 1]);
-    if (!inBasement(basements, [(pts[j][0] + pts[j + 1][0]) / 2 + no[0] * 0.6, (pts[j][1] + pts[j + 1][1]) / 2 + no[1] * 0.6])) return null;
+    const probe = [(pts[j][0] + pts[j + 1][0]) / 2 + no[0] * 0.6, (pts[j][1] + pts[j + 1][1]) / 2 + no[1] * 0.6];
     const fc = tr.f.faces?.[segs[j].i];
+    if (!(basements.length && inBasement(basements, probe))) {
+      if (cull && basementsCov && clearGlassFace(fc) && inBasement(basementsCov, probe)) return { see: true, cut: true, i: segs[j].i, top: tr.elev + fc.glass };
+      return null;
+    }
     return clearGlassFace(fc) ? { see: true, i: segs[j].i, top: tr.elev + fc.glass } : { see: false };
   });
-  const keyOf = (j) => (segKind[j] ? (segKind[j].see ? `s${segKind[j].i}` : "t") : "w");
+  const keyOf = (j) => (segKind[j] ? (segKind[j].see ? `${segKind[j].cut ? "c" : "s"}${segKind[j].i}` : "t") : "w");
   // 壁を立てる点が続くところ（上の色が同じで、土の帯・薄い壁・ガラスの上の梁のどれかが同じところ）ごとに1枚。
   // 色や種類の変わり目の点は両方の区間に入れる（すき間なく）
   for (let k = 0; k + 1 < pts.length; ) {
@@ -1879,6 +1893,22 @@ function addTerraceWalls(m, tr, { groundAt, terraces, paths, buildings = [], lid
       const hi = gs.map((g) => Math.max(tr.elev, g) - WALL_SINK);
       const lo = gs.map((g, q) => (sk.see ? Math.min(sk.top, hi[q]) : Math.min(tr.elev, g) - 0.3));
       if (lo.some((v, q) => hi[q] - v > 0.01)) m.prism(...band(run, 0, out * WALL_IN), lo, hi, { top: tops[k], side: c, bottom: c }, { bottom: sk.see });
+      if (sk.cut) {
+        // ガラスのところ：portal があれば、ガラスの面を portal に（描くときその向こうの地形の奥行きを消す：明かり取りからガラス越しに
+        // 図書館の中が見える。2026-11-14、ユーザー「明かり取りのガラスごしに図書館の中が見えない」）。なければ土の帯を平地の側を向いた
+        // 片面で（地下の階の中からは裏＝描かない）
+        for (let q = 0; q + 1 < run.length; q++) {
+          const a = run[q], b = run[q + 1];
+          const no = nrm(a, b);
+          const z1a = Math.min(sk.top, hi[q]), z1b = Math.min(sk.top, hi[q + 1]);
+          if (portal) {
+            portal.quad([[a, tr.elev], [b, tr.elev], [b, z1b], [a, z1a]], [-no[0], -no[1], 0], c);
+            continue;
+          }
+          const z0a = Math.min(tr.elev, gs[q]) - 0.3, z0b = Math.min(tr.elev, gs[q + 1]) - 0.3;
+          cull.quad([[a, z0a], [b, z0b], [b, z1b], [a, z1a]], [-no[0], -no[1], 0], c);
+        }
+      }
     }
     k = j;
   }
@@ -3999,6 +4029,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
   const haze = new Mesh(); // 金網の柵の網の面：ごく薄い半透明で重ねる（遠くで針金が見えなくても網の濃さが残る）
   const veil = new Mesh(); // 詳細モードの建物の中の白い格子の手すり：半分ほど透ける
   const cull = new Mesh(); // 詳細モードで歩いて見るときの建物の殻：外からは見えて、中からは見えない（裏の面を描かない）
+  const portal = new Mesh(); // 掘らない地下の階へのガラスの面：描く前にこの面の向こうの地形の奥行きを消す（色は描かない。addCovered）
   // tone（時刻の見え方：(昼の色, 夜の色) → いまの色）があれば、昼と夜の色からいまの色に
   const cols = tone ? Object.fromEntries(Object.keys(COLORS.light).map((k) => [k, tone(COLORS.light[k], COLORS.dark[k])])) : dark ? COLORS.dark : COLORS.light;
   const acc = rgba(accent);
@@ -4131,7 +4162,32 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     // ウッドデッキの縁（faces の deck）がある平地は、壁の帯も木の縁の色（坂・段が横切るところの帯の端の面・角が白く見えないように。
     // 外の面は縁の板が覆う）
     const deckEdge = tr.f.faces?.some((fc) => fc?.deck);
-    addTerraceWalls(m, tr, { groundAt, terraces, paths: slopes, buildings: bldBots, lids, covered, topColor: (f, p) => { const col = topColor(f, p); return col ? tint(col) : null; }, basements, basementsCov, glazed }, tint(rgba(deckEdge ? cols.deckFace : cols.wall)), look);
+    addTerraceWalls(m, tr, { groundAt, terraces, paths: slopes, buildings: bldBots, lids, covered, topColor: (f, p) => { const col = topColor(f, p); return col ? tint(col) : null; }, basements, basementsCov, glazed, cull, portal }, tint(rgba(deckEdge ? cols.deckFace : cols.wall)), look);
+  });
+  // 地形を外したとき（目が地面より下：図書館の地下などを歩くとき）だけ描く、天井のない平地の床。ふだんは地形（と地形に貼った路面）が床なので描かない
+  // （campus3dLayer は地形のないときだけ描く）。地下から窓越しに明かり取り（掘った平地）を見ると床が消え、海の高さの地図が見えた（2026-11-14、ユーザー
+  // 「図書館の中から窓越しに明かり取りを見ると床が透明」）。色は路面（石・砂利など）の形ごと：平地の形の中だけに切って、その平地の高さに重ねる（上の順の路面ほど上）
+  const under = new Mesh();
+  const boxOfRing = (r) => [Math.min(...r.map((q) => q[0])), Math.min(...r.map((q) => q[1])), Math.max(...r.map((q) => q[0])), Math.max(...r.map((q) => q[1]))];
+  terraces.forEach((tr) => {
+    if (tr.side > 0 || tr.f.ceiling > 0 || lids.has(tr)) return;
+    const c = tr.ring.reduce((s, p) => [s[0] + p[0] / tr.ring.length, s[1] + p[1] / tr.ring.length], [0, 0]);
+    under.polygon([tr.ring], tr.elev + 0.004, [0, 0, 1], paintAt(c) || campusGround || lit(rgba(cols.wall)));
+    if (!clip) return;
+    const b = boxOfRing(tr.ring);
+    paints
+      .filter((s) => s.box[0] < b[2] && s.box[2] > b[0] && s.box[1] < b[3] && s.box[3] > b[1])
+      .sort((x, y) => SURFACE_ORDER.indexOf(x.f.kind) - SURFACE_ORDER.indexOf(y.f.kind))
+      .forEach((s, k) => {
+        let parts = null;
+        try {
+          parts = clip.intersection([[...tr.ring, tr.ring[0]]], [[...s.ring, s.ring[0]]]);
+        } catch {
+          return;
+        }
+        const col = lit(paintTone(SURFACE_KINDS[s.f.kind]));
+        for (const pg of parts || []) under.polygon(pg, tr.elev + 0.007 + k * 0.002, [0, 0, 1], col);
+      });
   });
   slopes.forEach((sl) => {
     const tint = sl.f.id === selectedId ? (c) => mix(c, acc, 0.45) : (c) => c;
@@ -4163,7 +4219,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
   // 計算式の時計の面（{ o, u, n, z0, w, h, d }。光る字は campus3dMathClock）
   const clocks = autoClocks;
   autoClocks = null;
-  return { ...m.result(), thin: thin.result(), glass: glassy.result(), screen: screen.result(), haze: haze.result(), veil: veil.result(), cull: cull.result(), doors, psd, esc, clocks };
+  return { ...m.result(), thin: thin.result(), glass: glassy.result(), screen: screen.result(), haze: haze.result(), veil: veil.result(), cull: cull.result(), portal: portal.result(), under: under.result(), doors, psd, esc, clocks };
 }
 
 // 中のある建物（detailShell）の屋根の下の天井に渡すもの：大梁を通す柱（その建物の階の、屋根の下の天井まで届く細い物の中心）と、

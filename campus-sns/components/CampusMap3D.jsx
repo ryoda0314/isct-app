@@ -12,7 +12,7 @@ import { envAt, weatherCreate, weatherStep } from "../campus3dEnv.js";
 import { onWorldClock, worldClock, worldIsSet, worldNow } from "../campus3dClock.js";
 import { BURN_MAXZOOM, dem, demTileUrl, registerDemProtocol } from "../campusDem.js";
 import { ROUTE_ON_BRIDGE, buildingOpenings, buildingRoof, burnsGround, detailView, featuresBounds, floorLevels, isPaint, pointInRing, prepareBridge, replacedBuildings, splitByBridges, stairsPath, toLngLat, toXY } from "../campus3dFeatures.js";
-import { floorG0, floorLabels } from "../campus3dInterior.js";
+import { cutFloorRegions, floorG0, floorLabels } from "../campus3dInterior.js";
 import { buildMesh, buildRibbons } from "../campus3dMesh.js";
 import { createDoorsLayer, createExtrasLayer, createLightsLayer, createTrainsLayer } from "../campus3dLayer.js";
 import { doorLeaves, stepDoors } from "../campus3dDoors.js";
@@ -1618,7 +1618,28 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       // 掘って上の開いた地下（Taki Plaza の明かり取りの地下の階など：dig の帯あり）の中は、空や外の建物が見えるので地面の下と見なさない。
       // 駅の改札の中の床の下（帯なしの dig）は屋根の下なので地面の下のまま
       const openPit = dem.digs.some((d) => d.f?.band !== false && pointInRing(w.x, w.y, d.ring) && !d.holes.some((h) => pointInRing(w.x, w.y, h)));
-      const under = Number.isFinite(gEye) && w.eyeZ < gEye - 0.5 && !openPit;
+      // 天井のある平地（屋根つきの踊り場）のふたの下で、その平地のガラスの面の外が掘らない地下の階（digMode "cut"）なら、地面の下と見なす。
+      // 足もとの地面は平地の高さで読むので「地面の上」になり、地形が残って、ガラスの向こうの階（附属図書館の入口ホール）が、掘った平地のふちの
+      // 地形の斜面でふさがって見えた（2026-11-14、ユーザーの目印「ふさがってる」）。外が掘った地下・空の見える所（Taki の玄関・地下通路）は今までどおり
+      if (!w.lidCut || w.lidCut.src !== dem.terraces) {
+        const cuts = cutFloorRegions(viewRef.current || [], (ll) => dem.groundAt(ll));
+        const inCut = (p) => cuts.some((c) => pointInRing(p[0], p[1], c.ring) && !c.holes.some((h) => pointInRing(p[0], p[1], h)));
+        const list = !cuts.length ? [] : dem.terraces.filter((t) => t.f.ceiling > 0 && (t.f.faces || []).some((fc, i) => {
+          if (!(fc?.glass > 0)) return false;
+          const a = t.ring[i], b = t.ring[(i + 1) % t.ring.length];
+          const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+          const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], nrm = [(b[1] - a[1]) / L, -(b[0] - a[0]) / L];
+          return [0.6, -0.6].some((k) => { const p = [mid[0] + nrm[0] * k, mid[1] + nrm[1] * k]; return !pointInRing(p[0], p[1], t.ring) && inCut(p); });
+        }));
+        // その平地と辺を共有する、天井のない掘った平地（入口の階段の穴）：目がふたの高さより下のあいだは同じく地面の下と見なす
+        // （階段の途中から見ても、ガラスの向こうのホールが地形の斜面でふさがって見えた。2026-11-14、目印「遠くから見ると…中が見えない」）
+        const shares = (r1, r2) => r1.some((a, i) => { const b = r1[(i + 1) % r1.length]; return r2.some((c, j) => { const d = r2[(j + 1) % r2.length]; return (Math.hypot(a[0] - c[0], a[1] - c[1]) < 0.05 && Math.hypot(b[0] - d[0], b[1] - d[1]) < 0.05) || (Math.hypot(a[0] - d[0], a[1] - d[1]) < 0.05 && Math.hypot(b[0] - c[0], b[1] - c[1]) < 0.05); }); });
+        const pits = [];
+        for (const L of list) for (const t of dem.terraces) if (t !== L && !(t.f.ceiling > 0) && t.elev < L.elev + L.f.ceiling && shares(t.ring, L.ring)) pits.push({ t, top: L.elev + L.f.ceiling });
+        w.lidCut = { src: dem.terraces, list, pits };
+      }
+      const underLid = w.lidCut.list.some((t) => w.eyeZ < t.elev + t.f.ceiling && pointInRing(w.x, w.y, t.ring)) || w.lidCut.pits.some(({ t, top }) => w.eyeZ < top && pointInRing(w.x, w.y, t.ring));
+      const under = Number.isFinite(gEye) && (w.eyeZ < gEye - 0.5 || underLid) && !openPit;
       if (under !== !!w.underTerrain) {
         w.underTerrain = under;
         if (under) {

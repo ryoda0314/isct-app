@@ -111,7 +111,9 @@ export const tOnRay = (ray, p) => {
   const v = [(p[0] - ray.o[0]) * PER_UNIT, (p[1] - ray.o[1]) * PER_UNIT, p[2] - ray.o[2]];
   return (v[0] * dm[0] + v[1] * dm[1] + v[2] * dm[2]) / (dm[0] * dm[0] + dm[1] * dm[1] + dm[2] * dm[2]);
 };
-// 光線が表示の地面（surfaceAt：掘ったあとの地面）に当たる t（tMax より先・maxM m より先は見ない）。0.25m ずつ進んで、越えたら半分ずつ詰める
+// 光線が表示の地面（surfaceAt：掘ったあとの地面）に当たる t（tMax より先・maxM m より先は見ない）。0.25m ずつ進んで、越えたら半分ずつ詰める。
+// 当たりは「地面の上から下へ越えたところ」だけ。カメラが地面の下（掘らない地下の階＝図書館の地下など、地面はそのままで中を描く所）にいるときは、
+// 光線がいったん地面の上へ出るまで地面を数えない（前は 0.25m 先で必ず当たり、目印が目の前の空中に置かれた）
 export function terrainHit(ray, surfaceAt, tMax = 1, { stepM = 0.25, maxM = 600 } = {}) {
   const Lm = Math.hypot(ray.d[0] * PER_UNIT, ray.d[1] * PER_UNIT, ray.d[2]);
   if (!(Lm > 0)) return null;
@@ -124,7 +126,13 @@ export function terrainHit(ray, surfaceAt, tMax = 1, { stepM = 0.25, maxM = 600 
     return Number.isFinite(g) && p[2] <= g;
   };
   let prev = 0;
+  let above = !below(0);
   for (let t = dt; t <= tEnd + 1e-12; t += dt) {
+    if (!above) {
+      if (!below(t)) above = true;
+      prev = t;
+      continue;
+    }
     if (below(t)) {
       let lo = prev, hi = t;
       for (let k = 0; k < 8; k++) {

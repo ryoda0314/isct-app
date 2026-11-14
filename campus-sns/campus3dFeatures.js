@@ -856,7 +856,8 @@ function normalizeFloor(f, out, d) {
   }).filter(Boolean).slice(0, 80);
   if (rooms.length) out.rooms = rooms;
   const walls = (Array.isArray(f.walls) ? f.walls : []).map((w) => {
-    const coords = ptsOf(w?.coords, 80);
+    // 点は 240 まで（部屋と同じ。2026-11-14：80 までだと、附属図書館の地下の外まわりの壁（118・125 点の 1 本）の後ろが切られ、南の面に壁がなく外が透けて見えた）
+    const coords = ptsOf(w?.coords, 240);
     if (coords.length < 2) return null;
     const o = { coords, kind: FLOOR_WALL_KINDS.includes(w.kind) ? w.kind : "wall" };
     const t = numOr(w.t, [0.02, 3], 0.15);
@@ -942,6 +943,9 @@ function normalizeFloor(f, out, d) {
       o.z1 = Math.max(o.z1, ...zs);
       const th = numOr(it.thick, [0.05, 2], 0.3);
       if (th != null) o.thick = th;
+      // 閉じた辺の側の壁の厚さ（なしは板の厚さ。2026-11-14）
+      const wt = numOr(it.wallT, [0.05, 2], null);
+      if (wt != null) o.wallT = wt;
       const open = (Array.isArray(it.open) ? it.open : []).filter((k) => Number.isInteger(k) && k >= 0 && k < coords.length);
       if (open.length) o.open = [...new Set(open)];
     }

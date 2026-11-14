@@ -140,8 +140,21 @@ function prismPoly(m, ring, z0, z1, c, { bottom = false, sideCol = null, top = t
 
 // 両側に座れるテントの形のソファー（物 tentsofa の四角 r。1 本目の辺が長さ＝背のてっぺんの線、z0〜z1 がてっぺん）：細い金属の脚 4 本、
 // 両側に座面（角を落とした厚いクッション）、まん中に 2 枚の背もたれが寄りかかり合った三角の形（写真 S__47226944：背の端が「Λ」に見える）
-// 斜めの板の屋根（物 wedge）の上の面：形の点 r（平面の m）と点ごとの高さ zs の平らな面 (x, y) → 高さ（一直線でない 3 点から）
+// 斜めの板の屋根（物 wedge）の上の面：形の点 r（平面の m）と点ごとの高さ zs の平らな面 (x, y) → 高さ。全部の点にいちばん合う平面
+// （zs は読み込みで小数 2 けたに丸めるので、点が数 mm 平らでない。前は最初の 3 点の面で、上の面の三角とずれ、側の壁の上の端が線に見えた。
+// 2026-11-14）。一直線に並ぶときは一直線でない 3 点から
 export function wedgeTopAt(r, zs) {
+  const n = r.length;
+  if (n >= 3) {
+    const mx = r.reduce((s, p) => s + p[0], 0) / n, my = r.reduce((s, p) => s + p[1], 0) / n, mz = zs.reduce((s, z) => s + z, 0) / n;
+    let sxx = 0, sxy = 0, syy = 0, sxz = 0, syz = 0;
+    r.forEach((p, i) => { const dx = p[0] - mx, dy = p[1] - my, dz = zs[i] - mz; sxx += dx * dx; sxy += dx * dy; syy += dy * dy; sxz += dx * dz; syz += dy * dz; });
+    const det = sxx * syy - sxy * sxy;
+    if (det > 1e-6 * Math.max(1, sxx * syy)) {
+      const cx = (sxz * syy - syz * sxy) / det, cy = (syz * sxx - sxz * sxy) / det;
+      return (x, y) => mz + cx * (x - mx) + cy * (y - my);
+    }
+  }
   for (let k = 1; k + 1 < r.length; k++) {
     const [x0, y0] = r[0], [x1, y1] = r[k], [x2, y2] = r[k + 1];
     const det = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
@@ -162,7 +175,9 @@ function addWedge(m, it, r, zf, T, tint) {
   const col = it.color ? tint(COL_HEX(it.color)) : T("wedgeConc");
   const th = it.thick > 0 ? it.thick : 0.3;
   const zBot = zf + it.z0;
-  const zt = it.zs.map((v) => zf + v);
+  // 上の面は 1 枚の平面（wedgeTopAt）：点の高さもその面の上に置く（側の壁の上の端と同じ面）
+  const plane = wedgeTopAt(r, it.zs);
+  const zt = r.map((p) => zf + Math.max(it.z0, plane(p[0], p[1])));
   const zb = zt.map((v) => Math.max(zBot, v - th));
   // 上の面の向き（上向き）
   let nn = [0, 0, 1];
@@ -182,6 +197,27 @@ function addWedge(m, it, r, zf, T, tint) {
   }
   const ccw = ringArea(r) > 0;
   const open = new Set(it.open || []);
+  // 閉じた辺の側の壁は厚さ WT の打ち放しの板（2026-11-14、ユーザーの目印「折り返してるのはいいけどそこから厚みを生み出さないと」：前は面 1 枚で、
+  // 口から見ると紙のように薄かった）。辺から内へ WT の四角を外の形で切り、その縦の面を床の下から上の面まで（上は板の上の面が覆う）
+  const WT = it.wallT > 0 ? it.wallT : th;
+  const ztAt = (p) => zf + plane(p[0], p[1]);
+  const ring = ccw ? r : r.slice().reverse();
+  const clipConvex = (poly) => {
+    let P = poly;
+    for (let k = 0; k < ring.length && P.length; k++) {
+      const a = ring[k], b = ring[(k + 1) % ring.length];
+      const side = (p) => (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]); // 左（中）が正
+      const Q = [];
+      P.forEach((p, i) => {
+        const q = P[(i + 1) % P.length];
+        const sp = side(p), sq = side(q);
+        if (sp >= -1e-9) Q.push(p);
+        if ((sp >= -1e-9) !== (sq >= -1e-9)) { const t = sp / (sp - sq); Q.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]); }
+      });
+      P = Q;
+    }
+    return P;
+  };
   for (let k = 0; k < n; k++) {
     const k2 = (k + 1) % n;
     const a = r[k], b = r[k2];
@@ -189,9 +225,26 @@ function addWedge(m, it, r, zf, T, tint) {
     const L = len(d);
     if (L < 1e-4) continue;
     const out = ccw ? [d[1] / L, -d[0] / L, 0] : [-d[1] / L, d[0] / L, 0];
-    const lo0 = open.has(k) ? zb[k] : zBot, lo1 = open.has(k) ? zb[k2] : zBot;
-    if (zt[k] - lo0 < 0.005 && zt[k2] - lo1 < 0.005) continue;
-    face(m, [[a, lo0], [b, lo1], [b, zt[k2]], [a, zt[k]]], out, col);
+    if (open.has(k)) {
+      // 口：板の小口（下の面から上の面まで）
+      if (zt[k] - zb[k] < 0.005 && zt[k2] - zb[k2] < 0.005) continue;
+      face(m, [[a, zb[k]], [b, zb[k2]], [b, zt[k2]], [a, zt[k]]], out, col);
+      continue;
+    }
+    const inw = [-out[0] * WT, -out[1] * WT];
+    const slab = clipConvex([a, b, [b[0] + inw[0], b[1] + inw[1]], [a[0] + inw[0], a[1] + inw[1]]].map((p) => [p[0], p[1]]));
+    if (slab.length < 3) continue;
+    const sccw = ringArea(slab) > 0;
+    slab.forEach((p, i) => {
+      const q = slab[(i + 1) % slab.length];
+      const e = sub(q, p);
+      const Le = len(e);
+      if (Le < 1e-4) return;
+      const no = sccw ? [e[1] / Le, -e[0] / Le, 0] : [-e[1] / Le, e[0] / Le, 0];
+      const tp = ztAt(p), tq = ztAt(q);
+      if (tp - zBot < 0.005 && tq - zBot < 0.005) return;
+      face(m, [[p, zBot], [q, zBot], [q, Math.max(zBot, tq)], [p, Math.max(zBot, tp)]], no, col);
+    });
   }
 }
 
@@ -866,8 +919,12 @@ export function addFloor(M, f, ctx) {
   const top = T(FINISH_COL[f.finish] || "oak");
   m.polygon([ring, ...holes], zf, [0, 0, 1], shade(top, [0, 0, 1]));
   m.polygon([ring, ...holes], zf - f.slab, [0, 0, -1], shade(T(f.under ? FINISH_COL[f.under] : "ceiling"), [0, 0, -1]));
-  for (const r of [ring, ...holes]) {
-    const out = (ringArea(r) > 0 ? 1 : -1) * (r === ring ? 1 : -1);
+  // ふちの面は床が本当にある所のふちだけ（外形から穴を差し引いた形のふち）。穴が外形の辺に接するところに両側から縁を描くと、床のない所に
+  // 床の板の帯が立つ（附属図書館 地下 1 階の東の吹き抜けのガラスの前を横切る帯。2026-11-14、ユーザーの写真 S__47464487）
+  const solid = holes.length ? clipOp("difference", [closeR(ring)], ...holes.map((h) => [closeR(h)])) : null;
+  const edgeRings = solid ? solid.flatMap((pg) => pg.map((r, k) => ({ r: openR(r), outer: k === 0 }))) : [ring, ...holes].map((r, k) => ({ r, outer: k === 0 }));
+  for (const { r, outer } of edgeRings) {
+    const out = (ringArea(r) > 0 ? 1 : -1) * (outer ? 1 : -1);
     r.forEach((a, i) => {
       const b = r[(i + 1) % r.length];
       const L = len(sub(b, a));
@@ -1352,7 +1409,11 @@ function addCeiling(m, f, ring, holes, zf, T) {
   // 抜けず、階段の上を天井がふさいでいた（2026-11-12、ユーザーの目印 10・11「ここふさがってる」）。またぐ穴があれば形の引き算で面を作る
   const ceilCol = shade(T(CEIL_COL[C.kind] || "ceilSlat"), [0, 0, -1]);
   const crosses = hs.some((h) => h.some((p) => !pointInRing(p[0], p[1], ring)));
-  const diff = crosses ? clipOp("difference", [closeR(ring)], ...hs.map((h) => [closeR(h)])) : null;
+  // 穴どうしが重なる・同じ穴が 2 回（床の穴と ceiling.holes の両方）・辺を共有する（図書館の入口の階段の穴と屋根つきの踊り場）ときも earcut は
+  // 穴を抜けず、天井が階段の穴の上をふさいでいた（2026-11-14、ユーザーの目印「ふさがってる」：抜いたあとの面積が外形より大きかった）→ 形の引き算
+  const touch = (h, g) => h.some((p) => g.some((q) => Math.abs(p[0] - q[0]) < 1e-6 && Math.abs(p[1] - q[1]) < 1e-6) || pointInRing(p[0], p[1], g));
+  const overlap = hs.some((h, i) => hs.some((g, j) => j > i && (touch(h, g) || touch(g, h))));
+  const diff = crosses || overlap ? clipOp("difference", [closeR(ring)], ...hs.map((h) => [closeR(h)])) : null;
   if (diff) for (const poly of diff) m.polygon(poly.map(openR), zc, [0, 0, -1], ceilCol);
   else m.polygon([ring, ...hs], zc, [0, 0, -1], ceilCol);
   if (C.kind !== "slats") return;
