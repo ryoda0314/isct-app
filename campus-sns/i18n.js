@@ -768,6 +768,8 @@ const M = {
   "career.home.title": { ja:"興味に合う新着 {n}件", en:"{n} new for your interests" },
   "career.home.more": { ja:"すべて見る", en:"See all" },
   "career.pageTitle": { ja:"インターン・就活・イベント", en:"Internships, jobs & events" },
+  "career.listTitle": { ja:"募集一覧", en:"Openings" },
+  "career.detailTitle": { ja:"募集の詳細", en:"Details" },
   "career.hero.kicker": { ja:"はじめに", en:"Get started" },
   "career.hero.title": { ja:"興味を選ぶと、合う募集が上に並びます", en:"Pick your interests to see matching openings first" },
   "career.hero.body": { ja:"いくつでも選べます。選んだ内容はこの端末の中だけに保存されます。", en:"Pick as many as you like. Your choices stay on this device." },

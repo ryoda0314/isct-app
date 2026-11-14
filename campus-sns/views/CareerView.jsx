@@ -212,7 +212,7 @@ function OpportunityCard({ row, pal, selected, onOpen, isNew, saved, interested 
   return (
     <div role="button" tabIndex={0} className="cr-card" aria-current={selected || undefined}
       onClick={onOpen} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
-      style={{ position: "relative", padding: "14px 16px 12px", borderRadius: 18, background: T.bg2, border: `1px solid ${selected ? pal[item.kind] : T.bd}`, boxShadow: selected ? `0 0 0 1px ${pal[item.kind]}, 0 6px 20px ${pal[item.kind]}1f` : "none", cursor: "pointer", outline: "none" }}>
+      style={{ position: "relative", padding: selected ? "14px 16px 12px 20px" : "14px 16px 12px", borderRadius: 18, background: selected ? `linear-gradient(0deg, ${pal[item.kind]}12, ${pal[item.kind]}12), ${T.bg2}` : T.bg2, border: `1px solid ${selected ? pal[item.kind] : T.bd}`, boxShadow: selected ? `inset 5px 0 0 ${pal[item.kind]}` : "none", cursor: "pointer", outline: "none" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }}>
         <KindLabel kind={item.kind} pal={pal} />
         {item.promo && <MiniTag color={pal.pr}>{t(`career.promo.${item.promo}`)}</MiniTag>}
@@ -285,7 +285,9 @@ const SheetGroup = ({ title, children, hint }) => (
 const DetailHeading = ({ children }) => <div style={{ fontSize: 13.5, fontWeight: 800, color: T.txH, margin: "24px 0 9px" }}>{children}</div>;
 
 // ── 詳細の中身（PC の右側とスマホの全画面で共通） ──
-function DetailBody({ item, pal, prefs, dept, actions = null }) {
+// framed … PC の右パネル用。見出し（種類・タイトル・組織・応募ボタン）を種類の色の帯に入れ、
+//           左の一覧（白いカードが並ぶ面）とは別の面だとひと目で分かるようにする
+function DetailBody({ item, pal, prefs, dept, actions = null, framed = false }) {
   const auth = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
   const [reportText, setReportText] = useState("");
@@ -320,19 +322,30 @@ function DetailBody({ item, pal, prefs, dept, actions = null }) {
   };
   const mailto = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(`[キャリア掲載] ${item.title}`)}&body=${encodeURIComponent(`掲載ID: ${item.id}\n${item.title}（${item.org}）\n\n内容の誤り・終了など:\n`)}`;
 
-  return (
-    <div>
+  const head = (
+    <>
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
         <KindLabel kind={item.kind} pal={pal} />
         {item.promo && <MiniTag color={pal.pr}>{t(`career.promo.${item.promo}`)}</MiniTag>}
       </div>
-      <h2 style={{ fontSize: 21, fontWeight: 800, color: T.txH, lineHeight: 1.4, margin: "8px 0 10px" }}>{item.title}</h2>
+      <h2 style={{ fontSize: framed ? 23 : 21, fontWeight: 800, color: T.txH, lineHeight: 1.4, margin: "8px 0 10px" }}>{item.title}</h2>
       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
         <OrgMark name={item.org} pal={pal} size={30} />
         <span style={{ fontSize: 14, fontWeight: 600, color: T.tx }}>{item.org}</span>
       </div>
       {actions}
-      {item.promo && <div style={{ display: "flex", gap: 6, fontSize: 12, color: pal.pr, background: `${pal.pr}12`, borderRadius: 10, padding: "8px 10px", marginTop: 12, lineHeight: 1.6 }}><Icon n="info" s={14} />{t(`career.promoNote.${item.promo}`)}{item.promo_note ? `（${item.promo_note}）` : ""}</div>}
+    </>
+  );
+
+  return (
+    <div>
+      {framed ? (
+        <div style={{ margin: "0 -26px 6px", padding: "16px 26px 20px", background: `linear-gradient(180deg, ${pal[item.kind]}1f 0%, ${pal[item.kind]}0a 100%), ${T.bg2}`, borderBottom: `1px solid ${T.bd}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 800, color: T.txD, letterSpacing: .4, marginBottom: 12 }}><Icon n="info" s={13} />{t("career.detailTitle")}</div>
+          {head}
+        </div>
+      ) : head}
+      {item.promo &&<div style={{ display: "flex", gap: 6, fontSize: 12, color: pal.pr, background: `${pal.pr}12`, borderRadius: 10, padding: "8px 10px", marginTop: 12, lineHeight: 1.6 }}><Icon n="info" s={14} />{t(`career.promoNote.${item.promo}`)}{item.promo_note ? `（${item.promo_note}）` : ""}</div>}
 
       {item.kind === "event" && item.reward_kind && <div style={{ marginTop: 16 }}><RewardBand item={item} pal={pal} big /></div>}
 
@@ -735,7 +748,7 @@ export function CareerView({ mob }) {
           {active.length > 0 && <span style={{ minWidth: 17, height: 17, borderRadius: 9, background: T.accent, color: "#fff", fontSize: 10.5, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{active.length}</span>}
         </button>
         <button type="button" onClick={() => setSheet("saved")} aria-label={t("career.savedTitle")} style={{ ...btnBase, height: 44, padding: mob ? "0 12px" : "0 14px", borderRadius: 14, border: `1px solid ${T.bd}`, background: T.bg2, color: savedCount ? T.accent : T.txH }}>
-          <Icon n="bmark" s={17} fill={savedCount > 0} />{savedCount > 0 ? savedCount : !mob ? t("career.savedTitle") : null}
+          <Icon n="bmark" s={17} fill={savedCount > 0} />{savedCount > 0 ? savedCount : !mob && !wide ? t("career.savedTitle") : null}
         </button>
       </div>
       {active.length > 0 && (
@@ -847,15 +860,19 @@ export function CareerView({ mob }) {
           ? <Hero prefs={prefs} setPrefs={setPrefs} dept={dept} pal={pal} mob={mob} onMore={() => setSheet("prefs")} />
           : <InterestStrip prefs={prefs} setPrefs={setPrefs} onEdit={() => setSheet("prefs")} />}
 
-        {searchRow}
         {wide ? (
-          // PC: 左に一覧、右に詳細。詳細の「応募」はタイトルのすぐ下（右側が長くても最初から見える）
-          <div style={{ display: "flex", gap: 22, alignItems: "flex-start", marginTop: 4 }}>
-            <div style={{ width: 440, flexShrink: 0 }}>{kindRow}{list}</div>
-            <aside style={{ flex: 1, minWidth: 0, position: "sticky", top: 16, maxHeight: "calc(100vh - 96px)", overflowY: "auto", borderRadius: 22, border: `1px solid ${T.bd}`, background: T.bg2, marginTop: 12 }}>
+          // PC: 左は「募集一覧」（検索・種類・カード。ページの面に並ぶ）、右は「募集の詳細」（影のある 1 枚のパネル）。
+          // 右の見出しは種類の色の帯にし、選んでいるカードにも同じ色の帯を付けて「これの詳細」とつなげる。
+          // 応募ボタンはタイトルのすぐ下（右側が長くても最初から見える）
+          <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
+            <section aria-label={t("career.listTitle")} style={{ width: 470, flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 800, color: T.txD, letterSpacing: .4, margin: "4px 2px 10px" }}><Icon n="search" s={13} />{t("career.listTitle")}</div>
+              {searchRow}{kindRow}{list}
+            </section>
+            <aside aria-label={t("career.detailTitle")} style={{ flex: 1, minWidth: 0, position: "sticky", top: 16, maxHeight: "calc(100vh - 92px)", overflowY: "auto", borderRadius: 22, border: `1px solid ${T.bdL}`, background: T.bg2, boxShadow: `0 14px 40px rgba(0,0,0,${pal.dark ? .5 : .1})` }}>
               {selected ? (
-                <div style={{ padding: "22px 24px 26px" }}>
-                  <DetailBody key={selected.id} item={selected} pal={pal} prefs={prefs} dept={dept}
+                <div style={{ padding: "0 26px 28px" }}>
+                  <DetailBody key={selected.id} item={selected} pal={pal} prefs={prefs} dept={dept} framed
                     actions={<div style={{ display: "flex", gap: 10, marginTop: 16 }}><DetailActions item={selected} saved={!!savedMap[selected.id]} mob={false} /></div>} />
                 </div>
               ) : (
@@ -864,7 +881,7 @@ export function CareerView({ mob }) {
             </aside>
           </div>
         ) : (
-          <>{kindRow}{list}</>
+          <>{searchRow}{kindRow}{list}</>
         )}
       </div>
 
