@@ -59,3 +59,42 @@ revoke all on career_listings from anon, authenticated;
 -- 公開の切り替え: 有効な掲載がそろうまでは管理者にだけ入口を出す（管理画面のキャリアのタブから切り替えられる）
 insert into site_settings (key, value) values ('career', '{"public": false}'::jsonb)
 on conflict (key) do nothing;
+
+-- ── 学生からの情報提供（「こんな募集があった」）。運営者が公式ページを確かめてから掲載する ──
+create table if not exists career_tips (
+  id            bigint      generated always as identity primary key,
+  url           text        not null,
+  note          text,
+  submitted_by  bigint      not null,              -- 送った学生（いたずら対策。掲載には出さない）
+  status        text        not null default 'pending' check (status in ('pending', 'accepted', 'rejected')),
+  listing_id    uuid,                               -- 掲載にしたときの career_listings.id
+  created_at    timestamptz not null default now(),
+  reviewed_at   timestamptz
+);
+create index if not exists career_tips_status on career_tips (status, created_at desc);
+create index if not exists career_tips_user on career_tips (submitted_by, status);
+alter table career_tips enable row level security;
+alter table career_tips force row level security;
+revoke all on career_tips from anon, authenticated;
+
+-- ── 週 1 回の見直し（pg_cron + pg_net。supabase/deadline-cron.sql と同じやり方） ──
+-- 締切・開催が終わった掲載を終了にし、応募先のリンクを確かめ、古い終了分と処理済みの情報提供を消す。
+-- <DOMAIN> と <CRON_SECRET> を置き換えてから実行する。毎週月曜 3:00（日本時間）= 日曜 18:00 UTC。
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
+select cron.schedule(
+  'career-weekly',
+  '0 18 * * 0',
+  $$
+  select net.http_get(
+    url     := 'https://<DOMAIN>/api/cron/career',
+    headers := jsonb_build_object('Authorization', 'Bearer <CRON_SECRET>'),
+    timeout_milliseconds := 120000
+  );
+  $$
+);
+
+-- 今すぐ 1 回:  select net.http_get(url := 'https://<DOMAIN>/api/cron/career', headers := jsonb_build_object('Authorization', 'Bearer <CRON_SECRET>'), timeout_milliseconds := 120000);
+-- 結果:        select * from net._http_response order by created desc limit 3;
+-- 止める:      select cron.unschedule('career-weekly');

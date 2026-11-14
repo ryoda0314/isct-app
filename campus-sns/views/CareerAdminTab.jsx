@@ -75,15 +75,40 @@ function Multi({ options, value, onChange, label }) {
   );
 }
 
-function Editor({ initial, onCancel, onSaved }) {
-  const [f, setF] = useState(initial.row ? fromRow(initial.row) : { ...EMPTY });
+const normOrg = (s) => String(s || "").replace(/株式会社|有限会社|合同会社|\(株\)|（株）|\s/g, "").toLowerCase();
+
+function Editor({ initial, onCancel, onSaved, rows = [] }) {
+  const [f, setF] = useState(initial.row ? fromRow(initial.row) : { ...EMPTY, ...(initial.prefill || {}) });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [draftMsg, setDraftMsg] = useState("");
+  // 同じ組織の掲載（重複の見落とし防止）
+  const sameOrg = f.org.trim().length >= 2 ? rows.filter((r) => r.id !== initial.row?.id && normOrg(r.org) === normOrg(f.org)).slice(0, 5) : [];
+  const draft = async () => {
+    setDraftMsg("読み込み中…");
+    try {
+      const r = await fetch("/api/admin/career", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "draft", url: f.apply_url }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setDraftMsg(d.error || "読み込めませんでした"); return; }
+      const filled = [];
+      setF((x) => {
+        const n = { ...x };
+        for (const [k, v] of Object.entries(d.draft || {})) {
+          if (k === "apply_url" || v == null || v === "") continue;
+          const cur = n[k];
+          if (cur === "" || cur == null || (k === "kind" && !initial.row)) { n[k] = k === "starts_at" || k === "ends_at" ? toLocalInput(v) : v; filled.push(k); }
+        }
+        return n;
+      });
+      const what = d.found === "JobPosting" ? "求人の構造化データ" : d.found === "Event" ? "イベントの構造化データ" : d.found === "meta" ? "ページのタイトル" : null;
+      setDraftMsg([what ? `${what}から入れました。必ず公式ページを見て確かめてください。` : (d.note || "拾える情報がありませんでした。手で入れてください。"), d.duplicate ? `同じ応募先の掲載があります: ${d.duplicate.title}` : ""].filter(Boolean).join(" "));
+    } catch { setDraftMsg("読み込めませんでした"); }
+  };
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e && e.target ? e.target.value : e }));
   const save = async () => {
     setBusy(true); setErr("");
     try {
-      const body = initial.row ? { id: initial.row.id, data: toPayload(f) } : { data: toPayload(f) };
+      const body = initial.row ? { id: initial.row.id, data: toPayload(f) } : { data: toPayload(f), ...(initial.tipId ? { tipId: initial.tipId } : {}) };
       const r = await fetch("/api/admin/career", { method: initial.row ? "PATCH" : "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { setErr(d.error + (d.duplicate ? `（${d.duplicate.title}）` : "")); setBusy(false); return; }
@@ -103,10 +128,16 @@ function Editor({ initial, onCancel, onSaved }) {
       </div>
       <Label req>タイトル</Label><input value={f.title} onChange={set("title")} maxLength={120} style={inp} />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
-        <div><Label req>組織名</Label><input value={f.org} onChange={set("org")} maxLength={80} style={inp} /></div>
+        <div><Label req>組織名</Label><input value={f.org} onChange={set("org")} maxLength={80} style={inp} />
+          {sameOrg.length > 0 && <div style={{ fontSize: 11, color: T.orange, marginTop: 4 }}>同じ組織の掲載: {sameOrg.map((r) => `${r.title}（${STATUS_LABEL[r.status]}）`).join("、")}</div>}</div>
         <div><Label>組織の URL</Label><input value={f.org_url} onChange={set("org_url")} style={inp} placeholder="https://" /></div>
       </div>
-      <Label req>応募先 URL（公式）</Label><input value={f.apply_url} onChange={set("apply_url")} style={inp} placeholder="https://" />
+      <Label req>応募先 URL（公式）</Label>
+      <div style={{ display: "flex", gap: 6 }}>
+        <input value={f.apply_url} onChange={set("apply_url")} style={inp} placeholder="https://" />
+        <button type="button" disabled={!/^https?:\/\//.test(f.apply_url)} onClick={draft} style={{ flexShrink: 0, padding: "0 12px", borderRadius: 8, border: `1px solid ${T.accent}`, background: "transparent", color: T.accent, fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: /^https?:\/\//.test(f.apply_url) ? 1 : .4 }}>URL から下書き</button>
+      </div>
+      {draftMsg && <div style={{ fontSize: 11.5, color: T.txD, marginTop: 4 }}>{draftMsg}</div>}
       <Label>確認したページ（応募先と違うとき）</Label><input value={f.source_url} onChange={set("source_url")} style={inp} placeholder="https://" />
       <Label>内容の要約（事実だけ・400字まで）</Label><textarea value={f.summary} onChange={set("summary")} maxLength={400} rows={3} style={{ ...inp, resize: "vertical", font: "inherit" }} />
       <Label req>分野</Label><Multi options={CAREER_FIELDS} value={f.fields} onChange={set("fields")} label={(o) => t(`career.f.${o}`)} />
@@ -164,7 +195,8 @@ export function CareerAdminTab() {
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
   const [filter, setFilter] = useState("all");
-  const [editing, setEditing] = useState(null); // { row? }
+  const [editing, setEditing] = useState(null); // { row? , prefill?, tipId? }
+  const [tips, setTips] = useState([]);
   const [q, setQ] = useState("");
 
   const load = useCallback(async () => {
@@ -172,7 +204,7 @@ export function CareerAdminTab() {
     try {
       const r = await fetch("/api/admin/career", { credentials: "include" });
       const d = await r.json();
-      setRows(d.items || []); setPub(!!d.public); setTableMissing(!!d.tableMissing);
+      setRows(d.items || []); setPub(!!d.public); setTableMissing(!!d.tableMissing); setTips(d.tips || []);
     } catch { showToast("読み込めませんでした"); }
     setLoading(false);
   }, []);
@@ -212,7 +244,24 @@ export function CareerAdminTab() {
         <button onClick={async () => { const d = await patch({ action: "public", value: !pub }, pub ? "管理者だけに戻しました" : "公開しました"); if (d) { setPub(d.public); setCareerPublic(d.public); } }} style={{ padding: "8px 14px", borderRadius: 9, border: `1px solid ${pub ? T.bd : T.accent}`, background: pub ? T.bg : T.accent, color: pub ? T.txH : "#fff", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>{pub ? "非公開に戻す" : "一般に公開する"}</button>
       </div>
 
-      {editing ? <Editor initial={editing} onCancel={() => setEditing(null)} onSaved={(item) => { replace(item); setEditing(null); showToast("保存しました", "success"); }} /> : (
+      {tips.length > 0 && !editing && (
+        <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 12, border: `1px solid ${T.orange}55`, background: `${T.orange}0d` }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: T.txH, marginBottom: 6 }}>学生からの情報（確認待ち {tips.length} 件）</div>
+          {tips.map((tp) => (
+            <div key={tp.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: `1px solid ${T.bd}`, flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <a href={tp.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5, color: T.accent, wordBreak: "break-all" }}>{tp.url}</a>
+                {tp.note && <div style={{ fontSize: 12, color: T.tx }}>{tp.note}</div>}
+                <div style={{ fontSize: 10.5, color: T.txD }}>{new Date(tp.created_at).toLocaleString("ja-JP")}</div>
+              </div>
+              <button onClick={() => setEditing({ prefill: { apply_url: tp.url, source: "tip" }, tipId: tp.id })} style={{ padding: "4px 10px", borderRadius: 8, border: "none", background: T.accent, color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>掲載を作る</button>
+              <button onClick={async () => { const d = await patch({ action: "tip", tipId: tp.id, status: "rejected" }, "見送りにしました"); if (d) setTips((ts) => ts.filter((x) => x.id !== tp.id)); }} style={{ padding: "4px 10px", borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg, color: T.txD, fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>見送る</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {editing ? <Editor initial={editing} rows={rows} onCancel={() => setEditing(null)} onSaved={(item) => { replace(item); if (editing.tipId) setTips((ts) => ts.filter((x) => x.id !== editing.tipId)); setEditing(null); showToast("保存しました", "success"); }} /> : (
         <button onClick={() => setEditing({})} style={{ marginBottom: 12, padding: "9px 16px", borderRadius: 10, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>＋ 掲載を追加</button>
       )}
 

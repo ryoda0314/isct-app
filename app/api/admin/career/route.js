@@ -3,16 +3,20 @@ import { requireSession } from '../../../../lib/auth/require-auth.js';
 import { isAdmin } from '../../../../lib/auth/is-admin.js';
 import { getSupabaseAdmin } from '../../../../lib/supabase/server.js';
 import { auditLog } from '../../../../lib/admin-audit.js';
-import { CAREER_TABLE, buildListing } from '../../../../lib/career.js';
+import { CAREER_TABLE, buildListing, normalizeUrl } from '../../../../lib/career.js';
+import { safeFetch, robotsAllows } from '../../../../lib/career-fetch.js';
+import { extractDraft } from '../../../../lib/career-draft.js';
 import { LISTING_STATUSES } from '../../../../lib/career-tags.js';
 
 // 管理画面のキャリア（インターン・就職・イベント）の掲載管理。管理者だけ。操作は admin_audit_log に残す。
-//   GET                         … 全件（状態を問わず）＋ 公開設定
-//   POST   { data }             … 新規（同じ応募先が既にあれば 409 と既存の id）
+//   GET                         … 全件（状態を問わず）＋ 公開設定 ＋ 確認待ちの情報提供
+//   POST   { data, tipId? }     … 新規（同じ応募先が既にあれば 409 と既存の id）。tipId があれば情報提供を「掲載した」に
+//   POST   { action:'draft', url } … 公式ページの構造化データから下書きを作る（robots.txt に従う）
 //   PATCH  { id, data }         … 編集
 //   PATCH  { id, action:'checked' }          … 最終確認日を今にする
 //   PATCH  { id, action:'status', status }   … 状態だけ変える（公開 / 終了 / 非表示 / 下書き）
 //   PATCH  { action:'public', value:bool }   … 一般に公開するか（site_settings.career.public）
+//   PATCH  { action:'tip', tipId, status }   … 情報提供を処理済みに（accepted / rejected）
 //   DELETE { id }
 
 async function guard(request) {
@@ -28,13 +32,14 @@ export async function GET(request) {
   const g = await guard(request);
   if (g.error) return g.error;
   const { sb } = g;
-  const [{ data, error }, { data: setting }] = await Promise.all([
+  const [{ data, error }, { data: setting }, { data: tips }] = await Promise.all([
     sb.from(CAREER_TABLE).select('*').order('updated_at', { ascending: false }).limit(2000),
     sb.from('site_settings').select('value').eq('key', 'career').maybeSingle(),
+    sb.from('career_tips').select('id, url, note, created_at').eq('status', 'pending').order('created_at', { ascending: true }).limit(100),
   ]);
-  if (missingTable(error)) return NextResponse.json({ items: [], public: false, tableMissing: true });
+  if (missingTable(error)) return NextResponse.json({ items: [], public: false, tips: [], tableMissing: true });
   if (error) { console.error('[Admin career GET]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
-  return NextResponse.json({ items: data || [], public: setting?.value?.public === true }, { headers: { 'Cache-Control': 'private, no-store' } });
+  return NextResponse.json({ items: data || [], public: setting?.value?.public === true, tips: tips || [] }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 
 export async function POST(request) {
@@ -42,6 +47,7 @@ export async function POST(request) {
   if (g.error) return g.error;
   const { auth, sb } = g;
   const body = await request.json().catch(() => ({}));
+  if (body.action === 'draft') return draftFromUrl(sb, body.url);
   const { row, error } = buildListing(body.data || {});
   if (error) return NextResponse.json({ error }, { status: 400 });
   const { data: dup } = await sb.from(CAREER_TABLE).select('id, title, status').eq('apply_url_norm', row.apply_url_norm).maybeSingle();
@@ -52,6 +58,9 @@ export async function POST(request) {
     .select('*').single();
   if (insErr) { console.error('[Admin career POST]', insErr.message); return NextResponse.json({ error: '保存できませんでした' }, { status: 500 }); }
   await auditLog(sb, auth.userid, 'career_create', 'career', data.id, { title: data.title, status: data.status });
+  if (Number.isInteger(body.tipId)) {
+    await sb.from('career_tips').update({ status: 'accepted', listing_id: data.id, reviewed_at: now }).eq('id', body.tipId);
+  }
   return NextResponse.json({ item: data });
 }
 
@@ -68,6 +77,14 @@ export async function PATCH(request) {
     if (error) { console.error('[Admin career public]', error.message); return NextResponse.json({ error: '保存できませんでした' }, { status: 500 }); }
     await auditLog(sb, auth.userid, 'career_public', 'site_settings', 'career', value);
     return NextResponse.json({ ok: true, public: value.public });
+  }
+
+  if (body.action === 'tip') {
+    if (!Number.isInteger(body.tipId) || !['accepted', 'rejected'].includes(body.status)) return NextResponse.json({ error: '指定が正しくありません' }, { status: 400 });
+    const { error } = await sb.from('career_tips').update({ status: body.status, reviewed_at: now }).eq('id', body.tipId);
+    if (error) { console.error('[Admin career tip]', error.message); return NextResponse.json({ error: '保存できませんでした' }, { status: 500 }); }
+    await auditLog(sb, auth.userid, `career_tip_${body.status}`, 'career_tip', body.tipId, null);
+    return NextResponse.json({ ok: true });
   }
 
   const id = typeof body.id === 'string' ? body.id : '';
@@ -105,4 +122,22 @@ export async function DELETE(request) {
   if (error) { console.error('[Admin career DELETE]', error.message); return NextResponse.json({ error: '削除できませんでした' }, { status: 500 }); }
   await auditLog(sb, auth.userid, 'career_delete', 'career', id, data ? { title: data.title } : null);
   return NextResponse.json({ ok: true });
+}
+
+// 公式ページの構造化データ（JobPosting / Event）から下書き。robots.txt が禁じていれば読まない。
+async function draftFromUrl(sb, raw) {
+  let url;
+  try { url = new URL(String(raw || '').trim()).toString(); } catch { url = null; }
+  if (!url) return NextResponse.json({ error: 'URL を入れてください' }, { status: 400 });
+  const norm = normalizeUrl(url);
+  const { data: dup } = norm ? await sb.from(CAREER_TABLE).select('id, title, status').eq('apply_url_norm', norm).maybeSingle() : { data: null };
+  try {
+    if (!(await robotsAllows(url))) return NextResponse.json({ found: null, draft: {}, duplicate: dup || null, note: 'このページは robots.txt で自動取得が禁止されています。公式ページを見て手で入れてください。' });
+    const r = await safeFetch(url, { timeoutMs: 10000, maxBytes: 1_500_000 });
+    if (r.status >= 400) return NextResponse.json({ found: null, draft: {}, duplicate: dup || null, note: `ページを読めませんでした（HTTP ${r.status}）` });
+    const { found, draft } = extractDraft(r.text || '');
+    return NextResponse.json({ found, draft: { ...draft, apply_url: url }, duplicate: dup || null, finalUrl: r.url });
+  } catch (e) {
+    return NextResponse.json({ found: null, draft: {}, duplicate: dup || null, note: `ページを読めませんでした（${String(e?.message || e).slice(0, 80)}）` });
+  }
 }

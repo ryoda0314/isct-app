@@ -5,7 +5,7 @@ import { t, locName } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { DEPTS } from "../data.js";
 import { openMaterial } from "../openMaterial.js";
-import { useAuth } from "../authState.js";
+import { useAuth, openLogin } from "../authState.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
 import { useCareer } from "../hooks/useCareer.js";
 import { useCareerPublic } from "../careerAccess.js";
@@ -290,6 +290,48 @@ function PrefsSheet({ open, onClose, mob, prefs, setPrefs, user }) {
   );
 }
 
+// ── 学生からの情報提供（URL とひとこと。運営者が公式ページを確かめてから載せる） ──
+function TipSheet({ open, onClose, mob }) {
+  const auth = useAuth();
+  const [url, setUrl] = useState("");
+  const [note, setNote] = useState("");
+  const [state, setState] = useState(null); // sending | done | エラー文
+  useEffect(() => { if (open) { setState(null); } }, [open]);
+  const send = async () => {
+    setState("sending");
+    try {
+      const r = await fetch("/api/career/tips", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: url.trim(), note }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) { setState("done"); setUrl(""); setNote(""); } else setState(d.error || t("career.loadError"));
+    } catch { setState(t("career.loadError")); }
+  };
+  const field = { width: "100%", boxSizing: "border-box", padding: "9px 11px", borderRadius: 10, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13.5, font: "inherit" };
+  return (
+    <Sheet open={open} onClose={onClose} mob={mob} label={t("career.tip.title")}>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
+        <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: T.txH }}>{t("career.tip.title")}</div>
+        <button onClick={onClose} aria-label={t("common.close")} style={{ border: "none", background: T.bg3, borderRadius: "50%", width: 28, height: 28, color: T.txD, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{I.x}</button>
+      </div>
+      <div style={{ fontSize: 12, color: T.txD, lineHeight: 1.7, marginBottom: 12 }}>{t("career.tip.body")}</div>
+      {auth.status !== "account" ? (
+        <div style={{ fontSize: 12.5, color: T.tx, lineHeight: 1.7 }}>
+          {t("career.tip.login")}
+          <div style={{ marginTop: 10 }}><button onClick={() => { onClose(); openLogin({ intent: "career", returnTo: "career" }); }} style={{ padding: "9px 18px", borderRadius: 10, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>{t("career.tip.loginBtn")}</button></div>
+        </div>
+      ) : state === "done" ? (
+        <div style={{ fontSize: 13, color: T.green, fontWeight: 700 }}>{t("career.tip.done")}</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t("career.tip.url")} inputMode="url" style={field} />
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("career.tip.note")} rows={3} maxLength={300} style={{ ...field, resize: "vertical" }} />
+          {state && state !== "sending" && <div style={{ fontSize: 12, color: T.red }}>{state}</div>}
+          <button disabled={state === "sending" || !/^https?:\/\/\S+/.test(url.trim())} onClick={send} style={{ padding: "11px 14px", borderRadius: 11, border: "none", background: T.accent, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", opacity: /^https?:\/\/\S+/.test(url.trim()) ? 1 : .45 }}>{t("career.tip.send")}</button>
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
 // ── メイン ──
 export function CareerView({ mob }) {
   const user = useCurrentUser();
@@ -302,6 +344,7 @@ export function CareerView({ mob }) {
   const [condOpen, setCondOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [detail, setDetail] = useState(null);
+  const [tipOpen, setTipOpen] = useState(false);
   const dept = user?.myDept || null;
 
   // 開いた = 新着を見た（ホームの「興味に合う新着」を消す）
@@ -440,9 +483,11 @@ export function CareerView({ mob }) {
           {t("career.footer")}{" "}
           <button onClick={() => openLink(policyUrl(), mob)} style={{ border: "none", background: "none", padding: 0, color: T.accent, fontSize: 11.5, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>{t("career.policy")}</button>
         </div>
+        <button onClick={() => setTipOpen(true)} style={{ marginTop: 12, width: "100%", padding: "11px 14px", borderRadius: 12, border: `1px dashed ${T.bd}`, background: "transparent", color: T.txH, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>＋ {t("career.tip.button")}</button>
       </div>
 
       <PrefsSheet open={prefsOpen} onClose={() => setPrefsOpen(false)} mob={mob} prefs={prefs} setPrefs={setPrefs} user={user} />
+      <TipSheet open={tipOpen} onClose={() => setTipOpen(false)} mob={mob} />
       {detail && <CareerDetail item={detail} mob={mob} prefs={prefs} dept={dept} onClose={() => setDetail(null)} />}
     </div>
   );
