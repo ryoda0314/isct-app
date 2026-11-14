@@ -16,6 +16,7 @@ import {
 import { CAREER_FIELDS, CAREER_SKILLS } from "../../lib/career-tags.js";
 import { buildICalendar } from "../../lib/ical.js";
 import { saveIcs } from "../icsExport.js";
+import { SectionHead as HomeSectionHead, card as homeCard, rowStyle } from "../home/ui.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // キャリア: インターン・就職・謝礼や賞金のあるイベントを、自分の興味で探すページ。
@@ -906,22 +907,22 @@ export function CareerHomeWidget({ setView, isAdmin }) {
     return buildList(items, { ...prefs, mode: "mine", sort: "new" }, {}).list.filter((r) => (Date.parse(r.item.created_at) || 0) > seen).slice(0, 3);
   }, [enabled, items, prefs]);
   if (!fresh.length) return null;
+  // 見出しと行の形はホームのほかの欄（campus-sns/home/ui.jsx）とそろえる
   return (
-    <div style={{ borderRadius: 18, border: `1px solid ${T.bd}`, background: T.bg2, padding: "12px 14px 6px", margin: "10px 0" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-        <span style={{ flex: 1, fontSize: 14, fontWeight: 800, color: T.txH }}>{t("career.home.title", { n: fresh.length })}</span>
-        <TextBtn onClick={() => setView("career")} style={{ fontSize: 12.5 }}>{t("career.home.more")} ›</TextBtn>
+    <section>
+      <HomeSectionHead title={t("career.home.title", { n: fresh.length })} action={t("home.viewAll")} onAction={() => setView("career")} />
+      <div style={homeCard()}>
+        {fresh.map((r, i) => {
+          const due = dueInfo(r.item);
+          return (
+            <button key={r.item.id} type="button" onClick={() => setView("career")} style={rowStyle(i === 0)}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: pal[r.item.kind], flexShrink: 0 }} />
+              <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 650, color: T.txH, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.item.title}</span>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: due.urgent ? pal.urgent : T.txD, whiteSpace: "nowrap" }}>{due.label}</span>
+            </button>
+          );
+        })}
       </div>
-      {fresh.map((r) => {
-        const due = dueInfo(r.item);
-        return (
-          <button key={r.item.id} type="button" onClick={() => setView("career")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "9px 0", border: "none", borderTop: `1px solid ${T.bd}`, background: "none", cursor: "pointer", font: "inherit", textAlign: "left" }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: pal[r.item.kind], flexShrink: 0 }} />
-            <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, color: T.txH, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.item.title}</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: due.urgent ? pal.urgent : T.txD, whiteSpace: "nowrap" }}>{due.label}</span>
-          </button>
-        );
-      })}
-    </div>
+    </section>
   );
 }

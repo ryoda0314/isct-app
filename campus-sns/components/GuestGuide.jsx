@@ -19,7 +19,7 @@ export function GuestGuide({ setView, mob, hasTimetable }) {
     mob ? { id: "moreMenu", i: I.more, tk: "guide.moreT", dk: "guide.moreD" } : { id: "train", i: I.train, tk: "guide.trainT", dk: "guide.trainD" },
   ];
   return (
-    <div style={{ borderRadius: 16, border: `1px solid ${T.accent}30`, background: `linear-gradient(135deg, ${T.accent}12, ${T.accent}05)`, padding: mob ? 14 : 16 }}>
+    <div style={{ borderRadius: 16, border: `1px solid ${T.accent}30`, background: `${T.accent}0c`, padding: mob ? 14 : 16 }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: T.txH }}>{t("guide.title")}</div>

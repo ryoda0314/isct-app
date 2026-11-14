@@ -11,7 +11,10 @@ export const PERIODS = [
 ];
 const DOW = { 月: 0, 火: 1, 水: 2, 木: 3, 金: 4 };
 
-/** qDataAll: { [quarter]: { C: courses[] } } → [{ co, pd, pi, sM, eM, st }]（st: done | now | next） */
+/**
+ * qDataAll: { [quarter]: { C: courses[] } } → [{ co, pd, pi, sM, eM, st, sub?, dow? }]（st: done | now | next）
+ * 学年暦で授業日と分かる日は sub（振替授業）と dow（その日に行う曜日の授業）も付ける。
+ */
 export function getTodayClasses(qDataAll, now = new Date()) {
   if (!qDataAll) return [];
   const ay = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
@@ -37,7 +40,7 @@ export function getTodayClasses(qDataAll, now = new Date()) {
   if (acal.items.length > 0 || acal.period) {
     return acal.items
       .filter((it) => it.type === "class" && DOW[it.dow] !== undefined)
-      .flatMap((it) => row(ttOf(it.q), DOW[it.dow]));
+      .flatMap((it) => row(ttOf(it.q), DOW[it.dow]).map((c) => ({ ...c, sub: it.sub, dow: it.dow })));
   }
   const dow = now.getDay();
   if (dow < 1 || dow > 5) return [];

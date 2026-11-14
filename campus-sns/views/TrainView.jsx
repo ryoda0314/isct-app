@@ -3,6 +3,7 @@ import { T } from "../theme.js";
 import { t, getLang } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { useTrainRoutes } from "../hooks/useTrainRoutes.js";
+import { SectionHead } from "../home/ui.jsx";
 
 const fmtUntil = (min) => min <= 0 ? t("train.soon") : t("train.inMin", { n: min });
 
@@ -258,24 +259,19 @@ function AddModal({ onClose, onSave }) {
   );
 }
 
-// ホーム画面用ウィジェット: on_home のルートだけをコンパクト表示
+// ホーム画面用ウィジェット: on_home のルートだけをコンパクト表示（見出しはホームのほかの欄とそろえる）
 export function HomeTrainWidget({ setView }) {
   const { routes } = useTrainRoutes(true);
   const now = useNow();
   const pinned = routes.filter((r) => r.on_home);
   if (!pinned.length) return null;
   return (
-    <div style={{ padding: "0 16px", marginBottom: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 2px 8px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, color: T.txH, fontWeight: 700, fontSize: 13 }}>
-          <span style={{ color: T.accent, display: "flex" }}>{I.train}</span>{t("nav.train")}
-        </div>
-        <button onClick={() => setView("train")} style={{ background: "none", border: "none", color: T.accent, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{t("train.seeAll")}</button>
-      </div>
+    <section>
+      <SectionHead title={t("nav.train")} action={t("home.viewAll")} onAction={() => setView("train")} />
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {pinned.map((r) => <RouteCard key={r.id} route={r} now={now} variant="home" onOpen={() => setView("train")} />)}
       </div>
-    </div>
+    </section>
   );
 }
 
