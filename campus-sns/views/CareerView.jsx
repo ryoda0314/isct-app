@@ -12,7 +12,10 @@ import { useCareerPublic } from "../careerAccess.js";
 import {
   useCareerPrefs, buildList, hasInterests, matchListing, eligibility,
   targetFromYearGroup, fieldsForDept, markSeen, getSeenAt, getPrefs,
+  useSaved, toggleSaved, removeSaved,
 } from "../careerPrefs.js";
+import { buildICalendar } from "../../lib/ical.js";
+import { saveIcs } from "../icsExport.js";
 import { CAREER_FIELDS, CAREER_SKILLS } from "../../lib/career-tags.js";
 
 // キャリア: インターン・就職・謝礼や賞金のあるイベントを、自分の興味で探す（計画書 3〜4 章）。
@@ -80,7 +83,7 @@ function reasonText(r) {
 }
 
 // ── カード ──
-function CareerCard({ row, onOpen, showReasons }) {
+function CareerCard({ row, onOpen, showReasons, isNew, isSaved }) {
   const { item, m, elig } = row;
   const due = dueBadge(item);
   const kc = KIND_COLOR[item.kind];
@@ -91,6 +94,8 @@ function CareerCard({ row, onOpen, showReasons }) {
         <Chip color={kc} solid>{t(`career.kind.${item.kind}`)}</Chip>
         {attrChips(item).map((c, i) => <Chip key={i} color={c.color}>{c.text}</Chip>)}
         <PromoLabel item={item} />
+        {isNew && <Chip color={T.red}>{t("career.new")}</Chip>}
+        {isSaved && <Chip color={T.accent}>★ {t("career.saved")}</Chip>}
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 11.5, fontWeight: 700, color: due.soon ? T.red : T.txD, whiteSpace: "nowrap" }}>{due.text}</span>
       </div>
@@ -138,8 +143,24 @@ const Row = ({ label, children }) => children ? (
 ) : null;
 
 // ── 詳細 ──
+// 締切（終日）と開催日時を .ics にして、端末のカレンダーに入れてもらう（サーバーには何も保存しない）
+async function addToCalendar(item) {
+  const events = [];
+  const desc = `${item.org}\n${item.apply_url}`;
+  if (item.deadline) {
+    const end = new Date(Date.parse(`${item.deadline}T00:00:00Z`) + 86400e3).toISOString().slice(0, 10);
+    events.push({ uid: `career-${item.id}-deadline`, summary: t("career.ics.deadline", { t: item.title }), start: item.deadline, end, allDay: true, description: desc, free: true });
+  }
+  if (item.starts_at) {
+    events.push({ uid: `career-${item.id}-event`, summary: item.title, start: new Date(item.starts_at), end: item.ends_at ? new Date(item.ends_at) : new Date(Date.parse(item.starts_at) + 3600e3), location: item.location || undefined, description: desc });
+  }
+  if (!events.length) return;
+  await saveIcs(buildICalendar({ name: "ScienceTokyo App", events }), `career-${item.id.slice(0, 8)}.ics`);
+}
+
 function CareerDetail({ item, mob, onClose, prefs, dept }) {
   const auth = useAuth();
+  const savedMap = useSaved();
   const [reportOpen, setReportOpen] = useState(false);
   const [reportText, setReportText] = useState("");
   const [reportState, setReportState] = useState(null); // sending | done | error
@@ -193,6 +214,10 @@ function CareerDetail({ item, mob, onClose, prefs, dept }) {
       <button onClick={() => openLink(item.apply_url, mob)} style={{ width: "100%", marginTop: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "13px 16px", borderRadius: 13, border: "none", background: T.accent, color: "#fff", fontSize: 14.5, fontWeight: 800, cursor: "pointer" }}>
         {partner ? t("career.openPartner", { name: partner }) : t("career.open")} <span style={{ display: "flex" }}>{I.arr}</span>
       </button>
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button onClick={() => toggleSaved(item)} aria-pressed={!!savedMap[item.id]} style={{ flex: 1, padding: "10px 12px", borderRadius: 11, border: `1px solid ${savedMap[item.id] ? T.accent : T.bd}`, background: savedMap[item.id] ? `${T.accent}14` : T.bg2, color: savedMap[item.id] ? T.accent : T.txH, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{savedMap[item.id] ? `★ ${t("career.saved")}` : `☆ ${t("career.save")}`}</button>
+        {(item.deadline || item.starts_at) && <button onClick={() => addToCalendar(item)} style={{ flex: 1, padding: "10px 12px", borderRadius: 11, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txH, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{t("career.toCalendar")}</button>}
+      </div>
       <div style={{ fontSize: 11, color: T.txD, lineHeight: 1.6, marginTop: 8 }}>{t("career.applyNote")}</div>
 
       <div style={{ marginTop: 14, borderTop: `1px solid ${T.bd}`, paddingTop: 10 }}>
@@ -345,12 +370,21 @@ export function CareerView({ mob }) {
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [detail, setDetail] = useState(null);
   const [tipOpen, setTipOpen] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
+  const savedMap = useSaved();
+  // 前回開いた時刻（「新着」の目印用）。この画面を開いた時点で既読にするので、先に控えておく
+  const [prevSeen] = useState(getSeenAt);
   const dept = user?.myDept || null;
 
   // 開いた = 新着を見た（ホームの「興味に合う新着」を消す）
   useEffect(() => { if (visible) markSeen(); }, [visible]);
 
-  const { list, matchedCount, totalCount, useMine } = useMemo(() => buildList(items, prefs, { kind, dept }), [items, prefs, kind, dept]);
+  const built = useMemo(() => buildList(items, prefs, { kind, dept }), [items, prefs, kind, dept]);
+  const { matchedCount, totalCount, useMine } = built;
+  const savedIds = Object.keys(savedMap);
+  const savedRows = useMemo(() => items.filter((it) => savedMap[it.id]).map((item) => ({ item, m: matchListing(item, prefs, dept), elig: eligibility(item, prefs) })), [items, savedMap, prefs, dept]);
+  const savedGone = useMemo(() => Object.keys(savedMap).filter((id) => !items.some((it) => it.id === id)).map((id) => ({ id, ...savedMap[id] })), [items, savedMap]);
+  const list = showSaved ? savedRows : built.list;
   const kindCounts = useMemo(() => {
     const c = { all: 0, intern: 0, job: 0, event: 0 };
     for (const it of items) { c.all++; c[it.kind] = (c[it.kind] || 0) + 1; }
@@ -416,6 +450,7 @@ export function CareerView({ mob }) {
               return <button key={mo} disabled={mo === "mine" && !interests} onClick={() => setPrefs({ mode: mo })} style={{ padding: "5px 11px", borderRadius: 7, border: "none", background: on ? `${T.accent}1f` : "transparent", color: on ? T.accent : T.txD, fontSize: 12, fontWeight: 700, cursor: mo === "mine" && !interests ? "default" : "pointer", opacity: mo === "mine" && !interests ? .45 : 1 }}>{t(`career.mode.${mo}`)}{mo === "mine" && interests ? ` ${matchedCount}` : ""}</button>;
             })}
           </div>
+          <button onClick={() => setShowSaved((v) => !v)} aria-pressed={showSaved} style={{ padding: "6px 11px", borderRadius: 9, border: `1px solid ${showSaved ? T.accent : T.bd}`, background: showSaved ? `${T.accent}14` : T.bg2, color: showSaved ? T.accent : T.txD, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>★ {t("career.savedTab")} {savedIds.length}</button>
           <button onClick={() => setCondOpen((v) => !v)} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 9, border: `1px solid ${condOpen || condCount ? T.accent : T.bd}`, background: condOpen || condCount ? `${T.accent}14` : T.bg2, color: condOpen || condCount ? T.accent : T.txD, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             {t("career.cond")}{condCount > 0 && <span style={{ fontSize: 10, color: "#fff", background: T.accent, borderRadius: 8, minWidth: 15, height: 15, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{condCount}</span>}
           </button>
@@ -459,12 +494,28 @@ export function CareerView({ mob }) {
 
         {!loading && !error && list.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 10 }}>
-            {list.map((row) => <CareerCard key={row.item.id} row={row} showReasons={interests} onOpen={() => setDetail(row.item)} />)}
+            {list.map((row) => <CareerCard key={row.item.id} row={row} showReasons={interests} isNew={prevSeen > 0 && (Date.parse(row.item.created_at) || 0) > prevSeen} isSaved={!!savedMap[row.item.id]} onOpen={() => setDetail(row.item)} />)}
           </div>
         )}
 
+        {/* 保存したもののうち、掲載が終わったもの（控えの名前だけ） */}
+        {showSaved && savedGone.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: T.txD, margin: "0 2px 6px" }}>{t("career.savedGone")}</div>
+            {savedGone.map((g) => (
+              <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 10, border: `1px solid ${T.bd}`, marginBottom: 6, opacity: .75 }}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: T.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.title}<span style={{ color: T.txD }}>{" ・ "}{g.org}</span></span>
+                <button onClick={() => removeSaved(g.id)} style={{ border: "none", background: "none", color: T.txD, fontSize: 12, cursor: "pointer", textDecoration: "underline" }}>{t("career.remove")}</button>
+              </div>
+            ))}
+          </div>
+        )}
+        {showSaved && !loading && list.length === 0 && savedGone.length === 0 && (
+          <div style={{ textAlign: "center", padding: "30px 12px", color: T.txD, fontSize: 12.5, lineHeight: 1.7 }}>{t("career.savedEmpty")}</div>
+        )}
+
         {/* 空のとき: 興味に合うものが無い → 無理に勧めず、ゆるめる・すべて・興味の編集へ */}
-        {!loading && !error && list.length === 0 && (
+        {!showSaved && !loading && !error && list.length === 0 && (
           <div style={{ textAlign: "center", padding: "34px 12px", color: T.txD }}>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: T.txH, marginBottom: 6 }}>
               {items.length === 0 ? t("career.emptyNone") : useMine && totalCount > 0 ? t("career.emptyMine") : t("career.emptyFilter")}

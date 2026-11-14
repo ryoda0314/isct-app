@@ -140,3 +140,20 @@ export function buildList(items, p, { kind = "all", dept = null } = {}) {
   });
   return { list: rows, matchedCount, totalCount, useMine };
 }
+
+// ── 保存（この端末だけ）: id → { title, org, kind, deadline, starts_at, apply_url, savedAt } ──
+// 掲載が終わっても名前とリンクを見られるよう、最低限の控えを持つ。
+let saved = null;
+const savedSubs = new Set();
+export function getSaved() { if (!saved) saved = read(SAVED_KEY, {}) || {}; return saved; }
+function writeSaved(next) { saved = next; write(SAVED_KEY, saved); savedSubs.forEach((f) => f()); }
+export function toggleSaved(item) {
+  const next = { ...getSaved() };
+  if (next[item.id]) delete next[item.id];
+  else next[item.id] = { title: item.title, org: item.org, kind: item.kind, deadline: item.deadline || null, starts_at: item.starts_at || null, apply_url: item.apply_url, savedAt: Date.now() };
+  writeSaved(next);
+}
+export function removeSaved(id) { const next = { ...getSaved() }; delete next[id]; writeSaved(next); }
+export function useSaved() {
+  return useSyncExternalStore((cb) => { savedSubs.add(cb); return () => savedSubs.delete(cb); }, getSaved, () => ({}));
+}
