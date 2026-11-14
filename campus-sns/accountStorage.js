@@ -24,6 +24,8 @@ const KEEP_EXACT = new Set([
   "notifEnabled", "notifSettings",
   // 利用規約への同意・ゲスト向け「はじめに」を閉じた
   "privacyAgreed", "guideDismissed",
+  // キャリアの興味・保存・既読（端末の中だけ。サーバーにもアカウントにも送らない）
+  "career_prefs_v1", "career_saved_v1", "career_seen_v1",
 ]);
 
 // 前方一致で残すもの

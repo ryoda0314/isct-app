@@ -12,6 +12,7 @@ export const ANNOUNCE_LINKS = [
   { key: "tasks",      labelKey: "announce.link.tasks" },
   { key: "events",     labelKey: "announce.link.events" },
   { key: "train",      labelKey: "announce.link.train" },
+  { key: "career",     labelKey: "announce.link.career" },
 ];
 
 // 有効なビューキーの集合（バリデーション用）

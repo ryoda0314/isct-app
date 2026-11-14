@@ -4,6 +4,7 @@ import { I } from "../icons.jsx";
 import { Av } from "../shared.jsx";
 import { MapEditorView } from "./MapEditorView.jsx";
 import { FestivalAdminTab } from "./FestivalAdminTab.jsx";
+import { CareerAdminTab } from "./CareerAdminTab.jsx";
 import { usePresence } from "../hooks/usePresence.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
 import { useMusic } from "../hooks/useMusic.js";
@@ -22,6 +23,7 @@ const tabs = [
   { id: "stats", labelKey: "admin.tab.stats", icon: I.bar },
   { id: "reports", labelKey: "admin.tab.reports", icon: I.flag },
   { id: "festival", labelKey: "admin.tab.festival", icon: I.star },
+  { id: "career", labelKey: "admin.tab.career", icon: I.briefcase },
   { id: "support", labelKey: "admin.tab.support", icon: I.mail },
   { id: "users", labelKey: "admin.tab.users", icon: I.users },
   { id: "posts", labelKey: "admin.tab.posts", icon: I.feed },
@@ -4915,6 +4917,7 @@ export const AdminView = ({ mob, courses = [], depts = [], schools = [] }) => {
         {tab === "stats" && <StatsTab />}
         {tab === "reports" && <ReportsTab />}
         {tab === "festival" && <FestivalAdminTab />}
+        {tab === "career" && <CareerAdminTab />}
         {tab === "support" && <SupportTab />}
         {tab === "users" && <UsersTab />}
         {tab === "posts" && <PostsTab courses={courses} schools={schools} depts={depts} />}

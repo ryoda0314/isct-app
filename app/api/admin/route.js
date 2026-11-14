@@ -21,7 +21,7 @@ async function isAdmin(userid) {
 }
 
 // お知らせの遷移先ボタン: 許可するビューキー（campus-sns/announceLinks.js と同期）
-const ANN_LINK_KEYS = ['exams', 'timetable', 'calendar', 'attendance', 'grades', 'tasks', 'events', 'train'];
+const ANN_LINK_KEYS = ['exams', 'timetable', 'calendar', 'attendance', 'grades', 'tasks', 'events', 'train', 'career'];
 // 受理: 許可キー→そのまま / null・''→null（ボタン解除） / それ以外→undefined（不正）
 const normalizeAnnLink = (v) => {
   if (v === null || v === '') return null;

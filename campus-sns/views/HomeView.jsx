@@ -20,6 +20,8 @@ import { DEMO_EXAMS } from "../demoData.js";
 import { AnnouncementBanner } from "../AnnouncementBanner.jsx";
 import { TodayMaterials } from "../components/TodayMaterials.jsx";
 import { HomeTrainWidget } from "./TrainView.jsx";
+import { CareerHomeWidget } from "./CareerView.jsx";
+import { useCareerVisible } from "../careerAccess.js";
 
 // SVG weather icons — clean, consistent style
 const WxIcon=({type,sz=20})=>{const s={width:sz,height:sz,display:"inline-block",verticalAlign:"middle",flexShrink:0};
@@ -63,6 +65,7 @@ const QA_ALL=[
   {id:"gym",icon:I.dumbbell,labelKey:"tool.gym"},
   {id:"tsubame",icon:I.swallow,labelKey:"tool.tsubame"},
   {id:"festival",icon:I.star,labelKey:"nav.festival"},
+  {id:"career",icon:I.briefcase,labelKey:"nav.career"},
 ];
 // 工大祭2026 最終日の終了時刻（これを過ぎたらホームのバナーを消す）
 const FESTIVAL_END=new Date("2026-10-11T18:00:00+09:00");
@@ -75,7 +78,8 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
   const [qaIds]=useState(getQA);
   const [attBusy,setAttBusy]=useState(null); // 出席チェック中の course.id
   const isMed=medSessions.length>0;
-  const qaItems=qaIds.map(id=>QA_ALL.find(q=>q.id===id)).filter(Boolean).filter(q=>(isNative()||!(q.id==="portal"||q.id==="isctportal"))&&(getAuth().status==="account"||!(q.id==="portal"||q.id==="isctportal"))&&(!isDemoMode()||!(q.id==="portal"||q.id==="isctportal"))&&!(isMed&&q.id==="portal"));
+  const careerOn=useCareerVisible(user?.isAdmin);
+  const qaItems=qaIds.map(id=>QA_ALL.find(q=>q.id===id)).filter(Boolean).filter(q=>q.id!=="career"||careerOn).filter(q=>(isNative()||!(q.id==="portal"||q.id==="isctportal"))&&(getAuth().status==="account"||!(q.id==="portal"||q.id==="isctportal"))&&(!isDemoMode()||!(q.id==="portal"||q.id==="isctportal"))&&!(isMed&&q.id==="portal"));
   const [now,setNow]=useState(()=>new Date());
   const [wx,setWx]=useState(()=>{try{const v=localStorage.getItem("wxCache");if(v){const d=JSON.parse(v);if(Date.now()-d._ts<30*60*1000)return d;}return null;}catch{return null;}});
   const [loc,setLoc]=useState(()=>{try{const v=localStorage.getItem("wxLoc");return v?JSON.parse(v):DEF_LOC;}catch{return DEF_LOC;}});
@@ -550,6 +554,9 @@ export const HomeView=({asgn,setView,setCid,setCh,mob,courses=[],user={},myEvent
 
       {/* ── お知らせバナー ── */}
       <div style={{padding:"0 16px"}}><AnnouncementBanner setView={setView}/></div>
+
+      {/* ── キャリア: 興味に合う新着（興味を選んでいて新着があるときだけ） ── */}
+      <div style={{padding:"0 16px"}}><CareerHomeWidget setView={setView} isAdmin={user?.isAdmin}/></div>
 
       {/* ── 電車（ホームに追加したルート） ── */}
       <HomeTrainWidget setView={setView}/>

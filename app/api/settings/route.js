@@ -26,6 +26,8 @@ export async function GET() {
       telecom_restriction: settings.telecom_restriction || { enabled: false, message: '' },
       maintenance_mode: settings.maintenance_mode || { enabled: false, message: '' },
       feature_flags: settings.feature_flags || {},
+      // キャリア（インターン・就職・イベント）を一般に公開しているか。false の間は管理者にだけ入口を出す
+      career_public: settings.career?.public === true,
       registration_limit: { closed: regClosed, message: regLimit.message },
     }), 60);
   } catch (e) {

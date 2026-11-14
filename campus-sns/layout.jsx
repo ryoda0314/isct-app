@@ -6,6 +6,7 @@ import { Av } from "./shared.jsx";
 import { isNative } from "./capacitor.js";
 import { openInSystemBrowser } from "./openMaterial.js";
 import { openLmsPage } from "./plugins/portalWebView.js";
+import { useCareerVisible } from "./careerAccess.js";
 // ============================================================
 
 const SideItem=({icon,label,on,click,badge,compact})=>(
@@ -18,7 +19,8 @@ const SideItem=({icon,label,on,click,badge,compact})=>(
 
 const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,courses=[],depts=[],schools=[],user={},quarter,academicYear,pendingFriendCount=0,userUnit=null,compact=false,narrow=false,hasMed=false})=>{
   const [moreOpen,setMoreOpen]=useState(false);
-  const extras=["grades","grading","reg","ttbuild","exams","acadCal","textbooks","pdftools","freeroom","events","pomo","music","bmarks"];
+  const extras=["grades","grading","reg","ttbuild","exams","acadCal","textbooks","pdftools","freeroom","events","career","pomo","music","bmarks"];
+  const careerOn=useCareerVisible(user?.isAdmin);
   const isExtra=extras.includes(view);
   const W=compact?56:narrow?150:180;
   const cp=compact;
@@ -145,6 +147,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
             {title:t("sidebar.campus"),items:[
               {id:"freeroom",i:I.pin,l:t("tool.freeroom"),c:T.green},
               {id:"events",i:I.event,l:t("tool.events"),c:T.orange},
+              ...(careerOn?[{id:"career",i:I.briefcase,l:t("nav.career"),c:"#d97706"}]:[]),
             ]},
             {title:t("more.utility"),items:[
               {id:"pomo",i:I.play,l:t("tool.pomo"),c:T.green},
@@ -243,7 +246,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
 
 // guest: ログインしていない人。課題・DM（ログイン前提）の代わりに「しらべる」を出す（ログインした人は今のまま）
 const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false,guest=false})=>{
-  const moreViews=["lookup","tasks","dm","friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","languages","admin","acadCal","exams","freeroom","freshman","festival","reg","ttbuild","med-tt","timetable","pocket","takiplaza","gym","tsubame","train","library","pdftools","notes","music","grading","qr","attendance","textbooks","lecrec"];
+  const moreViews=["lookup","career","tasks","dm","friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","languages","admin","acadCal","exams","freeroom","freshman","festival","reg","ttbuild","med-tt","timetable","pocket","takiplaza","gym","tsubame","train","library","pdftools","notes","music","grading","qr","attendance","textbooks","lecrec"];
   const ttId=hasMed?"med-tt":"timetable";
   const tabs=guest
     ?[{id:"home",i:I.home,l:t("nav.home")},{id:ttId,i:I.cal,l:t("nav.timetable")},{id:"lookup",i:I.search,l:t("nav.lookup")},{id:"navigation",i:I.map,l:t("nav.map")},{id:"moreMenu",i:I.more,l:t("nav.more")}]
@@ -262,6 +265,8 @@ const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false,guest=false})=>{
 
 const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false,guest=false})=>{
   const [q,setQ]=useState("");
+  const careerOn=useCareerVisible(isAdmin);
+  const careerItem=careerOn?[{id:"career",i:I.briefcase,l:t("nav.career"),d:t("more.d.career")}]:[];
   // ゲスト用: 目的別に並べ、各機能に一言の説明（d）を付ける。ログインが必要なものは最後にまとめて鍵を付ける（lock）。
   // 機能は消さない（全部ここからたどれる）。
   const guestSections=[
@@ -282,6 +287,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false,g
       {id:"train",i:I.train,l:t("nav.train"),d:t("more.d.train")},
       {id:"gym",i:I.dumbbell,l:t("tool.gym"),d:t("more.d.gym")},
       {id:"events",i:I.event,l:t("tool.events"),d:t("more.d.events")},
+      ...careerItem,
       {id:"festival",i:I.star,l:t("nav.festival"),d:t("more.d.festival")},
       {id:"freshman",i:I.userPlus,l:t("nav.freshman"),d:t("more.d.freshman")},
     ]},
@@ -351,6 +357,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false,g
       {id:"tsubame",i:I.swallow,l:t("tool.tsubame")},
       {id:"train",i:I.train,l:t("nav.train")},
       {id:"library",i:I.tgt,l:t("nav.library")},
+      ...careerItem.map(({d,...n})=>n),
       {id:"festival",i:I.star,l:t("nav.festival")},
       {id:"freshman",i:I.userPlus,l:t("nav.freshman")},
     ]},

@@ -15,6 +15,7 @@ import { SCHOOLS, DEPTS, UNIT_COL } from '../data.js';
 import { PrivacyPolicyView } from './PrivacyPolicyView.jsx';
 import { TermsOfServiceView } from './TermsOfServiceView.jsx';
 import { useAuth, openLogin } from '../authState.js';
+import { useCareerVisible } from '../careerAccess.js';
 
 /* ─── 画像 → 正方形クロップ → data URI ─── */
 const AV_SZ=160;
@@ -126,6 +127,7 @@ const CredForm=({form,setForm,showPw,showTotp,setShowPw,setShowTotp,onSave,savin
 
 /* ─── メイン ─── */
 export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accentPref="default",setAccentPref,langPref="ja",setLangPref,sitelenPref=false,setSitelenPref,asgn,courses=[],user={},notifEnabled,setNotifEnabled,notifSettings,setNotifSettings,onLogout,appLock,blocks=[],unblockUser,mutes=[],unmuteUser,setView})=>{
+  const careerOn=useCareerVisible(user?.isAdmin);
   // ログイン任意化: ゲストには表示設定・所属（端末に保存）・アカウント欄（ログイン）だけを出す。
   // 接続設定・セキュリティ・データ管理・ログアウトはアカウントのときだけ。
   const isAcct=useAuth().status==="account";
@@ -711,7 +713,7 @@ export const ProfileView=({mob,togTheme,dark,themePref="dark",setThemePref,accen
             onClick={()=>setQaOpen(p=>!p)}/>
           {qaOpen&&<div style={{padding:"8px 14px 12px"}}>
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {QA_ALL.filter(q=>isNative()||!(q.id==="portal"||q.id==="isctportal")).map(q=>{
+              {QA_ALL.filter(q=>(isNative()||!(q.id==="portal"||q.id==="isctportal"))&&(q.id!=="career"||careerOn)).map(q=>{
                 const on=qaIds.includes(q.id);
                 const full=!on&&qaIds.length>=4;
                 const portalIcon=<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>;

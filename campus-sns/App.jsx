@@ -60,6 +60,8 @@ import { NavigationView } from "./views/NavigationView.jsx";
 import { FacilityReservationView } from "./views/FacilityReservationView.jsx";
 import { TrainView } from "./views/TrainView.jsx";
 import { LibraryView } from "./views/LibraryView.jsx";
+import { CareerView } from "./views/CareerView.jsx";
+import { setCareerPublic } from "./careerAccess.js";
 import { FriendsView } from "./views/FriendsView.jsx";
 import { UserProfileView } from "./views/UserProfileView.jsx";
 import { CircleView } from "./views/CircleView.jsx";
@@ -203,9 +205,9 @@ export default function App(){
   setLang(langPref);
   updateStatusBarTheme(T.bg2);
   useEffect(()=>{document.documentElement.style.background=T.bg;document.body.style.background=T.bg;},[themeMode,accentPref]);
-  // 深いリンク（#navi / #freshman / #reg / #festival）。以前はその 1 画面だけのゲスト専用シェルだったが、
+  // 深いリンク（#navi / #freshman / #reg / #festival / #career）。以前はその 1 画面だけのゲスト専用シェルだったが、
   // 今は普通のアプリでその画面を開く（ログインしていてもいなくても同じ）。
-  const deepLinkRef=useRef((()=>{if(typeof window==="undefined")return null;const h=window.location.hash;return h==="#freshman"?"freshman":h==="#navi"?"navigation":h==="#reg"?"reg":h==="#festival"?"festival":null;})());
+  const deepLinkRef=useRef((()=>{if(typeof window==="undefined")return null;const h=window.location.hash;return h==="#freshman"?"freshman":h==="#navi"?"navigation":h==="#reg"?"reg":h==="#festival"?"festival":h==="#career"?"career":null;})());
   // ログイン画面（アプリの上に重ねて開く）。{ intent: 使おうとした機能の view ID, returnTo: ログイン後に開く画面 }
   const [loginReq,setLoginReq]=useState(null);
   const loginReqRef=useRef(null);
@@ -671,6 +673,7 @@ export default function App(){
         const tr=d.telecom_restriction||{};
         setTelecomRestricted(!!tr.enabled);
         setTelecomMsg(tr.message||"");
+        setCareerPublic(d.career_public===true);
       }
     }catch{}
   };
@@ -1256,7 +1259,7 @@ export default function App(){
 
   // --- DESKTOP ---
   if(!mob){
-    const titles={home:t("nav.home"),timetable:t("nav.timetable"),tasks:t("header.taskMgmt"),calendar:t("nav.calendar"),acadCal:t("tool.acadCal"),exams:t("tool.exams"),dm:t("common.dm"),notif:t("nav.notif"),grades:t("tool.grades"),pomo:t("tool.pomo"),events:t("tool.events"),reviews:t("tool.reviews"),bmarks:t("tool.bmarks"),search:t("nav.search"),profile:t("nav.profile"),navigation:t("nav.navigation"),friends:t("nav.friends"),circles:t("nav.circles"),languages:t("nav.languages"),admin:t("nav.admin"),freshman:t("nav.freshman"),festival:t("festival.title"),reg:t("more.regAssist"),ttbuild:t("nav.ttbuild"),lookup:t("nav.lookupTitle"),freeroom:t("tool.freeroom"),attendance:t("nav.attendance"),music:t("tool.music"),pdftools:t("nav.pdftools"),notes:t("nav.notes")};
+    const titles={home:t("nav.home"),timetable:t("nav.timetable"),tasks:t("header.taskMgmt"),calendar:t("nav.calendar"),acadCal:t("tool.acadCal"),exams:t("tool.exams"),dm:t("common.dm"),notif:t("nav.notif"),grades:t("tool.grades"),pomo:t("tool.pomo"),events:t("tool.events"),reviews:t("tool.reviews"),bmarks:t("tool.bmarks"),search:t("nav.search"),profile:t("nav.profile"),navigation:t("nav.navigation"),friends:t("nav.friends"),circles:t("nav.circles"),languages:t("nav.languages"),admin:t("nav.admin"),freshman:t("nav.freshman"),festival:t("festival.title"),reg:t("more.regAssist"),ttbuild:t("nav.ttbuild"),lookup:t("nav.lookupTitle"),freeroom:t("tool.freeroom"),attendance:t("nav.attendance"),music:t("tool.music"),pdftools:t("nav.pdftools"),notes:t("nav.notes"),career:t("nav.career")};
     const dTitle=()=>{
       if(view==="course"&&cc) return <><span style={{color:cc.col}}>#{cc.code}</span> {{timeline:t("chan.timeline"),chat:t("chan.chat"),assignments:t("chan.assignments"),materials:t("chan.materials"),reviews:t("chan.reviews")}[ch]}</>;
       if(view==="dept"&&cd){const nameOnly=cd.prefix.startsWith("school:")||cd.prefix.startsWith("unit:")||cd.prefix.startsWith("global:");return <><span style={{color:cd.col}}>{nameOnly?locName(cd):cd.prefix}</span> {nameOnly?"":`${locName(cd)} `}— {{timeline:t("chan.timeline"),chat:t("chan.chat")}[ch]||""}</>;}
@@ -1304,6 +1307,7 @@ export default function App(){
           {view==="tsubame"&&(gated("tsubame")?fg("tsubame"):<TsubameView mob={false}/>)}
           {view==="train"&&(gated("train")?fg("train"):<TrainView mob={false}/>)}
           {view==="library"&&<LibraryView mob={false}/>}
+          {view==="career"&&<CareerView mob={false}/>}
           {view==="circles"&&(gated("circles")?fg("circles"):TR?<TelecomBlockView title={t("telecom.circlesUnavailable")}/>:<CircleView mob={false} circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs}/>)}
           {view==="languages"&&(gated("languages")?fg("languages"):TR?<TelecomBlockView title={t("telecom.languagesUnavailable")}/>:<LanguagesView mob={false}/>)}
           {view==="acadCal"&&<AcademicCalendarView mob={false}/>}
@@ -1374,6 +1378,7 @@ export default function App(){
         {view==="tsubame"&&<><MHdr title={t("tool.tsubame")} back={mBack}/>{gated("tsubame")?fg("tsubame"):<TsubameView mob/>}</>}
         {view==="train"&&<><MHdr title={t("nav.train")} back={mBack}/>{gated("train")?fg("train"):<TrainView mob/>}</>}
         {view==="library"&&<><MHdr title={t("nav.library")} back={mBack}/><LibraryView mob/></>}
+        {view==="career"&&<><MHdr title={t("nav.career")} back={mBack}/><CareerView mob/></>}
         {view==="circles"&&(gated("circles")?<><MHdr title={t("nav.circles")} back={mBack}/>{fg("circles")}</>:TR?<><MHdr title={t("nav.circles")} back={mBack}/><TelecomBlockView title={t("telecom.circlesUnavailable")} onBack={goBack}/></>:<CircleView mob circles={circleList} messages={circleMsgs} discover={circleDiscover} sendMessage={circleSend} createCircle={createCircle} joinCircle={joinCircle} leaveCircle={leaveCircle} addChannel={circleAddCh} deleteChannel={circleDelCh} pinMessage={circlePin} updateCircle={circleUpdate} fetchMessages={circleFetchMsgs} onBack={mBack}/>)}
         {view==="languages"&&(gated("languages")?<><MHdr title={t("nav.languages")} back={mBack}/>{fg("languages")}</>:TR?<><MHdr title={t("nav.languages")} back={mBack}/><TelecomBlockView title={t("telecom.languagesUnavailable")} onBack={goBack}/></>:<LanguagesView mob onBack={mBack}/>)}
         {view==="acadCal"&&<AcademicCalendarView mob/>}

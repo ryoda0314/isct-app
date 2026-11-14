@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { requireSession } from '../../../lib/auth/require-auth.js';
 import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
-const VALID_REASONS = ['spam', 'harassment', 'inappropriate', 'copyright', 'other'];
-const VALID_TARGETS = ['post', 'comment', 'message', 'dm', 'user', 'circle', 'festival_booth'];
+// inaccurate = 内容の誤り・募集の終了（キャリアの掲載。職業安定法の「正確・最新」と苦情窓口のため）
+const VALID_REASONS = ['spam', 'harassment', 'inappropriate', 'copyright', 'inaccurate', 'other'];
+const VALID_TARGETS = ['post', 'comment', 'message', 'dm', 'user', 'circle', 'festival_booth', 'career'];
 
 // POST /api/reports — ユーザーが通報を送信
 export async function POST(request) {
