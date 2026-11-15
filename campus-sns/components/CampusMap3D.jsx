@@ -1331,7 +1331,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     }
     mk.current.rooms = rooms;
     // 階を切り取って見ているあいだは、階のある建物の屋上の名前を隠す（建物を描いていないので）
-    const hosts = new Set(detailOn && viewLevel !== "all" && !walking ? view.filter((f) => f.type === "floor").map((f) => f.host) : []);
+    const hosts = new Set(detailOn && viewLevel !== "all" && !walking ? view.filter((f) => f.type === "floor").flatMap((f) => (f.hosts?.length ? [f.host, ...f.hosts] : [f.host])) : []);
     const rep = hosts.size ? replacedRef.current || replacedBuildings(features, data.buildings) : null;
     mk.current.labels.forEach(({ node, l }) => node.classList.toggle("cb-hostcut", !!rep && hosts.has(rep.get(l.i)?.id)));
     mk.current.relayout?.();

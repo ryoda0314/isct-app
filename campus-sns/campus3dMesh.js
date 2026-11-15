@@ -2,7 +2,7 @@
 // 位置はメルカトル座標の「キャンパスの中心からの差 × MERC_SCALE」と標高(m)。float32 でも桁が落ちないように中心からの差で持つ
 import earcut from "earcut";
 import { CAMPUS_CENTER } from "./hooks/useLocationSharing.js";
-import { BOARD_BASE_DROP, BOARD_T, DECK_FASCIA, DECK_POST, WALL_CAP, WALL_IN, WALL_T, basementRegions, buildingOpenings, clearGlassFace, cumulative, inBasement, curbWidth, overLids, railGround, signFrame, buildingRoof, buildingSoffit, roofSlab, clipHalf, offsetRingBy, densify, edgeOpen, isOpenStairs, lerpAlong, offsetLine, pointInRing, ringArea, roofPieces, roofRisers, shellGeom, stairSteps, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexElevations } from "./campus3dFeatures.js";
+import { BOARD_BASE_DROP, BOARD_T, DECK_FASCIA, DECK_POST, WALL_CAP, WALL_IN, WALL_T, basementRegions, buildingOpenings, clearGlassFace, floorHosts, cumulative, inBasement, curbWidth, overLids, railGround, signFrame, buildingRoof, buildingSoffit, roofSlab, clipHalf, offsetRingBy, densify, edgeOpen, isOpenStairs, lerpAlong, offsetLine, pointInRing, ringArea, roofPieces, roofRisers, shellGeom, stairSteps, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexElevations } from "./campus3dFeatures.js";
 import { SURFACE_KINDS, SURFACE_ORDER } from "./campus3dPaint.js";
 import { addDigBand, addFloor, addRoofCeiling, addRoofSlabTop, addTrack, cutFloorRegions, floorG0, roofCeilAt, roofCeiling, roofWallAt } from "./campus3dInterior.js";
 import { iconCells, textCells } from "./campus3dSignText.js";
@@ -59,6 +59,7 @@ const COLORS = {
     concrete: "#a9a8a3", // 打ち放しのコンクリート
     glazed: "#e2e0da", glazedGray: "#8f918f", // 白い施釉れんが（附属図書館の東の箱・ねじれた面）と、まざる灰色のれんが
     soffitWood: "#f4d3a2", // 薄い屋根の裏の木の板（正門わきのガラスの建物。下向きで光が当たらないぶん明るめ）
+    soffitWhite: "#efeee9", // 白い天井のひさしの裏（西5号館の 2 階の通路の上。下向きで光が当たらないぶん明るめ）
     shrub1: "#6f8f45", shrub2: "#8fa552", shrub3: "#55743a", shrub4: "#8a6a4a", // 植え込みの低木（shrubs）：黄緑・明るい緑・濃い緑・赤み
     // 格子のスクリーン（trellis）の鋼・プランター・つる草（3 色）、看板の印（マクドナルドの黄・東急の赤）
     trellis: "#5d6268", planter: "#8e8f8a", vine1: "#5e7c38", vine2: "#7a9142", vine3: "#a7a04a", mcdYellow: "#ffbc0d", tokyuRed: "#e84a2e",
@@ -80,6 +81,7 @@ const COLORS = {
     tile: "#e6e1d5", // クリーム色がかった白いタイル張りの壁（本館）
     terracotta: "#b06c4a", // 赤茶の塗り壁（地球生命研究所棟の南の小屋）
     redBrick: "#86503f", // 赤れんがの板（panels の brick。70周年記念講堂の入口のわき）
+    bridgeTile: "#9a5f4e", // 橋の赤茶の床タイル（surface "redtile"。西3号館の 3 階の玄関へ渡る橋）
   },
   dark: {
     wall: "#353d47", deckSide: "#2c333c", railing: "#4a5460", pier: "#2a3139", ceiling: "#20252c", stairs: "#3b424c", bridgeDeck: "#44423d",
@@ -94,7 +96,7 @@ const COLORS = {
     dome: "#59616b",
     signalPole: "#2a2826", signalBox: "#1b1d20", signalOff: "#24272a", lampRed: "#ff4a36", lampGreen: "#23f0a0", rail: "#5a6168", letter: "#6c737b",
     solar: "#151a24", solarLine: "#2c333d", parapet: "#4a525c", fin: "#4b535d", member: "#5d656f", glassRail: "#3d4e57", fritWhite: "#9a8c70",
-    darkBrick: "#2a2320", stone: "#4f4c46", greenWall: "#1d2a18", redPanel: "#5a1f1b", concrete: "#3f4043", glazed: "#4a4d52", glazedGray: "#303236", soffitWood: "#4a3a2a",
+    darkBrick: "#2a2320", stone: "#4f4c46", greenWall: "#1d2a18", redPanel: "#5a1f1b", concrete: "#3f4043", glazed: "#4a4d52", glazedGray: "#303236", soffitWood: "#4a3a2a", soffitWhite: "#c9c7bf",
     shrub1: "#1e2a18", shrub2: "#26301b", shrub3: "#18231a", shrub4: "#2a221b",
     trellis: "#26292c", planter: "#323331", vine1: "#1d2814", vine2: "#253019", vine3: "#33321a", mcdYellow: "#6b5208", tokyuRed: "#5c1f15",
     signFace: "#4a5159", signSide: "#353b42", signText: "#15181b", plateFace: "#5a6168", plateText: "#454b52", signDark: "#101113",
@@ -108,6 +110,7 @@ const COLORS = {
     chainFrame: "#454b51", chainWire: "#50565c", meshFrame: "#2a2f35", meshWire: "#30353b",
     creamFace: "#5a5446", creamSide: "#403b30",
     granite: "#403d3d", graniteDark: "#2d2a29", redBrick: "#3a241e", tile: "#4d4b46", terracotta: "#40281d",
+    bridgeTile: "#3b2924",
   },
 };
 
@@ -1634,7 +1637,7 @@ function addBridge(m, f, groundAt, pal, cols, tint) {
   const deck = s.map((v) => lerpAlong(cum, elev, v));
   const hw = f.width / 2;
   // 木の床（deck）は路面の「木の床」と同じ色（まわりの地面に貼った木の床と続く）
-  const surface = tint(rgba(f.surface === "rail" ? pal.rail : f.surface === "street" ? pal.street : f.surface === "deck" ? cols.bridgeDeck : pal.walk));
+  const surface = tint(rgba(f.surface === "rail" ? pal.rail : f.surface === "street" ? pal.street : f.surface === "deck" ? cols.bridgeDeck : f.surface === "redtile" ? cols.bridgeTile : pal.walk));
   const side = tint(rgba(cols.deckSide));
   m.prism(offsetLine(pts, hw), offsetLine(pts, -hw), deck.map((v) => v - f.thickness), deck, { top: surface, side, bottom: side }, { bottom: true });
   if (f.railing) {
@@ -2421,12 +2424,14 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
     return { ...cv, ring: cr, inside, open, ...sf };
   }).filter(Boolean);
   const carveAt = (p) => carves.find((cv) => pointInRing(p[0], p[1], cv.ring)) || null;
-  // 中の見える建物（look.pane）：ガラスの窓・ガラス戸のところは壁に穴をあける（ガラスは半透明で重ねる）
-  if (look?.pane && f.windows?.length) {
+  // 中の見える建物（look.pane）：ガラスの窓・ガラス戸のところは壁に穴をあける（ガラスは半透明で重ねる）。
+  // 奥まった窓（recess。2026-11-15 西3号館）は中が見えなくても穴をあける（ガラスと枠は面の奥、口のまわりに見込みと窓台：addWindow）
+  const recessed = (w) => w.recess > 0 && w.top2 == null && !w.round;
+  if ((look?.pane || f.windows?.some(recessed)) && f.windows?.length) {
     const hosts = wallHosts(ring, carves);
     const holes = [];
     for (const w of f.windows) {
-      if (!SEE_THROUGH_WIN.has(w.kind || "glass") || (w.top2 != null && w.kind !== "opening") || w.round) continue;
+      if (!recessed(w) && (!look?.pane || !SEE_THROUGH_WIN.has(w.kind || "glass") || (w.top2 != null && w.kind !== "opening") || w.round)) continue;
       const q = w.coords.map(toXY);
       const h = hostOf(hosts, q);
       if (!h) continue;
@@ -2889,6 +2894,9 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
     const uy = (q[1] - p[1]) / L;
     const o = [n[0] * JOINT_OFF, n[1] * JOINT_OFF];
     const at = (t) => [p[0] + (q[0] - p[0]) * t + o[0], p[1] + (q[1] - p[1]) * t + o[1]];
+    // 壁の下の端（宙に浮いた建物は下の面。2026-11-15 西9号館：base の建物で目地が地面まで格子のように下りていた）
+    const wbp = bAt(p);
+    const wbq = bAt(q);
     if (edge.len >= jt[0]) {
       const K = Math.max(1, Math.round(edge.len / jt[0]));
       for (let j = 1; j < K; j++) {
@@ -2899,11 +2907,13 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
         const a = [cpt[0] - (ux * JOINT_W) / 2, cpt[1] - (uy * JOINT_W) / 2];
         const b = [cpt[0] + (ux * JOINT_W) / 2, cpt[1] + (uy * JOINT_W) / 2];
         const top = g0 + hp + (hq - hp) * t;
-        m.quad([[a, bot], [b, bot], [b, top], [a, top]], n, jointCol);
+        const jb = Math.max(bot, wbp + (wbq - wbp) * t);
+        if (top > jb) m.quad([[a, jb], [b, jb], [b, top], [a, top]], n, jointCol);
       }
     }
     const zb = jt[2] || 0;
     for (let z = zb + Math.ceil((0.1 - zb) / jt[1]) * jt[1]; z < Math.max(hp, hq) - 0.1; z += jt[1]) {
+      if (g0 + z < Math.max(wbp, wbq) + 0.05) continue; // 壁の下の端より下（浮いた建物の下）には描かない
       // 壁の上の端（hp → hq）が目地より上のところだけ
       let t0 = 0;
       let t1 = 1;
@@ -2983,7 +2993,13 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
       }
       const hq = tilt ? Math.max(0, tilt.zAt(q)) : flatTops ? hp : hAt(q);
       if (hp <= ROOF_MIN && hq <= ROOF_MIN) continue;
-      const uf = underFrom(mid, n);
+      let uf = underFrom(mid, n);
+      // となりの殻の中（同じ階の部品）：となりの屋根の高さまでは描かない（それより上だけ。全部かくれるなら描かない）
+      const pz = look?.peer ? look.peer(mid, n) : null;
+      if (pz != null) {
+        if (pz >= Math.max(hp, hq) - 0.01) continue;
+        uf = [Math.max(pz, uf ? uf[0] : -Infinity), Math.max(pz, uf ? uf[1] : -Infinity)];
+      }
       const cv = carveAt(mid);
       const edgeI = { len: l, s0: ks[k] * l, i };
       if (!cv) {
@@ -3264,7 +3280,7 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
       const h = hostOf(hosts, q);
       if (!h) continue;
       if (w.top2 == null) {
-        (w.round ? addRoundWindow : addWindow)(m, w, h, g0, look);
+        (w.round ? addRoundWindow : addWindow)(m, w, h, g0, w.recess > 0 && !w.round ? { ...look, wallC: c } : look);
         continue;
       }
       // 斜めの上の端：1 点目で top・2 点目で top2。壁の向き（a → b）が点の順と逆なら入れかえる。口だけ（opening）は描かない
@@ -3295,7 +3311,7 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
   if (look) for (const v of f.vaults || []) addVault(m, v, g0, { ...look, vaultTop: c, vaultEnd: c });
   // 宙に浮いた建物の下の面（船底の形なら面ごと。下向き）。光が当たらないので暗く（soffit "wood" は木の色）。パネルの目地（soffitJoints）は面のすぐ下の細い帯
   if (soff) {
-    const sc = f.soffit === "wood" && look ? look.soffitWood : [c[0] * 0.68, c[1] * 0.69, c[2] * 0.71, c[3]];
+    const sc = f.soffit === "wood" && look ? look.soffitWood : f.soffit === "white" && look ? look.soffitWhite : [c[0] * 0.68, c[1] * 0.69, c[2] * 0.71, c[3]];
     const jc = [sc[0] * 0.6, sc[1] * 0.6, sc[2] * 0.6, sc[3]];
     // 穴（look.soffitTop：中の見える浮いた建物の階段の吹き抜け・エレベーター）は下の面にもあける。目地の帯も穴の中は描かない
     const sHoles = (look?.soffitTop || []).filter((h) => h.length >= 3);
@@ -3396,7 +3412,7 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
   // 白い鋼の柱・梁（members。kind "dark" は暗い鋼）：点の並びに沿った角材
   if (look) for (const mb of f.members || []) {
     const P = mb.coords.map(toXY);
-    for (let k = 0; k + 1 < P.length; k++) addBeam(m, [P[k], g0 + mb.zs[k]], [P[k + 1], g0 + mb.zs[k + 1]], mb.size, mb.kind === "dark" ? look.canopy : look.member);
+    for (let k = 0; k + 1 < P.length; k++) addBeam(m, [P[k], g0 + mb.zs[k]], [P[k + 1], g0 + mb.zs[k + 1]], mb.size, mb.kind === "dark" ? look.canopy : mb.kind === "indoor" ? look.memberIndoor : look.member);
   }
   if (look) for (const p of f.panels || []) addPanel(m, p, g0, look, c);
   // ねじれた面（白い施釉れんが）
@@ -3543,9 +3559,12 @@ const WIN_DEPTH = 0.04; // 枠の出（面から）
 function addWindow(m, w, host, g0, look) {
   const { a, u, n, L } = host;
   const N = [n[0], n[1], 0];
-  const at = (s, d) => [a[0] + u[0] * s + n[0] * d, a[1] + u[1] * s + n[1] * d];
+  // 奥まった窓（recess m。西3号館）：ガラス・枠・桟・扉の板は面から recess m 奥に。口のまわりの見込みと窓台は addReveal（壁の色 look.wallC）
+  const rc = w.recess > 0 ? w.recess : 0;
+  const at = (s, d) => [a[0] + u[0] * s + n[0] * (d - rc), a[1] + u[1] * s + n[1] * (d - rc)];
   const z0 = g0 + w.bottom;
   const z1 = g0 + w.top;
+  if (rc && look.wallC) addReveal(m, host, z0, z1, rc, w.sill || 0, look.wallC);
   const rect = (s0, s1, b, t, d, cs, into = m) => {
     const A = at(s0, d);
     const B = at(s1, d);
@@ -3628,6 +3647,25 @@ function addWindow(m, w, host, g0, look) {
   for (const r of w.rows || []) bar(0, L, g0 + r - fr / 2, g0 + r + fr / 2, frameCol);
   // ガラスの扉の取っ手（横の棒）
   if (kind === "glassdoor") bar(fr, L - fr, z0 + 1.0, z0 + 1.04, frameCol, 0.07);
+}
+
+// 奥まった窓の口のまわり（壁に穴をあけたところ）：両わきの見込み（口の中を向く）・上の見込み（下向き）・窓台（上向き。面から so m 出し、
+// 出たぶんの小口と下の面も）。色は壁の色（横向きの面・上向きの面は光の当たり方で明るさが変わる）
+function addReveal(m, host, z0, z1, rc, so, col) {
+  const { a, u, n, L } = host;
+  const P = (s, d) => [a[0] + u[0] * s + n[0] * d, a[1] + u[1] * s + n[1] * d];
+  const c4 = [col, col, col, col];
+  m.quadColors([[P(0, 0), z0], [P(0, -rc), z0], [P(0, -rc), z1], [P(0, 0), z1]], [u[0], u[1], 0], c4);
+  m.quadColors([[P(L, -rc), z0], [P(L, 0), z0], [P(L, 0), z1], [P(L, -rc), z1]], [-u[0], -u[1], 0], c4);
+  m.quadColors([[P(0, 0), z1], [P(0, -rc), z1], [P(L, -rc), z1], [P(L, 0), z1]], [0, 0, -1], c4);
+  m.quadColors([[P(0, so), z0], [P(L, so), z0], [P(L, -rc), z0], [P(0, -rc), z0]], [0, 0, 1], c4);
+  if (so > 0) {
+    const zb = z0 - 0.06;
+    m.quadColors([[P(0, so), zb], [P(L, so), zb], [P(L, so), z0], [P(0, so), z0]], [n[0], n[1], 0], c4);
+    m.quadColors([[P(0, 0), zb], [P(0, so), zb], [P(0, so), z0], [P(0, 0), z0]], [-u[0], -u[1], 0], c4);
+    m.quadColors([[P(L, so), zb], [P(L, 0), zb], [P(L, 0), z0], [P(L, so), z0]], [u[0], u[1], 0], c4);
+    m.quadColors([[P(0, so), zb], [P(0, 0), zb], [P(L, 0), zb], [P(L, so), zb]], [0, 0, -1], c4);
+  }
 }
 
 // 丸窓（round）：両端の 2 点と bottom・top の四角に内接する円。ガラス（下は暗く上は明るい）の円と、輪の枠（前の面・内と外の見込み）
@@ -4039,6 +4077,74 @@ function indoorMesh(m) {
 
 // digs は詳細モードで地下の階の下を掘ったもの（dem.digs）
 export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceilings = [], digs = [], pal, dark, selectedId = null, accent = "#28c868", bldColor = null, clip = null, tone = null, trees = true }) {
+  // いくつもの建物にまたがる階（hostRefs。2026-11-15 本館）の殻どうしが接する面：外がとなりの殻の中なら、となりの屋根の高さまでは
+  // 描かない（中から見ると、部品の境の面が建物の中に壁のように立っていた）。shellPeer(f)(mid, n)：その面を描きはじめる高さ（g0 から m）か null
+  const peerOf = new Map();
+  for (const fl of features) {
+    if (fl.type !== "floor" || !(fl.hostRefs?.length > 1)) continue;
+    for (const h of fl.hostRefs) {
+      if (!peerOf.has(h.id)) peerOf.set(h.id, new Map());
+      for (const o of fl.hostRefs) if (o.id !== h.id) peerOf.get(h.id).set(o.id, o);
+    }
+  }
+  const peerRing = new Map();
+  // 殻の屋根の上に別の建物の階の床がのるところ（西5号館：1 階の殻の屋根 33.3 の上に 2 階の床、2 階の殻の屋根 38.3 の上に 3 階の床。2026-11-15）：
+  // [{ ring, zb（その床の下の面の標高） }]。その殻の屋根の下の天井は描かず、殻の階の壁・物は屋根の下の天井でなくその床の下の面で切る
+  // （階段室で殻の天井が 2 階から 3 階への階段を横切っていた）。歩く当たり（campus3dWalk の sitOn）と同じ決まり：床の形の点のどれかが殻の中で、
+  // そこの屋根と床の下の面が 0.1m 以内
+  const sitOnMemo = new Map();
+  const sitOnRings = (h) => {
+    if (sitOnMemo.has(h.id)) return sitOnMemo.get(h.id);
+    const out = [];
+    const ring = (h.coords || []).map(toXY);
+    const g0 = ring.length > 2 ? groundAt(h.groundRef || toLngLat(ring.reduce((a, p) => [a[0] + p[0] / ring.length, a[1] + p[1] / ring.length], [0, 0]))) : NaN;
+    if (Number.isFinite(g0)) {
+      const roof = buildingRoof(h);
+      for (const fl of features) {
+        if (fl.type !== "floor" || !fl.host || !(fl.coords?.length > 2) || floorHosts(fl).includes(h.id)) continue;
+        const g = floorG0(fl, groundAt);
+        if (!Number.isFinite(g)) continue;
+        const r = fl.coords.map(toXY);
+        const zb = g + fl.z - fl.slab;
+        if (r.some((p) => pointInRing(p[0], p[1], ring) && Math.abs(zb - (g0 + roof.hAt(p))) < 0.1)) out.push({ ring: r, zb });
+      }
+    }
+    sitOnMemo.set(h.id, out);
+    return out;
+  };
+  // その殻の中のいちばん上の階の天井の標高（天井がなければ床から 3m）
+  const shellTopCeil = (f) => {
+    let top = -Infinity;
+    for (const fl of features) {
+      if (fl.type !== "floor" || !fl.host || !floorHosts(fl).includes(f.id)) continue;
+      const g = floorG0(fl, groundAt);
+      if (Number.isFinite(g)) top = Math.max(top, g + fl.z + (fl.ceiling?.z ?? 3));
+    }
+    return top;
+  };
+  const shellPeer = (f) => {
+    const peers = peerOf.get(f.id);
+    if (!peers?.size) return null;
+    const g0 = groundAt(f.groundRef || toLngLat(f.coords.map(toXY)[0]));
+    const list = [...peers.values()].map((o) => {
+      if (!peerRing.has(o.id)) {
+        const ring = o.coords.map(toXY);
+        const go = groundAt(o.groundRef || toLngLat(ring[0]));
+        peerRing.set(o.id, { ring, box: ring.reduce((b, p) => [Math.min(b[0], p[0]), Math.min(b[1], p[1]), Math.max(b[2], p[0]), Math.max(b[3], p[1])], [Infinity, Infinity, -Infinity, -Infinity]), roof: buildingRoof(o), go });
+      }
+      return peerRing.get(o.id);
+    });
+    return (mid, n) => {
+      const o = [mid[0] + n[0] * 0.05, mid[1] + n[1] * 0.05];
+      let top = null;
+      for (const pr of list) {
+        if (o[0] < pr.box[0] || o[0] > pr.box[2] || o[1] < pr.box[1] || o[1] > pr.box[3] || !pointInRing(o[0], o[1], pr.ring)) continue;
+        const z = pr.go + pr.roof.hAt(o) - g0;
+        if (Number.isFinite(z) && (top == null || z > top)) top = z;
+      }
+      return top;
+    };
+  };
   autoDoors = [];
   autoPsd = [];
   autoEsc = [];
@@ -4106,10 +4212,11 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
         steelHi: tintB(rgba(colsB.steelHi)), steelLo: tintB(rgba(colsB.steelLo)), steelLine: tintB(rgba(colsB.steelLine)), frameSteel: tintB(rgba(colsB.frameSteel)), grating: tintB(rgba(colsB.grating)),
         perforated: tintB(rgba(colsB.perforated)), dome: tintB(rgba(colsB.dome)), domeCurb: c, letter: tintB(rgba(colsB.letter)),
         solar: tintB(rgba(colsB.solar)), solarLine: tintB(rgba(colsB.solarLine)), parapet: tintB(rgba(colsB.parapet)), fin: tintB(rgba(colsB.fin)), member: tintB(rgba(colsB.member)),
+        memberIndoor: (() => { const t = tint(rgba(COLORS.light.member)); return [t[0], t[1], t[2], 0.5]; })(), // 屋内の白い鋼（明かりの中：昼の色のまま光を受けない。西5号館の食堂の斜めの柱）
         redPanel: tintB(rgba(colsB.redPanel)), redBrick: tintB(rgba(colsB.redBrick)), graniteDark: tintB(rgba(colsB.graniteDark)),
         frost: [tintB(rgba(colsB.frostLo)), tintB(rgba(colsB.frostHi))],
         trellis: tintB(rgba(colsB.trellis)), planter: tintB(rgba(colsB.planter)), vine: [tintB(rgba(colsB.vine1)), tintB(rgba(colsB.vine2)), tintB(rgba(colsB.vine3))],
-        glazed: tintB(rgba(colsB.glazed)), glazedGray: tintB(rgba(colsB.glazedGray)), soffitWood: tintB(rgba(colsB.soffitWood)),
+        glazed: tintB(rgba(colsB.glazed)), glazedGray: tintB(rgba(colsB.glazedGray)), soffitWood: tintB(rgba(colsB.soffitWood)), soffitWhite: (() => { const sw = tintB(rgba(colsB.soffitWhite)); return [sw[0], sw[1], sw[2], 0.5]; })(), // 白い天井：光を受けない色（アルファ 0.5。下向きで暗くならない・夜はダウンライトで明るい）
         inner: f.inner ? tintB(rgba(colsB[MATERIAL_COLOR[f.inner]])) : null, // くり抜き（lit）の中の壁・天井の色
         screen, // 穴あきの金属板（panels の perforated）は半透明で重ねる（向こうが透けて見える）
         glassy, clear: tintB(rgba(colsB.clearGlass)), // 透明なガラスの板（panels の clear）：ガラスの手すりと同じく半透明で重ねる
@@ -4117,12 +4224,12 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
       // 屋内に置いた小さなもの（indoor）：面の向きを上へ寄せて描く（照明のある屋内で、外の光の陰にしない）。
       // 詳細モードで歩いて見るときの殻（detailShell）は、中から見えない段に描き、屋根の下に天井と梁
       if (f.detailShell) {
-        const under = basementRegions(features.filter((x) => x.host === f.id));
+        const under = basementRegions(features.filter((x) => x.type === "floor" && x.host && floorHosts(x).includes(f.id)));
         // 浮いた建物（base）：下の面（上向き・下向きとも）に開ける穴＝船底の下の階の天井の穴（階段の吹き抜け・エレベーター）と、base より上の
         // いちばん低い階の床の穴（2026-11-14 ユーザーの目印「ふさがってるよ」：1 階から 2 階への階段の上を船底の下の面がふさいでいた）
         let soffitTop = null;
         if (f.base > 0) {
-          const fls = features.filter((x) => x.type === "floor" && x.host === f.id);
+          const fls = features.filter((x) => x.type === "floor" && x.host && floorHosts(x).includes(f.id));
           const lowest = fls.filter((x) => x.z >= f.base - 0.01).sort((a, b) => a.z - b.z)[0];
           const below = fls.filter((x) => x.ceiling && x.z < f.base - 0.01);
           soffitTop = [
@@ -4130,8 +4237,10 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
             ...below.flatMap((x) => [...(x.holes || []).filter((h) => h.ceil !== false), ...(x.ceiling.holes || [])].map((h) => (h.coords || []).map(toXY))),
           ];
         }
-        addBuilding(cull, { ...f, carves: buildingOpenings(f, features) }, groundAt, c, clip, { ...look, pane: glassy, under, soffitTop });
-        addRoofCeiling(cull, f, groundAt, tint, shellCeiling(f, features, groundAt));
+        addBuilding(cull, { ...f, carves: buildingOpenings(f, features) }, groundAt, c, clip, { ...look, pane: glassy, under, soffitTop, peer: shellPeer(f) });
+        // いくつもの建物にまたがる階の殻（本館）で、いちばん上の階の天井が屋根の 4m 内なら、屋根の下の天井は描かない（階の天井に隠れて
+        // 見えない。三角形が増えるだけ。2026-11-15）
+        if (!(peerOf.get(f.id)?.size && shellTopCeil(f) > groundAt(f.groundRef || toLngLat(f.coords.map(toXY)[0])) + buildingRoof(f).hAt(f.coords.map(toXY)[0]) - 4)) addRoofCeiling(cull, f, groundAt, tint, { ...shellCeiling(f, features, groundAt), skip: sitOnRings(f).map((o) => o.ring) });
       } else {
         // 地下の階（掘らない地下の階も）の上の壁は、外の地面の 0.3m 下から（1m 下まで下ろすと、附属図書館 1 階のロビーの壁が地下 1 階の
         // 天井の下へ板のように出ていた。2026-11-13。中の見える殻の under と同じ決まり）
@@ -4273,7 +4382,26 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     const tint = f.id === selectedId ? (c) => mix(c, acc, 0.45) : (c) => c;
     const host = f.hostRef || null;
     const g0 = floorG0(f, groundAt);
-    addFloor({ m, glassy, veil, cull }, f, { groundAt, tint, paintAt, ceilAt: host ? roofWallAt(host, groundAt) : null, cutTop: f.cut && Number.isFinite(g0) ? g0 + f.z + f.height - f.slab + 0.05 : Infinity, glazed, doors: autoDoors, psd: autoPsd, esc: autoEsc, clocks: autoClocks, text: FLOOR_TEXT, ...(plenum.get(f.id) || {}) });
+    // いくつもの建物にまたがる階（hostRefs。本館）：点の上の屋根の下の天井は、その点を含む建物から（どれにも入らなければ host）
+    let ceilAt = host ? roofWallAt(host, groundAt) : null;
+    if (f.hostRefs?.length > 1) {
+      const per = f.hostRefs.map((h) => ({ ring: h.coords.map(toXY), at: roofWallAt(h, groundAt) }));
+      const dflt = ceilAt;
+      ceilAt = (q) => {
+        for (const h of per) if (pointInRing(q[0], q[1], h.ring)) return h.at(q);
+        return dflt ? dflt(q) : Infinity;
+      };
+    }
+    // 殻の屋根の上に別の建物の階の床がのるところは、その床の下の面まで（sitOnRings。西5号館の階段室の壁）
+    const sitOn = host && ceilAt ? sitOnRings(host) : [];
+    if (sitOn.length) {
+      const below = ceilAt;
+      ceilAt = (q) => {
+        for (const o of sitOn) if (pointInRing(q[0], q[1], o.ring)) return o.zb;
+        return below(q);
+      };
+    }
+    addFloor({ m, glassy, veil, cull }, f, { groundAt, tint, paintAt, ceilAt, cutTop: f.cut && Number.isFinite(g0) ? g0 + f.z + f.height - f.slab + 0.05 : Infinity, glazed, doors: autoDoors, psd: autoPsd, esc: autoEsc, clocks: autoClocks, text: FLOOR_TEXT, ...(plenum.get(f.id) || {}) });
   });
   // 掘らない地下の階に面したふちの帯は、その床から PASS_CLEAR m より上だけ（連絡通路の口。歩く当たり campus3dWalk と同じ形）
   const cutFloors = cutFloorRegions(features, groundAt);
@@ -4299,7 +4427,7 @@ function shellCeiling(h, features, groundAt) {
   const cols = [];
   const slabs = [];
   for (const fl of features) {
-    if (fl.type !== "floor" || fl.host !== h.id) continue;
+    if (fl.type !== "floor" || !fl.host || !floorHosts(fl).includes(h.id)) continue;
     const g = floorG0(fl, groundAt);
     if (!Number.isFinite(g)) continue;
     slabs.push({ ring: fl.coords.map(toXY), z: g + fl.z });

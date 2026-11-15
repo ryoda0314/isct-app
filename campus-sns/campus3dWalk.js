@@ -7,7 +7,7 @@
 // ここは位置・速さ・向きの計算と、目の位置から MapLibre のカメラ（中心・ズーム・中心の標高）を出す計算。DOM も MapLibre も使わない
 import { BOARD_T, STAIRS_CLEAR, WALL_IN, WALL_T, basementRegions, buildingOpenings, buildingRoof, buildingSoffit, clearGlassFace, cumulative, densify, edgeOpen, inBasement, isOpenStairs, curbWidth, offsetLine, overLids, panelSlices, pointInRing, prepareBridge, railGround, signFrame, ringArea, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexShifts, vertexWidths, withAutoOpenStairs } from "./campus3dFeatures.js";
 import { carveSurfaces, reachOut, trunkRadius } from "./campus3dMesh.js";
-import { cutFloorRegions, digWalk, floorWalk } from "./campus3dInterior.js";
+import { cutFloorRegions, digWalk, floorG0, floorWalk } from "./campus3dInterior.js";
 
 const DEG = Math.PI / 180;
 export const EYE = 1.62; // 目の高さ（m。Minecraft と同じ）
@@ -131,7 +131,11 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
           const q = [a[0] + ((b[0] - a[0]) * (k + 1)) / n, a[1] + ((b[1] - a[1]) * (k + 1)) / n];
           const m = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
           // 立体の側へ少し入ったところの区間
-          const s = inside(m[0] + nx * 0.05, m[1] + ny * 0.05) ? [m[0] + nx * 0.05, m[1] + ny * 0.05] : [m[0] - nx * 0.05, m[1] - ny * 0.05];
+          const pIn = inside(m[0] + nx * 0.05, m[1] + ny * 0.05);
+          // ふちの両側とも立体の外（穴が外の輪の外まで出ているところ・穴の中を通る外の輪）：当たりにしない（2026-11-15 本館の正面の入口：
+          // 1 階の床の口のふちが、床のない扉の前をふさいでいた）
+          if (!pIn && !inside(m[0] - nx * 0.05, m[1] - ny * 0.05)) continue;
+          const s = pIn ? [m[0] + nx * 0.05, m[1] + ny * 0.05] : [m[0] - nx * 0.05, m[1] - ny * 0.05];
           addEdge(p, q, BODY, spans(s[0], s[1]), solid);
         }
       }
@@ -208,11 +212,20 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
       // 宙に浮いた建物（base）は、下の面（船底）より上だけ。詳細モードで歩いて見るときの殻（detailShell）は屋根の厚さだけ
       // （中は階の床・壁で歩く。くり抜き＝テラスは床の厚さ）
       const soff = buildingSoffit(f, ring);
+      // 殻の屋根の上に別の建物の階の床がのるところ（西5号館：1 階の殻の屋根 33.3 の上に 2 階の床、2 階の殻の屋根 38.3 の上に 3 階の床）は、
+      // 殻の屋根の厚さ（0.6m）の当たりをやめて、その階の床（穴は抜ける）にまかせる。階段室の階段で頭が殻の屋根の厚さにぶつかり、上の階へ
+      // 上れなかった（2026-11-15、西5号館の階段室）
+      const fbox = boxOf(ring);
+      const sitOn = f.detailShell ? features.filter((F2) => F2.type === "floor" && F2.host && F2.coords?.length > 2 && !(F2.hosts?.length ? [F2.host, ...F2.hosts] : [F2.host]).includes(f.id)).map((F2) => {
+        const g2 = floorG0(F2, groundAt);
+        const r2 = F2.coords.map(toXY);
+        return Number.isFinite(g2) ? { zb: g2 + F2.z - F2.slab, ring: r2, box: boxOf(r2) } : null;
+      }).filter((o) => o && o.box[0] <= fbox[2] && o.box[2] >= fbox[0] && o.box[1] <= fbox[3] && o.box[3] >= fbox[1]) : [];
       const spans = (x, y) => {
         const roof = g0 + hAt([x, y]);
         const c = carves.find((cv) => pointInRing(x, y, cv.ring));
         if (f.detailShell) {
-          if (!c) return [[roof - (roofOf.boards.list.length ? 1.4 : 0.6), roof]];
+          if (!c) return sitOn.some((o) => Math.abs(o.zb - roof) < 0.1 && pointInRing(x, y, o.ring)) ? [] : [[roof - (roofOf.boards.list.length ? 1.4 : 0.6), roof]];
           const fl = g0 + Math.max(0, c.floorAt([x, y]));
           return fl > g0 + 0.3 ? [[fl - 0.35, fl]] : [];
         }
