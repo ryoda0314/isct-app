@@ -2,7 +2,7 @@
 // 位置はメルカトル座標の「キャンパスの中心からの差 × MERC_SCALE」と標高(m)。float32 でも桁が落ちないように中心からの差で持つ
 import earcut from "earcut";
 import { CAMPUS_CENTER } from "./hooks/useLocationSharing.js";
-import { BOARD_BASE_DROP, BOARD_T, DECK_FASCIA, DECK_POST, WALL_CAP, WALL_IN, WALL_T, basementRegions, buildingOpenings, clearGlassFace, floorHosts, cumulative, inBasement, curbWidth, overLids, railGround, signFrame, buildingRoof, buildingSoffit, roofSlab, clipHalf, offsetRingBy, densify, edgeOpen, isOpenStairs, lerpAlong, offsetLine, pointInRing, ringArea, roofPieces, roofRisers, shellGeom, stairSteps, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexElevations } from "./campus3dFeatures.js";
+import { archTop, BOARD_BASE_DROP, BOARD_T, DECK_FASCIA, DECK_POST, WALL_CAP, WALL_IN, WALL_T, basementRegions, buildingOpenings, clearGlassFace, floorHosts, cumulative, inBasement, curbWidth, overLids, railGround, signFrame, buildingRoof, buildingSoffit, roofSlab, clipHalf, offsetRingBy, densify, edgeOpen, isOpenStairs, lerpAlong, offsetLine, pointInRing, ringArea, roofPieces, roofRisers, shellGeom, stairSteps, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexElevations } from "./campus3dFeatures.js";
 import { SURFACE_KINDS, SURFACE_ORDER } from "./campus3dPaint.js";
 import { addDigBand, addFloor, addRoofCeiling, addRoofSlabTop, addTrack, cutFloorRegions, floorG0, roofCeilAt, roofCeiling, roofWallAt } from "./campus3dInterior.js";
 import { iconCells, textCells } from "./campus3dSignText.js";
@@ -66,6 +66,8 @@ const COLORS = {
     // 看板：ステンレスの箱（面・側面）と暗い文字、白い板と薄い灰色の文字
     signFace: "#d4d9dd", signSide: "#a9b0b6", signText: "#30353a", plateFace: "#f3f4f5", plateText: "#c3c8cd", signDark: "#26282b", // 黒い板（店の看板）
     signSwoosh: "#f5f7f9", plateSwoosh: "#dce0e4", // 校章のまん中の明るい帯
+    // 青さびのブロンズの銘板（bronze：東工大時代の正門の「東京工業大學」）：面・側面・浮き出た字の上の面・字のふち（すれて明るい）・さびの流れ
+    verdigris: "#7c938a", verdigrisSide: "#55655e", bronzeInk: "#2a302e", bronzeEdge: "#5f6f66", verdigrisStreak: "#9fb3a9",
     noticeGreen: "#4fa83e", // お知らせの看板（notice）の緑の帯
     sevenOrange: "#f2811d", sevenGreen: "#008a45", sevenRed: "#e3222b", sevenLamp: "#ff9a3c", // セブン-イレブンの帯と印・立て看板の灯
     hazardYellow: "#efc02a", hazardBlack: "#26262a", // 黄色と黒の縞（看板の hazard）
@@ -80,6 +82,8 @@ const COLORS = {
     graniteDark: "#6e6865", // 暗い御影石（panels の granite。本館の腰の石）
     tile: "#e6e1d5", // クリーム色がかった白いタイル張りの壁（本館）
     terracotta: "#b06c4a", // 赤茶の塗り壁（地球生命研究所棟の南の小屋）
+    bronze: "#6f604a", // ブロンズ（銅像の灰色がかった茶。手島精一像）
+    taupe: "#a39588", // 灰色がかった茶のタイル張りの壁（西7号館。2026-11-16）
     redBrick: "#86503f", // 赤れんがの板（panels の brick。70周年記念講堂の入口のわき）
     bridgeTile: "#9a5f4e", // 橋の赤茶の床タイル（surface "redtile"。西3号館の 3 階の玄関へ渡る橋）
   },
@@ -101,6 +105,7 @@ const COLORS = {
     trellis: "#26292c", planter: "#323331", vine1: "#1d2814", vine2: "#253019", vine3: "#33321a", mcdYellow: "#6b5208", tokyuRed: "#5c1f15",
     signFace: "#4a5159", signSide: "#353b42", signText: "#15181b", plateFace: "#5a6168", plateText: "#454b52", signDark: "#101113",
     signSwoosh: "#6c747d", plateSwoosh: "#50575e",
+    verdigris: "#2c3532", verdigrisSide: "#202725", bronzeInk: "#111413", bronzeEdge: "#242c28", verdigrisStreak: "#37423d",
     noticeGreen: "#21401c",
     sevenOrange: "#6b3a0e", sevenGreen: "#0b3d22", sevenRed: "#5e1416", sevenLamp: "#ffb060",
     hazardYellow: "#5c4a10", hazardBlack: "#0d0d0f",
@@ -110,12 +115,12 @@ const COLORS = {
     chainFrame: "#454b51", chainWire: "#50565c", meshFrame: "#2a2f35", meshWire: "#30353b",
     creamFace: "#5a5446", creamSide: "#403b30",
     granite: "#403d3d", graniteDark: "#2d2a29", redBrick: "#3a241e", tile: "#4d4b46", terracotta: "#40281d",
-    bridgeTile: "#3b2924",
+    bridgeTile: "#3b2924", bronze: "#2a251e", taupe: "#3e3934",
   },
 };
 
 // 建物の材質（material）の色の名前
-const MATERIAL_COLOR = { rust: "rust", perforated: "perforated", steel: "steelHi", darkbrick: "darkBrick", stone: "stone", green: "greenWall", red: "redPanel", concrete: "concrete", glazed: "glazed", granite: "granite", tile: "tile", brick: "redBrick", terracotta: "terracotta" };
+const MATERIAL_COLOR = { rust: "rust", perforated: "perforated", steel: "steelHi", darkbrick: "darkBrick", stone: "stone", green: "greenWall", red: "redPanel", concrete: "concrete", glazed: "glazed", granite: "granite", tile: "tile", brick: "redBrick", terracotta: "terracotta", darkgranite: "graniteDark", bronze: "bronze", taupe: "taupe" };
 
 // 三角形の並び（位置・法線・色）。電車（campus3dTrains.js）も使う
 export class Mesh {
@@ -1076,6 +1081,10 @@ const GLYPHS = {
   科: { w: 1, s: [[[0.4, 0.98], [0.08, 0.88]], [[0.04, 0.68], [0.44, 0.68]], [[0.24, 0.9], [0.24, 0]], [[0.23, 0.62], [0.04, 0.24]], [[0.26, 0.56], [0.42, 0.42]], [[0.6, 0.9], [0.7, 0.82]], [[0.58, 0.7], [0.7, 0.6]], [[0.5, 0.4], [0.98, 0.48]], [[0.8, 1], [0.8, 0]]] },
   学: { w: 1, s: [[[0.26, 0.98], [0.33, 0.86]], [[0.5, 1], [0.52, 0.86]], [[0.76, 0.98], [0.66, 0.86]], [[0.08, 0.7], [0.08, 0.8], [0.92, 0.8], [0.9, 0.7]], [[0.28, 0.66], [0.7, 0.66], [0.5, 0.52]], [[0.5, 0.52], [0.5, 0.02], [0.4, 0.08]], [[0.06, 0.38], [0.94, 0.38]]] },
   大: { w: 1, s: [[[0.08, 0.66], [0.92, 0.66]], [[0.5, 1], [0.5, 0.6], [0.06, 0.02]], [[0.52, 0.56], [0.94, 0.02]]] },
+  // 東工大時代の正門の銘板（東京工業大學。學は旧字）
+  工: { w: 1, s: [[[0.14, 0.86], [0.86, 0.86]], [[0.5, 0.86], [0.5, 0.1]], [[0.04, 0.1], [0.96, 0.1]]] },
+  業: { w: 1, s: [[[0.22, 0.98], [0.3, 0.89]], [[0.78, 0.98], [0.7, 0.89]], [[0.4, 1], [0.4, 0.75]], [[0.6, 1], [0.6, 0.75]], [[0.12, 0.87], [0.88, 0.87]], [[0.06, 0.75], [0.94, 0.75]], [[0.2, 0.63], [0.8, 0.63]], [[0.2, 0.52], [0.8, 0.52]], [[0.04, 0.39], [0.96, 0.39]], [[0.5, 0.75], [0.5, 0]], [[0.46, 0.35], [0.1, 0.05]], [[0.54, 0.35], [0.9, 0.05]]] },
+  學: { w: 1, s: [[[0.27, 0.99], [0.1, 0.95], [0.1, 0.6], [0.3, 0.6]], [[0.1, 0.84], [0.27, 0.84]], [[0.1, 0.72], [0.27, 0.72]], [[0.73, 0.99], [0.9, 0.95], [0.9, 0.6], [0.7, 0.6]], [[0.9, 0.84], [0.73, 0.84]], [[0.9, 0.72], [0.73, 0.72]], [[0.38, 0.98], [0.62, 0.84]], [[0.62, 0.98], [0.38, 0.84]], [[0.38, 0.8], [0.62, 0.65]], [[0.62, 0.8], [0.38, 0.65]], [[0.06, 0.44], [0.06, 0.53], [0.94, 0.53], [0.94, 0.44]], [[0.26, 0.45], [0.72, 0.45], [0.52, 0.35]], [[0.52, 0.35], [0.52, 0.02], [0.42, 0.07]], [[0.08, 0.25], [0.92, 0.25]]] },
   // 駅と病院の看板の漢字（大岡山駅・中央改札・東急病院）
   岡: { w: 1, s: [[[0.1, 0], [0.1, 0.94], [0.9, 0.94], [0.9, 0.06], [0.8, 0]], [[0.33, 0.84], [0.4, 0.74]], [[0.67, 0.84], [0.6, 0.74]], [[0.24, 0.68], [0.76, 0.68]], [[0.5, 0.68], [0.5, 0.18]], [[0.28, 0.48], [0.28, 0.18], [0.72, 0.18]], [[0.72, 0.48], [0.72, 0.18]]] },
   山: { w: 1, s: [[[0.5, 0.96], [0.5, 0.06]], [[0.12, 0.66], [0.12, 0.06], [0.88, 0.06]], [[0.88, 0.66], [0.88, 0.06]]] },
@@ -1226,11 +1235,12 @@ function addSign(m, f, groundAt, cols0, tint0) {
   const greenBoard = f.style === "green"; // 緑の板に白い字（のぼり）
   const hazard = f.style === "hazard"; // 黄色と黒の斜めの縞（字は黒）
   const seven = f.style === "seven" || f.style === "sevenstand"; // セブン-イレブン：白い板に帯（店先の看板・立て看板）
+  const bronze = f.style === "bronze"; // 青さびのブロンズの銘板：浮き出た暗い字と縁、ふちはすれて明るい、さびの流れの筋
   const board = f.style === "red" ? "redPanel" : "signDark";
-  const face = f.face ? tint(rgba(f.face)) : tint(rgba(cols[hazard ? "hazardYellow" : cream ? "creamFace" : greenBoard ? "sevenGreen" : seven ? "plateFace" : dark ? board : white || notice ? "plateFace" : "signFace"]));
-  const side = tint(rgba(cols[hazard ? "hazardBlack" : cream ? "creamSide" : greenBoard ? "sevenGreen" : seven ? "plateFace" : dark ? board : white ? "plateText" : "signSide"]));
-  const ink = tint(rgba(cols[hazard ? "hazardBlack" : cream ? "redPanel" : greenBoard ? "plateFace" : seven ? "signText" : dark ? "plateFace" : white ? "plateText" : "signText"]));
-  const inkSide = ink.map((v, i) => (i < 3 ? v * 0.8 : v));
+  const face = f.face ? tint(rgba(f.face)) : tint(rgba(cols[bronze ? "verdigris" : hazard ? "hazardYellow" : cream ? "creamFace" : greenBoard ? "sevenGreen" : seven ? "plateFace" : dark ? board : white || notice ? "plateFace" : "signFace"]));
+  const side = tint(rgba(cols[bronze ? "verdigrisSide" : hazard ? "hazardBlack" : cream ? "creamSide" : greenBoard ? "sevenGreen" : seven ? "plateFace" : dark ? board : white ? "plateText" : "signSide"]));
+  const ink = tint(rgba(cols[bronze ? "bronzeInk" : hazard ? "hazardBlack" : cream ? "redPanel" : greenBoard ? "plateFace" : seven ? "signText" : dark ? "plateFace" : white ? "plateText" : "signText"]));
+  const inkSide = bronze ? tint(rgba(cols.bronzeEdge)) : ink.map((v, i) => (i < 3 ? v * 0.8 : v));
   const at = (x, y, d) => {
     const [p, z] = fr.at(x, y, d);
     return [p, g + z];
@@ -1279,9 +1289,23 @@ function addSign(m, f, groundAt, cols0, tint0) {
   const plane = { P: at, N, U, V };
   const d0 = 0, d1 = SIGN_TEXT_DEPTH;
   // ステンレスの縁（前の面のふちを少し浮かせて）
-  if (!white && !dark && !cream && !seven && !greenBoard && !hazard) {
+  if (!white && !dark && !cream && !seven && !greenBoard && !hazard && !bronze) {
     const r = SIGN_RIM / 2;
     for (const [x0, y0, x1, y1] of [[r, r, W - r, r], [W - r, r, W - r, H - r], [W - r, H - r, r, H - r], [r, H - r, r, r]]) planeBar(m, plane, x0, y0, x1, y1, SIGN_RIM, 0, 0.006, side, side);
+  }
+  // ブロンズの銘板：さびの流れ（上から下へ明るい筋。位置・長さは決まった乱数）と、浮き出た縁（字と同じ暗いブロンズ、ふちは明るい）
+  if (bronze) {
+    const streak = tint(rgba(cols.verdigrisStreak));
+    const n = Math.max(4, Math.round(W / 0.09));
+    for (let k = 0; k < n; k++) {
+      const x = 0.04 + (W - 0.08) * ((k + 0.2 + 0.6 * leafHash(k, W, 3.1)) / n);
+      const w = 0.012 + 0.03 * leafHash(k, H, 7.7);
+      const y0 = H * (0.15 + 0.55 * leafHash(k, 1.3, W));
+      const c = mix(face, streak, 0.35 + 0.4 * leafHash(k, 9.2, H));
+      m.quad([at(x, y0, 0.0015), at(x + w, y0, 0.0015), at(x + w, H - 0.03, 0.0015), at(x, H - 0.03, 0.0015)], N, c);
+    }
+    const r = Math.min(0.03, H * 0.08);
+    for (const [x0, y0, x1, y1] of [[r / 2, r / 2, W - r / 2, r / 2], [W - r / 2, r / 2, W - r / 2, H - r / 2], [W - r / 2, H - r / 2, r / 2, H - r / 2], [r / 2, H - r / 2, r / 2, r / 2]]) planeBar(m, plane, x0, y0, x1, y1, r, 0, 0.012, ink, inkSide);
   }
   // お知らせの看板の緑の帯：上の NOTICE_BAND の割合（ふちを少しあける）
   const bandY = H * (1 - NOTICE_BAND);
@@ -1316,7 +1340,10 @@ function addSign(m, f, groundAt, cols0, tint0) {
   // 漢字の行は線を少し太く。緑の帯の中の行は白
   for (const l of f.lines) {
     const inBand = (notice && l.y >= bandY - 0.005) || inSevenBand(l.y);
-    planeText(m, plane, l.text, l.x, l.y, l.size, { stroke: [...l.text].some((ch) => ch > "~") ? 0.085 : LETTER_STROKE, d0, d1 }, inBand ? plateWhite : ink, inBand ? plateWhite : inkSide);
+    // ブロンズの銘板の字は太く・高く浮き出た鋳物の字
+    const kanji = [...l.text].some((ch) => ch > "~");
+    const stroke = bronze ? (kanji ? 0.15 : 0.12) : kanji ? 0.085 : LETTER_STROKE;
+    planeText(m, plane, l.text, l.x, l.y, l.size, { stroke, kx: l.kx || 1, d0, d1: bronze ? 0.016 : d1 }, inBand ? plateWhite : ink, inBand ? plateWhite : inkSide);
   }
   for (const r of f.rules) planeBar(m, plane, r[0], r[1], r[2], r[3], 0.008, d0, d1, ink, inkSide);
   // 校章：形ごとに面の上の平らな多角形（面から少し浮かせる）。明るい帯はステンレスの看板では白く、白い板では板より少し暗く
@@ -2336,16 +2363,19 @@ function cutHoles(p, holes) {
     s1 = Math.min(L, s1);
     const zt = Math.max(h.z1, h.z1b ?? h.z1);
     if (s1 - s0 < 1e-3 || zt <= Math.min(bA, bB) + 1e-4 || h.z0 >= Math.max(tA, tB) - 1e-4) continue;
-    // 上の端（斜めの口なら、穴の a の端からの長さで z1 → z1b）。面の上の位置 s の高さ
+    // 上の端（斜めの口なら、穴の a の端からの長さで z1 → z1b。アーチの窓なら穴の幅いっぱいの弧）。面の上の位置 s の高さ
     const ha = sOf(h.a), hb = sOf(h.b), hl = hb - ha;
-    const topAt = h.z1b == null || Math.abs(hl) < 1e-6 ? () => h.z1 : (sv) => h.z1 + ((h.z1b - h.z1) * (sv - ha)) / hl;
-    rel.push({ s0, s1, z0: h.z0, topAt });
+    const lo = Math.min(ha, hb), hw = Math.abs(hl);
+    const topAt = h.arch > 0 && hw > 1e-6 ? (sv) => archTop(sv - lo, hw, h.arch, h.z1) : h.z1b == null || Math.abs(hl) < 1e-6 ? () => h.z1 : (sv) => h.z1 + ((h.z1b - h.z1) * (sv - ha)) / hl;
+    // アーチの窓は弧を ARCH_SEG の区切りで折れ線にする（区切りの点ごとに縦の帯を分ける）
+    const breaks = h.arch > 0 && hw > 1e-6 ? Array.from({ length: ARCH_SEG + 1 }, (_, k) => lo + (hw * k) / ARCH_SEG).filter((v) => v >= s0 - 1e-6 && v <= s1 + 1e-6) : [];
+    rel.push({ s0, s1, z0: h.z0, topAt, breaks });
   }
   if (!rel.length) return null;
   const P = (s) => [A[0] + u[0] * s, A[1] + u[1] * s];
   const bot = (s) => bA + ((bB - bA) * s) / L;
   const top = (s) => tA + ((tB - tA) * s) / L;
-  const xs = [...new Set([0, L, ...rel.flatMap((h) => [h.s0, h.s1])])].sort((x, y) => x - y);
+  const xs = [...new Set([0, L, ...rel.flatMap((h) => [h.s0, h.s1, ...h.breaks])])].sort((x, y) => x - y);
   const parts = [];
   const push = (sa, sb, la, lb, ua, ub) => {
     if (ua > la + 1e-4 || ub > lb + 1e-4) parts.push([[P(sa), la], [P(sb), lb], [P(sb), Math.max(lb, ub)], [P(sa), Math.max(la, ua)]]);
@@ -2442,7 +2472,8 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
         z1 = g0 + (firstAtA ? w.top : w.top2);
         z1b = g0 + (firstAtA ? w.top2 : w.top);
       }
-      holes.push({ a: h.a, b: h.b, z0: g0 + w.bottom, z1, z1b });
+      // アーチの窓（arch）：穴の上の端も弧（cutHoles が穴の幅を ARCH_SEG に分けて弧の高さをとる）
+      holes.push({ a: h.a, b: h.b, z0: g0 + w.bottom, z1, z1b, arch: w.arch > 0 && z1b == null ? w.arch : 0 });
     }
     m = holedMesh(m, holes);
   }
@@ -3415,6 +3446,12 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
     for (let k = 0; k + 1 < P.length; k++) addBeam(m, [P[k], g0 + mb.zs[k]], [P[k + 1], g0 + mb.zs[k + 1]], mb.size, mb.kind === "dark" ? look.canopy : mb.kind === "indoor" ? look.memberIndoor : look.member);
   }
   if (look) for (const p of f.panels || []) addPanel(m, p, g0, look, c);
+  // ロンバルド帯・壁の時計（2026-11-15、西1号館）
+  if (look && f.lombard) addLombard(m, f, ring, g0, c);
+  if (look && f.clocks) {
+    const hosts = wallHosts(ring, carves);
+    for (const cl of f.clocks) addWallClock(m, cl, hosts, g0);
+  }
   // ねじれた面（白い施釉れんが）
   if (look) for (const s of f.shells || []) addShell(m, s, g0, look, g0 + roof.H);
   if (look) for (const d of f.domes || []) addDome(m, d, g0 + (d.z ?? hAt(toXY(d.coords))), look);
@@ -3556,7 +3593,9 @@ const JOINT_OFF = 0.008;
 const JOINT_W = 0.045;
 const WIN_FRAME = 0.06; // 枠の幅
 const WIN_DEPTH = 0.04; // 枠の出（面から）
+const ARCH_SEG = 12; // アーチの窓の弧を折れ線にする区切りの数（壁の穴・ガラス・枠・見込みで同じ）
 function addWindow(m, w, host, g0, look) {
+  if (w.arch > 0) return addArchWindow(m, w, host, g0, look);
   const { a, u, n, L } = host;
   const N = [n[0], n[1], 0];
   // 奥まった窓（recess m。西3号館）：ガラス・枠・桟・扉の板は面から recess m 奥に。口のまわりの見込みと窓台は addReveal（壁の色 look.wallC）
@@ -3665,6 +3704,188 @@ function addReveal(m, host, z0, z1, rc, so, col) {
     m.quadColors([[P(0, 0), zb], [P(0, so), zb], [P(0, so), z0], [P(0, 0), z0]], [-u[0], -u[1], 0], c4);
     m.quadColors([[P(L, so), zb], [P(L, 0), zb], [P(L, 0), z0], [P(L, so), z0]], [u[0], u[1], 0], c4);
     m.quadColors([[P(0, so), zb], [P(0, 0), zb], [P(L, 0), zb], [P(L, so), zb]], [0, 0, -1], c4);
+  }
+}
+
+// アーチの窓・扉（arch。2026-11-15、西1号館）：上の端は両端の上の角から arch m 上がる円弧（archTop）。ガラス・扉の板は縦の帯ごとに弧まで、
+// 枠は前の面の細い帯（下・両わき・弧）、縦の桟は弧まで、横の桟は弧より下のところだけ。奥まった窓（recess）は見込みも弧に沿う（addArchReveal）
+function addArchWindow(m, w, host, g0, look) {
+  const { a, u, n, L } = host;
+  const N = [n[0], n[1], 0];
+  const rc = w.recess > 0 ? w.recess : 0;
+  const at = (s, d) => [a[0] + u[0] * s + n[0] * (d - rc), a[1] + u[1] * s + n[1] * (d - rc)];
+  const z0 = g0 + w.bottom;
+  const z1 = g0 + w.top;
+  const top = (s) => archTop(s, L, w.arch, z1);
+  if (rc && look.wallC) addArchReveal(m, host, z0, top, rc, w.sill || 0, look.wallC);
+  const kind = w.kind || "glass";
+  if (kind === "opening") return;
+  const ss = Array.from({ length: ARCH_SEG + 1 }, (_, k) => (L * k) / ARCH_SEG);
+  const fill = (cBot, cTopAt, d, into = m) => {
+    for (let k = 0; k < ARCH_SEG; k++) {
+      const s0 = ss[k], s1 = ss[k + 1];
+      into.quadColors([[at(s0, d), z0], [at(s1, d), z0], [at(s1, d), top(s1)], [at(s0, d), top(s0)]], N, [cBot, cBot, cTopAt(top(s1)), cTopAt(top(s0))]);
+    }
+  };
+  if (kind === "glass" || kind === "glassdoor") {
+    const [lo, hi] = look.glass;
+    const lo2 = mix(lo, hi, 0.3);
+    const gc = (z) => mix(lo2, hi, Math.min(1, Math.max(0, (z - z0) / Math.max(0.1, z1 - z0))));
+    fill(lo2, gc, WIN_OFF, look.pane || m);
+  } else if (kind === "frost") fill(look.frost[0], () => look.frost[1], WIN_OFF);
+  else if (kind === "dark" || kind === "grille") fill(look.dark, () => look.dark, WIN_OFF);
+  else fill(look.door, () => look.door, WIN_OFF);
+  const frameCol = kind === "door" || w.frame === "light" ? look.frame : look.mullion;
+  const fr = WIN_FRAME;
+  const d1 = WIN_OFF + WIN_DEPTH;
+  const strip = (s0, s1, b0, b1, t0, t1) => m.quad([[at(s0, d1), b0], [at(s1, d1), b1], [at(s1, d1), t1], [at(s0, d1), t0]], N, frameCol);
+  strip(0, L, z0, z0, z0 + fr, z0 + fr);
+  strip(0, fr, z0, z0, top(0), top(fr));
+  strip(L - fr, L, z0, z0, top(L - fr), top(L));
+  for (let k = 0; k < ARCH_SEG; k++) strip(ss[k], ss[k + 1], top(ss[k]) - fr, top(ss[k + 1]) - fr, top(ss[k]), top(ss[k + 1]));
+  const panes = w.panes || (kind === "glassdoor" ? 2 : 1);
+  for (let i = 1; i < panes; i++) {
+    const sv = (L * i) / panes;
+    strip(sv - fr / 2, sv + fr / 2, z0, z0, top(sv - fr / 2), top(sv + fr / 2));
+  }
+  // 横の桟：弧が桟の上より高いところ（左右対称の弧なので [sa, L − sa]。二分法）
+  for (const r of w.rows || []) {
+    const zr = g0 + r + fr / 2;
+    if (zr >= z1 - 0.02) continue;
+    let sa = 0;
+    if (top(0) < zr) {
+      let lo = 0, hi = L / 2;
+      for (let it = 0; it < 24; it++) {
+        const mid = (lo + hi) / 2;
+        if (top(mid) < zr) lo = mid;
+        else hi = mid;
+      }
+      sa = hi;
+    }
+    if (L - 2 * sa > 0.05) strip(sa, L - sa, zr - fr, zr - fr, zr, zr);
+  }
+  if (kind === "glassdoor") strip(fr, L - fr, z0 + 1.0, z0 + 1.0, z0 + 1.04, z0 + 1.04);
+}
+// アーチの窓の口のまわり：両わきの見込み（下の端〜起拱）、弧の見込み（口の中・下を向く帯）、窓台（addReveal と同じ）
+function addArchReveal(m, host, z0, top, rc, so, col) {
+  const { a, u, n, L } = host;
+  const P = (s, d) => [a[0] + u[0] * s + n[0] * d, a[1] + u[1] * s + n[1] * d];
+  const c4 = [col, col, col, col];
+  const zs0 = top(0), zs1 = top(L);
+  m.quadColors([[P(0, 0), z0], [P(0, -rc), z0], [P(0, -rc), zs0], [P(0, 0), zs0]], [u[0], u[1], 0], c4);
+  m.quadColors([[P(L, -rc), z0], [P(L, 0), z0], [P(L, 0), zs1], [P(L, -rc), zs1]], [-u[0], -u[1], 0], c4);
+  for (let k = 0; k < ARCH_SEG; k++) {
+    const s0 = (L * k) / ARCH_SEG, s1 = (L * (k + 1)) / ARCH_SEG;
+    const za = top(s0), zb = top(s1);
+    const ds = s1 - s0, dz = zb - za, l = Math.hypot(ds, dz) || 1;
+    const nn = [(u[0] * dz) / l, (u[1] * dz) / l, -ds / l];
+    m.quadColors([[P(s0, 0), za], [P(s0, -rc), za], [P(s1, -rc), zb], [P(s1, 0), zb]], nn, c4);
+  }
+  m.quadColors([[P(0, so), z0], [P(L, so), z0], [P(L, -rc), z0], [P(0, -rc), z0]], [0, 0, 1], c4);
+  if (so > 0) {
+    const zb = z0 - 0.06;
+    m.quadColors([[P(0, so), zb], [P(L, so), zb], [P(L, so), z0], [P(0, so), z0]], [n[0], n[1], 0], c4);
+    m.quadColors([[P(0, 0), zb], [P(0, so), zb], [P(0, so), z0], [P(0, 0), z0]], [-u[0], -u[1], 0], c4);
+    m.quadColors([[P(L, so), zb], [P(L, 0), zb], [P(L, 0), z0], [P(L, so), z0]], [u[0], u[1], 0], c4);
+    m.quadColors([[P(0, so), zb], [P(0, 0), zb], [P(L, 0), zb], [P(L, so), zb]], [0, 0, -1], c4);
+  }
+}
+
+// ロンバルド帯（lombard。2026-11-15、西1号館の手すり壁・塔屋・ポーチの上の端）：辺ごとに、上の 4 割は壁から depth 出た帯（前・下・上の面）、
+// 下は小さな半円のアーチの列（間隔 pitch。前の面と弧の下の面）と、アーチのあいだの持ち送りの下の面。テラコッタ（壁より少し赤みのある色）。
+// 出隅では帯を depth だけ延ばして、となりの辺の帯と角で重ねる
+const LOMB_SEG = 6;
+function addLombard(m, f, ring, g0, c) {
+  const lb = f.lombard;
+  const ccw = ringArea(ring) > 0;
+  const col = [c[0] * 0.95, c[1] * 0.89, c[2] * 0.8, c[3]];
+  const zb = g0 + lb.z, zt = zb + lb.h, zm = zb + lb.h * 0.6;
+  const d = lb.depth, da = lb.depth * 0.75;
+  const nV = ring.length;
+  const convex = (i) => {
+    const p = ring[(i + nV - 1) % nV], v = ring[i], q = ring[(i + 1) % nV];
+    const cr = (v[0] - p[0]) * (q[1] - v[1]) - (v[1] - p[1]) * (q[0] - v[0]);
+    return cr > 0 === ccw;
+  };
+  for (let i = 0; i < nV; i++) {
+    if (lb.sides && lb.sides[i] === false) continue;
+    const A = ring[i], B = ring[(i + 1) % nV];
+    const L = Math.hypot(B[0] - A[0], B[1] - A[1]);
+    if (L < 0.3) continue;
+    const u = [(B[0] - A[0]) / L, (B[1] - A[1]) / L];
+    const nO = ccw ? [u[1], -u[0]] : [-u[1], u[0]];
+    const N = [nO[0], nO[1], 0];
+    const P = (s, dd) => [A[0] + u[0] * s + nO[0] * dd, A[1] + u[1] * s + nO[1] * dd];
+    // 帯：出隅は延ばす（となりの辺が描かれないときも延ばす）
+    const e0 = convex(i) ? -d : 0, e1 = convex((i + 1) % nV) ? L + d : L;
+    m.quad([[P(e0, d), zm], [P(e1, d), zm], [P(e1, d), zt], [P(e0, d), zt]], N, col);
+    m.quad([[P(e0, 0), zm], [P(e1, 0), zm], [P(e1, d), zm], [P(e0, d), zm]], [0, 0, -1], col);
+    m.quad([[P(e0, d), zt], [P(e1, d), zt], [P(e1, 0), zt], [P(e0, 0), zt]], [0, 0, 1], col);
+    // アーチの列（辺の長さを pitch に近い等分）
+    const nA = Math.max(1, Math.round(L / lb.pitch));
+    const pw = L / nA;
+    const leg = pw * 0.2;
+    const span = pw - leg;
+    const rA = Math.min(span / 2, (zm - zb) * 0.75);
+    const zSpring = zm - rA - (zm - zb) * 0.08;
+    for (let k = 0; k < nA; k++) {
+      const s0 = k * pw;
+      // 持ち送り（両わきの脚）：前の面と下の面
+      for (const [la, lb2] of [[s0, s0 + leg / 2], [s0 + pw - leg / 2, s0 + pw]]) {
+        m.quad([[P(la, da), zb], [P(lb2, da), zb], [P(lb2, da), zm], [P(la, da), zm]], N, col);
+        m.quad([[P(la, 0), zb], [P(lb2, 0), zb], [P(lb2, da), zb], [P(la, da), zb]], [0, 0, -1], col);
+      }
+      // 弧：前の面（弧から帯の下まで）と弧の下の面
+      const ca = s0 + leg / 2;
+      const arcZ = (s) => zSpring + Math.sqrt(Math.max(0, rA * rA - (s - ca - span / 2) ** 2)) * (rA > 1e-6 ? 1 : 0);
+      for (let j = 0; j < LOMB_SEG; j++) {
+        const sa = ca + (span * j) / LOMB_SEG, sb = ca + (span * (j + 1)) / LOMB_SEG;
+        const za = Math.max(zb, Math.min(zm, arcZ(sa))), zbb = Math.max(zb, Math.min(zm, arcZ(sb)));
+        m.quad([[P(sa, da), za], [P(sb, da), zbb], [P(sb, da), zm], [P(sa, da), zm]], N, col);
+        const ds = sb - sa, dz = zbb - za, l = Math.hypot(ds, dz) || 1;
+        m.quad([[P(sa, 0), za], [P(sb, 0), zbb], [P(sb, da), zbb], [P(sa, da), za]], [(u[0] * dz) / l, (u[1] * dz) / l, -ds / l], [col[0] * 0.82, col[1] * 0.82, col[2] * 0.82, col[3]]);
+      }
+    }
+  }
+}
+
+// 壁の時計（clocks。2026-11-15、西1号館の正面）：壁ぞいの 2 点が文字盤の直径。黒い鉄の輪（前の面と外の見込み）、内の細い輪、
+// 12 の棒の目盛り（3・6・9・12 は太い）、時針・分針と中心の丸。文字盤の面は壁のタイルのまま（写真 82-pic-cultural-properties07）
+function addWallClock(m, cl, hosts, g0) {
+  const h = hostOf(hosts, cl.coords.map(toXY), false);
+  if (!h) return;
+  const R = h.L / 2;
+  const cz = g0 + cl.z;
+  const N = [h.n[0], h.n[1], 0];
+  const at = (s, dd) => [h.a[0] + h.u[0] * s + h.n[0] * dd, h.a[1] + h.u[1] * s + h.n[1] * dd];
+  const P = (r, ang, dd) => [at(R + r * Math.cos(ang), dd), cz + r * Math.sin(ang)];
+  const ink = [0.13, 0.13, 0.14, 1];
+  const SEG = 48;
+  const ringFace = (r0, r1, dd) => {
+    for (let i = 0; i < SEG; i++) {
+      const a0 = (i / SEG) * 2 * Math.PI, a1 = ((i + 1) / SEG) * 2 * Math.PI;
+      m.quad([P(r0, a0, dd), P(r1, a0, dd), P(r1, a1, dd), P(r0, a1, dd)], N, ink);
+    }
+  };
+  ringFace(R * 0.88, R, 0.04);
+  for (let i = 0; i < SEG; i++) {
+    const a0 = (i / SEG) * 2 * Math.PI, a1 = ((i + 1) / SEG) * 2 * Math.PI, am = (a0 + a1) / 2;
+    m.quad([P(R, a1, 0), P(R, a0, 0), P(R, a0, 0.04), P(R, a1, 0.04)], [h.u[0] * Math.cos(am), h.u[1] * Math.cos(am), Math.sin(am)], ink);
+  }
+  ringFace(R * 0.56, R * 0.6, 0.03);
+  // 棒：中心から r0〜r1、幅 w の板（面から dd）
+  const bar = (ang, r0, r1, w, dd) => {
+    const cA = Math.cos(ang), sA = Math.sin(ang), cB = -sA, sB = cA;
+    const Q = (r, o) => [at(R + r * cA + o * cB, dd), cz + r * sA + o * sB];
+    m.quad([Q(r0, -w / 2), Q(r1, -w / 2), Q(r1, w / 2), Q(r0, w / 2)], N, ink);
+  };
+  for (let k = 0; k < 12; k++) bar(Math.PI / 2 - (k * Math.PI) / 6, R * 0.64, R * 0.84, k % 3 === 0 ? R * 0.1 : R * 0.05, 0.035);
+  const hr = (cl.hour ?? 10) % 12, mi = cl.minute ?? 10;
+  bar(Math.PI / 2 - ((hr + mi / 60) * Math.PI) / 6, -R * 0.08, R * 0.5, R * 0.07, 0.05);
+  bar(Math.PI / 2 - (mi * Math.PI) / 30, -R * 0.1, R * 0.8, R * 0.045, 0.06);
+  for (let i = 0; i < 12; i++) {
+    const a0 = (i / 12) * 2 * Math.PI, a1 = ((i + 1) / 12) * 2 * Math.PI;
+    m.quad([P(0, a0, 0.065), P(R * 0.07, a0, 0.065), P(R * 0.07, a1, 0.065), P(0, a1, 0.065)], N, ink);
   }
 }
 

@@ -7,7 +7,8 @@ import { CAMPUS_CENTER, CAMPUS_ZOOM, CAMPUS_BOUNDARY, SPOTS, SPOT_CATS, ENTRANCE
 import { useNavigation, NAV_SPOTS } from "../hooks/useNavigation.js";
 import { createCampusBasemap, isDarkColor } from "../campusBasemap.js";
 import { getNextClass } from "../todayClasses.js";
-import { CampusMap3D, DETAIL_ICON, LOOK_ICON, LOOK_LABEL, WALK_ICON } from "../components/CampusMap3D.jsx";
+import { CampusMap3D, DETAIL_ICON, LOOK_ICON, LOOK_LABEL, SLIP_ERAS, SLIP_ICON, WALK_ICON } from "../components/CampusMap3D.jsx";
+import { onWorldClock, slipDay, slipTo, worldLive } from "../campus3dClock.js";
 import { LOOK_MODES } from "../campus3dSky.js";
 import { FEATURES_URL, parseFeatures } from "../campus3dFeatures.js";
 
@@ -424,6 +425,24 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     lookNoteTimer.current=setTimeout(()=>setLookNote(null),1800);
   };
   useEffect(()=>()=>clearTimeout(lookNoteTimer.current),[]);
+  // タイムスリップ（3D の世界の時計の日付だけを過去の日に。日付のついた構造物＝正門の門柱・銘板・前の道などが切り替わる）。覚えない（開き直すと今）
+  const [slip3d,setSlip3d]=useState(()=>slipDay());
+  const [slipOpen,setSlipOpen]=useState(false);
+  const [slipNote,setSlipNote]=useState(null);
+  const slipNoteTimer=useRef(0);
+  useEffect(()=>{const off=onWorldClock(()=>setSlip3d(slipDay()));return()=>{off();clearTimeout(slipNoteTimer.current);};},[]);
+  const hasEras3d=useMemo(()=>!!features3d?.some(f=>f.from||f.until),[features3d]);
+  // 構造物の作り直しが重い（数秒かかる端末もある）ので、先に枠を閉じてお知らせを描いてから世界の時計を変える。
+  // お知らせは作り直した絵が出てから 2.2 秒で消す（作り直しのあいだにタイマーが切れないように、次のコマを待ってから数える）
+  const pickSlip=(era)=>{
+    setSlipOpen(false);
+    clearTimeout(slipNoteTimer.current);
+    setSlipNote(era.id);
+    slipNoteTimer.current=setTimeout(()=>{
+      if(era.day)slipTo(era.day);else worldLive();
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{slipNoteTimer.current=setTimeout(()=>setSlipNote(null),2200);}));
+    },80);
+  };
   const view3dRef=useRef(view3d);
   const map3dRef=useRef(null);
   const mapLibre=useMapLibre(view3d);
@@ -1493,6 +1512,11 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     {LOOK_ICON[look3d==="auto"?lookPhase3d:look3d]}
     {look3d==="auto"&&<span style={{position:"absolute",right:6,bottom:5,fontSize:8,fontWeight:800,lineHeight:1,opacity:.7}}>A</span>}
   </button>);
+  // タイムスリップ（日付のついた構造物があるときだけ）。過去にいるあいだは色をつけ、右下に年の下 2 けた
+  if(view3d&&!loading3d&&(hasEras3d||slip3d)&&(showMapToggle||guiding)&&!pickerOpen)btnStack.push(<button key="slip" onClick={()=>setSlipOpen(v=>!v)} title={t("navi.slip")} aria-label={t("navi.slip")} aria-expanded={slipOpen} aria-pressed={!!slip3d} style={{...sideBtn,position:"relative",background:slip3d?T.accent:T.bg2,color:slip3d?"#fff":T.txH,border:`1px solid ${slip3d?T.accent:T.bdL}`}}>
+    {SLIP_ICON}
+    {slip3d&&<span style={{position:"absolute",right:4,bottom:4,fontSize:8,fontWeight:800,lineHeight:1}}>{`'${slip3d.slice(2,4)}`}</span>}
+  </button>);
   // 目の高さで歩いて見る（ルートがあれば、その出発点から。歩いているあいだは 3D の地図が画面の上に出る）
   if(view3d&&!loading3d&&(showMapToggle||guiding)&&!pickerOpen)btnStack.push(<button key="walk" onClick={()=>map3dRef.current?.startWalk()} title={t("navi.stroll")} aria-label={t("navi.stroll")} style={sideBtn}>{WALK_ICON}</button>);
   // 詳細モード（建物の中）：階のある建物があるときだけ。階を選ぶボタンは 3D の地図の上（ボタンの列の左）に出る
@@ -1599,6 +1623,21 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
       detail={detail3d}
       floorsStyle={{right:mob?64:72,bottom:mob?118:122}}
     />}
+    {/* タイムスリップの行き先（ボタンの列の左）。いまいる時代の枠に色 */}
+    {slipOpen&&view3d&&<div role="dialog" aria-label={t("navi.slip")} style={{position:"absolute",right:mob?62:70,bottom:mob?118:122,zIndex:1002,width:mob?"min(272px, calc(100% - 82px))":292,boxSizing:"border-box",background:T.bg2,border:`1px solid ${T.bdL}`,borderRadius:14,boxShadow:"0 10px 28px -10px rgba(0,0,0,.5)",padding:"10px 10px 9px",animation:"navSlideUp .18s ease-out"}}>
+      <div style={{display:"flex",alignItems:"center",gap:7,margin:"0 2px 9px",color:T.txH,fontSize:13.5,fontWeight:800}}>
+        <span style={{display:"flex",color:T.accent}}>{SLIP_ICON}</span>{t("navi.slip")}
+        <button type="button" onClick={()=>setSlipOpen(false)} aria-label={t("navi.slipClose")} style={{marginLeft:"auto",border:"none",background:"none",color:T.txD,fontSize:18,lineHeight:1,cursor:"pointer",padding:"0 4px"}}>×</button>
+      </div>
+      {SLIP_ERAS.map(era=>{const on=(era.day||null)===(slip3d||null);return <button type="button" key={era.id} onClick={()=>pickSlip(era)} aria-pressed={on} style={{display:"block",width:"100%",boxSizing:"border-box",textAlign:"left",margin:"0 0 7px",padding:"9px 11px",borderRadius:10,border:`1.5px solid ${on?T.accent:T.bdL}`,background:on?`${T.accent}14`:"transparent",color:T.txH,cursor:"pointer",font:"inherit"}}>
+        <div style={{fontSize:13,fontWeight:800}}>{t(era.label)}</div>
+        <div style={{fontSize:11.5,color:T.txD,marginTop:2,lineHeight:1.4}}>{t(era.sub)}</div>
+      </button>;})}
+      <div style={{fontSize:11,color:T.txD,lineHeight:1.5,margin:"1px 2px 0"}}>{t("navi.slipNote")}</div>
+    </div>}
+    {slipNote&&view3d&&<div style={{position:"absolute",left:0,right:0,bottom:mob?18:24,zIndex:1001,display:"flex",justifyContent:"center",pointerEvents:"none"}}>
+      <div style={{padding:"8px 14px",borderRadius:16,background:"rgba(14,32,48,.88)",color:"#fff",fontSize:12.5,fontWeight:700,boxShadow:"0 6px 16px -6px rgba(0,0,0,.5)",animation:"navSlideUp .2s ease-out"}}>{slipNote==="now"?t("navi.slipBackNote"):t("navi.slipToNote",{era:t(SLIP_ERAS.find(e=>e.id===slipNote)?.label||"navi.slip")})}</div>
+    </div>}
     {lookNote&&view3d&&<div style={{position:"absolute",left:0,right:0,bottom:mob?18:24,zIndex:1001,display:"flex",justifyContent:"center",pointerEvents:"none"}}>
       <div style={{padding:"8px 14px",borderRadius:16,background:"rgba(14,32,48,.88)",color:"#fff",fontSize:12.5,fontWeight:700,boxShadow:"0 6px 16px -6px rgba(0,0,0,.5)",animation:"navSlideUp .2s ease-out"}}>{t("navi.look").replace(/（.*$|\s*\(.*$/,"")}：{lookNote==="auto"?`${t("navi.lookAuto")}（${t(LOOK_LABEL[lookPhase3d])}）`:t(LOOK_LABEL[lookNote])}</div>
     </div>}

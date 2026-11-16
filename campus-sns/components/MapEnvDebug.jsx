@@ -156,7 +156,7 @@ export function MapEnvDebug({ envRef, weatherRef, onChange, walking = false, loo
       <div className={`cb3-env${walking ? " walk" : ""}`} role="group" aria-label={t("env.title")} onPointerDown={(ev) => ev.stopPropagation()} onKeyDown={(ev) => ev.stopPropagation()}>
         <h4>
           {t("env.time")}
-          <small>{c.mode === "live" ? t("env.live") : `×${c.speed}`}</small>
+          <small>{c.mode === "live" ? t("env.live") : c.mode === "slip" ? t("env.slip", { day: c.day }) : `×${c.speed}`}</small>
         </h4>
         <div className="row">
           <input type="date" value={day} onChange={(ev) => ev.target.value && setTime(jstTime(ev.target.value, hm))} />

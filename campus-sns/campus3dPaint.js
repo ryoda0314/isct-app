@@ -13,6 +13,8 @@ export const SURFACE_KINDS = {
   // 地図の公園の緑と同じ色（まわりの芝生と境目なくつながる）。いちばん下に描くので、上に飛び石・道を重ねられる。
   // 芝生の下になった地図の通路の帯は隠れ、街灯も立てない（campus3dLamps.js）
   lawn: { label: "芝生", light: "#d3e8c5", dark: "#1c3024" },
+  // 人工芝（グラウンド。2026-11-16、isct-45）：冬も枯れ色にしない（GROUND_OF は ground）。いちばん下の芝生のすぐ上に描き、土・線・トラックを上に重ねる
+  turf: { label: "人工芝", light: "#8fbf78", dark: "#25402a" },
   road: { label: "車道", light: "#8d959d", dark: "#3a4149" },
   walk: { label: "歩道", light: "#e6e8e3", dark: "#4a5058" },
   plaza: { label: "広場", light: "#cdb49a", dark: "#5f5245" },
@@ -33,7 +35,7 @@ export const SURFACE_KINDS = {
   // 植え込みの低木：地面は濃い緑、上にこんもりした低木の塊を並べる（campus3dMesh.js の addShrubs）
   shrubs: { label: "植え込み（こんもりした低木）", light: "#5f7a40", dark: "#1b2616" },
 };
-export const SURFACE_ORDER = ["lawn", "road", "zebra", "red", "plaza", "brick", "darkbrick", "redbrick", "tile", "blue", "deck", "wood", "walk", "gravel", "stones", "green", "shrubs", "soil", "slab"];
+export const SURFACE_ORDER = ["lawn", "turf", "road", "zebra", "red", "plaza", "brick", "darkbrick", "redbrick", "tile", "blue", "deck", "wood", "walk", "gravel", "stones", "green", "shrubs", "soil", "slab"];
 // 白線の種類：幅（m）・色・破線
 export const MARKING_KINDS = {
   solid: { label: "白線", width: 0.15, color: "white" },
@@ -376,7 +378,7 @@ export function crosswalkAcross(features, ll) {
 export function paintFeatures(features, dark = false, pc = null) {
   const tone0 = (k) => (typeof dark?.tone === "function" ? dark.tone(k.light, k.dark) : dark ? k.dark : k.light);
   // 見え方に地面の色（ground：濡れ・雪・芝生の季節。campus3dSky の lookFor）があれば、路面・白線はそれで
-  const GROUND_OF = { lawn: "lawn", green: "lawn", shrubs: "lawn", soil: "ground", gravel: "ground", stones: "ground", paint: "paint" };
+  const GROUND_OF = { lawn: "lawn", green: "lawn", shrubs: "lawn", turf: "ground", soil: "ground", gravel: "ground", stones: "ground", paint: "paint" };
   const tone = (k, kind) => (typeof dark?.ground === "function" && kind ? dark.ground(k, GROUND_OF[kind] || "road") : tone0(k));
   const layers = Object.fromEntries(SURFACE_ORDER.map((k) => [k, []]));
   const paint = [];

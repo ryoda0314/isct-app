@@ -9,9 +9,9 @@ import { createSkyLayer, rgbHex } from "../campus3dSkyLayer.js";
 import { buildVeg, createVegLayer } from "../campus3dVeg.js";
 import { buildCoverMap, createPrecipLayer } from "../campus3dPrecip.js";
 import { envAt, weatherCreate, weatherStep } from "../campus3dEnv.js";
-import { onWorldClock, worldClock, worldIsSet, worldNow } from "../campus3dClock.js";
+import { onWorldClock, worldClock, worldDay, worldIsSet, worldNow } from "../campus3dClock.js";
 import { BURN_MAXZOOM, dem, demTileUrl, registerDemProtocol } from "../campusDem.js";
-import { ROUTE_ON_BRIDGE, buildingOpenings, buildingRoof, burnsGround, detailView, featuresBounds, floorLevels, isPaint, pointInRing, prepareBridge, replacedBuildings, splitByBridges, stairsPath, toLngLat, toXY } from "../campus3dFeatures.js";
+import { ROUTE_ON_BRIDGE, buildingOpenings, buildingRoof, burnsGround, detailView, eraKey, featuresAt, featuresBounds, floorLevels, isPaint, pointInRing, prepareBridge, replacedBuildings, splitByBridges, stairsPath, toLngLat, toXY } from "../campus3dFeatures.js";
 import { cutFloorRegions, floorG0, floorLabels } from "../campus3dInterior.js";
 import { buildMesh, buildRibbons } from "../campus3dMesh.js";
 import { createDoorsLayer, createExtrasLayer, createLightsLayer, createTrainsLayer } from "../campus3dLayer.js";
@@ -213,6 +213,20 @@ export const LOOK_ICON = {
   night: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" /></svg>,
 };
 export const LOOK_LABEL = { auto: "navi.lookAuto", day: "navi.lookDay", evening: "navi.lookEvening", night: "navi.lookNight" };
+// タイムスリップのボタンのアイコン（左回りの矢印のついた時計）。キャンパスナビのボタン（NavigationView）が使う
+export const SLIP_ICON = (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3.5 12a8.5 8.5 0 1 0 2.5-6" />
+    <path d="M6 2.8V6.2h3.4" />
+    <path d="M12 7.5V12l3 2" />
+  </svg>
+);
+// タイムスリップの行き先（day は日本時間の日付。null は今）。データの from・until の境目とそろえる：
+// titech＝東京工業大学の最後の日（2024-10-01 に東京医科歯科大学と統合して東京科学大学）
+export const SLIP_ERAS = [
+  { id: "now", day: null, label: "navi.slipNow", sub: "navi.slipNowSub" },
+  { id: "titech", day: "2024-09-30", label: "navi.slipTitech", sub: "navi.slipTitechSub" },
+];
 // 空（傾けたときの画面の上のもや）：上は空の色、地平線のあたりは地平線の色
 const hazeBackground = (look) => `linear-gradient(to bottom, ${look.sky.top} 0%, ${look.sky.horizon}cc 34%, ${look.sky.horizon}00 100%)`;
 // 歩いて見るときの空（MapLibre の sky。目の高さでは画面の上半分が空になる）：空のレイヤー（campus3dSkyLayer）があればその天頂・地平線の色、
@@ -475,6 +489,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const builtRef = useRef(null);
   const propsRef = useRef(props);
   propsRef.current = props;
+  const featRef = useRef(props.features || NO_FEATURES); // いまの日付にある feature（タイムスリップ。下の features と同じ）
   const [loaded, setLoaded] = useState(false);
   const mk = useRef({ labels: [], stations: [], gps: null, pin: null }); // MapLibre の Marker
   const headRef = useRef({ follow: null, arrow: null }); // 追従で上にする方位 / 現在地の矢印の向き
@@ -499,7 +514,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
 
   // ── 地図を作る（1回だけ）。手で足した坂があれば、先に坂のまわりの標高を読んで焼き込んでおく（あとから地形が切り替わらないように）──
   useEffect(() => {
-    const slopes = (propsRef.current.features || []).filter(burnsGround);
+    const slopes = (featRef.current || []).filter(burnsGround);
     let cleanup = null;
     let cancelled = false;
     const start = () => {
@@ -526,7 +541,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const wrap = wrapRef.current;
     if (!ml || !box || !wrap) return undefined;
     // 坂を焼き込む標高タイルは、エディタか、坂・階段があるときだけ（ふだんは元のタイルをそのまま使う）
-    const burn = !!propsRef.current.editable || (propsRef.current.features || []).some(burnsGround);
+    const burn = !!propsRef.current.editable || (featRef.current || []).some(burnsGround);
     if (burn) registerDemProtocol(ml);
     // いまの見え方（時刻・昼・夕方・夜）の色と光で作る（できてから切りかえると一瞬ちらつくので）
     const look = lookFor(effLook(lookModeRef.current), { dark });
@@ -735,7 +750,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         if (!res.ok) return;
         const json = await res.json();
         // 駅の中の線路（構造物の track：大岡山駅の地下ホーム）で線・高さ・止まる位置を置きかえる。構造物が変わったら作り直す（下の効果）
-        const tracksNow = () => (propsRef.current.features || []).filter((f) => f.type === "track");
+        const tracksNow = () => (featRef.current || []).filter((f) => f.type === "track");
         const prep0 = prepareTrains(json, { tracks: tracksNow() });
         const [w, s, e, n] = trackBounds(prep0);
         const tb = TERRAIN.bounds; // 標高タイルのある範囲だけ読む（外はいちばん近い高さ）
@@ -828,7 +843,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
             const T = trainsRef.current;
             if (P.prep !== (T?.prep || null)) {
               P.prep = T?.prep || null;
-              P.prepd = preparePsd(P.list, P.prep, (propsRef.current.features || []).filter((f) => f.type === "track"));
+              P.prepd = preparePsd(P.list, P.prep, (featRef.current || []).filter((f) => f.type === "track"));
               P.mesh = null;
             }
             const open = psdOpen(P.prepd, T?.last);
@@ -1150,7 +1165,22 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { dest, origin, route, split, gps, guiding, follow, northUp, group, spots, fitPad } = props;
-  const features = props.features || NO_FEATURES;
+  // タイムスリップ：世界の時計（campus3dClock）の日付にある feature だけを描く・歩く（from・until。日付のついたものがなければ
+  // props.features のまま）。日付が変わっても、あるものの組が変わらなければ作り直さない（eraKey）
+  const allFeatures = props.features || NO_FEATURES;
+  const [worldDayNow, setWorldDayNow] = useState(() => worldDay());
+  useEffect(() => {
+    const upd = () => setWorldDayNow(worldDay());
+    const off = onWorldClock(upd);
+    const id = setInterval(upd, 1000); // デバッグで時刻を速く進めているときも日付の境目をまたぐ
+    return () => {
+      off();
+      clearInterval(id);
+    };
+  }, []);
+  const era = useMemo(() => eraKey(allFeatures, worldDayNow), [allFeatures, worldDayNow]);
+  const features = useMemo(() => featuresAt(allFeatures, worldDayNow), [allFeatures, era]); // eslint-disable-line react-hooks/exhaustive-deps
+  featRef.current = features;
   const selectedFeatureId = props.selectedFeatureId || null;
   // 詳細モードの並び（描く・歩く・焼き込む）と、階を選ぶボタンの階。地図の建物の置きかえは、ふだんの並びのまま
   const levels = useMemo(() => floorLevels(features), [features]);
@@ -1480,7 +1510,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       const [bx0, by0] = toXY([R.w, R.s]);
       const [bx1, by1] = toXY([R.e, R.n]);
       world = walkWorld({
-        data, features: detailView(propsRef.current.features || [], { detail: true, level: "all" }), surfaceAt: (ll) => dem.surfaceAt(ll), digs: dem.digs, cut: cutRef.current,
+        data, features: detailView(featRef.current || [], { detail: true, level: "all" }), surfaceAt: (ll) => dem.surfaceAt(ll), digs: dem.digs, cut: cutRef.current,
         replaced: replacedRef.current, heights: builtRef.current.heights, decks: bridgesRef.current, posts: (lampsRef.current || []).map((l) => [l.x, l.y]),
         bounds: [bx0 + 40, by0 + 40, bx1 - 40, by1 - 40], groundAt: (ll) => dem.groundAt(ll),
       });
@@ -1505,7 +1535,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       fly, noclip: false, lastSpace: 0, flyDown: false,
       keys: new Set(), joy: { x: 0, y: 0 }, run: false, sprintLatch: false, lastW: 0, touch,
       // 椅子に座る（campus3dSeats）：seats は座れるものの並び、seat は座っている所（null は立っている）、eyeH は足もとから目まで（座ると下がる）
-      seats: collectSeats(detailRef.current && levels.length ? detailView(propsRef.current.features || [], { detail: true, level: "all" }) : viewRef.current || [], (ll) => dem.groundAt(ll)),
+      seats: collectSeats(detailRef.current && levels.length ? detailView(featRef.current || [], { detail: true, level: "all" }) : viewRef.current || [], (ll) => dem.groundAt(ll)),
       seat: null, seatAim: null, eyeH: EYE, noJumpUntil: 0,
       auto: false, done: false, lookHold: 0, locked: false, unlockedAt: 0, restore, last: 0, raf: 0,
       anim: { t0: performance.now(), dur: 1500, from: { x: camX, y: camY, z: alt, yaw: map.getBearing(), pitch: map.getPitch(), D: D0, fov: restore.fov } },
@@ -2879,7 +2909,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
               <div className="cb3-twin-hint">{twinUi.st !== "off" ? t("navi.twinHelp") : twinUi.err === "lost" ? t("navi.twinLost") : twinUi.err ? t("navi.twinErr") : t("navi.twinNeed")}</div>
             </div>
           )}
-          <MapInventory inv={inv} touch={walkUi.touch} menu={invMenu} toast={invToast} walkRef={walkRef} data={data} features={props.features} accent={accent} onSelect={selectSlot} onUse={applyItem} onCloseMenu={closeMenu} onBuy={buy} onCharge={charge} onRename={(nm) => updateInv((x) => { x.name = nm; })} />
+          <MapInventory inv={inv} touch={walkUi.touch} menu={invMenu} toast={invToast} walkRef={walkRef} data={data} features={features} accent={accent} onSelect={selectSlot} onUse={applyItem} onCloseMenu={closeMenu} onBuy={buy} onCharge={charge} onRename={(nm) => updateInv((x) => { x.name = nm; })} />
           <div className="cb3-walk-btns">
             {inv && itemUseLabel(inv) && <button type="button" className="cb3-use" onClick={applyItem}>{itemUseLabel(inv)}</button>}
             {walkUi.touch && <button type="button" className="cb3-jump" onPointerDown={jumpDown} onPointerUp={jumpUp} onPointerCancel={jumpUp}>{walkUi.seated ? t("navi.strollStand") : walkUi.fly ? t("navi.strollUp") : t("navi.strollJump")}</button>}

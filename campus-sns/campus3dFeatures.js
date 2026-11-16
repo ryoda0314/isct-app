@@ -1,6 +1,7 @@
 // キャンパスナビの3D表示に手で足す構造物（平地・坂道・階段・壁・橋・建物の通り抜け）と路面（道路・路面・白線・横断歩道）のデータと、形の計算。
 // データ: public/map-3d/features.json（/editor/3d で編集する）。座標は [経度, 緯度]、長さ・高さは m。
-//   { id, type, name, coords: [[lng, lat], ...], osm?（取り込んだ OSM の way） } に、種類ごとに
+//   { id, type, name, coords: [[lng, lat], ...], osm?（取り込んだ OSM の way）, from?・until?（あった期間：日本時間の "YYYY-MM-DD"。
+//   from の日の 0 時から until の日の 0 時の前まで。なければいつでも。世界の時計の日付で描く・歩くものが決まる＝タイムスリップ） } に、種類ごとに
 //   terrace : coords は囲む範囲（3点以上、閉じない）。elev（平らにする標高。null は中の元の地面の平均）, side（ふちの斜面の幅。0 は垂直に切って壁）,
 //             faces（辺ごとの壁の面の見た目。辺 i は点 i → 点 i+1、最後は最後の点 → 最初の点。null はふつうの壁）：
 //             { glass（低いほうの地面からこの高さまでガラス。m）, base（ガラスの下の端。同じく m、なければ 0）, frost（すりガラス）,
@@ -82,6 +83,12 @@
 //             壁には口の穴をあける。西3号館の深い窓。top2・round とは一緒に使わない）
 //             （top2 があれば窓の上の端は斜め：1 点目で top・2 点目で top2。frame "light" は明るい枠。round が true なら丸窓＝両端の2点と
 //             bottom・top の四角に内接する円のガラスと輪の枠（地球生命研究所棟の講義室の壁）。top2 とは一緒に使わない）
+//             （arch があれば上の端はアーチ：両端の上の角から arch m 上がる円弧（幅の半分と同じなら半円）で、いちばん上が top。
+//             ガラス・枠・桟・奥まった窓の見込みと壁の穴も弧に沿う。西1号館の 2 階の窓・西の端の扉。top2・round とは一緒に使わない）
+//             lombard（ロンバルド帯＝壁の上の端のテラコッタの小さなアーチの列。西1号館）：{ z（帯の下の端。地面から m）, h（帯の高さ）,
+//             depth（壁からの出）, pitch（アーチの間隔）, sides（辺ごとに描くか。なければ全部） }。上の 4 割は出た帯、下はアーチの列と持ち送り
+//             clocks（壁の時計。4 つまで）：[{ coords（壁ぞいの両端の2点＝文字盤の直径）, z（中心の高さ。地面から m）, hour・minute（針の時刻。
+//             なければ 10 時 10 分） }]。黒い輪・棒の目盛り・針（西1号館の正面）
 //             canopies（小さなひさし。20 まで）：[{ coords（壁ぞいの両端の2点）, z（上の高さ。地面から m）, depth（出）, thickness }]
 //             vaults（上が平らで下が半円の筒＝屋根の高さに横たわるステンレスの胴。4 つまで）：[{ coords（筒の軸の折れ線。2〜6 点。
 //             折れ目は留め継ぎ）, width（幅＝半円の直径 m）, top（上の平らな面の高さ。地面から m）, glass（両端の面の窓。端ごとに
@@ -93,7 +100,8 @@
 //             stone 白っぽい石 / green 壁面緑化＝植物で覆った壁（大岡山駅） / red 赤く塗った板（屋上の看板の塔など） /
 //             concrete 打ち放しのコンクリート（灰色） / glazed 白い施釉れんが（附属図書館の東の箱） /
 //             granite 灰色の御影石（本館の車寄せ） / tile クリーム色がかった白いタイル（本館） / brick 赤れんが（南4号館の 1 階） /
-//             terracotta 赤茶の塗り壁（地球生命研究所棟の南の小屋）。なしは地図の建物の色）,
+//             terracotta 赤茶の塗り壁（地球生命研究所棟の南の小屋） / darkgranite 暗い御影石（手島精一像の台座） /
+//             bronze ブロンズ（銅像：手島精一像） / taupe 灰色がかった茶のタイル（西7号館。2026-11-16）。なしは地図の建物の色）,
 //             joints（外の壁のパネルの目地：[横の間隔, 縦の間隔, 横の目地の基準の高さ]。縦の目地は辺ごとに等間隔、窓の奥に隠れる）
 //             frame（true なら壁でなく鉄骨の外階段：角と辺の柱、levels（踊り場の高さ。地面から m）ごとの床と手すり、そのあいだの段の板）
 //             roof "glass"（ガラスの屋根。縦の桟は斜面の向きに glassPitch m ごと） / "solar"（太陽光パネル。ふちに白い笠木）
@@ -134,7 +142,8 @@
 //             gravel 黒い砂利 / stones 白い砂利 / brick 灰色のれんが / darkbrick こげ茶のれんが / wood 古い木の床 /
 //             lawn 芝生＝地図の公園と同じ色でいちばん下に描く（下の地図の通路の帯を隠し、その通路には街灯を立てない） /
 //             slab 敷石（飛び石）＝いちばん上に描く / soil 木の根もとの土 / blue 青いタイル（百年記念館のひさしの下） /
-//             shrubs こんもりした低木の植え込み＝範囲に低木の塊を並べて立体に描く（campus3dMesh.js の addShrubs） / redbrick 赤茶のれんが（南4号館のまわり・通り抜け））,
+//             shrubs こんもりした低木の植え込み＝範囲に低木の塊を並べて立体に描く（campus3dMesh.js の addShrubs） / redbrick 赤茶のれんが（南4号館のまわり・通り抜け） /
+//             turf 人工芝（グラウンド。冬も枯れ色にしない））,
 //             angle（導流帯の縞の向き、度）, boards（板の目地：[板の幅 m, 板の向き＝北から右回りの度]。目地は寄って見たときだけ描く）。
 //             地面に貼って描く（campus3dPaint.js）
 //   marking : 白線。coords は折れ線。kind（solid 白線 / dashed 白の破線 / stop 停止線 / yellow 黄線 / wide 太い白線 / tactile 点字ブロック（黄 30cm））
@@ -162,7 +171,8 @@
 //             curtain 外のガラスの壁（太い枠） / mesh 白い格子の手すり / rail 手すり / low 腰の高さの壁）, t（厚さ）, h（高さ。床から）,
 //             z0（下の端。床から）, h2・z02（斜めの壁：折れ線の終わりの点での高さ・下の端。あいだは線形）, auto（true なら扉は自動ドア）,
 //             doors（扉・口：[[始まり, 終わり], ...]。折れ線の始めからの m）,
-//             wins（壁の窓：[[始まり, 終わり, 下, 上], ...]。始まり・終わりは折れ線の始めからの m、下・上は床から m） }]）,
+//             wins（壁の窓：[[始まり, 終わり, 下, 上], ...]。始まり・終わりは折れ線の始めからの m、下・上は床から m。
+//             5 つ目があればアーチの窓＝上の端は両端の上の角からその m 上がる円弧で、いちばん上が「上」。外の壁 ext だけ） }]）,
 //             items（家具など：[{ coords（形）, z0・z1（床からの下と上 m）, kind（FLOOR_ITEM_KINDS。tube 横向きの筒＝白い筒の先に暗い穴 / disc 壁に掛けた丸い絵：
 //             どちらも形の 1 点目 → 2 点目の向きが筒の軸、直径は z1 − z0 / lift エレベーター：1 本目の辺が扉の面、hall（乗り場の壁の外の面までの出 m）・
 //             panel（"strip" 縦長の乗り場の操作盤）） }]）, under（床の下の面＝下の階の天井の色。FLOOR_FINISHES。なしは白）,
@@ -177,6 +187,17 @@
 // 地面は「元の地面 → 平地 → 坂道・階段」の順に重ねて作る（坂道・階段の高さは平地を入れたあとの地面から）
 // DOM も MapLibre も使わない（3D表示・エディタ・テストから共通で使う）
 import { CAMPUS_CENTER } from "./hooks/useLocationSharing.js";
+
+// アーチの窓の上の端の高さ（2026-11-15、西1号館）：幅 L・いちばん上 top・両端の上の角からの上がり rise（幅の半分まで＝半円）の円弧の、
+// 左端から s のところ。窓の枠・ガラス・壁の穴（campus3dMesh）と中の階の外の壁の窓（campus3dInterior）で同じ弧にする
+export function archTop(s, L, rise, top) {
+  const R = L / 2;
+  const r = Math.min(rise, R);
+  if (!(R > 1e-6) || !(r > 1e-6)) return top;
+  const rho = (R * R + r * r) / (2 * r);
+  const d = Math.min(Math.abs(s - R), R);
+  return top - r + Math.sqrt(Math.max(0, rho * rho - d * d)) - (rho - r);
+}
 
 export const FEATURES_URL = "/map-3d/features.json";
 export const CANDIDATES_URL = "/map-3d/osm-candidates.json";
@@ -200,7 +221,8 @@ export const FLOOR_FINISHES = ["oak", "concrete", "tile", "carpet", "stone", "wh
 // えんじ色の板、wtile 白いタイルの壁（エレベーターの前の壁）
 // conc 打ち放しのコンクリート（P コンの穴）、wbrick 白いれんが（附属図書館の地下。2026-11-13）
 // hboard（2026-11-15、西5号館の 4 階の製図室）：明るい木の横板張り（板の継ぎ目の暗い溝 0.16m おき）
-export const FLOOR_WALL_KINDS = ["wall", "ext", "glass", "curtain", "mesh", "rail", "low", "psd", "bars", "tiles", "dark", "mtile", "wains", "slat", "maroon", "wtile", "conc", "wbrick", "hboard"];
+// rbrick（2026-11-15、西1号館の玄関ホール・廊下。写真 w1ent4・w1AED1）：茶色のれんがの腰壁（th：れんがの高さ m。なしは 2.4）、上は白いしっくい
+export const FLOOR_WALL_KINDS = ["wall", "ext", "glass", "curtain", "mesh", "rail", "low", "psd", "bars", "tiles", "dark", "mtile", "wains", "slat", "maroon", "wtile", "conc", "wbrick", "hboard", "rbrick"];
 // tentsofa（2026-11-10、ユーザー「ソファー違いすぎ」）：両側に座れる低いソファー。4 点の四角の 1 本目の辺が長さ（背のてっぺんの線）、
 // 両側に座面、まん中に 2 枚の背もたれがもたれ合ったテントの形（z1 がてっぺん）、細い金属の脚（Taki の 1 階のラウンジ・写真 S__47226944）
 // column（駅のホームの丸柱：4 点の四角に内接する円。下から赤茶・オレンジと黄の市松の帯・クリーム色のタイル、上に白い丸い笠）、
@@ -240,7 +262,7 @@ export const FLOOR_STAIR_KINDS = ["wood", "white", "stone", "escalator", "oak", 
 export const FLOOR_RAIL_KINDS = ["mesh", "rail", "glass"];
 export const TYPE_LABEL = { terrace: "平地", slope: "坂道", stairs: "階段", wall: "壁", bridge: "橋", passage: "通り抜け", building: "建物", road: "道路", surface: "路面", marking: "白線", crosswalk: "横断歩道", tree: "木", signal: "信号機", sign: "看板", floor: "階（建物の中）", track: "線路（駅の中）" };
 // 路面と白線の種類（色・幅は campus3dPaint.js）
-export const SURFACE_KIND_KEYS = ["road", "walk", "plaza", "tile", "deck", "red", "green", "zebra", "gravel", "stones", "brick", "darkbrick", "redbrick", "wood", "lawn", "slab", "soil", "blue", "shrubs"];
+export const SURFACE_KIND_KEYS = ["road", "walk", "plaza", "tile", "deck", "red", "green", "zebra", "gravel", "stones", "brick", "darkbrick", "redbrick", "wood", "lawn", "slab", "soil", "blue", "shrubs", "turf"];
 export const MARKING_KIND_KEYS = ["solid", "dashed", "stop", "yellow", "wide", "tactile"];
 // 壁の種類（なしは壁）：生け垣・縦の格子の柵・ガードパイプ
 export const WALL_KIND_KEYS = ["hedge", "fence", "rail", "glass", "slant", "xbrace", "bench", "chain", "mesh"];
@@ -255,7 +277,7 @@ export const STAIRS_MATERIAL_LABEL = { "": "コンクリート", wood: "木", st
 // 建物の窓・扉の種類（campus3dMesh.js の addWindows）：ガラス・奥の暗いガラス・格子・扉・ガラスの扉
 export const WINDOW_KINDS = ["glass", "dark", "grille", "door", "glassdoor", "frost", "autodoor", "opening"];
 // 建物の壁と屋根の材質（campus3dMesh.js の色）：さびた鉄・穴あきの金属板・ステンレス。なしは地図の建物の色
-export const BUILDING_MATERIALS = ["rust", "perforated", "steel", "darkbrick", "stone", "green", "red", "concrete", "glazed", "granite", "tile", "brick", "terracotta"];
+export const BUILDING_MATERIALS = ["rust", "perforated", "steel", "darkbrick", "stone", "green", "red", "concrete", "glazed", "granite", "tile", "brick", "terracotta", "darkgranite", "bronze", "taupe"];
 // 空中の板（panels）の見た目：穴あきの金属板・ガラス・ステンレス・暗い鋼・建物の色
 export const PANEL_KINDS = ["perforated", "glass", "steel", "dark", "wall", "white", "red", "brick", "granite", "clear"];
 export const CURB_W = 0.32; // ガラスの手すり（wall の glass）の下の石の縁石の幅 m
@@ -296,13 +318,14 @@ export const DEFAULTS = {
   floor: { level: "1F", order: 0, z: 0, height: 3.5, slab: 0.3, finish: "oak" },
   track: { blend: 60 },
 };
-export const SIGN_STYLES = ["steel", "white", "notice", "dark", "red", "cream", "green", "seven", "sevenstand", "hazard"];
+// bronze：青さびのブロンズの銘板（浮き出た暗い字と縁。東工大時代の正門の「東京工業大學」。2026-11-16）
+export const SIGN_STYLES = ["steel", "white", "notice", "dark", "red", "cream", "green", "seven", "sevenstand", "hazard", "bronze"];
 // 看板の絵（icons の種類。campus3dSignText の SVG の形）：man 男・woman 女・wheel 車いす・baby おむつ替え・ostomy オストメイト・esc エスカレーター・
 // lift エレベーター・exit 非常口の人・arrow 矢印（右向き。rotate は種類の名前 arrowL / arrowU / arrowD / arrowUL / arrowDL / arrowUR / arrowDR）・
 // uturn 戻る矢印・drink 飲み物・onigiri おにぎり・sandwich サンドイッチ・cigarette たばこ
 export const SIGN_ICONS = ["man", "woman", "wheel", "baby", "ostomy", "esc", "lift", "exit", "arrow", "arrowL", "arrowU", "arrowD", "arrowUL", "arrowDL", "arrowUR", "arrowDR", "uturn", "drink", "onigiri", "sandwich", "cigarette", "tokyu"];
 // 看板の文字に使える字（campus3dMesh.js の GLYPHS にある字）
-export const SIGN_CHARS = /[A-Z0-9&.'\- <>東京科学大岡山駅中央改札急病院南北口前交番四川屋台華菜房あんの指圧鍼灸酒銀行最短分]/;
+export const SIGN_CHARS = /[A-Z0-9&.'\- <>東京科学大岡山駅中央改札急病院南北口前交番四川屋台華菜房あんの指圧鍼灸酒銀行最短分工業學]/;
 export const LOGO_KINDS = ["isct", "mcd", "tokyu", "tokyustore", "seven"];
 // 入力できる範囲（m）
 export const RANGE = {
@@ -385,6 +408,11 @@ export function normalizeFeature(f) {
   const d = DEFAULTS[f.type];
   const out = { id: typeof f.id === "string" && f.id ? f.id : newId(f.type), type: f.type, name: typeof f.name === "string" ? f.name.slice(0, 80) : "", coords };
   if (f.osm) out.osm = String(f.osm);
+  // いつからいつまであるか（タイムスリップ。from・until は日本時間の "YYYY-MM-DD"。featuresAt）
+  const fromDay = normDay(f.from);
+  const untilDay = normDay(f.until);
+  if (fromDay) out.from = fromDay;
+  if (untilDay && !(fromDay && untilDay <= fromDay)) out.until = untilDay;
   if (f.type === "terrace") {
     out.elev = f.elev != null && Number.isFinite(+f.elev) ? round2(clampTo(f.elev, RANGE.elev, 0)) : null;
     out.side = round2(clampTo(f.side, RANGE.side, d.side));
@@ -442,7 +470,10 @@ export function normalizeFeature(f) {
     out.lines = (Array.isArray(f.lines) ? f.lines : []).map((l) => {
       const text = typeof l?.text === "string" ? [...l.text.toUpperCase()].filter((ch) => SIGN_CHARS.test(ch)).join("").slice(0, 40) : "";
       if (!text.trim()) return null;
-      return { text, x: round2(clampTo(l.x, [0, W], 0)), y: round2(clampTo(l.y, [0, H], 0)), size: round2(clampTo(l.size, [0.01, H], Math.min(0.2, H))) };
+      const o = { text, x: round2(clampTo(l.x, [0, W], 0)), y: round2(clampTo(l.y, [0, H], 0)), size: round2(clampTo(l.size, [0.01, H], Math.min(0.2, H))) };
+      // kx：字の横の縮め（1 より小さいと縦長の字。銘板の鋳物の字）
+      if (l.kx != null && l.kx !== "" && Number.isFinite(+l.kx) && Math.abs(+l.kx - 1) > 0.005) o.kx = round2(clampTo(l.kx, [0.3, 2], 1));
+      return o;
     }).filter(Boolean).slice(0, 8);
     out.rules = (Array.isArray(f.rules) ? f.rules : []).filter((r) => Array.isArray(r) && r.length === 4 && r.every((v) => Number.isFinite(+v)))
       .map((r) => [round2(clampTo(r[0], [0, W], 0)), round2(clampTo(r[1], [0, H], 0)), round2(clampTo(r[2], [0, W], 0)), round2(clampTo(r[3], [0, H], 0))]).slice(0, 8);
@@ -643,9 +674,28 @@ export function normalizeFeature(f) {
       // 奥まった窓（2026-11-15、西3号館の深い窓）：recess＝ガラス・枠を面から m 奥に（口のまわりに見込み）、sill＝窓台を面から m 出す
       if (ow.top2 == null && !ow.round && Number.isFinite(+w.recess) && +w.recess > 0) ow.recess = round2(clampTo(w.recess, [0.02, 1.5], 0.3));
       if (ow.recess && Number.isFinite(+w.sill) && +w.sill > 0) ow.sill = round2(clampTo(w.sill, [0.01, 0.5], 0.05));
+      // アーチの窓（2026-11-15、西1号館）：上の端は両端の上の角から arch m 上がる円弧（いちばん上が top）
+      if (ow.top2 == null && !ow.round && Number.isFinite(+w.arch) && +w.arch > 0) ow.arch = round2(clampTo(w.arch, [0.05, top - bottom - 0.05], 0.5));
       return ow;
     }).filter(Boolean).slice(0, 200);
     if (windows.length) out.windows = windows;
+    // ロンバルド帯（2026-11-15、西1号館）：壁の上の端のテラコッタの小さなアーチの列
+    const lb = f.lombard;
+    if (lb && typeof lb === "object" && Number.isFinite(+lb.z) && Number.isFinite(+lb.h) && +lb.h > 0) {
+      const ol = { z: round2(clampTo(lb.z, [0, out.height + 10], 0)), h: round2(clampTo(lb.h, [0.1, 3], 0.6)), depth: round2(clampTo(lb.depth, [0.02, 0.6], 0.12)), pitch: round2(clampTo(lb.pitch, [0.2, 3], 0.5)) };
+      if (Array.isArray(lb.sides) && coords.some((_, i) => lb.sides[i] === false)) ol.sides = coords.map((_, i) => lb.sides[i] !== false);
+      out.lombard = ol;
+    }
+    // 壁の時計（2026-11-15、西1号館の正面）：壁ぞいの 2 点が文字盤の直径
+    const clocks = (Array.isArray(f.clocks) ? f.clocks : []).map((c) => {
+      const cs = twoPts(c?.coords);
+      if (!cs || !Number.isFinite(+c.z)) return null;
+      const oc = { coords: cs, z: round2(clampTo(c.z, [0, out.height + 10], 1)) };
+      if (Number.isFinite(+c.hour)) oc.hour = Math.round(clampTo(c.hour, [0, 23], 10));
+      if (Number.isFinite(+c.minute)) oc.minute = Math.round(clampTo(c.minute, [0, 59], 10));
+      return oc;
+    }).filter(Boolean).slice(0, 4);
+    if (clocks.length) out.clocks = clocks;
     const vaults = (Array.isArray(f.vaults) ? f.vaults : []).map((v) => {
       const cs = Array.isArray(v?.coords) ? v.coords.filter((q) => Array.isArray(q) && Number.isFinite(+q[0]) && Number.isFinite(+q[1])).map((q) => [round7(+q[0]), round7(+q[1])]) : [];
       if (cs.length < 2 || !Number.isFinite(+v.width) || !Number.isFinite(+v.top)) return null;
@@ -990,7 +1040,12 @@ function normalizeFloor(f, out, d) {
     if (z02 != null) o.z02 = z02;
     const doors = (Array.isArray(w.doors) ? w.doors : []).filter((p) => Array.isArray(p) && p.length === 2 && p.every((v) => Number.isFinite(+v)) && +p[1] > +p[0]).map((p) => [round2(+p[0]), round2(+p[1])]).slice(0, 64); // ホームドアの列は 1 両 4 か所 × 8 両
     if (doors.length) o.doors = doors;
-    const wins = (Array.isArray(w.wins) ? w.wins : []).filter((p) => Array.isArray(p) && p.length === 4 && p.every((v) => Number.isFinite(+v)) && +p[1] > +p[0] && +p[3] > +p[2]).map((p) => p.map((v) => round2(+v))).slice(0, 60);
+    // 5 つ目があればアーチの窓（上の端は両端から arch m 上がる円弧。2026-11-15、西1号館の外の壁 ext）
+    const wins = (Array.isArray(w.wins) ? w.wins : []).filter((p) => Array.isArray(p) && (p.length === 4 || p.length === 5) && p.every((v) => Number.isFinite(+v)) && +p[1] > +p[0] && +p[3] > +p[2]).map((p) => {
+      const q = p.slice(0, 4).map((v) => round2(+v));
+      if (p.length === 5 && +p[4] > 0) q.push(round2(Math.min(+p[4], q[3] - q[2] - 0.05)));
+      return q;
+    }).slice(0, 60);
     if (wins.length) o.wins = wins;
     if (doors.length && w.auto === true) o.auto = true; // 扉は自動ドア（campus3dDoors.js）
     // 1 枚のガラス（glass・curtain）：途中の縦の枠・横の枠なし、枠は壁の両端だけ（2026-11-10、ユーザー「窓の中にも線はない。一枚の板」）
@@ -1007,9 +1062,9 @@ function normalizeFloor(f, out, d) {
       o.style = w.style === "om" ? "om" : "mg";
       if (typeof w.track === "string" && w.track) o.track = w.track.slice(0, 60);
     }
-    // 腰のタイルの高さ（wains）
-    if (o.kind === "wains") {
-      const th = numOr(w.th, [0.2, 4], 1.3);
+    // 腰のタイルの高さ（wains）・れんがの腰壁の高さ（rbrick）
+    if (o.kind === "wains" || o.kind === "rbrick") {
+      const th = numOr(w.th, [0.2, 4], o.kind === "rbrick" ? 2.4 : 1.3);
       if (th != null) o.th = th;
     }
     return o;
@@ -1256,6 +1311,28 @@ export function prepareDig(f, groundAt) {
   };
   return { f, ring, holes, level, g0, box, burn };
 }
+
+// ── タイムスリップ（2026-11-16）：どの feature にも from・until（日本時間の "YYYY-MM-DD"）をつけられる ──
+// from はその日の 0 時から、until はその日の 0 時の前まで（until の日にはもうない）。どちらもなければいつでもある。
+// 地図は世界の時計（campus3dClock）の日付にあるものだけを描く・歩く（CampusMap3D）
+const DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+export function normDay(v) {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  const m = DAY_RE.exec(s);
+  if (!m) return null;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3] ? s : null;
+}
+export const isDated = (f) => !!(f && (f.from || f.until));
+export const aliveOn = (f, day) => !day || ((!f.from || f.from <= day) && (!f.until || day < f.until));
+// その日にある feature の並び。日付のついたものがなければ元の並び（同じ配列）のまま
+export function featuresAt(features, day) {
+  if (!day || !features.some(isDated)) return features;
+  return features.filter((f) => aliveOn(f, day));
+}
+// その日にある「日付のついた feature」の id（これが変わったときだけ描き直す）
+export const eraKey = (features, day) => features.filter((f) => isDated(f) && aliveOn(f, day)).map((f) => f.id).join("|");
 
 export function parseFeatures(json) {
   const list = Array.isArray(json) ? json : json && Array.isArray(json.features) ? json.features : [];
@@ -1829,7 +1906,12 @@ export function offsetRingBy(ring, d) {
     const den = A.u[0] * B.u[1] - A.u[1] * B.u[0];
     if (Math.abs(den) < 1e-9) return B.p;
     const t = ((B.p[0] - A.p[0]) * B.u[1] - (B.p[1] - A.p[1]) * B.u[0]) / den;
-    return [A.p[0] + A.u[0] * t, A.p[1] + A.u[1] * t];
+    const q = [A.p[0] + A.u[0] * t, A.p[1] + A.u[1] * t];
+    // ずらす量のちがう、ほとんど平行な辺の角は、交わりがとても遠くへ飛ぶ：ずらす量の 4 倍より遠ければ平行のときと同じ点に
+    // （2026-11-16、isct-45：附属図書館の入口の踊り場 lib-entr-porch のふたの形がキャンパスを 390m 横切り、その中の柵・網が歩く人を止めなかった）
+    const dA = d[(i - 1 + n) % n], dB = d[i];
+    if (dA !== dB && Math.hypot(q[0] - ring[i][0], q[1] - ring[i][1]) > 4 * Math.max(Math.abs(dA), Math.abs(dB), 0.05)) return B.p;
+    return q;
   });
 }
 
@@ -2286,6 +2368,9 @@ export function buildingOpenings(f, features) {
   if (ring.length < 3) return out;
   for (const p of features) {
     if (p.type !== "passage" || !(p.coords?.length > 1)) continue;
+    // 宙に浮いた建物（base）は、天井が下の端より低い通り抜けには穴をあけない（下をくぐるだけ。浮いた建物のくり抜きは壁が地面から立つ。
+    // 2026-11-15、西8号館：1・2 階の腰の殻と 3 階から上の殻を重ね、1 階のピロティの通り抜けが上の殻にも縦のすき間をあけていた）
+    if (f.base > 0 && p.height <= f.base) continue;
     const xy = p.coords.map(toXY);
     const L = cumulative(xy).at(-1);
     let crosses = false;

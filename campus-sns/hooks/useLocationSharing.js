@@ -225,7 +225,7 @@ export const SPOTS = [
   // 施設
   { id: "lib", label: "図書館", short: "図", col: "#a855c7", cat: "facility", lat: 35.60636, lng: 139.68400 },
   { id: "cafe", label: "食堂（大岡山）", short: "食", col: "#d4843e", cat: "facility", lat: 35.60457, lng: 139.68322 },
-  { id: "cafe2", label: "石川台弁当販売所", short: "石弁", col: "#c87838", cat: "facility", lat: 35.60145, lng: 139.68496 },
+  { id: "cafe2", label: "石川台弁当販売所（1号館3F）", short: "石弁", col: "#c87838", cat: "facility", lat: 35.60117, lng: 139.68457 }, // 石川台1号館 3 階のリフレッシュルーム（生協のお店のページ）。前は 3号館の中にあった（2026-11-16 直した）
   { id: "taki", label: "Taki Plaza", short: "TP", col: "#c6a236", cat: "facility", lat: 35.60620, lng: 139.68460 },
   { id: "mono", label: "ものつくり", short: "も", col: "#cf7c3e", cat: "facility", lat: 35.6045, lng: 139.68477 },
   { id: "coop", label: "生協", short: "協", col: "#4db88a", cat: "facility", lat: 35.60680, lng: 139.68475 },

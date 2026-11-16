@@ -272,7 +272,7 @@ function LeansRow({ f, update }) {
 }
 
 /* ── 看板：面の向き・大きさ・高さ・倒し・見た目・脚と、文字の行 ── */
-const SIGN_STYLE_LABEL = { steel: "ステンレス（暗い文字）", white: "白い板（薄い文字）", notice: "お知らせ（緑の帯）", dark: "黒い板（白い文字）", red: "赤い板（白い文字）", cream: "クリーム色の板（赤い字）", green: "緑の板（白い字・のぼり）", seven: "セブン-イレブンの帯", sevenstand: "セブン-イレブンの立て看板", hazard: "黄色と黒の縞" };
+const SIGN_STYLE_LABEL = { steel: "ステンレス（暗い文字）", white: "白い板（薄い文字）", notice: "お知らせ（緑の帯）", dark: "黒い板（白い文字）", red: "赤い板（白い文字）", cream: "クリーム色の板（赤い字）", green: "緑の板（白い字・のぼり）", seven: "セブン-イレブンの帯", sevenstand: "セブン-イレブンの立て看板", hazard: "黄色と黒の縞", bronze: "青さびのブロンズ（浮き出た字）" };
 function SignPanel({ f, update }) {
   const inp = { flex: 1, minWidth: 0, padding: "4px 6px", borderRadius: 5, border: `1px solid ${T.bdL}`, background: T.bg, color: T.txH, fontSize: 12, fontFamily: "inherit" };
   const setLine = (i, patch) => update({ lines: f.lines.map((l, k) => (k === i ? { ...l, ...patch } : l)) }, `line${i}`);
@@ -2234,6 +2234,14 @@ export default function Map3DEditor() {
       <Row label="名前">
         <input value={sel.name} onChange={(e) => update({ name: e.target.value }, "name")} placeholder="（なくてよい）"
           style={{ flex: 1, padding: "4px 6px", borderRadius: 5, border: `1px solid ${T.bdL}`, background: T.bg, color: T.txH, fontSize: 12, fontFamily: "inherit" }} />
+      </Row>
+      {/* タイムスリップ（2026-11-16）：あった期間。from の日から until の日の前まで。空ならいつでも。地図は世界の時計の日付のものだけ描く */}
+      <Row label="期間">
+        <input type="date" value={sel.from || ""} onChange={(e) => update({ from: e.target.value || undefined }, "from")} title="この日から（空ならずっと前から）"
+          style={{ padding: "3px 4px", borderRadius: 5, border: `1px solid ${T.bdL}`, background: T.bg, color: T.txH, fontSize: 11.5, fontFamily: "inherit" }} />
+        <span style={{ fontSize: 11, color: T.txD }}>〜</span>
+        <input type="date" value={sel.until || ""} onChange={(e) => update({ until: e.target.value || undefined }, "until")} title="この日の前まで（空なら今も）"
+          style={{ padding: "3px 4px", borderRadius: 5, border: `1px solid ${T.bdL}`, background: T.bg, color: T.txH, fontSize: 11.5, fontFamily: "inherit" }} />
       </Row>
       {sel.type === "wall" && <>
         <Row label="種類">

@@ -5,7 +5,7 @@
 // 家具など・階段（段・裏の面・手すり）・地下の上を覆う地面の高さの床（lids）。歩いて見るとき（全部の階）は、建物の屋根の下の天井と梁（addRoofCeiling）。
 // 地下の階の下を掘ったふち（dig）の帯は addDigBand
 import polygonClipping from "polygon-clipping";
-import { LIFT_DOOR_H, LIFT_DOOR_W, LIFT_WALL, WALL_CAP, WALL_T, buildingRoof, herringboneBricks, offsetRingBy, pointInRing, ringArea, roofSlab, toLngLat, toXY, trackZs } from "./campus3dFeatures.js";
+import { LIFT_DOOR_H, LIFT_DOOR_W, LIFT_WALL, WALL_CAP, WALL_T, archTop, buildingRoof, herringboneBricks, offsetRingBy, pointInRing, ringArea, roofSlab, toLngLat, toXY, trackZs } from "./campus3dFeatures.js";
 
 const hex = (h, a = 0.5) => {
   const n = parseInt(h.slice(1, 7), 16);
@@ -54,6 +54,8 @@ const PAL = {
   glassBal: "#6f7b82", frost: "#f2f4f3", railSteel: "#c9ced2",
   soffit: "#eceae5", soffitUnder: "#e1dfd9", dlight: "#fffef6", globe: "#fdfaf1", cord: "#e4e3df", tray: "#f1f1ee", duct: "#b9bec3", ductBand: "#9da3a9", cassette: "#f2f2ef", cassetteGrille: "#a4a8ac", beltBlue: "#2f4f9c", postSteel: "#c3c8cc",
   doorLeaf: "#e9e3d3", doorFrame: "#d6cfbd", doorKnob: "#9ea3a7", arrowBg: "#45484d", arrowFg: "#f6f6f4",
+  // 西1号館の玄関ホールの茶色のれんが（2026-11-15、写真 w1ent4・w1AED1）
+  rbrick: "#7a4a36", rbrickJoint: "#a08670",
   wainsTile: "#c9bda7", wainsGrout: "#ada190",wainsTop: "#ebe8e1", wainsTrim: "#b9b3a8", slatWood: "#7b4f37", slatBack: "#3d2a20", maroon: "#7a2140", wtile: "#f1f0ec", wtileGrout: "#dcdad5",
   gateBody: "#c9cdd1", gateTop: "#2f3236", gateFlap: "#e3e4e5", gateRead: "#4fb3ff", gateScreen: "#1b2633",
   cylDark: "#4a4648", locker: "#f3f3f0", lockerLine: "#c6c7c8", lockerLed: "#36d05b", machine: "#e6e7e5", screenDark: "#20262e",
@@ -674,7 +676,8 @@ export function wallPieces(pts, doors = [], wins = []) {
     if (s1 - s0 < 1e-4) continue;
     const mid = (s0 + s1) / 2;
     const door = doors.some(([d0, d1]) => mid > d0 && mid < d1);
-    out.push({ a: at(s0), b: at(s1), s0, s1, door, win: door ? null : wins.find(([d0, d1]) => mid > d0 && mid < d1) || null });
+    // a0：区間の始めの点（ceilRuns・offGlazed で区間を細かく分けても残る＝分けた区間の点の、折れ線の始めからの長さを s0 + |点 − a0| で出せる）
+    out.push({ a: at(s0), b: at(s1), a0: at(s0), s0, s1, door, win: door ? null : wins.find(([d0, d1]) => mid > d0 && mid < d1) || null });
   }
   return out;
 }
@@ -1068,7 +1071,7 @@ export function addFloor(M, f, ctx) {
       }
     }
     // 屋根の下の天井より上へは出さない（天井の高さが変わるところで区切る）
-    const cutByCeil = ceilAt && (w.kind === "wall" || w.kind === "ext" || w.kind === "glass" || w.kind === "curtain" || w.kind === "conc" || w.kind === "wbrick");
+    const cutByCeil = ceilAt && (w.kind === "wall" || w.kind === "ext" || w.kind === "glass" || w.kind === "curtain" || w.kind === "conc" || w.kind === "wbrick" || w.kind === "rbrick");
     const runs = (pc) => (cutByCeil ? ceilRuns(pc, S.top, S.bot, ceilAt) : [{ ...pc, ta: S.top(pc.a), tb: S.top(pc.b) }]);
     const glassy0 = w.kind === "glass" || w.kind === "curtain";
     // ホームドアの戸の口：口ごとに 1 組の戸（折れ線の点をまたいでも 1 つ）。線路 track があれば電車に合わせて開く（ctx.psd に足して
@@ -1100,6 +1103,23 @@ export function addFloor(M, f, ctx) {
         const quadIn = (za0, zb0, za1, zb1) => cull.quad([[A, za0], [B, zb0], [B, zb1], [A, za1]], nIn, shade(c, nIn));
         if (pc.door) {
           if (Math.min(ta - ba, tb - bb) > DOOR_H + 0.1) quadIn(ba + DOOR_H, bb + DOOR_H, ta, tb);
+        } else if (pc.win && pc.win[4] > 0) {
+          // アーチの窓（5 つ目＝弧の上がり。2026-11-15、西1号館）：窓の幅（v0〜v1）いっぱいの弧。区間を縦の帯に分け、弧より上は壁、下はガラス
+          const [v0, v1, wz0, wz1, arch] = pc.win;
+          const sOf = (fr) => pc.s0 + len(sub(lerp2(pc.a, pc.b, fr), pc.a0 || pc.a));
+          const K = Math.max(2, Math.ceil(((sOf(1) - sOf(0)) / Math.max(0.05, v1 - v0)) * 12));
+          for (let k = 0; k < K; k++) {
+            const fa = k / K, fb = (k + 1) / K;
+            const sa = sOf(fa), sb = sOf(fb);
+            const Pa = lerp2(A, B, fa), Pb = lerp2(A, B, fb);
+            const b0 = ba + (bb - ba) * fa, b1 = ba + (bb - ba) * fb, t0 = ta + (tb - ta) * fa, t1 = ta + (tb - ta) * fb;
+            const lo0 = Math.min(b0 + wz0, t0), lo1 = Math.min(b1 + wz0, t1);
+            const hi0 = Math.min(b0 + archTop(sa - v0, v1 - v0, arch, wz1), t0), hi1 = Math.min(b1 + archTop(sb - v0, v1 - v0, arch, wz1), t1);
+            const q = (za0, zb0, za1, zb1) => cull.quad([[Pa, za0], [Pb, zb0], [Pb, zb1], [Pa, za1]], nIn, shade(c, nIn));
+            if (Math.max(lo0 - b0, lo1 - b1) > 0.02) q(b0, b1, lo0, lo1);
+            if (Math.min(t0 - hi0, t1 - hi1) > 0.005) q(hi0, hi1, t0, t1);
+            if (Math.min(hi0 - lo0, hi1 - lo1) > 0.05) glassy.quad([[Pa, lo0], [Pb, lo1], [Pb, hi1], [Pa, hi0]], nIn, tint(GLASS));
+          }
         } else if (pc.win) {
           const [, , wz0, wz1] = pc.win;
           const loA = Math.min(ba + wz0, ta), loB = Math.min(bb + wz0, tb), hiA = Math.min(ba + wz1, ta), hiB = Math.min(bb + wz1, tb);
@@ -1196,7 +1216,7 @@ export function addFloor(M, f, ctx) {
         if (!(ta > za + 0.02 || tb > zb + 0.02)) continue;
         segBox(m, pc.a, pc.b, t, za, zb, ta, tb, T("hboard"), { bottom: true });
         addBoardGrooves(m, pc, t, za, zb, ta, tb, T("hboardGroove"));
-      } else if (w.kind === "mtile" || w.kind === "wains" || w.kind === "wtile" || w.kind === "maroon" || w.kind === "slat") {
+      } else if (w.kind === "mtile" || w.kind === "wains" || w.kind === "wtile" || w.kind === "maroon" || w.kind === "slat" || w.kind === "rbrick") {
         // 2026-11-12（大岡山駅）：小さなタイルの壁・腰のタイル・白いタイル・えんじ色の板・木の格子。扉の口は口の上だけ
         const za = pc.door ? ba + DOOR_H : ba, zb = pc.door ? bb + DOOR_H : bb;
         if (!(ta > za + 0.02 || tb > zb + 0.02)) continue;
@@ -1204,7 +1224,7 @@ export function addFloor(M, f, ctx) {
           addSlatWall(m, pc, t, za, zb, ta, tb, T);
           continue;
         }
-        const base = { mtile: "mtile", wtile: "wtile", maroon: "maroon", wains: "wainsTop" }[w.kind];
+        const base = { mtile: "mtile", wtile: "wtile", maroon: "maroon", wains: "wainsTop", rbrick: "wainsTop" }[w.kind];
         segBox(m, pc.a, pc.b, t, za, zb, ta, tb, T(base), { bottom: !!pc.door });
         if (w.kind === "mtile") addSmallTiles(m, pc, t, za, zb, ta, tb, T, { band: [0.45, 2.7] });
         else if (w.kind === "wtile") addSmallTiles(m, pc, t, za, zb, ta, tb, T, { tw: 0.2, th: 0.2, tile: "wtile", grout: "wtileGrout" });
@@ -1214,6 +1234,11 @@ export function addFloor(M, f, ctx) {
           addSmallTiles(m, pc, t, ba, bb, ka, kb, T, { tw: 0.1, th: 0.1, tile: "wainsTile", grout: "wainsGrout" });
           // 腰の上の見切り（細い帯）
           segBox(m, pc.a, pc.b, t + 0.03, ka - 0.01, kb - 0.01, ka + 0.025, kb + 0.025, T("wainsTrim"), { ends: false, bottom: true });
+        } else if (w.kind === "rbrick") {
+          // 茶色のれんがの腰壁（扉の口の上は白いしっくいのまま）
+          const th = w.th ?? 2.4;
+          const ka = Math.min(ta, ba + th), kb = Math.min(tb, bb + th);
+          if (!pc.door && (ka > ba + 0.02 || kb > bb + 0.02)) addSmallTiles(m, pc, t, ba, bb, ka, kb, T, { tw: 0.23, th: 0.07, tile: "rbrick", grout: "rbrickJoint" });
         }
       }
     }
