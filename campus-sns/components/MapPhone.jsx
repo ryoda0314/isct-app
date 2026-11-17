@@ -10,11 +10,30 @@ import { SPOT_CATS } from "../hooks/useNavigation.js";
 import { mapGeom } from "./MapInventory.jsx";
 
 const CSS = `
-.cb3-phone{position:absolute;right:calc(28px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);width:min(300px,calc(100% - 32px));
+.cb3-phone{position:absolute;right:calc(28px + var(--cb3-sr,env(safe-area-inset-right,0px)));top:50%;transform:translateY(-50%);width:min(300px,calc(100% - 32px));
   height:min(600px,calc(100% - 140px));min-height:300px;box-sizing:border-box;padding:8px;border-radius:34px;background:#15181c;
   box-shadow:0 0 0 1px #2c3238,0 18px 40px -12px rgba(0,0,0,.6);pointer-events:auto;z-index:6;font-family:inherit;touch-action:auto}
-.cb3-phone.mini{top:calc(52px + env(safe-area-inset-top));right:calc(12px + env(safe-area-inset-right));transform:none;width:178px;height:auto;min-height:0;
+.cb3-phone.mini{top:calc(52px + var(--cb3-st,env(safe-area-inset-top,0px)));right:calc(12px + var(--cb3-sr,env(safe-area-inset-right,0px)));transform:none;width:178px;height:auto;min-height:0;
   padding:6px;border-radius:24px;cursor:pointer;z-index:4}
+/* 横にしたスマホ：歩くボタンの列が右上に横に並ぶ（CampusMap3D の .cb3-walk-btns）ので、小さいスマホは左上（時間・天気のボタンの下）へ。
+   右上のままだと「やめる」などのボタンに重なって押せなかった（2026-11-17） */
+@media (orientation:landscape) and (max-height:540px){
+  .cb3-phone.mini{left:calc(10px + var(--cb3-sl,env(safe-area-inset-left,0px)));right:auto;top:calc(54px + var(--cb3-st,env(safe-area-inset-top,0px)));width:164px}
+  /* 開いたスマホ：300px では「案内を開始」「案内を終了」が下に隠れ、スクロールしないと押せなかった。目印（M）の下から画面の下までの高さにし、
+     地図（.fit の画面＝下見・案内中）は残りに合わせて縮め（MapPhone の canvas は clientHeight で描く）、ボタンをいつも見せる（isct-9b、2026-11-17） */
+  .cb3-phone:not(.mini){top:calc(52px + var(--cb3-st,env(safe-area-inset-top,0px)));bottom:calc(8px + var(--cb3-sb,env(safe-area-inset-bottom,0px)));height:auto;min-height:0;transform:none}
+  .cb3-phone-body.fit{display:flex;flex-direction:column}
+  .cb3-phone-body.fit > *{flex:0 0 auto}
+  .cb3-phone-body.fit > .cb3-phone-map{flex:1 1 0;min-height:64px;height:auto !important}
+  .cb3-phone-body.fit > .cb3-phone-acts{position:sticky;bottom:0;background:#f3f5f7}
+}
+/* 回して描くとき（縦に持ったスマホの歩くモード。.cb3-rot）も、上の横向きと同じ並び */
+.cb3-rot .cb3-phone.mini{left:calc(10px + var(--cb3-sl,env(safe-area-inset-left,0px)));right:auto;top:calc(54px + var(--cb3-st,env(safe-area-inset-top,0px)));width:164px}
+.cb3-rot .cb3-phone:not(.mini){top:calc(52px + var(--cb3-st,env(safe-area-inset-top,0px)));bottom:calc(8px + var(--cb3-sb,env(safe-area-inset-bottom,0px)));height:auto;min-height:0;transform:none}
+.cb3-rot .cb3-phone-body.fit{display:flex;flex-direction:column}
+.cb3-rot .cb3-phone-body.fit > *{flex:0 0 auto}
+.cb3-rot .cb3-phone-body.fit > .cb3-phone-map{flex:1 1 0;min-height:64px;height:auto !important}
+.cb3-rot .cb3-phone-body.fit > .cb3-phone-acts{position:sticky;bottom:0;background:#f3f5f7}
 .cb3-phone-scr{height:100%;border-radius:27px;background:#f3f5f7;color:#0e2030;overflow:hidden;display:flex;flex-direction:column}
 .cb3-phone.mini .cb3-phone-scr{border-radius:19px}
 .cb3-phone-st{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;height:24px;padding:0 18px;font-size:11px;font-weight:800;color:#0e2030}
@@ -144,7 +163,7 @@ function PhoneMap({ walkRef, geom, route, dest, fit, height, accent }) {
       const w = walkRef.current;
       if (!cv || !w) return;
       const W = cv.clientWidth || 260;
-      const H = height;
+      const H = cv.clientHeight || height; // 横向きのスマホでは CSS が高さを縮める
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
         cv.width = Math.round(W * dpr);
@@ -367,7 +386,7 @@ export function MapPhone({ inv, open, guide, spots, walkRef, data, features, gui
             <b>{t("nav.navigation")}</b>
             <button type="button" aria-label={t("inv.close")} onClick={onClose}>×</button>
           </div>
-          <div className="cb3-phone-body">
+          <div className={(showGuide ? !guide.arrived : !!pick) ? "cb3-phone-body fit" : "cb3-phone-body"}>
             {showGuide ? (
               guide.arrived ? (
                 <div className="cb3-phone-card">

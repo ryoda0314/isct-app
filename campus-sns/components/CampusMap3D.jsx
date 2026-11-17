@@ -180,23 +180,37 @@ const CSS = `
 /* スマホで歩く：画面いっぱい（アプリの上の見出し・下のタブの上に重ねる。2026-11-14 ユーザー「スマホの探索は全画面モード」）。
    画面のふち（ノッチ・角の丸み）の分は safe-area で内へ */
 .cb3-full{position:fixed!important;inset:0!important;z-index:100000!important;background:#0e2030}
-.cb3-full .cb3-joy{left:calc(22px + env(safe-area-inset-left));bottom:calc(30px + env(safe-area-inset-bottom))}
-.cb3-full .cb3-walk-btns{right:calc(12px + env(safe-area-inset-right));bottom:calc(30px + env(safe-area-inset-bottom))}
-.cb3-full .cb3-walk-hint{top:calc(14px + env(safe-area-inset-top))}
-.cb3-full .cb3-dbg-walkbtn{right:calc(12px + env(safe-area-inset-right));top:calc(14px + env(safe-area-inset-top))}
-.cb3-full .cb3-env-btn.walk{left:calc(10px + env(safe-area-inset-left));top:calc(10px + env(safe-area-inset-top))}
+/* スマホの歩くモードはいつも横画面（2026-11-17 ユーザー「縦画面のまま探索はしない。操作しにくいから」）：アプリは縦に固定（マニフェスト）で、
+   iPhone はこの画面だけ横にする方法がないので、縦に持っているあいだは画面を 90 度回して描く（スマホを左へ倒して持つ＝上が左）。
+   幅と高さを入れかえた箱を、右上の角を軸に時計回りに 90 度。指の向きは CampusMap3D の rotRef で合わせる。端のよけ（ノッチ）は名前を入れかえる */
+.cb3-full.cb3-rot{inset:auto!important;top:0!important;left:100vw!important;width:100vh!important;height:100vw!important;transform-origin:0 0;transform:rotate(90deg);
+  --cb3-sl:env(safe-area-inset-top,0px);--cb3-sr:env(safe-area-inset-bottom,0px);--cb3-st:env(safe-area-inset-right,0px);--cb3-sb:env(safe-area-inset-left,0px)}
+@supports (width:100dvh){.cb3-full.cb3-rot{left:100dvw!important;width:100dvh!important;height:100dvw!important}}
+.cb3-full .cb3-joy{left:calc(22px + var(--cb3-sl,env(safe-area-inset-left,0px)));bottom:calc(30px + var(--cb3-sb,env(safe-area-inset-bottom,0px)))}
+.cb3-full .cb3-walk-btns{right:calc(12px + var(--cb3-sr,env(safe-area-inset-right,0px)));bottom:calc(30px + var(--cb3-sb,env(safe-area-inset-bottom,0px)))}
+.cb3-full .cb3-walk-hint{top:calc(14px + var(--cb3-st,env(safe-area-inset-top,0px)))}
+.cb3-full .cb3-dbg-walkbtn{right:calc(12px + var(--cb3-sr,env(safe-area-inset-right,0px)));top:calc(14px + var(--cb3-st,env(safe-area-inset-top,0px)))}
+.cb3-full .cb3-env-btn.walk{left:calc(10px + var(--cb3-sl,env(safe-area-inset-left,0px)));top:calc(10px + var(--cb3-st,env(safe-area-inset-top,0px)))}
 .cb3-full .cb3-attr{display:none}
 /* 横にしたスマホ（マイクラのスマホ版のように）：左下にスティック、右下に大きいジャンプ（飛ぶときは上・下）、ほかのボタンは右上に横に並べる。
    使い方の案内は下のまん中 */
 @media (orientation:landscape) and (max-height:540px){
-  .cb3-full .cb3-joy{left:calc(34px + env(safe-area-inset-left));bottom:calc(24px + env(safe-area-inset-bottom));width:132px;height:132px}
+  .cb3-full .cb3-joy{left:calc(34px + var(--cb3-sl,env(safe-area-inset-left,0px)));bottom:calc(24px + var(--cb3-sb,env(safe-area-inset-bottom,0px)));width:132px;height:132px}
   .cb3-full .cb3-joy-knob{width:56px;height:56px;margin:-28px 0 0 -28px}
-  .cb3-full .cb3-walk-btns{top:calc(62px + env(safe-area-inset-top));bottom:auto;right:calc(12px + env(safe-area-inset-right));flex-direction:row;align-items:center;gap:8px}
+  .cb3-full .cb3-walk-btns{top:calc(62px + var(--cb3-st,env(safe-area-inset-top,0px)));bottom:auto;right:calc(12px + var(--cb3-sr,env(safe-area-inset-right,0px)));flex-direction:row;align-items:center;gap:8px}
   .cb3-full .cb3-walk-btns button{height:36px;padding:0 13px;font-size:12px}
-  .cb3-full .cb3-walk-btns .cb3-jump{position:fixed;right:calc(34px + env(safe-area-inset-right));bottom:calc(30px + env(safe-area-inset-bottom));width:78px;height:78px;padding:0;font-size:13px}
-  .cb3-full .cb3-walk-btns .cb3-jump+.cb3-jump{bottom:calc(120px + env(safe-area-inset-bottom))}
-  .cb3-full .cb3-walk-hint{top:auto;bottom:calc(14px + env(safe-area-inset-bottom));max-width:calc(100% - 400px);font-size:11.5px;padding:6px 12px}
+  .cb3-full .cb3-walk-btns .cb3-jump{position:fixed;right:calc(34px + var(--cb3-sr,env(safe-area-inset-right,0px)));bottom:calc(30px + var(--cb3-sb,env(safe-area-inset-bottom,0px)));width:78px;height:78px;padding:0;font-size:13px}
+  .cb3-full .cb3-walk-btns .cb3-jump+.cb3-jump{bottom:calc(120px + var(--cb3-sb,env(safe-area-inset-bottom,0px)))}
+  .cb3-full .cb3-walk-hint{top:auto;bottom:calc(14px + var(--cb3-sb,env(safe-area-inset-bottom,0px)));max-width:calc(100% - 400px);font-size:11.5px;padding:6px 12px}
 }
+/* 回して描くとき（縦に持ったスマホの歩くモード。.cb3-rot）も、上の横向きと同じ並び */
+.cb3-full.cb3-rot .cb3-joy{left:calc(34px + var(--cb3-sl,env(safe-area-inset-left,0px)));bottom:calc(24px + var(--cb3-sb,env(safe-area-inset-bottom,0px)));width:132px;height:132px}
+.cb3-full.cb3-rot .cb3-joy-knob{width:56px;height:56px;margin:-28px 0 0 -28px}
+.cb3-full.cb3-rot .cb3-walk-btns{top:calc(62px + var(--cb3-st,env(safe-area-inset-top,0px)));bottom:auto;right:calc(12px + var(--cb3-sr,env(safe-area-inset-right,0px)));flex-direction:row;align-items:center;gap:8px}
+.cb3-full.cb3-rot .cb3-walk-btns button{height:36px;padding:0 13px;font-size:12px}
+.cb3-full.cb3-rot .cb3-walk-btns .cb3-jump{position:fixed;right:calc(34px + var(--cb3-sr,env(safe-area-inset-right,0px)));bottom:calc(30px + var(--cb3-sb,env(safe-area-inset-bottom,0px)));width:78px;height:78px;padding:0;font-size:13px}
+.cb3-full.cb3-rot .cb3-walk-btns .cb3-jump+.cb3-jump{bottom:calc(120px + var(--cb3-sb,env(safe-area-inset-bottom,0px)))}
+.cb3-full.cb3-rot .cb3-walk-hint{top:auto;bottom:calc(14px + var(--cb3-sb,env(safe-area-inset-bottom,0px)));max-width:calc(100% - 400px);font-size:11.5px;padding:6px 12px}
 /* エレベーターのボタンに照準が当たっている：十字を黄色に、下に押すボタンの名前（クリック・タップで押す） */
 .cb3-cross.on:before,.cb3-cross.on:after{background:#ffd27a}
 .cb3-aim{position:absolute;left:50%;top:calc(50% + 16px);transform:translateX(-50%);padding:2px 9px;border-radius:9px;background:rgba(14,32,48,.8);color:#ffd27a;
@@ -389,6 +403,8 @@ function fitCamera(ml, map, pts, pad, pitch, bearing, maxZoom) {
 // スマホで歩くあいだの全画面（2026-11-14 ユーザー「スマホの探索は全画面モード」「横画面もできるように。マイクラスマホ版みたいに」）：
 // 地図は CSS で画面いっぱい（.cb3-full。iPhone の Safari は要素の全画面ができない）。できるところ（Android など）はブラウザーの全画面にして、
 // 画面の向きの固定を外す（アプリのマニフェストは縦。歩くあいだは横にもできる。やめたら固定に戻す）。どれもできなければ黙ってそのまま
+// 歩くモードの画面を回して描いているか（縦に持ったスマホ）。本当に横になった（Android の全画面で向きの固定が外れた・ブラウザーで横にした）ら回さない
+const wantsRot = () => typeof window !== "undefined" && window.innerHeight > window.innerWidth;
 function enterFullWalk() {
   try {
     const el = document.documentElement;
@@ -469,6 +485,17 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const lampKeyRef = useRef(null); // 街灯を置いたときの構造物（変わっていなければ置き直さない）
   // 歩いて見る（campus3dWalk.js）：歩いているあいだの状態（位置・向き・入力・戻すときの設定）。null なら歩いていない
   const walkRef = useRef(null);
+  // スマホの歩くモードを回して描いているか（.cb3-rot）。指の位置・動きを画面の向きに直すときに見る
+  const rotRef = useRef(false);
+  const applyRot = () => {
+    const wrap = wrapRef.current;
+    if (!wrap || !wrap.classList.contains("cb3-full")) return;
+    const on = wantsRot();
+    if (on === rotRef.current && wrap.classList.contains("cb3-rot") === on) return;
+    rotRef.current = on;
+    wrap.classList.toggle("cb3-rot", on);
+    requestAnimationFrame(() => mapRef.current?.resize());
+  };
   const [walking, setWalking] = useState(false);
   // 詳細モード（建物の中）：on/off（親が決めるなら props.detail）と、選んだ階（order か "all"）。歩いて見るあいだは全部の階
   const detailCtl = typeof props.detail === "boolean";
@@ -1447,6 +1474,18 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     })().catch((err) => console.warn("[3D map] features:", err?.message || err));
   }, [loaded, view, selectedFeatureId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // スマホの歩くモード：持ち方・画面の大きさが変わったら、回して描くかを選び直す
+  useEffect(() => {
+    if (!walking) return undefined;
+    const on = () => applyRot();
+    window.addEventListener("resize", on);
+    window.addEventListener("orientationchange", on);
+    return () => {
+      window.removeEventListener("resize", on);
+      window.removeEventListener("orientationchange", on);
+    };
+  }, [walking]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // lite（スマホ）：見ている所が動いて、中を描く建物が変わったら形を作り直す（作り直しは重いので、続けては作らない）
   useEffect(() => {
     if (!loaded) return undefined;
@@ -1686,6 +1725,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     if (touch) {
       wrapRef.current?.classList.add("cb3-full");
       enterFullWalk();
+      applyRot();
       requestAnimationFrame(() => mapRef.current?.resize());
     }
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur?.();
@@ -2667,6 +2707,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     // スマホの全画面をやめる（地図はもとの大きさ・画面の向きの固定も戻す）
     if (wrapRef.current?.classList.contains("cb3-full")) {
       wrapRef.current.classList.remove("cb3-full");
+      wrapRef.current.classList.remove("cb3-rot");
+      rotRef.current = false;
       exitFullWalk();
       requestAnimationFrame(() => mapRef.current?.resize());
     }
@@ -2698,7 +2740,9 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     // 画面の点（canvas の CSS px）
     const canvasPt = (e) => {
       const r = mapRef.current?.getCanvas().getBoundingClientRect();
-      return r ? { x: e.clientX - r.left, y: e.clientY - r.top } : null;
+      if (!r) return null;
+      // 回して描いているとき：絵の右が画面の下、絵の下が画面の左
+      return rotRef.current ? { x: e.clientY - r.top, y: r.right - e.clientX } : { x: e.clientX - r.left, y: e.clientY - r.top };
     };
     const lookBy = (dx, dy, perPx) => {
       const w = walkRef.current;
@@ -2754,7 +2798,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       if (e.pointerType === "mouse" && !document.pointerLockElement && walkRef.current) walkRef.current.hover = canvasPt(e);
       if (tap && e.pointerId === tap.id && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) > 10) tap = null;
       if (!drag || e.pointerId !== drag.id || document.pointerLockElement) return;
-      lookBy(e.clientX - drag.x, e.clientY - drag.y, drag.mouse ? 0.2 : 0.3);
+      if (rotRef.current) lookBy(e.clientY - drag.y, -(e.clientX - drag.x), 0.3);
+      else lookBy(e.clientX - drag.x, e.clientY - drag.y, drag.mouse ? 0.2 : 0.3);
       drag.x = e.clientX;
       drag.y = e.clientY;
     };
@@ -2962,6 +3007,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const lim = half - 14;
     let dx = e.clientX - (r.left + half);
     let dy = e.clientY - (r.top + half);
+    if (rotRef.current) [dx, dy] = [dy, -dx]; // 回して描いているとき：絵の向きに直す
     const m = Math.hypot(dx, dy);
     if (m > lim) {
       dx *= lim / m;

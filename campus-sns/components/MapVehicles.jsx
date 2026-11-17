@@ -24,7 +24,7 @@ const CSS = `
   white-space:nowrap;pointer-events:none;box-shadow:0 6px 16px -6px rgba(0,0,0,.5);font-variant-numeric:tabular-nums;font-family:inherit}
 .cb3-veh-hud.low{background:rgba(150,40,30,.9)}
 /* 細い画面（スマホ）：上はボタン・スマホでいっぱいなので、左下のスティックの上・まん中に */
-@media (max-width:600px){.cb3-veh-hud{top:auto!important;bottom:calc(212px + env(safe-area-inset-bottom,0px));font-size:12px;padding:5px 10px}}
+@media (max-width:600px){.cb3-veh-hud{top:auto!important;bottom:calc(212px + var(--cb3-sb,env(safe-area-inset-bottom,0px)));font-size:12px;padding:5px 10px}}
 `;
 
 // 線の絵（色は currentColor）

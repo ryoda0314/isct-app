@@ -1545,7 +1545,7 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m-10-10h4m12 0h4"/></svg>
     {t("navi.recenter")}
   </button>);
-  const mapButtons=btnStack.length>0&&<div style={{position:"absolute",right:mob?10:14,bottom:mob?118:122,zIndex:999,display:"flex",flexDirection:"column-reverse",alignItems:"flex-end",gap:10}}>{btnStack}</div>;
+  const mapButtons=btnStack.length>0&&<div style={{position:"absolute",right:mob?10:14,bottom:mob?118:122,zIndex:999,display:"flex",flexDirection:"column-reverse",flexWrap:"wrap-reverse",alignItems:"flex-end",alignContent:"flex-start",gap:10,maxHeight:`calc(100% - ${(mob?118:122)+(mob?120:14)}px)`,minHeight:44}}>{btnStack}</div>;
   const outOfRegionChip=basemap==="illust"&&!view3d&&(outOfRegion||(gpsPos&&!inCampusArea(gpsPos.lat,gpsPos.lng)))&&!guiding&&!bottomCardShown&&!pickerOpen&&<div style={{position:"absolute",left:mob?10:0,right:mob?64:0,bottom:mob?18:24,zIndex:999,display:"flex",justifyContent:mob?"flex-start":"center",pointerEvents:"none"}}>
     <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 8px 8px 14px",borderRadius:20,background:T.bg2,border:`1px solid ${T.bdL}`,boxShadow:"0 6px 16px -6px rgba(0,0,0,.4)",whiteSpace:"nowrap",animation:"navSlideUp .2s ease-out",pointerEvents:"auto"}}>
       <span style={{fontSize:12,color:T.tx}}>{t("navi.illustAreaOnly")}</span>

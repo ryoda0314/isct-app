@@ -53,7 +53,7 @@ const CSS = `
 .cb3-card.ic .bal small{display:block;font-size:10.5px;font-weight:700;color:#4d6b5c}
 .cb3-card.ic .bal b{font-size:26px;color:#0e2030}
 .cb3-card.ic .foot{background:#2f7a57}
-.cb3-inv{position:absolute;left:50%;bottom:calc(10px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none;z-index:4}
+.cb3-inv{position:absolute;left:50%;bottom:calc(10px + var(--cb3-sb,env(safe-area-inset-bottom,0px)));transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none;z-index:4}
 .cb3-inv-wallet{padding:3px 10px;border-radius:10px;background:rgba(14,32,48,.78);color:#fff;font-size:11.5px;font-weight:700;white-space:nowrap}
 .cb3-inv-wallet small{opacity:.75;font-weight:600;margin-left:4px}
 .cb3-inv-bar{display:flex;gap:3px;padding:3px;border-radius:12px;background:rgba(14,32,48,.55);pointer-events:auto}
@@ -65,13 +65,17 @@ const CSS = `
 .cb3-inv-n{position:absolute;right:2px;bottom:0;font-size:10.5px;font-weight:800;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.7)}
 .cb3-inv-k{position:absolute;left:3px;top:1px;font-size:9px;font-weight:700;color:rgba(255,255,255,.7)}
 /* スマホの縦：欄は画面の下いっぱい、スティックとボタンはその上へ */
-.cb3-full .cb3-inv-on .cb3-joy{bottom:calc(84px + env(safe-area-inset-bottom))}
-.cb3-full .cb3-inv-on .cb3-walk-btns{bottom:calc(84px + env(safe-area-inset-bottom))}
+.cb3-full .cb3-inv-on .cb3-joy{bottom:calc(84px + var(--cb3-sb,env(safe-area-inset-bottom,0px)))}
+.cb3-full .cb3-inv-on .cb3-walk-btns{bottom:calc(84px + var(--cb3-sb,env(safe-area-inset-bottom,0px)))}
 @media (orientation:landscape) and (max-height:540px){
-  .cb3-full .cb3-inv-on .cb3-joy{bottom:calc(24px + env(safe-area-inset-bottom))}
+  .cb3-full .cb3-inv-on .cb3-joy{bottom:calc(24px + var(--cb3-sb,env(safe-area-inset-bottom,0px)))}
   .cb3-full .cb3-inv-on .cb3-walk-btns{bottom:auto}
   .cb3-full .cb3-inv-slot{width:38px;height:38px}
 }
+/* 回して描くとき（縦に持ったスマホの歩くモード。.cb3-rot）も、上の横向きと同じ並び */
+.cb3-full.cb3-rot .cb3-inv-on .cb3-joy{bottom:calc(24px + var(--cb3-sb,env(safe-area-inset-bottom,0px)))}
+.cb3-full.cb3-rot .cb3-inv-on .cb3-walk-btns{bottom:auto}
+.cb3-full.cb3-rot .cb3-inv-slot{width:38px;height:38px}
 .cb3-inv-modal{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);pointer-events:auto;z-index:6;padding:16px;box-sizing:border-box}
 .cb3-inv-box{width:min(340px,100%);max-height:100%;overflow:auto;border-radius:14px;background:#fff;color:#0e2030;padding:14px;box-sizing:border-box;border:1px solid #d6dde4;
   box-shadow:0 10px 30px -10px rgba(0,0,0,.5);font-family:inherit}
@@ -89,9 +93,9 @@ const CSS = `
 .cb3-inv-card .big{font-size:22px;font-weight:800;margin:14px 0 4px}
 .cb3-inv-card .tag{display:inline-block;padding:1px 7px;border-radius:7px;border:1px solid #c9d2db;font-size:10.5px;font-weight:700;color:#4a5866;background:#fff}
 .cb3-inv-photo{width:100%;border-radius:10px;border:1px solid #d6dde4;display:block}
-.cb3-inv-toast{position:absolute;left:50%;top:calc(58px + env(safe-area-inset-top));transform:translateX(-50%);padding:7px 14px;border-radius:14px;background:rgba(14,32,48,.86);color:#fff;
+.cb3-inv-toast{position:absolute;left:50%;top:calc(58px + var(--cb3-st,env(safe-area-inset-top,0px)));transform:translateX(-50%);padding:7px 14px;border-radius:14px;background:rgba(14,32,48,.86);color:#fff;
   font-size:12.5px;font-weight:700;white-space:nowrap;max-width:calc(100% - 32px);overflow:hidden;text-overflow:ellipsis;pointer-events:none;z-index:5}
-.cb3-inv-map{position:absolute;left:calc(10px + env(safe-area-inset-left));top:calc(52px + env(safe-area-inset-top));border-radius:12px;border:1px solid rgba(14,32,48,.35);
+.cb3-inv-map{position:absolute;left:calc(10px + var(--cb3-sl,env(safe-area-inset-left,0px)));top:calc(52px + var(--cb3-st,env(safe-area-inset-top,0px)));border-radius:12px;border:1px solid rgba(14,32,48,.35);
   background:#eef1f4;overflow:hidden;pointer-events:auto;cursor:pointer;z-index:4;box-shadow:0 6px 16px -8px rgba(0,0,0,.5)}
 .cb3-inv-map canvas{display:block}
 `;
