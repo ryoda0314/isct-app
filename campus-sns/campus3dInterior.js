@@ -13,6 +13,7 @@ const hex = (h, a = 0.5) => {
 };
 // 内装の色（昼の色。アルファ 0.5＝光を受けない）
 const PAL = {
+  paleoak: "#e4dccb", // 白っぽいオークの床（Taki Plaza の地下 2 階・地下 1 階。2026-11-18、動画 IMG_1462）
   oak: "#d6c19d", concrete: "#c2beb7", tile: "#cfcbc3", carpet: "#959ba2", stone: "#b2ada4", white: "#ebe9e4", plaza: "#c9c5bc", gravel: "#9a968e", dark: "#55575b",
   wall: "#f1efeb", wallEdge: "#d9d6d0", ceiling: "#ecebe7", slabEdge: "#d4d1cb", roofCeil: "#57534e", beam: "#f4f4f2", beamLit: "#fdf8ec", riser: "#f0f0ee", tubeIn: "#2e3136",
   glass: "#dfeaf0", mullion: "#e3e6e8", mullionDark: "#6d7277", mesh: "#f2f2f0", rail: "#c9cdd1",
@@ -100,6 +101,9 @@ const PAL = {
   // 細い板・板の裏の暗い面・天窓の明るい面と横のルーバー・黒い吹き出し口、木の横板張りの壁と継ぎ目の溝、作り付けの木の収納と扉の継ぎ目
   vaultWood: "#e6cfac", vaultBack: "#57524c", vaultSky: "#dfe9f1", vaultLouver: "#f2f1ed", slotDark: "#141415",
   hboard: "#cbae8a", hboardGroove: "#7f6548", cabinetWood: "#c49f75", cabinetLine: "#8a6c4c",
+  // 70周年記念講堂の客席（2026-11-18、ユーザーの写真 DSC06057 ほか）：あたたかい色の木の縦板張りの壁と継ぎ目、南の壁の白い格子、
+  // 劇場の椅子（橙がかった布・明るい木の背の板・暗い木の袖）
+  vboard: "#b8763a", vboardJoint: "#7d4d24", lattice: "#e6e6de", latticeJoint: "#a3a39b", tseatCloth: "#c8694a", tseatWood: "#d2a05f", tseatSide: "#5a4030",
 };
 const COL = Object.fromEntries(Object.entries(PAL).map(([k, v]) => [k, hex(v)]));
 const GLASS = hex(PAL.glass, 0.5);
@@ -109,20 +113,20 @@ const shade = (c, n) => {
   const k = n[2] > 0.7 ? 1 : n[2] < -0.7 ? 0.8 : 0.86 + 0.07 * n[0] + 0.03 * n[1];
   return [c[0] * k, c[1] * k, c[2] * k, c[3]];
 };
-const FINISH_COL = { oak: "oak", concrete: "concrete", tile: "tile", carpet: "carpet", stone: "stone", white: "white", plaza: "plaza", gravel: "gravel", dark: "dark", checker: "checkerA", ballast: "ballast", tactile: "tactile", tile2: "tile2A", brown: "floorBrown", rubber: "rubber", herring: "herring", stone2: "stone2A", ivory: "ivory", rose: "rose", tan: "tanA", navy: "navyA", cvs: "cvsA" };
+const FINISH_COL = { paleoak: "paleoak", oak: "oak", concrete: "concrete", tile: "tile", carpet: "carpet", stone: "stone", white: "white", plaza: "plaza", gravel: "gravel", dark: "dark", checker: "checkerA", ballast: "ballast", tactile: "tactile", tile2: "tile2A", brown: "floorBrown", rubber: "rubber", herring: "herring", stone2: "stone2A", ivory: "ivory", rose: "rose", tan: "tanA", navy: "navyA", cvs: "cvsA" };
 const ITEM_COL = {
   box: "whiteItem", wood: "wood", white: "whiteItem", dark: "darkItem", grey: "grey", sofa: "sofa", seat: "seat", green: "green", screen: "screen", glow: "glow",
   counter: "counter", layered: "counter", slats: "birch", platform: "platform", table: "wood", shelf: "whiteItem", kitchen: "kitchen", vending: "vending", piano: "piano",
   red: "red", orange: "orange", art: "art", core: "core", lift: "lift", toilet: "toilet", walnut: "walnut", chalk: "chalk", lamp: "lamp", bentwood: "bentwood", mat: "mat",
   tatami: "tatamiA", steel: "steel", liftdoor: "steel", tentsofa: "tentsofa", column: "colCream", bench: "benchSeat", board: "boardBox", light: "lightStrip",
-  chair: "chairShell", woodchair: "woodFrame", lounge: "loungeGrey",
+  chair: "chairShell", woodchair: "woodFrame", lounge: "loungeGrey", tseat: "tseatCloth",
   microwave: "whiteItem", drinks: "vending", stool: "whiteItem", tatamibox: "plywood", wboard: "whiteItem", bincab: "whiteItem", aframe: "red", louver: "darkItem",
   cubeshelf: "shelfWood", openshelf: "shelfWhite", mathclock: "clockWood", woodcut: "cutLight", woodsign: "signWood", note: "paper", stars: "starWhite", stack: "stackSteel",
   flapgate: "gateSteel", secgate: "secWhite", cabinet: "cabinetWood",
   cooler: "coolFrame", chiller: "chillBody", freezer: "chillBody", register: "regBody", coffee: "coffeeBody", atm: "atmBody", crates: "crateBlue", hotcase: "coolShelf",
 };
 // 椅子とソファー（addSeatItem が描く。4 点の四角の 1 本目の辺が背）
-const SEAT_ITEMS = new Set(["chair", "woodchair", "lounge"]);
+const SEAT_ITEMS = new Set(["chair", "woodchair", "lounge", "tseat"]);
 // キッチンとイベントスペースの物（addKitchenItem が描く。4 点の四角の 1 本目の辺が前）
 const KITCHEN_ITEMS = new Set(["microwave", "drinks", "stool", "tatamibox", "wboard", "bincab", "aframe", "louver"]);
 // 南4号館のセブン-イレブンの物（addStoreItem が描く。4 点の四角の 1 本目の辺が前。2026-11-17）
@@ -349,6 +353,25 @@ function addSeatItem(m, it, r, z0, z1, T, tint) {
     for (const [xa, xb] of [[0, arm], [L - arm, L]]) prismPoly(m, rect(xa, back, xb, D), zs - 0.12, Math.min(z1, zs + 0.2), cloth); // ひじ掛け
     return;
   }
+  if (it.kind === "tseat") {
+    // 劇場の椅子（2026-11-18、70周年記念講堂。ユーザー「椅子がおかしい」「箱で作る必要はないよ」）：両わきの木の袖（ひじ掛け。前が少し低い）、
+    // 布の座（前へ少し上がる）、布の背もたれ、後ろに明るい木の背の板（上の角を落とす）。color＝布、color2＝袖、color3＝背の板
+    const cloth = col || T("tseatCloth"), sideC = col2 || T("tseatSide"), wood = it.color3 ? tint(COL_HEX(it.color3)) : T("tseatWood");
+    const zSeat = z0 + Math.min(0.44, H * 0.5), zArm = z0 + Math.min(0.62, H * 0.7), sw = Math.min(0.045, L * 0.09), bt = Math.min(0.05, D * 0.09), bc = Math.min(0.09, D * 0.16);
+    // 袖：後ろは背のてっぺんの少し下まで、前はひじ掛けの高さ
+    for (const [xa, xb] of [[0, sw], [L - sw, L]]) {
+      prismPoly(m, rect(xa, 0, xb, bt + bc), z0, z1 - 0.1, sideC, { sideCol: sideC });
+      prismPoly(m, rect(xa, bt + bc, xb, D - 0.03), z0, zArm, sideC, { sideCol: sideC });
+    }
+    // 背の板（木）：下は座の下から、上は角を落とした 2 段
+    prismPoly(m, rect(sw, 0, L - sw, bt), z0 + 0.14, z1 - 0.05, wood, { sideCol: wood, bottom: true });
+    prismPoly(m, rect(sw + L * 0.12, 0, L - sw - L * 0.12, bt), z1 - 0.05, z1, wood, { sideCol: wood });
+    // 背もたれ（布）と座（布。前のふちを 2 cm 高く）
+    prismPoly(m, rect(sw + 0.01, bt, L - sw - 0.01, bt + bc), zSeat - 0.02, z1 - 0.07, cloth, { sideCol: cloth });
+    prismPoly(m, rect(sw + 0.01, bt + bc, L - sw - 0.01, D - 0.06), zSeat - 0.11, zSeat, cloth, { sideCol: cloth, bottom: true });
+    prismPoly(m, rect(sw + 0.01, D - 0.16, L - sw - 0.01, D - 0.04), zSeat, zSeat + 0.02, cloth, { sideCol: cloth });
+    return;
+  }
   const zs = z0 + Math.min(0.45, H * 0.56); // 座面の高さ
   if (it.kind === "chair") {
     const shell = col || T("chairShell"), legC = col2 || T("chairLeg");
@@ -510,10 +533,11 @@ function addKitchenItem(m, it, r, z0, z1, T, tint) {
     const frame = col2 || T("grey"), board = col || T("whiteItem");
     const zb0 = z0 + Math.min(0.78, H * 0.4), zb1 = z1 - 0.03;
     for (const x of [0.025, F.L - 0.025]) bar(m, [P(x, yc), z0 + 0.09], [P(x, yc), z1], 0.035, frame);
-    segBox(m, P(0.045, yc), P(F.L - 0.045, yc), 0.022, zb0, zb0, zb1, zb1, board, { bottom: true });
+    // clear（2026-11-18、Taki Plaza 地下 2 階の透明のついたて）：板を描かず、白い枠と脚だけ
+    if (!it.clear) segBox(m, P(0.045, yc), P(F.L - 0.045, yc), 0.022, zb0, zb0, zb1, zb1, board, { bottom: true });
     bar(m, [P(0.045, yc), zb1 + 0.012], [P(F.L - 0.045, yc), zb1 + 0.012], 0.028, frame);
     bar(m, [P(0.045, yc), zb0 - 0.012], [P(F.L - 0.045, yc), zb0 - 0.012], 0.028, frame);
-    segBox(m, P(0.12, yc - 0.055), P(F.L - 0.12, yc - 0.055), 0.07, zb0 - 0.05, zb0 - 0.05, zb0 - 0.02, zb0 - 0.02, T("darkItem"), { bottom: true });
+    if (!it.clear) segBox(m, P(0.12, yc - 0.055), P(F.L - 0.12, yc - 0.055), 0.07, zb0 - 0.05, zb0 - 0.05, zb0 - 0.02, zb0 - 0.02, T("darkItem"), { bottom: true });
     for (const x of [0.025, F.L - 0.025]) {
       bar(m, [P(x, 0.03), z0 + 0.09], [P(x, D - 0.03), z0 + 0.09], 0.03, frame);
       for (const y of [0.04, D - 0.04]) prismPoly(m, box(x - 0.025, y - 0.025, x + 0.025, y + 0.025), z0, z0 + 0.075, T("darkItem"), { sideCol: T("darkItem") });
@@ -1266,6 +1290,14 @@ export function addFloor(M, f, ctx) {
         if (!(ta > za + 0.02 || tb > zb + 0.02)) continue;
         segBox(m, pc.a, pc.b, t, za, zb, ta, tb, T("hboard"), { bottom: true });
         addBoardGrooves(m, pc, t, za, zb, ta, tb, T("hboardGroove"));
+      } else if (w.kind === "vboard" || w.kind === "lattice") {
+        // 70周年記念講堂の客席（2026-11-18）：vboard あたたかい色の木の縦板張り（0.14 m おきの継ぎ目）、lattice 白い格子（0.24 m の升目。南の壁の窓の内の格子）。
+        // 扉の口は口の上だけ
+        const za = pc.door ? ba + DOOR_H : ba, zb = pc.door ? bb + DOOR_H : bb;
+        if (!(ta > za + 0.02 || tb > zb + 0.02)) continue;
+        segBox(m, pc.a, pc.b, t, za, zb, ta, tb, T(w.kind), { bottom: true });
+        if (w.kind === "vboard") addSmallTiles(m, pc, t, za, zb, ta, tb, T, { tw: 0.14, th: 400, tile: "vboard", grout: "vboardJoint" });
+        else addSmallTiles(m, pc, t, za, zb, ta, tb, T, { tw: 0.24, th: 0.24, tile: "lattice", grout: "latticeJoint" });
       } else if (w.kind === "mtile" || w.kind === "wains" || w.kind === "wtile" || w.kind === "maroon" || w.kind === "slat" || w.kind === "rbrick") {
         // 2026-11-12（大岡山駅）：小さなタイルの壁・腰のタイル・白いタイル・えんじ色の板・木の格子。扉の口は口の上だけ
         const za = pc.door ? ba + DOOR_H : ba, zb = pc.door ? bb + DOOR_H : bb;
@@ -1459,7 +1491,13 @@ export function addFloor(M, f, ctx) {
       // 吊り下げの白い球の照明（西5号館の食堂つばめテラス。2026-11-15、動画 IMG_1078）：形のまん中に直径 z1 − z0 の球と、上の天井までの細いコード
       const zc = (z0 + z1) / 2, R = (z1 - z0) / 2;
       const zTop = Math.min(zf + f.height - f.slab, cutTop, ceilAt ? ceilAt(centroid(r)) : Infinity);
-      addGlobe(m, centroid(r), zc, R, T("globe"), T("cord"), zTop);
+      // stand（2026-11-18、Taki Plaza 地下 1 階の本棚の上の地球儀）：吊らずに置く。木の丸い台と、color の球（なしは水色がかった白）
+      if (it.stand) {
+        const ce = centroid(r), rb = R * 0.55;
+        prismPoly(m, Array.from({ length: 12 }, (_, k) => [ce[0] + rb * Math.cos((Math.PI * k) / 6), ce[1] + rb * Math.sin((Math.PI * k) / 6)]), z0, z0 + 0.03, T("clockWood"));
+        bar(m, [ce, z0 + 0.03], [ce, z0 + 0.1], 0.02, T("clockWood"));
+        addGlobe(m, ce, z0 + 0.08 + R * 0.9, R * 0.9, it.color ? tint(COL_HEX(it.color)) : tint(COL_HEX("#c6d8e4")), T("clockWood"), z0 + 0.08 + R * 1.8);
+      } else addGlobe(m, centroid(r), zc, R, T("globe"), T("cord"), zTop);
     } else if ((it.kind === "tube" || it.kind === "disc") && r.length >= 4) {
       // 軸：1 点目 → 2 点目の向き（形の両はしのまん中どうし）。直径は z1 − z0
       const A0 = lerp2(r[0], r[3], 0.5), A1 = lerp2(r[1], r[2], 0.5);
@@ -4153,6 +4191,15 @@ const WOODCUT_SHAPES = {
     [[0.16, 0.78], [0.33, 0.78], [0.33, 0.82], [0.29, 0.82], [0.29, 0.86], [0.32, 0.86], [0.32, 0.89], [0.27, 0.89], [0.27, 0.96], [0.22, 0.96], [0.22, 0.89], [0.17, 0.89], [0.17, 0.86], [0.2, 0.86], [0.2, 0.82], [0.16, 0.82]],
     [[0.5, 0.78], [0.68, 0.78], [0.68, 0.88], [0.59, 0.98], [0.5, 0.88]],
     [[0.57, 0.81], [0.61, 0.81], [0.61, 0.87], [0.57, 0.87]],
+  ],
+  // 世界地図（2026-11-18、Taki Plaza 地下 1 階のグローバルラウンジの壁の木の地図。動画 IMG_1462 の 3:27〜3:33）：大陸の大まかな形
+  world: [
+    [[0.03, 0.7], [0.1, 0.86], [0.24, 0.9], [0.33, 0.8], [0.3, 0.66], [0.24, 0.6], [0.22, 0.5], [0.17, 0.52], [0.12, 0.62]], // 北アメリカ
+    [[0.3, 0.9], [0.4, 0.97], [0.44, 0.88], [0.36, 0.82]], // グリーンランド
+    [[0.2, 0.5], [0.24, 0.47], [0.3, 0.42], [0.34, 0.3], [0.29, 0.12], [0.26, 0.02], [0.23, 0.14], [0.21, 0.32]], // 南アメリカ
+    [[0.44, 0.62], [0.5, 0.66], [0.58, 0.6], [0.62, 0.48], [0.6, 0.36], [0.56, 0.16], [0.52, 0.1], [0.49, 0.3], [0.43, 0.46]], // アフリカ
+    [[0.45, 0.68], [0.47, 0.8], [0.55, 0.9], [0.7, 0.94], [0.9, 0.9], [0.98, 0.8], [0.9, 0.66], [0.84, 0.52], [0.78, 0.5], [0.74, 0.4], [0.7, 0.5], [0.64, 0.56], [0.58, 0.66], [0.5, 0.7]], // ヨーロッパ・アジア
+    [[0.8, 0.26], [0.9, 0.28], [0.94, 0.16], [0.86, 0.08], [0.79, 0.14]], // オーストラリア
   ],
 };
 const CUT_LAYER = 0.006;

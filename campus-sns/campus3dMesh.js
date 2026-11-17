@@ -41,6 +41,7 @@ const COLORS = {
     stairsWood: "#ada392", stairsStone: "#c9c6bf", stairsBrick: "#68655f", // 階段の材質：木・石・れんが（灰色の炻器質れんが）
     stairsOak: "#a8835f", stairsNose: "#a3a8ac", // オークの段とステンレスの鼻の帯（2026-11-12、写真 S__47366149 の踏面の色 (148,122,103)〜(131,96,66)）
     stairsGranite: "#b7a49e", stairsGraniteRiser: "#6b3b34", stairsConcrete: "#b3b4b0", stairsLine: "#85898d", // 御影石の段（桃色がかった灰の踏面・赤茶の蹴上げ）・コンクリートの段・すべり止めの線（2026-11-16、動画 IMG_1382）
+    stairsChecker: "#d9d9d4", stairsCheckerDark: "#7d8083", stairsCheckerMid: "#a9abaa", stairsCheckerRiser: "#c4c5c0", // 灰色と白の市松のタイルの段：明るいタイル・濃い灰・中の灰・蹴上げ（2026-11-17、西1号館の前の階段）
     // 段々の屋根（緑の屋上）：段の板（雨にさらされた灰色の木。動画の色）と、段の境目の暗い蹴上げ
     roofDeck: "#bebbb5", roofRiser: "#55524d", redRoof: "#8a4b3d",
     // 平地の壁の面（faces）：すりガラス（下・上）・扉のガラス・アルミの枠・白いれんがと目地
@@ -85,6 +86,8 @@ const COLORS = {
     terracotta: "#b06c4a", // 赤茶の塗り壁（地球生命研究所棟の南の小屋）
     bronze: "#6f604a", // ブロンズ（銅像の灰色がかった茶。手島精一像）
     taupe: "#a39588", // 灰色がかった茶のタイル張りの壁（西7号館。2026-11-16）
+    yellow: "#e9b417", charcoal: "#3b3e42", // 黄色く塗った鉄・黒に近い灰色の鉄骨（大岡山駅前の CENTURY 21。2026-11-18、ユーザーの写真 S__47587336）
+    beige: "#d8cdaf", // ベージュの二丁掛けのタイル張りの壁（西1号館の前の階段。2026-11-17、動画 IMG_1382 の日の当たらない面 (205,195,170)）
     rose: "#bda8a1", // 桃色がかったベージュのパネルの壁（サークル棟2。2026-11-16、写真 amap・動画 IMG_1375 の日の当たる壁 (198,184,178)）
     blueMat: "#2f55a8", // 青い塗装の板（本館の西の面の自販機。2026-11-16、ユーザーの動画 IMG_1381）
     redBrick: "#86503f", // 赤れんがの板（panels の brick。70周年記念講堂の入口のわき）
@@ -95,6 +98,7 @@ const COLORS = {
     stairsWood: "#3a3631", stairsStone: "#46474b", stairsBrick: "#34353a",
     stairsOak: "#40342a", stairsNose: "#5a5f64",
     stairsGranite: "#46403f", stairsGraniteRiser: "#34231f", stairsConcrete: "#41454b", stairsLine: "#565a60",
+    stairsChecker: "#4b4c4c", stairsCheckerDark: "#2c2e30", stairsCheckerMid: "#3b3d3e", stairsCheckerRiser: "#434442",
     trunk: "#26211d", leafBroad: "#1e2a1a", leafRound: "#1b2619", leafGinkgo: "#2f3420", leafConifer: "#162016", hedge: "#1b2617",
     roofGreen: "#222c1d", glassLo: "#7d6a47", glassHi: "#a88f5e", mullion: "#15191d", eaveDark: "#1a1c1f",
     roofDeck: "#34322e", roofRiser: "#17181a", redRoof: "#3b2621",
@@ -119,12 +123,12 @@ const COLORS = {
     chainFrame: "#454b51", chainWire: "#50565c", meshFrame: "#2a2f35", meshWire: "#30353b",
     creamFace: "#5a5446", creamSide: "#403b30",
     granite: "#403d3d", graniteDark: "#2d2a29", redBrick: "#3a241e", tile: "#4d4b46", terracotta: "#40281d",
-    bridgeTile: "#3b2924", bronze: "#2a251e", taupe: "#3e3934", blueMat: "#16233f", rose: "#413838",
+    bridgeTile: "#3b2924", bronze: "#2a251e", taupe: "#3e3934", blueMat: "#16233f", rose: "#413838", beige: "#48443b", yellow: "#5e4a12", charcoal: "#1b1d20",
   },
 };
 
 // 建物の材質（material）の色の名前
-const MATERIAL_COLOR = { rust: "rust", perforated: "perforated", steel: "steelHi", darkbrick: "darkBrick", stone: "stone", green: "greenWall", red: "redPanel", concrete: "concrete", glazed: "glazed", granite: "granite", tile: "tile", brick: "redBrick", terracotta: "terracotta", darkgranite: "graniteDark", bronze: "bronze", taupe: "taupe", blue: "blueMat", rose: "rose" };
+const MATERIAL_COLOR = { rust: "rust", perforated: "perforated", steel: "steelHi", darkbrick: "darkBrick", stone: "stone", green: "greenWall", red: "redPanel", concrete: "concrete", glazed: "glazed", granite: "granite", tile: "tile", brick: "redBrick", terracotta: "terracotta", darkgranite: "graniteDark", bronze: "bronze", taupe: "taupe", blue: "blueMat", rose: "rose", beige: "beige", yellow: "yellow", charcoal: "charcoal" };
 
 // 三角形の並び（位置・法線・色）。電車（campus3dTrains.js）も使う
 // 頂点の詰め方（2026-11-17。スマホで地図が開けなくなった：本番で三角形 320 万枚、頂点 384 MB、作る途中の JS のメモリ +1 GB）：
@@ -3029,6 +3033,54 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
       m.quad([[A, g0 + z - JOINT_W / 2], [B, g0 + z - JOINT_W / 2], [B, g0 + z + JOINT_W / 2], [A, g0 + z + JOINT_W / 2]], n, jointCol);
     }
   };
+  // タイルの目地（tiles：[段の高さ, タイルの長さ]。2026-11-17、西1号館の前の階段のベージュの二丁掛けのタイル）：壁の面から JOINT_OFF 外の
+  // 細い暗い帯。横の目地は標高で段の高さごと（となりの建物とそろう）、縦の目地は段ごとに半分ずらす（れんが積み）。地面より下・壁の上の端より
+  // 上には描かない。zbp・zbq・ztp・ztq は区間の両端の壁の下の端・上の端（標高）、x0 は区間の始まりの辺の上の位置（縦の目地をそろえる）
+  const tl = look && f.tiles ? f.tiles : null;
+  const tileCol = tl ? [c[0] * 0.72, c[1] * 0.72, c[2] * 0.74, c[3]] : null;
+  const tileSeg = (p, q, zbp, zbq, ztp, ztq, n, x0) => {
+    const L = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (L < 1e-3) return;
+    const ux = (q[0] - p[0]) / L;
+    const uy = (q[1] - p[1]) / L;
+    const at = (s) => [p[0] + ux * s + n[0] * JOINT_OFF, p[1] + uy * s + n[1] * JOINT_OFF];
+    const gp = groundAt(toLngLat(p));
+    const gq = groundAt(toLngLat(q));
+    const hasG = Number.isFinite(gp) && Number.isFinite(gq);
+    const lo = (s) => Math.max(zbp + ((zbq - zbp) * s) / L, hasG ? gp + ((gq - gp) * s) / L - 0.05 : -Infinity);
+    const hi = (s) => ztp + ((ztq - ztp) * s) / L;
+    // 一次式の不等式 f0 + k s ≥ 0 の組で [0, L] を切る
+    const clipS = (cons) => {
+      let s0 = 0;
+      let s1 = L;
+      for (const [f0, k] of cons) {
+        if (Math.abs(k) < 1e-9) { if (f0 < 0) return null; } else if (k > 0) s0 = Math.max(s0, -f0 / k); else s1 = Math.min(s1, -f0 / k);
+      }
+      return s1 - s0 > 0.01 ? [s0, s1] : null;
+    };
+    const [ch, cl] = tl;
+    const zmin = Math.min(lo(0), lo(L));
+    const zmax = Math.max(hi(0), hi(L));
+    for (let kz = Math.ceil(zmin / ch); kz * ch < zmax; kz++) {
+      const z = kz * ch;
+      const cons = [[z - zbp, -(zbq - zbp) / L], [ztp - z - 0.02, (ztq - ztp) / L]];
+      if (hasG) cons.push([z - gp + 0.05, -(gq - gp) / L]);
+      const span = clipS(cons);
+      if (span) m.quad([[at(span[0]), z - TILE_JW / 2], [at(span[1]), z - TILE_JW / 2], [at(span[1]), z + TILE_JW / 2], [at(span[0]), z + TILE_JW / 2]], n, tileCol);
+      // 縦の目地（この段 z〜z + ch のあいだ）。段ごとに半分ずらす
+      const off = (((kz % 2) + 2) % 2) * cl * 0.5;
+      for (let xs = Math.ceil((x0 - off) / cl) * cl + off; xs < x0 + L; xs += cl) {
+        const s = xs - x0;
+        if (s < 0.02 || s > L - 0.02) continue;
+        const za = Math.max(z, lo(s));
+        const zb = Math.min(z + ch, hi(s));
+        if (zb - za < 0.02) continue;
+        const A = at(s - TILE_JW / 2);
+        const B = at(s + TILE_JW / 2);
+        m.quad([[A, za], [B, za], [B, zb], [A, zb]], n, tileCol);
+      }
+    }
+  };
   // 外の壁：ふちの辺を、屋根の分かれ目（分けた多角形の点が辺の上にあるところ。段々の屋根なら段の境目も）とくり抜きのふちで区切って。
   // 段々の屋根は区間ごとに上が平ら（区間のまん中の段の高さ）
   const ccw = ringArea(ring) > 0;
@@ -3125,6 +3177,7 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
         }
         if (wp < hp - 0.005 || wq < hq - 0.005) m.quad([[p, g0 + wp], [q, g0 + wq], [q, g0 + hq], [p, g0 + hp]], n, look ? look.eave : cIn);
         if (jt && !(glassTop && (!f.glassSides || f.glassSides[i] !== false))) jointSeg(p, q, wp, wq, n, edgeI);
+        if (tl) tileSeg(p, q, bAt(p), bAt(q), g0 + wp, g0 + wq, n, edgeI.s0);
         continue;
       }
       // くり抜きのところ：床より下と、天井より上だけ（床・天井が斜めでも続くよう 0.5m ごとに）
@@ -3149,6 +3202,8 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
       for (let s = 0; s + 1 < P.length; s++) {
         if (!glassBelow && (FL[s] > ROOF_MIN || FL[s + 1] > ROOF_MIN)) solidQuad([[P[s], uf ? g0 + uf[0] : bot], [P[s + 1], uf ? g0 + uf[1] : bot], [P[s + 1], g0 + FB[s + 1]], [P[s], g0 + FB[s]]], n);
         if (CE && !glassAbove) solidQuad([[P[s], g0 + CB[s]], [P[s + 1], g0 + CB[s + 1]], [P[s + 1], g0 + H[s + 1]], [P[s], g0 + H[s]]], n);
+        // タイルの目地（天井より上の壁。2026-11-17、西1号館の前の階段の箱の下のえぐれの上）
+        if (tl && CE && !glassAbove) tileSeg(P[s], P[s + 1], g0 + CB[s], g0 + CB[s + 1], g0 + H[s], g0 + H[s + 1], n, edgeI.s0 + Math.hypot(P[s][0] - p[0], P[s][1] - p[1]));
       }
       // 床のふちの手すり壁（外の壁の面から内へ。床に沿って。屋根のほうが低いところは屋根の上）
       if (cv.rail && FB.some((v) => v > ROOF_MIN)) {
@@ -3667,6 +3722,7 @@ const WIN_OFF = 0.015;
 // 壁のパネルの目地（joints）：面からの出（窓より奥）と幅（実物より太く：細いと遠くで点々に見える）
 const JOINT_OFF = 0.008;
 const JOINT_W = 0.045;
+const TILE_JW = 0.016; // タイルの目地の幅（tiles。実物 1cm より太く：細いと遠くで点々に見える）
 const WIN_FRAME = 0.06; // 枠の幅
 const WIN_DEPTH = 0.04; // 枠の出（面から）
 const ARCH_SEG = 12; // アーチの窓の弧を折れ線にする区切りの数（壁の穴・ガラス・枠・見込みで同じ）
@@ -4274,16 +4330,45 @@ function addFrame(m, f, ring, g0, bot, look) {
 }
 
 // 階段：段ごとの箱（段の下の地面より下から段の上まで）を m に、手すりを rm に
-export const stairsColorKey = (f) => (f.material === "wood" ? "stairsWood" : f.material === "stone" ? "stairsStone" : f.material === "brick" ? "stairsBrick" : f.material === "oak" ? "stairsOak" : f.material === "granite" ? "stairsGranite" : f.material === "nonslip" ? "stairsConcrete" : "stairs");
+export const stairsColorKey = (f) => (f.material === "wood" ? "stairsWood" : f.material === "stone" ? "stairsStone" : f.material === "brick" ? "stairsBrick" : f.material === "oak" ? "stairsOak" : f.material === "granite" ? "stairsGranite" : f.material === "nonslip" ? "stairsConcrete" : f.material === "checker" ? "stairsChecker" : "stairs");
 const NOSE_TREAD = 0.045; // オークの段の鼻のステンレスの帯：踏面のふちからの奥行き（m）
 const NOSE_DROP = 0.035; // 同じく蹴上げの上の端から下へ（m）
 // 御影石・すべり止めの段の鼻の 2 本の線（踏面のふちからの奥行き [始め, 終わり] m。2026-11-16、動画 IMG_1382 の西8号館・西1号館の前の階段）
 const NONSLIP_LINES = [[0.025, 0.045], [0.065, 0.085]];
+// 市松のタイルの段（checker。2026-11-17、西1号館の前の階段：動画 IMG_1382 の灰色と白の 0.15m 角のタイル）：踏面の上に濃い灰色のタイルを
+// 互い違いに（段ごとに 1 つずらす）。踊り場（flat）は濃・中の灰色をまぜる（位置で決まる：濃 3 割・中 3 割、残りは明るい下地の色）。
+// a・b は左の線の t0・t1、c・d は右の線の t1・t0（踏面の四角）。目地のすき間（6mm）を残す
+const CHECKER = 0.15;
+function checkerTop(m, a, b, c, d, z, k, flat, col) {
+  const W = Math.hypot(d[0] - a[0], d[1] - a[1]);
+  const D = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  if (!(W > 0.05) || !(D > 0.05)) return;
+  const nw = Math.max(1, Math.round(W / CHECKER));
+  const nd = Math.max(1, Math.round(D / CHECKER));
+  const P = (u, v) => [0, 1].map((e) => a[e] * (1 - u) * (1 - v) + d[e] * u * (1 - v) + c[e] * u * v + b[e] * (1 - u) * v);
+  const gu = 0.006 / W;
+  const gv = 0.006 / D;
+  const zt = z + 0.003;
+  for (let i = 0; i < nw; i++) {
+    for (let j = 0; j < nd; j++) {
+      let cc = null;
+      if (flat) {
+        const h = (Math.imul(i + 31, 73856093) ^ Math.imul(j + 17 + k * 101, 19349663)) >>> 0;
+        const v = ((h ^ (h >>> 13)) >>> 0) % 1000 / 1000;
+        cc = v < 0.3 ? col.dark : v < 0.6 ? col.mid : null;
+      } else if ((i + j + k) % 2 === 0) cc = col.dark;
+      if (!cc) continue;
+      const u0 = i / nw + gu, u1 = (i + 1) / nw - gu, v0 = j / nd + gv, v1 = (j + 1) / nd - gv;
+      m.quad([[P(u0, v0), zt], [P(u1, v0), zt], [P(u1, v1), zt], [P(u0, v1), zt]], [0, 0, 1], cc);
+    }
+  }
+}
 function addStairs(m, rm, sl, groundAt, cols, tint) {
   const f = sl.f;
   const c = tint(rgba(cols[stairsColorKey(f)]));
   const noseC = f.material === "oak" ? tint(rgba(cols.stairsNose)) : null; // 段の鼻のステンレスの帯の色（オークだけ）
-  const riserC = f.material === "granite" ? tint(rgba(cols.stairsGraniteRiser)) : c; // 御影石：蹴上げは赤茶（踏面は桃色がかった灰色）
+  const riserC = f.material === "granite" ? tint(rgba(cols.stairsGraniteRiser)) : f.material === "checker" ? tint(rgba(cols.stairsCheckerRiser)) : c; // 御影石：蹴上げは赤茶（踏面は桃色がかった灰色）
+  const chk = f.material === "checker" ? { dark: tint(rgba(cols.stairsCheckerDark)), mid: tint(rgba(cols.stairsCheckerMid)) } : null; // 市松のタイルの濃い灰・中の灰
   const lineC = f.material === "granite" || f.material === "nonslip" ? tint(rgba(cols.stairsLine)) : null; // 段の鼻の 2 本のすべり止めの線
   const L = offsetLine(sl.xy, sl.hwv.map((h, i) => sl.cv[i] + h));
   const R = offsetLine(sl.xy, sl.hwv.map((h, i) => sl.cv[i] - h));
@@ -4298,6 +4383,7 @@ function addStairs(m, rm, sl, groundAt, cols, tint) {
     const foot = [at(L, i, t0), at(L, i, t1), at(R, i, t0), at(R, i, t1)].map((q) => groundAt(toLngLat(q))).filter(Number.isFinite);
     const base = Math.min(lerpAlong(sl.under.s, sl.under.e, st.s0) - 0.5, lerpAlong(sl.under.s, sl.under.e, st.s1) - 0.5, ...foot.map((g) => g - 0.3));
     m.prism([at(L, i, t0), at(L, i, t1)], [at(R, i, t0), at(R, i, t1)], [base, base], [st.top, st.top], { top: c, side: riserC });
+    if (chk) checkerTop(m, at(L, i, t0), at(L, i, t1), at(R, i, t1), at(R, i, t0), st.top, k, !!st.flat, chk);
     if (!noseC && !lineC) return;
     // 段の鼻（高い側の踏面のふち）に、踏面のふちと蹴上げの上を包むステンレスの帯（蹴上げの面から 4mm 出す。踏面の上 6mm）。
     // 階段の両端で、上の地面（下りの始まり・上りの終わり）のふちにも

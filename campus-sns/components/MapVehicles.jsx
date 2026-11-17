@@ -25,6 +25,11 @@ const CSS = `
 .cb3-veh-hud.low{background:rgba(150,40,30,.9)}
 /* 細い画面（スマホ）：上はボタン・スマホでいっぱいなので、左下のスティックの上・まん中に */
 @media (max-width:600px){.cb3-veh-hud{top:auto!important;bottom:calc(212px + var(--cb3-sb,env(safe-area-inset-bottom,0px)));font-size:12px;padding:5px 10px}}
+/* 横にしたスマホと、縦に持って回して描くとき（.cb3-rot。幅の @media は本当の縦の幅で効く）：使い方の案内は下のまん中・ボタンは右上なので、
+   表示は上のまん中（スティックの上だと画面のまん中＝照準と乗り物に重なる）。メニューは 3 枚を横に並べる（縦に積むと低い画面からはみ出す） */
+@media (orientation:landscape) and (max-height:540px){.cb3-full .cb3-veh-hud{top:calc(12px + var(--cb3-st,env(safe-area-inset-top,0px)))!important;bottom:auto!important}}
+.cb3-full.cb3-rot .cb3-veh-hud{top:calc(12px + var(--cb3-st,env(safe-area-inset-top,0px)))!important;bottom:auto!important}
+.cb3-full.cb3-rot .cb3-veh-row{grid-template-columns:repeat(3,1fr)}
 `;
 
 // 線の絵（色は currentColor）

@@ -614,7 +614,8 @@ function poseOf(x, y, z, yaw, pitch = 0, roll = 0) {
   const Ry = [f[0], l[0], 0, f[1], l[1], 0, 0, 0, 1];
   const p = pitch * DEG, r = roll * DEG;
   const Rp = [Math.cos(p), 0, -Math.sin(p), 0, 1, 0, Math.sin(p), 0, Math.cos(p)];
-  const Rr = [1, 0, 0, 0, Math.cos(r), Math.sin(r), 0, -Math.sin(r), Math.cos(r)];
+  // roll + で右が下がる（左 y が上がる）。前は符号が逆で、ドローンが左へ動くと右へ、自転車が曲がると外へ傾いていた（2026-11-18）
+  const Rr = [1, 0, 0, 0, Math.cos(r), -Math.sin(r), 0, Math.sin(r), Math.cos(r)];
   const W0 = worldOf([x, y]);
   const We = worldOf([x + 1, y]), Wn = worldOf([x, y + 1]);
   return { R: mm(Ry, mm(Rp, Rr)), x, y, z, W0, e: [We[0] - W0[0], We[1] - W0[1]], n: [Wn[0] - W0[0], Wn[1] - W0[1]] };

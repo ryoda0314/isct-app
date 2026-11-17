@@ -44,6 +44,11 @@ export const MARKING_KINDS = {
   yellow: { label: "黄線", width: 0.15, color: "yellow" },
   wide: { label: "太い白線", width: 0.3, color: "white" },
   tactile: { label: "点字ブロック", width: 0.3, color: "tactile" }, // 視覚障害者誘導用ブロック（黄色の 30cm 角の並び）
+  // 2026-11-17（キャンパスの道）：路面の矢印（折れ線の終わりが矢の先）、オレンジの線（駐輪・駐車禁止の枠）、細い白線（駐車ます）
+  arrow: { label: "矢印", width: 0.3, color: "white", arrow: true },
+  orange: { label: "オレンジの線", width: 0.15, color: "orange" },
+  thin: { label: "細い白線", width: 0.1, color: "white" },
+  text: { label: "路面の文字", width: 0.2, color: "white", text: true }, // 2026-11-18：「止まれ」。字は線の組み（ROAD_GLYPHS）
 };
 // 道路の中央線
 export const CENTER_KINDS = { dashed: "白の破線", solid: "白線", yellow: "黄線", none: "なし" };
@@ -54,7 +59,7 @@ export const ROAD_PRESETS = {
   minor: { width: 5, lanes: 1, center: "none", edge: true, walk: [0, 0] },
   ped: { width: 4, lanes: 1, center: "none", edge: false, walk: [0, 0] },
 };
-const PAINT = { white: { light: "#ffffff", dark: "#d9dde2" }, yellow: { light: "#f2b705", dark: "#c99a12" }, tactile: { light: "#e9c22e", dark: "#9c8424" } };
+const PAINT = { white: { light: "#ffffff", dark: "#d9dde2" }, yellow: { light: "#f2b705", dark: "#c99a12" }, tactile: { light: "#e9c22e", dark: "#9c8424" }, orange: { light: "#e8962f", dark: "#a8691f" } };
 // 歩道のふち（縁石）の線の色。3D表示の cb-pave-edge が描く
 export const CURB = { light: "#b9bdb6", dark: "#5d646c" };
 
@@ -123,6 +128,35 @@ export function lineBars(pts, w, dash) {
     out.push(...lineBars(seg, w));
   }
   return out;
+}
+
+// 路面の文字の字の形：幅 1・高さ 1 の升の中の折れ線の組み（x は右、y は上）
+const ROAD_GLYPHS = {
+  "止": [[[0.47, 1], [0.47, 0.05]], [[0.47, 0.55], [0.88, 0.55]], [[0.2, 0.62], [0.2, 0.05]], [[0.04, 0.05], [0.96, 0.05]]],
+  "ま": [[[0.14, 0.82], [0.86, 0.82]], [[0.14, 0.57], [0.86, 0.57]], [[0.5, 1], [0.5, 0.2], [0.34, 0.06], [0.16, 0.16], [0.3, 0.3], [0.6, 0.26], [0.88, 0.06]]],
+  "れ": [[[0.26, 1], [0.26, 0]], [[0.06, 0.72], [0.42, 0.78], [0.08, 0.24]], [[0.26, 0.52], [0.56, 0.8], [0.7, 0.74], [0.7, 0.2], [0.8, 0.06], [0.96, 0.2]]],
+};
+// 路面の文字：pts は車の進む向きの 2 点（手前 → 奥）。字は奥から手前へ並べ（運転席から上から下へ読める）、字の上は進む向き。字の幅 size、高さは長さを字の数で割る
+export function roadTextBars(pts, text, size = 1.8, w = 0.15) {
+  const chars = [...String(text || "")].filter((c) => ROAD_GLYPHS[c]);
+  if (pts.length < 2 || !chars.length) return [];
+  const a = pts[0], b = pts[pts.length - 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+  const up = [(b[0] - a[0]) / L, (b[1] - a[1]) / L], right = [up[1], -up[0]];
+  const cell = L / chars.length, h = cell * 0.82, out = [];
+  chars.forEach((c, k) => {
+    const base = L - (k + 1) * cell + (cell - h) / 2; // 字の下の端（手前の点からの距離）
+    for (const st of ROAD_GLYPHS[c]) out.push(...lineBars(st.map(([x, y]) => [a[0] + up[0] * (base + y * h) + right[0] * (x - 0.5) * size, a[1] + up[1] * (base + y * h) + right[1] * (x - 0.5) * size]), w));
+  });
+  return out;
+}
+
+// 路面の矢印：折れ線の終わりが矢の先。軸は幅 w、先は幅 3w・長さ 4w の三角（軸は三角の底まで）
+export function arrowBars(pts, w = 0.3) {
+  if (pts.length < 2) return [];
+  const a = pts[pts.length - 2], b = pts[pts.length - 1];
+  const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L], n = [-u[1], u[0]];
+  const h = Math.min(4 * w, L * 0.6), base = [b[0] - u[0] * h, b[1] - u[1] * h];
+  return [...lineBars([...pts.slice(0, -1), base], w), [[base[0] + n[0] * 1.5 * w, base[1] + n[1] * 1.5 * w], b, [base[0] - n[0] * 1.5 * w, base[1] - n[1] * 1.5 * w]]];
 }
 
 // 多角形の中を、角度 deg の縞（幅 BAR、間隔 ZEBRA_STEP）で埋める。縞の両端は多角形のふちに沿って斜めに切る
@@ -411,6 +445,8 @@ export function paintFeatures(features, dark = false, pc = null) {
     if (f.type === "marking") {
       const k = MARKING_KINDS[f.kind] || MARKING_KINDS.solid;
       const color = tone(PAINT[k.color]);
+      if (k.text) { for (const q of roadTextBars(f.coords.map(toXY), f.text, f.size, f.width || k.width)) paint.push(poly(q, { id: f.id, color })); continue; }
+      if (k.arrow) { for (const q of arrowBars(f.coords.map(toXY), f.width || k.width)) paint.push(poly(q, { id: f.id, color })); continue; }
       for (const q of lineBars(f.coords.map(toXY), f.width || k.width, k.dash)) paint.push(poly(q, { id: f.id, color }));
     } else if (f.type === "crosswalk" && f.coords.length >= 2) {
       const [a, b] = f.coords.map(toXY);

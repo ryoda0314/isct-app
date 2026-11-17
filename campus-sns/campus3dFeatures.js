@@ -26,7 +26,8 @@
 //   stairs  : slope と同じ（width, z, side, flat, corner, base）に riser（一段の高さ）, rails（手すりの位置。段の幅に対する割合で、
 //             0 が左の端・1 が右の端（点1から点2を見て）。0 未満・1 より大は土台の上）。坂の面にそって riser ごとに段を刻む。
 //             steps（区間ごとの段数）があれば、段数は手で決めたもの。蹴上げはどの段も同じ（高さの差 ÷ 段数の合計）。
-//             段数は蹴上げの数。踊り場につながる流れは両端が蹴上げで、踏面は 段数−1 枚（stairFlights）。material（段の材質：wood 木 / stone 石 / brick 灰色のれんが / oak / granite 御影石 / nonslip すべり止めの線のコンクリート。なしはコンクリート）,
+//             段数は蹴上げの数。踊り場につながる流れは両端が蹴上げで、踏面は 段数−1 枚（stairFlights）。material（段の材質：wood 木 / stone 石 / brick 灰色のれんが / oak / granite 御影石 / nonslip すべり止めの線のコンクリート /
+//             checker 灰色と白の市松のタイル＝踏面に 0.15m 角の濃い灰色を互い違い、踊り場は濃・中・明のまざり（西1号館の前の階段。2026-11-17）。なしはコンクリート）,
 //             fences（縦の格子の手すり＝ステンレスの柵の位置。rails と同じ割合で 0〜1。段の角をなぞる線から 1.1m）, wallMaterial（両わきの壁の材質＝BUILDING_MATERIALS）,
 //             railsFlight（true なら rails は流れ＝段の区間だけ。踊り場・上下の平らなところには立てない）
 //   wall    : height（高いほうの地面から）, thickness, kind（hedge 生け垣 / fence 縦の格子の柵 / rail ガードパイプ＝柱と横の管 2 本 /
@@ -104,7 +105,10 @@
 //             concrete 打ち放しのコンクリート（灰色） / glazed 白い施釉れんが（附属図書館の東の箱） /
 //             granite 灰色の御影石（本館の車寄せ） / tile クリーム色がかった白いタイル（本館） / brick 赤れんが（南4号館の 1 階） /
 //             terracotta 赤茶の塗り壁（地球生命研究所棟の南の小屋） / darkgranite 暗い御影石（手島精一像の台座） /
-//             bronze ブロンズ（銅像：手島精一像） / taupe 灰色がかった茶のタイル（西7号館。2026-11-16） / blue 青い塗装の板（本館の西の面の自販機。2026-11-16） / rose 桃色がかったベージュのパネル（サークル棟2。2026-11-16）。なしは地図の建物の色）,
+//             bronze ブロンズ（銅像：手島精一像） / taupe 灰色がかった茶のタイル（西7号館。2026-11-16） / blue 青い塗装の板（本館の西の面の自販機。2026-11-16） / rose 桃色がかったベージュのパネル（サークル棟2。2026-11-16） /
+//             beige ベージュの二丁掛けのタイル（西1号館の前の階段。2026-11-17） / yellow 黄色く塗った鉄（大岡山駅前の CENTURY 21 の階段。2026-11-18） /
+//             charcoal 黒に近い灰色の鉄骨・板（同じ建物の上の骨組み。2026-11-18）。なしは地図の建物の色）,
+//             tiles（外の壁のタイルの目地：[段の高さ, タイルの長さ] m。横の目地は標高で段の高さごと、縦の目地は段ごとに半分ずらす＝れんが積み）,
 //             joints（外の壁のパネルの目地：[横の間隔, 縦の間隔, 横の目地の基準の高さ]。縦の目地は辺ごとに等間隔、窓の奥に隠れる）
 //             frame（true なら壁でなく鉄骨の外階段：角と辺の柱、levels（踊り場の高さ。地面から m）ごとの床と手すり、そのあいだの段の板）
 //             roof "glass"（ガラスの屋根。縦の桟は斜面の向きに glassPitch m ごと） / "solar"（太陽光パネル。ふちに白い笠木）
@@ -149,7 +153,10 @@
 //             turf 人工芝（グラウンド。冬も枯れ色にしない））,
 //             angle（導流帯の縞の向き、度）, boards（板の目地：[板の幅 m, 板の向き＝北から右回りの度]。目地は寄って見たときだけ描く）。
 //             地面に貼って描く（campus3dPaint.js）
-//   marking : 白線。coords は折れ線。kind（solid 白線 / dashed 白の破線 / stop 停止線 / yellow 黄線 / wide 太い白線 / tactile 点字ブロック（黄 30cm））
+//   marking : 白線。coords は折れ線。kind（solid 白線 / dashed 白の破線 / stop 停止線 / yellow 黄線 / wide 太い白線 / tactile 点字ブロック（黄 30cm） /
+//             arrow 路面の矢印＝折れ線の終わりが矢の先（軸 0.3m、先は幅 0.9m・長さ 1.2m。曲がる矢印は折れ線を曲げる） / orange オレンジの線（駐輪・駐車禁止の枠と斜めの線） /
+//             thin 細い白線 10cm（駐車ます・駐輪場の区画）。2026-11-17 /
+//             text 路面の文字：coords は車の進む向きの 2 点（手前 → 奥）。text（止・ま・れ だけ）を奥から手前へ並べ、字の上は進む向き。size は字の幅 m（なしは 1.8）。2026-11-18）
 //   crosswalk : 横断歩道。coords は渡る向きの2点（歩道から歩道へ）、width（横断歩道の幅＝縞の長さ）
 //   signal  : 信号機。coords は柱の足もとの 1 点。height（柱の高さ＝腕の高さ m）, arm（腕の長さ m。0 は腕なし）, bearing（腕の向き。北から右回りの度）,
 //             face（車の信号の向き＝信号の面が向く方位。null は車の信号なし。腕の先に吊る）, peds（歩行者の信号の向き：方位の並び。柱に付ける）。
@@ -219,7 +226,7 @@ export const DETAIL_TYPES = ["floor", "track"];
 // rose・tan（2026-11-16、本館の地下 1 階。ユーザーの動画 IMG_1381 の 6 分 22 秒〜7 分 30 秒）：生協のつやのあるピンクがかったベージュの床・
 // 第2食堂の茶色のタイル（目地の見える 0.45m の市松）
 // cvs（2026-11-17、南4号館のセブン-イレブン。ユーザーの動画 IMG_1393）：クリーム色の大きなタイル（2 つの近い色の市松と暗い目地。grid の大きさ、なければ 0.6m）
-export const FLOOR_FINISHES = ["oak", "concrete", "tile", "carpet", "stone", "white", "plaza", "gravel", "dark", "checker", "ballast", "tile2", "brown", "tactile", "rubber", "herring", "stone2", "ivory", "rose", "tan", "cvs", "navy"];
+export const FLOOR_FINISHES = ["paleoak", "oak", "concrete", "tile", "carpet", "stone", "white", "plaza", "gravel", "dark", "checker", "ballast", "tile2", "brown", "tactile", "rubber", "herring", "stone2", "ivory", "rose", "tan", "cvs", "navy"];
 // psd：ホームドア（固定の箱と、doors の口の引き戸。style "mg" 白にオレンジの帯・オレンジの戸、"om" 窓のある白）、bars：鋼の縦の格子の柵、
 // tiles：大きなタイルの市松の壁（下は暗い腰）、dark：暗い壁（トンネル・天井のふちの幕板）
 // 2026-11-12（大岡山駅の階段・エスカレーターのまわりと 1 階）：mtile 小さなベージュのタイルの壁（目地・白っぽい縦の帯。階段の壁）、
@@ -228,7 +235,8 @@ export const FLOOR_FINISHES = ["oak", "concrete", "tile", "carpet", "stone", "wh
 // conc 打ち放しのコンクリート（P コンの穴）、wbrick 白いれんが（附属図書館の地下。2026-11-13）
 // hboard（2026-11-15、西5号館の 4 階の製図室）：明るい木の横板張り（板の継ぎ目の暗い溝 0.16m おき）
 // rbrick（2026-11-15、西1号館の玄関ホール・廊下。写真 w1ent4・w1AED1）：茶色のれんがの腰壁（th：れんがの高さ m。なしは 2.4）、上は白いしっくい
-export const FLOOR_WALL_KINDS = ["wall", "ext", "glass", "curtain", "mesh", "rail", "low", "psd", "bars", "tiles", "dark", "mtile", "wains", "slat", "maroon", "wtile", "conc", "wbrick", "hboard", "rbrick", "bstone"];
+export const FLOOR_WALL_KINDS = ["wall", "ext", "glass", "curtain", "mesh", "rail", "low", "psd", "bars", "tiles", "dark", "mtile", "wains", "slat", "maroon", "wtile", "conc", "wbrick", "hboard", "rbrick", "bstone", "vboard", "lattice"];
+// vboard・lattice（2026-11-18、70周年記念講堂の客席）：vboard あたたかい色の木の縦板張り（0.14 m おきの継ぎ目）、lattice 白い格子（0.24 m の升目）
 // tentsofa（2026-11-10、ユーザー「ソファー違いすぎ」）：両側に座れる低いソファー。4 点の四角の 1 本目の辺が長さ（背のてっぺんの線）、
 // 両側に座面、まん中に 2 枚の背もたれがもたれ合ったテントの形（z1 がてっぺん）、細い金属の脚（Taki の 1 階のラウンジ・写真 S__47226944）
 // column（駅のホームの丸柱：4 点の四角に内接する円。下から赤茶・オレンジと黄の市松の帯・クリーム色のタイル、上に白い丸い笠）、
@@ -257,12 +265,13 @@ export const FLOOR_WALL_KINDS = ["wall", "ext", "glass", "curtain", "mesh", "rai
 // 2026-11-15（西5号館の 4 階の製図室・JIA の写真 07-01_W5_77）：cabinet 作り付けの木の収納（1 本目の辺が前。扉の継ぎ目の線 n 枚・足もとの
 // 暗い台・取っ手。色は color）。4 点の table の color3 は天板のふちの帯（白い天板に木のふち）
 
-export const FLOOR_ITEM_KINDS = ["box", "wood", "white", "dark", "grey", "sofa", "seat", "green", "screen", "glow", "counter", "layered", "platform", "table", "shelf", "kitchen", "vending", "piano", "red", "orange", "art", "core", "lift", "toilet", "tube", "disc", "slats", "walnut", "chalk", "lamp", "bentwood", "mat", "tatami", "steel", "liftdoor", "tentsofa", "column", "bench", "board", "light", "soffit", "sdoor", "gate", "cyl", "locker", "machine", "arrow", "poster", "dlight", "hatch", "hydrant", "rack", "tvm", "chair", "woodchair", "lounge", "microwave", "drinks", "stool", "tatamibox", "wboard", "bincab", "aframe", "louver", "cubeshelf", "openshelf", "mathclock", "woodcut", "woodsign", "note", "stars", "stack", "flapgate", "secgate", "wedge", "globe", "duct", "cassette", "belt", "tray", "cabinet", "cooler", "chiller", "freezer", "register", "coffee", "atm", "crates", "hotcase"];
+export const FLOOR_ITEM_KINDS = ["box", "wood", "white", "dark", "grey", "sofa", "seat", "green", "screen", "glow", "counter", "layered", "platform", "table", "shelf", "kitchen", "vending", "piano", "red", "orange", "art", "core", "lift", "toilet", "tube", "disc", "slats", "walnut", "chalk", "lamp", "bentwood", "mat", "tatami", "steel", "liftdoor", "tentsofa", "column", "bench", "board", "light", "soffit", "sdoor", "gate", "cyl", "locker", "machine", "arrow", "poster", "dlight", "hatch", "hydrant", "rack", "tvm", "chair", "woodchair", "lounge", "microwave", "drinks", "stool", "tatamibox", "wboard", "bincab", "aframe", "louver", "cubeshelf", "openshelf", "mathclock", "woodcut", "woodsign", "note", "stars", "stack", "flapgate", "secgate", "wedge", "globe", "duct", "cassette", "belt", "tray", "cabinet", "cooler", "chiller", "freezer", "register", "coffee", "atm", "crates", "hotcase", "tseat"];
+// tseat（2026-11-18、70周年記念講堂）：劇場の椅子。4 点の四角の 1 本目の辺が背、z1 が背のてっぺん。color 布・color2 袖（ひじ掛け）・color3 背の木の板
 // 2026-11-17（南4号館のセブン-イレブン。ユーザーの動画 IMG_1393）：どれも 4 点の四角の 1 本目の辺が前。cooler 飲み物の冷蔵ケース（ガラスの扉 n 枚・
 // 中の棚とボトル・上の帯 color）、chiller 多段のオープンケース（おにぎり・弁当。low なら腰の高さの平台）、freezer 平型の冷凍ケース、register レジ、
 // coffee コーヒーマシン（color の箱）、atm ATM、crates 番重・コンテナの山（color・n 段）、hotcase レジの上のホットケース（campus3dInterior の addStoreItem）
 // 板を重ねた切り抜き（woodcut）の形（campus3dInterior の WOODCUT_SHAPES）
-export const WOODCUT_SHAPE_KEYS = ["man", "woman", "bldg"];
+export const WOODCUT_SHAPE_KEYS = ["man", "woman", "bldg", "world"];
 // escalator：エスカレーター（黒い段に黄色い線・ステンレスの側板）、oak：オークの段に段の鼻のステンレスの帯（2026-11-12。外の階段の
 // 材質 oak と同じ見え方：Taki の明かり取りの大階段はガラスの外と中で一続き）
 // rubber：黒いゴムの踏面に明るい灰の段鼻（附属図書館。2026-11-13）、glass：暗い鉄の枠にすりガラスの踏面（附属図書館の地下 2 階から
@@ -272,7 +281,7 @@ export const FLOOR_RAIL_KINDS = ["mesh", "rail", "glass"];
 export const TYPE_LABEL = { terrace: "平地", slope: "坂道", stairs: "階段", wall: "壁", bridge: "橋", passage: "通り抜け", building: "建物", road: "道路", surface: "路面", marking: "白線", crosswalk: "横断歩道", tree: "木", signal: "信号機", sign: "看板", floor: "階（建物の中）", track: "線路（駅の中）" };
 // 路面と白線の種類（色・幅は campus3dPaint.js）
 export const SURFACE_KIND_KEYS = ["road", "walk", "plaza", "tile", "deck", "red", "green", "zebra", "gravel", "stones", "brick", "darkbrick", "redbrick", "wood", "lawn", "slab", "soil", "blue", "shrubs", "turf"];
-export const MARKING_KIND_KEYS = ["solid", "dashed", "stop", "yellow", "wide", "tactile"];
+export const MARKING_KIND_KEYS = ["solid", "dashed", "stop", "yellow", "wide", "tactile", "arrow", "orange", "thin", "text"];
 // 壁の種類（なしは壁）：生け垣・縦の格子の柵・ガードパイプ
 export const WALL_KIND_KEYS = ["hedge", "fence", "rail", "glass", "slant", "xbrace", "bench", "chain", "mesh"];
 export const CENTER_KIND_KEYS = ["dashed", "solid", "yellow", "none"];
@@ -283,12 +292,12 @@ export const TREE_KIND_KEYS = ["broad", "round", "ginkgo", "conifer", "cherry", 
 // 段の鼻（下の段との境）のステンレスの帯（踏面のふち 4.5cm と蹴上げの上 3.5cm）。wood は外の木のデッキの古びた段（灰がかった色）のまま
 // granite は御影石（桃色がかった灰の踏面・赤茶の蹴上げ・鼻に 2 本のすべり止めの線）、nonslip はコンクリートの段の鼻に 2 本のすべり止めの線（2026-11-16、
 // 動画 IMG_1382 の西8号館・西1号館の前の階段）
-export const STAIRS_MATERIALS = ["wood", "stone", "brick", "oak", "granite", "nonslip"];
+export const STAIRS_MATERIALS = ["wood", "stone", "brick", "oak", "granite", "nonslip", "checker"];
 export const STAIRS_MATERIAL_LABEL = { "": "コンクリート", wood: "木", stone: "石", brick: "れんが", oak: "オーク（縁が金属）", granite: "御影石（赤茶の蹴上げ）", nonslip: "コンクリート（すべり止めの線）" };
 // 建物の窓・扉の種類（campus3dMesh.js の addWindows）：ガラス・奥の暗いガラス・格子・扉・ガラスの扉
 export const WINDOW_KINDS = ["glass", "dark", "grille", "door", "glassdoor", "frost", "autodoor", "opening"];
 // 建物の壁と屋根の材質（campus3dMesh.js の色）：さびた鉄・穴あきの金属板・ステンレス。なしは地図の建物の色
-export const BUILDING_MATERIALS = ["rust", "perforated", "steel", "darkbrick", "stone", "green", "red", "concrete", "glazed", "granite", "tile", "brick", "terracotta", "darkgranite", "bronze", "taupe", "blue", "rose"];
+export const BUILDING_MATERIALS = ["rust", "perforated", "steel", "darkbrick", "stone", "green", "red", "concrete", "glazed", "granite", "tile", "brick", "terracotta", "darkgranite", "bronze", "taupe", "blue", "rose", "beige", "yellow", "charcoal"];
 // 空中の板（panels）の見た目：穴あきの金属板・ガラス・ステンレス・暗い鋼・建物の色
 export const PANEL_KINDS = ["perforated", "glass", "steel", "dark", "wall", "white", "red", "brick", "granite", "clear"];
 export const CURB_W = 0.32; // ガラスの手すり（wall の glass）の下の石の縁石の幅 m
@@ -632,6 +641,11 @@ export function normalizeFeature(f) {
       out.joints = [round2(clampTo(f.joints[0], [0.3, 5], 1)), round2(clampTo(f.joints[1], [0.3, 5], 2))];
       if (f.joints.length > 2 && +f.joints[2]) out.joints.push(round2(clampTo(f.joints[2], [-5, out.height], 0)));
     }
+    // 外の壁のタイルの目地（tiles。2026-11-17、西1号館の前の階段のベージュの二丁掛けのタイル）：[段の高さ, タイルの長さ] m。
+    // 横の目地は標高の段の高さごと（となりの建物とそろう）、縦の目地は段ごとに半分ずらす（れんが積み）
+    if (Array.isArray(f.tiles) && f.tiles.length >= 2 && f.tiles.slice(0, 2).every((v) => v != null && v !== "" && Number.isFinite(+v) && +v > 0)) {
+      out.tiles = [round2(clampTo(f.tiles[0], [0.05, 1], 0.15)), round2(clampTo(f.tiles[1], [0.1, 3], 0.45))];
+    }
     if (f.frame === true) {
       out.frame = true;
       const lv = (Array.isArray(f.levels) ? f.levels : []).filter((v) => v != null && v !== "" && Number.isFinite(+v) && +v > 0.3 && +v <= out.height).map((v) => round2(+v));
@@ -823,6 +837,7 @@ export function normalizeFeature(f) {
     }
   } else if (f.type === "marking") {
     out.kind = MARKING_KIND_KEYS.includes(f.kind) ? f.kind : d.kind;
+    if (out.kind === "text") { out.text = String(f.text || "").slice(0, 8); if (Number.isFinite(+f.size)) out.size = round2(clampTo(f.size, [0.3, 4], 1.8)); }
   } else if (f.type === "crosswalk") {
     out.coords = coords.slice(0, 2);
     out.width = round2(clampTo(f.width, RANGE.crosswalk, d.width));
@@ -1127,7 +1142,9 @@ function normalizeFloor(f, out, d) {
     if (hx(it.color)) o.color = hx(it.color);
     if (hx(it.color2)) o.color2 = hx(it.color2);
     // color3（2026-11-15、西5号館の食堂）：table の 1 本脚の足もとの丸い台、woodchair の背の板の色
-    if (hx(it.color3) && (o.kind === "table" || o.kind === "woodchair" || o.kind === "poster")) o.color3 = hx(it.color3); // poster は紙の上の図の色（2026-11-15）
+    if (o.kind === "globe" && it.stand === true) { o.stand = true; if (hx(it.color)) o.color = hx(it.color); } // 置いた地球儀（2026-11-18）
+    if (o.kind === "wboard" && it.clear === true) o.clear = true; // 透明のついたて（板なし。2026-11-18）
+    if (hx(it.color3) && (o.kind === "table" || o.kind === "woodchair" || o.kind === "poster" || o.kind === "tseat")) o.color3 = hx(it.color3); // poster は紙の上の図の色（2026-11-15）
     const split = numOr(it.split, [0, 40], 0);
     if (split != null && o.kind === "cyl") o.split = split;
     // 踊り場の台（platform）の手すり：辺ごと（辺 i は点 i → 点 i+1）の "glass" / "mesh" / "rail" か null（2026-11-14、学習棟の階段の踊り場）

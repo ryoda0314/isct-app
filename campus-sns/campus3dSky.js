@@ -122,8 +122,11 @@ export function lookFor(mode, { dark = false, date = lookClock(), weather = null
     return tone(d, n);
   };
   const pal = {};
+  // 3D 表示の昼の公道はアスファルトの灰色（2D のイラスト地図は白い道のまま。2026-11-17、ユーザー「見た目がまだ真っ白」）。
+  // キャンパスの中の車道（路面 road #8d959d）より少し明るくして、手で描いた道と見分けがつくように
+  const DAY_3D = { street: "#a4abb3", streetCase: "#c3cad1" };
   for (const k of Object.keys(PALETTES.light)) {
-    const d = PALETTES.light[k];
+    const d = DAY_3D[k] || PALETTES.light[k];
     const n = PALETTES.dark[k];
     pal[k] = d.startsWith("#") && n.startsWith("#") ? (GROUND_KEYS[k] ? ground({ light: d, dark: n }, GROUND_KEYS[k]) : tone(d, n)) : f.night > 0.5 ? n : d;
   }

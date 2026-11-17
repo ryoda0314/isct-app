@@ -70,11 +70,13 @@ const CSS = `
 @media (orientation:landscape) and (max-height:540px){
   .cb3-full .cb3-inv-on .cb3-joy{bottom:calc(24px + var(--cb3-sb,env(safe-area-inset-bottom,0px)))}
   .cb3-full .cb3-inv-on .cb3-walk-btns{bottom:auto}
+  .cb3-full .cb3-inv-on .cb3-walk-hint{bottom:calc(92px + var(--cb3-sb,env(safe-area-inset-bottom,0px)))}
   .cb3-full .cb3-inv-slot{width:38px;height:38px}
 }
 /* 回して描くとき（縦に持ったスマホの歩くモード。.cb3-rot）も、上の横向きと同じ並び */
 .cb3-full.cb3-rot .cb3-inv-on .cb3-joy{bottom:calc(24px + var(--cb3-sb,env(safe-area-inset-bottom,0px)))}
 .cb3-full.cb3-rot .cb3-inv-on .cb3-walk-btns{bottom:auto}
+.cb3-full.cb3-rot .cb3-inv-on .cb3-walk-hint{bottom:calc(92px + var(--cb3-sb,env(safe-area-inset-bottom,0px)))}
 .cb3-full.cb3-rot .cb3-inv-slot{width:38px;height:38px}
 .cb3-inv-modal{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);pointer-events:auto;z-index:6;padding:16px;box-sizing:border-box}
 .cb3-inv-box{width:min(340px,100%);max-height:100%;overflow:auto;border-radius:14px;background:#fff;color:#0e2030;padding:14px;box-sizing:border-box;border:1px solid #d6dde4;

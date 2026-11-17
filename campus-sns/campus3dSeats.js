@@ -10,7 +10,7 @@ export const SEAT_REACH = 3; // 照準が届く距離（m）
 export const SEAT_EYE = 0.78; // 座った人の目の、座面からの高さ（m）
 const STAND_OUT = 0.45; // 立つと座ったものの前のふちからこれだけ外（m）
 
-const SIT_KINDS = new Set(["chair", "woodchair", "lounge", "stool", "bench", "tentsofa", "sofa", "seat"]);
+const SIT_KINDS = new Set(["chair", "woodchair", "lounge", "stool", "bench", "tentsofa", "sofa", "seat", "tseat"]);
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
 const len = (v) => Math.hypot(v[0], v[1]);
 const unit = (v) => { const l = len(v) || 1; return [v[0] / l, v[1] / l]; };
@@ -101,7 +101,7 @@ export function sitPose(seat, p, from) {
   const u = unit(sub(r[1], r[0])), L = len(sub(r[1], r[0]));
   const v = unit(sub(r[2], r[1])), W = len(sub(r[2], r[1]));
   const along = (pt, margin) => { const s = (pt[0] - ce[0]) * u[0] + (pt[1] - ce[1]) * u[1]; const hl = Math.max(0, L / 2 - margin); return Math.max(-hl, Math.min(hl, s)); };
-  if (seat.kind === "chair" || seat.kind === "woodchair" || seat.kind === "lounge") {
+  if (seat.kind === "chair" || seat.kind === "woodchair" || seat.kind === "lounge" || seat.kind === "tseat") {
     // 1 本目の辺が背：背 → 前の向き。長いソファーは照準の所に（端から 0.3m は空ける）
     const back = mid(r[0], r[1]), front = mid(r[2], r[3]);
     const fd = unit(sub(front, back));
