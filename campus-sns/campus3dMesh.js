@@ -40,6 +40,7 @@ const COLORS = {
     roofGreen: "#7a9556", glassLo: "#5b6f7e", glassHi: "#a2b6c4", mullion: "#3b434a", eaveDark: "#4b4f54",
     stairsWood: "#ada392", stairsStone: "#c9c6bf", stairsBrick: "#68655f", // 階段の材質：木・石・れんが（灰色の炻器質れんが）
     stairsOak: "#a8835f", stairsNose: "#a3a8ac", // オークの段とステンレスの鼻の帯（2026-11-12、写真 S__47366149 の踏面の色 (148,122,103)〜(131,96,66)）
+    stairsGranite: "#b7a49e", stairsGraniteRiser: "#6b3b34", stairsConcrete: "#b3b4b0", stairsLine: "#85898d", // 御影石の段（桃色がかった灰の踏面・赤茶の蹴上げ）・コンクリートの段・すべり止めの線（2026-11-16、動画 IMG_1382）
     // 段々の屋根（緑の屋上）：段の板（雨にさらされた灰色の木。動画の色）と、段の境目の暗い蹴上げ
     roofDeck: "#bebbb5", roofRiser: "#55524d", redRoof: "#8a4b3d",
     // 平地の壁の面（faces）：すりガラス（下・上）・扉のガラス・アルミの枠・白いれんがと目地
@@ -84,6 +85,8 @@ const COLORS = {
     terracotta: "#b06c4a", // 赤茶の塗り壁（地球生命研究所棟の南の小屋）
     bronze: "#6f604a", // ブロンズ（銅像の灰色がかった茶。手島精一像）
     taupe: "#a39588", // 灰色がかった茶のタイル張りの壁（西7号館。2026-11-16）
+    rose: "#bda8a1", // 桃色がかったベージュのパネルの壁（サークル棟2。2026-11-16、写真 amap・動画 IMG_1375 の日の当たる壁 (198,184,178)）
+    blueMat: "#2f55a8", // 青い塗装の板（本館の西の面の自販機。2026-11-16、ユーザーの動画 IMG_1381）
     redBrick: "#86503f", // 赤れんがの板（panels の brick。70周年記念講堂の入口のわき）
     bridgeTile: "#9a5f4e", // 橋の赤茶の床タイル（surface "redtile"。西3号館の 3 階の玄関へ渡る橋）
   },
@@ -91,6 +94,7 @@ const COLORS = {
     wall: "#353d47", deckSide: "#2c333c", railing: "#4a5460", pier: "#2a3139", ceiling: "#20252c", stairs: "#3b424c", bridgeDeck: "#44423d",
     stairsWood: "#3a3631", stairsStone: "#46474b", stairsBrick: "#34353a",
     stairsOak: "#40342a", stairsNose: "#5a5f64",
+    stairsGranite: "#46403f", stairsGraniteRiser: "#34231f", stairsConcrete: "#41454b", stairsLine: "#565a60",
     trunk: "#26211d", leafBroad: "#1e2a1a", leafRound: "#1b2619", leafGinkgo: "#2f3420", leafConifer: "#162016", hedge: "#1b2617",
     roofGreen: "#222c1d", glassLo: "#7d6a47", glassHi: "#a88f5e", mullion: "#15191d", eaveDark: "#1a1c1f",
     roofDeck: "#34322e", roofRiser: "#17181a", redRoof: "#3b2621",
@@ -115,12 +119,12 @@ const COLORS = {
     chainFrame: "#454b51", chainWire: "#50565c", meshFrame: "#2a2f35", meshWire: "#30353b",
     creamFace: "#5a5446", creamSide: "#403b30",
     granite: "#403d3d", graniteDark: "#2d2a29", redBrick: "#3a241e", tile: "#4d4b46", terracotta: "#40281d",
-    bridgeTile: "#3b2924", bronze: "#2a251e", taupe: "#3e3934",
+    bridgeTile: "#3b2924", bronze: "#2a251e", taupe: "#3e3934", blueMat: "#16233f", rose: "#413838",
   },
 };
 
 // 建物の材質（material）の色の名前
-const MATERIAL_COLOR = { rust: "rust", perforated: "perforated", steel: "steelHi", darkbrick: "darkBrick", stone: "stone", green: "greenWall", red: "redPanel", concrete: "concrete", glazed: "glazed", granite: "granite", tile: "tile", brick: "redBrick", terracotta: "terracotta", darkgranite: "graniteDark", bronze: "bronze", taupe: "taupe" };
+const MATERIAL_COLOR = { rust: "rust", perforated: "perforated", steel: "steelHi", darkbrick: "darkBrick", stone: "stone", green: "greenWall", red: "redPanel", concrete: "concrete", glazed: "glazed", granite: "granite", tile: "tile", brick: "redBrick", terracotta: "terracotta", darkgranite: "graniteDark", bronze: "bronze", taupe: "taupe", blue: "blueMat", rose: "rose" };
 
 // 三角形の並び（位置・法線・色）。電車（campus3dTrains.js）も使う
 export class Mesh {
@@ -1667,7 +1671,20 @@ function addBridge(m, f, groundAt, pal, cols, tint) {
   const surface = tint(rgba(f.surface === "rail" ? pal.rail : f.surface === "street" ? pal.street : f.surface === "deck" ? cols.bridgeDeck : f.surface === "redtile" ? cols.bridgeTile : pal.walk));
   const side = tint(rgba(cols.deckSide));
   m.prism(offsetLine(pts, hw), offsetLine(pts, -hw), deck.map((v) => v - f.thickness), deck, { top: surface, side, bottom: side }, { bottom: true });
-  if (f.railing) {
+  if (f.railing && f.bars) {
+    // 縦の格子の手すり（亜鉛めっきの鋼の柵。2026-11-16、サークル棟2 から西5号館へのスロープ）：柵（addFence）を床のふちの線に、床の高さから立てる
+    const rc = tint(rgba(cols.railing));
+    [1, -1].forEach((sg) => {
+      const line = offsetLine(pts, sg * (hw - 0.04));
+      const deckAt = (ll) => {
+        const [x, y] = toXY(ll);
+        let k = 0;
+        for (let i = 1; i < line.length; i++) if (Math.hypot(line[i][0] - x, line[i][1] - y) < Math.hypot(line[k][0] - x, line[k][1] - y)) k = i;
+        return deck[k];
+      };
+      addFence(m, { coords: line.map(toLngLat), height: 1.1, thickness: 0.05 }, deckAt, rc);
+    });
+  } else if (f.railing) {
     const rc = tint(rgba(cols.railing));
     const up = deck.map((v) => v + 1.1);
     [1, -1].forEach((sg) => m.prism(...band(pts, sg * hw, sg * (hw - 0.12)), deck, up, { top: rc, side: rc }));
@@ -2990,6 +3007,9 @@ function addBuilding(m, f, groundAt, c, clip = null, look = null) {
   // wallSeg の from（g0 からの m）
   const underFrom = (mid, n) => {
     if (!look?.under?.length) return null;
+    // 宙に浮いた建物（base）の壁は下の面から（地面まで下ろさない。2026-11-16 本館：中庭5 の 3 階の外廊下・西のロッジアの屋根の板の壁が
+    // 地下の階に面した側だけ掘った地面から立ち、通り抜けのアーチと第2食堂の柱のあいだをふさいでいた）
+    if (soff) return null;
     const o = [mid[0] + n[0] * 0.3, mid[1] + n[1] * 0.3];
     if (!inBasement(look.under, o)) return null;
     const g = groundAt(toLngLat(o));
@@ -4198,13 +4218,17 @@ function addFrame(m, f, ring, g0, bot, look) {
 }
 
 // 階段：段ごとの箱（段の下の地面より下から段の上まで）を m に、手すりを rm に
-export const stairsColorKey = (f) => (f.material === "wood" ? "stairsWood" : f.material === "stone" ? "stairsStone" : f.material === "brick" ? "stairsBrick" : f.material === "oak" ? "stairsOak" : "stairs");
+export const stairsColorKey = (f) => (f.material === "wood" ? "stairsWood" : f.material === "stone" ? "stairsStone" : f.material === "brick" ? "stairsBrick" : f.material === "oak" ? "stairsOak" : f.material === "granite" ? "stairsGranite" : f.material === "nonslip" ? "stairsConcrete" : "stairs");
 const NOSE_TREAD = 0.045; // オークの段の鼻のステンレスの帯：踏面のふちからの奥行き（m）
 const NOSE_DROP = 0.035; // 同じく蹴上げの上の端から下へ（m）
+// 御影石・すべり止めの段の鼻の 2 本の線（踏面のふちからの奥行き [始め, 終わり] m。2026-11-16、動画 IMG_1382 の西8号館・西1号館の前の階段）
+const NONSLIP_LINES = [[0.025, 0.045], [0.065, 0.085]];
 function addStairs(m, rm, sl, groundAt, cols, tint) {
   const f = sl.f;
   const c = tint(rgba(cols[stairsColorKey(f)]));
   const noseC = f.material === "oak" ? tint(rgba(cols.stairsNose)) : null; // 段の鼻のステンレスの帯の色（オークだけ）
+  const riserC = f.material === "granite" ? tint(rgba(cols.stairsGraniteRiser)) : c; // 御影石：蹴上げは赤茶（踏面は桃色がかった灰色）
+  const lineC = f.material === "granite" || f.material === "nonslip" ? tint(rgba(cols.stairsLine)) : null; // 段の鼻の 2 本のすべり止めの線
   const L = offsetLine(sl.xy, sl.hwv.map((h, i) => sl.cv[i] + h));
   const R = offsetLine(sl.xy, sl.hwv.map((h, i) => sl.cv[i] - h));
   const at = (line, i, t) => [line[i][0] + (line[i + 1][0] - line[i][0]) * t, line[i][1] + (line[i + 1][1] - line[i][1]) * t];
@@ -4217,8 +4241,8 @@ function addStairs(m, rm, sl, groundAt, cols, tint) {
     // 段の下の地面より下から。まわりより高い段（下は元の地面のまま）は、その下の地面まで下ろす（壁がなくても浮かない）
     const foot = [at(L, i, t0), at(L, i, t1), at(R, i, t0), at(R, i, t1)].map((q) => groundAt(toLngLat(q))).filter(Number.isFinite);
     const base = Math.min(lerpAlong(sl.under.s, sl.under.e, st.s0) - 0.5, lerpAlong(sl.under.s, sl.under.e, st.s1) - 0.5, ...foot.map((g) => g - 0.3));
-    m.prism([at(L, i, t0), at(L, i, t1)], [at(R, i, t0), at(R, i, t1)], [base, base], [st.top, st.top], { top: c, side: c });
-    if (!noseC) return;
+    m.prism([at(L, i, t0), at(L, i, t1)], [at(R, i, t0), at(R, i, t1)], [base, base], [st.top, st.top], { top: c, side: riserC });
+    if (!noseC && !lineC) return;
     // 段の鼻（高い側の踏面のふち）に、踏面のふちと蹴上げの上を包むステンレスの帯（蹴上げの面から 4mm 出す。踏面の上 6mm）。
     // 階段の両端で、上の地面（下りの始まり・上りの終わり）のふちにも
     const pe = sl.prof.e;
@@ -4230,15 +4254,28 @@ function addStairs(m, rm, sl, groundAt, cols, tint) {
     if (k === 0 && pe[0] > st.top + 0.02) ends.push([t0, -1, pe[0]]);
     if (k === steps.length - 1 && pe[pe.length - 1] > st.top + 0.02) ends.push([t1, 1, pe[pe.length - 1]]);
     for (const [te, dir, z] of ends) {
-      const ta = te + (dir * NOSE_TREAD) / len, tb = te - (dir * 0.004) / len;
-      const [u0, u1] = ta < tb ? [ta, tb] : [tb, ta];
-      m.prism([at(L, i, u0), at(L, i, u1)], [at(R, i, u0), at(R, i, u1)], [z - NOSE_DROP, z - NOSE_DROP], [z + 0.006, z + 0.006], { top: noseC, side: noseC });
+      if (noseC) {
+        const ta = te + (dir * NOSE_TREAD) / len, tb = te - (dir * 0.004) / len;
+        const [u0, u1] = ta < tb ? [ta, tb] : [tb, ta];
+        m.prism([at(L, i, u0), at(L, i, u1)], [at(R, i, u0), at(R, i, u1)], [z - NOSE_DROP, z - NOSE_DROP], [z + 0.006, z + 0.006], { top: noseC, side: noseC });
+      }
+      if (lineC) {
+        // 踏面の上に 4mm 出した細い帯 2 本（段の両わきから 5cm 内）
+        for (const [d0, d1] of NONSLIP_LINES) {
+          const ta = te + (dir * d0) / len, tb = te + (dir * d1) / len;
+          const [u0, u1] = ta < tb ? [ta, tb] : [tb, ta];
+          const inL = (u) => { const a = at(L, i, u), b = at(R, i, u), w = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, k = Math.min(0.45, 0.05 / w); return [[a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k], [b[0] - (b[0] - a[0]) * k, b[1] - (b[1] - a[1]) * k]]; };
+          const [la0, ra0] = inL(u0), [la1, ra1] = inL(u1);
+          m.prism([la0, la1], [ra0, ra1], [z + 0.001, z + 0.001], [z + 0.004, z + 0.004], { top: lineC, side: lineC });
+        }
+      }
     }
   });
   // 手すり：位置ごとに、足もとの線から 0.85〜0.95m の横の棒と、1.2m おきの支柱（板にすると段が隠れる）。
   // 位置 r は段の幅に対する割合（0 が左の端、1 が右の端）。段の上なら足もとは段の角をなぞる線、土台の上なら壁の上（斜面なら路肩）
   const rails = f.rails || [];
-  if (!rails.length) return;
+  const fences = f.fences || [];
+  if (!rails.length && !fences.length) return;
   const rc = tint(rgba(cols.railing));
   const { pts, s } = densify(sl.xy, 0.5);
   const { hw, hb, c: cs } = halfWidths(sl, s);
@@ -4253,6 +4290,9 @@ function addStairs(m, rm, sl, groundAt, cols, tint) {
     return feet[sg];
   };
   const len = sl.cum[sl.cum.length - 1];
+  // railsFlight（2026-11-16）：手すりは流れ（段の区間）だけに、流れの端から 0.15m 内まで（踊り場・上下の平らなところには立てない）
+  const runs = f.railsFlight ? sl.cum.slice(0, -1).map((c0, i) => (f.flat?.[i] ? null : [c0 + 0.15, sl.cum[i + 1] - 0.15])).filter((q) => q && q[1] - q[0] > 0.3) : [[0, len]];
+  const cutRun = (arr, r0, r1) => { const out = [lerpAlong(s, arr, r0)]; s.forEach((v, i) => { if (v > r0 + 1e-6 && v < r1 - 1e-6) out.push(arr[i]); }); out.push(lerpAlong(s, arr, r1)); return out; };
   rails.forEach((r) => {
     const onSteps = (r >= 0 && r <= 1) || !(sl.wt > 0 || sl.side > 0); // 壁も路肩もなければ段のふち
     // 中心線から左へ（m）。幅が変わるところでは、同じ割合の位置
@@ -4262,9 +4302,12 @@ function addStairs(m, rm, sl, groundAt, cols, tint) {
     };
     const o = hw.map((h, i) => cs[i] + offAt(h, hb[i]));
     const foot = onSteps ? nose : footOnBase(r < 0 ? 1 : -1);
-    rm.prism(...band(pts, o.map((v) => v + 0.03), o.map((v) => v - 0.03)), foot.map((v) => v + 0.85), foot.map((v) => v + 0.95), { top: rc, side: rc });
-    for (let k = 0, n = Math.max(1, Math.round(len / 1.2)); k <= n; k++) {
-      const sv = (len * k) / n;
+    for (const [r0, r1] of runs) {
+    const xs = cutRun(pts.map((p) => p[0]), r0, r1), ys = cutRun(pts.map((p) => p[1]), r0, r1), P = xs.map((x, i) => [x, ys[i]]);
+    const O = cutRun(o, r0, r1), FT = cutRun(foot, r0, r1);
+    rm.prism(...band(P, O.map((v) => v + 0.03), O.map((v) => v - 0.03)), FT.map((v) => v + 0.85), FT.map((v) => v + 0.95), { top: rc, side: rc });
+    for (let k = 0, n = Math.max(1, Math.round((r1 - r0) / 1.2)); k <= n; k++) {
+      const sv = r0 + ((r1 - r0) * k) / n;
       const i = Math.min(sl.xy.length - 2, Math.max(0, sl.cum.findIndex((c) => c >= sv) - 1));
       const a = sl.xy[i];
       const b = sl.xy[i + 1];
@@ -4277,6 +4320,39 @@ function addStairs(m, rm, sl, groundAt, cols, tint) {
       const z0 = foot === nose ? z1 - 0.95 - sl.rise : z1 - 0.95; // 段の上の支柱は坂の面から（段の箱に刺さる）
       const ov = lerpAlong(sl.cum, sl.cv, sv) + offAt(lerpAlong(sl.cum, sl.hwv, sv), lerpAlong(sl.cum, sl.hbv, sv));
       rm.prism(...band(post, ov + 0.03, ov - 0.03), [z0, z0], [z1, z1], { top: rc, side: rc });
+    }
+    }
+  });
+  // 縦の格子の手すり（fences。2026-11-16、動画 IMG_1382 の西1号館の前の階段・西8号館の入口の階段のステンレスの柵）：位置 r は rails と同じ割合
+  // （段の上の帯の中だけ）。段の角をなぞる線から 1.1m の上の手すり（丸く 6cm）、0.1m の下の横の棒、0.12m おきの縦の棒、2m おきの柱
+  fences.forEach((r) => {
+    const off = (h) => { const lim = h - 0.05; return Math.min(lim, Math.max(-lim, h * (1 - 2 * r))); };
+    const o = hw.map((h, i) => cs[i] + off(h));
+    const line = offsetLine(pts, o);
+    rm.prism(...band(pts, o.map((v) => v + 0.03), o.map((v) => v - 0.03)), nose.map((v) => v + 1.04), nose.map((v) => v + 1.1), { top: rc, side: rc });
+    rm.prism(...band(pts, o.map((v) => v + 0.012), o.map((v) => v - 0.012)), nose.map((v) => v + 0.08), nose.map((v) => v + 0.11), { top: rc, side: rc });
+    for (let i = 0; i + 1 < line.length; i++) {
+      const p = line[i], q = line[i + 1];
+      const L = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (L < 1e-3) continue;
+      const u = [(q[0] - p[0]) / L, (q[1] - p[1]) / L];
+      const nn = [-u[1], u[0]];
+      const k = Math.max(1, Math.round(L / 0.12));
+      for (let j = 0; j < k; j++) {
+        const sv = (L * (j + 0.5)) / k;
+        const A = [p[0] + u[0] * (sv - 0.009), p[1] + u[1] * (sv - 0.009)], B = [p[0] + u[0] * (sv + 0.009), p[1] + u[1] * (sv + 0.009)];
+        const z = nose[i] + ((nose[i + 1] - nose[i]) * sv) / L;
+        rm.quad([[A, z + 0.08], [B, z + 0.08], [B, z + 1.05], [A, z + 1.05]], [nn[0], nn[1], 0], rc);
+      }
+    }
+    const len2 = s[s.length - 1];
+    for (let k = 0, n = Math.max(1, Math.round(len2 / 2)); k <= n; k++) {
+      const sv = (len2 * k) / n;
+      const j = Math.min(line.length - 2, Math.max(0, s.findIndex((v) => v >= sv) - 1));
+      const t = (sv - s[j]) / ((s[j + 1] - s[j]) || 1);
+      const p = [line[j][0] + (line[j + 1][0] - line[j][0]) * t, line[j][1] + (line[j + 1][1] - line[j][1]) * t];
+      const z = nose[j] + (nose[j + 1] - nose[j]) * t;
+      solidPoly(rm, [[p[0] - 0.025, p[1] - 0.025], [p[0] + 0.025, p[1] - 0.025], [p[0] + 0.025, p[1] + 0.025], [p[0] - 0.025, p[1] + 0.025]], z - sl.rise, z + 1.1, rc, rc);
     }
   });
 }
@@ -4556,7 +4632,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     const tint = sl.f.id === selectedId ? (c) => mix(c, acc, 0.45) : (c) => c;
     if (sl.f.type === "stairs") addStairs(m, thin, sl, groundAt, cols, tint);
     // 壁の色：坂は material（木の歩道の縁など）、ほかはコンクリート
-    if (sl.f.side === 0 && sl.walls) addSlopeWalls(m, sl, groundAt, tint(rgba(cols[sl.f.type === "slope" && sl.f.material ? stairsColorKey(sl.f) : "wall"])));
+    if (sl.f.side === 0 && sl.walls) addSlopeWalls(m, sl, groundAt, tint(rgba(cols[sl.f.wallMaterial && MATERIAL_COLOR[sl.f.wallMaterial] ? MATERIAL_COLOR[sl.f.wallMaterial] : sl.f.type === "slope" && sl.f.material ? stairsColorKey(sl.f) : "wall"])));
   });
   const cc = rgba(cols.ceiling);
   ceilings.forEach(({ rings, z }) => m.polygon(rings.map((r) => r.map(toXY)), z, [0, 0, -1], cc));

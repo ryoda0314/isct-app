@@ -26,7 +26,9 @@
 //   stairs  : slope と同じ（width, z, side, flat, corner, base）に riser（一段の高さ）, rails（手すりの位置。段の幅に対する割合で、
 //             0 が左の端・1 が右の端（点1から点2を見て）。0 未満・1 より大は土台の上）。坂の面にそって riser ごとに段を刻む。
 //             steps（区間ごとの段数）があれば、段数は手で決めたもの。蹴上げはどの段も同じ（高さの差 ÷ 段数の合計）。
-//             段数は蹴上げの数。踊り場につながる流れは両端が蹴上げで、踏面は 段数−1 枚（stairFlights）。material（段の材質：wood 木 / stone 石 / brick 灰色のれんが。なしはコンクリート）
+//             段数は蹴上げの数。踊り場につながる流れは両端が蹴上げで、踏面は 段数−1 枚（stairFlights）。material（段の材質：wood 木 / stone 石 / brick 灰色のれんが / oak / granite 御影石 / nonslip すべり止めの線のコンクリート。なしはコンクリート）,
+//             fences（縦の格子の手すり＝ステンレスの柵の位置。rails と同じ割合で 0〜1。段の角をなぞる線から 1.1m）, wallMaterial（両わきの壁の材質＝BUILDING_MATERIALS）,
+//             railsFlight（true なら rails は流れ＝段の区間だけ。踊り場・上下の平らなところには立てない）
 //   wall    : height（高いほうの地面から）, thickness, kind（hedge 生け垣 / fence 縦の格子の柵 / rail ガードパイプ＝柱と横の管 2 本 /
 //             glass ガラスの手すり＝ガラスの板と上の細い手すり / slant 斜めの格子＝ステンレスの丸棒の柵（正門）。断面は三角形：
 //             足もとの幅は thickness、上は 1 本の手すり。両側の面の棒を上で合わせた「Λ」の並び（柵の向きに傾ける）。
@@ -41,7 +43,8 @@
 //             curb（glass・slant の下の石の縁石の高さ m。幅 curbWidth。ガラス・棒はその上から height まで）,
 //             rim（fence・rail・xbrace・chain・mesh・hedge を、両わき RAIL_REACH m の高いほうの地面から立てる：掘り下げた平地のふちの壁の上・
 //             盛った平地のふちの壁の上（壁の帯の上）に立つ柵。glass はいつも）
-//   bridge  : width, z（各点の床の高さ。真下の地面から、null は自動）, thickness, railing, piers, surface（walk / street / rail / deck 木の床）
+//   bridge  : width, z（各点の床の高さ。真下の地面から、null は自動）, thickness, railing, piers, surface（walk / street / rail / deck 木の床）,
+//             bars（true なら手すりは板でなく縦の格子＝亜鉛めっきの鋼の柵。サークル棟2 から西5号館へのスロープ。2026-11-16）
 //   tree    : 木。coords は幹の 1 点。height, crown（枝の広がりの直径 m）, kind（broad 枝の広がる木 / round 丸い木 / ginkgo イチョウ /
 //             conifer 針葉樹 / cherry サクラ＝低いところで太い枝に分かれ、横に広い平たい傘の形 /
 //             cedar ヒマラヤスギ＝高い幹から横に張り出す枝の層 / palm シュロ＝細くまっすぐな幹の先から、柄の長い扇の葉が四方へ放射して垂れる）
@@ -101,7 +104,7 @@
 //             concrete 打ち放しのコンクリート（灰色） / glazed 白い施釉れんが（附属図書館の東の箱） /
 //             granite 灰色の御影石（本館の車寄せ） / tile クリーム色がかった白いタイル（本館） / brick 赤れんが（南4号館の 1 階） /
 //             terracotta 赤茶の塗り壁（地球生命研究所棟の南の小屋） / darkgranite 暗い御影石（手島精一像の台座） /
-//             bronze ブロンズ（銅像：手島精一像） / taupe 灰色がかった茶のタイル（西7号館。2026-11-16）。なしは地図の建物の色）,
+//             bronze ブロンズ（銅像：手島精一像） / taupe 灰色がかった茶のタイル（西7号館。2026-11-16） / blue 青い塗装の板（本館の西の面の自販機。2026-11-16） / rose 桃色がかったベージュのパネル（サークル棟2。2026-11-16）。なしは地図の建物の色）,
 //             joints（外の壁のパネルの目地：[横の間隔, 縦の間隔, 横の目地の基準の高さ]。縦の目地は辺ごとに等間隔、窓の奥に隠れる）
 //             frame（true なら壁でなく鉄骨の外階段：角と辺の柱、levels（踊り場の高さ。地面から m）ごとの床と手すり、そのあいだの段の板）
 //             roof "glass"（ガラスの屋根。縦の桟は斜面の向きに glassPitch m ごと） / "solar"（太陽光パネル。ふちに白い笠木）
@@ -213,7 +216,10 @@ export const DETAIL_TYPES = ["floor", "track"];
 // herring＝灰色の濃淡のれんがの杉綾敷き（図書館の 1 階のロビー・地下 1 階の入口ホール。grid＝[V の並ぶ向き（度。+x から反時計回り）, れんがの幅 m]。
 // 長さは幅の HERRING_K 倍。部屋（rooms）にも grid を書ける。なければ階の grid、それもなければ [0, 0.1]。2026-11-13）
 // stone2＝灰色の石のタイル（2 つの近い灰色の市松。grid は checker と同じ、なければ [0, 0.6]。本館の廊下。2026-11-15）
-export const FLOOR_FINISHES = ["oak", "concrete", "tile", "carpet", "stone", "white", "plaza", "gravel", "dark", "checker", "ballast", "tile2", "brown", "tactile", "rubber", "herring", "stone2"];
+// rose・tan（2026-11-16、本館の地下 1 階。ユーザーの動画 IMG_1381 の 6 分 22 秒〜7 分 30 秒）：生協のつやのあるピンクがかったベージュの床・
+// 第2食堂の茶色のタイル（目地の見える 0.45m の市松）
+// cvs（2026-11-17、南4号館のセブン-イレブン。ユーザーの動画 IMG_1393）：クリーム色の大きなタイル（2 つの近い色の市松と暗い目地。grid の大きさ、なければ 0.6m）
+export const FLOOR_FINISHES = ["oak", "concrete", "tile", "carpet", "stone", "white", "plaza", "gravel", "dark", "checker", "ballast", "tile2", "brown", "tactile", "rubber", "herring", "stone2", "ivory", "rose", "tan", "cvs", "navy"];
 // psd：ホームドア（固定の箱と、doors の口の引き戸。style "mg" 白にオレンジの帯・オレンジの戸、"om" 窓のある白）、bars：鋼の縦の格子の柵、
 // tiles：大きなタイルの市松の壁（下は暗い腰）、dark：暗い壁（トンネル・天井のふちの幕板）
 // 2026-11-12（大岡山駅の階段・エスカレーターのまわりと 1 階）：mtile 小さなベージュのタイルの壁（目地・白っぽい縦の帯。階段の壁）、
@@ -222,7 +228,7 @@ export const FLOOR_FINISHES = ["oak", "concrete", "tile", "carpet", "stone", "wh
 // conc 打ち放しのコンクリート（P コンの穴）、wbrick 白いれんが（附属図書館の地下。2026-11-13）
 // hboard（2026-11-15、西5号館の 4 階の製図室）：明るい木の横板張り（板の継ぎ目の暗い溝 0.16m おき）
 // rbrick（2026-11-15、西1号館の玄関ホール・廊下。写真 w1ent4・w1AED1）：茶色のれんがの腰壁（th：れんがの高さ m。なしは 2.4）、上は白いしっくい
-export const FLOOR_WALL_KINDS = ["wall", "ext", "glass", "curtain", "mesh", "rail", "low", "psd", "bars", "tiles", "dark", "mtile", "wains", "slat", "maroon", "wtile", "conc", "wbrick", "hboard", "rbrick"];
+export const FLOOR_WALL_KINDS = ["wall", "ext", "glass", "curtain", "mesh", "rail", "low", "psd", "bars", "tiles", "dark", "mtile", "wains", "slat", "maroon", "wtile", "conc", "wbrick", "hboard", "rbrick", "bstone"];
 // tentsofa（2026-11-10、ユーザー「ソファー違いすぎ」）：両側に座れる低いソファー。4 点の四角の 1 本目の辺が長さ（背のてっぺんの線）、
 // 両側に座面、まん中に 2 枚の背もたれがもたれ合ったテントの形（z1 がてっぺん）、細い金属の脚（Taki の 1 階のラウンジ・写真 S__47226944）
 // column（駅のホームの丸柱：4 点の四角に内接する円。下から赤茶・オレンジと黄の市松の帯・クリーム色のタイル、上に白い丸い笠）、
@@ -251,7 +257,10 @@ export const FLOOR_WALL_KINDS = ["wall", "ext", "glass", "curtain", "mesh", "rai
 // 2026-11-15（西5号館の 4 階の製図室・JIA の写真 07-01_W5_77）：cabinet 作り付けの木の収納（1 本目の辺が前。扉の継ぎ目の線 n 枚・足もとの
 // 暗い台・取っ手。色は color）。4 点の table の color3 は天板のふちの帯（白い天板に木のふち）
 
-export const FLOOR_ITEM_KINDS = ["box", "wood", "white", "dark", "grey", "sofa", "seat", "green", "screen", "glow", "counter", "layered", "platform", "table", "shelf", "kitchen", "vending", "piano", "red", "orange", "art", "core", "lift", "toilet", "tube", "disc", "slats", "walnut", "chalk", "lamp", "bentwood", "mat", "tatami", "steel", "liftdoor", "tentsofa", "column", "bench", "board", "light", "soffit", "sdoor", "gate", "cyl", "locker", "machine", "arrow", "poster", "dlight", "hatch", "hydrant", "rack", "tvm", "chair", "woodchair", "lounge", "microwave", "drinks", "stool", "tatamibox", "wboard", "bincab", "aframe", "louver", "cubeshelf", "openshelf", "mathclock", "woodcut", "woodsign", "note", "stars", "stack", "flapgate", "secgate", "wedge", "globe", "duct", "cassette", "belt", "tray", "cabinet"];
+export const FLOOR_ITEM_KINDS = ["box", "wood", "white", "dark", "grey", "sofa", "seat", "green", "screen", "glow", "counter", "layered", "platform", "table", "shelf", "kitchen", "vending", "piano", "red", "orange", "art", "core", "lift", "toilet", "tube", "disc", "slats", "walnut", "chalk", "lamp", "bentwood", "mat", "tatami", "steel", "liftdoor", "tentsofa", "column", "bench", "board", "light", "soffit", "sdoor", "gate", "cyl", "locker", "machine", "arrow", "poster", "dlight", "hatch", "hydrant", "rack", "tvm", "chair", "woodchair", "lounge", "microwave", "drinks", "stool", "tatamibox", "wboard", "bincab", "aframe", "louver", "cubeshelf", "openshelf", "mathclock", "woodcut", "woodsign", "note", "stars", "stack", "flapgate", "secgate", "wedge", "globe", "duct", "cassette", "belt", "tray", "cabinet", "cooler", "chiller", "freezer", "register", "coffee", "atm", "crates", "hotcase"];
+// 2026-11-17（南4号館のセブン-イレブン。ユーザーの動画 IMG_1393）：どれも 4 点の四角の 1 本目の辺が前。cooler 飲み物の冷蔵ケース（ガラスの扉 n 枚・
+// 中の棚とボトル・上の帯 color）、chiller 多段のオープンケース（おにぎり・弁当。low なら腰の高さの平台）、freezer 平型の冷凍ケース、register レジ、
+// coffee コーヒーマシン（color の箱）、atm ATM、crates 番重・コンテナの山（color・n 段）、hotcase レジの上のホットケース（campus3dInterior の addStoreItem）
 // 板を重ねた切り抜き（woodcut）の形（campus3dInterior の WOODCUT_SHAPES）
 export const WOODCUT_SHAPE_KEYS = ["man", "woman", "bldg"];
 // escalator：エスカレーター（黒い段に黄色い線・ステンレスの側板）、oak：オークの段に段の鼻のステンレスの帯（2026-11-12。外の階段の
@@ -272,12 +281,14 @@ export const TREE_KIND_KEYS = ["broad", "round", "ginkgo", "conifer", "cherry", 
 // 階段の段の材質・坂の両わきの壁の材質（campus3dMesh.js の色）。なしはコンクリート
 // oak（2026-11-12、ユーザー「階段の材質は基本は木だけど縁が金属」＋写真 S__47366149：Taki Plaza の明かり取りの大階段）：明るいオークの段に、
 // 段の鼻（下の段との境）のステンレスの帯（踏面のふち 4.5cm と蹴上げの上 3.5cm）。wood は外の木のデッキの古びた段（灰がかった色）のまま
-export const STAIRS_MATERIALS = ["wood", "stone", "brick", "oak"];
-export const STAIRS_MATERIAL_LABEL = { "": "コンクリート", wood: "木", stone: "石", brick: "れんが", oak: "オーク（縁が金属）" };
+// granite は御影石（桃色がかった灰の踏面・赤茶の蹴上げ・鼻に 2 本のすべり止めの線）、nonslip はコンクリートの段の鼻に 2 本のすべり止めの線（2026-11-16、
+// 動画 IMG_1382 の西8号館・西1号館の前の階段）
+export const STAIRS_MATERIALS = ["wood", "stone", "brick", "oak", "granite", "nonslip"];
+export const STAIRS_MATERIAL_LABEL = { "": "コンクリート", wood: "木", stone: "石", brick: "れんが", oak: "オーク（縁が金属）", granite: "御影石（赤茶の蹴上げ）", nonslip: "コンクリート（すべり止めの線）" };
 // 建物の窓・扉の種類（campus3dMesh.js の addWindows）：ガラス・奥の暗いガラス・格子・扉・ガラスの扉
 export const WINDOW_KINDS = ["glass", "dark", "grille", "door", "glassdoor", "frost", "autodoor", "opening"];
 // 建物の壁と屋根の材質（campus3dMesh.js の色）：さびた鉄・穴あきの金属板・ステンレス。なしは地図の建物の色
-export const BUILDING_MATERIALS = ["rust", "perforated", "steel", "darkbrick", "stone", "green", "red", "concrete", "glazed", "granite", "tile", "brick", "terracotta", "darkgranite", "bronze", "taupe"];
+export const BUILDING_MATERIALS = ["rust", "perforated", "steel", "darkbrick", "stone", "green", "red", "concrete", "glazed", "granite", "tile", "brick", "terracotta", "darkgranite", "bronze", "taupe", "blue", "rose"];
 // 空中の板（panels）の見た目：穴あきの金属板・ガラス・ステンレス・暗い鋼・建物の色
 export const PANEL_KINDS = ["perforated", "glass", "steel", "dark", "wall", "white", "red", "brick", "granite", "clear"];
 export const CURB_W = 0.32; // ガラスの手すり（wall の glass）の下の石の縁石の幅 m
@@ -837,6 +848,8 @@ export function normalizeFeature(f) {
       if (f.walls === false) out.walls = false;
       // 坂の両わきの壁の材質（階段は段の材質。下）
       if (f.type === "slope" && STAIRS_MATERIALS.includes(f.material)) out.material = f.material;
+      // 両わきの壁の材質（建物の材質＝BUILDING_MATERIALS。坂・階段どちらも。2026-11-16）
+      if (BUILDING_MATERIALS.includes(f.wallMaterial)) out.wallMaterial = f.wallMaterial;
       // 各点の中心のずれ（どれかに数があるときだけ持つ）
       if (Array.isArray(f.shifts) && f.shifts.some(wOk)) out.shifts = coords.map((_, i) => (wOk(f.shifts[i]) ? round2(clampTo(f.shifts[i], RANGE.shift, 0)) : null));
       if (f.type === "stairs") {
@@ -844,6 +857,10 @@ export function normalizeFeature(f) {
         // 手すり（以前の railing: true/false も読む）。12本まで。並べ替えない（エディタで入力中の行がずれないように）
         const rails = Array.isArray(f.rails) ? f.rails : f.railing === false ? [] : d.rails;
         out.rails = rails.map((r) => +r).filter(Number.isFinite).map((r) => Math.round(Math.min(3, Math.max(-2, r)) * 1000) / 1000).slice(0, 12);
+        // 縦の格子の手すり（ステンレスの柵）の位置（rails と同じ割合、段の帯の中。2026-11-16）と、両わきの壁の材質（BUILDING_MATERIALS）
+        const fences = Array.isArray(f.fences) ? f.fences.map((r) => +r).filter(Number.isFinite).map((r) => Math.round(Math.min(1, Math.max(0, r)) * 1000) / 1000).slice(0, 6) : [];
+        if (fences.length) out.fences = fences;
+        if (f.railsFlight === true) out.railsFlight = true; // 手すりは流れ（段の区間）だけ
         // 段の材質（wood 木 / stone 石 / brick れんが / oak オークに金属の縁。なければコンクリート）
         if (STAIRS_MATERIALS.includes(f.material)) out.material = f.material;
         // 段数を手で決めたとき：段の区間は 1〜200 段、踊り場は null
@@ -856,6 +873,7 @@ export function normalizeFeature(f) {
       out.railing = f.railing == null ? d.railing : !!f.railing;
       out.piers = f.piers == null ? d.piers : !!f.piers;
       out.surface = SURFACE_LABEL[f.surface] ? f.surface : d.surface;
+      if (out.railing && f.bars === true) out.bars = true; // 手すりを縦の格子に（2026-11-16）
     }
   }
   return out;
@@ -921,10 +939,20 @@ function normalizeFloor(f, out, d) {
     const tr = {};
     const base = numOr(f.trim.base, [0.03, 0.4], null);
     if (base != null) tr.base = base;
-    if (Array.isArray(f.trim.band) && f.trim.band.length === 2) {
-      const b0 = numOr(f.trim.band[0], [0.3, 6], null), b1 = numOr(f.trim.band[1], [0.31, 6.2], null);
-      if (b0 != null && b1 != null && b1 > b0 + 0.01) tr.band = [b0, b1];
-    }
+    const bandOf = (b) => {
+      if (!Array.isArray(b) || b.length !== 2) return null;
+      const b0 = numOr(b[0], [0.3, 6], null), b1 = numOr(b[1], [0.31, 6.2], null);
+      return b0 != null && b1 != null && b1 > b0 + 0.01 ? [b0, b1] : null;
+    };
+    const band = bandOf(f.trim.band);
+    if (band) tr.band = band;
+    // 2026-11-16（本館の廊下。ユーザーの動画 IMG_1380・IMG_1381）：bands（ほかの帯：[[下, 上], …] 4 本まで。腰の帯と扉の上の帯の 2 本など）、
+    // col・baseCol・frameCol（帯・幅木・扉の枠の色 #rrggbb）、transom（扉の口の上の欄間のガラス：[下, 上]＝床から m）
+    const bands = (Array.isArray(f.trim.bands) ? f.trim.bands : []).map(bandOf).filter(Boolean).slice(0, 4);
+    if (bands.length) tr.bands = bands;
+    for (const k of ["col", "baseCol", "frameCol"]) if (typeof f.trim[k] === "string" && /^#[0-9a-fA-F]{6}$/.test(f.trim[k])) tr[k] = f.trim[k].toLowerCase();
+    const tsom = bandOf(f.trim.transom);
+    if (tsom) tr.transom = tsom;
     const fr = numOr(f.trim.frame, [0.02, 0.2], null);
     if (fr != null) tr.frame = fr;
     if (Object.keys(tr).length) out.trim = tr;
@@ -1050,6 +1078,8 @@ function normalizeFloor(f, out, d) {
     if (doors.length && w.auto === true) o.auto = true; // 扉は自動ドア（campus3dDoors.js）
     // 1 枚のガラス（glass・curtain）：途中の縦の枠・横の枠なし、枠は壁の両端だけ（2026-11-10、ユーザー「窓の中にも線はない。一枚の板」）
     if ((o.kind === "glass" || o.kind === "curtain") && w.pane === true) o.pane = true;
+    // 黒い枠（frame "dark"。石川台8号館のラウンジのガラスの仕切り。2026-11-17）
+    if ((o.kind === "glass" || o.kind === "curtain") && w.frame === "dark") o.frame = "dark";
     // すりガラスの菱形の模様の帯（glass）：band＝[下, 上]（壁の下の端から m）か [下, 上, 大きさの倍率]（附属図書館の学習棟：3 階のグループ研究室の
     // ガラスは 1、外まわりの窓のフリットは大きめ。2026-11-13）
     if (o.kind === "glass" && Array.isArray(w.band) && (w.band.length === 2 || w.band.length === 3) && w.band.every((v) => v != null && v !== "" && Number.isFinite(+v)) && +w.band[1] > +w.band[0]) {
@@ -1066,6 +1096,10 @@ function normalizeFloor(f, out, d) {
     if (o.kind === "wains" || o.kind === "rbrick") {
       const th = numOr(w.th, [0.2, 4], o.kind === "rbrick" ? 2.4 : 1.3);
       if (th != null) o.th = th;
+    }
+    // れんがの腰壁の色（rbrick）：col＝れんが、col2＝目地（#rrggbb。なしは茶色のれんが。2026-11-16、本館の地下の通り抜けのクリーム色のれんが）
+    if (o.kind === "rbrick") {
+      for (const k of ["col", "col2"]) if (typeof w[k] === "string" && /^#[0-9a-fA-F]{6}$/.test(w[k])) o[k] = w[k].toLowerCase();
     }
     return o;
   }).filter(Boolean).slice(0, 3000); // 本館の 1 つの階は 1,800 本ほど（図面の柱・間仕切り・扉のまぐさ。2026-11-15）
@@ -1101,6 +1135,9 @@ function normalizeFloor(f, out, d) {
     if (o.kind === "platform" && Array.isArray(it.rails) && it.rails.some((k) => RAILK.includes(k))) o.rails = coords.map((_, i) => (RAILK.includes(it.rails[i]) ? it.rails[i] : null));
     // ゴミ箱の棚の区画の数（bincab。なければ 0.6m ごと）
     if ((o.kind === "bincab" || o.kind === "cabinet") && Number.isFinite(+it.n) && +it.n >= 1) o.n = Math.min(12, Math.round(+it.n)); // 木の収納（cabinet）の扉の枚数も
+    // 冷蔵ケース（cooler）の扉の枚数・コンテナの山（crates）の段の数、オープンケースの平台（chiller の low）。2026-11-17、セブン-イレブン
+    if ((o.kind === "cooler" || o.kind === "crates") && Number.isFinite(+it.n) && +it.n >= 1) o.n = Math.min(24, Math.round(+it.n));
+    if (o.kind === "chiller" && it.low === true) o.low = true;
     // 棚（2026-11-13）：列・段の数、本の割合（cubeshelf）、下の引き出しの段の数・両面・木の天板（openshelf）
     if (o.kind === "cubeshelf" || o.kind === "openshelf") {
       if (Number.isFinite(+it.cols) && +it.cols >= 1) o.cols = Math.min(20, Math.round(+it.cols));
@@ -1130,6 +1167,9 @@ function normalizeFloor(f, out, d) {
     if (o.kind === "stack") {
       if (Number.isFinite(+it.rows) && +it.rows >= 1) o.rows = Math.min(12, Math.round(+it.rows));
       if (Number.isFinite(+it.books) && +it.books >= 0) o.books = Math.round(Math.min(1, +it.books) * 100) / 100;
+      // goods：本でなく店の商品（色とりどりの小さな箱。本館の地下の生協のゴンドラの棚。2026-11-16）
+      if (it.goods === true) o.goods = true;
+      else if (it.goods === "food") o.goods = "food"; // 食べ物の色（パン・カップ麺。2026-11-17、セブン-イレブン）
     }
     // 板を重ねた切り抜きの形（woodcut）・木の板の表示の字（woodsign。英字・数字・空白 24 字まで）
     if (o.kind === "woodcut" && WOODCUT_SHAPE_KEYS.includes(it.shape)) o.shape = it.shape;
@@ -1159,6 +1199,8 @@ function normalizeFloor(f, out, d) {
     const steps = s.steps != null && Number.isFinite(+s.steps) ? Math.round(clampTo(s.steps, [1, 200], 1)) : null;
     if (steps != null) o.steps = steps;
     if (s.flush === true && (steps == null || steps >= 2)) o.flush = true;
+    // ramp：段を描かずなめらかな斜面に（スロープ。歩くときは段のまま。2026-11-17、本館の北西の入口）
+    if (s.ramp === true) o.ramp = true;
     const rails = (Array.isArray(s.rails) ? s.rails : [s.rails, s.rails]).slice(0, 2).map((k) => (FLOOR_RAIL_KINDS.includes(k) ? k : null));
     if (rails.some(Boolean)) o.rails = [rails[0] ?? null, rails[1] ?? null];
     return o;

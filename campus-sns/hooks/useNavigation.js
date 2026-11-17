@@ -127,6 +127,83 @@ function dijkstra(adj, nodes, startIds, endIds) {
 export const NAV_SPOTS = SPOTS.filter(s => s.id && s.lat != null);
 export { SPOT_CATS };
 
+// 道の網を 1 回だけ作って使い回す（3D 地図の中のスマホのナビ＝CampusMap3D も、アプリのナビと同じ網・同じ引き方で経路を引く）
+let sharedGraph = null;
+export const navGraph = () => sharedGraph || (sharedGraph = buildGraph());
+
+// スポットの入口のうち、道の網につながっているもの（なければスポットの点そのもの）
+export function entranceNodes(graph, spotId) {
+  // Find entrance nodes that are actually connected in the graph
+  const ids = [];
+  ENTRANCES.forEach((ent, idx) => {
+    if (ent.spot === spotId) {
+      const eid = `ent_${idx}`;
+      if (graph.adj[eid] && graph.adj[eid].length > 0) ids.push(eid);
+    }
+  });
+  // Fallback: use spot node itself (connected via buildGraph's auto-link)
+  if (ids.length === 0 && graph.adj[spotId] && graph.adj[spotId].length > 0) ids.push(spotId);
+  return ids;
+}
+
+// 経路を引く。origin はスポットの id か "__gps__"（gpsOriginPos {lat, lng} から、いちばん近い網の点へまっすぐ）。
+// 返すもの：{ path（網の点の id）, coords [{lat, lng}], distance (m), minutes, hasStairs } か null
+export function computeRoute(graph, { origin, destination, gpsOriginPos }) {
+  const useGps = origin === "__gps__" && gpsOriginPos;
+  if (!useGps && (!origin || origin === destination)) return null;
+  if (!destination) return null;
+
+  let startNodes;
+  let gpsPrefixCoord = null;
+  let gpsPrefixDist = 0;
+
+  if (useGps) {
+    // GPS出発: 最寄りの接続済みノードを探す
+    const connectedIds = Object.keys(graph.adj).filter(id => graph.adj[id]?.length > 0);
+    let bestId = null, bestDist = Infinity;
+    for (const id of connectedIds) {
+      const n = graph.nodes[id];
+      if (!n) continue;
+      const d = haversine(gpsOriginPos, n);
+      if (d < bestDist) { bestDist = d; bestId = id; }
+    }
+    if (!bestId) return null;
+    startNodes = [bestId];
+    gpsPrefixCoord = { lat: gpsOriginPos.lat, lng: gpsOriginPos.lng };
+    gpsPrefixDist = bestDist;
+  } else {
+    startNodes = entranceNodes(graph, origin);
+  }
+
+  const endNodes = entranceNodes(graph, destination);
+  if (startNodes.length === 0 || endNodes.length === 0) return null;
+
+  const result = dijkstra(graph.adj, graph.nodes, startNodes, endNodes);
+  if (!result) return null;
+
+  let coords = result.path.map(id => graph.nodes[id]).filter(Boolean);
+  let totalDist = result.distance;
+
+  // GPS出発地を経路の先頭に追加
+  if (gpsPrefixCoord) {
+    coords = [gpsPrefixCoord, ...coords];
+    totalDist += gpsPrefixDist;
+  }
+
+  // Check if route includes stairs
+  let hasStairs = false;
+  for (let i = 0; i < result.path.length - 1; i++) {
+    const nbs = graph.adj[result.path[i]] || [];
+    const edge = nbs.find(e => e.to === result.path[i + 1]);
+    if (edge?.stairs) { hasStairs = true; break; }
+  }
+
+  // Walking speed: 80m/min
+  const minutes = Math.max(1, Math.ceil(totalDist / 80));
+
+  return { path: result.path, coords, distance: Math.round(totalDist), minutes, hasStairs };
+}
+
 export function useNavigation() {
   const [origin, setOrigin] = useState(null);
   const [destination, setDestination] = useState(null);
@@ -134,75 +211,7 @@ export function useNavigation() {
 
   const graph = useMemo(() => buildGraph(), []);
 
-  const getEntranceNodes = useCallback((spotId) => {
-    // Find entrance nodes that are actually connected in the graph
-    const ids = [];
-    ENTRANCES.forEach((ent, idx) => {
-      if (ent.spot === spotId) {
-        const eid = `ent_${idx}`;
-        if (graph.adj[eid] && graph.adj[eid].length > 0) ids.push(eid);
-      }
-    });
-    // Fallback: use spot node itself (connected via buildGraph's auto-link)
-    if (ids.length === 0 && graph.adj[spotId] && graph.adj[spotId].length > 0) ids.push(spotId);
-    return ids;
-  }, [graph]);
-
-  const route = useMemo(() => {
-    const useGps = origin === "__gps__" && gpsOriginPos;
-    if (!useGps && (!origin || origin === destination)) return null;
-    if (!destination) return null;
-
-    let startNodes;
-    let gpsPrefixCoord = null;
-    let gpsPrefixDist = 0;
-
-    if (useGps) {
-      // GPS出発: 最寄りの接続済みノードを探す
-      const connectedIds = Object.keys(graph.adj).filter(id => graph.adj[id]?.length > 0);
-      let bestId = null, bestDist = Infinity;
-      for (const id of connectedIds) {
-        const n = graph.nodes[id];
-        if (!n) continue;
-        const d = haversine(gpsOriginPos, n);
-        if (d < bestDist) { bestDist = d; bestId = id; }
-      }
-      if (!bestId) return null;
-      startNodes = [bestId];
-      gpsPrefixCoord = { lat: gpsOriginPos.lat, lng: gpsOriginPos.lng };
-      gpsPrefixDist = bestDist;
-    } else {
-      startNodes = getEntranceNodes(origin);
-    }
-
-    const endNodes = getEntranceNodes(destination);
-    if (startNodes.length === 0 || endNodes.length === 0) return null;
-
-    const result = dijkstra(graph.adj, graph.nodes, startNodes, endNodes);
-    if (!result) return null;
-
-    let coords = result.path.map(id => graph.nodes[id]).filter(Boolean);
-    let totalDist = result.distance;
-
-    // GPS出発地を経路の先頭に追加
-    if (gpsPrefixCoord) {
-      coords = [gpsPrefixCoord, ...coords];
-      totalDist += gpsPrefixDist;
-    }
-
-    // Check if route includes stairs
-    let hasStairs = false;
-    for (let i = 0; i < result.path.length - 1; i++) {
-      const nbs = graph.adj[result.path[i]] || [];
-      const edge = nbs.find(e => e.to === result.path[i + 1]);
-      if (edge?.stairs) { hasStairs = true; break; }
-    }
-
-    // Walking speed: 80m/min
-    const minutes = Math.max(1, Math.ceil(totalDist / 80));
-
-    return { path: result.path, coords, distance: Math.round(totalDist), minutes, hasStairs };
-  }, [origin, destination, gpsOriginPos, graph, getEntranceNodes]);
+  const route = useMemo(() => computeRoute(graph, { origin, destination, gpsOriginPos }), [origin, destination, gpsOriginPos, graph]);
 
   const swap = useCallback(() => {
     if (origin === "__gps__") return; // GPS出発地は入れ替え不可

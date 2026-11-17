@@ -98,6 +98,7 @@ const CSS = `
 
 // 物の絵（線の絵。色は文字の色）
 const ICONS = {
+  phone: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.4" /><path d="M10.5 5.2h3M11 18.6h2" strokeLinecap="round" /></svg>,
   camera: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><path d="M4 8h3.5l1.5-2.2h6L16.5 8H20v11H4z" /><circle cx="12" cy="13.2" r="3.6" /></svg>,
   map: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><path d="M3.5 6.5 9 4.5l6 2 5.5-2v13L15 19.5l-6-2-5.5 2z" /><path d="M9 4.5v13M15 6.5v13" /></svg>,
   student: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="2" /><circle cx="8.5" cy="11" r="2" /><path d="M5.8 16c.5-1.6 1.5-2.3 2.7-2.3s2.2.7 2.7 2.3M13.5 10h5M13.5 13h4" /></svg>,
@@ -181,8 +182,8 @@ function IcCard({ inv }) {
   );
 }
 
-// 小さな地図の形（地図の建物・緑・道・線路と、手で足した建物。平面 m）
-function mapGeom(data, features) {
+// 小さな地図の形（地図の建物・緑・道・線路と、手で足した建物。平面 m）。スマホの地図（MapPhone）も使う
+export function mapGeom(data, features) {
   const ring = (p) => p.map(([lat, lng]) => toXY([lng, lat]));
   const line = (p) => p.map(([lat, lng]) => toXY([lng, lat]));
   const streets = [];

@@ -14,13 +14,20 @@ import { BURN_MAXZOOM, dem, demTileUrl, registerDemProtocol } from "../campusDem
 import { ROUTE_ON_BRIDGE, buildingOpenings, buildingRoof, burnsGround, detailView, eraKey, featuresAt, featuresBounds, floorLevels, isPaint, pointInRing, prepareBridge, replacedBuildings, splitByBridges, stairsPath, toLngLat, toXY } from "../campus3dFeatures.js";
 import { cutFloorRegions, floorG0, floorLabels } from "../campus3dInterior.js";
 import { buildMesh, buildRibbons } from "../campus3dMesh.js";
-import { createDoorsLayer, createExtrasLayer, createLightsLayer, createTrainsLayer } from "../campus3dLayer.js";
+import { createDoorsLayer, createExtrasLayer, createLightsLayer, createTrainsLayer, createVehiclesLayer } from "../campus3dLayer.js";
+import { CAR, DRONE, angDiffV, bikeFits, carFits, dismountSpot, fwdOf, leftOf, loadVehicles, pickVehicle, placeVehicle, saveVehicles, stepBike, stepCar, stepDrone, vehicleBlocks, vehicleCamera } from "../campus3dVehicles.js";
+import { vehicleMeshes } from "../campus3dVehicleMesh.js";
+import { MapVehicles } from "./MapVehicles.jsx";
 import { doorLeaves, stepDoors } from "../campus3dDoors.js";
 import { collectLifts, liftBlocked, liftClock, liftFloors, liftMeshes, liftPick, liftState, pressButton, stepLift } from "../campus3dLift.js";
 import { collectSeats, seatPick, sitPose } from "../campus3dSeats.js";
 import { GATE_OPEN_MS, collectInteract, gateBlocked, laneDoors, pickInteract } from "../campus3dInteract.js";
 import { IC_FARE, ITEMS, SLOTS, buyDrink, chargeIc, hasItem, loadInventory, saveInventory, takeItem, yen } from "../campus3dInventory.js";
 import { MapInventory, itemUseLabel } from "./MapInventory.jsx";
+// スマホのナビ（2026-11-17）：経路はアプリのナビと同じ（computeRoute）、世界の道に描く帯（campus3dGuide）、スマホの画面（MapPhone）
+import { NAV_SPOTS, computeRoute, navGraph } from "../hooks/useNavigation.js";
+import { buildGuide, createGuideLayer, nextManeuver } from "../campus3dGuide.js";
+import { MapPhone, fmtDist } from "./MapPhone.jsx";
 import { lampBounds, lampLightCanvas, lampMesh, streetLamps } from "../campus3dLamps.js";
 import { EYE, PITCH as WALK_PITCH, SPEED, SPRINT_FOV, TURN as TURN_DEG, VIEW_D, WALK_FOV, eyeCamera, routePath, stepBody, stepFly, stepRoute, walkWorld } from "../campus3dWalk.js";
 import { TWIN_SCALES, TWIN_WALLS, TWIN_YAW_GAINS, twinCalCancel, twinCalStart, twinConnect, twinCreate, twinDisconnect, twinFake, twinHaptics, twinInput, twinLevel, twinLine, twinRelease, twinSend, twinSet, twinSupported, twinTilt } from "../campus3dTwin.js";
@@ -422,6 +429,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   // 変わったときだけ作り直す。aim は照準が当たっているボタン（liftPick。押すのはクリック・タップ）
   const liftsRef = useRef({ list: [], states: [], mesh: null, dirty: true, aim: null, aimKey: "" });
   const liftLayerRef = useRef(null);
+  const vehLayerRef = useRef(null); // 乗り物（自転車・車・ドローン。campus3dVehicles）のレイヤー
+  const vehHudRef = useRef(null); // 乗っているあいだの表示（速さ・ドローンの高さ）。MapVehicles の DOM
   const lampsRef = useRef(null); // いまの街灯（campus3dLamps.js の streetLamps）
   const lampKeyRef = useRef(null); // 街灯を置いたときの構造物（変わっていなければ置き直さない）
   // 歩いて見る（campus3dWalk.js）：歩いているあいだの状態（位置・向き・入力・戻すときの設定）。null なら歩いていない
@@ -459,7 +468,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   });
   const debugRef = useRef(debugTools);
   const lastMeshRef = useRef(null); // いま描いている三角形（目印を置くときに光線を当てる。デバッグの道具があるときだけ持つ）
-  const [walkUi, setWalkUi] = useState({ run: false, auto: false, route: false, done: false, hint: false, locked: false, touch: false, fly: false, noclip: false, aim: null, seated: false });
+  const [walkUi, setWalkUi] = useState({ run: false, auto: false, route: false, done: false, hint: false, locked: false, touch: false, fly: false, noclip: false, aim: null, seated: false, ride: null });
+  const [vehUi, setVehUi] = useState({ menu: false, parked: null }); // 乗り物のメニュー（置いてある乗り物までの距離）
   // 持ち物（campus3dInventory。歩くあいだだけ出す。端末に保存）・持ち物のメニュー（自販機・券売機・カード・写真）・お知らせ・使える物（自販機・券売機・改札）
   const [inv, setInv] = useState(null);
   const invRef = useRef(null);
@@ -468,6 +478,15 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const invToastTimer = useRef(0);
   const interactRef = useRef(null);
   const beepCtx = useRef(null);
+  // スマホのナビ（campus3dGuide・MapPhone）：案内の帯のレイヤー、いまの案内（形 G・行き先・帯の上の今いる所。毎フレーム変える）、
+  // スマホに出す値（0.25 秒ごと）、スマホを大きく開いているか、目的地の名前の札（光の柱の上。位置は毎フレーム DOM を直接動かす）
+  const guideLayerRef = useRef(null);
+  const guideRef = useRef(null);
+  const [guideUi, setGuideUi] = useState(null);
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const phoneOpenRef = useRef(false);
+  phoneOpenRef.current = phoneOpen;
+  const guideTagRef = useRef(null);
   // 実物のコントローラー（campus3dTwin.js。Arduino のタイヤ＝前後・基板の向き＝向き・傾き＝前後と横、壁でタイヤを止める）：
   // つないでいるあいだの状態（歩くのをやめてもつないだまま）と、パネルの表示。今の値の行は毎フレーム React を描き直さないよう文字だけ書きかえる
   const twinRef = useRef(null);
@@ -967,6 +986,14 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       } catch (err) {
         console.warn("[3D map] lift layer:", err?.message || err);
       }
+      // 乗り物（自転車・車・ドローン。歩いて見るあいだだけ。形は毎フレーム作り直す）
+      try {
+        const vehLayer = createVehiclesLayer({ light: lookRef.current.light, exaggeration: TERRAIN_EXAG, frame: () => vehicleFrame() });
+        map.addLayer(vehLayer, "nav-route-passed");
+        vehLayerRef.current = vehLayer;
+      } catch (err) {
+        console.warn("[3D map] vehicles layer:", err?.message || err);
+      }
       // 雨・雪（屋根の下には降らない。campus3dPrecip）
       try {
         const precip = createPrecipLayer();
@@ -974,6 +1001,14 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         precipRef.current = precip;
       } catch (err) {
         console.warn("[3D map] precip layer:", err?.message || err);
+      }
+      // スマホのナビの案内の帯と目的地の光の柱（campus3dGuide。歩いて見るあいだに、スマホで案内を始めたときだけ描く）
+      try {
+        const guide = createGuideLayer({ exaggeration: TERRAIN_EXAG, color: ROUTE_COL, onProject: placeGuideTag });
+        map.addLayer(guide, "nav-route-passed");
+        guideLayerRef.current = guide;
+      } catch (err) {
+        console.warn("[3D map] guide layer:", err?.message || err);
       }
       // 電車（目黒線・大井町線）を時刻表どおりに走らせる（campus3dTrains.js）。線路の標高を読んでから足す
       if (propsRef.current.trains) startTrains();
@@ -1188,6 +1223,11 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const view = useMemo(() => detailView(features, { detail: detailOn && levels.length > 0, level: viewLevel }), [features, detailOn, levels, viewLevel]);
   const viewRef = useRef(view);
   viewRef.current = view;
+  // スマホのナビの行き先：3D の地図の範囲の中にあるスポット（すずかけ台・遠くの店は歩いて行けないので出さない）
+  const phoneSpots = useMemo(() => {
+    const R = regionOf(data);
+    return NAV_SPOTS.filter((s) => s.lng > R.w && s.lng < R.e && s.lat > R.s && s.lat < R.n);
+  }, [data]);
   // 駅の中の線路（構造物の track）が変わったら、電車の線・高さ・止まる位置を作り直す（時刻表のデータを読んだあと）
   useEffect(() => {
     const T = trainsRef.current;
@@ -1516,7 +1556,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       });
     }
     // エレベーターの閉まった扉は通れない（動く壁）
-    world.setDyn?.((x, y, z) => liftBlocked(liftsRef.current.list, liftsRef.current.states, x, y, z) || gateBlocked(doorsRef.current.list, doorsRef.current.open, x, y, z)); // 閉じた改札の羽もふさぐ
+    world.setDyn?.((x, y, z) => liftBlocked(liftsRef.current.list, liftsRef.current.states, x, y, z) || gateBlocked(doorsRef.current.list, doorsRef.current.open, x, y, z) || vehicleBlocks(walkRef.current?.veh?.list, walkRef.current?.veh?.ride, x, y, z)); // 閉じた改札の羽・止めてある乗り物もふさぐ
     world.setDynFloor?.((x, y) => liftFloors(liftsRef.current.list, liftsRef.current.states, x, y)); // かごの床（昇降路の階の床には穴）
     // いまのカメラの位置（ここから目の高さへ降りていく）
     const cam = map.transform.getCameraLngLat();
@@ -1567,12 +1607,21 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     }
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur?.();
     setWalking(true);
-    setWalkUi({ run: false, auto: false, route: !!path, done: false, hint: true, locked: false, touch, fly, noclip: false, aim: null, seated: false });
+    setWalkUi({ run: false, auto: false, route: !!path, done: false, hint: true, locked: false, touch, fly, noclip: false, aim: null, seated: false, ride: null });
     // 持ち物（端末に保存したもの。日が変わっていればお金を補充）
     const iv = loadInventory();
     invRef.current = iv;
     saveInventory(iv);
     setInv(iv);
+    // 乗り物（端末に保存した置き場所。いまの建物で壁の中・足場のない所になっていれば出さない）
+    const vs = loadVehicles();
+    const parkOk = (k, p) => !!p && (k === "bike" ? bikeFits(world, p.x, p.y, p.z, p.yaw).ok : carFits(world, p.x, p.y, p.z, p.yaw).ok);
+    walkRef.current.veh = {
+      list: { bike: parkOk("bike", vs.parked.bike) ? { kind: "bike", ...vs.parked.bike } : null, car: parkOk("car", vs.parked.car) ? { kind: "car", ...vs.parked.car, zr: vs.parked.car.z } : null, drone: null },
+      ride: null, view: vs.view, cam: null, home: null, hudAt: 0, spaceDown: false, stairsAt: 0,
+    };
+    walkRef.current.vehMenu = false;
+    setVehUi({ menu: false, parked: null });
     walkRef.current.raf = requestAnimationFrame(walkTick);
   }
 
@@ -1653,6 +1702,9 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     }
     if (w.seat) {
       /* 座っている（上で決めた） */
+    } else if (w.veh?.ride) {
+      // 乗り物（自転車・車・ドローン。campus3dVehicles）：乗り物を動かし、歩く人は乗っている所（ドローンは操縦する人のまま）
+      s = stepRide(w, s, { fwd, side, turn, sprint, riding, rideDz }, dt, now);
     } else if (riding) {
       s = { ...s, z: s.z + rideDz, vx: 0, vy: 0, vz: 0, onGround: true, deck: null, yaw: (s.yaw + turn * TURN_DEG * dt + 360) % 360 };
     } else if (w.fly) {
@@ -1711,6 +1763,13 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     if (ride >= 0 && !riding && rideDz) s.z += rideDz;
     s.pitch = Math.min(WALK_PITCH.max, Math.max(WALK_PITCH.min, s.pitch + look * 80 * dt));
     Object.assign(w, s);
+    // 戻ってくるドローン（操縦していないとき）：ひとりで操縦する人の前へ飛んで、着いたらしまう
+    if (w.veh?.list.drone && w.veh.ride !== "drone") {
+      const d = stepDrone(w.veh.list.drone, {}, dt, w.world, droneHome(w));
+      w.veh.list.drone = d;
+      if (d.note) droneNote(d);
+      if (d.done) stowDrone(w);
+    }
     // 自動ドア：歩く人の足もとから DOOR_TRIGGER m の扉は開き、離れると閉じる（動いているあいだは描き直す）
     const D = doorsRef.current;
     // 改札の羽：ルートを自動で歩くときは持っているカードでかざす。自分で歩いて閉じた羽の前に来たら、かざし方をお知らせ（8 秒に 1 回まで）
@@ -1739,19 +1798,27 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const bob = -Math.abs(Math.sin(w.bobPhase)) * 0.05 * w.bobAmp;
     // ダッシュ中は画角を少し広げる（飛んでいるときの Shift は下りるので、速く飛ぶのは「走る」か W 2回）
     const fast = w.fly ? w.run || w.sprintLatch : sprint;
-    const fovTarget = WALK_FOV + (fast && hs > SPEED.walk + 0.3 ? SPRINT_FOV : 0);
+    const fovTarget = (w.veh?.ride ? vehFov(w) : null) ?? WALK_FOV + (fast && hs > SPEED.walk + 0.3 ? SPRINT_FOV : 0); // 乗り物は速さで少し広げる
     w.fov += (fovTarget - w.fov) * Math.min(1, dt * 8);
     if (Math.abs(w.fov - map.transform.fov) > 0.05) map.setVerticalFieldOfView(w.fov);
     w.eyeH += ((w.seat ? w.seat.eye : EYE) - w.eyeH) * Math.min(1, dt * 8); // 座る・立つときはなめらかに
     w.eyeZ = w.z + w.eyeH + w.eyeOff + bob;
+    // 乗り物に乗っているあいだのカメラ（乗っている人の目・ドローンのカメラ・後ろから。campus3dVehicles の vehicleCamera）
+    const VHc = w.veh;
+    if (VHc?.ride && VHc.list[VHc.ride]) {
+      const vk = VHc.ride, vv = VHc.list[vk];
+      VHc.cam = vehicleCamera(vk, vv, VHc.view[vk], { yaw: vk === "drone" ? 0 : angDiffV(w.yaw, vv.yaw), pitch: w.pitch }, dt, w.world, VHc.cam);
+      w.eyeZ = VHc.cam.z;
+    } else if (VHc) VHc.cam = null;
+    const camX = VHc?.cam ? VHc.cam.x : w.x, camY = VHc?.cam ? VHc.cam.y : w.y; // 地面の下かを見る所（後ろからのカメラ・ドローンはカメラの所）
     // 地面の下（大岡山駅の地下ホーム）：目が地面より下のあいだだけ、MapLibre の地形を外し、地図の建物（fill-extrusion）を隠す。
     // 地形を残すと (1) タイルのふちの継ぎ目を隠す垂直のすそ、(2) 改札の中の床の下を掘ったふちの崖、(3) 地形に合わせて下の端を下げた
     // 地図の建物の壁が、ホームの中に白い壁として立つ（地形の面そのものは下からは描かれない）。地下からは外の地面と建物は見えない
     if (map.terrain || w.terrainSpec) {
-      const gEye = dem.groundAt(toLngLat([w.x, w.y]));
+      const gEye = dem.groundAt(toLngLat([camX, camY]));
       // 掘って上の開いた地下（Taki Plaza の明かり取りの地下の階など：dig の帯あり）の中は、空や外の建物が見えるので地面の下と見なさない。
       // 駅の改札の中の床の下（帯なしの dig）は屋根の下なので地面の下のまま
-      const openPit = dem.digs.some((d) => d.f?.band !== false && pointInRing(w.x, w.y, d.ring) && !d.holes.some((h) => pointInRing(w.x, w.y, h)));
+      const openPit = dem.digs.some((d) => d.f?.band !== false && pointInRing(camX, camY, d.ring) && !d.holes.some((h) => pointInRing(camX, camY, h)));
       // 天井のある平地（屋根つきの踊り場）のふたの下で、その平地のガラスの面の外が掘らない地下の階（digMode "cut"）なら、地面の下と見なす。
       // 足もとの地面は平地の高さで読むので「地面の上」になり、地形が残って、ガラスの向こうの階（附属図書館の入口ホール）が、掘った平地のふちの
       // 地形の斜面でふさがって見えた（2026-11-14、ユーザーの目印「ふさがってる」）。外が掘った地下・空の見える所（Taki の玄関・地下通路）は今までどおり
@@ -1772,7 +1839,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         for (const L of list) for (const t of dem.terraces) if (t !== L && !(t.f.ceiling > 0) && t.elev < L.elev + L.f.ceiling && shares(t.ring, L.ring)) pits.push({ t, top: L.elev + L.f.ceiling });
         w.lidCut = { src: dem.terraces, list, pits };
       }
-      const underLid = w.lidCut.list.some((t) => w.eyeZ < t.elev + t.f.ceiling && pointInRing(w.x, w.y, t.ring)) || w.lidCut.pits.some(({ t, top }) => w.eyeZ < top && pointInRing(w.x, w.y, t.ring));
+      const underLid = w.lidCut.list.some((t) => w.eyeZ < t.elev + t.f.ceiling && pointInRing(camX, camY, t.ring)) || w.lidCut.pits.some(({ t, top }) => w.eyeZ < top && pointInRing(camX, camY, t.ring));
       const under = Number.isFinite(gEye) && (w.eyeZ < gEye - 0.5 || underLid) && !openPit;
       if (under !== !!w.underTerrain) {
         w.underTerrain = under;
@@ -1787,19 +1854,25 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         if (map.getLayer("cb-buildings")) map.setLayoutProperty("cb-buildings", "visibility", under ? "none" : "visible");
       }
     }
-    map.jumpTo(eyeCamera({ x: w.x, y: w.y, z: w.eyeZ }, w.yaw, w.pitch, { height: map.transform.height, fov: map.transform.fovInRadians }));
+    const vc = VHc?.cam; // 乗り物に乗っているあいだはそのカメラ
+    map.jumpTo(vc ? eyeCamera({ x: vc.x, y: vc.y, z: vc.z }, vc.yaw, vc.pitch, { height: map.transform.height, fov: map.transform.fovInRadians }) : eyeCamera({ x: w.x, y: w.y, z: w.eyeZ }, w.yaw, w.pitch, { height: map.transform.height, fov: map.transform.fovInRadians }));
+    if (VHc) vehHud(w, now); // 乗っているあいだの表示（速さ・ドローンの高さ・電池）
+    // スマホのナビ（campus3dGuide）：帯の上の今いる所・外れたら引き直す・着いたらお知らせ（スマホの値は 0.25 秒ごと）
+    if (guideRef.current) guideStep(w, now);
     // エレベーターのボタン：照準（マウスを固定しているとき・スマホは画面のまん中、固定していないマウスはその先）が当たっているボタンを
     // 白いふちで示し、十字の下に名前を出す（変わったときだけ描き直す）
     // 椅子：エレベーターのボタンに当たっていなくて、立っていれば、照準の先の座れるもの（十字の下に「座る」）
-    if (LF.list.length || w.seats?.length || interactRef.current) {
-      const use = w.locked || w.touch || !!w.hover;
+    if (LF.list.length || w.seats?.length || interactRef.current || w.veh) {
+      const use = (w.locked || w.touch || !!w.hover) && !w.veh?.ride; // 乗り物に乗っているあいだは照準を使わない
       const ray = use ? walkRay(map, w, w.locked || w.touch ? null : w.hover) : null;
       const hit = ray && !w.fly && LF.list.length ? liftPick(LF.list, LF.states, ray.o, ray.d) : null;
       // 使える物（自販機・券売機・改札。持ち物を出しているとき）
       const ih = ray && !hit && !w.fly && !w.seat && invRef.current && interactRef.current ? pickInteract(interactRef.current, ray.o, ray.d) : null;
       const sh = ray && !hit && !ih && !w.fly && !w.seat && w.seats?.length ? seatPick(w.seats, ray.o, ray.d, w.z) : null;
       w.seatAim = sh;
-      const key = hit ? `${hit.i}:${hit.kind}:${hit.k}:${hit.dir}${hit.wc ? ":wc" : ""}` : ih ? `ia:${ih.kind}:${ih.kind === "gate" ? ih.target.card : ""}` : sh ? "seat" : ""; // wc：車いす用の呼びボタン（附属図書館）
+      // 置いてある乗り物（自転車・車）：照準の先にあれば十字の下に「乗る」
+      const vh = ray && !hit && !ih && !sh && !w.fly && !w.seat && w.veh ? pickVehicle(["bike", "car"].map((k) => w.veh.list[k] && { ...w.veh.list[k], kind: k }).filter(Boolean), ray.o, ray.d) : null;
+      const key = hit ? `${hit.i}:${hit.kind}:${hit.k}:${hit.dir}${hit.wc ? ":wc" : ""}` : ih ? `ia:${ih.kind}:${ih.kind === "gate" ? ih.target.card : ""}` : sh ? "seat" : vh ? `veh:${vh.kind}` : ""; // wc：車いす用の呼びボタン（附属図書館）
       if (key !== LF.aimKey) {
         LF.aimKey = key;
         LF.aim = hit;
@@ -1807,7 +1880,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         map.triggerRepaint();
         const lb = hit
           ? hit.kind === "car" ? LF.list[hit.i].levels[hit.k]?.label || "" : hit.kind === "door" ? (hit.dir > 0 ? "◀ ▶" : "▶ ◀") : `${t("navi.liftCall")} ${hit.dir > 0 ? "▲" : "▼"}`
-          : ih ? t(ih.kind === "vend" ? "inv.aimVend" : ih.kind === "tvm" ? "inv.aimTvm" : ih.target.card === "ic" ? "inv.aimGateIc" : "inv.aimGateStudent") : sh ? t("navi.strollSit") : null;
+          : ih ? t(ih.kind === "vend" ? "inv.aimVend" : ih.kind === "tvm" ? "inv.aimTvm" : ih.target.card === "ic" ? "inv.aimGateIc" : "inv.aimGateStudent") : sh ? t("navi.strollSit") : vh ? t(vh.kind === "car" ? "veh.aimCar" : "veh.aimBike") : null;
         setWalkUi((u) => ({ ...u, aim: lb }));
       }
     }
@@ -1846,7 +1919,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   function sitAt(pt) {
     const w = walkRef.current;
     const map = mapRef.current;
-    if (!w || !map || w.anim || w.fly || w.seat || !w.seats?.length) return false;
+    if (!w || !map || w.anim || w.fly || w.seat || w.veh?.ride || !w.seats?.length) return false;
     const ray = walkRay(map, w, pt);
     const hit = seatPick(w.seats, ray.o, ray.d, w.z);
     if (!hit) return false;
@@ -1887,6 +1960,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       v.sel = i;
     });
     const it = invRef.current.slots[i];
+    if (it?.id !== "phone") setPhoneOpen(false); // ほかの物に持ちかえたら、スマホはしまう（案内の帯はそのまま）
     if (it) {
       const def = ITEMS[it.id];
       showToast(t(def.name) + (def.use ? (walkRef.current?.touch ? "" : `（${t("inv.useKey")}：${t(def.use)}）`) : it.id === "map" ? `（${t("inv.mapShown")}）` : ""));
@@ -1920,12 +1994,13 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       /* 音は出せなくてよい */
     }
   }
-  // 選んでいる物を使う（使うボタン・右クリック・Enter）：カメラは撮る、カードは見る、飲み物は飲む（地図は持っているあいだ左上に出る）
+  // 選んでいる物を使う（使うボタン・右クリック・Enter）：スマホは開く、カメラは撮る、カードは見る、飲み物は飲む（地図は持っているあいだ左上に出る）
   function applyItem() {
     const v = invRef.current;
     const it = v?.slots[v.sel];
     if (!it || !walkRef.current || !mapRef.current) return;
-    if (it.id === "camera") takePhoto();
+    if (it.id === "phone") openPhone();
+    else if (it.id === "camera") takePhoto();
     else if (it.id === "student" || it.id === "ic") openMenu({ kind: "card", id: it.id });
     else if (ITEMS[it.id]?.drink) {
       updateInv((x) => takeItem(x, x.sel));
@@ -2016,6 +2091,408 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const ok = updateInv((x) => chargeIc(x, a));
     showToast(ok ? t("inv.charged", { a: yen(a), left: yen(invRef.current.ic) }) : t("inv.cantCharge"));
   }
+  // ── スマホのナビ（MapPhone・campus3dGuide）。2026-11-17 ユーザー「メタ的にこの世界の中でスマホを見て、ナビ機能を使うと
+  // この世界の道に道案内表示が出るようにしてほしい」──
+  // スマホを開く（画面のボタンを押せるように、マウスの固定を外す）
+  function openPhone() {
+    if (document.pointerLockElement) document.exitPointerLock?.();
+    setPhoneOpen(true);
+  }
+  // 歩く人のいる所（この世界の GPS）から、アプリのナビと同じ道の網・同じ引き方（computeRoute の "__gps__"）で経路を引く。
+  // 辺ごとの階段の印（はじめの辺は GPS から網へのまっすぐな線）も
+  function planFrom(destId) {
+    const w = walkRef.current;
+    if (!w) return null;
+    const [lng, lat] = toLngLat([w.x, w.y]);
+    const G0 = navGraph();
+    const r = computeRoute(G0, { origin: "__gps__", destination: destId, gpsOriginPos: { lat, lng } });
+    if (!r) return null;
+    const stairs = [false, ...r.path.slice(1).map((id, i) => !!(G0.adj[r.path[i]] || []).find((e) => e.to === id)?.stairs)];
+    return { ...r, stairs };
+  }
+  // 案内を始める（reroute：外れたので今いる所から引き直す）。帯を世界の道に描き、「ルートを歩く」もこの経路で歩けるようにする
+  function startGuide(destId, reroute = false) {
+    const w = walkRef.current;
+    const dest = NAV_SPOTS.find((s) => s.id === destId);
+    if (!w || !dest) return false;
+    const r = planFrom(destId);
+    const z0 = (w.world.floorBelow(w.x, w.y, w.z + 0.6) || { z: w.z }).z; // 足もとの足場（飛んでいるときは真下の面）から帯の高さをたどる
+    const G = r ? buildGuide(r.coords, w.world, { z0, stairs: r.stairs }) : null;
+    if (!G) {
+      showToast(t("navi.noRoute"));
+      return false;
+    }
+    guideRef.current = { dest, G, along: 0, dist: 0, offSince: 0, rerouteAt: performance.now(), arrived: 0, uiAt: 0 };
+    guideLayerRef.current?.setGuide(G);
+    if (!("appPath" in w)) w.appPath = w.path; // もとのルート（キャンパスナビの画面から来たもの）は、案内を終えたら戻す
+    w.path = routePath(r.coords);
+    w.along = w.path.nearest(w.x, w.y);
+    w.done = false;
+    setWalkUi((u) => ({ ...u, route: true, done: false }));
+    pushGuideUi();
+    if (!reroute) {
+      setPhoneOpen(false);
+      showToast(t("phone.started"));
+    }
+    mapRef.current?.triggerRepaint();
+    return true;
+  }
+  // 案内をやめる（msg はお知らせ）。「ルートを歩く」はもとのルートに戻す
+  function stopGuide(msg) {
+    const w = walkRef.current;
+    guideRef.current = null;
+    guideLayerRef.current?.setGuide(null);
+    setGuideUi(null);
+    if (guideTagRef.current) guideTagRef.current.style.display = "none";
+    if (w && "appPath" in w) {
+      w.path = w.appPath;
+      delete w.appPath;
+      w.auto = false;
+      w.done = false;
+      if (w.path) w.along = w.path.nearest(w.x, w.y);
+      setWalkUi((u) => ({ ...u, route: !!w.path, auto: false, done: false }));
+    }
+    if (msg) showToast(msg);
+    mapRef.current?.triggerRepaint();
+  }
+  // 毎フレーム：帯の上の今いる所（前の所の近くから探す）。目的地の 8m 手前で着いた（帯を消して柱だけ 12 秒）、18m より離れて
+  // 3 秒たったら今いる所から引き直す（6 秒に 1 回まで。飛んでいるあいだはしない）
+  function guideStep(w, now) {
+    const g = guideRef.current;
+    const r = g.G.nearest(w.x, w.y, g.along);
+    g.along = r.s;
+    g.dist = r.d;
+    guideLayerRef.current?.setProgress(g.along);
+    mapRef.current?.triggerRepaint(); // 止まっていても矢じるしを流す
+    if (!g.arrived) {
+      const [ex, ey] = g.G.end;
+      if ((g.G.len - g.along < 8 && r.d < 10) || Math.hypot(w.x - ex, w.y - ey) < 8) {
+        g.arrived = now;
+        guideLayerRef.current?.hideRibbon();
+        showToast(t("phone.arrivedAt", { name: g.dest.label }));
+      } else if (r.d > 18 && !w.fly) {
+        if (!g.offSince) g.offSince = now;
+        else if (now - g.offSince > 3000 && now - g.rerouteAt > 6000) {
+          g.rerouteAt = now;
+          if (startGuide(g.dest.id, true)) showToast(t("phone.rerouted"));
+          return;
+        }
+      } else g.offSince = 0;
+    } else if (now - g.arrived > 12000) {
+      stopGuide();
+      return;
+    }
+    if (now - g.uiAt > 250) {
+      g.uiAt = now;
+      pushGuideUi();
+    }
+  }
+  // スマホに出す値（変わったときだけ描き直す）
+  function pushGuideUi() {
+    const g = guideRef.current;
+    if (!g) {
+      setGuideUi(null);
+      return;
+    }
+    const left = Math.max(0, g.G.len - g.along);
+    const n = g.arrived ? null : nextManeuver(g.G, g.along);
+    const lite = (m) => (m ? { kind: m.kind, dir: m.dir || null, up: m.up ?? null } : null);
+    const v = { dest: { id: g.dest.id, label: g.dest.label }, left: Math.round(left), minutes: Math.max(1, Math.ceil(left / 80)), next: n && { ...lite(n), dist: Math.round(n.dist), then: lite(n.then) }, arrived: !!g.arrived };
+    setGuideUi((u) => (JSON.stringify(u) === JSON.stringify(v) ? u : v));
+  }
+  // 目的地の名前の札を、光の柱の上へ（案内のレイヤーが毎フレーム画面の位置を知らせる）。カメラの後ろ・画面の外なら隠す
+  function placeGuideTag(p) {
+    const el = guideTagRef.current;
+    if (!el) return;
+    const W = el.parentElement?.clientWidth || 4000;
+    const show = p.front && p.x > -40 && p.x < W + 40 && p.y > -20;
+    el.style.display = show ? "block" : "none";
+    if (show) el.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) translate(-50%, -100%)`;
+  }
+  // ── 乗り物（campus3dVehicles・campus3dVehicleMesh。2026-11-17 ユーザー「自転車と車とかドローンとか作って」）──
+  // 乗り物の形（歩いているあいだだけ。乗り物のレイヤーが毎フレーム読む）。ドローンを飛ばしているあいだは操縦する人（自分）も描く
+  function vehicleFrame() {
+    const w = walkRef.current;
+    const VH = w?.veh;
+    if (!VH) return null;
+    const items = [];
+    for (const k of ["bike", "car", "drone"]) {
+      const s = VH.list[k];
+      if (!s) continue;
+      const mine = VH.ride === k;
+      items.push({ kind: k, s, rider: mine && k !== "drone" ? (VH.view[k] === "fp" ? "fp" : "tp") : null, view: mine ? VH.view[k] : null });
+    }
+    const d = VH.list.drone;
+    const pilot = VH.ride === "drone" ? { x: w.x, y: w.y, z: w.z, yaw: d ? (Math.atan2(d.x - w.x, d.y - w.y) * 180) / Math.PI : w.yaw } : null;
+    if (!items.length && !pilot) return null;
+    return vehicleMeshes(items, { pilot, glow: lookRef.current?.lamp || 0, now: performance.now() });
+  }
+  // ドローンが戻る先：操縦する人の 1.2m 前の足もと（gz は離陸した地面＝高さの上限の基準）
+  function droneHome(w) {
+    const f = fwdOf(w.yaw);
+    return { x: w.x + f[0] * 1.2, y: w.y + f[1] * 1.2, gz: w.veh?.gz0 ?? w.z, px: w.x, py: w.y };
+  }
+  // 乗っているあいだの 1 フレーム（walkTick から）：乗り物を動かし、歩く人の状態を返す。w.yaw はカメラの向き（乗り物の向き＋見回した分）
+  function stepRide(w, s, inp, dt, now) {
+    const VH = w.veh;
+    const k = VH.ride;
+    const v = VH.list[k];
+    if (!v) {
+      VH.ride = null;
+      setWalkUi((u) => ({ ...u, ride: null }));
+      return s;
+    }
+    const keys = w.keys;
+    if (k === "drone") {
+      // 向きはドローンの向き（マウス・指で回した分と Q・E）、上下はカメラの角度。離陸したばかりは少し自動で上がる
+      const d0 = { ...v, yaw: (v.yaw + angDiffV(w.yaw, VH.lastYaw ?? w.yaw) + 360) % 360 };
+      const up = keys.has("Space") || now < (VH.takeoffUntil || 0);
+      const d = stepDrone(d0, { fwd: inp.fwd, side: inp.side, turn: inp.turn, up, down: !up && (keys.has("ShiftLeft") || keys.has("ShiftRight") || w.flyDown), sprint: w.run || w.sprintLatch }, dt, w.world, droneHome(w));
+      d.gimbal = Math.max(-20, Math.min(90, 90 - w.pitch));
+      VH.list.drone = d;
+      VH.lastYaw = d.yaw;
+      if (d.note) droneNote(d);
+      if (d.done) stowDrone(w);
+      return { ...s, yaw: d.yaw, vx: 0, vy: 0, vz: 0, onGround: true };
+    }
+    const head = Math.max(-150, Math.min(150, angDiffV(w.yaw, v.yaw))); // 見回した分（乗り物の向きから）
+    let nv = v;
+    if (inp.riding) {
+      // エレベーター（自転車ごと乗ったかご）が動いているあいだは、かごといっしょに上下
+      nv = { ...v, z: v.z + inp.rideDz, zr: (v.zr ?? v.z) + inp.rideDz, v: 0 };
+    } else {
+      nv = (k === "bike" ? stepBike : stepCar)(v, { fwd: inp.fwd, side: inp.side, turn: inp.turn, sprint: inp.sprint }, dt, w.world);
+      if (nv.stairs && now - (VH.stairsAt || 0) > 4000) {
+        VH.stairsAt = now;
+        showToast(t(k === "bike" ? "veh.stairsBike" : "veh.stairsCar"));
+      }
+    }
+    VH.list[k] = nv;
+    // Space（ジャンプのボタン）：自転車はベル・車はクラクション（押したときに 1 回）
+    const sp = keys.has("Space");
+    if (sp && !VH.spaceDown) ring(k);
+    VH.spaceDown = sp;
+    // 歩く人の足もと＝乗っている所（自動ドア・エレベーターはここで見る）。車は運転席の下
+    let px = nv.x, py = nv.y;
+    if (k === "car") {
+      const f = fwdOf(nv.yaw), l = leftOf(nv.yaw);
+      px += f[0] * CAR.driver[0] + l[0] * CAR.driver[1];
+      py += f[1] * CAR.driver[0] + l[1] * CAR.driver[1];
+    }
+    return { ...s, x: px, y: py, z: nv.z, vx: 0, vy: 0, vz: 0, onGround: true, deck: null, yaw: (nv.yaw + head + 360) % 360 };
+  }
+  // 乗り物の画角：速いほど少し広く（ドローンはスポーツで広く）
+  function vehFov(w) {
+    const VH = w.veh;
+    const v = VH?.list[VH.ride];
+    if (!v) return null;
+    if (VH.ride === "drone") return WALK_FOV + (w.run || w.sprintLatch ? 6 : 2);
+    const sp = Math.abs(v.v || 0);
+    return VH.ride === "car" ? WALK_FOV + Math.min(10, sp * 0.6) : WALK_FOV + 4 + Math.min(4, sp * 0.7); // 自転車は少し広く（ハンドルが入る）
+  }
+  // 乗っているあいだの表示（0.12 秒ごと）：速さ、ドローンは高さ・距離・電池
+  function vehHud(w, now) {
+    const el = vehHudRef.current;
+    const VH = w.veh;
+    if (!el || !VH?.ride || now - (VH.hudAt || 0) < 120) return;
+    VH.hudAt = now;
+    const v = VH.list[VH.ride];
+    if (!v) return;
+    if (VH.ride === "drone") {
+      const h = v.z - DRONE.legs - (VH.gz0 ?? w.z);
+      el.textContent = t("veh.hudDrone", { h: Math.max(0, Math.round(h)), d: Math.round(Math.hypot(v.x - w.x, v.y - w.y)), b: Math.round((v.battery ?? 1) * 100) });
+      el.classList.toggle("low", (v.battery ?? 1) <= DRONE.warn);
+    } else {
+      el.textContent = `${Math.round(Math.abs(v.v || 0) * 3.6)} km/h${(v.v || 0) < -0.1 ? " R" : ""}`;
+      el.classList.remove("low");
+    }
+  }
+  // ドローンのお知らせ（電池・離れすぎ・高すぎ・戻りはじめ）
+  function droneNote(d) {
+    if (d.note === "low") showToast(t("veh.lowBattery", { p: Math.round((d.battery ?? 0) * 100) }));
+    else if (d.note === "rth") showToast(t("veh.rth"));
+    else if (d.note === "far") showToast(t("veh.tooFar"));
+    else if (d.note === "high") showToast(t("veh.tooHigh"));
+  }
+  // ドローンをしまう（戻って着いた）。飛ばしていたら、操縦する人の目に戻る
+  function stowDrone(w) {
+    const VH = w.veh;
+    VH.list.drone = null;
+    if (VH.ride === "drone") {
+      VH.ride = null;
+      VH.cam = null;
+      setWalkUi((u) => ({ ...u, ride: null, hint: false }));
+    }
+    showToast(t("veh.back"));
+  }
+  // ベル（自転車：チリンチリン）・クラクション（車）。鳴らせなければ鳴らさない
+  function ring(kind) {
+    try {
+      const A = window.AudioContext || window.webkitAudioContext;
+      if (!A) return;
+      const ac = beepCtx.current || (beepCtx.current = new A());
+      const t0 = ac.currentTime;
+      const strike = (at, f, vol, dur, type = "sine") => {
+        const o = ac.createOscillator();
+        const g = ac.createGain();
+        o.type = type;
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.exponentialRampToValueAtTime(vol, at + 0.006);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+        o.connect(g);
+        g.connect(ac.destination);
+        o.start(at);
+        o.stop(at + dur + 0.02);
+      };
+      if (kind === "bike") for (const at of [0, 0.17]) {
+        strike(t0 + at, 3150, 0.05, 0.55);
+        strike(t0 + at, 4720, 0.022, 0.35);
+      }
+      else if (kind === "car") {
+        strike(t0, 415, 0.03, 0.45, "square");
+        strike(t0, 523, 0.026, 0.45, "square");
+      }
+    } catch {
+      /* 音は出せなくてよい */
+    }
+  }
+  function saveVehState(w) {
+    const VH = w?.veh;
+    if (!VH) return;
+    const park = (p) => (p ? { x: p.x, y: p.y, z: p.zr ?? p.z, yaw: p.yaw } : null);
+    saveVehicles({ parked: { bike: park(VH.list.bike), car: park(VH.list.car) }, view: VH.view });
+  }
+  // 乗る（自転車・車は乗っている人の目か後ろから、ドローンはそのカメラ）
+  function rideVehicle(w, kind) {
+    const VH = w.veh;
+    const v = VH.list[kind];
+    if (!v) return;
+    VH.ride = kind;
+    VH.cam = null;
+    VH.lastYaw = null;
+    VH.spaceDown = w.keys.has("Space");
+    w.auto = false;
+    w.vehMenu = false;
+    w.yaw = v.yaw;
+    if (kind === "drone") {
+      w.pitch = 80;
+      VH.gz0 = w.z;
+      VH.takeoffUntil = performance.now() + 650;
+    } else w.pitch = VH.view[kind] === "fp" ? (kind === "bike" ? 72 : 84) : 80; // 自転車の目からは少し下（ハンドル・手・前かごが見える）
+    setVehUi((u) => ({ ...u, menu: false }));
+    setWalkUi((u) => ({ ...u, ride: kind, hint: true, auto: false, aim: null }));
+    mapRef.current?.triggerRepaint();
+  }
+  // メニューで選んだ乗り物：歩く人のところ（なければまわり）に出して乗る。ドローンは目の前から飛ぶ（戻ってくる途中なら、そのまま操縦にもどる）
+  function pickVehicleKind(kind) {
+    const w = walkRef.current;
+    if (!w?.veh || w.anim || w.veh.ride) return;
+    if (kind === "drone" && w.veh.list.drone) {
+      w.veh.list.drone = { ...w.veh.list.drone, rth: false };
+      rideVehicle(w, "drone");
+      return;
+    }
+    const old = w.veh.list[kind]; // 同じ乗り物がほかの所に置いてあれば、ここへ持ってくる（前の所からは消える）
+    w.veh.list[kind] = null;
+    const p = placeVehicle(kind, w.world, { x: w.x, y: w.y, z: w.z, yaw: w.yaw });
+    if (!p) {
+      w.veh.list[kind] = old;
+      showToast(t("veh.cantPlace"));
+      closeVehMenu();
+      return;
+    }
+    w.veh.list[kind] = kind === "drone" ? { kind, ...p, battery: 1, vx: 0, vy: 0, vz: 0, spin: 0 } : { kind, ...p, v: 0, steer: 0 };
+    rideVehicle(w, kind);
+    saveVehState(w);
+  }
+  // 照準の先の置いてある乗り物に乗る（画面の点 pt。null はまん中の十字）。乗れば true
+  function mountAt(pt) {
+    const w = walkRef.current;
+    const map = mapRef.current;
+    if (!w?.veh || !map || w.anim || w.fly || w.seat || w.veh.ride) return false;
+    const ray = walkRay(map, w, pt);
+    const hit = pickVehicle(["bike", "car"].map((k) => w.veh.list[k] && { ...w.veh.list[k], kind: k }).filter(Boolean), ray.o, ray.d);
+    if (!hit) return false;
+    rideVehicle(w, hit.kind);
+    return true;
+  }
+  // 降りる（自転車・車：横に降りて、乗り物はそこに置いておく）・戻す（ドローン：操縦する人の前へ飛んで戻る。カメラはすぐ自分の目に）
+  function leaveVehicle() {
+    const w = walkRef.current;
+    const VH = w?.veh;
+    if (!VH?.ride) return;
+    const k = VH.ride;
+    const v = VH.list[k];
+    if (k === "drone") {
+      if (v) {
+        VH.list.drone = { ...v, rth: true, rthZ: Math.max(v.z, (VH.gz0 ?? w.z) + DRONE.rthAlt) };
+        showToast(t("veh.returning"));
+      }
+      VH.ride = null;
+      VH.cam = null;
+      w.yaw = (Math.atan2(v.x - w.x, v.y - w.y) * 180) / Math.PI; // ドローンのほうを向く
+      w.pitch = 96;
+      setWalkUi((u) => ({ ...u, ride: null, hint: false }));
+      return;
+    }
+    const spot = dismountSpot(k, v, w.world);
+    if (!spot) {
+      showToast(t("veh.cantGetOff"));
+      return;
+    }
+    VH.list[k] = { ...v, v: 0, steer: 0, lean: 0, hit: false, stairs: false, braking: false, reverse: false };
+    Object.assign(w, { x: spot[0], y: spot[1], z: spot[2], vx: 0, vy: 0, vz: 0, onGround: true, deck: null, yaw: v.yaw, pitch: 88, eyeOff: 0 });
+    VH.ride = null;
+    VH.cam = null;
+    saveVehState(w);
+    setWalkUi((u) => ({ ...u, ride: null, hint: false }));
+  }
+  // 視点：乗っている人の目（ドローンはそのカメラ）⇔ 後ろから
+  function toggleVehView() {
+    const w = walkRef.current;
+    const VH = w?.veh;
+    if (!VH?.ride) return;
+    VH.view[VH.ride] = VH.view[VH.ride] === "fp" ? "tp" : "fp";
+    VH.cam = null;
+    saveVehState(w);
+  }
+  function toggleVehMenu() {
+    const w = walkRef.current;
+    if (!w?.veh || w.veh.ride || w.anim) return;
+    const open = !w.vehMenu;
+    w.vehMenu = open;
+    if (open && document.pointerLockElement) document.exitPointerLock?.(); // メニューのボタンを押せるように
+    const parked = {};
+    for (const k of ["bike", "car"]) {
+      const p = w.veh.list[k];
+      parked[k] = p ? Math.hypot(p.x - w.x, p.y - w.y) : null;
+    }
+    setVehUi((u) => ({ ...u, menu: open, parked }));
+  }
+  function closeVehMenu() {
+    const w = walkRef.current;
+    if (w) w.vehMenu = false;
+    setVehUi((u) => ({ ...u, menu: false }));
+  }
+  // 歩くのをやめるとき：乗っていれば降りる（降りられない所なら乗り物の所に立つ）・ドローンはしまう
+  function endRides(w) {
+    const VH = w.veh;
+    const k = VH.ride;
+    if (k === "bike" || k === "car") {
+      const v = VH.list[k];
+      const spot = dismountSpot(k, v, w.world);
+      if (spot) Object.assign(w, { x: spot[0], y: spot[1], z: spot[2] });
+      VH.list[k] = { ...v, v: 0, steer: 0, lean: 0 };
+    }
+    VH.list.drone = null;
+    VH.ride = null;
+    VH.cam = null;
+    w.vehMenu = false;
+    saveVehState(w);
+    setVehUi((u) => ({ ...u, menu: false }));
+    setWalkUi((u) => ({ ...u, ride: null }));
+  }
   // 立つ：座る前に立っていた側（机・カウンターの椅子は前が机なので、来た側＝通路）へ 0.6〜1m。同じ床の高さで、ふさがっていない所。
   // なければ座ったものの前（sitPose の stand）、それもなければ座る前の所（2026-11-14：前へ立つと窓ぎわのカウンターの向こう＝建物の外へ落ちた）
   function standUp(w) {
@@ -2053,6 +2530,9 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const map = mapRef.current;
     if (!w || !map || w.anim?.out) return;
     if (document.pointerLockElement) document.exitPointerLock?.();
+    // 乗り物に乗っていれば降りる（降りられない所なら乗り物の所に立つ）。ドローンはしまう。上から見る視点へは今のカメラから
+    const cam0 = w.veh?.cam ? { ...w.veh.cam } : null;
+    if (w.veh) endRides(w);
     const pitch = 55;
     const zoom = 18.8;
     const lat = toLngLat([w.x, w.y])[1];
@@ -2061,7 +2541,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const b = (w.yaw * Math.PI) / 180;
     const p = (pitch * Math.PI) / 180;
     const to = { x: w.x - D * Math.sin(p) * Math.sin(b), y: w.y - D * Math.sin(p) * Math.cos(b), z: w.z + D * Math.cos(p), yaw: w.yaw, pitch, D, fov: w.restore.fov };
-    w.anim = { t0: performance.now(), dur: 1100, out: true, from: { x: w.x, y: w.y, z: w.z + EYE + w.eyeOff, yaw: w.yaw, pitch: w.pitch, D: VIEW_D, fov: map.transform.fov }, to };
+    w.anim = { t0: performance.now(), dur: 1100, out: true, from: cam0 ? { x: cam0.x, y: cam0.y, z: cam0.z, yaw: cam0.yaw, pitch: cam0.pitch, D: VIEW_D, fov: map.transform.fov } : { x: w.x, y: w.y, z: w.z + EYE + w.eyeOff, yaw: w.yaw, pitch: w.pitch, D: VIEW_D, fov: map.transform.fov }, to };
     w.keys.clear();
     w.joy = { x: 0, y: 0 };
     w.auto = false;
@@ -2074,7 +2554,9 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const map = mapRef.current;
     if (!w) return;
     cancelAnimationFrame(w.raf);
+    saveVehState(w); // 乗り物の置き場所（端末に）
     walkRef.current = null;
+    setVehUi({ menu: false, parked: null });
     // 歩くのをやめたら、自動ドアは閉じる
     const D = doorsRef.current;
     if (D.open.some((v) => v > 0)) {
@@ -2113,8 +2595,11 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       LF.dirty = true;
     }
     setWalking(false);
-    setWalkUi((u) => ({ ...u, auto: false, done: false, hint: false, locked: false, aim: null, seated: false }));
+    setWalkUi((u) => ({ ...u, auto: false, done: false, hint: false, locked: false, aim: null, seated: false, ride: null }));
     closeMenu();
+    // スマホのナビ：案内（世界の道の帯）をやめて、スマホをしまう
+    stopGuide();
+    setPhoneOpen(false);
     invRef.current = null;
     setInv(null);
   }
@@ -2147,7 +2632,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         // エレベーターのボタン（Minecraft のように）：照準（固定中は画面のまん中、固定していなければマウスの先）が当たっていれば押す。
         // 左・右どちらのクリックでも
         const pt0 = document.pointerLockElement ? null : canvasPt(e);
-        if (pressLiftAt(pt0) || interactAt(pt0) || sitAt(pt0)) {
+        if (pressLiftAt(pt0) || interactAt(pt0) || sitAt(pt0) || mountAt(pt0)) {
           e.preventDefault();
           return;
         }
@@ -2195,7 +2680,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       if (tap && e.pointerId === tap.id) {
         if (performance.now() - tap.t < 400) {
           const pt = canvasPt(e);
-          if (!pressLiftAt(pt) && !interactAt(pt)) sitAt(pt); // タップしたところのエレベーターのボタン・使える物・椅子
+          if (!pressLiftAt(pt) && !interactAt(pt) && !sitAt(pt)) mountAt(pt); // タップしたところのエレベーターのボタン・使える物・椅子・置いてある乗り物
         }
         tap = null;
       }
@@ -2218,15 +2703,30 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     };
     const keyDown = (e) => {
       const w = walkRef.current;
-      if (!w || e.target?.closest?.("input,textarea,select,[contenteditable='true']")) return;
+      // 入力欄と、開いているスマホの中のキー（ボタンの Enter など）はスマホのもの
+      if (!w || e.target?.closest?.("input,textarea,select,[contenteditable='true'],.cb3-phone")) return;
       if (e.code === "Escape") {
-        // マウスを固定しているときの Esc はブラウザが固定をやめる。離れているときの Esc でやめる
+        // マウスを固定しているときの Esc はブラウザが固定をやめる。離れているときの Esc でやめる（スマホを開いていれば、まずスマホを閉じる）
         if (document.pointerLockElement || performance.now() - w.unlockedAt < 500) return;
         e.preventDefault();
-        stopWalk();
+        if (phoneOpenRef.current) setPhoneOpen(false);
+        else if (w.vehMenu) closeVehMenu(); // 乗り物のメニューを開いていれば、まず閉じる
+        else stopWalk();
       } else if (/^Digit[1-9]$/.test(e.code) && invRef.current) {
         e.preventDefault();
         selectSlot(+e.code.slice(5) - 1);
+      } else if (e.code === "KeyG" && !e.repeat && w.veh && !w.veh.ride && !w.fly && !w.seat) {
+        // G：乗り物のメニュー
+        e.preventDefault();
+        toggleVehMenu();
+      } else if (e.code === "KeyV" && !e.repeat && w.veh?.ride) {
+        // V：視点（乗っている人の目・ドローンのカメラ ⇔ 後ろから）
+        e.preventDefault();
+        toggleVehView();
+      } else if (e.code === "KeyC" && w.veh?.ride) {
+        // C：降りる・ドローンを戻す（歩いているときの C はしゃがむ）
+        e.preventDefault();
+        if (!e.repeat) leaveVehicle();
       } else if (e.code === "Enter" && invRef.current && !e.repeat) {
         e.preventDefault();
         applyItem();
@@ -2242,7 +2742,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
           w.lastW = t;
         }
         // Space を 2回：飛ぶ・やめる（クリエイティブ。デバッグの道具。1回めは地面ならジャンプ）
-        if (e.code === "Space" && !e.repeat && debugRef.current) {
+        if (e.code === "Space" && !e.repeat && debugRef.current && !w.veh?.ride) {
           const t = performance.now();
           if (t - w.lastSpace < 300) {
             setFly(w, !w.fly);
@@ -2543,7 +3043,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       const lk = JSON.stringify(look.light);
       if (lk !== lightKey) {
         lightKey = lk;
-        [extrasRef, trainsLayerRef, doorsLayerRef, psdLayerRef, escLayerRef, ledLayerRef, mclockLayerRef, liftLayerRef, lightsRef].forEach((r) => r.current?.setLight(look.light));
+        [extrasRef, trainsLayerRef, doorsLayerRef, psdLayerRef, escLayerRef, ledLayerRef, mclockLayerRef, liftLayerRef, lightsRef, vehLayerRef].forEach((r) => r.current?.setLight(look.light));
         map.setLight(look.light);
       }
       // 歩いて見るときの空の霧の色
@@ -2857,10 +3357,11 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
           {walkUi.aim && <div className="cb3-aim">{walkUi.aim}</div>}
           {(walkUi.hint || walkUi.done) && (
             <div className="cb3-walk-hint">
-              {walkUi.done ? t("navi.strollArrived") : walkUi.fly && !walkUi.touch ? t("navi.strollHintFly") : walkUi.touch ? t("navi.strollHintTouch") : walkUi.locked ? t("navi.strollHintLocked") : t("navi.strollHintKeys")}
-              {debugTools && !walkUi.done && !walkUi.fly && !walkUi.touch && <><br />{t("navi.strollHintDebug")}</>}
+              {walkUi.done ? t("navi.strollArrived") : walkUi.ride ? t(walkUi.touch ? (walkUi.ride === "drone" ? "veh.hintTouchDrone" : "veh.hintTouchRide") : walkUi.ride === "drone" ? "veh.hintDrone" : walkUi.ride === "car" ? "veh.hintCar" : "veh.hintBike") : walkUi.fly && !walkUi.touch ? t("navi.strollHintFly") : walkUi.touch ? t("navi.strollHintTouch") : walkUi.locked ? t("navi.strollHintLocked") : t("navi.strollHintKeys")}
+              {debugTools && !walkUi.done && !walkUi.fly && !walkUi.touch && !walkUi.ride && <><br />{t("navi.strollHintDebug")}</>}
             </div>
           )}
+          <MapVehicles menu={vehUi.menu} parked={vehUi.parked} riding={walkUi.ride} hudRef={vehHudRef} hint={walkUi.hint || walkUi.done} onPick={pickVehicleKind} onClose={closeVehMenu} />{/* 乗り物のメニューと、乗っているあいだの表示 */}
           {walkUi.touch && (
             <div className="cb3-joy" aria-hidden="true" onPointerDown={joyDown} onPointerMove={joyMove} onPointerUp={joyUp} onPointerCancel={joyUp}>
               <div ref={joyKnobRef} className="cb3-joy-knob" />
@@ -2910,14 +3411,22 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
             </div>
           )}
           <MapInventory inv={inv} touch={walkUi.touch} menu={invMenu} toast={invToast} walkRef={walkRef} data={data} features={features} accent={accent} onSelect={selectSlot} onUse={applyItem} onCloseMenu={closeMenu} onBuy={buy} onCharge={charge} onRename={(nm) => updateInv((x) => { x.name = nm; })} />
+          {/* スマホ（持っていると右上に小さく、開くと大きく。中はキャンパスナビ）と、目的地の光の柱の上の名前の札 */}
+          <MapPhone inv={inv} open={phoneOpen} guide={guideUi} spots={phoneSpots} walkRef={walkRef} data={data} features={features} guideRef={guideRef} accent={accent} touch={walkUi.touch}
+            onPlan={planFrom} onStart={(id) => startGuide(id)} onStop={() => stopGuide(guideUi?.arrived ? null : t("phone.ended"))} onOpen={openPhone} onClose={() => setPhoneOpen(false)} />
+          {guideUi && !guideUi.arrived && <div ref={guideTagRef} className="cb3-guide-tag">{guideUi.dest.label}<b>{fmtDist(guideUi.left)}</b></div>}
           <div className="cb3-walk-btns">
             {inv && itemUseLabel(inv) && <button type="button" className="cb3-use" onClick={applyItem}>{itemUseLabel(inv)}</button>}
-            {walkUi.touch && <button type="button" className="cb3-jump" onPointerDown={jumpDown} onPointerUp={jumpUp} onPointerCancel={jumpUp}>{walkUi.seated ? t("navi.strollStand") : walkUi.fly ? t("navi.strollUp") : t("navi.strollJump")}</button>}
+            {walkUi.touch && <button type="button" className="cb3-jump" onPointerDown={jumpDown} onPointerUp={jumpUp} onPointerCancel={jumpUp}>{walkUi.ride === "bike" ? t("veh.bell") : walkUi.ride === "car" ? t("veh.horn") : walkUi.ride === "drone" ? t("navi.strollUp") : walkUi.seated ? t("navi.strollStand") : walkUi.fly ? t("navi.strollUp") : t("navi.strollJump")}</button>}
             {walkUi.seated && !walkUi.touch && <button type="button" className="on" onClick={() => { const w = walkRef.current; if (w?.seat) standUp(w); }}>{t("navi.strollStand")}</button>}
-            {walkUi.touch && walkUi.fly && <button type="button" className="cb3-jump" onPointerDown={downOn} onPointerUp={downOff} onPointerCancel={downOff}>{t("navi.strollDown")}</button>}
-            {debugTools && <button type="button" className={walkUi.fly ? "on" : ""} aria-pressed={walkUi.fly} onClick={toggleFly}>{t("navi.strollFly")}</button>}
+            {walkUi.touch && (walkUi.fly || walkUi.ride === "drone") && <button type="button" className="cb3-jump" onPointerDown={downOn} onPointerUp={downOff} onPointerCancel={downOff}>{t("navi.strollDown")}</button>}
+            {/* 乗り物：出す（メニュー）・降りる／戻す・視点 */}
+            {!walkUi.ride && !walkUi.fly && !walkUi.seated && <button type="button" className={vehUi.menu ? "on" : ""} aria-pressed={vehUi.menu} title={walkUi.touch ? undefined : `${t("veh.menu")}（G）`} onClick={toggleVehMenu}>{t("veh.menu")}</button>}
+            {walkUi.ride && <button type="button" title={walkUi.touch ? undefined : `${t("veh.view")}（V）`} onClick={toggleVehView}>{t("veh.view")}</button>}
+            {walkUi.ride && <button type="button" className="on" title={walkUi.touch ? undefined : "C"} onClick={leaveVehicle}>{walkUi.ride === "drone" ? t("veh.recall") : t("veh.getOff")}</button>}
+            {debugTools && !walkUi.ride && <button type="button" className={walkUi.fly ? "on" : ""} aria-pressed={walkUi.fly} onClick={toggleFly}>{t("navi.strollFly")}</button>}
             {debugTools && walkUi.fly && <button type="button" className={walkUi.noclip ? "on" : ""} aria-pressed={walkUi.noclip} onClick={toggleNoclip}>{t("navi.strollNoclip")}</button>}
-            {walkUi.route && <button type="button" className={walkUi.auto ? "on" : ""} aria-pressed={walkUi.auto} onClick={toggleAuto}>{walkUi.auto ? t("navi.strollPause") : t("navi.strollRoute")}</button>}
+            {walkUi.route && !walkUi.ride && <button type="button" className={walkUi.auto ? "on" : ""} aria-pressed={walkUi.auto} onClick={toggleAuto}>{walkUi.auto ? t("navi.strollPause") : t("navi.strollRoute")}</button>}
             {twinOk && debugTools && !walkUi.touch && (
               <button type="button" className={twinUi.open ? "on" : ""} aria-pressed={twinUi.open} onClick={() => setTwinUi((u) => ({ ...u, open: !u.open }))}>
                 {twinUi.st === "on" ? "● " : ""}

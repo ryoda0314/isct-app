@@ -573,6 +573,9 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
   // 動く壁（エレベーターの閉まった扉など。setDyn で渡す。点と足の高さ → ふさぐか）
   let dyn = null;
   const blocked = (x, y, z) => outOfBounds(x, y) || solidAt(x, y, (s) => hits(s.spans(x, y), z)) || edges.some(x, y, 0, (e) => segDist(x, y, e.a, e.b) < e.half && hits(e.spans, z)) || (dyn !== null && dyn(x, y, z));
+  // 体の高さのかわりに、高さの区間 [lo, hi]（標高）で（乗り物・ドローンの体。campus3dVehicles。2026-11-17）
+  const spanHits = (spans, lo, hi) => spans.some(([a, b]) => a < hi && b > lo);
+  const blockedSpan = (x, y, lo, hi) => outOfBounds(x, y) || solidAt(x, y, (s) => spanHits(s.spans(x, y), lo, hi)) || edges.some(x, y, 0, (e) => segDist(x, y, e.a, e.b) < e.half && spanHits(e.spans, lo, hi)) || (dyn !== null && dyn(x, y, lo - 0.1));
   // ぶつかっているもの（立体・壁の owner。地図の外は bounds）
   const blockers = (x, y, z) => {
     const out = outOfBounds(x, y) ? [bounds] : [];
@@ -771,7 +774,7 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
     }
     return null;
   };
-  return { surfacesAt, floorBelow, blocked, move, freeNear, pick, setDyn, setDynFloor, coverAt, beltAt };
+  return { surfacesAt, floorBelow, blocked, blockedSpan, move, freeNear, pick, setDyn, setDynFloor, coverAt, beltAt };
 }
 
 /**

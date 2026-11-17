@@ -10,6 +10,8 @@ export const CHARGES = [500, 1000]; // 券売機でチャージできる額
 
 // 物の種類：name は i18n のキー、use は使うボタンの名前のキー（null は使わない）、stack は重ねて持てる、price は自販機の値段
 export const ITEMS = {
+  // スマホ（2026-11-17）：開くと中にこのアプリのキャンパスナビ。案内を始めると世界の道に帯が出る（MapPhone・campus3dGuide）
+  phone: { name: "inv.phone", use: "inv.useOpen" },
   camera: { name: "inv.camera", use: "inv.useShoot" },
   map: { name: "inv.map", use: null },
   student: { name: "inv.student", use: "inv.useShow" },
@@ -24,10 +26,10 @@ export const DRINKS = ["tea", "water", "coffee"];
 const gameSid = () => `G-${Math.floor(10000 + Math.random() * 90000)}`;
 const today = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-// はじめの持ち物：カメラ・地図・学生証・IC カード（お金は財布＝欄の外）
+// はじめの持ち物：スマホ・カメラ・地図・学生証・IC カード（お金は財布＝欄の外）
 export function freshInventory() {
   const slots = Array.from({ length: SLOTS }, () => null);
-  ["camera", "map", "student", "ic"].forEach((id, i) => (slots[i] = { id, n: 1 }));
+  ["phone", "camera", "map", "student", "ic"].forEach((id, i) => (slots[i] = { id, n: 1 }));
   return { v: 1, money: DAILY_MONEY, ic: IC_START, day: today(), slots, sel: 0, sid: gameSid(), issued: today().replace(/-/g, "/"), name: "" };
 }
 
@@ -51,6 +53,11 @@ export function loadInventory() {
   if (typeof inv.sid !== "string" || !/^G-\d{5}$/.test(inv.sid)) inv.sid = gameSid();
   if (typeof inv.issued !== "string" || !/^\d{4}\/\d{2}\/\d{2}$/.test(inv.issued)) inv.issued = today().replace(/-/g, "/");
   inv.name = typeof inv.name === "string" ? inv.name.slice(0, 16) : "";
+  // スマホを足す前（2026-11-17 より前）に保存した持ち物にも、空いているいちばん左のマスにスマホを入れる
+  if (!hasItem(inv, "phone")) {
+    const i = inv.slots.findIndex((s) => !s);
+    if (i >= 0) inv.slots[i] = { id: "phone", n: 1 };
+  }
   const d = today();
   if (inv.day !== d) {
     inv.day = d;

@@ -763,3 +763,91 @@ export function createLightsLayer({ light, exaggeration = 1 }) {
   };
   return layer;
 }
+
+// ── 乗り物（campus3dVehicles・campus3dVehicleMesh：自転車・車・ドローン。歩いて見るあいだだけ。2026-11-17）。形は毎フレーム作り直す ──
+export const VEHICLES_LAYER_ID = "cb-vehicles";
+const VEH_GLASS_ALPHA = 0.8; // 車の窓（濃い色のガラス。中の座席・運転する人がうっすら見える）
+const VEH_SCREEN_ALPHA = 0.32; // 前かごの網・回っている羽根
+/**
+ * @param frame  () => { solid, glass, screen（Mesh の結果と同じ形）, glow（GlowMesh の結果） } か null
+ */
+export function createVehiclesLayer({ light, exaggeration = 1, frame }) {
+  let map = null;
+  let gl = null;
+  let prog = null;
+  let glowProg = null;
+  const bufs = {};
+  const glowBuf = {};
+  let lt = lightState(light);
+  const put = (key, data) => {
+    if (!bufs[key]) bufs[key] = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, bufs[key]);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+  };
+  const bind = (key, name, size) => {
+    const a = prog.att(name);
+    if (a < 0) return -1;
+    gl.bindBuffer(gl.ARRAY_BUFFER, bufs[key]);
+    gl.enableVertexAttribArray(a);
+    gl.vertexAttribPointer(a, size, gl.FLOAT, false, 0, 0);
+    return a;
+  };
+  return {
+    id: VEHICLES_LAYER_ID,
+    type: "custom",
+    renderingMode: "3d",
+    setLight(l) {
+      lt = lightState(l);
+      map?.triggerRepaint();
+    },
+    onAdd(m, g) {
+      map = m;
+      gl = g;
+      prog = compile(gl, VS_TRAIN, FS_SOLID);
+      glowProg = compile(gl, VS_GLOW, FS_GLOW);
+    },
+    onRemove() {
+      if (gl) {
+        Object.values(bufs).forEach((b) => gl.deleteBuffer(b));
+        freeBufs(gl, glowBuf, GLOW_KEYS);
+        if (prog) gl.deleteProgram(prog.p);
+        if (glowProg) gl.deleteProgram(glowProg.p);
+      }
+      map = null;
+    },
+    render(g, args) {
+      const f = frame();
+      if (!f || (!f.solid.count && !f.glass.count && !f.screen.count && !f.glow?.count)) return;
+      const M = matrixFor(args.modelViewProjectionMatrix, map.transform.worldSize, exaggeration);
+      gl.useProgram(prog.p);
+      gl.uniformMatrix4fv(prog.loc("u_matrix"), false, M);
+      gl.uniform3fv(prog.loc("u_lightpos"), lt.pos);
+      gl.uniform1f(prog.loc("u_lightintensity"), lt.intensity);
+      gl.uniform3fv(prog.loc("u_lightcolor"), lt.color);
+      const draw = (mesh, key, alpha) => {
+        put(key + "p", mesh.pos);
+        put(key + "n", mesh.nrm);
+        put(key + "c", mesh.col);
+        const on = [bind(key + "p", "a_pos", 3), bind(key + "n", "a_normal", 3), bind(key + "c", "a_color", 4)];
+        gl.uniform1f(prog.loc("u_alpha"), alpha);
+        gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
+        on.forEach((a) => a >= 0 && gl.disableVertexAttribArray(a));
+      };
+      gl.depthFunc(gl.LEQUAL);
+      gl.depthMask(true);
+      if (f.solid.count) draw(f.solid, "s", 1);
+      // 網・回る羽根・窓は半透明で重ねる（奥行きは書かない）
+      if (f.screen.count || f.glass.count) {
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.depthMask(false);
+        if (f.screen.count) draw(f.screen, "n", VEH_SCREEN_ALPHA);
+        if (f.glass.count) draw(f.glass, "g", VEH_GLASS_ALPHA);
+        gl.depthMask(true);
+      }
+      // 前照灯・尾灯・ドローンの灯のにじみと、地面に落ちる光（足し算）
+      if (f.glow?.count) drawGlow(gl, glowProg, uploadTo(gl, f.glow, GLOW_KEYS, glowBuf, gl.DYNAMIC_DRAW), M, glowBasis(map), 1);
+      gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    },
+  };
+}
