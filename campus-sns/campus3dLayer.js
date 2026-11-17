@@ -204,6 +204,15 @@ function glowBasis(map) {
   };
 }
 
+// バッファに入れた配列の型を覚えておき、つなぐときにその型で読む（2026-11-17）：Mesh は法線を Int8・色を Uint8 に詰めることがある
+// （campus3dMesh の setMeshPacking。スマホのメモリを半分に）。詰めた値は 0〜1・−1〜1 に直して読む（normalized）。小数の配列は今までどおり
+const noteType = (gl, buf, data) => {
+  buf.cbType = data instanceof Int8Array ? gl.BYTE : data instanceof Uint8Array || data instanceof Uint8ClampedArray ? gl.UNSIGNED_BYTE : gl.FLOAT;
+};
+const pointAttr = (gl, a, size, buf) => {
+  const t = buf?.cbType || gl.FLOAT;
+  gl.vertexAttribPointer(a, size, t, t !== gl.FLOAT, 0, 0);
+};
 const GLOW_KEYS = [["pos", "a_pos", 3], ["bill", "a_bill", 4], ["uv", "a_uv", 3], ["col", "a_color", 3]];
 const SOLID_KEYS = [["pos", "a_pos", 3], ["nrm", "a_normal", 3], ["col", "a_color", 4]];
 // 三角形のデータ（GlowMesh・Mesh の結果）を GL のバッファへ。usage は STATIC_DRAW か DYNAMIC_DRAW
@@ -213,6 +222,7 @@ function uploadTo(gl, data, keys, out = {}, usage = gl.STATIC_DRAW) {
     out[k] ||= gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, out[k]);
     gl.bufferData(gl.ARRAY_BUFFER, data[k], usage);
+    noteType(gl, out[k], data[k]);
   }
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
   return out;
@@ -226,7 +236,7 @@ function drawBufs(gl, prog, b, keys) {
     if (a < 0) continue;
     gl.bindBuffer(gl.ARRAY_BUFFER, b[k]);
     gl.enableVertexAttribArray(a);
-    gl.vertexAttribPointer(a, size, gl.FLOAT, false, 0, 0);
+    pointAttr(gl, a, size, b[k]);
     on.push(a);
   }
   gl.drawArrays(gl.TRIANGLES, 0, b.count);
@@ -271,6 +281,7 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
       out[k] = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, out[k]);
       gl.bufferData(gl.ARRAY_BUFFER, data[k], gl.STATIC_DRAW);
+      noteType(gl, out[k], data[k]);
     });
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
     return out;
@@ -281,7 +292,7 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
     if (a < 0) return -1;
     gl.bindBuffer(gl.ARRAY_BUFFER, b);
     gl.enableVertexAttribArray(a);
-    gl.vertexAttribPointer(a, size, gl.FLOAT, false, 0, 0);
+    pointAttr(gl, a, size, b);
     return a;
   };
   // 掘らない地下の階へのガラスの面（mesh.portal。campus3dMesh の addCovered）：形を描く前に、その面が見えている画素（いままでに描いた
@@ -513,13 +524,14 @@ export function createTrainsLayer({ light, exaggeration = 1, frame }) {
     if (!bufs[key]) bufs[key] = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, bufs[key]);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+    noteType(gl, bufs[key], data);
   };
   const bind = (key, name, size) => {
     const a = prog.att(name);
     if (a < 0) return -1;
     gl.bindBuffer(gl.ARRAY_BUFFER, bufs[key]);
     gl.enableVertexAttribArray(a);
-    gl.vertexAttribPointer(a, size, gl.FLOAT, false, 0, 0);
+    pointAttr(gl, a, size, bufs[key]);
     return a;
   };
   // 地図が止まっていても動かし続ける：走っている列車があれば 1 秒に 20 回、なければ 2 秒ごとに描き直す
@@ -618,18 +630,23 @@ export function createDoorsLayer({ id = DOORS_LAYER_ID, light, exaggeration = 1,
   let gl = null;
   let prog = null;
   const bufs = {};
+  // 前に送った配列（key ごと）。同じ配列なら送り直さない（2026-11-17）：frame() は形が変わったときだけ新しい Mesh.result() を返し、
+  // 変わらないフレームは同じものを返す。毎フレーム送っていて、エレベーター（31 万頂点）で 1 フレーム 12 MB、発車標で 6 MB だった。
+  // 配列の中身を書きかえて使い回す形を渡すときは、新しい配列にすること
+  const sent = {};
   let lt = lightState(light);
   const put = (key, data) => {
     if (!bufs[key]) bufs[key] = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, bufs[key]);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+    noteType(gl, bufs[key], data);
   };
   const bind = (key, name, size) => {
     const a = prog.att(name);
     if (a < 0) return -1;
     gl.bindBuffer(gl.ARRAY_BUFFER, bufs[key]);
     gl.enableVertexAttribArray(a);
-    gl.vertexAttribPointer(a, size, gl.FLOAT, false, 0, 0);
+    pointAttr(gl, a, size, bufs[key]);
     return a;
   };
   return {
@@ -648,6 +665,8 @@ export function createDoorsLayer({ id = DOORS_LAYER_ID, light, exaggeration = 1,
     onRemove() {
       if (gl) {
         Object.values(bufs).forEach((b) => gl.deleteBuffer(b));
+        Object.keys(bufs).forEach((k) => delete bufs[k]);
+        Object.keys(sent).forEach((k) => delete sent[k]);
         if (prog) gl.deleteProgram(prog.p);
       }
       map = null;
@@ -662,9 +681,12 @@ export function createDoorsLayer({ id = DOORS_LAYER_ID, light, exaggeration = 1,
       gl.uniform1f(prog.loc("u_lightintensity"), lt.intensity);
       gl.uniform3fv(prog.loc("u_lightcolor"), lt.color);
       const draw = (mesh, key, alpha) => {
-        put(key + "p", mesh.pos);
-        put(key + "n", mesh.nrm);
-        put(key + "c", mesh.col);
+        if (sent[key] !== mesh.pos) {
+          put(key + "p", mesh.pos);
+          put(key + "n", mesh.nrm);
+          put(key + "c", mesh.col);
+          sent[key] = mesh.pos;
+        }
         const on = [bind(key + "p", "a_pos", 3), bind(key + "n", "a_normal", 3), bind(key + "c", "a_color", 4)];
         gl.uniform1f(prog.loc("u_alpha"), alpha);
         gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
@@ -764,12 +786,14 @@ export function createLightsLayer({ light, exaggeration = 1 }) {
   return layer;
 }
 
-// ── 乗り物（campus3dVehicles・campus3dVehicleMesh：自転車・車・ドローン。歩いて見るあいだだけ。2026-11-17）。形は毎フレーム作り直す ──
+// ── 乗り物（campus3dVehicles・campus3dVehicleMesh：自転車・車・ドローン。歩いて見るあいだだけ。2026-11-17）──
+// 形は群ごと（campus3dVehicleMesh の vehicleFrameMeshes）：止めてある乗り物（park）は版が変わったときだけ GPU へ送る。動いているもの（move、ver: null）は毎フレーム送る
 export const VEHICLES_LAYER_ID = "cb-vehicles";
 const VEH_GLASS_ALPHA = 0.8; // 車の窓（濃い色のガラス。中の座席・運転する人がうっすら見える）
 const VEH_SCREEN_ALPHA = 0.32; // 前かごの網・回っている羽根
 /**
- * @param frame  () => { solid, glass, screen（Mesh の結果と同じ形）, glow（GlowMesh の結果） } か null
+ * @param frame  () => { groups: [{ id, ver（null なら毎フレーム送る）, solid, glass, screen（Mesh の結果と同じ形）, glow（GlowMesh の結果） }] } か null。
+ *               群のない { solid, glass, screen, glow } も受ける（毎フレーム送る）
  */
 export function createVehiclesLayer({ light, exaggeration = 1, frame }) {
   let map = null;
@@ -777,19 +801,21 @@ export function createVehiclesLayer({ light, exaggeration = 1, frame }) {
   let prog = null;
   let glowProg = null;
   const bufs = {};
-  const glowBuf = {};
+  const sent = {}; // バッファの名前 → GPU にある形の版（同じ版なら送らない）
+  const glowBufs = {}; // 群 → 光のにじみのバッファ
   let lt = lightState(light);
   const put = (key, data) => {
     if (!bufs[key]) bufs[key] = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, bufs[key]);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+    noteType(gl, bufs[key], data);
   };
   const bind = (key, name, size) => {
     const a = prog.att(name);
     if (a < 0) return -1;
     gl.bindBuffer(gl.ARRAY_BUFFER, bufs[key]);
     gl.enableVertexAttribArray(a);
-    gl.vertexAttribPointer(a, size, gl.FLOAT, false, 0, 0);
+    pointAttr(gl, a, size, bufs[key]);
     return a;
   };
   return {
@@ -809,25 +835,34 @@ export function createVehiclesLayer({ light, exaggeration = 1, frame }) {
     onRemove() {
       if (gl) {
         Object.values(bufs).forEach((b) => gl.deleteBuffer(b));
-        freeBufs(gl, glowBuf, GLOW_KEYS);
+        Object.values(glowBufs).forEach((b) => freeBufs(gl, b, GLOW_KEYS));
         if (prog) gl.deleteProgram(prog.p);
         if (glowProg) gl.deleteProgram(glowProg.p);
       }
+      for (const o of [bufs, sent, glowBufs]) for (const k of Object.keys(o)) delete o[k]; // 次に足されたときは作り直して送る
       map = null;
     },
     render(g, args) {
       const f = frame();
-      if (!f || (!f.solid.count && !f.glass.count && !f.screen.count && !f.glow?.count)) return;
+      const groups =(f?.groups || (f ? [{ id: "all", ver: null, ...f }] : [])).filter((G) => G.solid.count || G.glass.count || G.screen.count || G.glow?.count);
+      if (!groups.length) return;
       const M = matrixFor(args.modelViewProjectionMatrix, map.transform.worldSize, exaggeration);
       gl.useProgram(prog.p);
       gl.uniformMatrix4fv(prog.loc("u_matrix"), false, M);
       gl.uniform3fv(prog.loc("u_lightpos"), lt.pos);
       gl.uniform1f(prog.loc("u_lightintensity"), lt.intensity);
       gl.uniform3fv(prog.loc("u_lightcolor"), lt.color);
-      const draw = (mesh, key, alpha) => {
-        put(key + "p", mesh.pos);
-        put(key + "n", mesh.nrm);
-        put(key + "c", mesh.col);
+      const draw = (G, part, alpha) => {
+        const mesh = G[part];
+        if (!mesh?.count) return;
+        const key = G.id + ":" + part;
+        // 同じ版の形はもう GPU にある（止めてある乗り物）。ver が null の群（動いているもの）は毎フレーム送る
+        if (G.ver == null || sent[key] !== G.ver) {
+          put(key + "p", mesh.pos);
+          put(key + "n", mesh.nrm);
+          put(key + "c", mesh.col);
+          sent[key] = G.ver;
+        }
         const on = [bind(key + "p", "a_pos", 3), bind(key + "n", "a_normal", 3), bind(key + "c", "a_color", 4)];
         gl.uniform1f(prog.loc("u_alpha"), alpha);
         gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
@@ -835,18 +870,18 @@ export function createVehiclesLayer({ light, exaggeration = 1, frame }) {
       };
       gl.depthFunc(gl.LEQUAL);
       gl.depthMask(true);
-      if (f.solid.count) draw(f.solid, "s", 1);
+      for (const G of groups) draw(G, "solid", 1);
       // 網・回る羽根・窓は半透明で重ねる（奥行きは書かない）
-      if (f.screen.count || f.glass.count) {
+      if (groups.some((G) => G.screen.count || G.glass.count)) {
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
         gl.depthMask(false);
-        if (f.screen.count) draw(f.screen, "n", VEH_SCREEN_ALPHA);
-        if (f.glass.count) draw(f.glass, "g", VEH_GLASS_ALPHA);
+        for (const G of groups) draw(G, "screen", VEH_SCREEN_ALPHA);
+        for (const G of groups) draw(G, "glass", VEH_GLASS_ALPHA);
         gl.depthMask(true);
       }
-      // 前照灯・尾灯・ドローンの灯のにじみと、地面に落ちる光（足し算）
-      if (f.glow?.count) drawGlow(gl, glowProg, uploadTo(gl, f.glow, GLOW_KEYS, glowBuf, gl.DYNAMIC_DRAW), M, glowBasis(map), 1);
+      // 前照灯・尾灯・ドローンの灯のにじみと、地面に落ちる光（足し算。灯は乗っているもの・ドローンだけ）
+      for (const G of groups) if (G.glow?.count) drawGlow(gl, glowProg, uploadTo(gl, G.glow, GLOW_KEYS, (glowBufs[G.id] ||= {}), gl.DYNAMIC_DRAW), M, glowBasis(map), 1);
       gl.bindBuffer(gl.ARRAY_BUFFER, null);
     },
   };

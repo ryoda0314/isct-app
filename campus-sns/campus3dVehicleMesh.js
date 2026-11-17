@@ -742,11 +742,11 @@ function driverJoints(steer) {
 /**
  * 乗り物の形の毎フレームの書き出し。list は [{ kind, s（乗り物の状態）, rider: null | "fp" | "tp"（乗っている人を描くか。fp は頭と胴を描かない）,
  * view（"fp" ならその乗り物の中から見ている：車の窓のガラス・屋根の外を描かない） }]、pilot は { x, y, z, yaw } か null（ドローンを操縦する人）。
- * glow は夜の明るさ（0〜1）、now は ms（ドローンの点滅）
+ * glow は夜の明るさ（0〜1）、now は ms（ドローンの点滅）、pool は書き出す先（既定は毎フレーム用。止めてある乗り物は別の入れ物）
  * @returns { solid, glass, screen（Mesh の結果と同じ形）, glow（GlowMesh の結果） }
  */
-export function vehicleMeshes(list, { pilot = null, glow = 0, now = 0 } = {}) {
-  const solid = POOL.solid, glass = POOL.glass, screen = POOL.screen;
+export function vehicleMeshes(list, { pilot = null, glow = 0, now = 0, pool = POOL } = {}) {
+  const solid = pool.solid, glass = pool.glass, screen = pool.screen;
   solid.n = glass.n = screen.n = 0;
   const light = new GlowMesh();
   const night = Math.min(1, Math.max(0, glow));
@@ -851,6 +851,35 @@ export function vehicleMeshes(list, { pilot = null, glow = 0, now = 0 } = {}) {
     emit(solid, P.freeze(), ID, pose);
   }
   return { solid: solid.result(), glass: glass.result(), screen: screen.result(), glow: light.result() };
+}
+
+// 歩いて見るあいだの毎フレームの形（乗り物のレイヤーへ）。2 つの群に分ける：
+// - park：止めてある乗り物（乗っていない自転車・車）。置き場所・向き・ハンドルなどが変わったときだけ作り直して版（ver）を上げる。レイヤーは同じ版なら GPU へ送らない
+// - move：動いているもの（乗っている 1 台・ドローン・操縦する人）。毎フレーム作って送る（ver: null）
+// 止めてある乗り物の形は夜の明るさ・時刻によらない（灯は乗っているときだけ）
+const POOL_PARK = { solid: new Out(), glass: new Out(), screen: new Out() };
+const PARK = { key: null, mesh: null, ver: 0 };
+const parkKeyOf = (it) => {
+  const s = it.s;
+  return [it.kind, s.x, s.y, s.z, s.yaw, s.pitch || 0, s.lean || 0, s.roll || 0, s.parkSteer ?? 14, s.steer || 0, s.wheel || 0, s.crank || 0].join(",");
+};
+export function vehicleFrameMeshes(list, { pilot = null, glow = 0, now = 0 } = {}) {
+  const parked = [];
+  const moving = [];
+  for (const it of list) {
+    if (!it?.s) continue;
+    (!it.rider && !it.view && it.kind !== "drone" ? parked : moving).push(it);
+  }
+  const key = parked.map(parkKeyOf).join(";");
+  if (key !== PARK.key) {
+    PARK.key = key;
+    PARK.mesh = parked.length ? vehicleMeshes(parked, { pool: POOL_PARK }) : null;
+    PARK.ver++;
+  }
+  const groups = [];
+  if (PARK.mesh) groups.push({ id: "park", ver: PARK.ver, ...PARK.mesh });
+  if (moving.length || pilot) groups.push({ id: "move", ver: null, ...vehicleMeshes(moving, { pilot, glow, now }) });
+  return groups.length ? { groups } : null;
 }
 
 // 地面に落ちる前照灯の光（ローカルの点 p0 から前へ len m、幅 w0 → w1）

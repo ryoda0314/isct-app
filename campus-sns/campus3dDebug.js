@@ -96,10 +96,11 @@ export function raycastMesh(mesh, ray, passes = MESH_PASSES) {
     if (!m?.count) continue;
     const P = m.pos;
     const N = m.nrm;
+    const nk = N instanceof Int8Array ? 127 : 1; // 詰めた法線（campus3dMesh の setMeshPacking）は ×127
     for (let i = 0; i + 8 < m.count * 3; i += 9) {
       if (pass === "cull" && N && N[i] * dm[0] + N[i + 1] * dm[1] + N[i + 2] * dm[2] > 0) continue;
       const t = hitTri(o, d, P, i);
-      if (t != null && (!best || t < best.t)) best = { t, pass, tri: i / 9, normal: N ? [N[i], -N[i + 1], N[i + 2]] : null };
+      if (t != null && (!best || t < best.t)) best = { t, pass, tri: i / 9, normal: N ? [N[i] / nk, -N[i + 1] / nk, N[i + 2] / nk] : null };
     }
   }
   return best;

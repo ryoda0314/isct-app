@@ -127,19 +127,71 @@ const COLORS = {
 const MATERIAL_COLOR = { rust: "rust", perforated: "perforated", steel: "steelHi", darkbrick: "darkBrick", stone: "stone", green: "greenWall", red: "redPanel", concrete: "concrete", glazed: "glazed", granite: "granite", tile: "tile", brick: "redBrick", terracotta: "terracotta", darkgranite: "graniteDark", bronze: "bronze", taupe: "taupe", blue: "blueMat", rose: "rose" };
 
 // 三角形の並び（位置・法線・色）。電車（campus3dTrains.js）も使う
+// 頂点の詰め方（2026-11-17。スマホで地図が開けなくなった：本番で三角形 320 万枚、頂点 384 MB、作る途中の JS のメモリ +1 GB）：
+// ・頂点は、ふつうの配列（数 1 つ 8 バイト＋あとで写し）にためず、はじめから型つきの配列にじかに書く（足りなくなったら広げる）
+// ・setMeshPacking(true)（アプリ。CampusMap3D）のあいだに作った Mesh は、法線を Int8（×127）・色を Uint8（×255）に詰める
+//   （頂点 40 → 19 バイト。描く側 campus3dLayer は配列の型を見て読む）。位置は小数のまま（世界の座標は 1 バイトでは足りない）。
+//   色のアルファは「0.75 より小さい＝光を受けない色」の印にも使うが、0.5 → 128/255 で印は変わらない
+// ・既定（テスト・Node）は今までどおり全部 Float32
+// 中身は this.s（{ n 頂点の数, cap 容量, pos, nrm, col }）に置く：Object.create(m) で作った包み（addBuilding などが vert を差しかえて使う）
+// からも同じ入れ物に書くため（this.n++ のように this にじかに書くと、包みだけの数になって頂点が消える）。外から読むのは result() の結果だけに
+const packN = (v) => (v >= 1 ? 127 : v <= -1 ? -127 : Math.round(v * 127) || 0);
+let MESH_PACKED = false;
+export const setMeshPacking = (on) => {
+  MESH_PACKED = !!on;
+};
 export class Mesh {
   constructor() {
-    this.pos = [];
-    this.nrm = [];
-    this.col = [];
+    this.packed = MESH_PACKED;
+    this.s = { n: 0, cap: 0, pos: null, nrm: null, col: null };
+  }
+
+  grow(need) {
+    const s = this.s;
+    // 小さいうちは 2 倍、大きくなったら 1.5 倍ずつ（広げるときの余りを小さく）
+    const cap = Math.max(need, 256, Math.ceil(s.cap * (s.cap > 1 << 19 ? 1.5 : 2)));
+    const pos = new Float32Array(cap * 3);
+    const nrm = this.packed ? new Int8Array(cap * 3) : new Float32Array(cap * 3);
+    const col = this.packed ? new Uint8ClampedArray(cap * 4) : new Float32Array(cap * 4);
+    if (s.n) {
+      pos.set(s.pos.subarray(0, s.n * 3));
+      nrm.set(s.nrm.subarray(0, s.n * 3));
+      col.set(s.col.subarray(0, s.n * 4));
+    }
+    s.pos = pos;
+    s.nrm = nrm;
+    s.col = col;
+    s.cap = cap;
   }
 
   // xy は平面の m 座標、z は標高(m)、n は法線（東・北・上）
   vert(xy, z, n, c) {
+    const s = this.s;
+    if (s.n >= s.cap) this.grow(s.n + 1);
     const [x, y] = worldOf(xy);
-    this.pos.push(x, y, z);
-    this.nrm.push(n[0], -n[1], n[2]); // 描く側は y が南向き
-    this.col.push(c[0], c[1], c[2], c[3]);
+    const i = s.n++;
+    const { pos, nrm, col } = s;
+    pos[i * 3] = x;
+    pos[i * 3 + 1] = y;
+    pos[i * 3 + 2] = z;
+    if (this.packed) {
+      // 描く側は y が南向き。Int8 は丸めないと切り捨て・あふれるので自分で丸める（色の Uint8Clamped は丸めて 0〜255 に収める）
+      nrm[i * 3] = packN(n[0]);
+      nrm[i * 3 + 1] = packN(-n[1]);
+      nrm[i * 3 + 2] = packN(n[2]);
+      col[i * 4] = c[0] * 255;
+      col[i * 4 + 1] = c[1] * 255;
+      col[i * 4 + 2] = c[2] * 255;
+      col[i * 4 + 3] = c[3] * 255;
+    } else {
+      nrm[i * 3] = n[0];
+      nrm[i * 3 + 1] = -n[1]; // 描く側は y が南向き
+      nrm[i * 3 + 2] = n[2];
+      col[i * 4] = c[0];
+      col[i * 4 + 1] = c[1];
+      col[i * 4 + 2] = c[2];
+      col[i * 4 + 3] = c[3];
+    }
   }
 
   // 四角形 [[xy, z] × 4]。n を省くと面の向きから求める（上向きにそろえる）
@@ -207,7 +259,11 @@ export class Mesh {
   }
 
   result() {
-    return { pos: new Float32Array(this.pos), nrm: new Float32Array(this.nrm), col: new Float32Array(this.col), count: this.pos.length / 3 };
+    const { n, pos, nrm, col } = this.s;
+    if (!n) return { pos: new Float32Array(0), nrm: this.packed ? new Int8Array(0) : new Float32Array(0), col: this.packed ? new Uint8Array(0) : new Float32Array(0), count: 0 };
+    // ちょうどの長さに写す（容量の余りを持ち歩かない）。詰めた色は Uint8Array として渡す（同じメモリ）
+    const c = col.slice(0, n * 4);
+    return { pos: pos.slice(0, n * 3), nrm: nrm.slice(0, n * 3), col: this.packed ? new Uint8Array(c.buffer) : c, count: n };
   }
 }
 

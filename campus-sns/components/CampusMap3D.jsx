@@ -13,10 +13,10 @@ import { onWorldClock, worldClock, worldDay, worldIsSet, worldNow } from "../cam
 import { BURN_MAXZOOM, dem, demTileUrl, registerDemProtocol } from "../campusDem.js";
 import { ROUTE_ON_BRIDGE, buildingOpenings, buildingRoof, burnsGround, detailView, eraKey, featuresAt, featuresBounds, floorLevels, isPaint, pointInRing, prepareBridge, replacedBuildings, splitByBridges, stairsPath, toLngLat, toXY } from "../campus3dFeatures.js";
 import { cutFloorRegions, floorG0, floorLabels } from "../campus3dInterior.js";
-import { buildMesh, buildRibbons } from "../campus3dMesh.js";
+import { buildMesh, buildRibbons, setMeshPacking } from "../campus3dMesh.js";
 import { createDoorsLayer, createExtrasLayer, createLightsLayer, createTrainsLayer, createVehiclesLayer } from "../campus3dLayer.js";
 import { CAR, DRONE, angDiffV, bikeFits, carFits, dismountSpot, fwdOf, leftOf, loadVehicles, pickVehicle, placeVehicle, saveVehicles, stepBike, stepCar, stepDrone, vehicleBlocks, vehicleCamera } from "../campus3dVehicles.js";
-import { vehicleMeshes } from "../campus3dVehicleMesh.js";
+import { vehicleFrameMeshes } from "../campus3dVehicleMesh.js";
 import { MapVehicles } from "./MapVehicles.jsx";
 import { doorLeaves, stepDoors } from "../campus3dDoors.js";
 import { collectLifts, liftBlocked, liftClock, liftFloors, liftMeshes, liftPick, liftState, pressButton, stepLift } from "../campus3dLift.js";
@@ -40,6 +40,40 @@ import { ESC_LAYER_ID, escalatorMesh, prepareEscalators } from "../campus3dEscal
 import { DEPARTURES_URL, LED_LAYER_ID, departuresKey, departuresMesh, prepareDepartureBoards } from "../campus3dDepartures.js";
 import { MCLOCK_LAYER_ID, mathClockKey, mathClockMesh } from "../campus3dMathClock.js";
 import { TERRAIN } from "../campusTerrain.js";
+// ── スマホで開けるように（2026-11-17。本番で三角形 320 万枚・頂点 384 MB になり、スマホのタブが落ちた）──
+// 1) 形の頂点を詰める（campus3dMesh の setMeshPacking：法線 Int8・色 Uint8。どの端末でも）
+setMeshPacking(true);
+// 2) スマホ・タブレット（lite）では、建物の中（階 floor）を描くのは見ている所の近くの建物だけ。遠くの建物は外側の殻だけ
+//    （ガラスごしに中は見えない）。減らすのは描く形だけ：歩く世界・地面の掘り方・扉・エレベーターは全部の階のまま（view）。
+//    近づいたら LITE_NEAR.in m で入れ、離れたら .out m で外す（境目で行ったり来たりして作り直さないように差をつける）。
+//    歩いていないときは、地図の中心で見る（zoom がこれより引いていたら中は作らない）。
+//    試すとき：localStorage の "cb3-lite" を "1"（PC でも lite）か "0"（スマホでも全部）に
+const LITE_NEAR = { in: 60, out: 110, minZoom: 16.5, everyMs: 800, gapMs: 2500 };
+const isLiteDevice = () => {
+  try {
+    const o = window.localStorage.getItem("cb3-lite");
+    if (o === "1") return true;
+    if (o === "0") return false;
+  } catch {
+    /* 読めなければ端末で決める */
+  }
+  const ua = navigator.userAgent || "";
+  return /Android|iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1); // iPadOS は Mac と名のる
+};
+// 点 p（平面の m）から輪 ring までの距離（中なら 0）
+const ringDistance = (ring, p) => {
+  if (pointInRing(p[0], p[1], ring)) return 0;
+  let d = Infinity;
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i];
+    const b = ring[(i + 1) % ring.length];
+    const vx = b[0] - a[0];
+    const vy = b[1] - a[1];
+    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / (vx * vx + vy * vy || 1)));
+    d = Math.min(d, Math.hypot(a[0] + vx * t - p[0], a[1] + vy * t - p[1]));
+  }
+  return d;
+};
 // 見え方（昼・夕方・夜の固定）より、デバッグで決めた時刻（世界の時計）を先にする（固定のままだと時刻を変えても太陽が動かない）
 const effLook = (m) => (m !== "auto" && worldIsSet() ? "auto" : m);
 import { cutPassages, loadClipper } from "../campus3dBuildings.js";
@@ -986,7 +1020,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       } catch (err) {
         console.warn("[3D map] lift layer:", err?.message || err);
       }
-      // 乗り物（自転車・車・ドローン。歩いて見るあいだだけ。形は毎フレーム作り直す）
+      // 乗り物（自転車・車・ドローン。歩いて見るあいだだけ。動いている乗り物だけ毎フレーム作り直す）
       try {
         const vehLayer = createVehiclesLayer({ light: lookRef.current.light, exaggeration: TERRAIN_EXAG, frame: () => vehicleFrame() });
         map.addLayer(vehLayer, "nav-route-passed");
@@ -1223,6 +1257,39 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const view = useMemo(() => detailView(features, { detail: detailOn && levels.length > 0, level: viewLevel }), [features, detailOn, levels, viewLevel]);
   const viewRef = useRef(view);
   viewRef.current = view;
+  // lite（スマホ）：中を描く建物（host の id の集まり。null は全部＝PC）。nearHosts() が見ている所から選び直し、変わったら true
+  const liteRef = useRef(null);
+  const nearRef = useRef(null);
+  const nearRings = useMemo(() => {
+    const by = new Map();
+    for (const f of view) if (f.type === "floor" && f.host && f.coords?.length > 2) by.set(f.host, [...(by.get(f.host) || []), f.coords.map(toXY)]);
+    return by;
+  }, [view]);
+  const nearRingsRef = useRef(nearRings);
+  nearRingsRef.current = nearRings;
+  const nearHosts = () => {
+    if (liteRef.current == null) liteRef.current = isLiteDevice();
+    if (!liteRef.current) return false;
+    const map = mapRef.current;
+    const w = walkRef.current;
+    let p = null;
+    if (w) p = [w.x, w.y];
+    else if (map && map.getZoom() >= LITE_NEAR.minZoom) {
+      const c = map.getCenter();
+      p = toXY([c.lng, c.lat]);
+    }
+    const old = nearRef.current;
+    const next = new Set();
+    if (p) nearRingsRef.current.forEach((rings, host) => {
+      const lim = old?.has(host) ? LITE_NEAR.out : LITE_NEAR.in;
+      if (rings.some((r) => ringDistance(r, p) < lim)) next.add(host);
+    });
+    const same = old && old.size === next.size && [...next].every((h) => old.has(h));
+    if (same) return false;
+    nearRef.current = next;
+    return true;
+  };
+  const drawViewOf = (v) => (nearRef.current ? v.filter((f) => f.type !== "floor" || nearRef.current.has(f.host)) : v);
   // スマホのナビの行き先：3D の地図の範囲の中にあるスポット（すずかけ台・遠くの店は歩いて行けないので出さない）
   const phoneSpots = useMemo(() => {
     const R = regionOf(data);
@@ -1332,7 +1399,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       const clip = view.some((f) => f.type === "building" && buildingOpenings(f, view).length) ? await loadClipper() : null;
       if (!live()) return;
       meshRef.current = () => {
-        const res = buildMesh(view, { groundAt: ground, slopes: dem.slopes, terraces: dem.terraces, ceilings: cut.ceilings, digs: dem.digs, pal: built.pal, dark, selectedId: selectedFeatureId, accent, bldColor, clip, tone: lookRef.current?.tone, trees: !vegRef.current });
+        nearHosts(); // lite（スマホ）：中を描く建物を、いま見ている所で選ぶ
+        const res = buildMesh(drawViewOf(view), { groundAt: ground, slopes: dem.slopes, terraces: dem.terraces, ceilings: cut.ceilings, digs: dem.digs, pal: built.pal, dark, selectedId: selectedFeatureId, accent, bldColor, clip, tone: lookRef.current?.tone, trees: !vegRef.current });
         if (debugRef.current) lastMeshRef.current = res;
         extrasRef.current?.setMesh(res);
         // 使える物（自販機・券売機・改札）。改札の羽は自動ドアの板として描き、歩くあいだは閉じた羽がふさぐ（campus3dInteract）
@@ -1378,6 +1446,21 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       }
     })().catch((err) => console.warn("[3D map] features:", err?.message || err));
   }, [loaded, view, selectedFeatureId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // lite（スマホ）：見ている所が動いて、中を描く建物が変わったら形を作り直す（作り直しは重いので、続けては作らない）
+  useEffect(() => {
+    if (!loaded) return undefined;
+    let last = 0;
+    const id = setInterval(() => {
+      if (liteRef.current === false || !meshRef.current) return;
+      const now = performance.now();
+      if (now - last < LITE_NEAR.gapMs) return;
+      if (!nearHosts()) return;
+      last = now;
+      meshRef.current();
+    }, LITE_NEAR.everyMs);
+    return () => clearInterval(id);
+  }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 詳細モード：選んだ階の部屋の名前（切り取って見ているとき。歩いているあいだは出さない）
   useEffect(() => {
@@ -2225,7 +2308,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const d = VH.list.drone;
     const pilot = VH.ride === "drone" ? { x: w.x, y: w.y, z: w.z, yaw: d ? (Math.atan2(d.x - w.x, d.y - w.y) * 180) / Math.PI : w.yaw } : null;
     if (!items.length && !pilot) return null;
-    return vehicleMeshes(items, { pilot, glow: lookRef.current?.lamp || 0, now: performance.now() });
+    return vehicleFrameMeshes(items, { pilot, glow: lookRef.current?.lamp || 0, now: performance.now() }); // 止めてある乗り物は変わったときだけ作って GPU へ送る
   }
   // ドローンが戻る先：操縦する人の 1.2m 前の足もと（gz は離陸した地面＝高さの上限の基準）
   function droneHome(w) {
