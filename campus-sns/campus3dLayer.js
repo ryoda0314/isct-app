@@ -1,6 +1,8 @@
 // MapLibre の独自レイヤー（WebGL）で、手で足した構造物（壁・橋など）と、橋の上を通るルート、電車、夜の街灯を描く。
 // 形は campus3dMesh.js。地形と同じ「海抜の標高(m)」で置くので、地面や建物とのかぶり方（奥行き）も正しくなる
 import { MERC_SCALE, ORIGIN, worldOf } from "./campus3dMesh.js";
+import { createFloorTexture } from "./campus3dFloorMaterials.js";
+import { interiorPalette } from "./campus3dInterior.js";
 
 export const EXTRAS_LAYER_ID = "cb-extras";
 const GLASS_ALPHA = 0.3; // ガラスの手すりの板の濃さ
@@ -35,6 +37,27 @@ const FS_SOLID = `
 precision mediump float;
 varying vec4 v_color;
 void main() { gl_FragColor = v_color; }`;
+const VS_FLOOR = `
+attribute vec3 a_pos;
+attribute vec2 a_uv;
+attribute vec4 a_color;
+uniform mat4 u_matrix;
+varying highp vec2 v_uv;
+varying lowp vec4 v_highlight;
+void main() {
+  gl_Position = u_matrix * vec4(a_pos, 1.0);
+  v_uv = a_uv;
+  v_highlight = a_color;
+}`;
+const FS_FLOOR = `
+precision highp float;
+uniform sampler2D u_finish;
+varying highp vec2 v_uv;
+varying lowp vec4 v_highlight;
+void main() {
+  vec3 color = texture2D(u_finish, v_uv).rgb;
+  gl_FragColor = vec4(mix(color, v_highlight.rgb, v_highlight.a), 1.0);
+}`;
 // 詳細モードで歩いて見るときの建物の殻：カメラから見て裏を向く面（面の向きとカメラからの向きが同じ側）は描かない＝建物の中からは見えない。
 // u_cam はカメラの位置（描く座標）、u_kxy は描く座標の 1 が何 m か（x, y。z は m）
 const VS_CULL = VS_SOLID.replace("varying vec4 v_color;", "varying vec4 v_color;\nuniform vec3 u_cam;\nuniform float u_kxy;\nvarying float v_back;")
@@ -270,7 +293,9 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
   let solid = null;
   let ribbon = null;
   let culler = null;
-  const buf = { mesh: null, thin: null, glass: null, screen: null, haze: null, veil: null, cull: null, portal: null, under: null, rib: null };
+  let floorProg = null;
+  const floorTextures = new Map();
+  const buf = { mesh: null, floors: null, thin: null, glass: null, screen: null, haze: null, veil: null, cull: null, portal: null, under: null, rib: null };
   let mesh = null;
   let rib = null;
   let lt = lightState(light);
@@ -340,9 +365,11 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
       solid = compile(gl, VS_SOLID, FS_SOLID);
       ribbon = compile(gl, VS_RIBBON, FS_RIBBON);
       culler = compile(gl, VS_CULL, FS_CULL);
+      floorProg = compile(gl, VS_FLOOR, FS_FLOOR);
     },
     onRemove() {
       free(buf.mesh, ["pos", "nrm", "col"]);
+      free(buf.floors, ["pos", "uv", "col"]);
       free(buf.thin, ["pos", "nrm", "col"]);
       free(buf.glass, ["pos", "nrm", "col"]);
       free(buf.screen, ["pos", "nrm", "col"]);
@@ -357,6 +384,7 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
       buf.portal = null;
       buf.under = null;
       buf.mesh = null;
+      buf.floors = null;
       buf.thin = null;
       buf.glass = null;
       buf.screen = null;
@@ -366,12 +394,16 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
         if (solid) gl.deleteProgram(solid.p);
         if (ribbon) gl.deleteProgram(ribbon.p);
         if (culler) gl.deleteProgram(culler.p);
+        if (floorProg) gl.deleteProgram(floorProg.p);
+        for (const texture of floorTextures.values()) gl.deleteTexture(texture);
+        floorTextures.clear();
       }
       map = null;
     },
     render(g, args) {
       if (mesh) {
         free(buf.mesh, ["pos", "nrm", "col"]);
+        free(buf.floors, ["pos", "uv", "col"]);
         free(buf.thin, ["pos", "nrm", "col"]);
         free(buf.glass, ["pos", "nrm", "col"]);
         free(buf.screen, ["pos", "nrm", "col"]);
@@ -385,6 +417,15 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
         buf.portal = mesh.portal?.count ? upload(mesh.portal, ["pos", "nrm", "col"]) : null;
         buf.under = mesh.under?.count ? upload(mesh.under, ["pos", "nrm", "col"]) : null;
         buf.mesh = mesh.count ? upload(mesh, ["pos", "nrm", "col"]) : null;
+        buf.floors = mesh.floors?.count ? upload(mesh.floors, ["pos", "uv", "col"]) : null;
+        if (buf.floors) {
+          buf.floors.batches = mesh.floors.batches;
+          gl.activeTexture(gl.TEXTURE0);
+          for (const { finish } of buf.floors.batches) {
+            if (!floorTextures.has(finish)) floorTextures.set(finish, createFloorTexture(gl, finish, interiorPalette));
+          }
+          gl.bindTexture(gl.TEXTURE_2D, null);
+        }
         buf.thin = mesh.thin?.count ? upload(mesh.thin, ["pos", "nrm", "col"]) : null;
         buf.glass = mesh.glass?.count ? upload(mesh.glass, ["pos", "nrm", "col"]) : null;
         buf.screen = mesh.screen?.count ? upload(mesh.screen, ["pos", "nrm", "col"]) : null;
@@ -400,7 +441,7 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
       const M = matrixFor(args.modelViewProjectionMatrix, ws, exaggeration);
       // いま描いた行列（描く座標 → クリップ座標）：目印（campus3dDebug.js）が 3D の点を画面へ・画面の点を光線へ直すのに使う
       layer.matrix = M;
-      if (!buf.mesh && !buf.thin && !buf.glass && !buf.screen && !buf.haze && !buf.veil && !buf.cull && !buf.rib) return;
+      if (!buf.mesh && !buf.floors && !buf.thin && !buf.glass && !buf.screen && !buf.haze && !buf.veil && !buf.cull && !buf.rib && !buf.under) return;
       const enabled = [];
 
       // 形（壁・段・橋）。手すり（thin）は奥行きを書かずに描く：段や壁には隠れるが、あとで描くルートの線を支柱で途切れさせない。
@@ -409,8 +450,23 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
       const cam = buf.cull ? cameraOf(M) : null;
       if (buf.portal && map.terrain) punchPortals(buf.portal, M);
       // 天井のない平地の床（mesh.under）：地形を外しているとき（地面の下を歩くとき）だけ。ふだんは地形が床
-      [[map.terrain ? null : buf.under, true, 1], [buf.mesh, true, 1], [cam ? buf.cull : null, true, 1, true], [buf.thin, false, 1], [buf.screen, false, SCREEN_ALPHA], [buf.veil, false, VEIL_ALPHA], [buf.haze, false, HAZE_ALPHA], [buf.glass, false, GLASS_ALPHA]].forEach(([b, writeDepth, alpha, culled]) => {
+      [[map.terrain ? null : buf.under, true, 1], [buf.floors, true, 1], [buf.mesh, true, 1], [cam ? buf.cull : null, true, 1, true], [buf.thin, false, 1], [buf.screen, false, SCREEN_ALPHA], [buf.veil, false, VEIL_ALPHA], [buf.haze, false, HAZE_ALPHA], [buf.glass, false, GLASS_ALPHA]].forEach(([b, writeDepth, alpha, culled]) => {
         if (!b) return;
+        if (b === buf.floors) {
+          gl.useProgram(floorProg.p);
+          gl.uniformMatrix4fv(floorProg.loc("u_matrix"), false, M);
+          gl.uniform1i(floorProg.loc("u_finish"), 0);
+          gl.activeTexture(gl.TEXTURE0);
+          gl.depthMask(true);
+          const attrs = [bindAttr(floorProg, "a_pos", b.pos, 3), bindAttr(floorProg, "a_uv", b.uv, 2), bindAttr(floorProg, "a_color", b.col, 4)];
+          for (const { finish, first, count } of b.batches) {
+            gl.bindTexture(gl.TEXTURE_2D, floorTextures.get(finish));
+            gl.drawArrays(gl.TRIANGLES, first, count);
+          }
+          attrs.forEach((a) => gl.disableVertexAttribArray(a));
+          gl.bindTexture(gl.TEXTURE_2D, null);
+          return;
+        }
         const prog = culled ? culler : solid;
         gl.useProgram(prog.p);
         gl.uniformMatrix4fv(prog.loc("u_matrix"), false, M);

@@ -85,7 +85,7 @@ function hitTri(o, d, P, i) {
 }
 // 描いた三角形（buildMesh の結果）のうち、光線がいちばん近くで当たるもの：{ t, pass, tri, normal（東・北・上） } か null。
 // 殻の段（cull）は描くときと同じく、カメラから見て裏を向く面は当たらない。passes で段をしぼれる
-export const MESH_PASSES = ["", "cull", "thin", "glass", "veil", "screen", "haze"];
+export const MESH_PASSES = ["", "floors", "cull", "thin", "glass", "veil", "screen", "haze"];
 export function raycastMesh(mesh, ray, passes = MESH_PASSES) {
   if (!mesh || !ray) return null;
   const { o, d } = ray;

@@ -71,7 +71,9 @@ export function textCells(t, h, { b = 700, led = false } = {}) {
   // 1 字の高さを何升にするか：光る点の字は 12、ほかは字の大きさで 28〜48
   const px = led ? 12 : Math.max(28, Math.min(48, Math.round(h * 220)));
   const cell = h / px;
-  g.font = `${b} ${px}px ${FONT}`;
+  // 英字だけの太い字（b 800 以上）は英字の太い書体で（マクドナルドの看板など。2026-11-18）
+  const font = b >= 800 && /^[ -~]+$/.test(t) ? `"Arial Black","Helvetica Neue",Arial,${FONT}` : FONT;
+  g.font = `${b} ${px}px ${font}`;
   const W = Math.max(1, Math.ceil(g.measureText(t).width) + 4);
   const H = Math.ceil(px * 1.2) + 2;
   if (g.canvas.width < W || g.canvas.height < H) {
@@ -79,7 +81,7 @@ export function textCells(t, h, { b = 700, led = false } = {}) {
     g.canvas.height = Math.max(g.canvas.height, H);
   }
   g.clearRect(0, 0, g.canvas.width, g.canvas.height);
-  g.font = `${b} ${px}px ${FONT}`;
+  g.font = `${b} ${px}px ${font}`;
   g.textBaseline = "alphabetic";
   g.fillStyle = "#000";
   const base = Math.round(px * 0.88) + 1; // 字の箱の上は base − 0.88px、下は base + 0.12px

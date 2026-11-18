@@ -534,6 +534,20 @@ export function normalizeFeature(f) {
     const dep = (Array.isArray(f.dep) ? f.dep : []).filter((d) => Array.isArray(d) && d.length === 4 && d.every((v) => v !== null && v !== "" && Number.isFinite(+v)))
       .map((d) => [Math.round(clampTo(d[0], [1, 9], 1)), round2(clampTo(d[1], [0, W], 0)), round2(clampTo(d[2], [0, H], 0)), round2(clampTo(d[3], [0.1, W], 1))]).slice(0, 4);
     if (dep.length) out.dep = dep;
+    // 東急の発車標の作り（2026-11-18、大岡山駅。campus3dDepartures）：led = { size（字の高さ m）, row（段の間隔 m）,
+    // clock（[x, y, 字の高さ]：いまの時刻）, scroll（[x, y, 幅, 字の高さ]：下の段を流れる案内） }。あれば種別は色の札に白い字
+    if (dep.length && f.led && typeof f.led === "object") {
+      const L = {};
+      const fin = (v, lo, hi) => (v !== null && v !== "" && Number.isFinite(+v) ? round2(Math.min(hi, Math.max(lo, +v))) : null);
+      const sz = fin(f.led.size, 0.04, 0.4), rw = fin(f.led.row, 0.04, 0.5);
+      if (sz) L.size = sz;
+      if (rw) L.row = rw;
+      const arr = (a, n) => (Array.isArray(a) && a.length === n && a.every((v) => v !== null && v !== "" && Number.isFinite(+v)) ? a.map((v) => round2(+v)) : null);
+      const ck = arr(f.led.clock, 3), sc = arr(f.led.scroll, 4);
+      if (ck) L.clock = ck;
+      if (sc) L.scroll = sc;
+      out.led = L;
+    }
   } else if (f.type === "tree") {
     out.coords = coords.slice(0, 1);
     out.height = round2(clampTo(f.height, RANGE.theight, d.height));
@@ -1141,6 +1155,10 @@ function normalizeFloor(f, out, d) {
     const hx = (v) => (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : null);
     if (hx(it.color)) o.color = hx(it.color);
     if (hx(it.color2)) o.color2 = hx(it.color2);
+    if (o.kind === "woodchair" && it.folding === true) o.folding = true;
+    if (o.kind === "box" && it.pillow === true) o.pillow = true;
+    if (o.kind === "white" && it.flowers === true) o.flowers = true;
+    if (o.kind === "openshelf" && it.brochures === true) o.brochures = true;
     // color3（2026-11-15、西5号館の食堂）：table の 1 本脚の足もとの丸い台、woodchair の背の板の色
     if (o.kind === "globe" && it.stand === true) { o.stand = true; if (hx(it.color)) o.color = hx(it.color); } // 置いた地球儀（2026-11-18）
     if (o.kind === "wboard" && it.clear === true) o.clear = true; // 透明のついたて（板なし。2026-11-18）

@@ -3777,10 +3777,13 @@ function addWindow(m, w, host, g0, look) {
     // すりガラス（白っぽく、上ほど明るい。70周年記念講堂の入口の上の帯）
     rect(0, L, z0, z1, WIN_OFF, [look.frost[0], look.frost[0], look.frost[1], look.frost[1]]);
   } else if (kind === "dark") {
-    rect(0, L, z0, z1, WIN_OFF, look.dark);
-    // 奥まった窓：上と片側の見込み（影）を枠の内に
-    rect(fr, L - fr, z1 - fr - 0.18, z1 - fr, WIN_OFF + 0.004, look.reveal);
-    rect(L - fr - 0.16, L - fr, z0 + fr, z1 - fr, WIN_OFF + 0.004, look.reveal);
+    // ガラスと見込みの影は一枚の面を分けて張る。上方のガラスにはその時刻の空の色を薄く映す。
+    const right = L - Math.min(fr + 0.16, L * 0.35);
+    const top = z1 - Math.min(fr + 0.18, (z1 - z0) * 0.35);
+    const sky = mix(look.dark, look.glass[1], 0.14);
+    rect(0, right, z0, top, WIN_OFF, [look.dark, look.dark, sky, sky]);
+    rect(right, L, z0, top, WIN_OFF, look.reveal);
+    rect(0, L, top, z1, WIN_OFF, look.reveal);
   } else if (kind === "grille") {
     rect(0, L, z0, z1, WIN_OFF, look.dark);
     // 格子：0.16m の升目
@@ -4514,6 +4517,25 @@ function indoorMesh(m) {
   return mi;
 }
 
+// 同じ素材の床をまとめて描く。UV は床だけに持たせ、壁や家具の頂点バッファは増やさない。
+function buildFloorFinishes(finishes) {
+  const mesh = new Mesh();
+  const surface = Object.create(mesh);
+  const uv = [], batches = [];
+  for (const [finish, regions] of finishes) {
+    const first = mesh.s.n;
+    for (const region of regions) {
+      surface.vert = (p, z, n, c) => {
+        mesh.vert(p, z, n, c);
+        uv.push(...region.uv(p));
+      };
+      for (const poly of region.area) surface.polygon(poly, region.z, [0, 0, 1], region.highlight);
+    }
+    if (mesh.s.n > first) batches.push({ finish, first, count: mesh.s.n - first });
+  }
+  return { ...mesh.result(), uv: new Float32Array(uv), batches };
+}
+
 // digs は詳細モードで地下の階の下を掘ったもの（dem.digs）
 export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceilings = [], digs = [], pal, dark, selectedId = null, accent = "#28c868", bldColor = null, clip = null, tone = null, trees = true }) {
   // いくつもの建物にまたがる階（hostRefs。2026-11-15 本館）の殻どうしが接する面：外がとなりの殻の中なら、となりの屋根の高さまでは
@@ -4589,6 +4611,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
   autoEsc = [];
   autoClocks = [];
   const m = new Mesh();
+  const finishes = new Map();
   const thin = new Mesh(); // 階段の手すり：奥行きを書かずに描く（ルートの線を支柱で途切れさせない）
   const glassy = new Mesh(); // ガラスの手すりの板：ほかを描いたあとに半透明で重ねる（向こうの段や穴が透けて見える）
   const screen = new Mesh(); // 穴あきの金属板（建物の panels の perforated）：ガラスより濃い半透明で重ねる
@@ -4840,7 +4863,8 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
         return below(q);
       };
     }
-    addFloor({ m, glassy, veil, cull }, f, { groundAt, tint, paintAt, ceilAt, cutTop: f.cut && Number.isFinite(g0) ? g0 + f.z + f.height - f.slab + 0.05 : Infinity, glazed, doors: autoDoors, psd: autoPsd, esc: autoEsc, clocks: autoClocks, text: FLOOR_TEXT, ...(plenum.get(f.id) || {}) });
+    const highlight = f.id === selectedId ? [acc[0], acc[1], acc[2], 0.45] : [0, 0, 0, 0];
+    addFloor({ m, finishes, glassy, veil, cull }, f, { groundAt, tint, highlight, paintAt, ceilAt, cutTop: f.cut && Number.isFinite(g0) ? g0 + f.z + f.height - f.slab + 0.05 : Infinity, glazed, doors: autoDoors, psd: autoPsd, esc: autoEsc, clocks: autoClocks, text: FLOOR_TEXT, ...(plenum.get(f.id) || {}) });
   });
   // 掘らない地下の階に面したふちの帯は、その床から PASS_CLEAR m より上だけ（連絡通路の口。歩く当たり campus3dWalk と同じ形）
   const cutFloors = cutFloorRegions(features, groundAt);
@@ -4856,7 +4880,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
   // 計算式の時計の面（{ o, u, n, z0, w, h, d }。光る字は campus3dMathClock）
   const clocks = autoClocks;
   autoClocks = null;
-  return { ...m.result(), thin: thin.result(), glass: glassy.result(), screen: screen.result(), haze: haze.result(), veil: veil.result(), cull: cull.result(), portal: portal.result(), under: under.result(), doors, psd, esc, clocks };
+  return { ...m.result(), floors: buildFloorFinishes(finishes), thin: thin.result(), glass: glassy.result(), screen: screen.result(), haze: haze.result(), veil: veil.result(), cull: cull.result(), portal: portal.result(), under: under.result(), doors, psd, esc, clocks };
 }
 
 // 中のある建物（detailShell）の屋根の下の天井に渡すもの：大梁を通す柱（その建物の階の、屋根の下の天井まで届く細い物の中心）と、

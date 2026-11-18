@@ -649,6 +649,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       map = new ml.Map({
         container: box,
         style: built.style,
+        canvasContextAttributes: { antialias: !isLiteDevice() },
         center: [initialView.lng, initialView.lat],
         zoom: initialView.zoom + ML_ZOOM_OFFSET,
         bearing: initialView.bearing || 0,
@@ -987,7 +988,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
             const L = ledRef.current;
             if (!L.data || !L.boards.length) return null;
             const c = serviceClock();
-            const key = departuresKey(c);
+            const key = departuresKey(c, L.boards);
             if (!L.mesh || key !== L.key) {
               L.mesh = departuresMesh(L.boards, L.data, c);
               L.key = key;

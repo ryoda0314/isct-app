@@ -4,8 +4,9 @@
 // 描くのは：床（穴＝吹き抜け・階段の口）と床の下の面（下の階の天井）・部屋の床の色・壁（扉の口とまぐさ）・ガラス（枠）・格子の手すり・
 // 家具など・階段（段・裏の面・手すり）・地下の上を覆う地面の高さの床（lids）。歩いて見るとき（全部の階）は、建物の屋根の下の天井と梁（addRoofCeiling）。
 // 地下の階の下を掘ったふち（dig）の帯は addDigBand
+import { floorUV } from "./campus3dFloorMaterials.js";
 import polygonClipping from "polygon-clipping";
-import { LIFT_DOOR_H, LIFT_DOOR_W, LIFT_WALL, WALL_CAP, WALL_T, archTop, buildingRoof, herringboneBricks, offsetRingBy, pointInRing, ringArea, roofSlab, toLngLat, toXY, trackZs } from "./campus3dFeatures.js";
+import { LIFT_DOOR_H, LIFT_DOOR_W, LIFT_WALL, WALL_CAP, WALL_T, archTop, buildingRoof, offsetRingBy, pointInRing, ringArea, roofSlab, toLngLat, toXY, trackZs } from "./campus3dFeatures.js";
 
 const hex = (h, a = 0.5) => {
   const n = parseInt(h.slice(1, 7), 16);
@@ -105,6 +106,7 @@ const PAL = {
   // 劇場の椅子（橙がかった布・明るい木の背の板・暗い木の袖）
   vboard: "#b8763a", vboardJoint: "#7d4d24", lattice: "#e6e6de", latticeJoint: "#a3a39b", tseatCloth: "#c8694a", tseatWood: "#d2a05f", tseatSide: "#5a4030",
 };
+export { PAL as interiorPalette };
 const COL = Object.fromEntries(Object.entries(PAL).map(([k, v]) => [k, hex(v)]));
 const GLASS = hex(PAL.glass, 0.5);
 const MESH = hex(PAL.mesh, 0.5);
@@ -382,6 +384,33 @@ function addSeatItem(m, it, r, z0, z1, T, tint) {
   }
   // woodchair：後ろの 2 本の脚は背のてっぺんまで（背の柱）
   const fr = col2 || T("woodFrame"), seat = col || T("chairSeat");
+  if (it.folding) {
+    // Taki Plaza B1: each side is an open polygon of walnut planks, with a wide central backrest.
+    // Extrude a convex side profile across the grain. Coordinates are fractions of depth and height.
+    const plank = (x0, x1, profile, color) => {
+      const yz = profile.map(([y, z]) => [D * y, H * z]);
+      const side = (x) => yz.map(([y, z]) => [P(L * x, y), z0 + z]);
+      const left = side(x0), right = side(x1);
+      face(m, left, [-u[0], -u[1], 0], color);
+      face(m, right, [u[0], u[1], 0], color);
+      const sign = Math.sign(ringArea(yz));
+      for (let i = 0; i < yz.length; i++) {
+        const j = (i + 1) % yz.length, dy = yz[j][0] - yz[i][0], dz = yz[j][1] - yz[i][1];
+        const scale = sign / Math.hypot(dy, dz);
+        face(m, [left[i], left[j], right[j], right[i]], [v[0] * dz * scale, v[1] * dz * scale, -dy * scale], color);
+      }
+    };
+    for (const x of [0.015, 0.945]) {
+      plank(x, x + 0.04, [[0.02, 1], [0.19, 0.93], [0.96, 0], [0.89, 0]], fr);
+      const inset = x < 0.5 ? 0.041 : -0.041;
+      plank(x + inset, x + inset + 0.04, [[0.07, 0], [0.14, 0], [0.83, 0.58], [0.68, 0.65]], fr);
+      plank(x, x + 0.04, [[0.02, 1], [0.09, 0.9], [0.74, 0.59], [0.8, 0.62]], fr);
+    }
+    plank(0.045, 0.955, [[0.25, 0.44], [0.95, 0.54], [0.96, 0.59], [0.25, 0.49]], seat);
+    plank(0.30, 0.70, [[0.25, 0.49], [0.30, 0.50], [0.10, 0.965], [0.055, 0.95]], seat);
+    plank(0.012, 0.988, [[0.022, 0.995], [0.072, 1], [0.13, 0.92], [0.075, 0.91]], fr);
+    return;
+  }
   for (const x of [0.03, L - 0.03]) {
     bar(m, [P(x, 0.03), z0], [P(x, 0.03), z1], 0.032, fr);
     bar(m, [P(x, D - 0.03), z0], [P(x, D - 0.03), zs], 0.032, fr);
@@ -392,6 +421,28 @@ function addSeatItem(m, it, r, z0, z1, T, tint) {
   bar(m, [P(0.03, 0.03), z1 - 0.04], [P(L - 0.03, 0.03), z1 - 0.04], 0.05, fr);
   bar(m, [P(0.03, 0.03), zs + 0.18], [P(L - 0.03, 0.03), zs + 0.18], 0.025, fr);
   for (const y of [0.03, D - 0.03]) bar(m, [P(0.03, y), z0 + 0.16], [P(L - 0.03, y), z0 + 0.16], 0.018, fr);
+}
+
+// Padded faces meet at a pinched seam. The top leans back toward the first edge of the footprint.
+function addPillow(m, r, z0, z1, color) {
+  const along = sub(r[1], r[0]), depth = sub(r[3], r[0]);
+  const surface = (x, z, side) => {
+    const bulge = (1 - x * x) * (1 - z * z);
+    const t = 0.48 - 0.35 * z + side * 0.36 * bulge;
+    const s = 0.5 + x * (0.48 - 0.04 * z * z);
+    return [[r[0][0] + along[0] * s + depth[0] * t, r[0][1] + along[1] * s + depth[1] * t], z0 + (z1 - z0) * (0.5 + z * (0.46 + 0.04 * x * x))];
+  };
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) {
+      const x = i / 3 - 1, z = j / 3 - 1;
+      const a = surface(x, z, side), b = surface(x + 1 / 3, z, side);
+      const c = surface(x + 1 / 3, z + 1 / 3, side), d = surface(x, z + 1 / 3, side);
+      const ac = sub(c[0], a[0]), bd = sub(d[0], b[0]), acZ = c[1] - a[1], bdZ = d[1] - b[1];
+      const n = [ac[1] * bdZ - acZ * bd[1], acZ * bd[0] - ac[0] * bdZ, ac[0] * bd[1] - ac[1] * bd[0]];
+      const norm = (n[0] * depth[0] + n[1] * depth[1] > 0 ? side : -side) / (Math.hypot(...n) || 1);
+      face(m, [a, b, c, d], n.map(k => k * norm), color);
+    }
+  }
 }
 
 // アップライトピアノ（物 piano の四角 r。1 本目の辺が鍵盤の側＝前。2026-11-12、ユーザー「ぴあのをちゃんとつくりたい」）：奥の本体（下の板・上の箱・
@@ -579,7 +630,7 @@ function addKitchenItem(m, it, r, z0, z1, T, tint) {
     const n = Math.floor(H / 0.045);
     for (let k = 1; k < n; k++) {
       const z = z0 + k * 0.045;
-      frontQuad(m, F, 0.025, F.L - 0.025, z, z + 0.012, 0.004, T("grey"));
+      frontQuad(m, F, 0.025, F.L - 0.025, z, z + 0.012, 0.004, col2 || T("grey"));
     }
   }
 }
@@ -837,9 +888,9 @@ export function stairGeom(s, zf) {
  */
 // 横向きの円柱：軸 A0 → A1（平面の点）、高さ zc、半径 R。open なら A1 の端は中が暗い穴（筒の内の面）、ちがえば平らなふた
 // 球（中心 c・高さ zc・半径 R）と、球のてっぺんから zTop までのコード（吊り下げの照明）。経線 12・緯線 8 の四角で
-function addGlobe(m, c, zc, R, col, cordC, zTop) {
+function addGlobe(m, c, zc, R, col, cordC, zTop, land = null) {
   if (!(R > 0)) return;
-  const NU = 12, NV = 8;
+  const NU = land ? 48 : 12, NV = land ? 24 : 8;
   const P = (iu, iv) => {
     const a = (iu / NU) * 2 * Math.PI, b = -Math.PI / 2 + (iv / NV) * Math.PI;
     return [[c[0] + R * Math.cos(b) * Math.cos(a), c[1] + R * Math.cos(b) * Math.sin(a)], zc + R * Math.sin(b)];
@@ -848,7 +899,8 @@ function addGlobe(m, c, zc, R, col, cordC, zTop) {
     for (let iu = 0; iu < NU; iu++) {
       const a = ((iu + 0.5) / NU) * 2 * Math.PI, b = -Math.PI / 2 + ((iv + 0.5) / NV) * Math.PI;
       const n = [Math.cos(b) * Math.cos(a), Math.cos(b) * Math.sin(a), Math.sin(b)];
-      m.quad([P(iu, iv), P(iu + 1, iv), P(iu + 1, iv + 1), P(iu, iv + 1)], n, col);
+      const onLand = land && WOODCUT_SHAPES.world.some(r => pointInRing((iu + 0.5) / NU, (iv + 0.5) / NV, r));
+      m.quad([P(iu, iv), P(iu + 1, iv), P(iu + 1, iv + 1), P(iu, iv + 1)], n, onLand ? land : col);
     }
   }
   if (zTop > zc + R + 0.02) bar(m, [c, zc + R - 0.01], [c, zTop], 0.012, cordC);
@@ -1019,6 +1071,51 @@ function addSlats(m, it, r0, z0, z1, T) {
   });
 }
 
+// 外周に接する穴や交差する穴を、三角形に分ける前に切り取る。
+function slabPolygons(ring, holes) {
+  if (!holes.length) return [[ring]];
+  return clipOp("difference", [ring], ...holes.map((h) => [h])) ?? [[ring, ...holes]];
+}
+
+// 階の形が同じなら、選択色や時刻が変わっても平面の切り分けは再利用できる。
+const floorSurfaceCache = new WeakMap();
+function floorSurfaces(f) {
+  const cached = floorSurfaceCache.get(f);
+  if (cached) return cached;
+  const ring = f.coords.map(toXY);
+  const holes = (f.holes || []).map((h) => h.coords.map(toXY));
+  // 開口が外周をまたぐ場合や、複数の穴が重なる場合も、床板の上下・縁・仕上げに同じ輪郭を使う。
+  const footprint = [ring];
+  const solid = slabPolygons(ring, holes);
+  const regions = [];
+  // 部屋の仕上げを床に埋め込む。点字ブロックなど後に指定された仕上げが重なる所は、その仕上げだけを残す。
+  // over は平地の踊り場の上にも仕上げを貼る指定。そこだけは地形と重ならない元の高さを保つ。
+  let base = solid;
+  let openings = null;
+  const takeRoom = (remaining, shape, room, dz) => {
+    const area = clipOp("intersection", remaining, shape);
+    if (!area?.length) return remaining;
+    const rest = clipOp("difference", remaining, shape);
+    if (!rest) return remaining;
+    regions.push({ area, finish: room.finish, uv: floorUV(room.finish, room.grid || f.grid), dz });
+    return rest;
+  };
+  for (let i = (f.rooms?.length || 0) - 1; i >= 0; i--) {
+    const room = f.rooms[i];
+    if (!room.finish || (room.finish === f.finish && !room.over && !room.grid)) continue;
+    const shape = [room.coords.map(toXY)];
+    base = takeRoom(base, shape, room, 0);
+    if (room.over && holes.length) {
+      openings ??= clipOp("difference", footprint, solid) ?? [];
+      openings = takeRoom(openings, shape, room, 0.012);
+    }
+  }
+  if (base.length) regions.push({ area: base, finish: f.finish, uv: floorUV(f.finish, f.grid), dz: 0 });
+  const plan = { ring, holes, solid, regions };
+  floorSurfaceCache.set(f, plan);
+  return plan;
+}
+
 export function addFloor(M, f, ctx) {
   const { m, glassy, veil } = M;
   const cull = M.cull || m; // 外の壁（ext）は中から見える面だけ（外からは殻が見える）
@@ -1030,16 +1127,10 @@ export function addFloor(M, f, ctx) {
   const zf = g0 + f.z;
   const cutTop = ctx.cutTop ?? Infinity;
   const ceilAt = ctx.ceilAt || null;
-  const ring = f.coords.map(toXY);
-  const holes = (f.holes || []).map((h) => h.coords.map(toXY));
-  // 床：上の面（仕上げの色）・下の面（下の階の天井）・ふちの面
-  const top = T(FINISH_COL[f.finish] || "oak");
-  m.polygon([ring, ...holes], zf, [0, 0, 1], shade(top, [0, 0, 1]));
-  m.polygon([ring, ...holes], zf - f.slab, [0, 0, -1], shade(T(f.under ? FINISH_COL[f.under] : "ceiling"), [0, 0, -1]));
-  // ふちの面は床が本当にある所のふちだけ（外形から穴を差し引いた形のふち）。穴が外形の辺に接するところに両側から縁を描くと、床のない所に
-  // 床の板の帯が立つ（附属図書館 地下 1 階の東の吹き抜けのガラスの前を横切る帯。2026-11-14、ユーザーの写真 S__47464487）
-  const solid = holes.length ? clipOp("difference", [closeR(ring)], ...holes.map((h) => [closeR(h)])) : null;
-  const edgeRings = solid ? solid.flatMap((pg) => pg.map((r, k) => ({ r: openR(r), outer: k === 0 }))) : [ring, ...holes].map((r, k) => ({ r, outer: k === 0 }));
+  const { ring, holes, solid, regions } = floorSurfaces(f);
+  const underside = shade(T(f.under ? FINISH_COL[f.under] : "ceiling"), [0, 0, -1]);
+  for (const poly of solid) m.polygon(poly, zf - f.slab, [0, 0, -1], underside);
+  const edgeRings = solid.flatMap((pg) => pg.map((r, k) => ({ r: openR(r), outer: k === 0 })));
   // 浮いた建物の階（ctx.edgeBot：点 → 標高）：外まわりの床の縁は下の階の天井（いちばん下の階は船底）まで下ろす。天井と床のあいだの空洞
   // （天井ふところ）がガラス越しに見えた（附属図書館の学習棟。2026-11-14 ユーザーの目印「二階の天井と三階の床の隙間が空いている空洞に、うめて」）
   const edgeBot = ctx.edgeBot || null;
@@ -1061,31 +1152,15 @@ export function addFloor(M, f, ctx) {
       face(m, [[a, zf - f.slab], [b, zf - f.slab], [b, zf], [a, zf]], n, T("slabEdge"));
     });
   }
-  // 市松のタイル（checker）：grid の向き・大きさの升目の 1 つおきに濃い色（形の中に入りきる升目だけ）
-  if (f.finish === "checker") addChecker(m, ring, holes, zf + 0.004, f.grid || [0, 0.6], T("checkerB"));
-  // 1 階の床のタイル（tile2：ベージュの 2 つの近い色の市松＝目地の見えるタイル。2026-11-12）
-  if (f.finish === "tile2") addChecker(m, ring, holes, zf + 0.004, f.grid || [0, 0.3], T("tile2B"));
-  // 灰色の石のタイル（stone2：2 つの近い灰色の市松＝目地の見える石の床。本館の廊下。2026-11-15）
-  if (f.finish === "stone2") addChecker(m, ring, holes, zf + 0.004, f.grid || [0, 0.6], T("stone2B"));
-  // 茶色のタイル（tan：2 つの近い茶の市松＝目地の見える 0.45m のタイル。本館の地下の第2食堂。2026-11-16）
-  if (f.finish === "tan") addChecker(m, ring, holes, zf + 0.004, [f.grid?.[0] ?? 0, 0.45], T("tanB"));
-  // 紺のタイルカーペット（navy：2 つの近い紺の市松、0.5m の目。石川台8号館のラウンジ。2026-11-17）
-  if (f.finish === "navy") addChecker(m, ring, holes, zf + 0.004, [f.grid?.[0] ?? 0, 0.5], T("navyB"));
-  // クリーム色の大きなタイル（cvs：2 つの近い色の市松と暗い目地、0.6m の目。南4号館のセブン-イレブン。2026-11-17、動画 IMG_1393）
-  if (f.finish === "cvs") {
-    const g = [f.grid?.[0] ?? 0, f.grid?.[1] ?? 0.6];
-    addChecker(m, ring, holes, zf + 0.004, g, T("cvsB"));
-    addTileJoints(m, ring, holes, zf + 0.006, g, T("cvsJoint"), 0.008);
-  }
-  // 杉綾のれんが（herring。附属図書館の 1 階のロビー。2026-11-13）
-  if (f.finish === "herring") addHerring(m, ring, holes, zf + 0.004, f.grid, T);
-  // 部屋の床の色（herring の部屋は目地の色の上にれんが。向きは部屋の grid、なければ階の grid）
-  for (const r of f.rooms || []) {
-    if (!r.finish || r.finish === f.finish) continue;
-    const rr = r.coords.map(toXY);
-    m.polygon([rr], zf + 0.012, [0, 0, 1], shade(T(FINISH_COL[r.finish]), [0, 0, 1]));
-    if (r.finish === "herring") addHerring(m, rr, r.over ? [] : holes, zf + 0.016, r.grid || f.grid, T);
-    if (r.finish === "tan") addChecker(m, rr, r.over ? [] : holes, zf + 0.016, [(r.grid || f.grid)?.[0] ?? 0, 0.45], T("tanB"));
+  for (const { area, finish, uv, dz } of regions) {
+    const z = zf + dz;
+    if (uv && M.finishes) {
+      if (!M.finishes.has(finish)) M.finishes.set(finish, []);
+      M.finishes.get(finish).push({ area, uv, z, highlight: ctx.highlight });
+    } else {
+      const color = T(FINISH_COL[finish] || "oak");
+      for (const poly of area) m.polygon(poly, z, [0, 0, 1], color);
+    }
   }
   // 平地の中の見えるガラスの面（ctx.glazed：[p, q]。明かり取りのガラスなど）と同じ線のガラスの壁は描かない（ガラスと桟が二重になる）
   const glazed = ctx.glazed || [];
@@ -1429,6 +1504,8 @@ export function addFloor(M, f, ctx) {
       addKitchenItem(m, it, r, z0, z1, T, tint);
     } else if (STORE_ITEMS.has(it.kind) && r.length === 4) {
       addStoreItem(m, it, r, z0, z1, T, tint, glassy);
+    } else if (it.kind === "box" && it.pillow && r.length === 4) {
+      addPillow(m, r, z0, z1, it.color ? tint(COL_HEX(it.color)) : T("whiteItem"));
     } else if (it.kind === "piano" && r.length === 4) {
       addPiano(m, r, z0, z1, T);
     } else if (it.kind === "lift" && r.length === 4) {
@@ -1496,7 +1573,13 @@ export function addFloor(M, f, ctx) {
         const ce = centroid(r), rb = R * 0.55;
         prismPoly(m, Array.from({ length: 12 }, (_, k) => [ce[0] + rb * Math.cos((Math.PI * k) / 6), ce[1] + rb * Math.sin((Math.PI * k) / 6)]), z0, z0 + 0.03, T("clockWood"));
         bar(m, [ce, z0 + 0.03], [ce, z0 + 0.1], 0.02, T("clockWood"));
-        addGlobe(m, ce, z0 + 0.08 + R * 0.9, R * 0.9, it.color ? tint(COL_HEX(it.color)) : tint(COL_HEX("#c6d8e4")), T("clockWood"), z0 + 0.08 + R * 1.8);
+        const radius = R * 0.82, centerZ = z1 - R;
+        addGlobe(m, ce, centerZ, radius, tint(COL_HEX(it.color || "#c6d8e4")), T("clockWood"), centerZ, tint(COL_HEX(it.color2 || "#adb2aa")));
+        const meridian = (i) => {
+          const angle = i * Math.PI / 16, dx = R * 0.94 * Math.cos(angle);
+          return [[ce[0] + dx * 0.8, ce[1] + dx * 0.6], centerZ + R * 0.94 * Math.sin(angle)];
+        };
+        for (let i = 0; i < 32; i++) bar(m, meridian(i), meridian(i + 1), Math.max(0.008, R * 0.06), T("clockWood"));
       } else addGlobe(m, centroid(r), zc, R, T("globe"), T("cord"), zTop);
     } else if ((it.kind === "tube" || it.kind === "disc") && r.length >= 4) {
       // 軸：1 点目 → 2 点目の向き（形の両はしのまん中どうし）。直径は z1 − z0
@@ -1505,6 +1588,7 @@ export function addFloor(M, f, ctx) {
     } else {
       // color があればその色（青いゴミ箱など。2026-11-12）。床より下に吊った物（下の階の軒下の天井の格子・吹き出し口。西5号館 2026-11-15）も下の面を
       prismPoly(m, r, z0, z1, it.color ? tint(COL_HEX(it.color)) : c, { bottom: z0 > zf + 0.05 || z1 < zf - 0.05 });
+      if (it.flowers && r.length === 4) addColumnFlowers(m, r, z0, z1, tint);
     }
   }
   // 階段
@@ -1637,65 +1721,6 @@ const hash2 = (i, j) => {
 // 平面の向き deg（度。+x から反時計回り）の単位ベクトル
 const dirOf = (deg) => [Math.cos((deg * Math.PI) / 180), Math.sin((deg * Math.PI) / 180)];
 
-// 市松のタイル：grid [向き, 大きさ] の升目 (i, j) で i + j が奇数のところに濃い色の四角（4 隅が床の形の中・穴の外のものだけ。ふちは明るい色のまま）
-function addChecker(m, ring, holes, z, [deg, size], c) {
-  const u = dirOf(deg), v = [-u[1], u[0]];
-  const loc = ring.map((p) => [p[0] * u[0] + p[1] * u[1], p[0] * v[0] + p[1] * v[1]]);
-  const i0 = Math.floor(Math.min(...loc.map((q) => q[0])) / size), i1 = Math.ceil(Math.max(...loc.map((q) => q[0])) / size);
-  const j0 = Math.floor(Math.min(...loc.map((q) => q[1])) / size), j1 = Math.ceil(Math.max(...loc.map((q) => q[1])) / size);
-  if ((i1 - i0) * (j1 - j0) > 400000) return;
-  const P = (i, j) => [u[0] * i * size + v[0] * j * size, u[1] * i * size + v[1] * j * size];
-  const memo = new Map();
-  const inside = (i, j) => {
-    const k = i * 100003 + j;
-    if (!memo.has(k)) {
-      const p = P(i, j);
-      memo.set(k, pointInRing(p[0], p[1], ring) && !holes.some((h) => pointInRing(p[0], p[1], h)));
-    }
-    return memo.get(k);
-  };
-  const cc = shade(c, [0, 0, 1]);
-  for (let i = i0; i < i1; i++) {
-    for (let j = j0; j < j1; j++) {
-      if (((i + j) & 1) === 0) continue;
-      if (!(inside(i, j) && inside(i + 1, j) && inside(i + 1, j + 1) && inside(i, j + 1))) continue;
-      m.quad([[P(i, j), z], [P(i + 1, j), z], [P(i + 1, j + 1), z], [P(i, j + 1), z]], [0, 0, 1], cc);
-    }
-  }
-}
-
-// タイルの目地（2026-11-17、セブン-イレブンの床 cvs）：grid [向き, 大きさ] の線のうち、床の形の中・穴の外の区間を、続く区間は 1 本の幅 w の帯に
-function addTileJoints(m, ring, holes, z, [deg, size], c, w) {
-  const u = dirOf(deg), v = [-u[1], u[0]];
-  const loc = ring.map((p) => [p[0] * u[0] + p[1] * u[1], p[0] * v[0] + p[1] * v[1]]);
-  const i0 = Math.floor(Math.min(...loc.map((q) => q[0])) / size), i1 = Math.ceil(Math.max(...loc.map((q) => q[0])) / size);
-  const j0 = Math.floor(Math.min(...loc.map((q) => q[1])) / size), j1 = Math.ceil(Math.max(...loc.map((q) => q[1])) / size);
-  if ((i1 - i0) * (j1 - j0) > 400000) return;
-  const P = (i, j) => [u[0] * i * size + v[0] * j * size, u[1] * i * size + v[1] * j * size];
-  const inside = (p) => pointInRing(p[0], p[1], ring) && !holes.some((h) => pointInRing(p[0], p[1], h));
-  const cc = shade(c, [0, 0, 1]);
-  const hw = w / 2;
-  // k = 0：i が一定の線（v の向き）、k = 1：j が一定の線（u の向き）
-  for (const k of [0, 1]) {
-    const [a0, a1, b0, b1] = k === 0 ? [i0, i1, j0, j1] : [j0, j1, i0, i1];
-    const at = (a, b) => (k === 0 ? P(a, b) : P(b, a));
-    const n = k === 0 ? u : v;
-    for (let a = a0; a <= a1; a++) {
-      let run = null;
-      for (let b = b0; b <= b1; b++) {
-        const ok = b < b1 && inside(at(a, b)) && inside(at(a, b + 1));
-        if (ok && run == null) run = b;
-        if (!ok && run != null) {
-          const A = at(a, run), B = at(a, b);
-          const q = [[[A[0] - n[0] * hw, A[1] - n[1] * hw], z], [[B[0] - n[0] * hw, B[1] - n[1] * hw], z], [[B[0] + n[0] * hw, B[1] + n[1] * hw], z], [[A[0] + n[0] * hw, A[1] + n[1] * hw], z]];
-          m.quad(k === 0 ? [q[3], q[2], q[1], q[0]] : q, [0, 0, 1], cc);
-          run = null;
-        }
-      }
-    }
-  }
-}
-
 // すりガラスの帯：区間 pc（長さ L、下の端 ba〜bb、上の端 ta〜tb）の band [下, 上, 倍率（なければ 1）] に、幅 0.16・高さ 0.12m の菱形を
 // 横 0.2m・縦 0.14m おき（どれも倍率倍。1 段おきに半分ずらす）。ガラスの面から 4mm ずつ外の両面に（裏から見ても白く見える）。上の端の 0.05m 下までに収める
 function addFrostBand(mesh, pc, L, ba, bb, ta, tb, band, col) {
@@ -1722,14 +1747,6 @@ function addFrostBand(mesh, pc, L, ba, bb, ta, tb, band, col) {
   }
 }
 
-// 杉綾のれんが（herring）：目地の色の面（呼ぶ前に描いてある）の上に、れんが（campus3dFeatures の herringboneBricks。4 つの濃さ）。
-// grid [V の並ぶ向き（度。+x から反時計回り）, れんがの幅 m]
-function addHerring(m, ring, holes, z, grid, T) {
-  const [deg, w] = grid || [0, 0.1];
-  const cols = [0, 1, 2, 3].map((t) => shade(T("herring" + t), [0, 0, 1]));
-  for (const b of herringboneBricks(ring, holes, dirOf(deg), w)) m.quad(b.q.map((p) => [p, z]), [0, 0, 1], cols[b.tone]);
-}
-
 // 天井（階の ceiling）：床の形（床の穴・天井の穴を抜く）の z の高さに下向きの面。slats は細い板の継ぎ目の線（grid の向きに 0.2m おき）
 const CEIL_COL = { slats: "ceilSlat", plain: "ceilSlat", dark: "ceilDark" };
 const SLAT_GAP = 0.2;
@@ -1737,11 +1754,11 @@ function addCeiling(m, f, ring, holes, zf, T, plen = null) {
   const C = f.ceiling;
   const zc = zf + C.z;
   const hs = [...holes, ...(C.holes || []).map((h) => h.coords.map(toXY))];
+  const solidC = slabPolygons(ring, hs);
   // 天井ふところをふさぐ帯（plen：top＝点 → 帯の上の端の標高か null〔そこは帯なし〕、outer＝外まわりにも）：天井の穴のふち（階段・エレベーターの
   // 吹き抜け）から上の階の床の下の面まで、いちばん上の階は外まわりも屋根の下の天井まで。点は帯の天井の側へ 0.05m 寄せて調べる
   if (plen?.top) {
-    const solidC = hs.length ? clipOp("difference", [closeR(ring)], ...hs.map((h) => [closeR(h)])) : [[closeR(ring)]];
-    for (const pg of solidC || []) pg.forEach((rr, k) => {
+    for (const pg of solidC) pg.forEach((rr, k) => {
       const r = openR(rr);
       const outer = k === 0;
       const sg = (ringArea(r) > 0 ? 1 : -1) * (outer ? 1 : -1);
@@ -1764,14 +1781,7 @@ function addCeiling(m, f, ring, holes, zf, T, plen = null) {
   // 穴が床の形のふちをまたぐと（大岡山駅の西の端の乗り換えの階段：ホームの床は s −171 まで・天井の穴は −177 まで）、earcut は穴を
   // 抜けず、階段の上を天井がふさいでいた（2026-11-12、ユーザーの目印 10・11「ここふさがってる」）。またぐ穴があれば形の引き算で面を作る
   const ceilCol = shade(T(CEIL_COL[C.kind] || "ceilSlat"), [0, 0, -1]);
-  const crosses = hs.some((h) => h.some((p) => !pointInRing(p[0], p[1], ring)));
-  // 穴どうしが重なる・同じ穴が 2 回（床の穴と ceiling.holes の両方）・辺を共有する（図書館の入口の階段の穴と屋根つきの踊り場）ときも earcut は
-  // 穴を抜けず、天井が階段の穴の上をふさいでいた（2026-11-14、ユーザーの目印「ふさがってる」：抜いたあとの面積が外形より大きかった）→ 形の引き算
-  const touch = (h, g) => h.some((p) => g.some((q) => Math.abs(p[0] - q[0]) < 1e-6 && Math.abs(p[1] - q[1]) < 1e-6) || pointInRing(p[0], p[1], g));
-  const overlap = hs.some((h, i) => hs.some((g, j) => j > i && (touch(h, g) || touch(g, h))));
-  const diff = crosses || overlap ? clipOp("difference", [closeR(ring)], ...hs.map((h) => [closeR(h)])) : null;
-  if (diff) for (const poly of diff) m.polygon(poly.map(openR), zc, [0, 0, -1], ceilCol);
-  else m.polygon([ring, ...hs], zc, [0, 0, -1], ceilCol);
+  for (const poly of solidC) m.polygon(poly, zc, [0, 0, -1], ceilCol);
   if (C.kind !== "slats") return;
   let deg = f.grid ? f.grid[0] : null;
   if (deg == null) {
@@ -3592,6 +3602,26 @@ function frontQuad(m, F, x0, x1, z0, z1, d, c) {
   const P = (x) => [F.a[0] + F.u[0] * x + F.nf[0] * d, F.a[1] + F.u[1] * x + F.nf[1] * d];
   face(m, [[P(x0), z0], [P(x1), z0], [P(x1), z1], [P(x0), z1]], [F.nf[0], F.nf[1], 0], c);
 }
+// Blue and lavender paper flowers on the square column beside the Taki B1 bookshelf.
+function addColumnFlowers(m, r, z0, z1, tint) {
+  const palette = ["#8daed2", "#9d95b3", "#b5c8d7", "#7c99b3"].map(c => tint(COL_HEX(c)));
+  for (let side = 0; side < 4; side++) {
+    const F = frontOf([...r.slice(side), ...r.slice(0, side)]);
+    for (let i = 0; i < 12; i++) {
+      const x = F.L * (0.2 + 0.6 * hash2(side + 17, i));
+      const z = z0 + 0.30 + i * 0.12 + 0.05 * hash2(i, side);
+      const radius = Math.min(F.L * 0.14, i % 4 === 0 ? 0.068 : 0.032);
+      if (z + radius > z1) continue;
+      const point = (dx, dz) => [[F.a[0] + F.u[0] * (x + dx) + F.nf[0] * 0.006, F.a[1] + F.u[1] * (x + dx) + F.nf[1] * 0.006], z + dz];
+      const rim = Array.from({ length: 20 }, (_, j) => {
+        const a = j * Math.PI / 10, size = radius * (j % 4 === 0 ? 0.36 : 1);
+        return point(Math.cos(a) * size, Math.sin(a) * size);
+      });
+      const center = point(0, 0), color = palette[(i + side) % palette.length];
+      for (let j = 0; j < rim.length; j += 2) face(m, [center, rim[j], rim[j + 1], rim[(j + 2) % rim.length]], [...F.nf, 0], color);
+    }
+  }
+}
 const COL_HEX = (h) => hex(h, 0.5);
 // 円柱（4 点の四角に内接。z0〜z1。色 c、split より上は c2）と足もとのステンレスの帯
 function addCyl(m, r, z0, z1, c, c2, split, steel) {
@@ -4073,7 +4103,17 @@ function addShelfUnit(m, it, r, z0, z1, T, tint) {
   if (L < 0.2 || D < 0.1 || H < 0.2) return;
   const cols = Math.max(1, Math.round(it.cols || L / 0.42));
   const rows = Math.max(1, Math.round(it.rows || H / 0.4));
-  const P = (x, y) => [F.a[0] + F.u[0] * x - F.nf[0] * y, F.a[1] + F.u[1] * x - F.nf[1] * y];
+  // 斜めにつないだ書架は端の升だけ留め継ぎにする。正面から見た仕切りの間隔と、途中の升の直角は保つ。
+  const backOffset = (back, front) => [back[0] - front[0] + F.nf[0] * D, back[1] - front[1] + F.nf[1] * D];
+  const left = backOffset(r[r.length - 1], r[0]), right = backOffset(r[2], r[1]);
+  const beveled = it.kind === "openshelf" && r.length === 4 && (len(left) > 0.025 || len(right) > 0.025);
+  const cell = L / cols;
+  const P = (x, y) => {
+    const p = [F.a[0] + F.u[0] * x - F.nf[0] * y, F.a[1] + F.u[1] * x - F.nf[1] * y];
+    if (!beveled) return p;
+    const wl = (y / D) * Math.max(0, 1 - x / cell), wr = (y / D) * Math.max(0, 1 - (L - x) / cell);
+    return [p[0] + wl * left[0] + wr * right[0], p[1] + wl * left[1] + wr * right[1]];
+  };
   const box = (x0, x1, y0, y1, za, zb, c, opt = {}) => {
     if (!(x1 > x0 + 1e-4 && y1 > y0 + 1e-4 && zb > za + 1e-4)) return;
     prismPoly(m, [P(x0, y0), P(x1, y0), P(x1, y1), P(x0, y1)], za, zb, c, { bottom: true, ...opt });
@@ -4129,7 +4169,8 @@ function addShelfUnit(m, it, r, z0, z1, T, tint) {
   if (!dbl) box(pt, L - pt, D - 0.012, D, zBot, zTop, white); // 奥の板
   for (let i = 0; i <= cols; i++) {
     const x = Math.min(L - pt, Math.max(0, xi(i) - pt / 2));
-    box(x, x + pt, 0, D, z0, zTop, white); // 両端と仕切りの板
+    const depth = !dbl && i > 0 && i < cols ? D - 0.012 : D;
+    box(x, x + pt, 0, depth, z0, zTop, white); // 両端と仕切りの板
   }
   const rh = (zTop - zBot) / rows;
   const nd = dbl ? 0 : Math.min(rows, Math.max(0, it.drawers || 0));
@@ -4145,6 +4186,46 @@ function addShelfUnit(m, it, r, z0, z1, T, tint) {
       continue;
     }
     box(pt / 2, L - pt / 2, 0.01, dbl ? D - 0.01 : D - 0.012, z - 0.009, z + 0.009, white); // 段の板
+  }
+  if (it.brochures) {
+    const ink = ["#596386", "#ae8052", "#638b86", "#997781", "#8a80a0"].map(c => tint(COL_HEX(c)));
+    const paper = tint(COL_HEX("#ece8da"));
+    const booklet = (x, y, z, i) => {
+      const w = Math.min(0.21, L / cols * 0.65), d = Math.min(0.28, D * 0.8);
+      const top = z + 0.014 + 0.024 * hash2(seed, i);
+      box(x - w / 2, x + w / 2, y, y + d, z, top, paper, { top: false });
+      const panel = (a, b, left, right, color) => {
+        const x0 = x + (left - 0.5) * w, x1 = x + (right - 0.5) * w;
+        const y0 = y + a * d, y1 = y + b * d;
+        m.quad([[P(x0, y0), top], [P(x1, y0), top], [P(x1, y1), top], [P(x0, y1), top]], [0, 0, 1], color);
+      };
+      const cover = ink[i % ink.length], accent = ink[(i + 2) % ink.length];
+      panel(0, 0.18, 0, 1, cover);
+      panel(0.18, 0.28, 0, 1, paper);
+      panel(0.28, 0.74, 0, 0.64, i % 2 ? accent : cover);
+      panel(0.28, 0.74, 0.64, 1, i % 2 ? paper : accent);
+      panel(0.74, 1, 0, 1, paper);
+    };
+    for (let i = 0; i < cols; i++) {
+      const x = xi(i + 0.5);
+      for (let k = nd; k < rows; k++) {
+        const base = zBot + rh * k + 0.009;
+        if (!dbl && hash2(seed + k + 9, i) < 0.56) {
+          const count = Math.min(6, Math.floor((L / cols - 0.05) / 0.04));
+          for (let j = 0; j < count; j++) {
+            const spine = xi(i) + 0.035 + j * 0.04;
+            const height = Math.min(rh - 0.03, 0.17 + hash2(seed + j, i + k) * 0.10);
+            box(spine, spine + 0.034, 0.055, Math.min(D - 0.02, 0.26), base, base + height, ink[(i + j + k) % ink.length]);
+          }
+        } else if (hash2(seed + k, i) < 0.7) booklet(x, 0.025, base, i + k * cols);
+      }
+      // Leave the first end of the long unit free for the globes. On deep islands the upper case sits in the middle.
+      if (cols < 5 || i > 1) {
+        const spaced = !dbl && L / cols > 0.51;
+        booklet(x - (spaced ? 0.12 : 0), 0.028, z1, i + cols * rows);
+        if (spaced) booklet(x + 0.12, 0.09, z1, i + cols * rows + 3);
+      }
+    }
   }
 }
 
