@@ -180,6 +180,8 @@ const CSS = `
 /* スマホで歩く：画面いっぱい（アプリの上の見出し・下のタブの上に重ねる。2026-11-14 ユーザー「スマホの探索は全画面モード」）。
    画面のふち（ノッチ・角の丸み）の分は safe-area で内へ */
 .cb3-full{position:fixed!important;inset:0!important;z-index:100000!important;background:#0e2030}
+/* 歩くあいだはページをスクロールさせない（やめたあと画面全体が下へずれたままになった） */
+html.cb3-lock,html.cb3-lock body{overflow:hidden!important;overscroll-behavior:none}
 /* スマホの歩くモードはいつも横画面（2026-11-17 ユーザー「縦画面のまま探索はしない。操作しにくいから」）：アプリは縦に固定（マニフェスト）で、
    iPhone はこの画面だけ横にする方法がないので、縦に持っているあいだは画面を 90 度回して描く（スマホを左へ倒して持つ＝上が左）。
    幅と高さを入れかえた箱を、右上の角を軸に時計回りに 90 度。指の向きは CampusMap3D の rotRef で合わせる。端のよけ（ノッチ）は名前を入れかえる */
@@ -405,9 +407,30 @@ function fitCamera(ml, map, pts, pad, pitch, bearing, maxZoom) {
 // 画面の向きの固定を外す（アプリのマニフェストは縦。歩くあいだは横にもできる。やめたら固定に戻す）。どれもできなければ黙ってそのまま
 // 歩くモードの画面を回して描いているか（縦に持ったスマホ）。本当に横になった（Android の全画面で向きの固定が外れた・ブラウザーで横にした）ら回さない
 const wantsRot = () => typeof window !== "undefined" && window.innerHeight > window.innerWidth;
+// iPhone・iPad（iPadOS は Mac と名のる）
+const isIOSDevice = () => {
+  const ua = (typeof navigator !== "undefined" && navigator.userAgent) || "";
+  return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+};
+// ページの位置を先頭へ戻す（歩くモードをやめたあと、画面全体が下へずれたままになった。2026-11-18、ユーザーの画面の録画 816667942.616902.mp4）
+const resetPageScroll = () => {
+  try {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  } catch {
+    /* 動かせなくてもよい */
+  }
+};
 function enterFullWalk() {
   try {
     const el = document.documentElement;
+    // 歩くあいだはページを動かさない（回して描く箱がはみ出しても、ページがスクロールしないように。CSS の html.cb3-lock）
+    el.classList.add("cb3-lock");
+    // iPhone・iPad ではブラウザーの全画面を使わない（2026-11-18、ユーザー「全画面表示の時のバツボタンが邪魔」）：新しい iOS は全画面にできるが、
+    // 左上に iOS の × ボタンと「… is in full screen. Swipe down to exit.」が出てスティックに重なり、出たあとはページが下へずれた。
+    // 画面いっぱいにするのは CSS（.cb3-full）と回して描く（.cb3-rot）で足りる
+    if (isIOSDevice()) return;
     const p = !document.fullscreenElement && el.requestFullscreen ? el.requestFullscreen({ navigationUI: "hide" }) : null;
     Promise.resolve(p).catch(() => {}).then(() => screen.orientation?.lock?.("any")).catch(() => {});
   } catch {
@@ -425,6 +448,15 @@ function exitFullWalk() {
   } catch {
     /* 全画面でない */
   }
+  try {
+    document.documentElement.classList.remove("cb3-lock");
+  } catch {
+    /* なくてもよい */
+  }
+  // ページの位置を戻す（すぐと、画面の大きさが落ちついたあとにもう一度）
+  resetPageScroll();
+  requestAnimationFrame(resetPageScroll);
+  setTimeout(resetPageScroll, 350);
 }
 export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const { data, dark, accent, initialView, lookKey = "cb3Look", defaultLook = "auto" } = props;
