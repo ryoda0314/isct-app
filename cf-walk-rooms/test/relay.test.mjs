@@ -1,10 +1,10 @@
-// 部屋サーバーの中継のテスト（手元の wrangler dev に 3 つつなぐ）。node test/relay.test.mjs ws://localhost:8799
+// npx wrangler dev --local --port 8799 を起動して、node test/relay.test.mjs で中継を確認する。
 const base = process.argv[2] || "ws://localhost:8799";
 let ok = 0, fail = 0;
 const t = (c, m) => { c ? ok++ : fail++; console.log(c ? "ok  " : "FAIL", m); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const open = (room) => new Promise((res, rej) => {
-  const ws = new WebSocket(`${base}/room/${room}`);
+  const ws = new WebSocket(`${base}/room/${room}`, { headers: { Origin: "http://localhost:3000" } });
   const got = [];
   ws.addEventListener("message", (e) => got.push(JSON.parse(e.data)));
   ws.addEventListener("open", () => res({ ws, got, send: (m) => ws.send(JSON.stringify(m)) }));
