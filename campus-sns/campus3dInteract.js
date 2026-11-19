@@ -41,7 +41,7 @@ export function collectInteract(features, groundAt) {
       else if (it.kind === "tvm") machines.push({ kind: "tvm", r, c: centroid(r), z0: zf + (it.z0 || 0), z1: zf + Math.max(it.z1 || 1.6, 1.2) });
       else if (it.kind === "gate" || it.kind === "flapgate") cabs.push({ r, ...frameOf(r), card: it.kind === "gate" ? "ic" : "student" });
     }
-    // となりあう 2 台（向きがそろい、横に 0.35〜1.2m あいて、通る向きにはずれていない）のあいだが通り道。台ごとに両側のいちばん近い台
+    // 向きのそろう隣の台とのあいだが通り道。駅の幅広改札は最大 1.45m。台ごとに両側のいちばん近い台
     const seen = new Set();
     cabs.forEach((A, i) => {
       for (const side of [1, -1]) {
@@ -51,7 +51,8 @@ export function collectInteract(features, groundAt) {
           const d = sub(B.c, A.c);
           const lat = dot(d, A.n) * side;
           const gap = lat - (A.W + B.W) / 2;
-          if (lat <= 0 || gap < 0.35 || gap > 1.2 || Math.abs(dot(d, A.u)) > 0.5) return;
+          const maxGap = A.card === "ic" && B.card === "ic" ? 1.45 : 1.2;
+          if (lat <= 0 || gap < 0.35 || gap > maxGap || Math.abs(dot(d, A.u)) > 0.5) return;
           if (!best || lat < best.lat) best = { j, lat, gap };
         });
         if (!best) continue;

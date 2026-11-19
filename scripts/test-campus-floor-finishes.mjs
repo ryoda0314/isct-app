@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { raycastMesh } from "../campus-sns/campus3dDebug.js";
-import { toLngLat } from "../campus-sns/campus3dFeatures.js";
+import { parseFeatures, toLngLat } from "../campus-sns/campus3dFeatures.js";
 import { buildMesh, setMeshPacking, worldOf } from "../campus-sns/campus3dMesh.js";
+import { menuUV, TSUBAME_ATLAS, tsubameMenuLayout } from "../campus-sns/campus3dTsubameMenu.js";
 
 const rect = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(toLngLat);
 const floor = {
@@ -50,5 +51,49 @@ test("tile density changes UVs without adding faces, including packed, highlight
     assert.equal(tight.col[3], Math.round(0.45 * 255));
   } finally {
     setMeshPacking(false);
+  }
+});
+
+test("terrace boards follow the ramp and a full notice stays upright", () => {
+  const ramp = { type: "building", id: "ramp", coords: rect(0, 0, 2, 5), roof: "deck", deckGrid: [90, 0.14],
+    height: 2.5, base: 1.8, cuts: [{ slope: [[1, 0], [1, 5]].map(toLngLat), low: 2 }] };
+  const sign = { type: "sign", id: "menu", coords: [toLngLat([8, 0])], width: 2, height: 1, z: 1, bearing: 0,
+    legs: 0, thickness: 0.04, style: "white", print: "tsubameNotice" };
+  const mesh = buildMesh(parseFeatures({ features: [ramp, sign] }), ctx);
+  for (const y of [0.5, 2.5, 4.5]) {
+    assert.equal(finishAt(mesh, 1, y), "deckwood");
+    const roofZ = 8 - 10 * hit(mesh, 1, y).t;
+    assert.ok(Math.abs(roofZ - (2 + y / 10)) < 0.005);
+  }
+  const terrace = buildMesh(parseFeatures({ features: [
+    { ...floor, rooms: [{ coords: floor.coords, finish: "terraceBoards", grid: [90, 0.14] }], holes: [] },
+    { ...ramp, deckFinish: "terraceGrooves", deckGrid: [0, 0.08] },
+  ] }), ctx);
+  assert.equal(finishAt(terrace, 4, 3), "terraceBoards");
+  assert.equal(finishAt(terrace, 1, 3), "terraceGrooves");
+  assert.ok(Math.abs(8 - 10 * hit(terrace, 1, 3).t - 2.3) < 0.005);
+  const print = mesh.floors.batches.find(b => b.finish === "tsubameNotice");
+  assert.equal(print.count, 6);
+  const z = i => mesh.floors.pos[3 * (print.first + i) + 2];
+  const v = i => mesh.floors.uv[2 * (print.first + i) + 1];
+  assert.ok(z(2) > z(0) && v(2) === 0 && v(0) === 1);
+});
+
+test("the cafeteria displays mount individual upright cards and reuse their artwork at the counters", () => {
+  const boards = ["tsubameMenu", "tsubameDigital", "tsubameSetCards", "tsubameRiceCards"];
+  const signs = boards.map((name, i) => ({ type: "sign", id: name, print: name, coords: [toLngLat([i * 4, 1])],
+    width: 2.28, height: 1.1, z: 1, bearing: 0, legs: 0, style: "white" }));
+  const mesh = buildMesh(parseFeatures({ features: signs }), ctx).floors;
+  const layouts = boards.map(tsubameMenuLayout);
+  assert.deepEqual(layouts[0].filter(s => Number.isInteger(s.id)).map(s => s.id), Array.from({ length: 25 }, (_, i) => i));
+  assert.ok(layouts[2].some(s => s.id === 0) && layouts[3].some(s => s.id === 8));
+  assert.deepEqual(layouts[1].map(s => s.id), ["weekly"]);
+  const sheets = layouts.flat();
+  assert.deepEqual(mesh.batches, [{ finish: TSUBAME_ATLAS, first: 0, count: sheets.length * 6 }]);
+  for (const [i, slip] of sheets.entries()) {
+    const [u0, v0, u1, v1] = menuUV(slip.id);
+    assert.ok(u0 > 0 && v0 > 0 && u0 < u1 && v0 < v1 && u1 < 1 && v1 < 1);
+    assert.deepEqual([...mesh.uv.slice(i * 12, i * 12 + 12)], [u0, v1, u1, v1, u1, v0, u0, v1, u1, v0, u0, v0]);
+    assert.ok(mesh.pos[i * 18 + 8] > mesh.pos[i * 18 + 2]);
   }
 });

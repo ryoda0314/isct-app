@@ -49,7 +49,7 @@ export function passwordCandidates(key, hints = []) {
  * パスワード入力フォーム。overlay=true でモーダル表示、false で埋め込み表示。
  * onSubmit(pw) は Promise を返してよい（検証中はボタンを無効化）。
  */
-export function PdfPasswordPrompt({ fileName, incorrect = false, hints = [], note = "", onSubmit, onCancel, overlay = false }) {
+export function PdfPasswordPrompt({ fileName, incorrect = false, hints = [], note = "", onSubmit, onCancel, cancelLabel, overlay = false }) {
   const [pw, setPw] = useState("");
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -101,7 +101,7 @@ export function PdfPasswordPrompt({ fileName, incorrect = false, hints = [], not
       <div style={{ marginTop: 10, fontSize: 11, color: T.txD, lineHeight: 1.5 }}>{t("pdfpw.privacy")}</div>
       {onCancel && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-          <button onClick={onCancel} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: "transparent", color: T.txD, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{t("common.cancel")}</button>
+          <button onClick={onCancel} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: "transparent", color: T.txD, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{cancelLabel || t("common.cancel")}</button>
         </div>
       )}
     </div>

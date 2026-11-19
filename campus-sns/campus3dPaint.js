@@ -6,7 +6,8 @@
 //   中央線・車線境界線・外側線は、交わる道の車道＋CORNER_R の手前と、横断歩道の上で切る。T字路の突き当たる側の道は、
 //   相手の車道へ 1m だけ入るとして切る（相手の中央線は通したまま、外側線だけ切れる）。まっすぐ続く道どうしは切らない
 // 道路の重ね合わせ（union・difference）には polygon-clipping を使う（paintFeatures に渡す。なければ道路は描かない）
-import { cumulative, offsetLine, ringArea, toLngLat, toXY } from "./campus3dFeatures.js";
+import { cumulative, offsetLine, ringArea, toLngLat, toXY, treeBedRing } from "./campus3dFeatures.js";
+import { isDeckPlank } from "./campus3dPavingTiles.js";
 
 // 路面の種類（塗る色は明るい地図・暗い地図それぞれ）
 export const SURFACE_KINDS = {
@@ -15,14 +16,14 @@ export const SURFACE_KINDS = {
   lawn: { label: "芝生", light: "#d3e8c5", dark: "#1c3024" },
   // 人工芝（グラウンド。2026-11-16、isct-45）：冬も枯れ色にしない（GROUND_OF は ground）。いちばん下の芝生のすぐ上に描き、土・線・トラックを上に重ねる
   turf: { label: "人工芝", light: "#8fbf78", dark: "#25402a" },
-  road: { label: "車道", light: "#8d959d", dark: "#3a4149" },
+  road: { label: "車道", light: "#808184", dark: "#383b3e" },
   walk: { label: "歩道", light: "#e6e8e3", dark: "#4a5058" },
   plaza: { label: "広場", light: "#cdb49a", dark: "#5f5245" },
   tile: { label: "石畳（灰）", light: "#bcb9b3", dark: "#46484d" },
   deck: { label: "木の床", light: "#bab8b3", dark: "#47453f" },
   red: { label: "カラー舗装", light: "#b9665b", dark: "#7a3f39" },
   green: { label: "植え込み", light: "#a9cf95", dark: "#3f5a39" },
-  zebra: { label: "導流帯", light: "#8d959d", dark: "#3a4149" },
+  zebra: { label: "導流帯", light: "#808184", dark: "#383b3e" },
   gravel: { label: "黒い砂利", light: "#5f6266", dark: "#25272a" },
   stones: { label: "白い砂利", light: "#dedbd4", dark: "#55565a" },
   brick: { label: "れんが（灰）", light: "#a19d99", dark: "#3e3f44" }, // 灰色の炻器質れんが敷き（附属図書館の広場）
@@ -44,6 +45,8 @@ export const MARKING_KINDS = {
   yellow: { label: "黄線", width: 0.15, color: "yellow" },
   wide: { label: "太い白線", width: 0.3, color: "white" },
   tactile: { label: "点字ブロック", width: 0.3, color: "tactile" }, // 視覚障害者誘導用ブロック（黄色の 30cm 角の並び）
+  tactileWarning: { label: "点状の警告ブロック", width: 0.6, color: "tactile" },
+  groove: { label: "舗装の溝", width: 0.045, color: "groove" },
   // 2026-11-17（キャンパスの道）：路面の矢印（折れ線の終わりが矢の先）、オレンジの線（駐輪・駐車禁止の枠）、細い白線（駐車ます）
   arrow: { label: "矢印", width: 0.3, color: "white", arrow: true },
   orange: { label: "オレンジの線", width: 0.15, color: "orange" },
@@ -59,7 +62,26 @@ export const ROAD_PRESETS = {
   minor: { width: 5, lanes: 1, center: "none", edge: true, walk: [0, 0] },
   ped: { width: 4, lanes: 1, center: "none", edge: false, walk: [0, 0] },
 };
-const PAINT = { white: { light: "#ffffff", dark: "#d9dde2" }, yellow: { light: "#f2b705", dark: "#c99a12" }, tactile: { light: "#e9c22e", dark: "#9c8424" }, orange: { light: "#e8962f", dark: "#a8691f" } };
+const PAINT = { white: { light: "#ffffff", dark: "#d9dde2" }, yellow: { light: "#f2b705", dark: "#c99a12" }, tactile: { light: "#e9c22e", dark: "#9c8424" }, groove: { light: "#4b4946", dark: "#262627" }, orange: { light: "#e8962f", dark: "#a8691f" } };
+const TACTILE_FINISH = {
+  stone: { base: { light: "#817b65", dark: "#454337" }, relief: { light: "#a09a80", dark: "#585642" } },
+  ochre: { base: { light: "#cfb05d", dark: "#837238" }, relief: { light: "#e3ca85", dark: "#ab9756" } },
+  sand: { base: { light: "#c3bba4", dark: "#656257" }, relief: { light: "#d7d0b9", dark: "#858171" } },
+};
+const PAVING_COLORS = {
+  courtGravel: { light: "#8c8980", dark: "#383b36" },
+  plazaBlock: { light: "#a49e96", dark: "#494844" },
+  blueTile: { light: "#66839c", dark: "#334252" },
+  groundcover: { light: "#657044", dark: "#333c28" },
+  aggregate: { light: "#d6cfc1", dark: "#534f48" },
+  grass: { light: "#97ab70", dark: "#293824" },
+  basketweave: { light: "#ae958a", dark: "#483b35" },
+  roughStone: { light: "#707278", dark: "#2b2d31" },
+  deckComposite: { light: "#aaa7a1", dark: "#454440" },
+  deckTimber: { light: "#82776c", dark: "#39332e" },
+  apronConcrete: { light: "#b3b2aa", dark: "#454641" },
+};
+export const surfaceColor = f => PAVING_COLORS[f.paving] || SURFACE_KINDS[f.kind] || SURFACE_KINDS.road;
 // 歩道のふち（縁石）の線の色。3D表示の cb-pave-edge が描く
 export const CURB = { light: "#b9bdb6", dark: "#5d646c" };
 
@@ -83,6 +105,25 @@ const poly = (pts, props) => ({ type: "Feature", properties: props, geometry: { 
 // polygon-clipping の MultiPolygon（平面の m）を GeoJSON に
 const multi = (mp, props) => ({ type: "Feature", properties: props, geometry: { type: "MultiPolygon", coordinates: mp.map((p) => p.map((r) => r.map(toLngLat))) } });
 const closed = (pts) => [[...pts, pts[0]]];
+
+// A warning strip has ten rows of studs across its 60 cm width.
+function warningStuds(path) {
+  const studs = [];
+  for (let i = 1; i < path.length; i++) {
+    const [x0, y0] = path[i - 1], [x1, y1] = path[i];
+    const length = Math.hypot(x1 - x0, y1 - y0);
+    if (length < 0.06) continue;
+    const ux = (x1 - x0) / length, uy = (y1 - y0) / length;
+    for (let s = 0.03; s < length; s += 0.06) {
+      for (let j = 0; j < 10; j++) {
+        const t = (j - 4.5) * 0.06;
+        const x = x0 + s * ux - t * uy, y = y0 + s * uy + t * ux;
+        studs.push(closed([[x - 0.012, y], [x, y + 0.012], [x + 0.012, y], [x, y - 0.012]]));
+      }
+    }
+  }
+  return studs;
+}
 // 2点 a→b を、幅 w の帯（四角）に
 const bar = (a, b, w) => {
   const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
@@ -167,6 +208,14 @@ export function hatchBars(pts, deg = 45) {
 // 木の床の板の目地：板の向き bearing（北から右回りの度）に走る幅 SEAM の線を、板の幅 w ごとに（多角形の中だけ）
 export function boardSeams(pts, w, bearing) {
   return stripeBars(pts, 90 - bearing, w, SEAM, w);
+}
+
+// The lawn slabs have worn corners. On a sliver at a brick junction, shorten the bevel to fit.
+function stoneRing(quad) {
+  return closed(quad.flatMap(([x, y], i) => [quad[(i + 3) % 4], quad[(i + 1) % 4]].map(([u, v]) => {
+    const t = Math.min(0.2, 0.045 / (Math.hypot(u - x, v - y) || 1));
+    return [x + (u - x) * t, y + (v - y) * t];
+  })));
 }
 
 // 多角形の中を、角度 deg（東から左回り）に走る幅 bw の縞で、間隔 step・最初の縞は端から first で埋める
@@ -415,23 +464,44 @@ export function paintFeatures(features, dark = false, pc = null) {
   const GROUND_OF = { lawn: "lawn", green: "lawn", shrubs: "lawn", turf: "ground", soil: "ground", gravel: "ground", stones: "ground", paint: "paint" };
   const tone = (k, kind) => (typeof dark?.ground === "function" && kind ? dark.ground(k, GROUND_OF[kind] || "road") : tone0(k));
   const layers = Object.fromEntries(SURFACE_ORDER.map((k) => [k, []]));
+  const surveyedLawns = [];
   const paint = [];
   const fine = []; // 寄ったときだけ描く細かいもの（木の床の板の目地）
   const roads = features.filter((f) => f.type === "road");
   const crosswalks = features.filter((f) => f.type === "crosswalk" && f.coords.length >= 2).map((f) => [toXY(f.coords[0]), toXY(f.coords[1]), f.width || 4]);
   const rg = pc && roads.length ? roadGeometry(roads, crosswalks, pc) : null;
   if (rg) {
-    if (rg.carriage.length) layers.road.push(multi(rg.carriage, { color: tone(SURFACE_KINDS.road, "road") }));
-    if (rg.sidewalk.length) layers.walk.push(multi(rg.sidewalk, { color: tone(SURFACE_KINDS.walk, "walk"), edge: 1, curb: tone(CURB, "road") }));
+    if (rg.carriage.length) layers.road.push(multi(rg.carriage, { color: tone(SURFACE_KINDS.road, "road"), paving: "asphalt" }));
+    if (rg.sidewalk.length) layers.walk.push(multi(rg.sidewalk, { kind: "walk", color: tone(SURFACE_KINDS.walk, "walk"), edge: 1, curb: tone(CURB, "road") }));
     for (const { color, mp } of rg.lines) paint.push(multi(mp, { color: tone(PAINT[color], "paint") }));
   }
   for (const f of features) {
+    if (f.type === "wall" && f.style === "treeSeat") {
+      const bed = treeBedRing(f.coords.slice(0, -1).map(toXY), f.thickness);
+      layers.soil.push(poly(bed, { id: f.id, color: tone({ light: "#62583e", dark: "#29271d" }, "soil"), paving: "rootBed" }));
+    }
     if (f.type !== "surface") continue;
     const pts = f.coords.map(toXY);
     if (pts.length < 3) continue;
-    const k = SURFACE_KINDS[f.kind] || SURFACE_KINDS.road;
-    (layers[f.kind] || layers.road).push(poly(pts, { id: f.id, color: tone(k, f.kind) }));
-    if (f.boards) {
+    const k = surfaceColor(f);
+    const paving = f.paving || ({ road: "asphalt", zebra: "asphalt", brick: "running", darkbrick: "running" })[f.kind];
+    const material = paving ? { paving, pavingBearing: f.pavingBearing } : {};
+    const texturedBoards = f.boards && isDeckPlank(paving);
+    if (texturedBoards) [material.pavingBoardWidth, material.pavingBearing] = f.boards;
+    if (f.pavingHoles?.length) material.pavingHoles = f.pavingHoles;
+    const props = { id: f.id, kind: f.kind, color: tone(k, paving === "groundcover" ? "soil" : f.kind), ...material };
+    if (f.stepping) {
+      const [bearing, depth, gap] = f.stepping;
+      const pitch = depth + gap;
+      const stones = stripeBars(pts, -bearing, pitch, depth, pitch / 2);
+      if (stones.length) layers.slab.push(multi(stones.map(stoneRing), props));
+    } else if (f.kind === "lawn" && f.groundBlend != null) {
+      // 実測した法面は、敷地全体に敷いたアスファルトの下地より上に塗る。
+      surveyedLawns.push(poly(pts, props));
+    } else {
+      (layers[f.kind] || layers.road).push(poly(pts, props));
+    }
+    if (f.boards && !texturedBoards) {
       const seam = tone({ light: darkHex(k.light, SEAM_DARK), dark: darkHex(k.dark, SEAM_DARK) });
       for (const q of boardSeams(pts, f.boards[0], f.boards[1])) fine.push(poly(q, { id: f.id, color: seam }));
     }
@@ -444,10 +514,22 @@ export function paintFeatures(features, dark = false, pc = null) {
   for (const f of features) {
     if (f.type === "marking") {
       const k = MARKING_KINDS[f.kind] || MARKING_KINDS.solid;
-      const color = tone(PAINT[k.color]);
+      const finish = TACTILE_FINISH[f.finish];
+      const color = tone(finish?.base || PAINT[k.color]);
       if (k.text) { for (const q of roadTextBars(f.coords.map(toXY), f.text, f.size, f.width || k.width)) paint.push(poly(q, { id: f.id, color })); continue; }
       if (k.arrow) { for (const q of arrowBars(f.coords.map(toXY), f.width || k.width)) paint.push(poly(q, { id: f.id, color })); continue; }
-      for (const q of lineBars(f.coords.map(toXY), f.width || k.width, k.dash)) paint.push(poly(q, { id: f.id, color }));
+      const path = f.coords.map(toXY);
+      for (const q of lineBars(path, f.width || k.width, k.dash)) paint.push(poly(q, { id: f.id, color }));
+      if (f.kind === "tactile") {
+        const rib = tone(finish?.relief || { light: "#f4cf59", dark: "#ab933e" });
+        for (const offset of [-0.09, -0.03, 0.03, 0.09]) {
+          for (const q of lineBars(offsetLine(path, offset), 0.018)) paint.push(poly(q, { id: f.id, color: rib }));
+        }
+      }
+      if (f.kind === "tactileWarning") {
+        const studs = warningStuds(path);
+        if (studs.length) paint.push(multi(studs, { id: f.id, color: tone(finish?.relief || { light: "#f5d46a", dark: "#b49843" }) }));
+      }
     } else if (f.type === "crosswalk" && f.coords.length >= 2) {
       const [a, b] = f.coords.map(toXY);
       const color = tone(PAINT.white);
@@ -455,7 +537,7 @@ export function paintFeatures(features, dark = false, pc = null) {
     }
   }
   return {
-    surfaces: { type: "FeatureCollection", features: SURFACE_ORDER.flatMap((k) => layers[k]) },
+    surfaces: { type: "FeatureCollection", features: SURFACE_ORDER.flatMap(k => k === "road" ? layers.road.concat(surveyedLawns) : layers[k]) },
     paint: { type: "FeatureCollection", features: paint },
     fine: { type: "FeatureCollection", features: fine },
   };

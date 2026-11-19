@@ -1,7 +1,13 @@
 // MapLibre の独自レイヤー（WebGL）で、手で足した構造物（壁・橋など）と、橋の上を通るルート、電車、夜の街灯を描く。
 // 形は campus3dMesh.js。地形と同じ「海抜の標高(m)」で置くので、地面や建物とのかぶり方（奥行き）も正しくなる
 import { MERC_SCALE, ORIGIN, worldOf } from "./campus3dMesh.js";
-import { createFloorTexture } from "./campus3dFloorMaterials.js";
+import { SURFACE_PRINT_IMAGES } from "./campus3dFeatures.js";
+import { createBookRenderer } from "./campus3dBookLayer.js";
+import { createMarketRenderer } from "./campus3dMarketLayer.js";
+import { TSUBAME_ATLAS } from "./campus3dTsubameMenu.js";
+import { tsubameMenuPixels } from "./campus3dTsubameMenuArt.js";
+import { ceilingLightPixels, createFloorTexture, insideLightPlan, signPrintPixels, uploadFloorTexture } from "./campus3dFloorMaterials.js";
+import { deckStampPixels, pavingStampName } from "./campus3dPavingTiles.js";
 import { interiorPalette } from "./campus3dInterior.js";
 
 export const EXTRAS_LAYER_ID = "cb-extras";
@@ -20,6 +26,7 @@ uniform vec3 u_lightpos;
 uniform float u_lightintensity;
 uniform vec3 u_lightcolor;
 uniform float u_alpha;
+uniform vec4 u_metalEye;
 varying vec4 v_color;
 void main() {
   gl_Position = u_matrix * vec4(a_pos, 1.0);
@@ -30,6 +37,16 @@ void main() {
   directional = mix(1.0 - u_lightintensity, max(1.0 - colorvalue + u_lightintensity, 1.0), directional);
   // 店の明かり・中から光る看板（色のアルファを 0.5 にした面。campus3dMesh.js の glow）は光を受けず、そのままの明るさ（夜も明るい）
   vec3 lit = a_color.a < 0.75 ? a_color.rgb : clamp(color.rgb * directional * u_lightcolor, mix(vec3(0.0), vec3(0.3), 1.0 - u_lightcolor), vec3(1.0));
+  // Cast metal reflects the cool sky, warm canopy lamps and narrow louvre highlights.
+  if (a_color.a > 0.620 && a_color.a < 0.630) {
+    vec3 E = normalize(vec3((u_metalEye.xy-a_pos.xy)*u_metalEye.w,u_metalEye.z-a_pos.z));
+    vec3 R = reflect(-E,normalize(a_normal));
+    float sky = smoothstep(-0.25,0.65,R.z);
+    float beam = smoothstep(.68,.98,cos(13.0*R.x+4.0*R.y))*smoothstep(.13,.84,R.z);
+    float lamp = pow(max(0.0,dot(R,normalize(vec3(-.44,.31,.84)))),16.);
+    vec3 env = mix(vec3(.75,.72,.66),vec3(.95,1.02,1.09),sky)+beam*.30;
+    lit = clamp(a_color.rgb*env*(.91+.12*directional)+vec3(1.,.90,.72)*(.40*lamp+.10*beam),0.,1.);
+  }
   // 半透明（u_alpha < 1）は透明度を掛けた色で出す
   v_color = vec4(lit * u_alpha, u_alpha);
 }`;
@@ -43,20 +60,42 @@ attribute vec2 a_uv;
 attribute vec4 a_color;
 uniform mat4 u_matrix;
 varying highp vec2 v_uv;
+varying highp vec3 v_floorPos;
 varying lowp vec4 v_highlight;
 void main() {
   gl_Position = u_matrix * vec4(a_pos, 1.0);
   v_uv = a_uv;
+  v_floorPos = a_pos;
   v_highlight = a_color;
 }`;
 const FS_FLOOR = `
 precision highp float;
 uniform sampler2D u_finish;
+uniform bool u_stamp;
+uniform sampler2D u_ceilingLights;
+uniform vec3 u_lightMap;
+uniform vec3 u_lampHeights;
+uniform vec3 u_eye;
+uniform float u_floorZ;
+uniform float u_sheen;
 varying highp vec2 v_uv;
+varying highp vec3 v_floorPos;
 varying lowp vec4 v_highlight;
+float reflected(float height, vec3 channel) {
+  if (height <= 0.0) return 0.0;
+  vec2 p = v_floorPos.xy + (v_floorPos.xy-u_eye.xy)*height/max(.1,u_eye.z-u_floorZ);
+  vec2 uv = (p-u_lightMap.xy)*u_lightMap.z;
+  if (any(lessThan(uv,vec2(0.0))) || any(greaterThan(uv,vec2(1.0)))) return 0.0;
+  return dot(texture2D(u_ceilingLights,uv).rgb,channel);
+}
 void main() {
-  vec3 color = texture2D(u_finish, v_uv).rgb;
-  gl_FragColor = vec4(mix(color, v_highlight.rgb, v_highlight.a), 1.0);
+  vec4 texel = texture2D(u_finish, v_uv);
+  vec3 color = u_stamp ? texel.rgb + v_highlight.rgb * (1.0 - texel.a) : mix(texel.rgb, v_highlight.rgb, v_highlight.a);
+  if (u_sheen > 0.0 && abs(v_floorPos.z - u_floorZ) < 0.025) {
+    float light = reflected(u_lampHeights.x,vec3(1,0,0)) + reflected(u_lampHeights.y,vec3(0,1,0)) + reflected(u_lampHeights.z,vec3(0,0,1));
+    color += vec3(1.0, 0.98, 0.92) * min(light,1.0) * u_sheen * (1.0 - v_highlight.a);
+  }
+  gl_FragColor = vec4(color, 1.0);
 }`;
 // 詳細モードで歩いて見るときの建物の殻：カメラから見て裏を向く面（面の向きとカメラからの向きが同じ側）は描かない＝建物の中からは見えない。
 // u_cam はカメラの位置（描く座標）、u_kxy は描く座標の 1 が何 m か（x, y。z は m）
@@ -294,7 +333,12 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
   let ribbon = null;
   let culler = null;
   let floorProg = null;
+  let books = null, hasBooks = false;
+  let market = null, hasMarket = false;
   const floorTextures = new Map();
+  let lightPlans = [], activeLightPlan = null, reflectionTexture = null;
+  const readyStamps = new Map();
+  const failedStamps = new Set();
   const buf = { mesh: null, floors: null, thin: null, glass: null, screen: null, haze: null, veil: null, cull: null, portal: null, under: null, rib: null };
   let mesh = null;
   let rib = null;
@@ -395,8 +439,18 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
         if (ribbon) gl.deleteProgram(ribbon.p);
         if (culler) gl.deleteProgram(culler.p);
         if (floorProg) gl.deleteProgram(floorProg.p);
+        market?.remove();
+        market = null; hasMarket = false;
+        books?.remove();
+        books = null;
+        hasBooks = false;
         for (const texture of floorTextures.values()) gl.deleteTexture(texture);
+        if (reflectionTexture) gl.deleteTexture(reflectionTexture);
+        reflectionTexture = activeLightPlan = null;
+        lightPlans = [];
         floorTextures.clear();
+        readyStamps.clear();
+        failedStamps.clear();
       }
       map = null;
     },
@@ -418,11 +472,36 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
         buf.under = mesh.under?.count ? upload(mesh.under, ["pos", "nrm", "col"]) : null;
         buf.mesh = mesh.count ? upload(mesh, ["pos", "nrm", "col"]) : null;
         buf.floors = mesh.floors?.count ? upload(mesh.floors, ["pos", "uv", "col"]) : null;
+        lightPlans = mesh.lightPlans || [];
+        hasBooks = Boolean(mesh.bookRacks?.length);
+        if (hasBooks && !books) books = createBookRenderer(gl, compile);
+        books?.set(mesh.bookRacks);
+        hasMarket = Boolean(mesh.marketStock?.chunks.length);
+        if (hasMarket && !market) market = createMarketRenderer(gl,compile);
+        market?.set(mesh.marketStock);
         if (buf.floors) {
           buf.floors.batches = mesh.floors.batches;
           gl.activeTexture(gl.TEXTURE0);
           for (const { finish } of buf.floors.batches) {
-            if (!floorTextures.has(finish)) floorTextures.set(finish, createFloorTexture(gl, finish, interiorPalette));
+            if (floorTextures.has(finish) && !failedStamps.delete(finish)) continue;
+            const print = SURFACE_PRINT_IMAGES[finish];
+            const isMenu = finish === TSUBAME_ATLAS;
+            const paving = pavingStampName(finish);
+            if (isMenu || print || paving || finish === "terraceBoards") {
+              const initial = isMenu || print ? [239, 237, 229, 255] : finish === "terraceBoards" ? [167, 166, 164, 255] : [0, 0, 0, 0];
+              const texture = floorTextures.get(finish) || uploadFloorTexture(gl, 1, new Uint8Array(initial));
+              floorTextures.set(finish, texture);
+              const pixelsReady = isMenu ? tsubameMenuPixels() : print ? signPrintPixels(print) : deckStampPixels(paving || finish);
+              pixelsReady.then(pixels => {
+                if (floorTextures.get(finish) !== texture) return;
+                readyStamps.set(finish, pixels);
+                map?.triggerRepaint();
+              }).catch(() => {
+                if (floorTextures.get(finish) === texture) failedStamps.add(finish);
+              });
+            } else {
+              floorTextures.set(finish, createFloorTexture(gl, finish, interiorPalette));
+            }
           }
           gl.bindTexture(gl.TEXTURE_2D, null);
         }
@@ -441,30 +520,58 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
       const M = matrixFor(args.modelViewProjectionMatrix, ws, exaggeration);
       // いま描いた行列（描く座標 → クリップ座標）：目印（campus3dDebug.js）が 3D の点を画面へ・画面の点を光線へ直すのに使う
       layer.matrix = M;
+      for (const [finish, { size, data }] of readyStamps) uploadFloorTexture(gl, size, data, floorTextures.get(finish));
+      readyStamps.clear();
       if (!buf.mesh && !buf.floors && !buf.thin && !buf.glass && !buf.screen && !buf.haze && !buf.veil && !buf.cull && !buf.rib && !buf.under) return;
       const enabled = [];
 
       // 形（壁・段・橋）。手すり（thin）は奥行きを書かずに描く：段や壁には隠れるが、あとで描くルートの線を支柱で途切れさせない。
       // 穴あきの金属板（screen）・金網の網の面（haze）・ガラスの手すりの板（glass）は最後に半透明で重ねる（奥行きは書かない）
       // 詳細モードの殻（cull）は形と同じく奥行きを書く（中からは裏の面になって描かれない）。白い格子の手すり（veil）は半透明
-      const cam = buf.cull ? cameraOf(M) : null;
+      const cam = cameraOf(M);
       if (buf.portal && map.terrain) punchPortals(buf.portal, M);
       // 天井のない平地の床（mesh.under）：地形を外しているとき（地面の下を歩くとき）だけ。ふだんは地形が床
-      [[map.terrain ? null : buf.under, true, 1], [buf.floors, true, 1], [buf.mesh, true, 1], [cam ? buf.cull : null, true, 1, true], [buf.thin, false, 1], [buf.screen, false, SCREEN_ALPHA], [buf.veil, false, VEIL_ALPHA], [buf.haze, false, HAZE_ALPHA], [buf.glass, false, GLASS_ALPHA]].forEach(([b, writeDepth, alpha, culled]) => {
+      [[map.terrain ? null : buf.under, true, 1], [buf.floors, true, 1], [buf.mesh, true, 1], [cam ? buf.cull : null, true, 1, true], [hasBooks ? books : null, true, 1], [hasMarket ? market : null, true, 1], [buf.thin, false, 1], [buf.screen, false, SCREEN_ALPHA], [buf.veil, false, VEIL_ALPHA], [buf.haze, false, HAZE_ALPHA], [buf.glass, false, GLASS_ALPHA]].forEach(([b, writeDepth, alpha, culled]) => {
         if (!b) return;
+        if (b === books) { books.draw(M, cam); return; }
+        if (b === market) { market.draw(M, cam); return; }
         if (b === buf.floors) {
           gl.useProgram(floorProg.p);
           gl.uniformMatrix4fv(floorProg.loc("u_matrix"), false, M);
           gl.uniform1i(floorProg.loc("u_finish"), 0);
+          const plan = cam && lightPlans.find(p => insideLightPlan(p,cam));
+          gl.uniform1i(floorProg.loc("u_ceilingLights"), plan ? 1 : 0);
+          if (plan) {
+            gl.activeTexture(gl.TEXTURE1);
+            if (activeLightPlan !== plan) {
+              const pixels = ceilingLightPixels(plan);
+              reflectionTexture = uploadFloorTexture(gl, pixels.width, pixels.data, reflectionTexture || gl.createTexture());
+              activeLightPlan = plan;
+            }
+            gl.bindTexture(gl.TEXTURE_2D, reflectionTexture);
+            gl.uniform3f(floorProg.loc("u_lightMap"), plan.x, plan.y, 1/plan.span);
+            gl.uniform3fv(floorProg.loc("u_lampHeights"),plan.heights);
+            gl.uniform3fv(floorProg.loc("u_eye"), cam);
+            gl.uniform1f(floorProg.loc("u_floorZ"), plan.z);
+          }
           gl.activeTexture(gl.TEXTURE0);
           gl.depthMask(true);
           const attrs = [bindAttr(floorProg, "a_pos", b.pos, 3), bindAttr(floorProg, "a_uv", b.uv, 2), bindAttr(floorProg, "a_color", b.col, 4)];
           for (const { finish, first, count } of b.batches) {
+            const sheen = finish === "cvs" ? 0.48 : finish === "rubber" ? 0.34 : finish === "studdedRubber" ? 0.24
+              : finish === "marketVinyl" ? 0.24 : finish === "marketPlanks" ? 0.10 : 0;
+            gl.uniform1f(floorProg.loc("u_sheen"), plan ? sheen : 0);
+            gl.uniform1i(floorProg.loc("u_stamp"), pavingStampName(finish) ? 1 : 0);
             gl.bindTexture(gl.TEXTURE_2D, floorTextures.get(finish));
             gl.drawArrays(gl.TRIANGLES, first, count);
           }
           attrs.forEach((a) => gl.disableVertexAttribArray(a));
           gl.bindTexture(gl.TEXTURE_2D, null);
+          if (plan) {
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, null);
+            gl.activeTexture(gl.TEXTURE0);
+          }
           return;
         }
         const prog = culled ? culler : solid;
@@ -474,6 +581,7 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
         gl.uniform1f(prog.loc("u_lightintensity"), lt.intensity);
         gl.uniform3fv(prog.loc("u_lightcolor"), lt.color);
         gl.uniform1f(prog.loc("u_alpha"), alpha);
+        if (cam) gl.uniform4f(prog.loc("u_metalEye"), cam[0], cam[1], cam[2], 1 / Math.hypot(PER_M.e[0], PER_M.e[1]));
         if (culled) {
           gl.uniform3fv(prog.loc("u_cam"), cam);
           gl.uniform1f(prog.loc("u_kxy"), 1 / Math.hypot(PER_M.e[0], PER_M.e[1]));
@@ -679,7 +787,7 @@ export function createTrainsLayer({ light, exaggeration = 1, frame }) {
 export const DOORS_LAYER_ID = "cb-doors";
 export const LIFT_LAYER_ID = "cb-lift"; // エレベーターのかご・扉（campus3dLift の liftMeshes を createDoorsLayer で）
 /**
- * @param frame  () => { solid, glass }（いまの扉の板。solid は枠、glass はガラス。どちらも Mesh の result）か null
+ * @param frame  () => { solid, glass }、その配列、または null。各組は独立して更新する。
  */
 export function createDoorsLayer({ id = DOORS_LAYER_ID, light, exaggeration = 1, frame }) {
   let map = null;
@@ -690,6 +798,7 @@ export function createDoorsLayer({ id = DOORS_LAYER_ID, light, exaggeration = 1,
   // 変わらないフレームは同じものを返す。毎フレーム送っていて、エレベーター（31 万頂点）で 1 フレーム 12 MB、発車標で 6 MB だった。
   // 配列の中身を書きかえて使い回す形を渡すときは、新しい配列にすること
   const sent = {};
+  let batchCount = 0;
   let lt = lightState(light);
   const put = (key, data) => {
     if (!bufs[key]) bufs[key] = gl.createBuffer();
@@ -729,7 +838,19 @@ export function createDoorsLayer({ id = DOORS_LAYER_ID, light, exaggeration = 1,
     },
     render(g, args) {
       const f = frame();
-      if (!f || (!f.solid.count && !f.glass.count)) return;
+      const batches = f ? (Array.isArray(f) ? f : [f]) : [];
+      for (let i = batches.length; i < batchCount; i++) {
+        for (const kind of ["s", "g"]) {
+          const key = kind + i;
+          delete sent[key];
+          for (const attr of ["p", "n", "c"]) {
+            if (bufs[key + attr]) gl.deleteBuffer(bufs[key + attr]);
+            delete bufs[key + attr];
+          }
+        }
+      }
+      batchCount = batches.length;
+      if (!batches.some(batch => batch.solid.count || batch.glass.count)) return;
       const M = matrixFor(args.modelViewProjectionMatrix, map.transform.worldSize, exaggeration);
       gl.useProgram(prog.p);
       gl.uniformMatrix4fv(prog.loc("u_matrix"), false, M);
@@ -750,13 +871,13 @@ export function createDoorsLayer({ id = DOORS_LAYER_ID, light, exaggeration = 1,
       };
       gl.depthFunc(gl.LEQUAL);
       gl.depthMask(true);
-      if (f.solid.count) draw(f.solid, "s", 1);
+      for (const [i, batch] of batches.entries()) if (batch.solid.count) draw(batch.solid, "s" + i, 1);
       // ガラスは半透明で重ねる（奥行きは書かない。建物のガラスと同じ濃さ）
-      if (f.glass.count) {
+      if (batches.some(batch => batch.glass.count)) {
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
         gl.depthMask(false);
-        draw(f.glass, "g", GLASS_ALPHA);
+        for (const [i, batch] of batches.entries()) if (batch.glass.count) draw(batch.glass, "g" + i, GLASS_ALPHA);
         gl.depthMask(true);
       }
       gl.bindBuffer(gl.ARRAY_BUFFER, null);

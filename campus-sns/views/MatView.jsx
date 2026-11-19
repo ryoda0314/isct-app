@@ -8,10 +8,10 @@ import { useSharedMaterials } from "../hooks/useSharedMaterials.js";
 import { useCurrentUser } from "../hooks/useCurrentUser.js";
 import { openMaterial, openMaterialWindow } from "../openMaterial.js";
 import { openLmsUrl } from "../openLms.js";
-import { bulkDownloadMaterials, bulkMergeMaterialsToPdf } from "../bulkDownload.js";
+import { bulkDownloadMaterials, bulkMergeMaterialsToPdf, isPdfMaterial } from "../bulkDownload.js";
 import { findMaterialNote } from "./NotesView.jsx";
 import { PdfPasswordPrompt, extractPasswordHints, passwordCandidates, savePdfPassword } from "../components/PdfPasswordPrompt.jsx";
-import { decryptPdf } from "../pdfUnlock.js";
+import { decryptPdf, PdfPasswordError } from "../pdfUnlock.js";
 import { savePdfBlob } from "../savePdf.js";
 
 const tCol={pdf:'#e5534b',slide:'#d4843e',document:'#6375f0',spreadsheet:'#3dae72',image:'#a855c7',video:'#2d9d8f',audio:'#c6a236',archive:'#68687a',code:'#3dae72',text:'#68687a',link:'#6375f0',file:'#68687a',forum:'#7c5cd6',survey:'#c6a236',quiz:'#e5534b',page:'#2d9d8f',notice:'#68687a',activity:'#68687a'};
@@ -702,7 +702,7 @@ export const Preview=({m,mob,onClose,onStale,course,onAnnotate,onOpenNote,sessio
    ────────────────────────────────────────────── */
 const isDownloadable=m=>!m.locked&&m.fileType!=="link"&&!!m.fileurl;
 /* 1つのPDFに結合できるファイル (fileType は mimetype 優先なので拡張子でも保険をかける) */
-const isPdfFile=m=>isDownloadable(m)&&(m.fileType==="pdf"||/\.pdf$/i.test(m.filename||m.name||""));
+const isPdfFile=m=>isDownloadable(m)&&isPdfMaterial(m);
 /* ファイルを持たない LMS 活動 = お知らせ(label)/フォーラム/アンケート等 */
 const isActivity=m=>m.kind==="activity"||m.kind==="notice";
 const LockIcon=()=><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>;
@@ -805,15 +805,23 @@ const SharedFileRow=({m,onClick,myId,onDelete})=>{
 
 /* ──────────────────────────────────────────────
    Tab: 講義資料 (Moodle materials)
-   一括DL: 選択モード(全選択/授業回ごと/個別) → ZIP 生成 → 全環境保存
-   選択にPDFが含まれる場合は「1つのPDFにまとめる」も選べる (表示順に結合)
+   一括DL: 全選択・授業回・個別から選択し、ZIP または 1 つの PDF として保存する。
+   PDF は結合前に復号する。ZIP では選択に応じて復号する。
    ────────────────────────────────────────────── */
-const LectureMaterials=({sections,totalFiles,totalActivities,loading,error,mob,onSelect,onRefresh,course,onPopOut})=>{
+const LectureMaterials=({sections,totalFiles,totalActivities,loading,error,mob,onSelect,onRefresh,course,onPopOut,coursePwHints})=>{
   const [collapsed,setCollapsed]=useState({});
   const [search,setSearch]=useState("");
   const [selMode,setSelMode]=useState(false);
   const [checked,setChecked]=useState(()=>new Set());
-  const [dl,setDl]=useState(null); // {phase:'fetch',done,total} | {phase:'zip',pct} | {phase:'merge',done,total}
+  const [unlockZip,setUnlockZip]=useState(false);
+  const [dl,setDl]=useState(null);
+  const [pwAsk,setPwAsk]=useState(null);
+  const activeDownload=useRef(null);
+  useEffect(() => () => {
+    const controller = activeDownload.current;
+    activeDownload.current = null;
+    controller?.abort();
+  }, []);
   const togSec=id=>setCollapsed(p=>({...p,[id]:!p[id]}));
 
   /* 検索は説明文も対象 — お知らせ(label)はタイトルを持たず本文しかない */
@@ -828,9 +836,9 @@ const LectureMaterials=({sections,totalFiles,totalActivities,loading,error,mob,o
   let checkedSize=0,checkedPdf=0;
   for(const s of sections)for(const m of s.materials)if(checked.has(m.id)){checkedSize+=m.filesize||0;if(isPdfFile(m))checkedPdf++;}
 
-  const enterSel=()=>{setSelMode(true);setChecked(new Set(visibleDl.map(m=>m.id)));};
+  const enterSel=()=>{setSelMode(true);setUnlockZip(false);setChecked(new Set(visibleDl.map(m=>m.id)));};
   const exitSel=()=>{if(dl)return;setSelMode(false);setChecked(new Set());};
-  const togOne=m=>setChecked(p=>{const n=new Set(p);if(n.has(m.id))n.delete(m.id);else n.add(m.id);return n;});
+  const togOne=m=>{if(!dl)setChecked(p=>{const n=new Set(p);if(n.has(m.id))n.delete(m.id);else n.add(m.id);return n;});};
   const togAll=()=>setChecked(allChecked?new Set():new Set(visibleDl.map(m=>m.id)));
   const togSecSel=sec=>{
     const ms=sec.materials.filter(isDownloadable);
@@ -840,35 +848,104 @@ const LectureMaterials=({sections,totalFiles,totalActivities,loading,error,mob,o
 
   /* mode: 'zip' = ZIPでまとめる / 'pdf' = 選択中のPDFを表示順に1本へ結合 */
   const runBulkDl=async(mode='zip')=>{
-    console.log('[bulkDl] runBulkDl clicked, mode=',mode,'checked=',checked.size,'dl=',dl);
-    if(dl)return;
+    if(activeDownload.current)return;
     const pick=mode==='pdf'?isPdfFile:isDownloadable;
     const items=[];
     for(const s of sections)for(const m of s.materials)if(checked.has(m.id)&&pick(m))items.push({m,section:sections.length>1?s.name:""});
-    console.log('[bulkDl] items to download=',items.length);
     if(!items.length){alert(mode==='pdf'?t("mat.dlNoPdf"):t("mat.dlAllFailed"));return;}
+
+    const controller = new AbortController();
+    activeDownload.current = controller;
+    const { signal } = controller;
+    const pwKey = course?.moodleId || course?.id || null;
+    const confirmedPasswords = new Set();
+    const askPassword = (material, incorrect) => new Promise(resolve => {
+      const onAbort = () => resolve(null);
+      signal.addEventListener("abort", onAbort, { once: true });
+      const answer = password => {
+        signal.removeEventListener("abort", onAbort);
+        setPwAsk(null);
+        resolve(password);
+      };
+      setPwAsk({ material, incorrect, answer });
+    });
+    const unlockPdf = async (bytes, material) => {
+      const tryPassword = async password => {
+        try {
+          const plain = await decryptPdf(bytes, password);
+          if (signal.aborted) return null;
+          if (password) {
+            confirmedPasswords.add(password);
+            savePdfPassword(pwKey, password);
+          }
+          return plain;
+        } catch (e) {
+          if (!(e instanceof PdfPasswordError)) throw e;
+          return null;
+        }
+      };
+
+      const unlockName = material.filename || material.name;
+      setDl(progress => progress && { ...progress, unlockName });
+      try {
+        const hints = [...extractPasswordHints(material.description), ...coursePwHints];
+        const candidates = new Set(["", ...confirmedPasswords, ...passwordCandidates(pwKey, hints)]);
+        for (const password of candidates) {
+          if (signal.aborted) return null;
+          const plain = await tryPassword(password);
+          if (plain) return plain;
+        }
+        let incorrect = false;
+        while (!signal.aborted) {
+          const password = await askPassword(material, incorrect);
+          if (password === null || signal.aborted) return null;
+          const plain = await tryPassword(password);
+          if (plain) return plain;
+          incorrect = true;
+        }
+        return null;
+      } finally {
+        if (!signal.aborted) setDl(progress => progress && { ...progress, unlockName: null });
+      }
+    };
+
     setDl({phase:'fetch',done:0,total:items.length});
     try{
       const base=(course?.name||'').replace(/[\\/:*?"<>|]/g,'_').trim()||'materials';
+      const zipWithUnlock = unlockZip && checkedPdf > 0;
+      const options = { items, mob, signal, onProgress: setDl };
       const res=mode==='pdf'
-        ?await bulkMergeMaterialsToPdf({items,fileName:`${base}.pdf`,mob,onProgress:p=>setDl(p)})
-        :await bulkDownloadMaterials({items,zipName:`${base}.zip`,mob,onProgress:p=>setDl(p)});
+        ? await bulkMergeMaterialsToPdf({ ...options, fileName: `${base}.pdf`, unlockPdf })
+        : await bulkDownloadMaterials({ ...options, zipName: `${base}${zipWithUnlock ? "_unlocked" : ""}.zip`, unlockPdf: zipWithUnlock ? unlockPdf : undefined });
+      if(signal.aborted)return;
       if(res.stale)onRefresh?.();
-      if(!res.saved){alert(t("mat.dlAllFailed"));}
+      const skipped = res.failed.length ? `\n\n${res.failed.join("\n")}` : "";
+      if(!res.saved){alert(t("mat.dlAllFailed")+skipped);}
       else{
-        if(res.failed.length)alert(t("mat.dlFailedSome",{count:res.failed.length}));
+        if(skipped)alert(t("mat.dlFailedSome",{count:res.failed.length})+skipped);
         setSelMode(false);setChecked(new Set());
       }
     }catch(e){
+      if(signal.aborted)return;
       console.error("[mat] bulk dl",mode,e);
       alert(mode==='pdf'?t("mat.dlMergeFailed"):t("mat.dlSaveFailed"));
-    }finally{setDl(null);}
+    }finally{
+      if(activeDownload.current===controller){
+        activeDownload.current=null;
+        setDl(null);
+      }
+    }
   };
   /* 進捗: 取得 0-80% + ZIP化/結合 80-100% */
   const dlPct=!dl?0
     :dl.phase==='fetch'?(dl.total?dl.done/dl.total*80:0)
     :dl.phase==='merge'?80+(dl.total?dl.done/dl.total*20:0)
     :80+(dl.pct||0)*0.2;
+  const dlText = !dl ? ""
+    : dl.unlockName ? t("mat.dlUnlocking", { name: dl.unlockName })
+    : dl.phase === 'fetch' ? t("mat.dlFetching", { done: dl.done, total: dl.total })
+    : dl.phase === 'merge' ? t("mat.dlMerging", { done: dl.done, total: dl.total })
+    : t("mat.dlZipping");
 
   if(loading) return <Loader msg={t("mat.loadingMaterials")}/>;
   if(error==='LMS_UNAVAILABLE') return <div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{t("mat.lmsUnavailable")}</div>;
@@ -887,6 +964,12 @@ const LectureMaterials=({sections,totalFiles,totalActivities,loading,error,mob,o
           )}
           <button onClick={()=>runBulkDl('zip')} disabled={!checked.size||!!dl} style={{display:"flex",alignItems:"center",gap:4,padding:"5px 12px",borderRadius:6,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:600,cursor:(!checked.size||dl)?"default":"pointer",flexShrink:0,opacity:(!checked.size||dl)?0.5:1}}>{I.dl} {t("mat.dlZip")}</button>
           <button onClick={exitSel} disabled={!!dl} style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${T.bd}`,background:"transparent",color:T.txD,fontSize:12,fontWeight:600,cursor:dl?"default":"pointer",flexShrink:0,opacity:dl?0.5:1}}>{t("common.cancel")}</button>
+          {checkedPdf>0&&(
+            <label style={{display:"flex",alignItems:"center",gap:6,flexBasis:"100%",color:T.txH,fontSize:12}}>
+              <input type="checkbox" checked={unlockZip} disabled={!!dl} onChange={e=>setUnlockZip(e.target.checked)} style={{accentColor:T.accent,margin:0}}/>
+              {t("mat.dlUnlockZip")}
+            </label>
+          )}
         </div>
       ):(
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
@@ -902,7 +985,7 @@ const LectureMaterials=({sections,totalFiles,totalActivities,loading,error,mob,o
       )}
       {dl&&(
         <div style={{marginBottom:10}}>
-          <div style={{fontSize:12,color:T.txD,marginBottom:4}}>{dl.phase==='fetch'?t("mat.dlFetching",{done:dl.done,total:dl.total}):dl.phase==='merge'?t("mat.dlMerging",{done:dl.done,total:dl.total}):t("mat.dlZipping")}</div>
+          <div style={{fontSize:12,color:T.txD,marginBottom:4,overflowWrap:"anywhere"}}>{dlText}</div>
           <div style={{height:6,background:T.bg3,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${dlPct}%`,background:T.accent,transition:"width .2s"}}/></div>
         </div>
       )}
@@ -913,7 +996,7 @@ const LectureMaterials=({sections,totalFiles,totalActivities,loading,error,mob,o
         <div key={sec.id}>
           {sections.length>1&&(
             <div onClick={()=>togSec(sec.id)} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 4px 4px",cursor:"pointer",userSelect:"none"}}>
-              {selMode&&secDl.length>0&&<input type="checkbox" checked={secAll} onChange={()=>{}} onClick={e=>{e.stopPropagation();togSecSel(sec);}} style={{accentColor:T.accent,width:14,height:14,margin:0,cursor:"pointer",flexShrink:0}}/>}
+              {selMode&&secDl.length>0&&<input type="checkbox" checked={secAll} disabled={!!dl} onChange={()=>{}} onClick={e=>{e.stopPropagation();togSecSel(sec);}} style={{accentColor:T.accent,width:14,height:14,margin:0,cursor:"pointer",flexShrink:0}}/>}
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.txD} strokeWidth="2.5" style={{transform:collapsed[sec.id]?"none":"rotate(90deg)",transition:"transform .15s"}}><path d="M9 18l6-6-6-6"/></svg>
               <span style={{fontSize:13,fontWeight:700,color:T.txD}}>{sec.name}</span>
               <span style={{fontSize:11,color:T.txD}}>{sec.materials.length}</span>
@@ -923,6 +1006,8 @@ const LectureMaterials=({sections,totalFiles,totalActivities,loading,error,mob,o
         </div>
       );})}
       {filtered.length===0&&!loading&&<div style={{textAlign:"center",padding:40,color:T.txD,fontSize:13}}>{search?t("mat.noSearchResults"):t("mat.noMaterialsYet")}</div>}
+      {pwAsk&&<PdfPasswordPrompt overlay fileName={pwAsk.material.filename||pwAsk.material.name} note={pwAsk.material.description} incorrect={pwAsk.incorrect}
+        onSubmit={pwAsk.answer} onCancel={()=>pwAsk.answer(null)} cancelLabel={t("mat.dlSkipPdf")}/>}
     </div>
   );
 };
@@ -1139,7 +1224,7 @@ export const MatView=({course,mob,initialMatId,onInitialConsumed,onAnnotate,onOp
       </div>
 
       {/* Tab content */}
-      {tab===0&&<LectureMaterials sections={sections} totalFiles={totalFiles} totalActivities={totalActivities} loading={loading} error={error} mob={mob} onSelect={setSel} onRefresh={refresh} course={course} onPopOut={!mob?popOut:null}/>}
+      {tab===0&&<LectureMaterials key={course?.moodleId||course?.id} sections={sections} totalFiles={totalFiles} totalActivities={totalActivities} loading={loading} error={error} mob={mob} onSelect={setSel} onRefresh={refresh} course={course} onPopOut={!mob?popOut:null} coursePwHints={coursePwHints}/>}
       {tab===1&&<SharedMaterials courseId={course?.moodleId} mob={mob} onSelect={m=>{
         const ft=detectType(m.mimetype);
         if(m.url&&PREVIEWABLE.has(ft)){

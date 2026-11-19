@@ -11,6 +11,7 @@ import { buildCoverMap, createPrecipLayer } from "../campus3dPrecip.js";
 import { envAt, weatherCreate, weatherStep } from "../campus3dEnv.js";
 import { onWorldClock, worldClock, worldDay, worldIsSet, worldNow } from "../campus3dClock.js";
 import { BURN_MAXZOOM, dem, demTileUrl, registerDemProtocol } from "../campusDem.js";
+import { attachPaving } from "../campus3dPaving.js";
 import { ROUTE_ON_BRIDGE, buildingOpenings, buildingRoof, burnsGround, detailView, eraKey, featuresAt, featuresBounds, floorLevels, isPaint, pointInRing, prepareBridge, replacedBuildings, splitByBridges, stairsPath, toLngLat, toXY } from "../campus3dFeatures.js";
 import { cutFloorRegions, floorG0, floorLabels } from "../campus3dInterior.js";
 import { buildMesh, buildRibbons, setMeshPacking } from "../campus3dMesh.js";
@@ -18,7 +19,7 @@ import { createDoorsLayer, createExtrasLayer, createLightsLayer, createTrainsLay
 import { CAR, DRONE, angDiffV, bikeFits, carFits, dismountSpot, fwdOf, leftOf, loadVehicles, pickVehicle, placeVehicle, saveVehicles, stepBike, stepCar, stepDrone, vehicleBlocks, vehicleCamera } from "../campus3dVehicles.js";
 import { vehicleFrameMeshes } from "../campus3dVehicleMesh.js";
 import { MapVehicles } from "./MapVehicles.jsx";
-import { doorLeaves, stepDoors } from "../campus3dDoors.js";
+import { doorBatches, roomDoorBlocked, stepDoors } from "../campus3dDoors.js";
 import { collectLifts, liftBlocked, liftClock, liftFloors, liftMeshes, liftPick, liftState, pressButton, stepLift } from "../campus3dLift.js";
 import { collectSeats, seatPick, sitPose } from "../campus3dSeats.js";
 import { GATE_OPEN_MS, collectInteract, gateBlocked, laneDoors, pickInteract } from "../campus3dInteract.js";
@@ -906,7 +907,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         extrasRef.current = extras;
         // 木（季節・風。campus3dVeg）：構造物のすぐ前（ガラスの手すりの向こうの木が透けて見えるように）
         try {
-          const veg = createVegLayer({ exaggeration: TERRAIN_EXAG });
+          const veg = createVegLayer({ exaggeration: TERRAIN_EXAG, lite: isLiteDevice() });
           map.addLayer(veg, extras.id);
           vegRef.current = veg;
         } catch (err) {
@@ -933,7 +934,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
             const D = doorsRef.current;
             if (!D.list.length) return null;
             if (D.dirty || !D.leaves) {
-              D.leaves = doorLeaves(D.list, D.open);
+              D.leaves = doorBatches(D.list, D.open, D.leaves);
               D.dirty = false;
             }
             return D.leaves;
@@ -1090,7 +1091,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       }
       // 雨・雪（屋根の下には降らない。campus3dPrecip）
       try {
-        const precip = createPrecipLayer();
+        const precip = createPrecipLayer({ lite: isLiteDevice() });
         map.addLayer(precip, "nav-route-passed");
         precipRef.current = precip;
       } catch (err) {
@@ -1204,7 +1205,10 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       cancelAnimationFrame(gpsAnim.current.raf);
       followRaf.current = 0;
       applyRef.current++;
+      coverRef2.current.stop?.();
+      coverRef2.current = { map: null, stop: null, key: "" };
       map.remove();
+      precipRef.current = null;
       mapRef.current = null;
       extrasRef.current = null;
       mk.current = { labels: [], stations: [], gps: null, pin: null };
@@ -1397,6 +1401,12 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       map.getSource("cbPaveSurf")?.setData(paint.surfaces);
       map.getSource("cbPaveMark")?.setData(paint.paint);
       map.getSource("cbPaveFine")?.setData(paint.fine);
+      if (built.pavingView !== view) {
+        precipRef.current?.setPaving(paint.surfaces);
+        if (built.updatePaving) built.updatePaving(paint.surfaces);
+        else built.updatePaving = attachPaving(map, window.maplibregl, paint.surfaces, regionOf(data));
+        built.pavingView = view;
+      }
     };
     if (view.some((f) => f.type === "road")) {
       loadClipper().then((pc) => {
@@ -1409,7 +1419,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       showPaint(null);
     }
     (async () => {
-      await dem.ensure(featuresBounds(view.filter((f) => !isPaint(f.type)))); // 地面に貼る塗りは標高がいらない
+      await dem.ensure(featuresBounds(view.filter((f) => f.grade || !isPaint(f.type)))); // 地面に貼るだけの塗りは標高がいらない
       if (!live()) return;
       const slopes = view.filter(burnsGround);
       if (dem.setBurns(built.burn ? slopes : [])) {
@@ -1456,11 +1466,11 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         return hlRef.current && spots.includes(hlRef.current) ? built.hl : spots.length ? built.pal.bld : built.pal.bldMuted;
       };
       // 建物のくり抜き（ベランダ）は多角形の重ね合わせで作る
-      const clip = view.some((f) => f.type === "building" && buildingOpenings(f, view).length) ? await loadClipper() : null;
+      const clip = view.some((f) => f.grade || f.deckRim || (f.type === "building" && buildingOpenings(f, view).length)) ? await loadClipper() : null;
       if (!live()) return;
       meshRef.current = () => {
         nearHosts(); // lite（スマホ）：中を描く建物を、いま見ている所で選ぶ
-        const res = buildMesh(drawViewOf(view), { groundAt: ground, slopes: dem.slopes, terraces: dem.terraces, ceilings: cut.ceilings, digs: dem.digs, pal: built.pal, dark, selectedId: selectedFeatureId, accent, bldColor, clip, tone: lookRef.current?.tone, trees: !vegRef.current });
+        const res = buildMesh(drawViewOf(view), { groundAt: ground, slopes: dem.slopes, terraces: dem.terraces, ceilings: cut.ceilings, digs: dem.digs, pal: built.pal, dark, selectedId: selectedFeatureId, accent, bldColor, clip, tone: lookRef.current?.tone, trees: !vegRef.current, plantings: !vegRef.current });
         if (debugRef.current) lastMeshRef.current = res;
         extrasRef.current?.setMesh(res);
         // 使える物（自販機・券売機・改札）。改札の羽は自動ドアの板として描き、歩くあいだは閉じた羽がふさぐ（campus3dInteract）
@@ -1656,7 +1666,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const p = propsRef.current;
     const path = p.route && p.route.length > 1 ? routePath(p.route) : null;
     const groundZ = (x, y) => {
-      const g = dem.groundAt(toLngLat([x, y]));
+      const g = world.pavedHeight(x, y) ?? dem.groundAt(toLngLat([x, y]));
       return Number.isFinite(g) ? g : map.getCenterElevation();
     };
     let x;
@@ -1711,7 +1721,12 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       });
     }
     // エレベーターの閉まった扉は通れない（動く壁）
-    world.setDyn?.((x, y, z) => liftBlocked(liftsRef.current.list, liftsRef.current.states, x, y, z) || gateBlocked(doorsRef.current.list, doorsRef.current.open, x, y, z) || vehicleBlocks(walkRef.current?.veh?.list, walkRef.current?.veh?.ride, x, y, z)); // 閉じた改札の羽・止めてある乗り物もふさぐ
+    world.setDyn?.((x, y, z) => {
+      const doors = doorsRef.current;
+      return liftBlocked(liftsRef.current.list, liftsRef.current.states, x, y, z) ||
+        gateBlocked(doors.list, doors.open, x, y, z) || roomDoorBlocked(doors.list, doors.open, x, y, z) ||
+        vehicleBlocks(walkRef.current?.veh?.list, walkRef.current?.veh?.ride, x, y, z);
+    });
     world.setDynFloor?.((x, y) => liftFloors(liftsRef.current.list, liftsRef.current.states, x, y)); // かごの床（昇降路の階の床には穴）
     // いまのカメラの位置（ここから目の高さへ降りていく）
     const cam = map.transform.getCameraLngLat();
@@ -1791,7 +1806,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     // はじめ・おわりのつなぎ：カメラの位置・向き・中心までの距離・画角を少しずつ
     if (w.anim) {
       const a = w.anim;
-      const k = Math.min(1, (now - a.t0) / a.dur);
+      // 重い内装を読み込んだ直後は、最初のフレーム時刻が開始時刻より前になることがある。
+      const k = Math.max(0, Math.min(1, (now - a.t0) / a.dur));
       const e = easeInOut(k);
       const f = a.from;
       const to = a.to || { x: w.x, y: w.y, z: w.z + EYE, yaw: w.yaw, pitch: w.pitch, D: VIEW_D, fov: WALK_FOV };
@@ -3149,14 +3165,16 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       paintRef.current?.();
     };
     // 屋根の高さの地図（雨・雪をさえぎる）：手で足した構造物の範囲（＋60m、1.6km 四方まで）を 2m の升目で、少しずつ作る
-    const ensureCover = () => {
+    const ensureCover = (map) => {
       const C = coverRef2.current;
       const view = viewRef.current || [];
-      const key = `${view.length}|${cutRef.current ? 1 : 0}|${bridgesRef.current?.length || 0}`;
-      if ((C.map || C.stop) && C.key === key) return;
+      const key = `${dem.version}|${cutRef.current ? 1 : 0}|${bridgesRef.current?.length || 0}`;
+      if ((C.map || C.stop) && C.key === key && C.view === view) return;
       if (C.stop) C.stop();
       C.key = key;
+      C.view = view;
       C.map = null;
+      precipRef.current?.setCover(null);
       const fb = featuresBounds(view);
       if (!fb || !builtRef.current) return;
       const [x0, y0] = toXY([fb[0], fb[1]]);
@@ -3169,7 +3187,15 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         data, features: view, surfaceAt: (ll) => dem.surfaceAt(ll), digs: dem.digs, cut: cutRef.current, replaced: replacedRef.current, heights: builtRef.current.heights, decks: bridgesRef.current,
         groundAt: (ll) => dem.groundAt(ll),
       });
+      precipRef.current?.setSurface((x, y) => {
+        const ll = toLngLat([x, y]), plate = world.pavedHeight(x, y);
+        // Use the rendered DEM on ordinary streets. Its quantised surface can be
+        // several centimetres above the walking DEM. Raised decks can sit above both.
+        const displayed = map.terrain ? map.queryTerrainElevation(ll) : null;
+        return Number.isFinite(displayed) ? Math.max(plate ?? -Infinity, displayed) : plate ?? dem.surfaceAt(ll);
+      }, world.coverAt);
       C.stop = buildCoverMap(world, [cx - hw, cy - hh, cx + hw, cy + hh], 2, {
+        chunk: 3000,
         onDone: (cv) => {
           C.stop = null;
           C.map = cv;
@@ -3196,8 +3222,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       // 雨・雪：粒の箱はカメラのまわり（歩いているときは足もと、ふだんは地図のまん中の地面からの高さで大きさを決める）
       if (precipRef.current) {
         const w0 = walkRef.current;
-        precipRef.current.setEnv(env, look, w0 ? w0.z : map.getCenterElevation?.() ?? null);
-        if ((W.rain > 0 || W.snow > 0) && W.src !== "unknown") ensureCover();
+        precipRef.current.setEnv(env, look, w0 ? w0.z : map.getCenterElevation?.() ?? null, sky?.colors?.horizon);
+        if ((W.rain > 0 || W.snow > 0 || W.wet > 0.01) && W.src !== "unknown") ensureCover(map);
       }
       setLookPhase(look.phase);
       propsRef.current.onLookPhase?.(look.phase);

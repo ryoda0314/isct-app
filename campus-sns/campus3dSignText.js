@@ -63,8 +63,8 @@ function cellsToRects(data, W, H, cell, { dots = false, x0 = 0, rowsTop = 0, row
  * 字の四角。t：字、h：字の箱の高さ m、b：太さ、led：光る点の粗い字（1 升ずつの点）
  * @returns { w（字の並びの幅 m）, rects: [[x, y, w, h]] } か null
  */
-export function textCells(t, h, { b = 700, led = false } = {}) {
-  const key = `${t}|${h}|${b}|${led ? 1 : 0}`;
+export function textCells(t, h, { b = 700, led = false, serif = false } = {}) {
+  const key = `${t}|${h}|${b}|${led ? 1 : 0}|${serif ? 1 : 0}`;
   if (cache.has(key)) return cache.get(key);
   const g = context();
   if (!g) return null;
@@ -72,7 +72,7 @@ export function textCells(t, h, { b = 700, led = false } = {}) {
   const px = led ? 12 : Math.max(28, Math.min(48, Math.round(h * 220)));
   const cell = h / px;
   // 英字だけの太い字（b 800 以上）は英字の太い書体で（マクドナルドの看板など。2026-11-18）
-  const font = b >= 800 && /^[ -~]+$/.test(t) ? `"Arial Black","Helvetica Neue",Arial,${FONT}` : FONT;
+  const font = serif ? '"Times New Roman",serif' : b >= 800 && /^[ -~]+$/.test(t) ? `"Arial Black","Helvetica Neue",Arial,${FONT}` : FONT;
   g.font = `${b} ${px}px ${font}`;
   const W = Math.max(1, Math.ceil(g.measureText(t).width) + 4);
   const H = Math.ceil(px * 1.2) + 2;

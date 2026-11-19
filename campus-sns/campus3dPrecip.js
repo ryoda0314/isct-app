@@ -1,10 +1,7 @@
-// 雨・雪（デジタルツインの芯 3 の描き方。2026-11-10）：MapLibre の独自レイヤーで、カメラのまわりの箱の中に粒を降らせる。
-// 粒は世界に固定した位置（箱の大きさでくり返す）なので、カメラを動かしても粒はついてこない。雨は落ちる向き（風で斜め）に伸びた細い線、
-// 雪はゆれながら落ちる小さな丸。屋根の高さの地図（buildCoverMap：歩くときの当たり判定 walkWorld の coverAt）より下には描かない
-// ＝屋根・ひさし・橋の下には降らない。強さ（mm/h）で粒の数、風で斜め・流れ。
-// 2026-11-10 斜めすぎを直す：粒ごとに大きさ（Marshall–Palmer の中央の直径のまわり）→ 落ちる速さ（Atlas の式。大きい粒ほど速くまっすぐ）、
-// 横は地面近くの風（天気の風は開けた高いところの値。キャンパスの中の目の高さでは 0.45 倍ほど＝推定。高いほど強い）＋突風（演出）
+// 雨粒は地図に固定した二つの範囲を落下する。粒径と風で軌跡が、距離と露光時間で細い雨筋の見え方が変わる。
+// 近景は実際の路面・庇の高さで粒を止め、遠景はキャンパス全体の屋根地図と見通しを使う。濡れと波紋は campus3dRainGround。
 import { PER_M, cameraOf, compile, matrixFor } from "./campus3dLayer.js";
+import { createRainGround, RAIN_COVER } from "./campus3dRainGround.js";
 
 export const PRECIP_LAYER_ID = "cb-precip";
 const N_MAX = 18000;
@@ -17,7 +14,8 @@ export const dropSpeed = (D) => Math.max(0.6, 9.65 - 10.3 * Math.exp(-0.6 * D));
 // 高さ h（m。地面から）の風：天気の風 U（開けた高いところ）を、建物・木のあるキャンパスの中の風に（べき 0.27、目の高さ 2m で 0.45 倍。推定）
 export const windAt = (U, h) => U * Math.min(1, 0.45 * (Math.max(2, h) / 2) ** 0.27);
 // 突風：平均のまわりで 0.6〜1.4 倍ほど（いくつかの周期を足す。演出）。t は秒
-export const gustAt = (t) => 1 + 0.2 * Math.sin(0.37 * t) + 0.12 * Math.sin(0.93 * t + 1.7) + 0.06 * Math.sin(2.3 * t + 0.4);
+export const gustAt = (t) =>
+  1 + 0.2 * Math.sin(0.37 * t) + 0.12 * Math.sin(0.93 * t + 1.7) + 0.06 * Math.sin(2.3 * t + 0.4);
 // 雨粒が鉛直から傾く角（度）：横の風 u（m/s）と落ちる速さ
 export const rainTilt = (u, v) => (Math.atan2(u, v) * 180) / Math.PI;
 
@@ -74,124 +72,119 @@ export function coverHeight(cover, x, y) {
 }
 
 const VS = `
-attribute vec4 a_seed;   // 箱の中の位置（0〜1）・乱数
-attribute vec2 a_corner; // 横（-1・1）・頭から尾（0〜1）
+attribute vec4 a_seed;
+attribute vec2 a_corner;
 uniform mat4 u_matrix;
-uniform vec3 u_camM;     // カメラ（東・北・上 m。描く座標の原点から）
-uniform vec2 u_perM;     // 描く座標で東へ 1m・北へ 1m
-uniform vec3 u_box;      // 箱の大きさ（m）
-uniform vec2 u_drift;    // 風で流れた量（東・北 m。突風も積んだもの）
-uniform vec2 u_windNow;  // いまの横の風（東・北 m/s）
-uniform float u_time;
-uniform vec2 u_drop;     // 雨：粒の中央の直径（mm）・雪：落ちる速さ（m/s）
-uniform float u_blur;    // 雨の線の長さ＝速さ × u_blur（秒。目・カメラのぶれ）
-uniform float u_len;     // 雪の大きさ（m）
-uniform float u_mode;    // 0 雨・1 雪
-uniform float u_count;   // 見せる粒の割合（強さ）
+uniform vec3 u_eye, u_box;
+uniform vec2 u_perM, u_drift, u_wind, u_drop;
+uniform float u_time, u_lens, u_mode, u_snowSize, u_opacity;
 varying vec3 v_m;
-varying float v_a;
 varying vec2 v_uv;
+varying float v_a, v_glint;
 void main() {
-  v_uv = vec2(0.0);
-  if (a_seed.w > u_count) {
-    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-    v_m = vec3(0.0);
-    v_a = 0.0;
+  if(u_mode>1.5) {
+    // Integrate scattering along the view ray. Scene depth and roofs stop each interval.
+    vec2 clip=vec2(a_corner.x,2.0*a_corner.y-1.0);
+    vec3 metre=vec3(u_perM.x,-u_perM.y,1.0);
+    vec3 rx=metre*vec3(u_matrix[0].x,u_matrix[1].x,u_matrix[2].x);
+    vec3 ry=metre*vec3(u_matrix[0].y,u_matrix[1].y,u_matrix[2].y);
+    vec3 rw=metre*vec3(u_matrix[0].w,u_matrix[1].w,u_matrix[2].w);
+    vec3 ray=normalize(cross(rx-clip.x*rw,ry-clip.y*rw));
+    ray*=sign(dot(ray,rw));
+    float oblique=1.0/max(0.25,dot(ray,normalize(rw)));
+    v_m=u_eye+ray*(a_seed.x*oblique);
+    v_a=(1.0-exp(-a_seed.y*oblique*u_opacity))*(1.0-0.87*smoothstep(-0.04,0.53,ray.z));
+    v_glint=0.0; v_uv=vec2(0.0);
+    gl_Position=u_matrix*vec4(v_m.x*u_perM.x,-v_m.y*u_perM.y,v_m.z,1.0);
     return;
   }
-  // 粒ごとの大きさ → 落ちる速さ（小さい粒は遅く、風に流されて斜め。大きい粒は速くまっすぐ・明るい）
-  float r2 = fract(a_seed.x * 97.31 + a_seed.y * 41.17 + a_seed.z * 13.73 + a_seed.w * 7.19);
-  float vz;
-  float bright = 1.0;
-  if (u_mode < 0.5) {
-    float D = u_drop.x * (0.45 + 1.1 * r2);
-    vz = max(0.6, 9.65 - 10.3 * exp(-0.6 * D));
-    bright = clamp(0.45 + 0.55 * D / max(u_drop.x, 0.1), 0.45, 1.3);
-  } else vz = u_drop.y * (0.7 + 0.7 * r2);
-  vec3 S = u_box;
-  vec3 p0 = a_seed.xyz * S + vec3(u_drift, -vz * u_time);
-  vec3 local = fract((p0 - u_camM) / S + 0.5) * S - 0.5 * S;
-  if (u_mode > 0.5) {
-    float ph = a_seed.w * 40.0;
-    local.x += sin(u_time * 0.9 + ph) * 0.35;
-    local.y += cos(u_time * 0.7 + ph * 1.3) * 0.35;
-  }
-  vec3 p = u_camM + local;
-  float dist = max(0.3, length(local));
-  vec3 toCam = -local / dist;
-  vec3 q;
-  if (u_mode < 0.5) {
-    vec3 vel = vec3(u_windNow, -vz);
-    vec3 dirS = normalize(vel);
-    vec3 side = normalize(cross(dirS, toCam) + vec3(1e-5, 0.0, 0.0));
-    float w = max(0.005, dist * 0.0011);
-    q = p - dirS * (length(vel) * u_blur) * a_corner.y + side * w * a_corner.x;
-    v_a = (1.0 - 0.75 * a_corner.y) * bright;
+  float sizeRank=fract(dot(a_seed,vec4(97.31,41.17,13.73,7.19)));
+  float D=u_drop.x*(0.45+1.1*sizeRank);
+  float speed=u_mode<0.5 ? max(0.6,9.65-10.3*exp(-0.6*D)) : u_drop.y*(0.7+0.7*sizeRank);
+  float drag=u_mode<0.5 ? mix(1.10,0.91,sizeRank) : 1.0;
+  vec3 track=a_seed.xyz*u_box+vec3(u_drift*drag,-speed*u_time);
+  vec3 local=(fract((track-u_eye)/u_box+0.5)-0.5)*u_box;
+  float dist=max(0.05,length(local));
+  vec3 eyeDir=-local/dist;
+  vec3 q=u_eye+local;
+  v_uv=a_corner; v_glint=a_seed.w;
+  if(u_mode<0.5) {
+    vec3 velocity=vec3(u_wind*drag,-speed);
+    vec3 across=normalize(cross(normalize(velocity),eyeDir)+vec3(0.00001,0.0,0.0));
+    float px=dist/u_lens, diameter=D*0.001;
+    float defocus=(1.0-smoothstep(0.75,3.3,dist))*0.003;
+    float width=0.55*diameter+0.75*px+defocus;
+    // Finite exposure, plus a subpixel coverage estimate. A distant drop gets fainter as its width shrinks.
+    float exposure=0.022+0.018*a_seed.w;
+    q+=across*width*a_corner.x-velocity*exposure*a_corner.y;
+    v_a=u_opacity*min(1.0,(diameter*2.1+0.0011)/width)*(0.72+0.34*sizeRank);
+    v_a*=smoothstep(0.48,1.45,dist);
   } else {
-    vec3 side = normalize(cross(vec3(0.0, 0.0, 1.0), toCam) + vec3(1e-5, 0.0, 0.0));
-    vec3 up2 = cross(toCam, side);
-    float sz = max(u_len, dist * 0.0016);
-    q = p + side * sz * a_corner.x + up2 * sz * (a_corner.y * 2.0 - 1.0);
-    v_uv = vec2(a_corner.x, a_corner.y * 2.0 - 1.0);
-    v_a = 1.0;
+    float ph=a_seed.w*40.0;
+    q.xy+=vec2(sin(u_time*0.9+ph),cos(u_time*0.7+ph*1.3))*0.35;
+    vec3 across=normalize(cross(vec3(0.0,0.0,1.0),eyeDir)+vec3(0.00001,0.0,0.0));
+    v_uv=vec2(a_corner.x,a_corner.y*2.0-1.0);
+    q+=max(u_snowSize,dist*0.0016)*(across*v_uv.x+cross(eyeDir,across)*v_uv.y);
+    v_a=u_opacity*smoothstep(0.8,2.2,dist);
   }
-  // 箱のふちで薄く（くり返しの境目を見せない）。目のすぐ前の粒も薄く（大きな線・丸に見える）
-  vec3 r = abs(local) / S;
-  v_a *= (1.0 - smoothstep(0.32, 0.5, max(r.x, max(r.y, r.z)))) * smoothstep(0.8, 2.2, dist);
-  v_m = q;
-  gl_Position = u_matrix * vec4(q.x * u_perM.x, -q.y * u_perM.y, q.z, 1.0);
+  vec3 edge=abs(local)/u_box;
+  v_a*=1.0-smoothstep(0.32,0.50,max(edge.x,max(edge.y,edge.z)));
+  v_m=q;
+  gl_Position=u_matrix*vec4(q.x*u_perM.x,-q.y*u_perM.y,q.z,1.0);
 }`;
 const FS = `
-#ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
-#else
-precision mediump float;
-#endif
-uniform sampler2D u_cover;
-uniform vec4 u_coverRect; // 西端・南端・幅・高さ（m）
-uniform vec2 u_coverBase; // 基準の高さ・地図があるか
-uniform vec4 u_color;
+${RAIN_COVER}
+uniform vec3 u_color;
 uniform float u_mode;
 varying vec3 v_m;
-varying float v_a;
 varying vec2 v_uv;
+varying float v_a, v_glint;
 void main() {
-  if (u_coverBase.y > 0.5) {
-    vec2 uv = (v_m.xy - u_coverRect.xy) / u_coverRect.zw;
-    if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
-      vec4 c = texture2D(u_cover, uv);
-      if (c.a > 0.5) {
-        float h = (floor(c.r * 255.0 + 0.5) * 256.0 + floor(c.g * 255.0 + 0.5)) * 0.05 + u_coverBase.x;
-        if (v_m.z < h + 0.05) discard;
-      }
-    }
-  }
-  float a = u_color.a * v_a;
-  if (u_mode > 0.5) a *= smoothstep(1.0, 0.35, length(v_uv));
-  if (a < 0.004) discard;
-  gl_FragColor = vec4(u_color.rgb * a, a);
+  if(v_m.z < rainTop(v_m.xy)+0.015) discard;
+  float a=v_a;
+  if(u_mode<0.5) {
+    float t=v_uv.y;
+    float width=(1.0-smoothstep(0.0,1.0,abs(v_uv.x)));
+    float ends=smoothstep(0.0,0.15,t)*(1.0-smoothstep(0.62,1.0,t));
+    float highlight=1.0-smoothstep(0.0,0.26,abs(t-0.22-0.28*v_glint));
+    a*=width*ends*(0.65+0.35*highlight);
+  } else if(u_mode<1.5) a*=1.0-smoothstep(0.35,1.0,length(v_uv));
+  if(a<0.002) discard;
+  gl_FragColor=vec4(u_color*a,a);
 }`;
 
-/**
- * 雨・雪のレイヤー。setEnv(env, look)・setCover(屋根の高さの地図) で状態を渡す。地図の中の座標（m）は描く座標を東・北それぞれ 1m の長さで割ったもの
- * （campus3dFeatures の toXY とほぼ同じ。キャンパスの端で数十 cm）
- */
-export function createPrecipLayer() {
-  let map = null;
-  let gl = null;
-  let prog = null;
-  let pbuf = null;
-  let coverTex = null;
-  let cover = null;
-  let coverDirty = false;
-  let st = null;
-  // 風で流れた量（m）と、いまの横の風（m/s）。時間が 1800 秒で戻るときに 0 に戻す
-  const drift = [0, 0];
-  const windNow = [0, 0];
-  let lastTime = 0;
-  let lastNow = 0;
-  // 描く座標の東へ 1m・北へ 1m の長さ（地図の m＝campus3dFeatures の toXY と同じ向き・大きさにそろえる）
-  const perM = [Math.hypot(PER_M.e[0], PER_M.e[1]), Math.hypot(PER_M.n[0], PER_M.n[1])];
+// One ordered random sample per instance lets drizzle submit fewer drops than a downpour.
+export const rainAmount = (mm) => 1 - Math.exp(-0.225 * Math.sqrt(Math.max(0, mm)));
+const skyRGB = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+
+export function createPrecipLayer({ lite = false } = {}) {
+  let map,
+    gl,
+    p,
+    u,
+    vao,
+    mistVao,
+    bands,
+    seeds,
+    corners,
+    coverTex,
+    near,
+    cover = null,
+    coverDirty = false;
+  let paving = null,
+    groundAt = null,
+    roofAt = null,
+    st = null,
+    lastTime = 0,
+    lastNow = 0;
+  const drift = [0, 0],
+    perM = [Math.hypot(...PER_M.e), Math.hypot(...PER_M.n)];
+  let terrainPending = false,
+    hadTerrain;
+  const onTerrainTile = (event) => {
+    if (event.sourceId === "cbDem" && event.sourceDataType === "content") terrainPending = true;
+  };
   const layer = {
     id: PRECIP_LAYER_ID,
     type: "custom",
@@ -199,147 +192,266 @@ export function createPrecipLayer() {
     onAdd(m, g) {
       map = m;
       gl = g;
-      prog = compile(gl, VS, FS);
-      // 粒：1 粒 6 頂点（頭・尾の帯の四角）。位置は乱数で決まった並び
-      const data = new Float32Array(N_MAX * 6 * 6);
+      map.on("sourcedata", onTerrainTile);
+      const program = compile(gl, VS, FS);
+      p = program.p;
+      u = Object.fromEntries(
+        [
+          "matrix",
+          "eye",
+          "box",
+          "perM",
+          "drift",
+          "wind",
+          "drop",
+          "time",
+          "lens",
+          "mode",
+          "snowSize",
+          "opacity",
+          "color",
+          "cover",
+          "near",
+          "coverRect",
+          "coverBase",
+          "patch",
+        ].map((k) => [k, program.loc("u_" + k)]),
+      );
       let seed = 4242;
-      const rnd = () => {
-        seed = (seed * 1664525 + 1013904223) >>> 0;
-        return seed / 4294967296;
-      };
-      const C = [[-1, 0], [1, 0], [1, 1], [-1, 0], [1, 1], [-1, 1]];
-      for (let i = 0; i < N_MAX; i++) {
-        const s = [rnd(), rnd(), rnd(), rnd()];
-        for (let k = 0; k < 6; k++) data.set([...s, ...C[k]], (i * 6 + k) * 6);
+      const values = new Float32Array(N_MAX * 4);
+      for (let i = 0; i < values.length; i++) {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        values[i] = seed / 4294967296;
       }
-      pbuf = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, pbuf);
-      gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-      gl.bindBuffer(gl.ARRAY_BUFFER, null);
+      const prev = gl.getParameter(gl.VERTEX_ARRAY_BINDING);
+      vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);
+      seeds = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, seeds);
+      gl.bufferData(gl.ARRAY_BUFFER, values, gl.STATIC_DRAW);
+      const at = program.att("a_seed");
+      gl.enableVertexAttribArray(at);
+      gl.vertexAttribPointer(at, 4, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(at, 1);
+      corners = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, corners);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, 0, 1, 0, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const ac = program.att("a_corner");
+      gl.enableVertexAttribArray(ac);
+      gl.vertexAttribPointer(ac, 2, gl.FLOAT, false, 0, 0);
+      mistVao = gl.createVertexArray();
+      gl.bindVertexArray(mistVao);
+      gl.enableVertexAttribArray(ac);
+      gl.vertexAttribPointer(ac, 2, gl.FLOAT, false, 0, 0);
+      bands = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, bands);
+      // Midpoints and lengths of depth intervals in metres, far to near.
+      gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array([242, 96, 158, 72, 98, 48, 59, 30, 34, 20, 17, 14, 5, 10]),
+        gl.STATIC_DRAW,
+      );
+      gl.enableVertexAttribArray(at);
+      gl.vertexAttribPointer(at, 2, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribDivisor(at, 1);
+      gl.bindVertexArray(prev);
       coverTex = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, coverTex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
       coverDirty = !!cover;
     },
     onRemove() {
+      map?.off("sourcedata", onTerrainTile);
       if (gl) {
-        if (pbuf) gl.deleteBuffer(pbuf);
-        if (coverTex) gl.deleteTexture(coverTex);
-        if (prog) gl.deleteProgram(prog.p);
+        near?.remove();
+        gl.deleteBuffer(seeds);
+        gl.deleteBuffer(corners);
+        gl.deleteBuffer(bands);
+        gl.deleteVertexArray(mistVao);
+        gl.deleteVertexArray(vao);
+        gl.deleteTexture(coverTex);
+        gl.deleteProgram(p);
       }
+      near = null;
       map = null;
       gl = null;
     },
+    setPaving(collection) {
+      paving = collection;
+      map?.triggerRepaint();
+    },
+    setSurface(ground, roof) {
+      groundAt = ground;
+      roofAt = roof;
+    },
+    setCover(c) {
+      cover = c;
+      coverDirty = true;
+      map?.triggerRepaint();
+    },
+    cover: () => cover,
+    setEnv(env, look, ground = null, horizon = null) {
+      const w = env?.weather;
+      if (!w || w.src === "unknown") {
+        st = null;
+        return;
+      }
+      const rain = Math.max(0, Number(w.rain) || 0),
+        snow = Math.max(0, Number(w.snow) || 0);
+      const wet = Math.min(1, Math.max(0, Number(w.wet) || 0)) * (1 - Math.min(1, Math.max(0, w.snowCover || 0)));
+      if (rain <= 0.02 && snow <= 0.02 && wet < 0.01) {
+        st = null;
+        return;
+      }
+      const flake = snow > 0.02 && snow > rain,
+        night = look?.f?.night || 0,
+        rate = rain > 0.02 ? rainAmount(rain) : 0;
+      const sky = horizon || skyRGB(look?.sky?.horizon || "#aeb9c0");
+      st = {
+        flake,
+        wet: flake ? 0 : wet,
+        ground,
+        rate,
+        extinction: (3.5 * Math.min(1, rate * 1.7)) / Math.max(140, Number(w.fog) || 12000),
+        amount: flake ? Math.min(1, 0.12 + snow / 4) : rate,
+        drop: flake ? [0, 1] : [dropSize(rain), 0],
+        sky,
+        wind: Math.max(0, Number(w.wind) || 0),
+        to: ((Number(w.windDir) || 0) + 180) * DEG,
+        color: flake
+          ? [0.97 - 0.45 * night, 0.98 - 0.45 * night, 1 - 0.4 * night]
+          : sky.map((v, i) => Math.min(0.99, 0.24 + 0.82 * v + 0.025 * i - 0.14 * night)),
+      };
+      map?.triggerRepaint();
+    },
     render(g, args) {
-      if (!st || !st.count || !map) return;
-      const M = matrixFor(args.modelViewProjectionMatrix, map.transform.worldSize, 1);
-      const cam = cameraOf(M);
+      if (!st || !map) return;
+      const M = matrixFor(args.modelViewProjectionMatrix, map.transform.worldSize, 1),
+        cam = cameraOf(M);
       if (!cam) return;
-      const camM = [cam[0] / perM[0], -cam[1] / perM[1], cam[2]];
+      const eye = [cam[0] / perM[0], -cam[1] / perM[1], cam[2]],
+        alt = Math.max(0, cam[2] - (st.ground ?? cam[2] - 1.6));
+      const local = !!groundAt && alt < 46 && (!st.flake || !!near),
+        wet = st.wet * Math.max(0, Math.min(1, (40 - alt) / 16));
+      if (!st.amount && (!local || wet < 0.01)) return;
+      const prev = gl.getParameter(gl.VERTEX_ARRAY_BINDING),
+        active = gl.getParameter(gl.ACTIVE_TEXTURE);
       if (coverDirty && cover) {
+        gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, coverTex);
-        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
         gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, cover.nx, cover.ny, 0, gl.RGBA, gl.UNSIGNED_BYTE, cover.data);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         coverDirty = false;
       }
-      // 箱：カメラが高いほど大きく（上から見ているときも降って見える）
-      const alt = Math.max(0, cam[2] - (st.ground ?? cam[2] - 1.6));
-      const sxy = Math.min(500, Math.max(46, alt * 1.4));
-      const sz = Math.min(400, Math.max(30, alt * 1.1));
-      // 横の風：カメラの高さの風（目の高さは弱い）× 突風、向きも少しゆれる。流れた量を積む
-      const nowS = performance.now() / 1000;
-      const time = nowS % 1800;
-      if (time < lastTime) drift[0] = drift[1] = 0;
-      const dt = lastNow ? Math.min(0.1, Math.max(0, nowS - lastNow)) : 0;
+      if (local) {
+        near ||= createRainGround(gl);
+        const hasTerrain = !!map.terrain;
+        if (
+          hadTerrain !== hasTerrain ||
+          (terrainPending && map.getSource("cbDem") && map.isSourceLoaded("cbDem"))
+        ) {
+          near.refreshTerrain();
+          hadTerrain = hasTerrain;
+          terrainPending = false;
+        }
+        near.update(eye, groundAt, roofAt, paving);
+      }
+      const bindCover = (loc) => {
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, coverTex);
+        gl.uniform1i(loc.cover, 0);
+        gl.uniform1i(loc.near, 1);
+        if (cover) {
+          gl.uniform4f(loc.coverRect, cover.x0, cover.y0, cover.nx * cover.step, cover.ny * cover.step);
+          gl.uniform2f(loc.coverBase, cover.base, 1);
+        } else {
+          gl.uniform4f(loc.coverRect, 0, 0, 1, 1);
+          gl.uniform2f(loc.coverBase, 0, 0);
+        }
+        if (local) near.bindNear(loc.patch);
+        else {
+          gl.activeTexture(gl.TEXTURE1);
+          gl.bindTexture(gl.TEXTURE_2D, coverTex);
+          gl.uniform3f(loc.patch, 0, 0, 0);
+        }
+      };
+      const now = performance.now() / 1000,
+        time = now % 1800,
+        dt = lastNow ? Math.min(0.25, Math.max(0, now - lastNow)) : 0;
+      if (time < lastTime || now - lastNow > 5) drift.fill(0);
       lastTime = time;
-      lastNow = nowS;
-      const U = windAt(st.wind, alt) * (st.wind > 0 ? gustAt(nowS) : 0);
-      const ang = st.windTo + 0.1 * Math.sin(0.21 * nowS + 0.5);
-      windNow[0] = Math.sin(ang) * U;
-      windNow[1] = Math.cos(ang) * U;
-      drift[0] += windNow[0] * dt;
-      drift[1] += windNow[1] * dt;
-      const p = prog;
-      gl.useProgram(p.p);
-      gl.uniformMatrix4fv(p.loc("u_matrix"), false, M);
-      gl.uniform3fv(p.loc("u_camM"), camM);
-      gl.uniform2f(p.loc("u_perM"), perM[0], perM[1]);
-      gl.uniform3f(p.loc("u_box"), sxy, sxy, sz);
-      gl.uniform2fv(p.loc("u_drift"), drift);
-      gl.uniform2fv(p.loc("u_windNow"), windNow);
-      gl.uniform1f(p.loc("u_time"), time);
-      gl.uniform2fv(p.loc("u_drop"), st.drop);
-      gl.uniform1f(p.loc("u_blur"), 0.1 * (1 + alt / 120));
-      gl.uniform1f(p.loc("u_len"), st.len * (1 + alt / 120));
-      gl.uniform1f(p.loc("u_mode"), st.mode);
-      gl.uniform1f(p.loc("u_count"), st.count);
-      gl.uniform4fv(p.loc("u_color"), st.color);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, coverTex);
-      gl.uniform1i(p.loc("u_cover"), 0);
-      if (cover) {
-        gl.uniform4f(p.loc("u_coverRect"), cover.x0, cover.y0, cover.nx * cover.step, cover.ny * cover.step);
-        gl.uniform2f(p.loc("u_coverBase"), cover.base, 1);
-      } else gl.uniform2f(p.loc("u_coverBase"), 0, 0);
-      gl.bindBuffer(gl.ARRAY_BUFFER, pbuf);
-      const as = p.att("a_seed");
-      const ac = p.att("a_corner");
-      gl.enableVertexAttribArray(as);
-      gl.vertexAttribPointer(as, 4, gl.FLOAT, false, 24, 0);
-      gl.enableVertexAttribArray(ac);
-      gl.vertexAttribPointer(ac, 2, gl.FLOAT, false, 24, 16);
+      lastNow = now;
+      const speed = windAt(st.wind, alt) * gustAt(now),
+        ang = st.to + 0.1 * Math.sin(0.21 * now + 0.5);
+      const wx = Math.sin(ang) * speed,
+        wy = Math.cos(ang) * speed;
+      drift[0] += wx * dt;
+      drift[1] += wy * dt;
+      const lens = gl.drawingBufferHeight / (2 * Math.tan(map.transform.fovInRadians / 2));
+      const depthWrite = gl.getParameter(gl.DEPTH_WRITEMASK),
+        cull = gl.isEnabled(gl.CULL_FACE),
+        blend = gl.isEnabled(gl.BLEND),
+        depth = gl.isEnabled(gl.DEPTH_TEST);
+      gl.disable(gl.CULL_FACE);
+      gl.enable(gl.DEPTH_TEST);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
       gl.depthMask(false);
-      gl.drawArrays(gl.TRIANGLES, 0, N_MAX * 6);
-      gl.depthMask(true);
-      gl.disableVertexAttribArray(as);
-      gl.disableVertexAttribArray(ac);
-      gl.bindBuffer(gl.ARRAY_BUFFER, null);
+      if (local && wet >= 0.01) near.draw(M, perM, eye, st.sky, wet, st.rate, time, lens, bindCover);
+      if (st.amount > 0) {
+        gl.useProgram(p);
+        gl.bindVertexArray(vao);
+        bindCover(u);
+        gl.uniformMatrix4fv(u.matrix, false, M);
+        gl.uniform3fv(u.eye, eye);
+        gl.uniform2fv(u.perM, perM);
+        gl.uniform2f(u.wind, wx, wy);
+        gl.uniform2fv(u.drop, st.drop);
+        gl.uniform1f(u.time, time);
+        gl.uniform1f(u.lens, lens);
+        if (!st.flake) {
+          gl.bindVertexArray(mistVao);
+          gl.uniform1f(u.mode, 2);
+          gl.uniform1f(u.opacity, st.extinction);
+          gl.uniform3fv(u.color, st.sky);
+          gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, 7);
+          gl.bindVertexArray(vao);
+        }
+        gl.uniform1f(u.mode, st.flake ? 1 : 0);
+        gl.uniform1f(u.snowSize, 0.018 * (1 + alt / 120));
+        gl.uniform3fv(u.color, st.color);
+        const field = (width, height, offset, max, opacity) => {
+          gl.uniform3f(u.box, width, width, height);
+          gl.uniform1f(u.opacity, opacity);
+          gl.uniform2f(u.drift, drift[0] + offset, drift[1] - offset * 0.71);
+          gl.drawArraysInstanced(
+            gl.TRIANGLE_STRIP,
+            0,
+            4,
+            Math.round(max * st.amount * (lite && !st.flake ? 0.68 : 1)),
+          );
+        };
+        if (st.flake)
+          field(Math.min(500, Math.max(46, alt * 1.4)), Math.min(400, Math.max(30, alt * 1.1)), 0, N_MAX, 0.85);
+        else {
+          const heightFade = 1 / (1 + Math.max(0, alt - 12) / 58);
+          field(24, 17, 0, 5200, 0.68 * heightFade);
+          field(59, 38, 17.91, 13600, 0.66 * heightFade);
+        }
+      }
+      gl.depthMask(depthWrite);
+      if (cull) gl.enable(gl.CULL_FACE);
+      if (!blend) gl.disable(gl.BLEND);
+      if (!depth) gl.disable(gl.DEPTH_TEST);
+      gl.bindVertexArray(prev);
+      gl.activeTexture(active);
     },
   };
-  // 状態：env（campus3dEnv）・look（campus3dSky。夜は暗い粒）・ground（カメラの下の地面の高さ。なければカメラ − 1.6m）
-  layer.setEnv = (env, look, ground = null) => {
-    const W = env?.weather || {};
-    const known = W && W.src !== "unknown";
-    const rain = known ? Math.max(0, Number(W.rain) || 0) : 0;
-    const snow = known ? Math.max(0, Number(W.snow) || 0) : 0;
-    const to = (((Number(W.windDir) || 0) + 180) % 360) * DEG;
-    const wind = known ? Math.max(0, Number(W.wind) || 0) : 0;
-    const night = look?.f?.night || 0;
-    if (rain <= 0.02 && snow <= 0.02) {
-      st = null;
-      return;
-    }
-    // 風（wind：天気の風 m/s、windTo：吹いていく向き）は描くときにカメラの高さの風・突風にする
-    if (snow > rain) {
-      st = {
-        mode: 1, ground, wind, windTo: to,
-        drop: [0, 1.0], // 雪片の落ちる速さ 1m/s ほど（粒ごとに 0.7〜1.4 倍）
-        len: 0.018,
-        count: Math.min(1, 0.12 + snow / 4),
-        color: [0.97 - 0.45 * night, 0.98 - 0.45 * night, 1 - 0.4 * night, 0.85],
-      };
-    } else {
-      st = {
-        mode: 0, ground, wind, windTo: to,
-        drop: [dropSize(rain), 0],
-        len: 0,
-        count: Math.min(1, 0.07 + rain / 35),
-        color: [0.78 - 0.3 * night, 0.82 - 0.3 * night, 0.9 - 0.28 * night, 0.32 + Math.min(0.2, rain / 150)],
-      };
-    }
-    map?.triggerRepaint();
-  };
-  layer.setCover = (c) => {
-    cover = c;
-    coverDirty = true;
-    map?.triggerRepaint();
-  };
-  layer.cover = () => cover;
   return layer;
 }

@@ -5,8 +5,9 @@
 // ぶつかり：建物（高さのぶんだけ。通り抜け・くり抜きはくぐれる）・手で足した壁・木の幹・池・街灯の柱・地図の外。橋や階段の横、くり抜きの床のふち
 // （手すり）、平地の段差のふち（柵）からは落ちない。どこからでも歩きはじめられるよう、画面で指したところの立てる面も出す（pick）。
 // ここは位置・速さ・向きの計算と、目の位置から MapLibre のカメラ（中心・ズーム・中心の標高）を出す計算。DOM も MapLibre も使わない
-import { BOARD_T, STAIRS_CLEAR, WALL_IN, WALL_T, basementRegions, buildingOpenings, buildingRoof, buildingSoffit, clearGlassFace, cumulative, densify, edgeOpen, inBasement, isOpenStairs, curbWidth, offsetLine, overLids, panelSlices, pointInRing, prepareBridge, railGround, signFrame, ringArea, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexShifts, vertexWidths, withAutoOpenStairs } from "./campus3dFeatures.js";
+import { BOARD_T, STAIRS_CLEAR, WALL_IN, WALL_T, basementRegions, buildingOpenings, buildingRoof, buildingSoffit, clearGlassFace, cumulative, densify, edgeOpen, inBasement, isOpenStairs, curbWidth, offsetLine, overLids, panelSlices, pointInRing, prepareBridge, preparePaving, prepareSurveyGround, pavingSubgrade, railGround, signFrame, ringArea, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexShifts, vertexWidths, withAutoOpenStairs } from "./campus3dFeatures.js";
 import { carveSurfaces, reachOut, trunkRadius } from "./campus3dMesh.js";
+import { lecturePostFootprints } from "./campus3dLectureArcade.js";
 import { cutFloorRegions, digWalk, floorG0, floorWalk } from "./campus3dInterior.js";
 
 const DEG = Math.PI / 180;
@@ -34,6 +35,7 @@ const DROP_OFF = 1.5; // 橋・階段の端の近くで横へ降りられる高�
 const APEX = (JUMP * JUMP) / (2 * GRAVITY); // ジャンプで上がる高さ
 
 const ll2xy = ([lat, lng]) => toXY([lng, lat]);
+const deckFoot = (d, s) => d.treadAt ? d.treadAt(s) : d.deckAt(s) - (d.step ? STAIRS_CLEAR : 0);
 const angle = (v) => ((v % 360) + 360) % 360;
 export const angDiff = (to, from) => ((((to - from) % 360) + 540) % 360) - 180;
 
@@ -100,7 +102,21 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
   const ALL = [[-Infinity, Infinity]];
   const inRings = (x, y, rings) => rings.some((r) => pointInRing(x, y, r));
   const ground = (x, y) => groundAt(toLngLat([x, y]));
-  const surface = surfaceAt ? (x, y) => surfaceAt(toLngLat([x, y])) : ground;
+  const terrain = surfaceAt ? (x, y) => surfaceAt(toLngLat([x, y])) : ground;
+  const paving = new Grid(10);
+  const plates = features.filter(f => f.grade).map(preparePaving).filter(Boolean);
+  const surveyGround = prepareSurveyGround(plates);
+  for (const plate of plates) paving.add(plate.box, plate);
+  const pavedHeight = (x, y) => {
+    let top = null;
+    paving.some(x, y, 0, plate => {
+      const z = plate.heightAt(x, y);
+      if (z != null && (top == null || z > top)) top = z;
+      return false;
+    });
+    return top;
+  };
+  const surface = (x, y) => pavedHeight(x, y) ?? terrain(x, y);
   // 壁：線分 a–b から half m 以内で、高さの区間 spans にかかる体は通れない（stand なら区間の上には立てる：体が少しでもかかる段には
   // 乗れる。柵の上には立たない）。owner はその壁を持つもの（立体のふちなら立体）
   const addEdge = (a, b, half, spans, owner = null, stand = true) => {
@@ -241,6 +257,10 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
         return out;
       };
       const solid = addSolid(ring, [], spans, 0.5);
+      if (f.lectureArcade) for (const post of lecturePostFootprints(f)) {
+        const span = [[g0 + post.zs[0], g0 + post.zs[1]]];
+        addSolid(post.ring, [], () => span);
+      }
       // 立った板（V 字の柱など）：板のある高さの区間だけ（厚さの半分と体の半径まで近づけない。上には立たない）
       for (const p of f.panels || []) {
         for (const sl of panelSlices(p)) addEdge(sl.a, sl.b, p.thickness / 2 + BODY, sl.spans.map(([lo, hi]) => [g0 + lo, g0 + hi]), null, false);
@@ -303,6 +323,11 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
       const [a] = fr.at(0, f.height / 2, -f.thickness / 2);
       const [b] = fr.at(f.width, f.height / 2, -f.thickness / 2);
       addEdge(a, b, reach + BODY, [[-Infinity, Number.isFinite(g) ? g + f.z + f.height * fr.ey[1] : Infinity]], null, false);
+    } else if (f.type === "wall" && f.kind === "bollards") {
+      for (const ll of f.coords) {
+        const p = toXY(ll), z = wallGround(ll);
+        if (Number.isFinite(z)) addEdge(p, p, BODY + f.thickness / 2, [[z - 0.04, z + f.height]], null, false);
+      }
     } else if (f.type === "wall") {
       // 長い区間は 2m ごとに分ける（足もとの高さ・ふたの上かどうかは、分けた区間のまん中で測る）
       const { pts } = densify(f.coords.map(toXY), 2);
@@ -312,7 +337,7 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
         // ガラスの手すり・rim の柵は描くのと同じ足もと（両わきの高いほうの地面。掘り下げた平地のふちの上に立つものも）。
         // 天井のある平地のふたの上では、ふたの上から（描くときと同じ）
         const nn = [-(pts[i][1] - pts[i - 1][1]) / L, (pts[i][0] - pts[i - 1][0]) / L];
-        const footAt = (gnd) => (f.kind === "glass" || f.rim ? railGround(gnd, mid, nn) : gnd(toLngLat(mid)));
+        const footAt = (gnd) => f.groundRef ? gnd(f.groundRef) : (f.kind === "glass" || f.rim ? railGround(gnd, mid, nn) : gnd(toLngLat(mid)));
         const g = footAt(wallGround);
         const t = f.curb ? Math.max(f.thickness || 0.3, curbWidth(f)) : f.thickness || 0.3; // 縁石があればその幅
         // ふたの上に立つ柵（下は部屋の口：くぐれる）と、段の上に立てた柵（base）は、その足もとから上だけ。平地のふちの柵（rim）も
@@ -320,7 +345,8 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
         const raised = Number.isFinite(g) && (f.base > 0 || f.rim || g > footAt(groundAt) + 0.3);
         // 地下の駅の上（広場・交差点の柵・ベンチ）は、地面の少し下から上だけ（下のホームを歩ける）
         const lo = raised ? g + (f.base || 0) - 0.05 : overStation(mid[0], mid[1]) && Number.isFinite(g) ? g - UNDER_SLAB : -Infinity;
-        addEdge(pts[i - 1], pts[i], t / 2 + BODY, [[lo, Number.isFinite(g) ? g + (f.base || 0) + (f.height || 1.2) : Infinity]]);
+        const top = f.crest ?? (Number.isFinite(g) ? g + (f.base || 0) + (f.height || 1.2) : Infinity);
+        addEdge(pts[i - 1], pts[i], t / 2 + BODY, [[lo, top]]);
       }
     }
   }
@@ -366,6 +392,19 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
   // 自動ドアの口の判定だけは、掘らない地下の階（digMode "cut"）も地下（附属図書館の入口の穴の自動ドアから地下 1 階へ。2026-11-13）。
   // ほかの判定（盛った平地のふち・天井のある平地の床など）は今までどおり（丘のふちの柵を消さない）
   const basementsDoor = basementRegions(features, { walk: true });
+  // 盛り上げた通路のふちが、別の平地に設けた地下のガラス戸を横切ることがある。
+  // 地表の落下防止は残し、戸の敷居からまぐさまでだけ通す。
+  const terraceDoors = [];
+  for (const { f, ring } of terraces) {
+    if (!basementsDoor.length || !Number.isFinite(f.elev)) continue;
+    (f.faces || []).forEach((fc, i) => {
+      if (!fc?.auto || !clearGlassFace(fc)) return;
+      const a = ring[i], b = ring[(i + 1) % ring.length];
+      const at = t => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+      const sill = f.elev + (fc.base || 0);
+      for (const [start, end] of fc.doors || []) terraceDoors.push({ a: at(start), b: at(end), sill, top: sill + AUTO_DOOR_H });
+    });
+  }
   // 地面より上の建物の階の床（詳細モード）：平地のふちの外に同じ高さの床があれば、そのふちは段差でない（柵を立てない）。
   // 附属図書館の 2 階の入口のテラスから学習棟の 2 階の床へ（テラスは学習棟の北の面まで。2026-11-13）
   const levelFloors = features
@@ -375,7 +414,7 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
       return Number.isFinite(g0) ? { ring: f.coords.map(toXY), holes: (f.holes || []).map((h) => h.coords.map(toXY)), top: g0 + f.z } : null;
     })
     .filter(Boolean);
-  const sameLevelFloor = (p, z) => levelFloors.some((L) => Math.abs(L.top - z) < 0.35 && pointInRing(p[0], p[1], L.ring) && !L.holes.some((h) => pointInRing(p[0], p[1], h)));
+  const sameLevelFloor = (p, z) => Math.abs((pavedHeight(...p) ?? Infinity) - z) < 0.35 || levelFloors.some((L) => Math.abs(L.top - z) < 0.35 && pointInRing(p[0], p[1], L.ring) && !L.holes.some((h) => pointInRing(p[0], p[1], h)));
   // 掘らない地下の階（digMode "cut"）の上を通る平地のふちの帯・柵は、その階の天井（上の床の下の面）から上だけ（地面の下の帯が地下の階の
   // 部屋を横切らない。附属図書館 1 階のロビーの下の地面をならした平地のふちが、地下 1 階の入口ホールのゲートをふさいでいた。2026-11-13）
   const cutCeils = features
@@ -426,7 +465,7 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
     if (d.box && (x < d.box[0] || x > d.box[2] || y < d.box[1] || y > d.box[3])) return false;
     const r = stripDistance(d.xy, d.cum, d.hwv || d.hw, [x, y], d.cv || 0);
     if (r.D > 0.05) return false;
-    const dz = d.deckAt(r.s) - (d.step ? STAIRS_CLEAR : 0);
+    const dz = deckFoot(d, r.s);
     return Number.isFinite(dz) && Math.abs(dz - z) <= STEP;
   });
   // 地下の階（中の見える建物。basements）：掘り下げのふちの外がここなら、壁は薄く（WALL_IN）、透明なガラスの面ならガラスの上から上だけ（描くのと同じ）
@@ -462,6 +501,7 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
       const n = Math.max(1, Math.ceil(L));
       for (let k = 0; k < n; k++) {
         const m = at((k + 0.5) / n);
+        if (!f.ceiling && !f.deckRim && surveyGround?.crossesRim(m[0], m[1], nx, ny)) continue;
         // ふちの内 1.5m 〜 外 1.5m の地面
         const prof = [];
         for (let j = -10; j <= 10; j++) prof.push((lids.size && !lids.has(f) ? rimGround : ground)(m[0] + nx * j * 0.15, m[1] + ny * j * 0.15));
@@ -469,6 +509,8 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
         const hi = Math.max(...prof);
         if (hi - Math.min(...prof) <= STEP) continue;
         const lowIn = prof.slice(0, 10).reduce((x, y) => x + y) < prof.slice(11).reduce((x, y) => x + y);
+        // 板の張り出しは辺ごとに異なる。車寄せの石床に突き合わせる辺では 0。
+        const rimFraction = cut && !lowIn ? (f.deckRim?.[i] ?? WALL_T) / WALL_T : 1;
         // 平地のほうが高くても、外が階段の床（踊り場）で高さがそろっていれば、ふちはない（踊り場から入る地下の玄関の穴など）
         if (!lowIn && deckFlush(m[0] + nx * 0.6, m[1] + ny * 0.6, hi)) continue;
         // 外のとなりの平地のほうが高ければ、そちらの壁（描くときと同じ）。ふちを斜めにした平地（side > 0）は壁を立てないので、こちらで。
@@ -491,13 +533,13 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
             const d = Math.abs(prof[j + 1] - prof[j]);
             if (d > steep) { steep = d; w = ((j + 0.5 - 10) * 0.15) / WALL_T; }
           }
-        } else w = lowIn ? 0 : 1;
-        const top = [[-Infinity, hi + 0.05]];
+        } else w = lowIn ? 0 : rimFraction;
+        const top = [[-Infinity, f.deckRim && !lowIn ? (f.elev ?? hi) : hi + 0.05]];
         // 外（壁の帯の側）が地下の階：帯は WALL_IN の薄い壁。透明なガラスの面なら、帯はガラスの上の端から上だけ（ガラスの線は下の柵で止まる）
         const inB = cut && lowIn && basements.length > 0 && inBasement(basements, [m[0] + nx * 0.6, m[1] + ny * 0.6]);
         const fcA = f.faces?.[i];
         const inBDoor = inB || (cut && lowIn && !!(fcA?.auto && fcA.doors?.length) && basementsDoor.length > 0 && inBasement(basementsDoor, [m[0] + nx * 0.6, m[1] + ny * 0.6]));
-        const wB = inBDoor ? WALL_IN / WALL_T : 1;
+        const wB = inBDoor ? WALL_IN / WALL_T : rimFraction;
         const fcI = f.faces?.[i];
         const bandTop = inB && clearGlassFace(fcI) ? [[Math.min(...prof) + fcI.glass, hi + 0.05]] : top;
         // ふちに沿って地面が下がっていくところで、走って跳んでも越えない高さ。天井のある平地のふちは天井まで（上のふたを歩ける）
@@ -524,16 +566,23 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
             if (cut && rb - ra > 1e-6 && hi + 0.05 > mouth.under) addSolid([at(ra), at(rb), at(rb, 1), at(ra, 1)], [], () => [[mouth.under, hi + 0.05]]);
             addEdge(at(ra, w), at(rb, w), BODY + 0.05, [[mouth.under, Math.max(rail[0][1], mouth.top + 3)]], null, false);
           } else {
-            const pc = at((ra + rb) / 2, 0.5);
-            if (cut && rb - ra > 1e-6) { const bt = overCut(bandTop, pc); if (bt.length) addSolid([at(ra), at(rb), at(rb, wB), at(ra, wB)], [], () => bt); }
+            const pc = at((ra + rb) / 2, rimFraction / 2);
+            if (cut && wB > 0 && rb - ra > 1e-6) { const bt = overCut(bandTop, pc); if (bt.length) addSolid([at(ra), at(rb), at(rb, wB), at(ra, wB)], [], () => bt); }
             // 斜めに切ったふち（side > 0）の柵が地下の階の中に立つときは立てない（となりの掘り下げのふちの段差を拾ったもの。地下の階の中では
             // 見えない壁になり、上の広場は地下の上のふたが受ける。明かり取りのまわりの通路 taki-walk のふちが内部大階段の中にあった）
             const inner = !cut && basements.length > 0 && inBasement(basements, at((ra + rb) / 2, w));
             // ふちの外（帯の側 0.6m）か柵の立つところのすぐ外に、同じ高さの建物の階の床があれば、柵を立てない（そこは床の続き。斜めのふち
             // side > 0 は柵が斜面のいちばん急なところに立つ：緑の丘の上のふちの柵が学習棟の 2 階の床の中に立っていた）
             const qm = at((ra + rb) / 2, 0), gm = at((ra + rb) / 2, w);
-            const level = levelFloors.length > 0 && [0.6, 1.0, 1.5].map((d) => [qm[0] + nx * d, qm[1] + ny * d]).concat([[gm[0] + nx * 0.3, gm[1] + ny * 0.3], gm, [gm[0] - nx * 0.3, gm[1] - ny * 0.3]]).some((p) => sameLevelFloor(p, hi));
-            if (!inner && !level) { const sp = overCut(cap == null ? rail : [[-Infinity, Math.min(cap, rail[0][1])]], pc); if (sp.length) addEdge(at(ra, w), at(rb, w), BODY + 0.05, sp, null, false); }
+            const level = (levelFloors.length || paving.m.size) && [0.6, 1.0, 1.5].map((d) => [qm[0] + nx * d, qm[1] + ny * d]).concat([[gm[0] + nx * 0.3, gm[1] + ny * 0.3], gm, [gm[0] - nx * 0.3, gm[1] - ny * 0.3]]).some((p) => sameLevelFloor(p, hi));
+            if (!inner && !level) {
+              let spans = overCut(cap == null ? rail : [[-Infinity, Math.min(cap, rail[0][1])]], pc);
+              if (run.underDoor) {
+                const { sill, top } = run.underDoor;
+                spans = spans.flatMap(([lo, hi]) => [[lo, Math.min(hi, sill)], [Math.max(lo, top), hi]].filter(([a, b]) => a < b));
+              }
+              if (spans.length) addEdge(at(ra, w), at(rb, w), BODY + 0.05, spans, null, false);
+            }
           }
           run = null;
         };
@@ -545,13 +594,14 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
           const rp = at(t, w);
           const mouth = open || !mouths.length ? null : mouthAt(rp[0], rp[1]);
           const door = !open && !mouth && inDoor(t);
-          const key = mouth ? "mouth" : door ? "door" : br ? br.id : "";
+          const underDoor = !cut && !open && terraceDoors.find(d => hi > d.top && segDist(rp[0], rp[1], d.a, d.b) < BODY + 0.05);
+          const key = mouth ? "mouth" : door ? "door" : underDoor || br?.id || "";
           if (open || (run && run.key !== key)) flush();
           if (!open) {
             if (run) {
               run.rb = t;
               if (br) run.cap = Math.min(run.cap, br.z);
-            } else run = { ra: t, rb: t, key, cap: br ? br.z : null, mouth, door };
+            } else run = { ra: t, rb: t, key, cap: br ? br.z : null, mouth, door, underDoor };
           }
           if (j === sub) flush();
         }
@@ -564,7 +614,8 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
   // より上だけに（下は通れる口、上は地面のまま歩ける。Taki の地下 1 階から附属図書館の地下 1 階への連絡通路。2026-11-13：前は帯をまるごと
   // 省いたので、掘った地面のにじみの上に地面がなく、通路の上の植え込みのそばで歩く人が落ちた）。見た目の帯（campus3dMesh）も同じ形
   const cutDigs = cutFloorRegions(features, groundAt);
-  for (const d of digs) digWalk(d, digs, groundAt, { solid: addSolid }, cutDigs);
+  const digGround = pavingSubgrade(plates, groundAt);
+  for (const d of digs) digWalk(d, digs, digGround, { solid: addSolid }, cutDigs);
 
   // 体（足 z の 0.1m 上〜1.8m 上）が区間にかかるか
   const hits = (spans, z) => spans.some(([lo, hi]) => lo < z + 1.8 && hi > z + 0.1);
@@ -601,7 +652,7 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
       if (d.box && (x < d.box[0] || x > d.box[2] || y < d.box[1] || y > d.box[3])) continue;
       const r = stripDistance(d.xy, d.cum, d.hwv || d.hw, [x, y], d.cv || 0);
       if (r.D > 0.05) continue;
-      const z = d.deckAt(r.s) - (d.step ? STAIRS_CLEAR : 0); // 階段の線は段の角より少し上に引いてある
+      const z = deckFoot(d, r.s);
       if (Number.isFinite(z)) out.push({ z, deck: d });
     }
     solidAt(x, y, (s) => {
@@ -726,6 +777,8 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
     let prev = cam;
     for (let i = 1; i <= n; i++) {
       const p = [cam[0] + (d[0] * i) / n, cam[1] + (d[1] * i) / n, cam[2] + (d[2] * i) / n];
+      const pavingZ = pavedHeight(p[0], p[1]);
+      if (pavingZ != null && prev[2] >= pavingZ && p[2] <= pavingZ) return [p[0], p[1], pavingZ];
       let inSolid = null;
       solidAt(p[0], p[1], (s) => {
         for (const [lo, hi] of s.spans(p[0], p[1])) if (p[2] >= lo && p[2] <= hi) { inSolid = hi; return true; }
@@ -774,7 +827,7 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
     }
     return null;
   };
-  return { surfacesAt, floorBelow, blocked, blockedSpan, move, freeNear, pick, setDyn, setDynFloor, coverAt, beltAt };
+  return { surfacesAt, pavedHeight, floorBelow, blocked, blockedSpan, move, freeNear, pick, setDyn, setDynFloor, coverAt, beltAt };
 }
 
 /**

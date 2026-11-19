@@ -4,7 +4,7 @@
 // - dem.levelAt：平地だけ入れた地面（坂道・階段の高さの基準）、dem.baseAt：元の地面
 // - MapLibre には campusdem://{z}/{x}/{y} のタイルとして渡す。坂のないタイルは元のまま、ズーム16・17は15から補間して作る
 import { TERRAIN } from "./campusTerrain.js";
-import { isOpenStairs, prepareDig, prepareShellBurns, prepareSlope, prepareTerrace, stairsOpening, toXY, withAutoOpenStairs } from "./campus3dFeatures.js";
+import { isOpenStairs, pointInRing, prepareDig, preparePaving, prepareShellBurns, prepareSlope, prepareSurveyGround, prepareTerrace, stairSteps, stairsOpening, toXY, withAutoOpenStairs } from "./campus3dFeatures.js";
 
 export const DEM_PROTOCOL = "campusdem";
 export const BURN_MAXZOOM = 18; // 段差が壁の中に収まるよう、ズーム18（1px ≒ 0.5m）まで作る
@@ -79,6 +79,9 @@ class Dem {
     this.tiles = new Map(); // "x/y"（ズーム15）→ Float32Array | null（取れなかった）
     this.loading = new Map();
     this.terraces = []; // prepareTerrace の結果
+    this.deckFloors = []; // 張り出した板を含む足場。標高タイルに描く土台とは別の輪郭
+    this.paving = [];
+    this.surveyGround = null;
     this.shells = []; // ねじれた面の下とふちの外の地面（prepareShellBurns の結果）
     this.slopes = []; // 坂道・階段（prepareSlope の結果）
     this.digs = []; // 詳細モードで地下の階の下を掘る（prepareDig の結果）。表示の地面と歩く足もとだけ（groundAt は掘らない）
@@ -143,12 +146,20 @@ class Dem {
     return this._bilinear(lngToX(lng, BZ) * 256 - 0.5, latToY(lat, BZ) * 256 - 0.5);
   }
 
+  deckHeight(x, y, height) {
+    for (const { ring, box, elev } of this.deckFloors) {
+      if (x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3] && pointInRing(x, y, ring)) height = elev;
+    }
+    return height;
+  }
+
   // 平地（とねじれた面）だけ入れた地面の標高（坂道・階段の高さの基準）。shown なら表示する地面（壁なしの階段が横切るふちの外は掘らない）
   levelAt(ll, shown = false) {
     let v = this.baseAt(ll);
     if ((!this.terraces.length && !this.shells.length) || !Number.isFinite(v)) return v;
     const [x, y] = toXY(ll);
     for (const t of this.terraces) v = shown ? t.burn(x, y, v) : t.level(x, y, v);
+    if (!shown) v = this.deckHeight(x, y, v);
     for (const s of this.shells) v = s.burn(x, y, v);
     return v;
   }
@@ -156,10 +167,11 @@ class Dem {
   // 平地・坂道・階段をぜんぶ入れた地面の標高（ものを置く地面。詳細モードで掘った地面は入れない）
   groundAt(ll) {
     let v = this.levelAt(ll, true);
-    if (!this.slopes.length || !Number.isFinite(v)) return v;
+    if ((!this.slopes.length && !this.deckFloors.length && !this.surveyGround) || !Number.isFinite(v)) return v;
     const [x, y] = toXY(ll);
     for (const s of this.slopes) v = s.burn(x, y, v);
-    return v;
+    v = this.deckHeight(x, y, v);
+    return this.surveyGround ? this.surveyGround.at(x, y, v) : v;
   }
 
   // 表示の地面＝歩く足もとの地面（groundAt に、詳細モードで地下の階の下を掘ったもの）
@@ -180,10 +192,19 @@ class Dem {
     const features = withAutoOpenStairs(features0);
     const opens = features.filter(isOpenStairs).map(stairsOpening); // 壁なしの階段が横切る平地のふちは掘らない
     this.terraces = features.filter((f) => f.type === "terrace").map((f) => prepareTerrace(f, (ll) => this.baseAt(ll), opens)).filter(Boolean);
+    this.deckFloors = this.terraces.map(t => t.deck).filter(Boolean);
+    const plates = features.filter(f => f.grade).map(preparePaving).filter(Boolean);
+    this.surveyGround = prepareSurveyGround(plates);
+    this.paving = plates.filter(p => p.f.groundBlend == null);
     // ねじれた面：建物の地面（g0）は平地まで入れた地面で測る（前の面の焼き込みを入れないように、先に空にする）
     this.shells = [];
     this.shells = features.flatMap((f) => prepareShellBurns(f, (ll) => this.levelAt(ll)));
     this.slopes = features.filter((f) => f.type === "slope" || f.type === "stairs").map((f) => prepareSlope(f, (ll) => this.levelAt(ll))).filter(Boolean);
+    for (const sl of this.slopes) {
+      if (sl.f.type === "stairs" && (sl.f.walkTreads || [sl.xy[0], sl.xy.at(-1)].some(([x, y]) => Number.isFinite(this.deckHeight(x, y, NaN))))) {
+        sl.treads = stairSteps(sl.prof, sl.f.riser, sl.cum);
+      }
+    }
     // 掘る高さの基準は掘る前の地面（先に空にする）
     this.digs = [];
     this.digs = features.filter((f) => f.type === "dig").map((f) => prepareDig(f, (ll) => this.groundAt(ll))).filter(Boolean);
@@ -208,7 +229,8 @@ class Dem {
     // このタイルにかかるものだけ見る（平地 → 坂道・階段の順）
     const [x0m, y1m] = toXY([xToLng(x, z), yToLat(y, z)]);
     const [x1m, y0m] = toXY([xToLng(x + 1, z), yToLat(y + 1, z)]);
-    const slopes = [...this.terraces, ...this.shells, ...this.slopes, ...this.digs].filter((s) => !(s.box[2] < x0m || s.box[0] > x1m || s.box[3] < y0m || s.box[1] > y1m));
+    // 舗装の下地は表示タイルだけで下げる。隣接する建物の基準標高は従来の地盤で測る。
+    const slopes = [...this.terraces, ...this.shells, ...this.slopes, ...(this.surveyGround ? [this.surveyGround] : []), ...this.digs, ...this.paving].filter((s) => !(s.box[2] < x0m || s.box[0] > x1m || s.box[3] < y0m || s.box[1] > y1m));
     let vals;
     if (z <= BZ) {
       const r = await fetch(staticUrl(z, x, y));

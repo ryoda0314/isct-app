@@ -1,4 +1,5 @@
 import { isNative } from './capacitor.js';
+import { decryptPdf, hasEncryption } from './pdfUnlock.js';
 
 /**
  * 授業資料の一括保存。ZIP でまとめる版と、PDF を 1 本に結合する版の 2 つ。
@@ -10,8 +11,7 @@ import { isNative } from './capacitor.js';
  *   ことがあるので、1 ファイルずつエンベロープを検知してスキップする。
  * - ZIP は無圧縮 (STORE)。教材の大半は PDF/画像/pptx で再圧縮が効かず、
  *   速度とメモリを優先。
- * - 結合は pdf-lib をクライアントで実行 (PdfToolsView と同じ)。ファイルは
- *   サーバーに送られない。
+ * - PDF の解除と結合は端末内で実行 (PdfToolsView と同じ)。
  * - 保存は PdfToolsView と同じ「OS に委ねる」3 段構え:
  *   ① Web Share API (iOS Safari/PWA/アプリ → 「ファイルに保存」)
  *   ② Capacitor ネイティブ: Filesystem 書き出し → 共有シート
@@ -57,6 +57,10 @@ export function loadPdfLib() {
 /* ZIP 内エントリ名/ファイル名に使えない文字を除去 */
 const sanitize = (s) => String(s || '').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 120);
 
+export function isPdfMaterial(material) {
+  return material.fileType === 'pdf' || /\.pdf$/i.test(material.filename || material.name || '');
+}
+
 function blobToBase64(blob) {
   return new Promise((res, rej) => {
     const r = new FileReader();
@@ -71,8 +75,8 @@ function blobToBase64(blob) {
  * Moodle が HTTP 200 で返すエラー JSON (filenotfound 等) も失敗として扱い、
  * その場合は err.stale = true を立てる (呼び出し側で一覧 refresh させる)。
  */
-async function fetchMaterial(m) {
-  const resp = await fetch(m.fileurl);
+async function fetchMaterial(m, signal) {
+  const resp = await fetch(m.fileurl, { signal });
   const ct = (resp.headers.get('content-type') || '').toLowerCase();
   const buf = await resp.arrayBuffer();
   if (!resp.ok || ct.includes('application/json') || new Uint8Array(buf)[0] === 0x7b /* { */) {
@@ -83,6 +87,42 @@ async function fetchMaterial(m) {
     // code 無し & resp.ok → たまたま '{' で始まる正規ファイルなので通す
   }
   return buf;
+}
+
+async function fetchMaterialBuffers(materials, onProgress, signal) {
+  const total = materials.length;
+  const buffers = new Array(total);
+  const failed = [];
+  let stale = false;
+  let done = 0;
+  let next = 0;
+
+  async function worker() {
+    while (!signal?.aborted && next < total) {
+      const i = next++;
+      const m = materials[i];
+      try {
+        buffers[i] = await fetchMaterial(m, signal);
+      } catch (e) {
+        if (signal?.aborted) return;
+        if (e?.stale) stale = true;
+        console.warn('[bulkDl] fetch skip', m.filename || m.name, e?.message);
+        failed.push(m.filename || m.name || '?');
+      }
+      done++;
+      if (!signal?.aborted) onProgress?.({ phase: 'fetch', done, total });
+    }
+  }
+
+  // 取得は 3 並列、復号は一覧順に処理して入力ダイアログが重ならないようにする。
+  await Promise.all(Array.from({ length: Math.min(3, total) }, () => worker()));
+  return { buffers, failed, stale };
+}
+
+async function readPlainPdf(buffer, material, unlockPdf) {
+  const bytes = new Uint8Array(buffer);
+  if (!hasEncryption(bytes)) return bytes;
+  return unlockPdf ? unlockPdf(bytes, material) : decryptPdf(bytes);
 }
 
 /** blob を全環境 (iOS/Android ネイティブ・モバイル Web・デスクトップ) で保存/共有する。 */
@@ -152,14 +192,15 @@ export async function saveBlob(blob, fname, { mob = false, mime } = {}) {
  * 選択された教材を ZIP にまとめて保存する。
  *
  * @param {{items: Array<{m: object, section: string}>, zipName: string,
- *          mob?: boolean, onProgress?: function}} p
+ *          mob?: boolean, onProgress?: function, signal?: AbortSignal, unlockPdf?: function}} p
  *        items: {m: material, section: フォルダ名にする授業回名 ('' でルート直下)}
  *        onProgress: {phase:'fetch',done,total} → {phase:'zip',pct}
+ *        unlockPdf: 暗号化 PDF の復号を行う。null を返した資料はスキップする。
  * @returns {{saved: boolean, failed: string[], stale: boolean}}
- *          saved: ZIP を保存できたか / failed: 取得失敗ファイル名 /
+ *          saved: ZIP を保存できたか / failed: スキップしたファイル名 /
  *          stale: filenotfound を検知した (呼び出し側で一覧 refresh する)
  */
-export async function bulkDownloadMaterials({ items, zipName, mob = false, onProgress }) {
+export async function bulkDownloadMaterials({ items, zipName, mob = false, onProgress, signal, unlockPdf }) {
   console.log('[bulkDl] bulkDownloadMaterials start', { count: items.length, zipName, mob });
   const JSZip = await loadJSZip();
   const zip = new JSZip();
@@ -183,38 +224,30 @@ export async function bulkDownloadMaterials({ items, zipName, mob = false, onPro
     return { m, path };
   });
 
-  const total = jobs.length;
-  let done = 0;
-  let next = 0;
-  let stale = false;
-  const failed = [];
-
-  async function worker() {
-    while (next < jobs.length) {
-      const { m, path } = jobs[next++];
-      try {
-        const buf = await fetchMaterial(m);
-        zip.file(path, buf, m.timemodified ? { date: new Date(m.timemodified * 1000) } : undefined);
-      } catch (e) {
-        if (e?.stale) stale = true;
-        console.warn('[bulkDl] skip', path, e?.message);
-        failed.push(m.filename || m.name || '?');
-      }
-      done++;
-      onProgress?.({ phase: 'fetch', done, total });
+  const { buffers, failed, stale } = await fetchMaterialBuffers(jobs.map(job => job.m), onProgress, signal);
+  for (const [i, { m, path }] of jobs.entries()) {
+    if (signal?.aborted) return { saved: false, failed, stale };
+    const buffer = buffers[i];
+    buffers[i] = null;
+    if (!buffer) continue;
+    try {
+      const bytes = unlockPdf && isPdfMaterial(m) ? await readPlainPdf(buffer, m, unlockPdf) : buffer;
+      if (bytes) zip.file(path, bytes, m.timemodified ? { date: new Date(m.timemodified * 1000) } : undefined);
+      else failed.push(m.filename || m.name || '?');
+    } catch (e) {
+      console.warn('[bulkDl] zip skip', path, e?.message);
+      failed.push(m.filename || m.name || '?');
     }
   }
-  // LMS への同時接続は 3 本まで
-  await Promise.all(Array.from({ length: Math.min(3, jobs.length) }, () => worker()));
-  console.log('[bulkDl] fetch done', { ok: total - failed.length, failed: failed.length, stale });
 
-  if (failed.length >= total) return { saved: false, failed, stale };
+  if (signal?.aborted || failed.length >= jobs.length) return { saved: false, failed, stale };
 
   onProgress?.({ phase: 'zip', pct: 0 });
   const blob = await zip.generateAsync(
     { type: 'blob', compression: 'STORE' },
-    (meta) => onProgress?.({ phase: 'zip', pct: meta.percent }),
+    (meta) => { if (!signal?.aborted) onProgress?.({ phase: 'zip', pct: meta.percent }); },
   );
+  if (signal?.aborted) return { saved: false, failed, stale };
   console.log('[bulkDl] zip generated', { bytes: blob.size });
   await saveBlob(blob, zipName, { mob, mime: 'application/zip' });
   console.log('[bulkDl] saveBlob returned');
@@ -226,75 +259,61 @@ export async function bulkDownloadMaterials({ items, zipName, mob = false, onPro
  *
  * - ページ順は items の並び順 (= 一覧の表示順) をそのまま維持したいので、
  *   取得は 3 並列でも結果は index 付きで受け、結合は先頭から順に行う。
- * - 壊れた/暗号化された PDF は 1 件ずつスキップして残りを結合する
- *   (1 件のせいで全部落とさない)。
+ * - 暗号化された PDF は復号してから結合する。処理できない資料は 1 件ずつスキップする。
  * - 結合はメインスレッドで走るので、1 ファイルごとに 1 tick 譲って
  *   進捗バーが更新されるようにする。
  *
  * @param {{items: Array<{m: object}|object>, fileName: string,
- *          mob?: boolean, onProgress?: function}} p
+ *          mob?: boolean, onProgress?: function, signal?: AbortSignal, unlockPdf?: function}} p
  *        onProgress: {phase:'fetch',done,total} → {phase:'merge',done,total}
+ *        unlockPdf: 暗号化 PDF の復号を行う。省略時は空のパスワードで開ける PDF のみ復号する。
  * @returns {{saved: boolean, failed: string[], stale: boolean, pages: number}}
  */
-export async function bulkMergeMaterialsToPdf({ items, fileName, mob = false, onProgress }) {
+export async function bulkMergeMaterialsToPdf({ items, fileName, mob = false, onProgress, signal, unlockPdf }) {
   console.log('[bulkDl] bulkMergeMaterialsToPdf start', { count: items.length, fileName, mob });
   const PDFLib = await loadPdfLib();
 
   const mats = items.map(it => it?.m || it);
   const total = mats.length;
-  const bufs = new Array(total).fill(null);
-  const failed = [];
-  let stale = false;
-  let done = 0;
-  let next = 0;
-
-  async function worker() {
-    while (next < total) {
-      const i = next++;
-      const m = mats[i];
-      try {
-        bufs[i] = await fetchMaterial(m);
-      } catch (e) {
-        if (e?.stale) stale = true;
-        console.warn('[bulkDl] pdf fetch skip', m.filename || m.name, e?.message);
-        failed.push(m.filename || m.name || '?');
-      }
-      done++;
-      onProgress?.({ phase: 'fetch', done, total });
-    }
-  }
-  // LMS への同時接続は ZIP と同じく 3 本まで
-  await Promise.all(Array.from({ length: Math.min(3, total) }, () => worker()));
-  console.log('[bulkDl] pdf fetch done', { ok: total - failed.length, failed: failed.length, stale });
+  const { buffers, failed, stale } = await fetchMaterialBuffers(mats, onProgress, signal);
 
   const out = await PDFLib.PDFDocument.create();
-  let merged = 0;
   for (let i = 0; i < total; i++) {
+    if (signal?.aborted) return { saved: false, failed, stale, pages: 0 };
     onProgress?.({ phase: 'merge', done: i, total });
     await new Promise(r => setTimeout(r, 0)); // 進捗を描画させる
-    const buf = bufs[i];
-    bufs[i] = null; // 参照を切ってメモリを返す
-    if (!buf) continue;
+    if (signal?.aborted) return { saved: false, failed, stale, pages: 0 };
+    const buffer = buffers[i];
+    buffers[i] = null;
+    if (!buffer) continue;
     const m = mats[i];
     try {
-      const src = await PDFLib.PDFDocument.load(buf, { ignoreEncryption: true });
-      const copied = await out.copyPages(src, src.getPageIndices());
-      copied.forEach(pg => out.addPage(pg));
-      merged++;
+      const bytes = await readPlainPdf(buffer, m, unlockPdf);
+      if (signal?.aborted) return { saved: false, failed, stale, pages: 0 };
+      if (bytes) {
+        const src = await PDFLib.PDFDocument.load(bytes);
+        const copied = await out.copyPages(src, src.getPageIndices());
+        if (copied.length) {
+          copied.forEach(pg => out.addPage(pg));
+          continue;
+        }
+      }
     } catch (e) {
       console.warn('[bulkDl] pdf merge skip', m.filename || m.name, e?.message);
-      failed.push(m.filename || m.name || '?');
     }
+    failed.push(m.filename || m.name || '?');
   }
+  if (signal?.aborted) return { saved: false, failed, stale, pages: 0 };
   onProgress?.({ phase: 'merge', done: total, total });
-  console.log('[bulkDl] merged', { docs: merged, pages: out.getPageCount() });
 
-  if (!merged) return { saved: false, failed, stale, pages: 0 };
+  const pages = out.getPageCount();
+  if (!pages) return { saved: false, failed, stale, pages };
 
   try { out.setTitle(fileName.replace(/\.pdf$/i, '')); } catch {}
   const bytes = await out.save();
+  if (signal?.aborted) return { saved: false, failed, stale, pages: 0 };
   const blob = new Blob([bytes], { type: 'application/pdf' });
   await saveBlob(blob, fileName, { mob, mime: 'application/pdf' });
   console.log('[bulkDl] saveBlob returned (pdf)');
-  return { saved: true, failed, stale, pages: out.getPageCount() };
+  return { saved: true, failed, stale, pages };
 }
