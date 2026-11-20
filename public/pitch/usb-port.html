@@ -162,6 +162,15 @@ b.d { color: var(--adv); }
 .tag.k { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
 .tag.x { border: 1.5px dashed var(--adv); color: var(--adv); }
 .tb td.diff { color: var(--accent); font-weight: 700; }
+.buy td { padding: 9px 16px; white-space: nowrap; }
+.buy td:first-child { font-weight: 500; }
+.buy .yen { text-align: right; font-variant-numeric: tabular-nums; }
+.buy td.yen { font-weight: 700; }
+.buysum { left: 110px; top: 836px; width: 1700px; display: flex; gap: 20px; }
+.buysum div { flex: 1; padding: 12px 24px; border-radius: 14px; font-size: 22px; line-height: 1.4; background: var(--surface); color: var(--ink2); }
+.buysum div b { display: block; font-size: 34px; font-variant-numeric: tabular-nums; }
+.buysum .m { background: var(--accent-bg); color: var(--accent); }
+.buysum .x { background: var(--adv-bg); color: var(--adv); border: 2px dashed var(--adv); padding: 10px 22px; }
 .claim { left: 110px; top: 770px; width: 1700px; box-sizing: border-box; padding: 26px 40px; border-left: 10px solid var(--accent); background: var(--accent-bg); border-radius: 0 16px 16px 0; }
 .claim span { display: block; font-size: 22px; font-weight: 700; color: var(--accent); }
 .claim b { display: block; font-size: 40px; line-height: 1.45; }
@@ -316,7 +325,32 @@ b.d { color: var(--adv); }
     <tr><td>接触・挿入検出部品</td><td>追従から保持への切り替え</td><td><span class="tag">検討中</span>　必要な方式</td></tr>
     <tr><td>首振り機構</td><td>斜めの差し込みへの対応</td><td><span class="tag x">発展機能</span></td></tr>
   </table>
-  <div class="foot">追加購入品・型式・予算・担当者は、手持ち部品と必要性能を確認してから決める。</div>
+  <div class="foot">購入したい部品と数量・概算は次のページ。担当者は部品の確認後に決める。</div>
+</section>
+
+<!-- 9b -->
+<section class="slide" id="s9b" data-steps="0" data-note="購入したい部品です。モータ、ドライバ、Arduinoは教材を使います。基本の3軸にどうしても要るのは、XYのガイド、ベルトとプーリ、回転部の軸受、原点スイッチ、USB延長ケーブルで、合計およそ1万6千円です。カメラと板やねじは、班にあるもので足りれば買いません。首振りの部品は、基本3軸が動いてから相談します。">
+  <div class="head"><div class="kick">06　必要な部品</div><h2 class="title">購入したい部品は、必須分で約1.6万円</h2></div>
+  <table class="abs tb buy" style="left:110px;top:206px;width:1700px;font-size:24px">
+    <tr><th style="width:210px">区分</th><th style="width:740px">部品と数量</th><th>数量の決め方</th><th class="yen" style="width:170px">概算（税込）</th></tr>
+    <tr><td><span class="tag k">必須</span></td><td>φ8シャフト4本、リニアブッシュ8個、ホルダ8個</td><td>X・Yに2本ずつ。1本にブッシュ2個、両端を支持</td><td class="yen">6,934円</td></tr>
+    <tr><td><span class="tag k">必須</span></td><td>20歯プーリ4個、ベルト2 m、アイドラ、環状ベルト1本</td><td>3軸に各1個と予備1個。ベルトは切って使う</td><td class="yen">5,442円</td></tr>
+    <tr><td><span class="tag k">必須</span></td><td>ロール用の玉軸受 2個</td><td>回る受け口を前後で支える</td><td class="yen">768円</td></tr>
+    <tr><td><span class="tag k">必須</span></td><td>原点用マイクロスイッチ 3個</td><td>X・Y・ロールに各1個</td><td class="yen">1,119円</td></tr>
+    <tr><td><span class="tag k">必須</span></td><td>細径のUSB延長ケーブル 2本</td><td>可動用に1本、固定ポート比較と断線予備に1本</td><td class="yen">1,978円</td></tr>
+    <tr><td><span class="tag">手持ちで代用可</span></td><td>近距離にピントが合うUSBカメラ 1台</td><td>15〜30 cm 先のプラグを撮る</td><td class="yen">6,488円</td></tr>
+    <tr><td><span class="tag">手持ちで代用可</span></td><td>アルミアングル、板、ねじ、クランプ</td><td>教材のアングル材は使えないため</td><td class="yen">4,195円</td></tr>
+    <tr><td><span class="tag">条件付き</span></td><td>60歯プーリ 1個</td><td>3Dプリントで作れない場合</td><td class="yen">1,859円</td></tr>
+    <tr><td><span class="tag">条件付き</span></td><td>赤外線の挿入検出センサ 1組</td><td>PC側のUSB接続検出で足りない場合</td><td class="yen">1,300円</td></tr>
+    <tr><td><span class="tag x">発展機能</span></td><td>首振りの自在継手、ロッドエンド4個、押し棒</td><td>基本3軸が動いてから発注</td><td class="yen">6,494円</td></tr>
+  </table>
+  <div class="abs buysum">
+    <div class="m"><b>16,241円</b>必須（基本3軸）</div>
+    <div><b>10,683円</b>手持ちで代用可</div>
+    <div><b>3,159円</b>条件付き</div>
+    <div class="x"><b>6,494円</b>発展（首振り）</div>
+  </div>
+  <div class="foot">価格は11月20日調べ。ミスミの一部は過去の価格表による。モータ・ドライバ・Arduinoは教材を使う。型番とリンクは購入リスト（Excel）に記載。</div>
 </section>
 
 <!-- 10 -->
