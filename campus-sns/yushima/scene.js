@@ -24,7 +24,12 @@ export function walkBlocked(x,z) {
 export function createScene(host,callbacks) {
   return createCampusScene(host,callbacks,{
     name:"湯島キャンパス",campus,volume,paths,groundAt:groundHeight,floor:walkingSurfaceAt,walkBlocked,stepResponse:.085,
-    overviewX:-.31,overviewY:.92,overviewGroundPoints:[[-90,180],[94,214]],sunlight:[170,620,340],
+    overviewX:-.31,overviewY:.92,overviewGroundPoints:[[-90,180],[94,214]],sunlight:[170,620,340],detailShadows:true,
+    // The upper south elevation and landing deck can be seen together from
+    // across the river. The entrance direction points into the adjacent tower.
+    facilityViews:{'med-a':{direction:[-.70,.40,1],points:[
+      [-41.1,43,21.4],[13.2,43,45.4],[-41.1,81.1,21.4],[13.2,81.1,45.4],[-20,88.2,10],
+    ]}},
     prepareReflections:prepareYushimaReflections,buildingSightlines,
     createModels(T) {
       const buildings3D=createYushimaBuildings(buildings,groundHeight);

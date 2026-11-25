@@ -81,7 +81,8 @@ float groundHeight(vec2 uv, float lod) {
 // Test the actual terrain between this surface point and the rising/setting Sun.
 // Distance, height, and the drop of the curved reference surface are in kilometres.
 float terrainSun(vec3 n, float mu, vec2 uv, float lod) {
-  if (mu > 0.30 || mu < -0.035 || lod > 3.0) return 1.0;
+  float detail = 1.0-smoothstep(2.5,3.5,lod);
+  if (mu > 0.30 || mu < -0.035 || detail <= 0.0) return 1.0;
   vec3 tangent = normalize(u_lunarSun.xyz - n*mu);
   float floorHeight = groundHeight(uv,lod);
   float horizon = -1.0;
@@ -92,17 +93,19 @@ float terrainSun(vec3 n, float mu, vec2 uv, float lod) {
     horizon = max(horizon,rise);
     stepKm *= 1.75;
   }
-  return smoothstep(horizon-u_lunarSun.w,horizon+u_lunarSun.w,mu);
+  return mix(1.0,smoothstep(horizon-u_lunarSun.w,horizon+u_lunarSun.w,mu),detail);
 }
-vec3 lunarSample(vec3 ray, float pixel, float aa, vec3 background, vec3 air) {
-  if (ray.z < -0.0001) return background;
+vec3 lunarSample(vec3 ray, float pixel, float horizonWidth, vec3 background, vec3 air) {
+  float aboveHorizon = smoothstep(-horizonWidth,horizonWidth,ray.z);
+  if (aboveHorizon <= 0.0) return background;
   // The lower limb is raised more than the upper limb near the horizon.
   vec3 vertical = normalize(vec3(0,0,1)-u_moon*u_moon.z);
   ray = normalize(ray + vertical*dot(ray-u_moon,vertical)*(1.0/u_moonVertical-1.0));
   // Ray / sphere intersection in units of the lunar radius. Retain precision at 0.5°.
   vec3 offset = cross(ray,cross(ray,u_moon)) / sin(u_moonRadius);
   float r = length(offset);
-  float edge = 1.0-smoothstep(1.0-aa,1.0+aa,r);
+  float aa = 0.54*pixel/(u_moonRadius*min(1.0,u_moonVertical));
+  float edge = aboveHorizon*(1.0-smoothstep(1.0-aa,1.0+aa,r));
   if (edge <= 0.0) return background;
   offset *= min(1.0,0.999999/max(0.000001,r));
   vec3 n = normalize(u_localToMoon*(offset - ray*sqrt(max(0.0,1.0-dot(offset,offset)))));
@@ -146,14 +149,20 @@ vec3 lunarSample(vec3 ray, float pixel, float aa, vec3 background, vec3 air) {
 }
 vec3 lunarDisc(vec3 ray, vec3 dx, vec3 dy, vec3 background, vec3 air) {
   float pixel = max(length(dx),length(dy));
-  if (dot(ray,u_moon)<0.999 || length(cross(ray,u_moon))>u_moonRadius+1.5*pixel) return background;
-  float width = max(0.001,0.54*pixel/u_moonRadius);
-  if (pixel < 0.12*u_moonRadius) return lunarSample(ray,pixel,width,background,air);
-  // A naked-eye Moon spans only a few pixels. Integrate four subpixel rays so
-  // a thin crescent stays steady as the camera moves between pixel centres.
-  vec3 a = 0.25*(dx+dy), b = 0.25*(dx-dy);
-  return 0.25*(lunarSample(normalize(ray+a),pixel*0.5,width*0.5,background,air)
-             + lunarSample(normalize(ray-a),pixel*0.5,width*0.5,background,air)
-             + lunarSample(normalize(ray+b),pixel*0.5,width*0.5,background,air)
-             + lunarSample(normalize(ray-b),pixel*0.5,width*0.5,background,air));
+  if (dot(ray,u_moon)<=0.0 || length(cross(ray,u_moon))>u_moonRadius+1.5*pixel) return background;
+  float horizonWidth = max(1e-7,0.5*(abs(dx.z)+abs(dy.z)));
+  float radiusPx = u_moonRadius/max(1e-8,pixel);
+  float spread = 1.0-smoothstep(24.0,48.0,radiusPx);
+  if (spread <= 0.0) return lunarSample(ray,pixel,horizonWidth,background,air);
+  // Fixed, stratified subpixel positions filter the bright limb and dark maria
+  // during a pan. Collapse the footprint continuously as the lens zooms in.
+  const vec2 taps[8] = vec2[8](vec2(1,-3),vec2(-1,3),vec2(5,1),vec2(-3,-5),
+                               vec2(-5,5),vec2(-7,-1),vec2(3,7),vec2(7,-7));
+  float footprint = 1.0-0.60*spread;
+  vec3 total = vec3(0);
+  for (int i=0;i<8;++i) {
+    vec3 offset = (dx*taps[i].x + dy*taps[i].y)*(spread/16.0);
+    total += lunarSample(normalize(ray+offset),pixel*footprint,horizonWidth*footprint,background,air);
+  }
+  return total/8.0;
 }`;

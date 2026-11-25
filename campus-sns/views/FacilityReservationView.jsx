@@ -1,368 +1,277 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { T } from "../theme.js";
-import { t } from "../i18n.js";
+import { getLang, t } from "../i18n.js";
 import { I } from "../icons.jsx";
 import { openMaterial } from "../openMaterial.js";
+import { takiClock, takiDay } from "../takiAvailability.js";
+import s from "./takiPlaza.module.css";
 
-// ── Taki Plaza facility info. sched = [openMin, closeMin] for weekday(wd)/weekend(we) ──
-const TAKI = {
-  spotId: "taki", name: "Taki Plaza",
-  sched: { wd: [510, 1260], we: [540, 1200] }, // 平日 8:30–21:00 / 土日祝 9:00–20:00
-  hoursTextKey: "facility.hoursText",
-  links: [
-    { labelKey: "facility.linkStudentGuide", url: "https://www.titech.ac.jp/student-support/students/facilities/takiplaza" },
-    { labelKey: "facility.linkOfficial", url: "https://takiplaza.gakumu.titech.ac.jp/" },
-  ],
-};
+const Model = dynamic(() => import("../components/TakiPlazaModel.jsx"), {
+  ssr: false,
+  loading: () => <div className={s.modelLoading}>{t("taki.modelLoading")}</div>,
+});
+const GUIDE = "https://www.titech.ac.jp/student-support/students/facilities/takiplaza";
+const WEBSITE = "https://takiplaza.gakumu.titech.ac.jp/";
+const PORTAL = "https://portal.titech.ac.jp/";
+const time = m => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
+const locale = () => ({ ja: "ja-JP", en: "en-GB", zh: "zh-CN", ko: "ko-KR", tp: "en-GB" }[getLang()] || "ja-JP");
 
-// Spaces that students use freely until a reservation kicks them out.
-const FREE_USE = /WORK\s*POD|ワークショップ|Workshop/i;
-// Japanese display labels for English facility names from the portal.
-const NAME_JA = {
-  "Event space(Library Side)": "イベントスペース（図書館側）",
-  "Event space(Dry Garden Side)": "イベントスペース（ドライガーデン側）",
-  "Event space (Kitchen)": "キッチンエリア",
-  "Grand Staircase": "大階段エリア",
-  "Workshop Room 1": "ワークショップルーム1",
-  "Workshop Room 2": "ワークショップルーム2",
-  "WORK POD A": "WORK POD A",
-  "WORK POD B": "WORK POD B",
-};
-const jaName = (n) => NAME_JA[n] || n;
-
-// フロア分け（暫定: 要確認）。B1F=ワークショップ/WORK POD, B2F=イベント/キッチン/大階段。
-const FLOOR_ORDER = ["B1F", "B2F"];
-const FLOOR_OF = {
-  "WORK POD A": "B1F", "WORK POD B": "B1F",
-  "ワークショップルーム1": "B2F", "ワークショップルーム2": "B2F",
-  "イベントスペース（図書館側）": "B2F", "イベントスペース（ドライガーデン側）": "B2F", "キッチンエリア": "B2F", "大階段エリア": "B2F",
-};
-const floorOf = (jaNm) => FLOOR_OF[jaNm] || "その他";
-const floorLabel = (fl) => fl === "その他" ? t("facility.floorOther") : fl;
-const groupByFloor = (arr) => {
-  const order = [...FLOOR_ORDER, "その他"];
-  return order.map((fl) => ({ fl, list: arr.filter((it) => floorOf(it.name) === fl) })).filter((g) => g.list.length > 0);
-};
-
-const pad = (n) => String(n).padStart(2, "0");
-const toYMD = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
-const toISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const toMin = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
-const dowColor = (dow) => dow === "日" ? "#ef4444" : dow === "土" ? "#3b82f6" : T.txH;
-
-const fmtMin = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
-
-// Today's open status for a facility (weekday vs weekend hours; holidays not detected).
-function facilityStatus(sched, now) {
-  const we = now.getDay() === 0 || now.getDay() === 6;
-  const [o, c] = we ? sched.we : sched.wd;
-  const m = now.getHours() * 60 + now.getMinutes();
-  if (m < o) return { col: T.txD, label: t("facility.beforeOpen"), detail: t("facility.opensAt", { time: fmtMin(o) }) };
-  if (m >= c) return { col: T.red, label: t("facility.closedToday"), detail: t("facility.nextFrom", { time: fmtMin(o) }) };
-  const rem = c - m;
-  if (rem <= 60) return { col: T.orange, label: t("facility.closingSoon"), detail: t("facility.untilWithRemain", { time: fmtMin(c), min: rem }) };
-  return { col: T.green, label: t("facility.openNow"), detail: t("facility.until", { time: fmtMin(c) }) };
+function shiftDay(date, offset) {
+  const d = new Date(date + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
 }
 
-function computeNextEviction(slots, nowMin) {
-  const sorted = [...slots].sort((a, b) => toMin(a.start) - toMin(b.start));
-  for (const s of sorted) {
-    if (toMin(s.start) <= nowMin && nowMin < toMin(s.end)) return { state: "occupied", until: s.end, slot: s };
+function dayLabel(date, options) {
+  return new Intl.DateTimeFormat(locale(), { timeZone: "Asia/Tokyo", ...options }).format(new Date(date));
+}
+
+function useWeek(date) {
+  const monday = shiftDay(date, -((new Date(date + "T12:00:00Z").getUTCDay() + 6) % 7));
+  const [version, setVersion] = useState(0);
+  const [result, setResult] = useState(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    async function load() {
+      try {
+        const res = await fetch(`/api/data/facility-reservations?date=${monday.replaceAll("-", "")}&b=1`, {
+          credentials: "include", cache: "no-store", signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        const data = await res.json();
+        if (data.error) throw new Error("reservations");
+        if (!controller.signal.aborted) setResult({ monday, version, data });
+      } catch (error) {
+        if (!controller.signal.aborted) setResult({ monday, version, error: error.message });
+      }
+    }
+    load();
+    return () => controller.abort();
+  }, [monday, version]);
+  return { result: result?.monday === monday && result.version === version ? result : null, reload: () => setVersion(v => v + 1) };
+}
+
+function floorLabel(room) {
+  if (room.name === "大階段エリア") return "B1–B2F";
+  return room.floor === "その他" ? t("facility.floorOther") : room.floor;
+}
+const roomLabel = room => getLang() === "ja" ? room.name : room.englishName || room.rawName;
+const roomKey = room => JSON.stringify([room.group, room.rawName]);
+
+function opening(room, day, duration) {
+  const from = day.isToday ? day.nowMin : day.open;
+  for (const { start, end } of room.free) {
+    const begin = Math.max(start, from);
+    if (end > begin && end - begin >= duration) return { start: begin, end };
   }
-  const next = sorted.find((s) => toMin(s.start) > nowMin);
-  if (next) return { state: "next", at: next.start, minsUntil: toMin(next.start) - nowMin, slot: next };
-  return { state: "free" };
+  return null;
 }
 
-export const FacilityReservationView = ({ mob, onNavigate }) => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+function roomStatus(room, day) {
+  if (room.state === "unknown") return t("taki.unavailableData");
+  if (day.close === day.open) return t("taki.closedDay");
+  if (room.weekdayOnly && day.weekendHours) return t("taki.weekdays");
+  if (day.phase === "after") return t("facility.closedToday");
+  if (room.state === "busy") return t("taki.bookedNow");
+  if (room.state === "free") return t("taki.freeNow");
+  return t(room.free.length ? "taki.hasGap" : "taki.noGap");
+}
+
+function TimeBar({ room, day, legend = false }) {
+  const span = day.close - day.open;
+  if (!span) return null;
+  const position = m => Math.max(0, Math.min(100, 100 * (m - day.open) / span));
+  const restricted = room.state === "unknown" || (room.weekdayOnly && day.weekendHours);
+  return <span className={s.barWrap} aria-hidden="true">
+    <span className={s.timeBar} data-muted={restricted || undefined}>
+      {room.slots.map((slot, i) => <i key={i} style={{
+        left: position(slot.startMin) + "%", width: (position(slot.endMin) - position(slot.startMin)) + "%",
+      }} />)}
+      {day.phase === "open" && <b style={{ left: position(day.nowMin) + "%" }} />}
+    </span>
+    {legend && <span className={s.axis}><span>{time(day.open)}</span><span>{time(day.close)}</span></span>}
+  </span>;
+}
+
+function RoomRow({ room, day, gap, expanded, onToggle, onLocate, register, openLink }) {
+  const panelId = useId();
+  const status = roomStatus(room, day);
+  const openNow = room.state === "free";
+  const inUse = room.state === "busy";
+  const tone = openNow ? "free" : inUse ? "booked" : "neutral";
+  const windowLabel = gap ? t(day.phase === "open" && gap.start > day.nowMin ? "taki.nextGapTime" : "taki.gapTime", { start: time(gap.start), end: time(gap.end) })
+    : room.current ? t("taki.bookingEnds", { time: room.current.end }) : null;
+  return <article className={s.room} data-expanded={expanded || undefined}>
+    <button ref={register} className={s.roomToggle} onClick={onToggle} aria-expanded={expanded} aria-controls={expanded ? panelId : undefined}>
+      <span className={s.floorBadge}>{floorLabel(room)}</span>
+      <span className={s.roomTitle}><strong>{roomLabel(room) || t("facility.untitled")}</strong>
+        {windowLabel && <span>{windowLabel}</span>}
+      </span>
+      <span className={s.miniBar}><TimeBar room={room} day={day} /></span>
+      <span className={s.status} data-tone={tone}>{status}</span>
+      <span className={s.disclose}>{I.chevDown}</span>
+    </button>
+    {expanded && <div id={panelId} className={s.roomDetails}>
+      <div className={s.detailHead}>
+        <h3>{t("taki.dayPlan")}</h3>
+        {room.floor !== "その他" && <button className={s.textAction} onClick={onLocate}>{I.map}{t("taki.locate")}</button>}
+      </div>
+      <TimeBar room={room} day={day} legend />
+      {room.weekdayOnly && <p className={s.hint}>{t("taki.podUse")}</p>}
+      {room.state === "unknown" ? <p>{t("taki.unavailableData")}</p> : <>
+        {room.free.length > 0 && <div className={s.gaps}>
+          <strong>{t("taki.freeSlots")}</strong>
+          {room.free.map(({ start, end }) => <span key={start}>{time(start)}–{time(end)}</span>)}
+        </div>}
+        {room.slots.length > 0 && <ul className={s.agenda}>
+          {room.slots.map((slot, i) => <li key={i}>
+            <time>{slot.start}–{slot.end}</time>
+            <span>{slot.title || t("facility.untitled")}{slot.org && <small>{slot.org}</small>}</span>
+          </li>)}
+        </ul>}
+      </>}
+      <button className={s.textAction} onClick={() => openLink(PORTAL)}>{t("taki.portal")} <span aria-hidden="true">↗</span></button>
+    </div>}
+  </article>;
+}
+
+function DatePicker({ date, today, onChange }) {
+  return <div className={s.dateTools}>
+    {date !== today && <button className={s.today} onClick={() => onChange(today)}>{t("facility.backToToday")}</button>}
+    <div className={s.dateGroup}>
+      <button disabled={date <= "1000-01-01"} onClick={() => onChange(shiftDay(date, -1))} aria-label={t("taki.previous")}>‹</button>
+      <label className={s.dateInput}>
+        {I.cal}<span>{dayLabel(date, { month: "short", day: "numeric", weekday: "short", ...(date.slice(0, 4) !== today.slice(0, 4) && { year: "numeric" }) })}</span>
+        <input type="date" aria-label={t("facility.pickDate")} value={date} min="1000-01-01" max="9999-12-31"
+          onClick={e => { try { e.currentTarget.showPicker?.(); } catch {} }}
+          onChange={e => { if (/^[1-9]\d{3}-\d{2}-\d{2}$/.test(e.target.value)) onChange(e.target.value); }} />
+      </label>
+      <button disabled={date >= "9999-12-31"} onClick={() => onChange(shiftDay(date, 1))} aria-label={t("taki.next")}>›</button>
+    </div>
+  </div>;
+}
+
+export function FacilityReservationView({ mob, onBack, onNavigate }) {
   const [now, setNow] = useState(() => new Date());
-  const [viewISO, setViewISO] = useState(null); // null = 今日
-  const [showCal, setShowCal] = useState(false);
-  const [calMonth, setCalMonth] = useState(null); // first-of-month Date for the picker
-  const [roomModal, setRoomModal] = useState(null); // {name, slots} of tapped room
-
-  useEffect(() => { const id = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(id); }, []);
-
-  const todayISO = toISO(now);
-  const effISO = viewISO || todayISO; // 表示中の日付
-  const targetDate = useMemo(() => { const [y, m, d] = effISO.split("-").map(Number); return new Date(y, m - 1, d); }, [effISO]);
-
-  const load = useCallback(async () => {
-    setLoading(true); setError(null);
-    try {
-      const r = await fetch(`/api/data/facility-reservations?date=${toYMD(targetDate)}&b=1`, { credentials: "include" });
-      if (!r.ok) { setError(r.status === 400 ? "portal" : "fetch"); setLoading(false); return; }
-      const d = await r.json();
-      if (d?.error) { setError("grid"); setLoading(false); return; }
-      setData(d);
-    } catch { setError("fetch"); }
-    setLoading(false);
-  }, [targetDate]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-
-  const openLink = (url) => openMaterial({ fileurl: url, fileType: "link" }, undefined, { mob });
-
-  const Header = (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-      <div style={{ width: 40, height: 40, borderRadius: 10, background: `${T.accent}14`, display: "flex", alignItems: "center", justifyContent: "center", color: T.accent }}>{I.clock}</div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: mob ? 18 : 20, fontWeight: 800, color: T.txH }}>Taki Plaza</div>
-      </div>
-      <button onClick={load} title={t("facility.refresh")} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: 9, border: `1px solid ${T.bd}`, background: T.bg2, color: T.txD, cursor: "pointer" }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-      </button>
-    </div>
-  );
-
-  const wrap = (children) => (
-    <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
-      <div style={{ padding: mob ? "16px 14px 40px" : "24px 28px 48px", maxWidth: 760, margin: "0 auto", boxSizing: "border-box" }}>
-        {Header}{children}
-      </div>
-    </div>
-  );
-
-  if (error === "portal") return wrap(<div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 13, lineHeight: 1.8 }}>{t("facility.errPortalLine1")}<br />{t("facility.errPortalLine2")}</div>);
-  if (error === "fetch" || error === "grid") return wrap(<div style={{ textAlign: "center", padding: 40, color: T.txD, fontSize: 13, lineHeight: 1.8 }}>{t("facility.errFetchLine1")}<br />{t("facility.errFetchLine2")}<div><button onClick={load} style={{ marginTop: 16, padding: "8px 20px", borderRadius: 8, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{t("facility.retry")}</button></div></div>);
-  if (loading || !data) return wrap(<div style={{ textAlign: "center", padding: 60, color: T.txD, fontSize: 13 }}><span style={{ display: "inline-block", width: 22, height: 22, borderRadius: "50%", border: `2.5px solid ${T.accent}`, borderTopColor: "transparent", animation: "mnSpin .6s linear infinite", verticalAlign: "middle", marginRight: 10 }} />{t("facility.loadingStatus")}</div>);
-
-  const sortedSpaces = [...data.spaces].sort((a, b) => (FREE_USE.test(`${a.group} ${a.name}`) ? 0 : 1) - (FREE_USE.test(`${b.group} ${b.name}`) ? 0 : 1));
-  const selIdx0 = data.days.findIndex((d) => d.date === effISO);
-  const sel = selIdx0 >= 0 ? selIdx0 : 0;
-  const selDay = data.days[sel];
-  const selIsToday = selDay?.date === todayISO;
-
-  // ── Taki Plaza today status (always visible) ──
-  const fs = facilityStatus(TAKI.sched, now);
-  const weToday = now.getDay() === 0 || now.getDay() === 6;
-  const [tOpen, tClose] = weToday ? TAKI.sched.we : TAKI.sched.wd;
-  const infoBlock = (
-    <div style={{ marginBottom: 14, borderRadius: 12, border: `1px solid ${T.bd}`, background: T.bg2, padding: "12px 14px" }}>
-      {/* 状態 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <span style={{ width: 10, height: 10, borderRadius: "50%", background: fs.col, flexShrink: 0 }} />
-        <span style={{ fontSize: 15, fontWeight: 800, color: fs.col }}>{fs.label}</span>
-        {onNavigate && <button onClick={() => onNavigate(TAKI.spotId)} title={t("facility.viewOnMap")} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, padding: "4px 9px", borderRadius: 7, border: `1px solid ${T.bd}`, background: T.bg3, color: T.txD, fontSize: 11, cursor: "pointer" }}><span style={{ display: "flex" }}>{I.pin}</span>{t("facility.map")}</button>}
-      </div>
-      {/* 本日の営業時間（主役） */}
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: T.txD }}>{t("facility.todayHours")}</span>
-        <span style={{ fontSize: 18, fontWeight: 800, color: T.txH, lineHeight: 1.1 }}>{fmtMin(tOpen)} – {fmtMin(tClose)}</span>
-        <span style={{ fontSize: 11, color: T.txD }}>（{weToday ? t("facility.weekend") : t("facility.weekday")}）</span>
-        <span style={{ fontSize: 12.5, color: fs.col, fontWeight: 600 }}>{fs.detail}</span>
-      </div>
-      {/* 補助: 全体の時間 + リンク */}
-      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px 10px", marginTop: 8 }}>
-        <span style={{ fontSize: 10.5, color: T.txD, opacity: .9 }}>{t(TAKI.hoursTextKey)}</span>
-        {TAKI.links.map((l) => (
-          <button key={l.url} onClick={() => openLink(l.url)} style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: 0, border: "none", background: "transparent", color: T.accent, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-            {t(l.labelKey)}
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-
-  // 予約状況は定期的に読み取って保存したもの（lib/api/facility-cache.js）。まだ無い週はその旨だけ出す
-  const fetchedNote = data.fetchedAt ? (() => { const f = new Date(data.fetchedAt); return t("facility.asOf", { d: `${f.getMonth() + 1}/${f.getDate()}` }); })() : null;
-  if (data.notCached) return wrap(<>{infoBlock}<div style={{ textAlign: "center", padding: "28px 16px", color: T.txD, fontSize: 13, lineHeight: 1.8 }}>{t("facility.notCached")}</div></>);
-
-  // ── Day view (minimal): summary + only what matters (使用中 / 予約) ──
-  const items = sortedSpaces.map((sp) => ({
-    key: sp.name,
-    name: jaName(sp.name),
-    free: FREE_USE.test(`${sp.group} ${sp.name}`),
-    slots: sp.slots[sel] || [],
-    ev: computeNextEviction(sp.slots[sel] || [], nowMin),
-  }));
-  const total = items.length;
-  const inUse = selIsToday ? items.filter((it) => it.ev.state === "occupied") : [];
-  const reserved = !selIsToday ? items.filter((it) => it.slots.length > 0) : [];
-  const freeCount = total - (selIsToday ? inUse.length : reserved.length);
-
-  const Summary = ({ label, n, col }) => (
-    <div style={{ fontSize: 13, color: T.txD, marginBottom: 14 }}>
-      {label} <span style={{ fontSize: 22, fontWeight: 800, color: col }}>{n}</span>
-      <span style={{ fontSize: 13, fontWeight: 600, color: T.txD }}> {t("facility.ofSpaces", { total })}</span>
-    </div>
-  );
-  const AllFree = ({ text }) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, color: T.green, padding: "4px 0" }}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-      <span style={{ fontSize: 15, fontWeight: 700 }}>{text}</span>
-    </div>
-  );
-  const restLine = (n, msgKey) => n > 0 && <div style={{ fontSize: 12.5, color: T.txD, marginTop: 12, paddingLeft: 2 }}>{t(msgKey, { n })}</div>;
-  const FloorLabel = ({ fl }) => (
-    <div style={{ fontSize: 10.5, fontWeight: 800, color: T.txD, letterSpacing: .5, margin: "12px 0 2px" }}>{floorLabel(fl)}</div>
-  );
-
-  const dayView = (
-    <div>
-      {selIsToday ? (
-        <>
-          <Summary label={t("facility.usableNow")} n={freeCount} col={T.green} />
-          {inUse.length === 0 ? <AllFree text={t("facility.allFreeNow")} /> : (
-            <>
-              <div style={{ fontSize: 12, fontWeight: 700, color: T.red }}>{t("facility.inUse")}</div>
-              {groupByFloor(inUse).map(({ fl, list }) => (
-                <div key={fl}>
-                  <FloorLabel fl={fl} />
-                  {list.map((it) => (
-                    <div key={it.key} onClick={() => setRoomModal(it)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 2px", borderBottom: `1px solid ${T.bd}`, cursor: "pointer" }}>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{it.name}</span>
-                      <span style={{ marginLeft: "auto", fontSize: 13, color: T.txD }}><span style={{ fontSize: 15, fontWeight: 800, color: T.txH }}>{it.ev.until}</span> {t("facility.freesAtSuffix")}</span>
-                      <span style={{ display: "flex", color: T.txD }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-              {restLine(freeCount, "facility.restFree")}
-            </>
-          )}
-        </>
-      ) : (
-        <>
-          <Summary label={t("facility.hasReservations")} n={reserved.length} col={reserved.length ? T.txH : T.green} />
-          {reserved.length === 0 ? <AllFree text={t("facility.allFreeAllDay")} /> : (
-            <>
-              {groupByFloor(reserved).map(({ fl, list }) => (
-                <div key={fl}>
-                  <FloorLabel fl={fl} />
-                  {list.map((it) => (
-                    <div key={it.key} onClick={() => setRoomModal(it)} style={{ padding: "10px 2px", borderBottom: `1px solid ${T.bd}`, cursor: "pointer" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: T.txH }}>{it.name}</span>
-                        <span style={{ marginLeft: "auto", display: "flex", color: T.txD }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
-                      </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {it.slots.map((s, si) => <span key={si} style={{ fontSize: 12.5, fontWeight: 700, color: T.red, background: `${T.red}14`, padding: "2px 8px", borderRadius: 6 }}>{s.start}<span style={{ opacity: .55, margin: "0 1px" }}>–</span>{s.end}</span>)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ))}
-              {restLine(total - reserved.length, "facility.restFreeAllDay")}
-            </>
-          )}
-        </>
-      )}
-    </div>
-  );
-
-  // ── 月カレンダー（日付ピッカー） ──
-  const calNav = { width: 28, height: 28, borderRadius: 8, border: `1px solid ${T.bd}`, background: T.bg, color: T.txD, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, padding: 0 };
-  const cm = calMonth || new Date(parseInt(effISO.slice(0, 4)), parseInt(effISO.slice(5, 7)) - 1, 1);
-  const cy = cm.getFullYear(), cmo = cm.getMonth();
-  const firstDow = new Date(cy, cmo, 1).getDay();
-  const dim = new Date(cy, cmo + 1, 0).getDate();
-  const calendar = (
-    <>
-      <div onClick={() => setShowCal(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 998 }} />
-      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(330px, 90vw)", background: T.bg2, border: `1px solid ${T.bd}`, borderRadius: 16, padding: 16, zIndex: 999, boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>{t("facility.pickDate")}</span>
-          <button onClick={() => setShowCal(false)} style={{ marginLeft: "auto", background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex" }}>{I.x}</button>
+  const [picked, setPicked] = useState(null);
+  const [duration, setDuration] = useState(0);
+  const [floor, setFloor] = useState("all");
+  const [selected, setSelected] = useState(null);
+  const [scene, setScene] = useState({ floor: "all", space: null });
+  const modelRef = useRef(null);
+  const rowRefs = useRef(new Map());
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    const id = setInterval(tick, 15000);
+    document.addEventListener("visibilitychange", tick);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", tick); };
+  }, []);
+  const today = takiClock(now).date;
+  const date = picked || today;
+  const { result, reload } = useWeek(date);
+  const day = useMemo(() => takiDay(result?.data, date, now), [result, date, now]);
+  const building = day.isToday ? day : takiDay(null, today, now);
+  const freeCount = day.rooms.filter(room => room.state === "free").length;
+  const rooms = day.rooms.map(room => ({ room, gap: opening(room, day, duration) }))
+    .filter(({ room, gap }) => (floor === "all" || room.floor === floor || (room.name === "大階段エリア" && floor === "B1F")) && (!duration || gap))
+    .sort((a, b) => (a.gap?.start ?? Infinity) - (b.gap?.start ?? Infinity)
+      || a.room.floor.localeCompare(b.room.floor) || a.room.name.localeCompare(b.room.name, locale(), { numeric: true }));
+  const floorOptions = [...new Set(day.rooms.map(room => room.floor))].sort();
+  const openLink = url => openMaterial({ fileurl: url, fileType: "link" }, undefined, { mob });
+  function pickDate(value) {
+    setPicked(value === today ? null : value);
+    setSelected(null);
+    setFloor("all");
+    setScene({ floor: "all", space: null });
+  }
+  function locate(room) {
+    setScene({ floor: room.floor, space: room.name });
+    modelRef.current?.scrollIntoView({ block: "center" });
+    modelRef.current?.focus({ preventScroll: true });
+  }
+  function fromModel(name, modelFloor) {
+    const room = day.rooms.find(r => r.name === name || r.englishName === name || r.rawName === name);
+    if (!room) {
+      setScene({ floor: modelFloor, space: name, retainCut: true });
+      return;
+    }
+    setSelected(roomKey(room));
+    setFloor("all");
+    setDuration(0);
+    setScene({ floor: room.floor, space: room.name, retainCut: true });
+    requestAnimationFrame(() => {
+      const btn = rowRefs.current.get(roomKey(room));
+      btn?.scrollIntoView({ block: "center" });
+      btn?.focus({ preventScroll: true });
+    });
+  }
+  const theme = {
+    "--tp-bg": T.bg, "--tp-card": T.bg2, "--tp-surface": T.bg3, "--tp-ink": T.txH,
+    "--tp-secondary": T.tx, "--tp-border": T.bd, "--tp-accent": T.accent,
+    "--tp-green": T.green, "--tp-orange": T.orange,
+  };
+  return <main className={s.screen} style={theme}>
+    <div className={s.page}>
+      <section className={s.hero} aria-label="Taki Plaza">
+        <div className={s.intro}>
+          <div className={s.place}>{mob && onBack && <button className={s.back} onClick={onBack} aria-label={t("common.back")}>{I.back}</button>}{I.pin}{t("library.ookayama")}</div>
+          <h1>Taki Plaza</h1>
+          <div className={s.hours}><span className={s.openBadge} data-open={building.phase === "open" || undefined}>
+            <i />{t(building.phase === "open" ? (building.close - building.nowMin <= 60 ? "facility.closingSoon" : "facility.openNow") : building.phase === "before" ? "facility.beforeOpen" : "taki.closed")}
+          </span><span>{building.open === building.close ? t("taki.closedDay") : time(building.open) + "–" + time(building.close)}</span></div>
+          {onNavigate && <button className={s.route} onClick={() => onNavigate("taki")}>{I.map}{t("taki.route")}<span aria-hidden="true">→</span></button>}
         </div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-          <button onClick={() => setCalMonth(new Date(cy, cmo - 1, 1))} style={calNav}>‹</button>
-          <span style={{ fontSize: 14, fontWeight: 700, color: T.txH }}>{t("facility.yearMonth", { year: cy, month: cmo + 1 })}</span>
-          <button onClick={() => setCalMonth(new Date(cy, cmo + 1, 1))} style={calNav}>›</button>
+        <div className={s.model} ref={modelRef} tabIndex={-1} aria-label={t("taki.floorGuide")}>
+          <Model focus={scene} onSpaceSelect={fromModel} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 3, marginBottom: 3 }}>
-          {["日", "月", "火", "水", "木", "金", "土"].map((w, i) => (
-            <div key={w} style={{ textAlign: "center", fontSize: 10, fontWeight: 700, color: i === 0 ? "#ef4444" : i === 6 ? "#3b82f6" : T.txD }}>{t("dow.s." + w)}</div>
-          ))}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 3 }}>
-          {Array.from({ length: firstDow }).map((_, i) => <div key={"p" + i} />)}
-          {Array.from({ length: dim }).map((_, i) => {
-            const day = i + 1;
-            const iso = `${cy}-${pad(cmo + 1)}-${pad(day)}`;
-            const isToday = iso === todayISO, isSel = iso === effISO;
-            const dow = new Date(cy, cmo, day).getDay();
-            return (
-              <button key={day} onClick={() => { setViewISO(iso); setShowCal(false); }} style={{
-                aspectRatio: "1 / 1", display: "flex", alignItems: "center", justifyContent: "center", position: "relative",
-                borderRadius: 8, cursor: "pointer", border: isSel ? `1px solid ${T.accent}` : `1px solid ${T.bd}`,
-                background: isSel ? T.accent : T.bg,
-                color: isSel ? "#fff" : (dow === 0 ? "#ef4444" : dow === 6 ? "#3b82f6" : T.txH),
-                fontSize: 14, fontWeight: (isToday || isSel) ? 800 : 500,
-              }}>
-                {day}
-                {isToday && !isSel && <span style={{ position: "absolute", bottom: 3, width: 4, height: 4, borderRadius: "50%", background: T.accent }} />}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </>
-  );
+      </section>
 
-  // ── ルーム予約の詳細モーダル（誰がいつ取っているか） ──
-  const roomModalEl = roomModal && (
-    <>
-      <div onClick={() => setRoomModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 998 }} />
-      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(360px, 92vw)", maxHeight: "80vh", overflowY: "auto", background: T.bg2, border: `1px solid ${T.bd}`, borderRadius: 16, padding: 16, zIndex: 999, boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 3 }}>
-          <span style={{ fontSize: 16, fontWeight: 800, color: T.txH }}>{roomModal.name}</span>
-          <button onClick={() => setRoomModal(null)} style={{ marginLeft: "auto", background: "none", border: "none", color: T.txD, cursor: "pointer", display: "flex" }}>{I.x}</button>
-        </div>
-        <div style={{ fontSize: 12, color: T.txD, marginBottom: 12 }}>{floorLabel(floorOf(roomModal.name))} ・ {selDay ? `${parseInt(selDay.date.slice(5, 7))}/${parseInt(selDay.date.slice(8))}(${t("dow.s." + selDay.dow)})` : ""} {t("facility.reservationsSuffix")}</div>
-        {roomModal.slots.length === 0 ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, color: T.green, padding: "6px 0" }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            <span style={{ fontSize: 14, fontWeight: 700 }}>{t("facility.freeAllDayNoRes")}</span>
+      <section className={s.planner} aria-labelledby="taki-search-heading">
+        <div className={s.plannerHead}><div>
+          <h2 id="taki-search-heading">{t("taki.find")}</h2>
+          <p aria-live="polite">{day.cached && day.phase === "open" ? t("taki.countNow", { n: freeCount, all: day.rooms.length })
+            : day.phase === "closed" ? t("taki.closedDay") : t("taki.scheduleHours", { hours: time(day.open) + "–" + time(day.close) })}</p>
+        </div><DatePicker date={date} today={today} onChange={pickDate} /></div>
+        {day.cached && <div className={s.filters}>
+          <div className={s.lengths} role="group" aria-label={t("taki.findLength")}>
+            {[0, 30, 60, 120].map(n => <button key={n} aria-pressed={duration === n} onClick={() => setDuration(n)}>
+              {n ? t("taki.duration", { n }) : t("taki.allLengths")}</button>)}
           </div>
-        ) : (
-          roomModal.slots.map((s, si) => {
-            const ongoing = selIsToday && toMin(s.start) <= nowMin && nowMin < toMin(s.end);
-            return (
-              <div key={si} style={{ display: "flex", gap: 10, padding: "9px 0", borderBottom: si < roomModal.slots.length - 1 ? `1px solid ${T.bd}` : "none" }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: ongoing ? T.red : T.txH, minWidth: 100, flexShrink: 0 }}>{s.start}–{s.end}</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: T.txH }}>{s.title || t("facility.untitled")}{ongoing && <span style={{ fontSize: 10, fontWeight: 700, color: T.red, marginLeft: 6 }}>{t("facility.inUse")}</span>}</div>
-                  {s.org && <div style={{ fontSize: 11.5, color: T.txD, marginTop: 1 }}>{s.org}</div>}
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-    </>
-  );
-
-  return wrap(
-    <>
-      {infoBlock}
-      {fetchedNote && <div style={{ fontSize: 11, color: T.txD, margin: "-6px 2px 10px", textAlign: "right" }}>{fetchedNote}</div>}
-      {roomModalEl}
-
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <span style={{ fontSize: 14, fontWeight: 800, color: T.txH }}>
-          {selDay ? `${selIsToday ? t("facility.todayPrefix") + " " : ""}${parseInt(selDay.date.slice(5, 7))}/${parseInt(selDay.date.slice(8))}(${t("dow.s." + selDay.dow)})` : ""}
-        </span>
-        {!selIsToday && <button onClick={() => { setViewISO(null); setShowCal(false); }} style={{ padding: "4px 10px", borderRadius: 7, border: "none", background: `${T.accent}15`, color: T.accent, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{t("facility.backToToday")}</button>}
-        <button onClick={() => setShowCal((v) => !v)} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8, border: `1px solid ${T.bd}`, background: showCal ? `${T.accent}12` : T.bg2, color: showCal ? T.accent : T.txD, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-          <span style={{ display: "flex" }}>{I.cal}</span>{showCal ? t("common.close") : t("facility.pickDate")}
-        </button>
-      </div>
-
-      {showCal && calendar}
-
-      {dayView}
-
-      <div style={{ fontSize: 11, color: T.txD, marginTop: 16, lineHeight: 1.6 }}>
-        {t("facility.footerNote")}
-      </div>
-    </>
-  );
-};
-
+          <select className={s.floorSelect} aria-label={t("taki.floor")} value={floor} onChange={e => setFloor(e.target.value)}>
+            <option value="all">{t("taki.allFloors")}</option>
+            {floorOptions.map(f => <option key={f} value={f}>{f === "その他" ? t("facility.floorOther") : f}</option>)}
+          </select>
+        </div>}
+        {!result ? <div className={s.blank} role="status">{t("facility.loadingStatus")}</div>
+          : result.error ? <div className={s.blank} role="alert">{t(result.error === "401" ? "taki.needsLogin" : "facility.errFetchLine1")}
+            <button className={s.textAction} onClick={reload}>{I.reset}{t("facility.retry")}</button></div>
+          : !day.cached ? <div className={s.blank} role="status">{I.cal}{t("facility.notCached")}</div>
+          : <>
+            <div className={s.listCaption}><span>{t("taki.rooms", { n: rooms.length })}</span>
+              <span className={s.legend}><i />{t("taki.freeSlots")}<i />{t("taki.reservations")}
+                {day.phase === "open" && <span className={s.nowMark}>{t("taki.nowMark", { time: time(day.nowMin) })}</span>}
+              </span></div>
+            <div className={s.roomList}>
+              {rooms.length ? rooms.map(({ room, gap }) => {
+                const key = roomKey(room);
+                return <RoomRow key={key} room={room} day={day} gap={gap} expanded={selected === key}
+                  register={btn => { if (btn) rowRefs.current.set(key, btn); else rowRefs.current.delete(key); }}
+                  onToggle={() => {
+                    setSelected(selected === key ? null : key);
+                    if (selected !== key && room.floor !== "その他") setScene({ floor: room.floor, space: room.name });
+                  }} onLocate={() => locate(room)} openLink={openLink} />;
+              }) : <div className={s.blank}>{t("taki.noMatches")}<button className={s.textAction}
+                onClick={() => { setFloor("all"); setDuration(0); }}>{t("taki.resetFilters")}</button></div>}
+            </div>
+          </>}
+        <div className={s.source}><span>{result?.data?.fetchedAt ? t("facility.asOf", { d: dayLabel(result.data.fetchedAt, { month: "short", day: "numeric" }) }) : t("taki.source")}</span>
+          <button onClick={reload} disabled={!result}>{I.reset}{t("facility.refresh")}</button></div>
+      </section>
+      <footer className={s.footer}><p>{t("taki.note")}</p>
+        <div>{[[GUIDE,"facility.linkStudentGuide"],[WEBSITE,"facility.linkOfficial"]].map(([url,key]) =>
+          <button key={url} onClick={() => openLink(url)}>{t(key)} <span aria-hidden="true">↗</span></button>)}</div>
+      </footer>
+    </div>
+  </main>;
+}

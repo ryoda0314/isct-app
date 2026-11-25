@@ -1,6 +1,8 @@
 {
   "overview":{"image":"overview.png","observation":"神田川側からの俯瞰で、M&Dタワーの高屋根、A棟のヘリポートと光庭、C棟、D棟、外堀通りの位置関係を確認した。"},
   "exterior":{"image":"tower.png","observation":"屋上庭園の園路から、傾いたガラス帯と石の妻壁、透明なホワイエ、その前の庇とデッキを見上げた。"},
+  "ward":{"image":"ward-comparison.jpg","observation":"指摘の画像に視点を合わせたA棟南面の近景で、和英の病院名、窓枠とその奥のガラスが見える。壁の向こうのB棟・本郷門・5号館のラベルは隠れる。下段に病棟全景とヘリポート架台の別角度を掲載した。"},
+  "wardInteraction":"1360×855と390×844のChromeでA棟への直接リンクを開き、施設カード、地図の拡大、地上視点への移動、俯瞰への復帰を確認した。",
   "street":{"image":"bridge.png","observation":"お茶の水橋の歩道から、黄色い誘導帯と対になった街灯、橋の先のC棟とM&Dタワーが同時に見える。"},
   "garden":{"image":"garden.png","observation":"南側の園路から五弁の花壇を見た。中央の木と植栽の間に淡い砂利が見え、奥には玄関の庇、ガラス、石壁が並ぶ。"},
   "hospital":{"image":"clinical.png","observation":"橋からC棟の二段の窓列、正面格子、低層部の列柱、前庭の石積みを確認した。"},

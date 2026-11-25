@@ -10,6 +10,70 @@ import { createNeighbourhood } from "../campus-sns/yushima/neighbourhood.js";
 import { distance, interpolate } from "../campus-sns/yokohama/navigation.js";
 import { bridgeLevel, bridgeSpecs, gardenLevel, pathSurface, pathVertex, roadTerrainHeight, stairFlight } from "../campus-sns/yushima/groundsLevels.js";
 import { bridgeFrame } from "../campus-sns/yushima/bridgeDeck.js";
+import { at } from "../campus-sns/yokohama/buildingsGeometry.js";
+import { buildingFrame, wallFacing } from "../campus-sns/yushima/facadeKit.js";
+import { wardRoofLevel } from "../campus-sns/yushima/wardRoofs.js";
+import { buildingSightlines } from "../campus-sns/campusMap/buildingSightlines.js";
+
+test("A棟南面の病院標章・英字・和文は壁から浮き、字の隙間に外装が見える",()=>{
+  const a=buildings.find(b=>b.id==="med-a"),model=createYushimaBuildings([a],groundHeight);
+  const frame=buildingFrame(a.footprint),front=wallFacing(a.upperFootprint,-frame.dz,frame.dx);
+  const scale=front.length*.352/382.518,probe=new THREE.Raycaster();
+  model.updateMatrixWorld(true);
+  // Samples in the public sign drawing, read left to right from across the river.
+  for(const [x,y,raised] of [[10,9,true],[10,27,false],[80,15,true],[270,23,true],[370,13,true],[370,18,false]]){
+    const p=at(front,front.length*.936-x*scale,.65);
+    probe.set(new THREE.Vector3(p[0],wardRoofLevel+.27-y*scale,p[1]),new THREE.Vector3(-front.nx,0,-front.nz));
+    const first=probe.intersectObject(model,true)[0];
+    assert.ok(first&&Math.abs(first.distance-(raised?.52:.65))<.006,`病院標章 ${x},${y}`);
+  }
+});
+
+test("A棟南面の9段9列はタイルの柱と奥に入った病室窓を持ち、機械階に換気スリットが並ぶ",()=>{
+  const ward=buildings.find(b=>b.id==="med-a"),model=createYushimaBuildings([ward],groundHeight);
+  model.updateMatrixWorld(true);
+  const front=wallFacing(ward.upperFootprint,-.4,.92);
+  const ray=new THREE.Raycaster(undefined,new THREE.Vector3(-front.nx,0,-front.nz),0,2.4);
+  function depth(t,y){
+    const [x,z]=at(front,t*front.length,.5);
+    ray.ray.origin.set(x,y,z);
+    const hit=ray.intersectObject(model,true)[0];
+    assert.ok(hit,`外壁・窓の欠落 ${t}, ${y}`);
+    return hit.distance-.5;
+  }
+  for(let i=0;i<9;i++){
+    const center=.102+i*.0997;
+    assert.ok(depth(center,61.8)>.82,"正面の病室窓");
+    assert.ok(depth(center,77.21)>.13,"窓の通りに揃った機械階のスリット");
+    if(i<8)assert.ok(Math.abs(depth(center+.0495,61.8))<.04,"開口の間のタイル柱");
+  }
+  for(const y of [43.5,47.2,50.8,54.5,58.1,61.8,65.45,69.1,72.7]){
+    assert.ok(depth(.203,y)>.82,"8〜16階の窓");
+    assert.ok(Math.abs(depth(.203,y+1.1))<.04,"窓と上階を隔てる腰壁");
+  }
+});
+
+test("病棟屋上のヘリポートが開放架台で屋根から8.03m持ち上がり、B棟の連絡橋へ続く",()=>{
+  const hospital=createYushimaBuildings(buildings.filter(b=>b.id==="med-a"||b.id==="med-b"),groundHeight);
+  hospital.updateMatrixWorld(true);
+  const probe=new THREE.Raycaster(),down=new THREE.Vector3(0,-1,0);
+  function surface(x,z,start){
+    probe.set(new THREE.Vector3(x,start,z),down);
+    const hit=probe.intersectObject(hospital,true)[0];
+    assert.ok(hit,`roof surface at ${x},${z}`);
+    return hit.point.y;
+  }
+  // Read the turquoise sheet from above, then cast through two open bays
+  // below the steel joists. A solid plant-room box here hides the whole rack.
+  for(const [x,z] of [[-26.06,9.60],[-21.83,13.88]]){
+    const deck=surface(x,z,110),roof=surface(x,z,86.8);
+    assert.ok(Math.abs(deck-88.20)<.03);
+    assert.ok(Math.abs(deck-roof-8.03)<.04);
+  }
+  assert.ok(Math.abs(surface(-16.73,-9.89,110)-88.20)<.03);
+  for(const [x,z] of [[-26.49,24.93],[-22.68,-45.54]])
+    assert.ok(Math.abs(surface(x,z,110)-75.1)<.10,"両光庭脇の低い設備床");
+});
 
 test("公式図の湯島地区1〜15、D棟の南北、門を独立した施設として選べる",()=>{
   assert.equal(buildings.length,16);
@@ -20,6 +84,20 @@ test("公式図の湯島地区1〜15、D棟の南北、門を独立した施設�
   }
   assert.ok(searchPlaces("","病院").length>=5);
   assert.ok(areas.some(a=>a.kind==="water"));
+});
+
+test("病院A棟の手前から見たときは、背後の施設名がA棟の壁に重ならない",()=>{
+  const visible=buildingSightlines(createYushimaBuildings(buildings,groundHeight));
+  const besideWard=new THREE.Vector3(-29.28,78.73,63.35);
+  const overview=new THREE.Vector3(-110,350,445);
+  function canSee(id,eye){
+    const p=byId.get(id),[x,z]=p.labelPoint;
+    const y=(p.footprint?groundHeight:walkingSurfaceAt)(x,z)+(p.height||0)+(p.labelLift??3);
+    return visible(eye,new THREE.Vector3(x,y,z),id);
+  }
+  assert.ok(canSee("med-a",besideWard));
+  for(const id of ["med-b","b5","hongo-gate"])assert.equal(canSee(id,besideWard),false,id);
+  for(const id of ["med-a","med-b","med-c","md","healing-garden"])assert.ok(canSee(id,overview),id);
 });
 
 test("駅・門・研究棟・橋の屋外ルートを往復でき、階段回避時の経路が通行条件を満たす",()=>{

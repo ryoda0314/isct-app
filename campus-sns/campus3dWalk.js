@@ -1104,13 +1104,13 @@ export function stepWalkView(w, distance, dt, fov, steady = false) {
     w.bobAmp = 0;
   }
   const stride = w.bobPhase;
-  // Keep a tracking telephoto lens usable while walking. A narrow field
-  // magnifies even a fraction of a degree of head rotation.
-  const lens = Math.min(1, 1.45 * Math.tan(fov * DEG / 2) / Math.tan(WALK_FOV * DEG / 2));
+  // Nearby scenery gets its gait from eye height. Keep residual head rotation
+  // below half a pixel at 1080p, and keep a tracking camera on its target.
+  const lens = w.moonScope ? 0 : Math.min(1, Math.tan(fov * DEG / 2) / Math.tan(WALK_FOV * DEG / 2));
   return {
     height: -0.025 * (1 - Math.cos(2 * stride)) * w.bobAmp,
-    yaw: 0.10 * Math.sin(stride) * w.bobAmp * lens,
-    pitch: 0.16 * Math.sin(2 * stride) * w.bobAmp * lens,
+    yaw: 0.018 * Math.sin(stride) * w.bobAmp * lens,
+    pitch: 0.025 * Math.sin(2 * stride) * w.bobAmp * lens,
   };
 }
 

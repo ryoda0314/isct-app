@@ -10,6 +10,7 @@ import {
   setExamEdit, clearExamEdit, keepExamEdit, linkExam, unlinkExam, hideExam, unhideExam,
 } from "../myExams.js";
 import { useExamPrefs } from "../hooks/useExamPrefs.js";
+import { openPastExams } from "../pastExams.js";
 
 const API = "";
 
@@ -275,6 +276,7 @@ export const ExamView = ({ courses = [], mob, goToBuilding, setCid, setView, set
               </button>
             )}
             {!isMine && <button type="button" onClick={() => updatePrefs(p => (prefs.hidden[key] ? unhideExam(p, key) : linkExam(p, key, exam)))} style={smallBtn(T.accent)}>{t("exam.addToMine")}</button>}
+            {!editing && <button type="button" onClick={() => openPastExams(exam.code || exam.code_raw)} title={t("pastExam.title")} style={smallBtn(T.txD)}>{t("pastExam.open")} ↗</button>}
           </div>
         </div>
         {isMine && <ExamNotice exam={exam}

@@ -1,8 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { envAt, moonPosition } from "../campus-sns/campus3dEnv.js";
+import { moonDisplayRadius } from "../campus-sns/campus3dSkyLayer.js";
 
 const RAD = Math.PI/180;
+test("wide views resolve the maria, with a larger disk at the skyline and optical scale at telephoto", () => {
+  const radius = 0.25 * RAD;
+  const diameter = (elevation, fov, height) =>
+    height * Math.tan(moonDisplayRadius(radius, elevation, fov, height)) / Math.tan(fov * RAD / 2);
+  for (const height of [390, 720, 1080]) {
+    const low = diameter(5, 70, height), high = diameter(60, 70, height);
+    assert.ok(high >= 13 && low > 1.4 * high);
+    let previous = low;
+    for (const fov of [50, 35, 20, 10, 4, 2.1, 2, 1.65]) {
+      const zoomed = diameter(5, fov, height);
+      assert.ok(zoomed > previous);
+      previous = zoomed;
+    }
+    assert.equal(moonDisplayRadius(radius, 5, 1.65, height), radius);
+    assert.equal(moonDisplayRadius(radius, -1, 70, height), radius);
+    assert.ok(moonDisplayRadius(radius * 1.08, 5, 70, height) > moonDisplayRadius(radius, 5, 70, height));
+  }
+});
 function near(actual, reference, delta) {
   assert.ok(Math.abs(actual-reference) < delta, `${actual} vs ${reference} (±${delta})`);
 }

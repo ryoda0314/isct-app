@@ -5,6 +5,7 @@ import { I } from "./icons.jsx";
 import { Av } from "./shared.jsx";
 import { isNative } from "./capacitor.js";
 import { openInSystemBrowser } from "./openMaterial.js";
+import { openPastExams } from "./pastExams.js";
 import { openLmsPage } from "./plugins/portalWebView.js";
 import { useCareerVisible } from "./careerAccess.js";
 // ============================================================
@@ -223,6 +224,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
           <div style={{fontSize:compact?10:11,color:T.txD,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{course.name}</div>
           {!compact&&<div style={{fontSize:10,color:T.txD,marginTop:1}}>{course.per} · {course.room}</div>}
           {course.moodleId&&<button onClick={()=>goLms(`https://lms.s.isct.ac.jp/2025/course/view.php?id=${course.moodleId}`)} disabled={lmsLoading} title={t("chan.openLms")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,width:"100%",marginTop:8,background:`${course.col}18`,border:`1px solid ${course.col}40`,borderRadius:8,color:course.col,cursor:lmsLoading?"wait":"pointer",padding:compact?"5px 6px":"6px 8px",fontSize:compact?10:11,fontWeight:700,opacity:lmsLoading?.6:1}}>{I.book}<span>{t("chan.openLms")}</span></button>}
+          {course.code&&<button onClick={()=>openPastExams(course.code)} title={t("pastExam.title")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,width:"100%",marginTop:6,background:"transparent",border:`1px solid ${T.bd}`,borderRadius:8,color:T.txH,cursor:"pointer",padding:compact?"5px 6px":"6px 8px",fontSize:compact?10:11,fontWeight:700}}>{I.clip}<span>{t("pastExam.open")} ↗</span></button>}
         </>}
       </div>
       <div style={{padding:"5px 0",flex:1,overflowY:"auto"}}>

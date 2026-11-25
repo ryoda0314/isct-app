@@ -1,8 +1,11 @@
 import { at, edges, nearestEdge, rectangle } from "../yokohama/buildingsGeometry.js";
 import { clinicalPavilion } from "./clinicalForecourt.js";
+import { hospitalSign } from "./hospitalSign.js";
 import { roadTerrainHeight } from "./groundsLevels.js";
 import { buildingFrame, courtClip, curtain, entrance, equipment, finish, grille, parapet, punchedWindows, wallFacing } from "./facadeKit.js";
-import { gardenCurtain, stoneCore, wardBalconies, wardPodium } from "./towerElevations.js";
+import { gardenCurtain, stoneCore } from "./towerElevations.js";
+import { wardUpperWalls, wardPodium, wardTerrace } from "./wardFacade.js";
+import { hospitalRoof, roofWells, wardRoofLevel } from "./wardRoofs.js";
 import { towerForecourt, towerForecourtRails } from "./towerForecourt.js";
 
 const towerGlass=[0x39698d,0x427998,0x3c7091,0x427494,0x457d9b,0x3d718f];
@@ -31,7 +34,7 @@ const glyphs={
   f:[".15,.02 .15,.83 .29,.99 .48,.99",".03,.69 .47,.69"],
 };
 const letterWidths={S:.81,i:.25,I:.28,T:.8," ":.33};
-function scienceSign(m,e,t,out,y,size,crown=false) {
+function towerSign(m,e,t,out,y,size) {
   const ink=0x243349, direction=Math.sign(e.dx*e.nz-e.dz*e.nx);
   const run=(ch)=>(letterWidths[ch]??.68)+.11;
   function letters(str,x0,y0,scale){
@@ -50,9 +53,8 @@ function scienceSign(m,e,t,out,y,size,crown=false) {
       cursor+=run(ch)*scale;
     }
   }
-  const label=crown?"SCIENCE TOKYO":"Science Tokyo";
+  const label="SCIENCE TOKYO";
   const width=[...label].reduce((sum,ch)=>sum+run(ch),0)*size;
-  if(!crown){letters(label,-width/2,y,size);return;}
   const symbol=size*1.48, left=-(width+symbol*1.06)/2;
   const textX=left+symbol*1.06;
   letters(label,textX,y,size);
@@ -107,7 +109,7 @@ export function mdTower(m,b,ring,fr,base,height,gardenLevel) {
     if(bevel) {
       const w=e.length, top=u>0?crown:mainRoof;
       stoneCore(m,e,base,top,Math.abs(fr.local(e.a)[1])>Math.abs(fr.local(e.b)[1]),u>0?24:22,stone);
-      if(u>0&&w>10)scienceSign(m,e,w/2,.54,top-4.6,Math.min(1.42,w/12.9),true);
+      if(u>0&&w>10)towerSign(m,e,w/2,.54,top-4.6,Math.min(1.42,w/12.9));
     } else if(e.dx*front.dx+e.dz*front.dz>.999 && e.nx*front.nx+e.nz*front.nz>.999) {
       gardenCurtain(m,e,base,lobby,transfer,mainRoof,gardenLevel);
       m.face(e,e.length/2,.29,mainRoof,e.length+.15,.24,.56,0x627079);
@@ -175,51 +177,9 @@ export function mdTower(m,b,ring,fr,base,height,gardenLevel) {
   }
 }
 
-function helideck(m,frame,base,w,raised) {
-  const d=w*.94, leg=w*.37, top=base+raised;
-  for(const u of [-leg,0,leg])for(const v of [-d*.38,d*.38]){
-    const p=frame.point(u,v);
-    m.box(p,base+raised*.5,.33,raised,.33,frame.yaw,finish.metal);
-  }
-  for(const v of [-d*.38,d*.38])for(const u of [-leg,0]){
-    const p=frame.point(u,v), q=frame.point(u+leg,v);
-    m.beam([p[0],base+.30,p[1]],[q[0],top-.2,q[1]],.22,finish.metal);
-    m.beam([p[0],top-.2,p[1]],[q[0],base+.30,q[1]],.22,finish.metal);
-  }
-  m.box(frame.point(0,0),top,w,.4,d,frame.yaw,0x79a898);
-  for(const s of [-1,1]){
-    m.box(frame.point(0,s*d*.415),top-.47,w-.62,.56,.29,frame.yaw,0x677a78);
-    m.box(frame.point(s*w*.415,0),top-.47,.29,.56,d-.60,frame.yaw,0x677a78);
-    for(let i=0;i<7;i++){
-      const u=w*(-.46+i*.92/6);
-      m.box(frame.point(u,s*d*.45),top-.53,.16,.66,d*.095,frame.yaw,finish.metal);
-      m.part("round",frame.point(u,s*d*.486),top+.29,.20,.15,.20,0,0xc88256);
-    }
-  }
-  // The photograph shows a grated maintenance strip and safety railing beside
-  // the flight deck. Keep the rail below its landing surface.
-  const side=w*.54;
-  m.box(frame.point(side,0),top-.98,w*.08,.10,d*.91,frame.yaw,0x657472);
-  for(let i=0;i<=55;i++)m.box(frame.point(side,d*(-.45+.9*i/55)),top-.90,w*.08,.064,.065,frame.yaw,0xbbc3ba);
-  for(let i=0;i<=10;i++)m.box(frame.point(side+w*.036,d*(-.45+.9*i/10)),top-.46,.078,.94,.078,frame.yaw,finish.metal);
-  for(const y of [top-.54,top-.01])m.box(frame.point(side+w*.036,0),y,.07,.07,d*.90,frame.yaw,finish.metal);
-  for(const s of [-1,1]) {
-    m.box(frame.point(s*w*.449,0),top+.21,.18,.02,d*.90,frame.yaw,0xddc374);
-    m.box(frame.point(0,s*d*.449),top+.21,w*.90,.02,.18,frame.yaw,0xddc374);
-  }
-  const dia=w*.57;
-  for(let k=0;k<48;k++){
-    const a=k*Math.PI/24, b=(k+1)*Math.PI/24;
-    const p=frame.point(Math.cos(a)*dia*.5,Math.sin(a)*dia*.5);
-    const q=frame.point(Math.cos(b)*dia*.5,Math.sin(b)*dia*.5);
-    m.box([(p[0]+q[0])/2,(p[1]+q[1])/2],top+.225,Math.hypot(q[0]-p[0],q[1]-p[1])+.03,.027,.23,-Math.atan2(q[1]-p[1],q[0]-p[0]),0xd8d78a);
-  }
-  for(const s of [-1,1])m.box(frame.point(s*w*.063,0),top+.23,.45,.03,w*.20,frame.yaw,0xf1e8ad);
-  m.box(frame.point(0,0),top+.23,w*.13,.03,.44,frame.yaw,0xf1e8ad);
-}
 
-export function wards(m,b,ring,fr,base,height) {
-  const isA=b.id==="med-a", top=base+height, podium=base+(isA?43:44);
+export function wards(m,b,ring,fr,base) {
+  const isA=b.id==="med-a", podium=isA?41.7:45.5;
   const front=wallFacing(ring,-fr.dz,fr.dx);
   const fromFront=p=>(front.a[0]-p[0])*front.nx+(front.a[1]-p[1])*front.nz;
   const podiumBody=isA?courtClip(ring,p=>fromFront(p)-2.58):ring;
@@ -228,16 +188,18 @@ export function wards(m,b,ring,fr,base,height) {
     const strip=courtClip(ring,p=>2.62-fromFront(p));
     m.solid(strip,podium-.78,podium,warmPanel,finish.roof);
     m.soffit(strip,podium-.78,0xa89d8e);
-    // Rounded hospital corner in the garden photograph, beneath the roof fascia.
-    const position=at(front,front.length-1.68,-.95), colBottom=base+.15, colTop=podium-.78;
-    m.part("smooth",position,(colBottom+colTop)/2,3.22,colTop-colBottom,3.22,0,0xcfbdab);
-    for(let y=colBottom+1.16;y<colTop;y+=1.16)m.part("round",position,y,3.24,.032,3.24,0,0xac9f91);
+    const colBottom=base+.15,colTop=podium-.78;
+    for(const t of [1.68,front.length-1.68]){
+      const position=at(front,t,-.95);
+      m.part("smooth",position,(colBottom+colTop)/2,3.22,colTop-colBottom,3.22,0,0xd6af97);
+      for(let y=colBottom+1.16;y<colTop;y+=1.16)m.part("smooth",position,y,3.24,.026,3.24,0,0xb09a86);
+    }
   }
   for(const wall of edges(ring)){
     let e=wall;
     if(e.length<2.4)continue;
     if(isA && e.nx*front.nx+e.nz*front.nz>.998 && e.length>front.length*.95) {
-      wardPodium(m,e,base,podium,warmPanel);
+      wardPodium(m,e,base,podium);
       continue;
     }
     if(isA && e.length>4 && Math.hypot(e.a[0]-front.b[0],e.a[1]-front.b[1])<.25)
@@ -257,50 +219,22 @@ export function wards(m,b,ring,fr,base,height) {
   // and roof garden stop several floors below the ward bar behind it.
   const upper=b.upperFootprint??courtClip(ring,p=>fr.d*(isA?.115:.29)-fr.local(p)[1]);
   if(upper.length<3)return;
-  const uf=buildingFrame(upper), roof=top;
+  const uf=buildingFrame(upper), roof=wardRoofLevel, wells=roofWells(isA);
   const court=isA?[[1.9,28.1],[8.3,13.3],[-7.9,6.4],[-14.2,21.1]]:
     [[-13.7,-36.6],[-31.3,-44.8],[-38.5,-29.4],[-20.9,-21.2]];
-  m.solid(upper,podium,roof,warmPanel,finish.roof,[court]);
+  m.solid(upper,roof-.16,roof,warmPanel,0xb4b2a6,[court,...wells]);
   for(const e of edges(court.slice().reverse())){
     // The inward glazing is on the courtyard side of this edge.
     const inside={...e,nx:-e.nx,nz:-e.nz};
+    m.face(inside,e.length/2,-.08,(podium+roof)/2,e.length,roof-podium,.16,warmPanel);
     punchedWindows(m,inside,podium,roof,8,{pitch:3.7,margin:.24,color:warmPanel});
   }
-  for(const [i,e] of edges(upper).entries()){
-    if(e.length<2.4)continue;
-    const long=e.length>18 && Math.abs(e.dx*uf.dx+e.dz*uf.dz)>.88;
-    const floors=Math.max(6,(b.levels??17)-(isA?7:6));
-    if(long)wardBalconies(m,e,podium+.25,roof-2.4,floors,warmPanel);
-    else {
-      punchedWindows(m,e,podium+.25,roof-2.4,floors,{pitch:4.3,open:.55,fraction:.61,margin:.93,color:warmPanel,relief:.53,start:i});
-      for(let k=1;k<e.length/2.3;k++)m.face(e,k*2.3,.05,(roof+podium)/2,.029,roof-podium,.085,finish.joint);
-    }
-    m.face(e,e.length/2,.10,roof-1.0,e.length,2.0,.26,warmPanel);
-    if(long)for(let k=0;k<Math.floor(e.length/5.7);k++)m.face(e,(k+.5)*5.7,.25,roof-1.36,3.8,.27,.20,0x5e6461);
-  }
+  wardUpperWalls(m,upper,uf,podium,roof,isA);
+  hospitalRoof(m,isA,upper,court,wells,podium,warmPanel);
   if(isA) {
-    const [sx,sz]=uf.local([-20,10]);
-    m.box(uf.point(sx,sz),roof+2.4,18.4,4.8,17.0,uf.yaw,warmPanel);
-    helideck(m,{...uf,point:(u,v)=>uf.point(u+sx,v+sz)},roof+4.8,27,5.2);
     const e=wallFacing(upper,-fr.dz,fr.dx);
-    scienceSign(m,e,e.length*.68,.52,roof-1.08,Math.min(.65,e.length/31));
-  }else{
-    const [u,v]=uf.local([-9,-12]);
-    m.box(uf.point(u,v),roof+3.25,10.3,6.5,7.2,uf.yaw,warmPanel);
-    equipment(m,uf,u,v,7,4,roof+6.5,2.45);
-  }
-  for(let k=0;k<3;k++)equipment(m,uf,uf.w*(isA?.25:-.24+k*.23),uf.d*(isA?-.27+k*.24:.08),4.6,2.25,roof,1.2);
-  if(isA){
-    m.face(front,front.length*.5,-1.1,podium+.27,front.length*.86,.53,1.55,0x8c8678);
-    const shrubs=Math.floor(front.length*.85/1.27);
-    const leaves=[0x628b47,0x6f934e,0x557b40,0x769956];
-    for(let j=0;j<shrubs;j++){
-      const t=front.length*(.077+.846*(j+.5)/shrubs);
-      m.part("round",at(front,t,-1.1+.12*Math.sin(j*2.1)),podium+.85+Math.sin(j)*.10,
-        1.58,.83+.21*Math.cos(j*1.3),1.27,front.yaw,leaves[j%leaves.length]);
-    }
-    for(let k=0;k<=Math.floor(front.length/2);k++)m.face(front,k*2,-.22,podium+.74,.058,.99,.058,finish.metal);
-    m.face(front,front.length/2,-.22,podium+1.2,front.length,.058,.065,finish.metal);
+    hospitalSign(m,e,roof);
+    wardTerrace(m,wallFacing(upper,-fr.dz,fr.dx),podium);
     entrance(m,front,front.length*.48,base,7.2,{canopy:2.9});
   }
 }

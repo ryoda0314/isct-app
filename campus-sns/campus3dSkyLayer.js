@@ -181,6 +181,23 @@ const smooth = (a, b, x) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 };
+
+// A half-degree disk is only ~4.5 CSS pixels across at 720p in the walking
+// camera. Give the broad maria room to resolve, especially near the skyline.
+// Use CSS height so changing pixel density does not change its apparent size.
+export function moonDisplayRadius(radius, elevation, fovDegrees, cssHeight) {
+  if (fovDegrees <= 2 || elevation <= -radius / DEG) return radius;
+  const horizon = 1 - smooth(4, 35, elevation);
+  const extraDiameterPx = (15 + 8 * horizon) * smooth(-radius / DEG, 1.5, elevation);
+  // In perspective, diameter in pixels = H * tan(radius) / tan(vertical FOV / 2).
+  // Fade out the perceptual enlargement continuously as the telephoto lens takes over.
+  const spread = Math.tan(fovDegrees * DEG / 2);
+  const optical = Math.tan(DEG); // 2° vertical FOV
+  const gain = extraDiameterPx * Math.sqrt(spread * spread - optical * optical)
+    / (Math.max(440, cssHeight) * Math.tan(0.25 * DEG));
+  return Math.atan(Math.tan(radius) * Math.hypot(1, gain));
+}
+
 // 目の慣れ（太陽が沈むほど明るく見せる）：薄明の空は昼の 1 万分の 1 ほどの明るさ。太陽の高さ（度）ごとの log10 の露出を直線でつなぐ
 const EXPOSURE = [[90, 0], [8, 0], [0, 0.35], [-3, 1.1], [-6, 1.8], [-9, 2.3], [-12, 2.6], [-90, 2.6]];
 export function exposureAt(el) {
@@ -610,7 +627,6 @@ function invert4(m) {
   if (Math.abs(det) < 1e-30) return null;
   return inv.map((v) => v / det);
 }
-const xform = (m, v) => [0, 1, 2, 3].map((i) => m[i] * v[0] + m[4 + i] * v[1] + m[8 + i] * v[2] + m[12 + i] * v[3]);
 // 描く座標の向き（x, y はメルカトルの差 × MERC_SCALE、z は m）→ 東・北・上（m）
 const PM_DET = PER_M.e[0] * PER_M.n[1] - PER_M.e[1] * PER_M.n[0];
 const toENU = (dx, dy, dz) => [(dx * PER_M.n[1] - dy * PER_M.n[0]) / PM_DET, (PER_M.e[0] * dy - PER_M.e[1] * dx) / PM_DET, dz];
@@ -620,14 +636,14 @@ export function skyEye(inv) {
   const w = inv[11];
   return w ? toENU(inv[8]/w, inv[9]/w, inv[10]/w) : [0, 0, 40];
 }
-// 画面の点（NDC）を通る視線（東・北・上。手前の面から奥の面までの差＝長さはそろえない）。この差は画面の上で直線的に変わるので、
-// 三角形の角に置いて補間できる（長さを 1 にした向きを補間すると、まん中の向きがゆがむ）
+// Homogeneous sight line through this NDC point. Keeping it affine in x and y
+// lets the sky triangle interpolate exact rays, even with a distant far plane
+// whose rounded w would give its three corners different (or infinite) scales.
 export function rayVec(inv, x, y) {
-  const a = xform(inv, [x, y, -1, 1]);
-  const b = xform(inv, [x, y, 1, 1]);
-  const pa = [a[0] / a[3], a[1] / a[3], a[2] / a[3]];
-  const pb = [b[0] / b[3], b[1] / b[3], b[2] / b[3]];
-  return toENU(pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]);
+  const point = i => inv[i] * x + inv[4+i] * y + inv[12+i];
+  const w = point(3);
+  const direction = i => inv[8+i] * w - inv[11] * point(i);
+  return toENU(direction(0), direction(1), direction(2));
 }
 // 画面の点を通る視線の向き（長さ 1）
 export function rayDir(inv, x, y) {
@@ -792,7 +808,7 @@ export function createSkyLayer() {
       const u = layer.uniforms;
       const lunarView = moonFromEye(env.moon, eye);
       u.moon = lunarView.dir;
-      u.moonRadius = lunarView.radius;
+      u.moonRadius = moonDisplayRadius(lunarView.radius, env.moon.elevation, map.transform.fov, map.getCanvas().clientHeight);
       gl.uniform3fv(p.loc("u_sun"), u.sun);
       gl.uniform3fv(p.loc("u_sunCol"), u.sunCol);
       gl.uniform1f(p.loc("u_sunPow"), u.sunPow);

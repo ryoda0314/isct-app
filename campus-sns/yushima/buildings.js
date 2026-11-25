@@ -323,6 +323,37 @@ function hospitalLinks(m,base) {
   }
 }
 
+// The aggregate is visible up close on the warm exterior panels. Fade each
+// grain size independently as its footprint falls below one screen pixel.
+function wardPanelMaterial(source){
+  const material=source.clone();
+  material.name="病棟の外装パネル";
+  material.onBeforeCompile=shader=>{
+    shader.vertexShader="varying vec2 wardUV; varying float wardPanel;\n"+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace("#include <begin_vertex>",`
+      #include <begin_vertex>
+      wardUV=vec2(dot(position.xz,vec2(normal.z,-normal.x)),position.y);
+      wardPanel=(1.-step(.12,abs(normal.y)))*step(.46,color.r)*step(color.g*1.32,color.r)*step(color.b*1.12,color.g);`);
+    shader.fragmentShader=`
+      varying vec2 wardUV; varying float wardPanel;
+      float wardHash(vec2 p){
+        vec3 h=fract(vec3(p.xyx)*vec3(.1031,.1030,.0973));
+        h+=dot(h,h.yzx+33.33);return fract((h.x+h.y)*h.z);
+      }
+      float aggregate(vec2 p){
+        vec2 id=floor(p),t=fract(p),px=fwidth(p);
+        t=t*t*(3.-2.*t);
+        float v=mix(mix(wardHash(id),wardHash(id+vec2(1.,0.)),t.x),
+                    mix(wardHash(id+vec2(0.,1.)),wardHash(id+1.),t.x),t.y);
+        return (v-.5)*(1.-smoothstep(.4,1.6,max(px.x,px.y)));
+      }\n`+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace("#include <color_fragment>",`
+      #include <color_fragment>
+      diffuseColor.rgb*=1.+wardPanel*(.047*aggregate(wardUV*11.)+.035*aggregate(wardUV*37.));`);
+  };
+  return material;
+}
+
 export function createYushimaBuildings(buildings,groundAt=()=>0) {
   const group=new THREE.Group(), resources=geometryResources();
   const brickResources={...resources,shell:brickWallMaterial(resources.shell),shrub:new THREE.IcosahedronGeometry(.5,1)};
@@ -333,18 +364,23 @@ export function createYushimaBuildings(buildings,groundAt=()=>0) {
   foyerGlass.name="M&D foyer glass";
   foyerGlass.opacity=.48;
   const towerMaterials={...resources,shell:towerStoneMaterial(resources.shell),glass:towerGlass,clear:foyerGlass};
+  const wardGlass=resources.glass.clone(),wardClear=resources.clear.clone();
+  wardClear.opacity=.26;
+  wardGlass.name="Hospital window glass";wardClear.name="Hospital clear glazing";
+  const wardMaterials={...resources,shell:wardPanelMaterial(resources.shell),glass:wardGlass,clear:wardClear};
   group.name="湯島キャンパス 建築";
   for(const b of buildings){
     if(!b.footprint?.length)continue;
     const ring=continuousWalls(b.footprint),fr=buildingFrame(ring);
     const sample=[...ring,fr.point(0,0)].map(p=>groundAt(...p)).sort((a,b)=>a-b);
     const base=sample[Math.floor(sample.length/2)]+.06;
-    const m=buildingGeometry(b.id,b.id==="md"?towerMaterials:b.id==="b2"?brickResources:resources);
+    const ward=b.id==="med-a"||b.id==="med-b";
+    const m=buildingGeometry(b.id,b.id==="md"?towerMaterials:ward?wardMaterials:b.id==="b2"?brickResources:resources);
     m.solid(ring,sample[0]-.6,base+.02,0x8c887e,finish.roof);
     if(b.id==="md")mdTower(m,b,ring,fr,base,b.height,groundAt(-37.4,38.5)+4.3);
     else if(b.id==="med-c")compactHospital(m,b,ring,fr,base,b.height);
-    else if(b.id==="med-a"||b.id==="med-b"){
-      wards(m,b,ring,fr,base,b.height);
+    else if(ward){
+      wards(m,b,ring,fr,base);
       if(b.id==="med-a")hospitalLinks(m,base);
     } else profileBody(m,b,ring,fr,base,b.height,profiles[b.id]??profiles.b6,groundAt);
     const building=m.finish();
@@ -354,18 +390,19 @@ export function createYushimaBuildings(buildings,groundAt=()=>0) {
   return group;
 }
 
-// Record the mesh-built surroundings from the tower itself. Only its glazing
-// samples the result. The campus geometry and sky stay static between captures.
-export function prepareYushimaReflections(renderer,scene) {
-  const tower=scene.getObjectByName("md");
-  const glass=tower?.children.find(o=>o.material?.name==="M&D façade glazing")?.material;
-  const foyer=tower?.children.find(o=>o.material?.name==="M&D foyer glass")?.material;
-  if(!glass)return;
-  const target=new THREE.WebGLCubeRenderTarget(128,{generateMipmaps:true,minFilter:THREE.LinearMipmapLinearFilter});
+// Static probes capture the modelled buildings and sky at the glazing itself.
+// The hospital's clear outer panes leave the curtains behind them visible.
+function captureGlass(renderer,scene,building,position,size,finishes){
+  const panes=finishes.flatMap(([name,tint,blend])=>{
+    const material=building?.children.find(o=>o.material?.name===name)?.material;
+    return material?[{material,tint,blend,previous:material.onBeforeCompile}]:[];
+  });
+  if(!panes.length)return;
+  const target=new THREE.WebGLCubeRenderTarget(size,{generateMipmaps:true,minFilter:THREE.LinearMipmapLinearFilter});
   const camera=new THREE.CubeCamera(.5,5000,target);
-  camera.position.set(-105,14,15);
-  const visible=tower.visible, shadowUpdate=renderer.shadowMap.needsUpdate;
-  tower.visible=false;
+  camera.position.set(...position);
+  const visible=building.visible, shadowUpdate=renderer.shadowMap.needsUpdate;
+  building.visible=false;
   renderer.shadowMap.needsUpdate=false;
   try {
     camera.update(renderer,scene);
@@ -373,16 +410,14 @@ export function prepareYushimaReflections(renderer,scene) {
     target.dispose();
     throw error;
   }finally{
-    tower.visible=visible;
+    building.visible=visible;
     renderer.shadowMap.needsUpdate=shadowUpdate;
   }
-  const originals=new Map();
-  for(const material of [glass,foyer].filter(Boolean)){
-    originals.set(material,material.onBeforeCompile);
+  for(const {material,tint,blend} of panes){
     material.onBeforeCompile=shader=>{
       shader.uniforms.campusReflection={value:target.texture};
-      shader.uniforms.campusCoating={value:material===foyer?new THREE.Vector3(.70,.94,.91):new THREE.Vector3(.63,.84,.98)};
-      shader.uniforms.campusBlend={value:material===foyer?new THREE.Vector2(.72,.20):new THREE.Vector2(.50,.29)};
+      shader.uniforms.campusCoating={value:new THREE.Vector3(...tint)};
+      shader.uniforms.campusBlend={value:new THREE.Vector2(...blend)};
       shader.fragmentShader="uniform samplerCube campusReflection;\nuniform vec3 campusCoating;\nuniform vec2 campusBlend;\n"+shader.fragmentShader;
       shader.fragmentShader=shader.fragmentShader.replace("#include <opaque_fragment>",`
         vec3 reflected = inverseTransformDirection(reflect(-normalize(vViewPosition), normal), viewMatrix);
@@ -394,10 +429,28 @@ export function prepareYushimaReflections(renderer,scene) {
     material.needsUpdate=true;
   }
   return ()=>{
-    for(const [material,original] of originals){
-      material.onBeforeCompile=original;
+    for(const {material,previous} of panes){
+      material.onBeforeCompile=previous;
       material.needsUpdate=true;
     }
     target.dispose();
   };
+}
+
+export function prepareYushimaReflections(renderer,scene){
+  const disposers=[];
+  try{
+    disposers.push(captureGlass(renderer,scene,scene.getObjectByName("md"),[-105,14,15],128,[
+      ["M&D façade glazing",[.63,.84,.98],[.50,.29]],
+      ["M&D foyer glass",[.70,.94,.91],[.72,.20]],
+    ]));
+    disposers.push(captureGlass(renderer,scene,scene.getObjectByName("med-a"),[-17,62,37],64,[
+      ["Hospital window glass",[.80,.91,.96],[.19,.34]],
+      ["Hospital clear glazing",[.87,.94,.98],[.30,.27]],
+    ]));
+  }catch(error){
+    for(const dispose of disposers)dispose?.();
+    throw error;
+  }
+  return ()=>{for(const dispose of disposers)dispose?.();};
 }

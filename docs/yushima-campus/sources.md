@@ -20,6 +20,8 @@
 
 PLATEAUの建物IDは `campus-sns/yushima/data.js` の `plateauId` に記録した。大学の資料ではA棟の高さを約76 m、歯科棟北を約55 mとしている。PLATEAUはA・B棟を一体として測り、屋上設備を含む最高高さを87.4 mとしている。階数や床レベル、屋上の突出部を区別するため、外観の段差は点群で別に照合した。[大学のキャンパスマスタープラン・冊子12ページ](https://www.tmd.ac.jp/files/topics/48709_ext_04_1.pdf)・[大学の屋外サイン取替工事公告](https://www.tmd.ac.jp/files/user/01_okujyosain.pdf)・[大学の主要施設・写真](https://admissions.isct.ac.jp/ja/001/student-life-and-careers/campus-intro/yushima-surugadai)
 
+A・B棟の屋上高は東京湾平均海面を基準に揃えた。2015年の改修記録によると、A棟のヘリポート着陸帯は24.1 × 20 m、床は標高103.20 mで、支柱を据える屋上床との高低差は8.03 m。東京都の点群では両棟の外壁の天端が標高約96 m、光庭脇の低い設備床が約90 mとなる。施工写真から、柱脚ごとに分かれた角形基礎、V字の筋かい、床より低く回る格子の保守歩廊、夜間灯、B棟に向かう渡り廊下の形を再現した。設備の台数・ピッチ、鋼材断面と手すりの厚みには推定を含む。[大学の改修概要・3ページ](https://www.tmd.ac.jp/archive-tmdu/kouhou/20150129.pdf)・[アルミデッキの施工会社による全景・架台写真](https://www.aero.co.jp/2018/05/06/20180506-37/)・[東京都区部点群データ](https://catalog.data.metro.tokyo.lg.jp/dataset/t000029d0000000024)
+
 ## 位置と標高
 
 - 東経139.7645度、北緯35.7017度を原点とし、東方向をX、南方向をZとする単位メートルの局所座標を使用した。経度1度を90,499 m、緯度1度を110,952 mとしている。敷地はOSM way 52980054。建物のOSM IDはモデルデータに収録した。現在の公式図にある湯島門（正門）、本郷門、北門、聖門、お茶の水門、南門、西門、外堀門①・②を位置合わせした。南門・西門・外堀門の配置は、案内図と実際の道路の出合いからの推定を含む。[© OpenStreetMap contributors・ODbL 1.0](https://www.openstreetmap.org/copyright)・[公式配置図](https://www.isct.ac.jp/ja/001/about/campuses-and-offices/img/map-yushima-and-surugadai.svg)

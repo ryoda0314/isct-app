@@ -102,7 +102,7 @@ export const buildings = [
   },
   {
     id: "med-a", name: "A棟", district: "大学病院",
-    levels: 17, height: 76, osmId: 152620287, plateauId: "13105-bldg-15188",
+    levels: 17, height: 80, osmId: 152620287, plateauId: "13105-bldg-15188",
     aliases: ["医科A棟","病院A棟","医科新棟","医学部附属病院","医科外来"],
     footprint: [
       [22,27.1], [17.9,36], [17.1,37.1], [12.7,46.6], [12.6,46.5], [9.7,52.8], [8.7,55.1],
@@ -116,7 +116,7 @@ export const buildings = [
   },
   {
     id: "med-b", name: "B棟", district: "大学病院",
-    levels: 17, height: 76, osmId: 152620287, plateauId: "13105-bldg-15188",
+    levels: 17, height: 80, osmId: 152620287, plateauId: "13105-bldg-15188",
     aliases: ["医科B棟","病院B棟","医科新棟","医学部附属病院"],
     footprint: [
       [-42.4,-20.4], [-59.5,-28.2], [-57.4,-32.6], [-56.8,-33.9], [-55.6,-39.3], [-54.7,-41.2],

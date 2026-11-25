@@ -7,6 +7,9 @@ export const network=walkingNetwork(paths);
 const shortNames={md:"M&Dタワー","med-a":"病院 A棟","med-b":"病院 B棟","med-c":"病院 C棟",
   "dental-n":"D棟北","dental-s":"D棟南",b1w:"1号館西",b1e:"1号館東",b8n:"8号館北",b8s:"8号館南"};
 const featured=new Set(["md","med-a","med-c","dental-n","b1w","healing-garden","ochanomizu-bridge"]);
+// The ward centroids fall under the helipad and in the B-wing lightwell.
+// Place their badges over the adjoining patient-room roofs.
+const labelPoints={"med-a":[-28,22],"med-b":[-35,-44],"healing-garden":[-121,52]};
 const descriptions={
   md:"地上26階の医歯学総合研究棟。3・4階に図書館、2階に鈴木章夫記念講堂があります。",
   "med-a":"神田川側から見える病棟です。屋上のヘリポートには大きなHの印があります。",
@@ -22,7 +25,7 @@ function makePlace(p) {
   const approach=network.project(approaches[p.id]||p.approach||point)?.point;
   const hospital=p.id.startsWith("med-")||p.id.startsWith("dental-");
   const group=p.footprint ? hospital?"病院":"教育・研究施設" : p.kind==="gate"?"門":p.kind==="memorial"?"記念碑":"駅・橋・庭園";
-  return {...p,point,group,approach,labelPoint:p.id==="healing-garden"?[-121,52]:point,mapLabel:shortNames[p.id]||p.mapLabel||p.name.split("【")[0],
+  return {...p,point,group,approach,labelPoint:labelPoints[p.id]||point,labelLift:["med-a","med-b"].includes(p.id)?0:3,mapLabel:shortNames[p.id]||p.mapLabel||p.name.split("【")[0],
     detail:descriptions[p.id]||p.detail,source:descriptions[p.id]?university:p.source,
     aliases:[...(p.aliases||[]),...(extras[p.id]||[])],featured:featured.has(p.id)};
 }

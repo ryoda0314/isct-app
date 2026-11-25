@@ -24,6 +24,7 @@ import { useDeptMembers } from "./hooks/useDeptMembers.js";
 import { resetCourseMaterialsCache } from "./hooks/useCourseMaterials.js";
 import { useMobile, useBreakpoint } from "./utils.jsx";
 import { isNative, clearNativeCookies } from "./capacitor.js";
+import { openPastExams } from "./pastExams.js";
 import { CallProvider } from "./CallProvider.jsx";
 import { openLmsUrl } from "./openLms.js";
 import { saveTimetableToWidget } from "./plugins/timetableWidget.js";
@@ -208,7 +209,12 @@ export default function App(){
   useEffect(()=>{document.documentElement.style.background=T.bg;document.body.style.background=T.bg;},[themeMode,accentPref]);
   // 深いリンク（#navi / #freshman / #reg / #festival / #career）。以前はその 1 画面だけのゲスト専用シェルだったが、
   // 今は普通のアプリでその画面を開く（ログインしていてもいなくても同じ）。
-  const deepLinkRef=useRef((()=>{if(typeof window==="undefined")return null;const h=window.location.hash;return h==="#freshman"?"freshman":(h==="#navi"||h==="#navi/yokohama"||h==="#navi/yushima")?"navigation":h==="#vcampus"||h==="#vcampus/royale"?"vcampus":h==="#reg"?"reg":h==="#festival"?"festival":h==="#career"?"career":null;})());
+  const deepLinkRef=useRef((()=>{
+    if(typeof window==="undefined")return null;
+    const h=window.location.hash;
+    if(h==="#takiplaza")return "takiplaza";
+    return h==="#freshman"?"freshman":(h==="#navi"||h==="#navi/yokohama"||h==="#navi/yushima")?"navigation":h==="#vcampus"||h==="#vcampus/royale"?"vcampus":h==="#reg"?"reg":h==="#festival"?"festival":h==="#career"?"career":null;
+  })());
   // ログイン画面（アプリの上に重ねて開く）。{ intent: 使おうとした機能の view ID, returnTo: ログイン後に開く画面 }
   const [loginReq,setLoginReq]=useState(null);
   const loginReqRef=useRef(null);
@@ -1133,6 +1139,7 @@ export default function App(){
             </div>
             <button onClick={()=>setShowMembers(true)} style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex",position:"relative"}}>{I.users}{members.length>0&&<span style={{position:"absolute",top:-4,right:-6,minWidth:14,height:14,borderRadius:7,background:cc.col,color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{members.length}</span>}</button>
             {cc.moodleId&&<button onClick={openLms} disabled={lmsLoading} title={t("chan.openLms")} style={{display:"flex",alignItems:"center",gap:4,background:`${cc.col}18`,border:`1px solid ${cc.col}40`,borderRadius:8,color:cc.col,cursor:lmsLoading?"wait":"pointer",padding:"5px 9px",fontSize:11,fontWeight:700,opacity:lmsLoading?.6:1}}>{I.book}<span>{lmsLoading?"...":"LMS"}</span></button>}
+            {cc.code&&<button onClick={()=>openPastExams(cc.code)} title={t("pastExam.title")} style={{display:"flex",alignItems:"center",gap:4,background:"transparent",border:`1px solid ${T.bd}`,borderRadius:8,color:T.txH,cursor:"pointer",padding:"5px 9px",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{t("pastExam.open")}</button>}
             <button style={{background:"none",border:"none",color:T.txD,cursor:"pointer",display:"flex"}}>{I.more}</button>
           </div>
         </div>
@@ -1374,7 +1381,7 @@ export default function App(){
         {view==="support"&&!gated("support")&&<SupportChat embedded mob userId={user?.moodleId||user?.id} langPref={langPref} currentView="support" onClose={mBack}/>}
         {view==="vcampus"&&<><MHdr title={t("nav.vcampus")} back={mBack}/><VirtualCampusView mob user={user}/></>}
         {view==="navigation"&&<><MHdr title={t("nav.navigation")} back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}} qDataAll={qDataEff}/></>}
-        {view==="takiplaza"&&<><MHdr title="Taki Plaza" back={mBack}/>{gated("takiplaza")?fg("takiplaza"):<FacilityReservationView mob onNavigate={goToBuilding}/>}</>}
+        {view==="takiplaza"&&(gated("takiplaza")?<><MHdr title="Taki Plaza" back={mBack}/>{fg("takiplaza")}</>:<FacilityReservationView mob onBack={mBack} onNavigate={goToBuilding}/>)}
         {view==="gym"&&<><MHdr title={t("tool.gym")} back={mBack}/>{gated("gym")?fg("gym"):<GymView mob/>}</>}
         {view==="qr"&&<><MHdr title={t("appgrid.qr")} back={mBack}/><QRView mob/></>}
         {view==="lecrec"&&user.isAdmin&&<><MHdr title={t("appgrid.lecrec")} back={mBack}/><LectureRecorderView mob/></>}

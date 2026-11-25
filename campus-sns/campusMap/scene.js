@@ -97,17 +97,20 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
   sun.shadow.mapSize.set(2048,2048);
   sun.shadow.bias=-.00025; sun.shadow.normalBias=.12;
   scene.add(hemi,sun,sun.target);
-  let localShadows=false;
+  let shadowMode="campus";
   function placeShadows(walk) {
-    const x=walk?free.x:cx,z=walk?free.z:cz;
-    if(walk===localShadows && (!walk||Math.hypot(x-sun.target.position.x,z-sun.target.position.z)<34))return;
-    const y=walk?floor(x,z):0,radius=walk?106:shadowRadius;
+    const close=!walk&&world.detailShadows&&camera.position.distanceTo(controls.target)<125;
+    const mode=walk?"walk":close?"building":"campus";
+    const x=walk?free.x:close?controls.target.x:cx,z=walk?free.z:close?controls.target.z:cz;
+    const y=walk?floor(x,z):close?controls.target.y:0;
+    if(mode===shadowMode&&(mode==="campus"||sun.target.position.distanceToSquared({x,y,z})<(close?12:34)**2))return;
+    const radius=walk?106:close?64:shadowRadius,local=walk||close;
     sun.target.position.set(x,y,z);
     sun.position.copy(sun.target.position).add(sunlight);
-    Object.assign(sun.shadow.camera,{left:-radius,right:radius,top:radius,bottom:-radius,near:walk?530:1,far:walk?1050:1600});
+    Object.assign(sun.shadow.camera,{left:-radius,right:radius,top:radius,bottom:-radius,near:local?530:1,far:local?1050:1600});
     sun.shadow.camera.updateProjectionMatrix();
-    sun.shadow.bias=walk?-.00013:-.00025;sun.shadow.normalBias=walk?.047:.12;
-    renderer.shadowMap.needsUpdate=true;localShadows=walk;
+    sun.shadow.bias=local?-.00013:-.00025;sun.shadow.normalBias=close?.028:walk?.047:.12;
+    renderer.shadowMap.needsUpdate=true;shadowMode=mode;
   }
   let frame=0, disposed=false;
   const schedule=()=>{ if(!disposed && !frame) frame=requestAnimationFrame(draw); };
@@ -131,13 +134,9 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
     node.onclick=()=>onPick({id:p.id});
     labels.append(node);
     const anchor=p.labelPoint||p.point;
-    const position=new THREE.Vector3(anchor[0],(p.footprint?groundAt:floor)(...anchor)+(p.height||0)+3,anchor[1]);
+    const position=new THREE.Vector3(anchor[0],(p.footprint?groundAt:floor)(...anchor)+(p.height||0)+(p.labelLift??3),anchor[1]);
     return {p,node,position};
   });
-  for(const tag of tags){
-    tag.width=tag.node.offsetWidth;
-    tag.height=tag.node.offsetHeight;
-  }
   let selectedId=null, routeMesh=null, routeDisplay=[], walking=false, saved=null, free=nilWalk();
   let lastTime=0, movingPointer=null, pointerStart=null, lastPose=0;
   const stick={x:0,y:0}, keys=new Set(),projected=new THREE.Vector3();
@@ -147,11 +146,11 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
   function nilWalk() {return {x:0,z:0,yaw:0,pitch:0,up:0,vertical:0};}
   const bounds3d=volume.flatMap(b=>b.footprint.map(([x,z])=>new THREE.Vector3(x,b.base+b.height,z)));
   for(const [x,z] of world.overviewGroundPoints||[])bounds3d.push(new THREE.Vector3(x,floor(x,z),z));
-  function framePoints(points,route=false) {
+  function framePoints(points,route=false,viewDirection) {
     if(!points.length || walking)return;
     const center=new THREE.Box3().setFromPoints(points).getCenter(new THREE.Vector3());
     const narrow=camera.aspect<.86;
-    const direction=new THREE.Vector3(narrow ? .04 : world.overviewX ?? -.63,route||narrow ? 1.8 : world.overviewY ?? 1.12,1).normalize();
+    const direction=new THREE.Vector3(...(viewDirection||[narrow ? .04 : world.overviewX ?? -.63,route||narrow ? 1.8 : world.overviewY ?? 1.12,1])).normalize();
     const right=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),direction).normalize();
     const up=new THREE.Vector3().crossVectors(direction,right);
     const tan=Math.tan(THREE.MathUtils.degToRad(camera.fov/2)),width=host.clientWidth,height=host.clientHeight;
@@ -172,6 +171,8 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
   function focus(p) {
     selectedId=p?.id||null;
     if(walking || !p) {schedule();return;}
+    const view=world.facilityViews?.[p.id];
+    if(view){framePoints(view.points.map(v=>new THREE.Vector3(...v)),false,view.direction);return;}
     const [x,z]=p.point, height=p.height||0, box=p.footprint?boundsOf(p.footprint):null;
     const span=Math.max(30,height,(box?.width||0)*.7,(box?.depth||0)*.7);
     const dx=p.approach[0]-x,dz=p.approach[1]-z;
@@ -297,7 +298,7 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
       const occupied=[];
       const width=host.clientWidth,height=host.clientHeight;
       const priority=tags.slice().sort((a,b)=>Number(b.p.id===selectedId)-Number(a.p.id===selectedId)||Number(b.p.featured)-Number(a.p.featured)||
-        a.position.distanceToSquared(camera.position)-b.position.distanceToSquared(camera.position));
+        (canSeeLabel?a.position.distanceToSquared(camera.position)-b.position.distanceToSquared(camera.position):0));
       for(const {p,node,position,width:tagWidth,height:tagHeight} of priority) {
         projected.copy(position).project(camera);
         const x=(projected.x+1)*width/2,y=(1-projected.y)*height/2;
@@ -317,6 +318,11 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
   function onResize() {
     const w=host.clientWidth,h=host.clientHeight;
     renderer.setSize(Math.max(1,w),Math.max(1,h),false);camera.aspect=Math.max(1,w)/Math.max(1,h);
+    if(w&&h&&!labels.hidden){
+      const unmeasured=tags.filter(t=>!t.width);
+      for(const {node} of unmeasured)node.hidden=false;
+      for(const tag of unmeasured){tag.width=tag.node.offsetWidth;tag.height=tag.node.offsetHeight;}
+    }
     if(walking)camera.fov=walkingFov();
     camera.updateProjectionMatrix();schedule();
   }
