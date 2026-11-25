@@ -12,36 +12,20 @@ import { BOARD_T, STAIRS_CLEAR, WALL_IN, WALL_T, basementRegions, buildingOpenin
 import { carveSurfaces, reachOut, trunkRadius } from "./campus3dMesh.js";
 import { lecturePostFootprints } from "./campus3dLectureArcade.js";
 import { cutFloorRegions, digWalk, floorG0, floorWalk } from "./campus3dInterior.js";
+import { AIR_STEP, APEX, BODY, DROP_OFF, PROBE, STEP, TURN, angDiff, angle } from "./campus3dWalkCore.js";
+// 体の動きの芯は campus3dWalkCore.js（横浜・湯島の地図と同じもの。2026-11-26）。ここから外へも出す
+export { EYE, GRAVITY, JUMP, PITCH, SPEED, SPRINT_FOV, TURN, WALK_FOV, angDiff, stepBody, stepWalkView } from "./campus3dWalkCore.js";
 
 const DEG = Math.PI / 180;
-export const EYE = 1.62; // 目の高さ（m。Minecraft と同じ）
-export const SPEED = { sneak: 1.3, walk: 4.3, sprint: 5.6 }; // m/s（Minecraft と同じ）
 export const ROUTE_SPEED = { walk: 1.4, run: 4.3 }; // ルートを自動で歩くとき（ふつうに歩く速さ・走る）
-export const JUMP = 8.4; // ジャンプの初速（m/s）。重力 GRAVITY で 1.25m 上がる
-export const GRAVITY = 28; // m/s²（Minecraft の重力はこのくらい強い。ふわっとしない）
-export const TURN = 120; // Q・E で向きを変える速さ（度/秒）
-export const PITCH = { min: 5, max: 175, start: 88 }; // MapLibre の pitch（0 真下・90 水平・180 真上）
-export const WALK_FOV = 70; // 縦の画角（度。Minecraft の「標準」）
-export const SPRINT_FOV = 8; // ダッシュ中は画角を少し広げる（Minecraft と同じ）
 // カメラから地図の中心（視線の先）まで(m)。MapLibre は近い面を「中心までの距離 ÷ 35 ほど」に置くので、近いほど
 // 目の前の壁が切れない（体の半径 BODY より近い面が手前に来ないように）。中心は視線の先の宙か地面の下でよい。ズームはおよそ 22.5
 export const VIEW_D = 8;
 export const WALK_MAX_ZOOM = 24;
-const BODY = 0.3; // 体の半径：壁にこれより近づかない（Minecraft と同じ）
 const AUTO_DOOR_H = 2.3; // 平地の面の自動ドアの口の高さ（面の下の端から。campus3dMesh の addFace の板の上の端と同じ）
-const STEP = 0.6; // 歩いて上れる段（Minecraft と同じ）。地面に沿って下りる段も
-const AIR_STEP = 0.05; // 空中では段を上らない（ジャンプで足が上まで来たら乗れる）
-const PROBE = 0.4; // 少し先の足もとも見る：なだらかに焼き込んだ平地の壁（0.3〜0.9m で 5m 上がる）を少しずつ登らないように
-const GROUND_K = 14; // 速さを目標の速さへ寄せる強さ（地面。0.07 秒ほどで追いつく）
-const AIR_K = 2.5; // 空中（ジャンプ中は向きを変えにくい）
-const MAX_FALL = 50;
-const DROP_OFF = 1.5; // 橋・階段の端の近くで横へ降りられる高さ
-const APEX = (JUMP * JUMP) / (2 * GRAVITY); // ジャンプで上がる高さ
 
 const ll2xy = ([lat, lng]) => toXY([lng, lat]);
 const deckFoot = (d, s) => d.treadAt ? d.treadAt(s) : d.deckAt(s) - (d.step ? STAIRS_CLEAR : 0);
-const angle = (v) => ((v % 360) + 360) % 360;
-export const angDiff = (to, from) => ((((to - from) % 360) + 540) % 360) - 180;
 
 // 升目の索引（campus3dLamps.js と同じ作り）
 class Grid {
@@ -870,95 +854,6 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
   return { surfacesAt, pavedHeight, floorBelow, blocked, blockedSpan, move, freeNear, pick, setDyn, setDynFloor, coverAt, beltAt };
 }
 
-/**
- * 体を1フレーム動かす（Minecraft と同じ感じ）。s は { x, y, z（足の標高）, vx, vy, vz, onGround, deck, yaw（方位、度）, pitch }、
- * input は { fwd, side（-1〜1。前・右が +）, turn（右が +）, jump, sprint, sneak, autoJump（低い段の前で自動でジャンプ。スマホ） }
- * @returns 新しい状態と、段を上り下りした高さ stepUp（目をなめらかに動かすため）
- */
-export function stepBody(s, input, dt, world) {
-  const yaw = angle(s.yaw + (input.turn || 0) * TURN * dt);
-  let fwd = Math.max(-1, Math.min(1, input.fwd || 0));
-  let side = Math.max(-1, Math.min(1, input.side || 0));
-  const mag = Math.hypot(fwd, side);
-  if (mag > 1) {
-    fwd /= mag;
-    side /= mag;
-  }
-  // ダッシュは前へ進んでいるときだけ（Minecraft と同じ）
-  const speed = input.sneak ? SPEED.sneak : input.sprint && fwd > 0.3 ? SPEED.sprint : SPEED.walk;
-  const b = yaw * DEG;
-  const tvx = (Math.sin(b) * fwd + Math.cos(b) * side) * speed; // 東へ
-  const tvy = (Math.cos(b) * fwd - Math.sin(b) * side) * speed; // 北へ
-  const k = 1 - Math.exp(-(s.onGround ? GROUND_K : AIR_K) * dt);
-  let vx = s.vx + (tvx - s.vx) * k;
-  let vy = s.vy + (tvy - s.vy) * k;
-  if (mag < 1e-3 && Math.hypot(vx, vy) < 0.02) {
-    vx = 0;
-    vy = 0;
-  }
-  // 水平：柱をすり抜けないよう 0.25m ずつ
-  let { x, y, z, deck, onGround } = s;
-  let stepUp = 0;
-  let hit = false;
-  let floor = null;
-  const n = Math.max(1, Math.ceil((Math.hypot(vx, vy) * dt) / 0.25));
-  for (let i = 0; i < n; i++) {
-    const r = world.move(x, y, z, (vx * dt) / n, (vy * dt) / n, { onGround, sneak: input.sneak, deck });
-    hit ||= r.hit;
-    const moved = Math.hypot(r.x - x, r.y - y);
-    x = r.x;
-    y = r.y;
-    floor = r.floor;
-    // 地面にいれば、段（STEP m まで上り、下りは坂くらいの急さまで）に沿う。急に低くなったら（ふち・平地の壁の上）落ちはじめる
-    if (onGround && floor && floor.z >= z - Math.min(STEP, moved * 2 + 0.02)) {
-      stepUp += floor.z - z;
-      z = floor.z;
-      deck = floor.deck;
-    } else if (onGround && (!floor || floor.z < z)) onGround = false;
-  }
-  // エスカレーター（2026-11-12）：段の帯の上に立っていれば、段の速さで運ばれる（歩いていてもいなくても。壁・手すりにはぶつかる）
-  const bv = onGround && world.beltAt ? world.beltAt(x, y, z) : null;
-  if (bv) {
-    const r = world.move(x, y, z, bv[0] * dt, bv[1] * dt, { onGround, sneak: input.sneak, deck });
-    x = r.x;
-    y = r.y;
-    if (r.floor && Math.abs(r.floor.z - z) < STEP) {
-      stepUp += r.floor.z - z;
-      z = r.floor.z;
-      deck = r.floor.deck;
-    }
-  }
-  // 壁に押しつけているあいだも速さ（進もうとする勢い）は残す：段の前でジャンプすると、足が上に出たとたんに前へ進んで乗れる
-  // （Minecraft で W を押したまま跳ぶと 1 段上がれるのと同じ）
-  // 上下
-  let vz = onGround ? 0 : s.vz;
-  const lowStep = () => {
-    // 前の少し先（0.5m）に、ジャンプで乗れる高さの段（STEP〜1.2m）がある
-    const d = Math.hypot(tvx, tvy);
-    if (d < 0.5) return false;
-    const px = x + (tvx / d) * 0.5;
-    const py = y + (tvy / d) * 0.5;
-    return world.surfacesAt(px, py).some((f) => f.z > z + STEP && f.z <= z + 1.2 && !world.blocked(px, py, f.z));
-  };
-  if (onGround && (input.jump || (input.autoJump && hit && lowStep()))) {
-    vz = JUMP;
-    onGround = false;
-  }
-  if (!onGround) {
-    // 重力：1フレームの中でも放物線どおりに（ジャンプの高さがフレームの長さで変わらない）
-    const z1 = z + vz * dt - 0.5 * GRAVITY * dt * dt;
-    vz = Math.max(-MAX_FALL, vz - GRAVITY * dt);
-    const land = vz <= 0 ? world.floorBelow(x, y, z + AIR_STEP) : null; // いまの足より下の、いちばん高い足場
-    if (land && z1 <= land.z) {
-      z = land.z;
-      vz = 0;
-      onGround = true;
-      deck = land.deck;
-    } else z = z1;
-  }
-  return { ...s, x, y, z, vx, vy, vz, onGround, deck, yaw, stepUp, hit };
-}
-
 // ── 飛ぶ（Minecraft のクリエイティブ）：重力なし。前後左右は地面と同じ入力、up / down で上下（Space・Shift）、sprint で速く。
 // ぶつかる（noclip でなければ）：体（足の 0.1〜1.8m 上）が立体・壁にかかるところへは進まない（軸ごとにすべる）。地面や床が足より
 // STEP m 以内で高ければその上へ上がる（低く飛んで坂・段をこえる）、それより高ければ壁。下りて足場に着いたら飛ぶのをやめる（landed）。
@@ -1089,31 +984,6 @@ export function stepRoute(s, path, dt, world, { run = false, steer = true } = {}
 // Ground displacement after collision detection drives the steps. A head
 // translates a few centimetres; the small residual angular motion is what
 // remains visible against the distant skyline. Angles are in degrees.
-export function stepWalkView(w, distance, dt, fov, steady = false) {
-  if (steady) {
-    w.bobAmp = 0;
-    return { height: 0, yaw: 0, pitch: 0 };
-  }
-  const speed = dt > 0 ? Math.min(SPEED.sprint, distance / dt) : 0;
-  const strength = Math.sqrt(speed / SPEED.walk);
-  w.bobAmp += (strength - w.bobAmp) * -Math.expm1(-dt * (strength > w.bobAmp ? 8 : 15));
-  if (speed > 0.02) {
-    const stepsPerSecond = 1.2 + 0.27 * speed;
-    w.bobPhase = (w.bobPhase + Math.PI * stepsPerSecond * dt) % (2 * Math.PI);
-  } else if (w.bobAmp < 0.002) {
-    w.bobAmp = 0;
-  }
-  const stride = w.bobPhase;
-  // Nearby scenery gets its gait from eye height. Keep residual head rotation
-  // below half a pixel at 1080p, and keep a tracking camera on its target.
-  const lens = w.moonScope ? 0 : Math.min(1, Math.tan(fov * DEG / 2) / Math.tan(WALK_FOV * DEG / 2));
-  return {
-    height: -0.025 * (1 - Math.cos(2 * stride)) * w.bobAmp,
-    yaw: 0.018 * Math.sin(stride) * w.bobAmp * lens,
-    pitch: 0.025 * Math.sin(2 * stride) * w.bobAmp * lens,
-  };
-}
-
 /**
  * 目（平面の x, y と標高 z）・方位 yaw・pitch から MapLibre の jumpTo に渡すカメラ。中心は視線の先 D m（宙か地面の下でもよい）。
  * view は { height（地図の高さ px）, fov（縦の画角、ラジアン） }

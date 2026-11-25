@@ -28,12 +28,16 @@ function IconButton({name,label,onClick}) {return <button type="button" classNam
 // rot：横に回して描いているとき（縦に持ったスマホ）は、画面の上の指の位置を絵の向きに直す
 function Joystick({onMove,rot}) {
   const [knob,setKnob]=useState([0,0]), active=useRef(null);
+  // 大岡山のスティックと同じ効き方（2026-11-26）：ふちから 14px 内側までで最大、まん中の 12% は止まる、倒した分だけの速さ
   function aim(e) {
     const box=e.currentTarget.getBoundingClientRect();
+    const lim=box.width/2-14;
     let x=e.clientX-box.left-box.width/2,y=e.clientY-box.top-box.height/2;
     if(rot){const s=x;x=y;y=-s;}
-    const scale=Math.max(40,Math.hypot(x,y)),a=x/scale,b=y/scale;
-    setKnob([a*33,b*33]);onMove(a,b);
+    const m=Math.hypot(x,y);
+    if(m>lim){x*=lim/m;y*=lim/m;}
+    const v=m<lim*.12?0:1;
+    setKnob([x,y]);onMove(x/lim*v,y/lim*v);
   }
   function end(e) {if(e.pointerId===active.current){active.current=null;setKnob([0,0]);onMove(0,0);}}
   return <div role="group" aria-label="歩く方向" className={styles.joy}
@@ -108,9 +112,12 @@ export default function CampusExplorer({campus}) {
   }
   function startWalk(p,alongRoute=false) {
     if(unavailable)return;
+    // 何も選ばずに「歩いて見る」は大岡山と同じ見え方（画角 70°・2° 見下ろす）。建物を選んだとき（地上から外観を見る）は、その建物を収める画角
+    // （大岡山の写真の撮影地点と同じ扱い。2026-11-26）
+    const ext=exteriorView(p||defaultView);
     const view=alongRoute && route?.points.length>1 ?
-      {start:route.points[0],toward:route.points.find(q=>distance(q,route.points[0])>3)||route.points.at(-1),pitch:0} :
-      exteriorView(p||defaultView);
+      {start:route.points[0],toward:route.points.find(q=>distance(q,route.points[0])>3)||route.points.at(-1),pitch:-2*Math.PI/180} :
+      p ? ext : {start:ext.start,toward:ext.toward,pitch:-2*Math.PI/180};
     walkReturn.current=mode;setMode("3D");setPicker(null);setInfo(false);setMessage("");setMapPicking(null);
     const begin=()=>{
       if(scene.current?.walk(view.start,view.toward,view.pitch,view.framingFov,view.framingAspect)){

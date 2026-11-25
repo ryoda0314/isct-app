@@ -1,8 +1,48 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { boundsOf, distance, inside, interpolate } from "../yokohama/navigation.js";
+import { AIR_STEP, EYE, PITCH, PROBE, SPEED, SPRINT_FOV, STEP, WALK_FOV, stepBody, stepWalkView } from "../campus3dWalkCore.js";
 
 const clamp=THREE.MathUtils.clamp;
+const DEG=Math.PI/180;
+
+// 歩く体の動きは大岡山と同じ（campus3dWalkCore の stepBody・stepWalkView。2026-11-26 ユーザー「動きとか操作したときの感覚が違いすぎて
+// びっくりした。大岡山キャンパスのほうに合わせてほしい」）。体は大岡山の平面の向き（x 東・y 北・z 上、向きは北から時計回りの度、pitch は
+// MapLibre と同じ 90 が水平）で動かし、three.js（x 東・z 南・y 上）へ写す。足場と壁は、この地図の floor（歩ける面の高さ）と walkBlocked
+// （建物・植え込みなど。体の太さぶん広げた判定）を、大岡山の walkWorld と同じ約束（move・surfacesAt・floorBelow・blocked）で渡す
+function bodyWorld(floor,walkBlocked) {
+  const ground=(x,y)=>floor(x,-y);
+  const blocked=(x,y)=>walkBlocked(x,-y);
+  const floorBelow=(x,y,ref)=>{const g=ground(x,y);return Number.isFinite(g)&&g<=ref?{z:g,deck:null}:null;};
+  const surfacesAt=(x,y)=>{const g=ground(x,y);return Number.isFinite(g)?[{z:g,deck:null}]:[];};
+  // (x0, y0)・足の高さ z0 から (dx, dy) 動く。ぶつかったら東西だけ・南北だけ・斜めにずらした向きへすべる（大岡山の move と同じ順）。
+  // 地面にいれば STEP m まで上る（空中では AIR_STEP）。少し先（PROBE m）が壁なら進まない。しゃがんでいればふちから落ちない
+  const move=(x0,y0,z0,dx,dy,{onGround=true,sneak=false}={})=>{
+    const step=onGround?STEP:AIR_STEP;
+    const test=(nx,ny)=>{
+      if(blocked(nx,ny))return null;
+      const f=floorBelow(nx,ny,z0+step);
+      if(!f)return null;
+      const d=Math.hypot(nx-x0,ny-y0);
+      if(d>1e-6) {
+        const ux=(nx-x0)/d,uy=(ny-y0)/d;
+        if(!floorBelow(x0+ux*PROBE,y0+uy*PROBE,z0+step))return null;
+        const q=floorBelow(nx+ux*.15,ny+uy*.15,z0+step);
+        if(onGround&&sneak&&z0-Math.min(f.z,q?q.z:f.z)>STEP)return null;
+      }
+      return {x:nx,y:ny,floor:f};
+    };
+    const full=test(x0+dx,y0+dy);
+    if(full)return {...full,hit:false};
+    const tries=[];
+    if(Math.abs(dx)>1e-9)tries.push([dx,0]);
+    if(Math.abs(dy)>1e-9)tries.push([0,dy]);
+    for(const a of [45,-45,70,-70]) {const c=Math.cos(a*DEG),sn=Math.sin(a*DEG);tries.push([(dx*c-dy*sn)*c,(dx*sn+dy*c)*c]);}
+    for(const [mx,my] of tries) {const r=test(x0+mx,y0+my);if(r)return {...r,hit:true};}
+    return {x:x0,y:y0,floor:floorBelow(x0,y0,z0+step),hit:true};
+  };
+  return {move,surfacesAt,floorBelow,blocked:(x,y)=>blocked(x,y)};
+}
 const inBuilding=(p,b)=>inside(p,b.footprint) && !b.holes?.some(h=>inside(p,h));
 
 function release(root) {
@@ -143,7 +183,11 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
   let inputOff=false, runOn=false, gpsPos=null, rotated=false;
   const gpsNode=document.createElement("div");gpsNode.className="yh-gps";gpsNode.hidden=true;labels.append(gpsNode);
   const raycaster=new THREE.Raycaster();
-  function nilWalk() {return {x:0,z:0,yaw:0,pitch:0,up:0,vertical:0};}
+  // 歩く人：body が大岡山と同じ体（stepBody の状態）。x・z・yaw（ラジアン）・pitch（ラジアン、上が +）は three.js 向けの写し（ほかの所が読む）
+  const walkWorld=bodyWorld(floor,walkBlocked);
+  const touchDevice=typeof window!=="undefined"&&!!window.matchMedia?.("(pointer: coarse)").matches;
+  const reducedMotion=typeof window!=="undefined"?window.matchMedia?.("(prefers-reduced-motion: reduce)"):null;
+  function nilWalk() {return {x:0,z:0,yaw:0,pitch:0,body:null,eyeOff:0,bobPhase:0,bobAmp:0,fov:WALK_FOV,baseFov:WALK_FOV,sprintLatch:false,lastW:0,jumpUntil:0};}
   const bounds3d=volume.flatMap(b=>b.footprint.map(([x,z])=>new THREE.Vector3(x,b.base+b.height,z)));
   for(const [x,z] of world.overviewGroundPoints||[])bounds3d.push(new THREE.Vector3(x,floor(x,z),z));
   function framePoints(points,route=false,viewDirection) {
@@ -218,7 +262,7 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
     schedule();
   }
   function walkingFov() {
-    if(!free.framingFov)return 71;
+    if(!free.framingFov)return WALK_FOV;
     const tan=Math.tan(THREE.MathUtils.degToRad(free.framingFov/2));
     const aspectFraction=Math.min(1,Math.max(.1,camera.aspect/free.framingAspect));
     return Math.min(106,2*THREE.MathUtils.radToDeg(Math.atan(tan/aspectFraction)));
@@ -231,9 +275,14 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
       start=candidates.filter(p=>distance(p,point)<55 && !walkBlocked(...p)).sort((a,b)=>distance(point,a)-distance(point,b))[0];
       if(!start) return false;
     }
-    free={...nilWalk(),x:start[0],z:start[1],eyeFloor:floor(...start),yaw:Math.atan2(toward[0]-start[0],start[1]-toward[1]),pitch,framingFov,framingAspect};
+    const yaw=Math.atan2(toward[0]-start[0],start[1]-toward[1]);
+    free={...nilWalk(),x:start[0],z:start[1],yaw,pitch,framingFov,framingAspect};
+    // pitch（ラジアン、上が +）→ 体の pitch（MapLibre と同じ度：90 が水平）。向きは北から時計回りの度
+    free.body={x:start[0],y:-start[1],z:floor(...start),vx:0,vy:0,vz:0,onGround:true,deck:null,yaw:((yaw/DEG)%360+360)%360,
+      pitch:clamp(90+pitch/DEG,PITCH.min,PITCH.max)};
+    free.baseFov=free.fov=walkingFov();
     walking=true;lastPose=-Infinity;controls.enabled=false;labels.hidden=true;scene.fog.density=.00062;
-    camera.fov=walkingFov();camera.updateProjectionMatrix();canvas.focus({preventScroll:true});schedule();return true;
+    camera.fov=free.fov;camera.updateProjectionMatrix();canvas.focus({preventScroll:true});advance(0);schedule();return true;
   }
   function leave() {
     if(!walking) return;
@@ -242,28 +291,36 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
     camera.rotation.order="XYZ";camera.fov=saved.fov;camera.updateProjectionMatrix();
     camera.position.copy(saved.pos);controls.target.copy(saved.target);controls.update();schedule();
   }
+  // 1 フレーム歩く：入力の読み方・体の動き・目（段の追いつき・揺れ・走るときの画角）は大岡山の walkTick と同じ
   function advance(dt) {
     const k=inputOff?NO_KEYS:keys, st=inputOff?NO_STICK:stick;
-    const forward=+(k.has("KeyW")||k.has("ArrowUp"))-+(k.has("KeyS")||k.has("ArrowDown"))-st.y;
-    const side=+k.has("KeyD")-+k.has("KeyA")+st.x;
-    free.yaw+=(+k.has("ArrowRight")-+k.has("ArrowLeft"))*dt*1.55;
-    const speed=(k.has("ShiftLeft")||k.has("ShiftRight")||runOn?5.5:2.8)*dt/Math.max(1,Math.hypot(forward,side));
-    const dx=(Math.sin(free.yaw)*forward+Math.cos(free.yaw)*side)*speed;
-    const dz=(-Math.cos(free.yaw)*forward+Math.sin(free.yaw)*side)*speed;
-    function pass(x,z) {return !walkBlocked(x,z) && Math.abs(floor(x,z)-floor(free.x,free.z))<.7;}
-    if(dx && pass(free.x+dx,free.z)) free.x+=dx;
-    if(dz && pass(free.x,free.z+dz)) free.z+=dz;
-    if(free.up>0 || free.vertical>0) {
-      free.vertical-=9.81*dt;free.up=Math.max(0,free.up+free.vertical*dt);
-      if(!free.up)free.vertical=0;
-    }
-    const ground=floor(free.x,free.z);
-    // Let the view settle over a tread without changing the collision surface
-    // or the jump height. The filter uses elapsed time, including after release.
-    const lag=world.stepResponse?clamp((ground-free.eyeFloor)*Math.exp(-dt/world.stepResponse),-.19,.19):0;
-    free.eyeFloor=ground-(Math.abs(lag)>.001?lag:0);
-    camera.position.set(free.x,free.eyeFloor+(k.has("KeyC")?1.15:1.65)+free.up,free.z); // C でしゃがむ
-    camera.rotation.set(free.pitch,-free.yaw,0,"YXZ");
+    const key=(...codes)=>codes.some(c=>k.has(c))?1:0;
+    const fwd=key("KeyW","ArrowUp")-key("KeyS","ArrowDown")-st.y;
+    const side=key("KeyD","ArrowRight")-key("KeyA","ArrowLeft")+st.x; // 矢印の左右は横歩き（大岡山と同じ。向きは Q・E）
+    const turn=key("KeyE")-key("KeyQ");
+    const look=key("KeyR","PageUp")-key("KeyF","PageDown");
+    const sprint=runOn||free.sprintLatch||k.has("ShiftLeft")||k.has("ShiftRight");
+    const sneak=k.has("KeyC");
+    const jump=!inputOff&&(k.has("Space")||performance.now()<free.jumpUntil);
+    const s0=free.body;
+    const s=stepBody(s0,{fwd,side,turn,jump,sprint,sneak,autoJump:touchDevice},dt,walkWorld);
+    s.pitch=clamp(s.pitch+look*80*dt,PITCH.min,PITCH.max);
+    if(s.onGround&&!s0.onGround)free.jumpUntil=0; // 着地したら、押したジャンプは使い終わり（押しつづけている Space はまた跳ぶ）
+    const stepDistance=s.onGround?Math.hypot(s.x-s0.x,s.y-s0.y):0;
+    free.body=s;
+    free.eyeOff=(free.eyeOff-(s.stepUp||0))*Math.exp(-dt*12);
+    const hs=Math.hypot(s.vx,s.vy);
+    const fovTarget=free.baseFov+(sprint&&hs>SPEED.walk+.3?SPRINT_FOV:0);
+    free.fov+=(fovTarget-free.fov)*Math.min(1,dt*8);
+    const gait=stepWalkView(free,stepDistance,dt,free.fov,!s.onGround||!!reducedMotion?.matches);
+    const pitch=(clamp(s.pitch+gait.pitch,PITCH.min,PITCH.max)-90)*DEG, yaw=(s.yaw+gait.yaw)*DEG;
+    camera.position.set(s.x,s.z+EYE+free.eyeOff+gait.height,-s.y);
+    camera.rotation.set(pitch,-yaw,0,"YXZ");
+    if(Math.abs(camera.fov-free.fov)>.05) {camera.fov=free.fov;camera.updateProjectionMatrix();}
+    // three.js 向けの写し（現在地の印・地図の向き・影・スマホナビが読む）
+    free.x=s.x;free.z=-s.y;free.yaw=s.yaw*DEG;free.pitch=(s.pitch-90)*DEG;
+    // まだ動いている（止まりかけ・空中・段の追いつき・揺れ・画角）あいだは描きつづける
+    free.busy=hs>.01||!s.onGround||Math.abs(free.eyeOff)>.002||free.bobAmp>.002||Math.abs(fovTarget-free.fov)>.05;
   }
   function draw(now) {
     frame=0;if(disposed)return;
@@ -313,7 +370,7 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
       }
     }
     if(walking && (now-lastPose>180 || !(keys.size||stick.x||stick.y))) {lastPose=now;onPose?.([free.x,free.z,free.yaw]);}
-    if(walking && (keys.size||stick.x||stick.y||free.up||free.vertical||free.eyeFloor!==floor(free.x,free.z)))schedule();
+    if(walking && (keys.size||stick.x||stick.y||free.busy||performance.now()<free.jumpUntil))schedule();
   }
   function onResize() {
     const w=host.clientWidth,h=host.clientHeight;
@@ -323,7 +380,7 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
       for(const {node} of unmeasured)node.hidden=false;
       for(const tag of unmeasured){tag.width=tag.node.offsetWidth;tag.height=tag.node.offsetHeight;}
     }
-    if(walking)camera.fov=walkingFov();
+    if(walking){free.baseFov=walkingFov();free.fov=free.baseFov;camera.fov=free.fov;}
     camera.updateProjectionMatrix();schedule();
   }
   function pick(e) {
@@ -366,17 +423,25 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
       movingPointer={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);
     }else if(e.isPrimary)pointerStart={x:e.clientX,y:e.clientY};else pointerStart=null;
   });
+  // 見回す（大岡山と同じ速さ：捕まえたマウス 0.13 度/px・マウスのドラッグ 0.2・指 0.3。上下は真上・真下の手前まで）
+  const lookBy=(dx,dy,perPx)=>{
+    const b=free.body;
+    if(!b)return;
+    b.yaw=((b.yaw+dx*perPx)%360+360)%360;
+    b.pitch=clamp(b.pitch-dy*perPx,PITCH.min,PITCH.max);
+    schedule();
+  };
   listen(canvas,"pointermove",e=>{
     if(walking&&document.pointerLockElement===canvas) {
       if(inputOff)return;
-      free.yaw+=e.movementX*.0026;free.pitch=clamp(free.pitch-e.movementY*.0026,-1.32,1.32);schedule();return;
+      lookBy(e.movementX,e.movementY,.13);return;
     }
     if(!walking || movingPointer?.id!==e.pointerId)return;
     // 縦に持ったスマホで横に回して描いているとき（setRotated）は、画面の上の指の動きを絵の向きに直す
     let ddx=e.clientX-movingPointer.x,ddy=e.clientY-movingPointer.y;
     if(rotated){const s=ddx;ddx=ddy;ddy=-s;}
-    free.yaw+=ddx*.004;free.pitch=clamp(free.pitch-ddy*.004,-1.32,1.32);
-    movingPointer.x=e.clientX;movingPointer.y=e.clientY;schedule();
+    lookBy(ddx,ddy,e.pointerType==="mouse"?.2:.3);
+    movingPointer.x=e.clientX;movingPointer.y=e.clientY;
   });
   listen(canvas,"pointerup",e=>{
     if(!walking && e.button===0 && pointerStart && Math.hypot(e.clientX-pointerStart.x,e.clientY-pointerStart.y)<5)pick(e);
@@ -385,28 +450,37 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
   listen(canvas,"pointercancel",()=>{pointerStart=null;movingPointer=null;});
   listen(document,"pointerlockchange",()=>onLock?.(document.pointerLockElement===canvas));
   listen(canvas,"contextmenu",e=>{if(walking)e.preventDefault();}); // 歩いているあいだの右クリックは「持ち物を使う」
-  const walkKeys=["KeyW","KeyA","KeyS","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","ShiftLeft","ShiftRight","Space","KeyC"];
+  // 歩くキー（大岡山の WALK_KEYS と同じ：Q・E で向き、R・F で見上げる・見下ろす、W を 2 回でダッシュ。Space は押しているあいだ跳ぶ）
+  const walkKeys=["KeyW","KeyA","KeyS","KeyD","KeyQ","KeyE","KeyR","KeyF","KeyC","Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","PageUp","PageDown","ShiftLeft","ShiftRight"];
   listen(window,"keydown",e=>{
     if(!walking || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName))return;
     if(e.code==="Escape"){onExit();return;}
     if(inputOff||!walkKeys.includes(e.code))return;
-    e.preventDefault();keys.add(e.code);
-    if(e.code==="Space" && !e.repeat && !free.up && !free.vertical)free.vertical=4.2;
+    e.preventDefault();
+    if(e.code==="KeyW"&&!e.repeat) {
+      const t=performance.now();
+      if(t-free.lastW<300)free.sprintLatch=true; // W を 2 回でダッシュ（W を離すまで）
+      free.lastW=t;
+    }
+    keys.add(e.code);
     schedule();
   });
-  listen(window,"keyup",e=>{keys.delete(e.code);if(walking)schedule();});
-  listen(window,"blur",()=>{keys.clear();stick.x=stick.y=0;movingPointer=null;});
+  listen(window,"keyup",e=>{keys.delete(e.code);if(e.code==="KeyW")free.sprintLatch=false;if(walking)schedule();});
+  listen(window,"blur",()=>{keys.clear();stick.x=stick.y=0;movingPointer=null;free.sprintLatch=false;});
   listen(canvas,"webglcontextlost",e=>{e.preventDefault();onError();});
   controls.addEventListener("change",schedule);
   const observer=new ResizeObserver(onResize);observer.observe(host);onResize();fit();
   return {fit,fitRoute,focus,zoom,northUp,walk,leave,setRoute,
     move(x,y){if(inputOff)return;stick.x=x;stick.y=y;schedule();},
-    jump(){if(walking&&!inputOff&&!free.up&&!free.vertical){free.vertical=4.2;schedule();}},
+    // ジャンプのボタン（スマホ）：押したとき少しのあいだ Space と同じ（地面にいれば跳ぶ）
+    jump(){if(walking&&!inputOff){free.jumpUntil=performance.now()+150;schedule();}},
     setRun(on){runOn=!!on;},
     setRotated(on){rotated=!!on;},
     // メニュー・スマホ・持ち物の画面を開いているあいだは歩かない（マウスも離す）
     setInputOff(on){inputOff=!!on;if(inputOff){keys.clear();stick.x=stick.y=0;movingPointer=null;if(document.pointerLockElement===canvas)document.exitPointerLock?.();}schedule();},
     pose(){return walking?[free.x,free.z,free.yaw]:null;},
+    // いまの体（大岡山の stepBody と同じ形）と画角・目の高さ（確かめ用。読むだけ）
+    walkState(){return walking&&free.body?{...free.body,fov:free.fov,eye:camera.position.y}:null;},
     // 写真：いまの絵をその場で描いて JPEG に（描いた直後なら描画の中身が読める）
     capture(){return new Promise(res=>{try{sky.position.copy(camera.position);renderer.render(scene,camera);canvas.toBlob(b=>res(b),"image/jpeg",.9);}catch{res(null);}});},
     // 現在地：[x, z]（キャンパスの m）か null。focusPoint は上からの視点のままそこへ寄る
