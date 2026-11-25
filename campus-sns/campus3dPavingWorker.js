@@ -12,9 +12,10 @@ self.onmessage = async ({ data }) => {
   const controller = new AbortController();
   active.set(data.id, controller);
   try {
-    const bitmap = await render(...data.tile, controller.signal);
-    if (controller.signal.aborted) bitmap?.close();
-    else self.postMessage({ id: data.id, bitmap }, bitmap ? [bitmap] : []);
+    // An ImageBitmap, or ImageData pixels on WebKit (see rawPixelTiles); both move without a copy.
+    const image = await render(...data.tile, controller.signal);
+    if (controller.signal.aborted) image?.close?.();
+    else self.postMessage({ id: data.id, image }, !image ? [] : "data" in image ? [image.data.buffer] : [image]);
   } catch (error) {
     if (!controller.signal.aborted) self.postMessage({ id: data.id, error: error.message });
   } finally {

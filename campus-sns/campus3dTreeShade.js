@@ -1,5 +1,5 @@
 import { toXY } from "./campus3dFeatures.js";
-import { emptyPavingTile, tileSnapshot } from "./campus3dPavingTiles.js";
+import { emptyPavingTile, tileContextOptions, tileImage, tileSnapshot } from "./campus3dPavingTiles.js";
 
 // Project the same boughs and terminal foliage clusters that the 3D tree builder
 // produced. MapLibre drapes the resulting shade over slopes, kerbs and road markings.
@@ -82,10 +82,10 @@ export function attachTreeShade(map, ml, bounds) {
       }
     });
     controller?.signal?.throwIfAborted?.();
-    if (!visible.size) return {data:await emptyPavingTile()};
+    if (!visible.size) return {data:tileImage(await emptyPavingTile())};
     const c=typeof OffscreenCanvas==="function" ? new OffscreenCanvas(SIZE,SIZE) : document.createElement("canvas");
     c.width=c.height=SIZE;
-    const ctx=c.getContext("2d"), sx=SIZE/(right-left), sy=SIZE/(top-bottom);
+    const ctx=c.getContext("2d",tileContextOptions), sx=SIZE/(right-left), sy=SIZE/(top-bottom);
     ctx.setTransform(sx,0,0,-sy,-left*sx,top*sy);
     ctx.fillStyle="rgba(32,37,47,.78)";
     for(const entry of visible) {
@@ -95,7 +95,7 @@ export function attachTreeShade(map, ml, bounds) {
     ctx.fillStyle="rgba(28,33,42,.93)";
     for(const entry of visible) ctx.fill(entry.shape.wood);
     controller?.signal?.throwIfAborted?.();
-    return { data:await tileSnapshot(c) };
+    return { data:tileImage(await tileSnapshot(c)) };
   });
   map.addSource(source,{type:"raster",tiles:[url()],tileSize:SIZE,minzoom:16,maxzoom:21,bounds:[bounds.w,bounds.s,bounds.e,bounds.n]});
   map.addLayer({id:layer,type:"raster",source,minzoom:16,paint:{"raster-opacity":0,"raster-fade-duration":0}},"cb-passage-shade");

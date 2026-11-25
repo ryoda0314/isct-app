@@ -139,7 +139,29 @@ function cells(left, top, right, bottom, visit) {
   }
 }
 
+// Safari and every iPhone browser (WebKit) upload a 2D canvas ImageBitmap to WebGL with straight
+// (unpremultiplied) colours, while MapLibre blends tiles as premultiplied. Light, mostly transparent
+// paving texels (40-50 % of most stamps) then add almost pure white, and on iPhones the ground turned
+// into white speckle (2026-11-26). On WebKit the tiles leave the canvas as getImageData pixels, which
+// mean the same thing in every browser, and MapLibre premultiplies them itself before uploading.
+const agent = typeof navigator === "undefined" ? "" : navigator.userAgent || "";
+export const rawPixelTiles = typeof ImageData !== "undefined" && typeof ImageBitmap !== "undefined" &&
+  (/\b(iPad|iPhone|iPod)\b/.test(agent) || (/Safari/.test(agent) && !/Chrome|Chromium|Android/.test(agent)));
+export const tileContextOptions = rawPixelTiles ? { willReadFrequently: true } : undefined;
+
+// MapLibre 5.24's image request passes only ImageBitmap and HTMLImageElement objects through to the
+// raster source, and Texture.update treats anything with a `data` field as raw pixels: it
+// premultiplies them in JavaScript and uploads them with UNPACK_PREMULTIPLY_ALPHA off. A record with
+// ImageBitmap as its prototype carries the pixels along that path. MapLibre never calls its methods.
+export function tileImage(snapshot) {
+  if (typeof ImageData === "undefined" || !(snapshot instanceof ImageData)) return snapshot;
+  return Object.create(ImageBitmap.prototype, {
+    width: { value: snapshot.width }, height: { value: snapshot.height }, data: { value: snapshot.data },
+  });
+}
+
 export async function tileSnapshot(c) {
+  if (rawPixelTiles) return c.getContext("2d", tileContextOptions).getImageData(0, 0, c.width, c.height);
   if (c.transferToImageBitmap) return c.transferToImageBitmap();
   if (typeof createImageBitmap === "function") return createImageBitmap(c);
   const blob = await new Promise(resolve => c.toBlob(resolve, "image/png"));
@@ -189,7 +211,7 @@ export function pavingTiles(collection) {
   if (names.has("grass")) names.add("westLawnTone");
   for (const name of names) stamp(name).catch(() => {}); // Requests retry a failed preload on demand.
 
-  const c = canvas(TILE), ctx = c.getContext("2d");
+  const c = canvas(TILE), ctx = c.getContext("2d", tileContextOptions);
   if (!ctx) throw new Error("2D paving canvas is unavailable");
   return async (z, x, y, signal) => {
     signal?.throwIfAborted?.();
@@ -250,6 +272,6 @@ export function pavingTiles(collection) {
 
 export function emptyPavingTile() {
   const c = canvas(1);
-  c.getContext("2d").clearRect(0, 0, 1, 1);
+  c.getContext("2d", tileContextOptions).clearRect(0, 0, 1, 1);
   return tileSnapshot(c);
 }

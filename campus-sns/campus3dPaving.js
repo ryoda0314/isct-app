@@ -1,4 +1,4 @@
-import { TILE, emptyPavingTile, pavingTiles } from "./campus3dPavingTiles.js";
+import { TILE, emptyPavingTile, pavingTiles, tileImage } from "./campus3dPavingTiles.js";
 
 let nextMap = 0;
 export function attachPaving(map, ml, surfaces, bounds) {
@@ -20,10 +20,10 @@ export function attachPaving(map, ml, surfaces, bounds) {
       worker.onmessage = ({ data }) => {
         if (data.unavailable) { stopWorker(); return; }
         const entry = pending.get(data.id);
-        if (!entry) { data.bitmap?.close(); return; }
+        if (!entry) { data.image?.close?.(); return; }
         pending.delete(data.id);
         if (data.error) entry.reject(new Error(data.error));
-        else entry.resolve(data.bitmap);
+        else entry.resolve(data.image);
       };
     } catch { worker = null; }
   }
@@ -60,8 +60,8 @@ export function attachPaving(map, ml, surfaces, bounds) {
   const url = () => protocol + "://{z}/{x}/{y}?v=" + revision;
   ml.addProtocol(protocol, async ({ url }, controller) => {
     const tile = url.split("://")[1].split("?")[0].split("/").map(Number);
-    const bitmap = await getTile(tile, controller?.signal);
-    return { data: bitmap ?? await (blank ??= emptyPavingTile()) };
+    const image = await getTile(tile, controller?.signal);
+    return { data: tileImage(image ?? await (blank ??= emptyPavingTile())) };
   });
   map.once("remove", () => {
     removed = true;
