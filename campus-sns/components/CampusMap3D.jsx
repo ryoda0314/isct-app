@@ -55,7 +55,45 @@ setMeshPacking(true);
 //    近づいたら LITE_NEAR.in m で入れ、離れたら .out m で外す（境目で行ったり来たりして作り直さないように差をつける）。
 //    歩いていないときは、地図の中心で見る（zoom がこれより引いていたら中は作らない）。
 //    試すとき：localStorage の "cb3-lite" を "1"（PC でも lite）か "0"（スマホでも全部）に
-const LITE_NEAR = { in: 100, out: 160, minZoom: 16.5, everyMs: 800, gapMs: 2500 };
+// 2026-11-26（ユーザー「歩いてみるやｖキャンパスを開くと落ちてしまう」）：スマホで歩きはじめるたびに半径 100 m の建物の中まで入れて形を丸ごと
+// 作り直し、Worker の中に作るあいだの一時的な配列が 1 GB ほど残っていた（GC が走るまで返らない）。そこで lite は：
+//    ・地図を見ているだけ（詳細モードでない）のときは中を作らない（前に作った中は、外すためだけに作り直さない）
+//    ・歩いているときは、入っている・すぐそばの建物だけ（walkIn m で入れ walkOut m で外す）。歩きはじめて walkDelayMs は作り直さない
+//      （歩く世界・地図のタイルの読み込みと重ねない）
+//    ・詳細モードは今までどおり、地図の中心から in / out m
+const LITE_NEAR = { in: 100, out: 160, minZoom: 16.5, everyMs: 800, gapMs: 2500, walkIn: 8, walkOut: 25, walkDelayMs: 6000 };
+// （MapLibre のタイルの細かさ setSourceTileLodParams は変えない：目の高さで試すと、値を変えてもタイルの数はほぼ同じ（1 つの source で
+// 22 枚ほど）か、小さくすると逆に何倍にもふえて、WebKit で 1 フレーム 4 万回描いて止まった。2026-11-26）
+// スマホで歩いているあいだに落ちたか（iPhone はメモリが足りないとタブを読み込み直す）：歩きはじめに印を置き、ふつうにやめたら消す。
+// 読み込み直したときに印が残っていれば、このタブのあいだは軽い表示（safe：歩くあいだ建物の中を作らない・電車を描かない・描く画素比 1.5）
+const WALK_CRASH_KEY = "cb3-walk-live";
+const WALK_SAFE_KEY = "cb3-walk-safe";
+const walkSafeMode = (() => {
+  let v = null;
+  return () => {
+    if (v != null) return v;
+    v = false;
+    try {
+      const ss = window.sessionStorage;
+      if (ss.getItem(WALK_CRASH_KEY)) {
+        ss.removeItem(WALK_CRASH_KEY);
+        ss.setItem(WALK_SAFE_KEY, "1");
+      }
+      v = ss.getItem(WALK_SAFE_KEY) === "1";
+    } catch {
+      /* 読めなければふつう */
+    }
+    return v;
+  };
+})();
+const markWalkLive = (on) => {
+  try {
+    if (on) window.sessionStorage.setItem(WALK_CRASH_KEY, String(Date.now()));
+    else window.sessionStorage.removeItem(WALK_CRASH_KEY);
+  } catch {
+    /* 覚えられなくてもよい */
+  }
+};
 const isLiteDevice = () => {
   try {
     const o = window.localStorage.getItem("cb3-lite");
@@ -871,6 +909,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       return limit.call(this, lngLat, zoom);
     };
     if (isLiteDevice()) noMarkerFade(ml);
+    const liteNow = isLiteDevice(); // 毎フレーム読む所（エスカレーター・発車標・電車）のために一度だけ
     let map;
     try {
       map = new ml.Map({
@@ -878,7 +917,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
         style: built.style,
         canvasContextAttributes: { antialias: !isLiteDevice() },
         // スマホ（lite）は描く解像度を 2 倍まで（iPhone は 3 倍：画素が 2.25 倍になり、地面・空・半透明の塗りがそのぶん重い）
-        pixelRatio: isLiteDevice() ? Math.min(2, window.devicePixelRatio || 1) : undefined,
+        // 前に歩いていて落ちたタブ（walkSafeMode）は 1.5 倍まで
+        pixelRatio: isLiteDevice() ? Math.min(walkSafeMode() ? 1.5 : 2, window.devicePixelRatio || 1) : undefined,
         center: [initialView.lng, initialView.lat],
         zoom: initialView.zoom + ML_ZOOM_OFFSET,
         bearing: initialView.bearing || 0,
@@ -1072,7 +1112,16 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
           const T = trainsRef.current;
           const ts = trainsAt(T.prep, serviceClock());
           T.last = ts; // ホームドア（campus3dPsd）が同じフレームの列車を読む
-          return { ...trainMesh(T.prep, ts, lookRef.current?.lamp || 0, { ...view, reuse: true }), count: ts.length }; // 夜は窓あかり・前照灯の光
+          let v = view;
+          // スマホで歩くあいだ（2026-11-26）：目のまわりの列車だけ形を作る（目の高さでは地図の範囲が地平線までになり、遠くの列車まで
+          // 毎フレーム作って送っていた。バーチャルキャンパスの入口で 30 秒に 450 MB）。落ちたあとの軽い表示では描かない
+          if (liteNow && walkRef.current) {
+            if (walkSafeMode()) return null;
+            const ec = map.transform.getCameraLngLat();
+            const dLat = 100 / 111320, dLng = 100 / (111320 * Math.cos((ec.lat * Math.PI) / 180));
+            v = { ...view, bounds: [ec.lng - dLng, ec.lat - dLat, ec.lng + dLng, ec.lat + dLat] }; // trainMesh は 300 m の余白を足す
+          }
+          return { ...trainMesh(T.prep, ts, lookRef.current?.lamp || 0, { ...v, reuse: true }), count: ts.length }; // 夜は窓あかり・前照灯の光
         };
         const layer = createTrainsLayer({ light: lookRef.current.light, exaggeration: TERRAIN_EXAG, frame });
         map.addLayer(layer, "nav-route-passed");
@@ -1191,7 +1240,10 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
             const near = map.getZoom() >= 16.5 && E.geoms.some((G) => Math.hypot(p[0] - G.A[0], p[1] - G.A[1]) < 400);
             {
               const ec = map.transform.getCameraLngLat(), pc = toXY([ec.lng, ec.lat]); // 目の位置
-              if (!near || !E.geoms.some((G) => Math.hypot(pc[0] - G.A[0], pc[1] - G.A[1]) < 250)) return null; // 遠くからは見えない（毎フレーム段を作り直して送っていた）
+              // 遠くからは見えない（毎フレーム段を作り直して送っていた）。スマホは 90 m まで（2026-11-26：バーチャルキャンパスの入口から
+              // 150 m で 30 秒に 110 MB 送っていた）
+              const reach = liteNow ? 90 : 250;
+              if (!near || !E.geoms.some((G) => Math.hypot(pc[0] - G.A[0], pc[1] - G.A[1]) < reach)) return null;
             }
             if (near && !escTimer) {
               escTimer = setTimeout(() => {
@@ -1228,7 +1280,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
             // 遠くからは見えない（流れる字のため 1 秒ごとに作り直し、1 回 5 MB 送っていた）。目から 250 m より先の看板は描かない
             if (L.atOf !== L.boards) L.atOf = L.boards, L.at = L.boards.map((B) => { const c = B.f.coords; return toXY(Array.isArray(c?.[0]) ? c[0] : c); }).filter((q) => q.every(Number.isFinite));
             const ec = map.transform.getCameraLngLat(), pc = toXY([ec.lng, ec.lat]); // 目の位置
-            if (!L.at.some((q) => Math.hypot(q[0] - pc[0], q[1] - pc[1]) < 250)) return null;
+            // スマホは 100 m まで（2026-11-26：入口から 30 秒に 150 MB 送っていた。字は遠くからは読めない）
+            if (!L.at.some((q) => Math.hypot(q[0] - pc[0], q[1] - pc[1]) < (liteNow ? 100 : 250))) return null;
             const c = serviceClock();
             const key = departuresKey(c, L.boards);
             if (!L.mesh || key !== L.key) {
@@ -1414,7 +1467,12 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       updateArrow();
     });
 
+    // 歩いたままページを閉じる・ほかへ移るのは落ちたのではない（印を消す。iPhone がタブを落としたときはここを通らない）
+    const leaving = () => markWalkLive(false);
+    window.addEventListener("pagehide", leaving);
     return () => {
+      window.removeEventListener("pagehide", leaving);
+      markWalkLive(false);
       cancelAnimationFrame(walkRef.current?.raf);
       walkRef.current?.veh?.motor?.stop();
       if (walkRef.current?.touch) exitFullWalk(); // スマホの全画面で歩いているまま地図を閉じた：ブラウザーの全画面・向きの固定を戻す
@@ -1567,17 +1625,22 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     if (!liteRef.current || liteInsideAll()) return false;
     const map = mapRef.current;
     const w = walkRef.current;
+    const old = nearRef.current;
     let p = null;
-    if (w) p = [w.x, w.y];
-    else if (map && map.getZoom() >= LITE_NEAR.minZoom) {
+    let lim = [LITE_NEAR.in, LITE_NEAR.out];
+    if (w) {
+      // 歩いているとき（2026-11-26）：入っている・すぐそばの建物だけ。歩きはじめて少しのあいだ・落ちたあとの軽い表示では作り直さない
+      if (walkSafeMode() || w.anim || performance.now() - (w.startedAt || 0) < LITE_NEAR.walkDelayMs) return false;
+      p = [w.x, w.y];
+      lim = [LITE_NEAR.walkIn, LITE_NEAR.walkOut];
+    } else if (detailRef.current && map && map.getZoom() >= LITE_NEAR.minZoom) {
       const c = map.getCenter();
       p = toXY([c.lng, c.lat]);
-    }
-    const old = nearRef.current;
+    } else if (old) return false; // 地図を見ているだけ：中は作らない。前に作った中はそのまま（外すためだけに作り直さない）
     const next = new Set();
     if (p) nearRingsRef.current.forEach((rings, host) => {
-      const lim = old?.has(host) ? LITE_NEAR.out : LITE_NEAR.in;
-      if (rings.some((r) => ringDistance(r, p) < lim)) next.add(host);
+      const d = old?.has(host) ? lim[1] : lim[0];
+      if (rings.some((r) => ringDistance(r, p) < d)) next.add(host);
     });
     const same = old && old.size === next.size && [...next].every((h) => old.has(h));
     if (same) return false;
@@ -1731,7 +1794,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       // 形は Web Worker で作る（campus3dMeshClient。作るあいだ画面が止まらない。2026-11-24）。使えなければ、いままでどおりここで作る
       const meshOpts = () => ({ ceilings: cut.ceilings, pal: built.pal, dark, selectedId: selectedFeatureId, accent, trees: !vegRef.current, plantings: !vegRef.current });
       const buildHere = () => buildMesh(drawViewOf(view), { ...meshOpts(), tone: lookRef.current?.tone, groundAt: ground, slopes: dem.slopes, terraces: dem.terraces, digs: dem.digs, bldColor, clip });
-      const offExtra = () => ({ burns: built.burn ? slopes : [], bldColor, needClip: !!clip, dem, toneF: lookRef.current?.tone ? lookRef.current.f || null : null });
+      // release（スマホ）：作り終えたら Worker を止めて、作るあいだの一時的な配列をすぐ返す（campus3dMeshClient。2026-11-26）
+      const offExtra = () => ({ burns: built.burn ? slopes : [], bldColor, needClip: !!clip, dem, toneF: lookRef.current?.tone ? lookRef.current.f || null : null, release: !!liteRef.current });
       meshRef.current = () => {
         nearHosts(); // lite（スマホ）：中を描く建物を、いま見ている所で選ぶ
         const viaWorker = !((typeof window !== "undefined" && window.__cbMeshHere) || (lookRef.current?.tone && !lookRef.current?.f));
@@ -2129,6 +2193,7 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     const touch = !!window.matchMedia?.("(pointer: coarse)").matches;
     walkRef.current = {
       reducedMotion: window.matchMedia?.("(prefers-reduced-motion: reduce)"),
+      startedAt: performance.now(), // スマホ：歩きはじめて少しのあいだは建物の中を作り直さない（nearHosts）
       world, path, x, y, z, vx: 0, vy: 0, vz: 0, onGround: !fly, deck: null, yaw, pitch: shot?.pitch ?? WALK_PITCH.start, along,
       eyeOff: 0, bobPhase: 0, bobAmp: 0, fov: shot?.fov ?? WALK_FOV, baseFov: shot?.fov ?? WALK_FOV, baseEye: eye, roll: shot?.roll ?? 0,
       // fly：飛んでいる（クリエイティブ）、noclip：すり抜け（スペクテイター）、lastSpace：Space 2回の判定、flyDown：「下」のボタン
@@ -2147,6 +2212,15 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     map.setMaxZoom(WALK_MAX_ZOOM);
     map.setMaxPitch(180);
     map.setCenterClampedToGround(false);
+    // スマホ：段彩を隠す。歩いているあいだに落ちたかの印（WALK_CRASH_KEY。ふつうにやめたら消す）
+    if (isLiteDevice()) {
+      // 段彩（cb-relief。MapLibre の color-relief）は描くたびにタイルごとの標高の絵を GPU へ送り直す（MapLibre 5.24。俯瞰では描き直しが
+      // まれで目立たないが、歩くと毎フレーム。WebKit で 1 秒 40〜60 MB 送り、フレームが 0.2 fps まで落ちていた）。目の高さでは段彩は
+      // ほとんど見えないので、歩くあいだは隠す（2026-11-26）
+      if (map.getLayer("cb-relief")) map.setLayoutProperty("cb-relief", "visibility", "none");
+      markWalkLive(true);
+      if (walkSafeMode()) setTimeout(() => walkRef.current && showToast(t("navi.walkSafeMode"), 6500), 1800); // 長い文なので長めに
+    }
     if (skyRef.current) skyRef.current.filmExposure = shot ? .84 : 0;
     map.setSky(skyOf(lookRef.current, skyRef.current?.colors));
     trainsLayerRef.current?.setXray(false); // トンネルの中の列車を地面ごしに見せない
@@ -2559,10 +2633,10 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     setInv(next);
     return r;
   }
-  function showToast(msg) {
+  function showToast(msg, ms = 2400) {
     clearTimeout(invToastTimer.current);
     setInvToast(msg);
-    invToastTimer.current = setTimeout(() => setInvToast(null), 2400);
+    invToastTimer.current = setTimeout(() => setInvToast(null), ms);
   }
   // マス i を選ぶ（物の名前と使い方をお知らせに）
   function setMoonScope(w, on) {
@@ -3329,7 +3403,9 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       D.open = D.open.map(() => 0);
       D.dirty = true;
     }
+    markWalkLive(false);
     if (map) {
+      if (isLiteDevice() && map.getLayer("cb-relief")) map.setLayoutProperty("cb-relief", "visibility", "visible"); // 段彩を戻す
       map.setCenterClampedToGround(true);
       map.setMaxPitch(w.restore.maxPitch);
       map.setMaxZoom(w.restore.maxZoom);

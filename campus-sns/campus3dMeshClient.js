@@ -50,6 +50,15 @@ export function meshWorkerReady() {
   return !!start();
 }
 
+// Worker を止める（こわれたのではない：次に頼まれたら作り直す）。送った物の覚えも消す
+function stop() {
+  if (!worker) return;
+  try { worker.terminate(); } catch { /* もう止まっている */ }
+  worker = null;
+  sentView = null;
+  sentTiles.clear();
+}
+
 // toneF：時刻の色の割合（campus3dSky の lookFor の f。tone の関数は送れないので、Worker の側で同じ toneOf を作る）
 export function buildMeshOff(view, near, opts, extra = {}) {
   if (Object.values(opts || {}).some((v) => typeof v === "function")) return null; // 関数は送れない（その場で作る）
@@ -71,7 +80,7 @@ function pump() {
     job.reject(new Error("mesh worker unavailable"));
     return;
   }
-  const [view, near, opts, { burns = [], bldColor = null, needClip = false, dem, chunks = true, toneF = null } = {}] = job.args;
+  const [view, near, opts, { burns = [], bldColor = null, needClip = false, dem, chunks = true, toneF = null, release = false } = {}] = job.args;
   const id = ++seq;
   const msg = { id, near: near ? [...near] : null, burns, opts, needClip, chunks, toneF };
   if (bldColor) msg.bldColors = Object.fromEntries(view.filter((f) => f.type === "building").map((f) => [f.id, bldColor(f)]));
@@ -85,6 +94,10 @@ function pump() {
   busy = true;
   const done = () => {
     busy = false;
+    // release（スマホ。2026-11-26）：作り終えて次の頼みがなければ Worker を止める。作るあいだの一時的な配列（できた形の 3 倍ほど）が
+    // Worker の中に残り、GC が走るまで数百 MB〜1 GB を持ったままだった（iPhone のタブが落ちる）。止めればすぐ返る。
+    // 次に頼むときは Worker を作り直し、view と標高のタイルを送り直す
+    if (release && !next) stop();
     pump();
   };
   waiting.set(id, { resolve: (res) => { job.resolve(res); done(); }, reject: (err) => { job.reject(err); done(); } });

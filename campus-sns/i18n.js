@@ -2413,6 +2413,7 @@ const M = {
   "navi.walkHelp": { ja:"操作のしかた", en:"Controls" },
   "navi.walkClose": { ja:"閉じる", en:"Close" },
   "navi.walkPreparing": { ja:"歩く準備をしています…", en:"Getting ready to walk…" },
+  "navi.walkSafeMode": { ja:"前回は途中で画面が落ちたため、軽い表示で歩いています（建物の中・電車は省略）", en:"The page closed unexpectedly last time, so walking uses a lighter view (no building interiors or trains)" },
   "navi.slipClose": { ja:"閉じる", en:"Close", zh:"关闭", ko:"닫기", tp:"pini" },
   "navi.slipNow": { ja:"今", en:"Now", zh:"现在", ko:"지금", tp:"tenpo ni" },
   "navi.slipNowSub": { ja:"東京科学大学（2024年10月〜）", en:"Institute of Science Tokyo (since Oct 2024)", zh:"东京科学大学（2024年10月〜）", ko:"도쿄과학대학 (2024년 10월〜)", tp:"tomo sona Science Tokyo (tan tenpo mun 10, 2024)" },
