@@ -51,6 +51,7 @@ const DSide=({cid,did,view,setView,setCid,setDid,setCh,ac,unreadN,dmUnread=0,cou
 
       {secHdr(t("sidebar.campus"))}
       <SideItem icon={I.map} label={t("nav.navigation")} on={view==="navigation"} click={()=>setView("navigation")} compact={cp}/>
+      <SideItem icon={I.users||I.map} label={t("nav.vcampus")} on={view==="vcampus"} click={()=>setView("vcampus")} compact={cp}/>
       <SideItem icon={I.book} label={t("nav.library")} on={view==="library"} click={()=>setView("library")} compact={cp}/>
       <SideItem icon={I.clock} label="Taki Plaza" on={view==="takiplaza"} click={()=>setView("takiplaza")} compact={cp}/>
       <SideItem icon={I.dumbbell} label={t("tool.gym")} on={view==="gym"} click={()=>setView("gym")} compact={cp}/>
@@ -246,7 +247,7 @@ const DChan=({course,dept,ch,setCh,online=[],members=[],compact=false})=>{
 
 // guest: ログインしていない人。課題・DM（ログイン前提）の代わりに「しらべる」を出す（ログインした人は今のまま）
 const MNav=({view,setView,ac,unreadN,dmUnread,hasMed=false,guest=false})=>{
-  const moreViews=["lookup","career","tasks","dm","friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","languages","admin","acadCal","exams","freeroom","freshman","festival","reg","ttbuild","med-tt","timetable","pocket","takiplaza","gym","tsubame","train","library","pdftools","notes","music","grading","qr","attendance","textbooks","lecrec"];
+  const moreViews=["lookup","career","tasks","dm","friends","notif","calendar","grades","pomo","events","reviews","bmarks","search","profile","courseSelect","course","dept","circles","languages","admin","acadCal","exams","freeroom","freshman","festival","reg","ttbuild","med-tt","timetable","pocket","vcampus","takiplaza","gym","tsubame","train","library","pdftools","notes","music","grading","qr","attendance","textbooks","lecrec"];
   const ttId=hasMed?"med-tt":"timetable";
   const tabs=guest
     ?[{id:"home",i:I.home,l:t("nav.home")},{id:ttId,i:I.cal,l:t("nav.timetable")},{id:"lookup",i:I.search,l:t("nav.lookup")},{id:"navigation",i:I.map,l:t("nav.map")},{id:"moreMenu",i:I.more,l:t("nav.more")}]
@@ -309,6 +310,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false,g
       {id:"languages",i:I.globe,l:t("nav.languages"),d:t("more.d.languages"),lock:true},
       {id:"notif",i:I.bell,l:t("nav.notif"),d:t("more.d.notif"),lock:true},
       {id:"pocket",i:I.inbox,l:t("more.pocketDesc"),d:t("more.d.pocket"),lock:true},
+      {id:"vcampus",i:I.users||I.map,l:t("nav.vcampus"),d:t("more.d.vcampus")},
       {id:"takiplaza",i:I.clock,l:"Taki Plaza",d:t("more.d.takiplaza"),lock:true},
       {id:"tsubame",i:I.swallow,l:t("tool.tsubame"),d:t("more.d.tsubame"),lock:true},
       {id:"bmarks",i:I.bmark,l:t("tool.bmarks"),d:t("more.d.bmarks"),lock:true},
@@ -352,6 +354,7 @@ const MoreMenu=({setView,unreadN,pendingFriendCount=0,dmUnread=0,isAdmin=false,g
       {id:"qr",i:I.qr,l:t("appgrid.qr")},
     ]},
     {title:t("more.campus"),items:[
+      {id:"vcampus",i:I.users||I.map,l:t("nav.vcampus")},
       {id:"takiplaza",i:I.clock,l:"Taki Plaza"},
       {id:"gym",i:I.dumbbell,l:t("tool.gym")},
       {id:"tsubame",i:I.swallow,l:t("tool.tsubame")},

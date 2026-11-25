@@ -1,0 +1,20 @@
+{
+  "overview":{"image":"overview.png","observation":"神田川側からの俯瞰で、M&Dタワーの高屋根、A棟のヘリポートと光庭、C棟、D棟、外堀通りの位置関係を確認した。"},
+  "exterior":{"image":"tower.png","observation":"屋上庭園の園路から、傾いたガラス帯と石の妻壁、透明なホワイエ、その前の庇とデッキを見上げた。"},
+  "street":{"image":"bridge.png","observation":"お茶の水橋の歩道から、黄色い誘導帯と対になった街灯、橋の先のC棟とM&Dタワーが同時に見える。"},
+  "garden":{"image":"garden.png","observation":"南側の園路から五弁の花壇を見た。中央の木と植栽の間に淡い砂利が見え、奥には玄関の庇、ガラス、石壁が並ぶ。"},
+  "hospital":{"image":"clinical.png","observation":"橋からC棟の二段の窓列、正面格子、低層部の列柱、前庭の石積みを確認した。"},
+  "formerMainBuilding":{"image":"building2.png","observation":"2号館の玄関を斜めから見ると、配管と方杖、階段の踊り場、段状の植え込みが見える。"},
+  "river":{"image":"river-station.png","observation":"お茶の水橋から聖橋を向き、南岸の駅テラスと列車、川面に映る橋と樹木を確認した。"},
+  "route":{"image":"route.png","observation":"JR御茶ノ水駅の御茶ノ水橋口からC棟付近までの164 mを平面図で表示した。"},
+  "pavement":{"image":"road-comparison.jpg","observation":"病院前の横断歩道、お茶の水門の車寄せ、外堀通りの路肩を修正前後で同じ位置と向きから比較した。"},
+  "landmark":{"image":"sundial.png","observation":"日時計を名前から検索し、屋上の石の台座、銘板、銅色の円盤と指針を歩行視点で確認した。"},
+  "mobile":{"image":"mobile.png","observation":"390 × 844の縦画面でキャンパス選択、全景、施設検索と歩行開始を確認した。"},
+  "gardenPortrait":{"image":"garden-mobile.png","observation":"390 × 844のタッチ画面で庭園の直接リンクを開いた。梅形花壇の左右の縁、中央の木、背後のタワーの庇が最初の視野に収まる。"},
+  "keyboardWalk":"M&Dタワーの前でWキーを押して、ミニマップ上の現在座標が変化することを確認した。Escapeで俯瞰に復帰した。",
+  "touchWalk":"Chromeのタッチエミュレーションで左手の移動スティックを保持し、別の指で見回した。同時に現在座標と方位が変化した。",
+  "choiceAndSearch":"全角Ｍ＆Ｄ、病院Ｃ棟、２号館、日時計を入力し、それぞれの施設と外観を開いた。大岡山・横浜・湯島の切り替えを確認した。",
+  "stairsAndReturn":"外堀門②から聖橋への経路は377 m。画面で階段回避を有効にすると528 mに変化した。平面図から経路を歩き、戻ったときに目的地と平面図が維持された。",
+  "mapAndBuildingStart":"平面図で2号館を出発地として地図上から指定すると、階段を避けてC棟まで向かう579 mの経路が表示された。M&Dタワーの直接リンクでも庭園からの歩行視点が開いた。",
+  "webglFallback":"WebGL2を無効にしたChromeで湯島を開き、施設検索を備えた平面図が自動で表示された。"
+}

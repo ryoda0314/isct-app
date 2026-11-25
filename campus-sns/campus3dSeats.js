@@ -26,7 +26,8 @@ function onSeg(p, a, b) {
 }
 
 // 座面の高さ（物の下の端から m。描き方 campus3dInterior の座面と同じ）
-function seatHeight(kind, H) {
+function seatHeight(kind, H, style) {
+  if (kind === "lounge" && style === "folded") return H*.46;
   if (kind === "stool" || kind === "seat") return H; // 上の面が座面
   if (kind === "tentsofa") return 0.38;
   if (kind === "lounge" || kind === "sofa") return Math.min(0.42, H * 0.55);
@@ -38,7 +39,12 @@ function seatHeight(kind, H) {
 export function collectSeats(features, groundAt) {
   const out = [];
   for (const f of features || []) {
-    if (f.type === "floor" && f.items?.length) {
+    if (f.type === "building" && f.streetFixture === "tejimaGardenBench") {
+      const [p,q,r,s] = f.coords.map(toXY);
+      const a=mid(p,s), b=mid(q,r);
+      out.push({ kind:"wallbench", a,b,c:mid(a,b),half:len(sub(b,a))/2,h:.43,t:.44,
+        front:unit(sub(mid(p,q),mid(s,r))) });
+    } else if (f.type === "floor" && f.items?.length) {
       const g0 = floorG0(f, groundAt);
       if (!Number.isFinite(g0)) continue;
       const zf = g0 + f.z;
@@ -46,7 +52,7 @@ export function collectSeats(features, groundAt) {
         if (!SIT_KINDS.has(it.kind) || it.coords?.length !== 4) continue;
         const r = it.coords.map(toXY);
         const z0 = zf + (it.z0 || 0);
-        const sh = seatHeight(it.kind, (it.z1 || 0.8) - (it.z0 || 0));
+        const sh = seatHeight(it.kind, (it.z1 || 0.8) - (it.z0 || 0), it.style);
         out.push({ kind: it.kind, r, c: centroid(r), z0, seat: z0 + sh, top: zf + Math.max(it.z1 || 0.8, (it.z0 || 0) + sh + 0.1) });
       }
     } else if (f.type === "wall" && f.kind === "bench" && f.coords?.length >= 2) {
@@ -62,8 +68,34 @@ export function collectSeats(features, groundAt) {
 
 // 視線（o：目 [x, y, z]、d：向き。単位）の先の座れるもの。zw は歩く人の足もとの高さ（外のベンチの高さの基準）。
 // 当たれば { seat, p（当たった点 [x, y, z]） }
+// 座れるものを 4 m の升目に分けておく（並びごとに一度。2026-11-25：照準の先を毎フレーム調べるたびに、全部の椅子（数千）との距離を測っていた）
+const SEAT_CELL = 4;
+const SEAT_GRIDS = new WeakMap();
+function seatGrid(seats) {
+  let g = SEAT_GRIDS.get(seats);
+  if (g) return g;
+  g = { cells: new Map(), far: 1.5 };
+  seats.forEach((s, i) => {
+    const k = Math.floor(s.c[0] / SEAT_CELL) + "," + Math.floor(s.c[1] / SEAT_CELL);
+    if (!g.cells.has(k)) g.cells.set(k, []);
+    g.cells.get(k).push(i);
+    if (s.kind === "wallbench") g.far = Math.max(g.far, s.half + 0.5);
+  });
+  SEAT_GRIDS.set(seats, g);
+  return g;
+}
 export function seatPick(seats, o, d, zw, reach = SEAT_REACH) {
-  const near = seats.filter((s) => len(sub(s.c, o)) < reach + (s.kind === "wallbench" ? s.half + 0.5 : 1.5));
+  // 近くの升目の椅子だけ、もとの並びの順に（同じ t で当たる椅子が複数あるとき、今までと同じものを返す）
+  const g = seatGrid(seats);
+  const R = reach + g.far;
+  const idx = [];
+  for (let cx = Math.floor((o[0] - R) / SEAT_CELL); cx <= Math.floor((o[0] + R) / SEAT_CELL); cx++)
+    for (let cy = Math.floor((o[1] - R) / SEAT_CELL); cy <= Math.floor((o[1] + R) / SEAT_CELL); cy++) {
+      const list = g.cells.get(cx + "," + cy);
+      if (list) for (const i of list) idx.push(i);
+    }
+  idx.sort((a, b) => a - b);
+  const near = idx.map((i) => seats[i]).filter((s) => len(sub(s.c, o)) < reach + (s.kind === "wallbench" ? s.half + 0.5 : 1.5));
   if (!near.length) return null;
   for (let t = 0.15; t <= reach; t += 0.04) {
     const p = [o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t];
@@ -90,8 +122,8 @@ export function sitPose(seat, p, from) {
     const k = Math.max(Math.min(0.25, L / 2), Math.min(L - Math.min(0.25, L / 2), s));
     const at = [seat.a[0] + u[0] * k, seat.a[1] + u[1] * k];
     // 背のないベンチ：来た側を向いて座る
-    let n = [-u[1], u[0]];
-    if ((from[0] - at[0]) * n[0] + (from[1] - at[1]) * n[1] < 0) n = [-n[0], -n[1]];
+    let n = seat.front || [-u[1], u[0]];
+    if (!seat.front && (from[0] - at[0]) * n[0] + (from[1] - at[1]) * n[1] < 0) n = [-n[0], -n[1]];
     return { x: at[0], y: at[1], z: from[2], eye: seat.h + SEAT_EYE, yaw: yawOf(n), stand: [at[0] + n[0] * (seat.t / 2 + STAND_OUT), at[1] + n[1] * (seat.t / 2 + STAND_OUT)] };
   }
   const r = seat.r;

@@ -46,7 +46,8 @@
 //             curb（glass・slant の下の石の縁石の高さ m。幅 curbWidth。ガラス・棒はその上から height まで）,
 //             rim（fence・rail・xbrace・chain・mesh・hedge を、両わき RAIL_REACH m の高いほうの地面から立てる：掘り下げた平地のふちの壁の上・
 //             盛った平地のふちの壁の上（壁の帯の上）に立つ柵。glass はいつも）
-//   bridge  : width, z（各点の床の高さ。真下の地面から、null は自動）, thickness, railing, piers, surface（walk / street / rail / deck 木の床）,
+//   bridge  : width, z（床の高さ。groundRef があればその共通基準点から、なければ各点の真下から）, thickness, railing, piers,
+//             steps（直線の外階段の蹴上げ数。段の下は斜めのスラブで、その下を通れる）, surface（walk / street / rail / deck / checkerplate）,
 //             bars（true なら手すりは板でなく縦の格子＝亜鉛めっきの鋼の柵。サークル棟2 から西5号館へのスロープ。2026-11-16）
 //   tree    : 木。coords は幹の 1 点。height, crown（枝の広がりの直径 m）, kind（broad 枝の広がる木 / round 丸い木 / ginkgo イチョウ /
 //             conifer 針葉樹 / cherry サクラ＝低いところで太い枝に分かれ、横に広い平たい傘の形 /
@@ -200,6 +201,8 @@
 // 地面は「元の地面 → 平地 → 坂道・階段」の順に重ねて作る（坂道・階段の高さは平地を入れたあとの地面から）
 // DOM も MapLibre も使わない（3D表示・エディタ・テストから共通で使う）
 import earcut from "earcut";
+import { STREET_SHOPS } from "./campus3dStreetCatalog.js";
+import { avenueFixtures } from "./campus3dAvenueFixtures.js";
 import { CAMPUS_CENTER } from "./hooks/useLocationSharing.js";
 import { tsubameMenuLayout } from "./campus3dTsubameMenu.js";
 import { SHOP_PRINTS, SHOP_STOCK } from "./campus3dShop.js";
@@ -286,23 +289,23 @@ const FLOOR_ITEM_STYLES = {
   machine: ["stationFare", "stationTicketPanel"],
   bench: ["stationSeat", "waitingSeat"],
   locker: ["stationLocker"],
-  layered: ["serviceDesk"],
+  layered: ["serviceDesk", "cafeBar", "cafeCupboard"],
   tube: ["jetDiffuser"],
   art: ["picody", "ceramicRelief", "galleryPlaster", "acousticShell", "stageWing", "auditoriumSpeaker"],
   board: ["picodyDisplay", "reliefPlaque", "caseCaption", "plazaDirectory", "cafeName", "cafeDoorName"],
   market: Object.keys(MARKET_STYLES),
-  table: ["slab", "seminar", "study", "railCounter", "tripod", "readingLamp", "carrel", "groupStudy", "marketStand", "plazaModel", "lobbyShowcase", "bistro", "cafeSquare"],
+  table: ["slab", "branchSlab", "seminar", "study", "railCounter", "tripod", "readingLamp", "carrel", "groupStudy", "marketStand", "plazaModel", "lobbyShowcase", "bistro", "cafeSquare", "cafePedestal", "cafeHigh", "lobbyLow"],
   chair: ["seminar", "swivel", "readingShell", "bucket", "cafeSlat"],
   tseat: ["auditorium"],
   stack: ["books", "journals", "wallShelf"],
-  light: ["suspended", "galleryTrack", "stageBatten", "cafePendant"],
-  woodchair: ["webbed", "plywood", "bentShell", "paddedArms", "cafeHoop"],
-  lounge: ["wrap"],
+  light: ["suspended", "galleryTrack", "stageBatten", "cafePendant", "brassBell"],
+  woodchair: ["webbed", "plywood", "bentShell", "paddedArms", "cafeHoop", "cafeBow"],
+  lounge: ["wrap", "folded"],
   toilet: ["tank", "bowl", "urinal", "vanity"],
   steel: ["mirror", "stationBin"],
   white: ["stallDoor", "stationBoard", "cafeTimber", "foldedGate"],
   aframe: ["cafeMenu", "cafeLunch"],
-  woodsign: ["slats", "fascia"],
+  woodsign: ["slats", "fascia", "hangingLetters"],
   drinks: ["lit", "takiVending"],
   bincab: ["openBin", "takiSorting", "takiLinedBin"],
   soffit: ["plain"],
@@ -313,7 +316,8 @@ const FLOOR_ITEM_STYLES = {
   box: ["rock"],
   screen: ["kiosk"],
   poster: ["flowers", "exit", "stationTicketNotices"],
-  mat: ["studs", "queue", "arcadePavers", "plazaDrain"],
+  mat: ["studs", "queue", "arcadePavers", "plazaDrain", "entryRib", "vestibuleGrate"],
+  hotcase: ["pastryGlass"],
   crates: ["baskets", "cartons"],
   stool: ["chromeRing"],
   register: ["storePOS"],
@@ -329,7 +333,7 @@ export const FLOOR_STAIR_KINDS = ["wood", "white", "stone", "escalator", "oak", 
 export const FLOOR_RAIL_KINDS = ["mesh", "rail", "glass", "expanded"];
 export const TYPE_LABEL = { terrace: "平地", slope: "坂道", stairs: "階段", wall: "壁", bridge: "橋", passage: "通り抜け", building: "建物", road: "道路", surface: "路面", marking: "白線", crosswalk: "横断歩道", tree: "木", signal: "信号機", sign: "看板", floor: "階（建物の中）", track: "線路（駅の中）" };
 // 路面と白線の種類（色・幅は campus3dPaint.js）
-export const SURFACE_KIND_KEYS = ["road", "walk", "plaza", "tile", "deck", "red", "green", "zebra", "gravel", "stones", "brick", "darkbrick", "redbrick", "wood", "lawn", "slab", "soil", "blue", "shrubs", "turf"];
+export const SURFACE_KIND_KEYS = ["road", "darkAsphalt", "walk", "plaza", "tile", "deck", "red", "green", "zebra", "gravel", "stones", "brick", "darkbrick", "redbrick", "wood", "lawn", "slab", "soil", "blue", "shrubs", "turf"];
 export const MARKING_KIND_KEYS = ["solid", "dashed", "stop", "yellow", "wide", "tactile", "tactileWarning", "groove", "arrow", "orange", "thin", "text"];
 // 壁の種類（なしは壁）：生け垣・縦の格子の柵・ガードパイプ
 export const WALL_KIND_KEYS = ["hedge", "fence", "rail", "glass", "slant", "xbrace", "bench", "chain", "mesh", "bollards"];
@@ -341,8 +345,8 @@ export const TREE_KIND_KEYS = ["broad", "round", "ginkgo", "conifer", "cherry", 
 // 段の鼻（下の段との境）のステンレスの帯（踏面のふち 4.5cm と蹴上げの上 3.5cm）。wood は外の木のデッキの古びた段（灰がかった色）のまま
 // granite は御影石（桃色がかった灰の踏面・赤茶の蹴上げ・鼻に 2 本のすべり止めの線）、nonslip はコンクリートの段の鼻に 2 本のすべり止めの線（2026-11-16、
 // 動画 IMG_1382 の西8号館・西1号館の前の階段）
-export const STAIRS_MATERIALS = ["wood", "stone", "brick", "oak", "granite", "nonslip", "checker", "clayMosaic"];
-export const STAIRS_MATERIAL_LABEL = { "": "コンクリート", wood: "木", stone: "石", brick: "れんが", oak: "オーク（縁が金属）", granite: "御影石（赤茶の蹴上げ）", nonslip: "コンクリート（すべり止めの線）", clayMosaic: "素焼き色のモザイクタイル" };
+export const STAIRS_MATERIALS = ["wood", "stone", "brick", "oak", "granite", "nonslip", "checker", "clayMosaic", "castLog"];
+export const STAIRS_MATERIAL_LABEL = { "": "コンクリート", wood: "木", stone: "石", brick: "れんが", oak: "オーク（縁が金属）", granite: "御影石（赤茶の蹴上げ）", nonslip: "コンクリート（すべり止めの線）", clayMosaic: "素焼き色のモザイクタイル", castLog: "擬木の丸太と杭" };
 // 建物の窓・扉の種類（campus3dMesh.js の addWindows）：ガラス・奥の暗いガラス・格子・扉・ガラスの扉
 export const WINDOW_KINDS = ["glass", "dark", "grille", "door", "glassdoor", "frost", "autodoor", "opening"];
 // 建物の壁と屋根の材質（campus3dMesh.js の色）：さびた鉄・穴あきの金属板・ステンレス。なしは地図の建物の色
@@ -534,6 +538,8 @@ export function normalizeFeature(f) {
     if (out.kind === "rail" && f.style === "return") out.style = "return";
     if (out.kind === "rail" && f.bars === 3) out.bars = 3;
     if (out.kind === "chain" && f.style === "tubular") out.style = "tubular";
+    if (out.kind === "chain" && f.style === "cableNet") out.style = "cableNet";
+    if (out.kind === "mesh" && f.coating === "white") out.coating = "white";
     if (!out.kind && Number.isFinite(f.crest)) out.crest = round2(clampTo(f.crest, RANGE.elev, 0));
     if (out.kind === "bench" && coords.length === 2 && f.style === "cantilever") out.style = f.style;
     if (out.kind === "bench" && f.style === "treeSeat" && coords.length >= 4 &&
@@ -542,7 +548,7 @@ export function normalizeFeature(f) {
     if ((out.kind === "glass" || out.kind === "slant") && f.curb != null && f.curb !== "" && Number.isFinite(+f.curb) && +f.curb > 0) out.curb = round2(clampTo(f.curb, [0.05, Math.max(0.05, Math.min(1.5, out.height - 0.2))], 0.3));
     if (["fence", "rail", "xbrace", "chain", "mesh", "hedge"].includes(out.kind) && f.rim) out.rim = true;
     if (["xbrace", "chain", "mesh"].includes(out.kind) && Number.isFinite(+f.bay) && f.bay != null && f.bay !== "") out.bay = round2(clampTo(f.bay, [0.5, 6], out.kind === "xbrace" ? 1.8 : 2));
-    if ((out.kind === "chain" || out.kind === "mesh") && f.base != null && f.base !== "" && Number.isFinite(+f.base) && +f.base > 0) out.base = round2(clampTo(f.base, [0, 20], 0));
+    if (["chain", "mesh", "rail"].includes(out.kind) && Number.isFinite(+f.base) && +f.base > 0) out.base = round2(clampTo(f.base, [0, 20], 0));
     // テラス上の柵は建物と同じ基準点から高さを測る。
     if ((out.base || out.kind === "rail") && Array.isArray(f.groundRef) && f.groundRef.length === 2 && f.groundRef.every(Number.isFinite)) out.groundRef = f.groundRef.map(round7);
     if (out.kind === "slant" && (f.upright === "left" || f.upright === "right")) out.upright = f.upright;
@@ -653,6 +659,19 @@ export function normalizeFeature(f) {
     out.height = round2(clampTo(f.height, RANGE.height, d.height));
   } else if (f.type === "building") {
     out.height = round2(clampTo(f.height, RANGE.bheight, d.height));
+    if (Array.isArray(f.shopfronts)) {
+      const fronts = [];
+      for (const front of f.shopfronts) {
+        if (!STREET_SHOPS.has(front?.shop) || !Array.isArray(front.coords) || front.coords.length !== 2) continue;
+        if (!front.coords.every((p) => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite))) continue;
+        const coords = front.coords.map((p) => p.map(round7));
+        if (coords[0].every((n, i) => n === coords[1][i])) continue;
+        const side = { shop: front.shop, coords };
+        if (front.returnWall === true) side.returnWall = true;
+        fronts.push(side);
+      }
+      if (fronts.length) out.shopfronts = fronts;
+    }
     if (Array.isArray(f.groundRef) && f.groundRef.length === 2 && f.groundRef.every((v) => v !== null && v !== "" && Number.isFinite(+v))) out.groundRef = [round7(+f.groundRef[0]), round7(+f.groundRef[1])];
     const cuts =(Array.isArray(f.cuts) ? f.cuts : f.slope ? [{ slope: f.slope, low: f.low }] : []).map((c) => {
       const sp = Array.isArray(c?.slope) ? c.slope.filter((q) => Array.isArray(q) && Number.isFinite(+q[0]) && Number.isFinite(+q[1])).map((q) => [round7(+q[0]), round7(+q[1])]) : [];
@@ -731,7 +750,9 @@ export function normalizeFeature(f) {
     if (out.glass && f.glassFrame === "light") out.glassFrame = "light";
     if (out.glass && Number.isFinite(+f.glassBase) && +f.glassBase > 0) out.glassBase = round2(clampTo(f.glassBase, [0, out.glass], 0));
     if (["hishoBase","hisho"].includes(f.sculpture)) out.sculpture = f.sculpture;
-    if (f.streetFixture === "plazaDirectory" && coords.length === 4) out.streetFixture = f.streetFixture;
+    if (coords.length === 4 && (f.streetFixture === "plazaDirectory" || Object.hasOwn(avenueFixtures, f.streetFixture))) {
+      out.streetFixture = f.streetFixture;
+    }
     if (f.indoor === true) out.indoor = true;
     if (f.indoor === true && f.glow === true) out.glow = true; // 明かりのある店の中の物：昼の色のまま光を受けない（夜も明るい）
     if (out.glass && f.glassFrit) out.glassFrit = true; // ガラスに白いセラミックの点の模様（明るく見える）
@@ -809,7 +830,10 @@ export function normalizeFeature(f) {
       const o = Array.isArray(rf.origin) && rf.origin.length === 2 && rf.origin.every((v) => Number.isFinite(+v)) ? [round7(+rf.origin[0]), round7(+rf.origin[1])] : null;
       const girders = [...new Set((Array.isArray(rf.girders) ? rf.girders : []).filter((v) => v != null && v !== "" && Number.isFinite(+v)).map((v) => round2(+v)))].sort((x, y) => x - y).slice(0, 40);
       const ribs = (Array.isArray(rf.ribs) ? rf.ribs : []).filter((r) => Array.isArray(r) && r.length === 2 && r.every((v) => v != null && v !== "" && Number.isFinite(+v))).map((r) => [r4(r[0]), r4(r[1])]).slice(0, 160);
-      if (o && Number.isFinite(+rf.angle) && girders.length && ribs.length >= 2) out.roofFrame = { origin: o, angle: r4(rf.angle), girders, ribs };
+      if (o && Number.isFinite(+rf.angle) && girders.length && ribs.length >= 2) {
+        out.roofFrame = { origin: o, angle: r4(rf.angle), girders, ribs };
+        if (typeof rf.soffitColor === "string" && /^#[0-9a-f]{6}$/i.test(rf.soffitColor)) out.roofFrame.soffitColor = rf.soffitColor;
+      }
     }
     const twoPts = (c) => {
       const cs = Array.isArray(c) ? c.filter((q) => Array.isArray(q) && Number.isFinite(+q[0]) && Number.isFinite(+q[1])).map((q) => [round7(+q[0]), round7(+q[1])]) : [];
@@ -980,6 +1004,7 @@ export function normalizeFeature(f) {
     }).filter(Boolean).slice(0, 20);
     if (canopies.length) out.canopies = canopies;
   } else if (f.type === "road") {
+    if (f.shoppingStreet === true) out.shoppingStreet = true;
     out.width = round2(clampTo(f.width, RANGE.width, d.width));
     out.lanes = Math.round(clampTo(f.lanes, RANGE.lanes, d.lanes));
     out.center = CENTER_KIND_KEYS.includes(f.center) ? f.center : d.center;
@@ -990,9 +1015,20 @@ export function normalizeFeature(f) {
     if (rad && rad.some((v) => v != null)) out.radius = rad;
   } else if (f.type === "surface") {
     out.kind = SURFACE_KIND_KEYS.includes(f.kind) ? f.kind : d.kind;
+    if (out.kind === "shrubs" && Number.isFinite(f.height) && f.height > 0)
+      out.height = round2(clampTo(f.height, [.10, 3], .84));
     if (out.kind === "stones" && Number.isFinite(f.stoneSize) && f.stoneSize > 0) out.stoneSize = round2(clampTo(f.stoneSize, [0.08, 0.4], 0.16));
-    if (["asphalt", "running", "herring", "granite", "plazaBlock", "blueTile", "groundcover", "aggregate", "grass", "basketweave", "roughStone", "deckComposite", "deckTimber", "apronConcrete", "courtGravel"].includes(f.paving)) out.paving = f.paving;
+    if (["asphalt", "running", "herring", "granite", "plazaBlock", "stationSetts", "blueTile", "groundcover", "aggregate", "grass", "basketweave", "roughStone", "deckComposite", "deckTimber", "apronConcrete", "courtGravel", "gateAshlar", "walkBond", "avenueHerring", "clayHerring", "lawnBrick", "memorialBrick", "campusAsphalt", "roseFlags", "exposedFlags", "arcadeBrick", "lightDeck"].includes(f.paving)) out.paving = f.paving;
+    if (out.kind === "slab" && coords.length === 4 && ["grate", "ironCover", "paverHatch", "graniteCourse", "slotDrain"].includes(f.roadInset)) out.roadInset = f.roadInset;
+    if (out.kind === "slab" && out.paving === "campusAsphalt" && f.roadInset === "resurfacing") out.roadInset = f.roadInset;
+    if (out.kind === "slab" && out.paving === "campusAsphalt" && f.roadInset === "oxideAsphalt") out.roadInset = f.roadInset;
+    if (out.kind === "soil" && f.paving === "rootBed") out.paving = f.paving;
+    if (out.kind === "slab" && out.paving === "walkBond" && f.roadInset === "borderCourse") out.roadInset = f.roadInset;
     if (out.paving && Number.isFinite(f.pavingBearing)) out.pavingBearing = ((f.pavingBearing % 180) + 180) % 180;
+    if (out.paving && !f.grade && typeof f.pavingHost === "string" && f.pavingHost) {
+      out.pavingHost = f.pavingHost.slice(0,120);
+      if (Number.isFinite(f.pavingLift)) out.pavingLift = clampTo(f.pavingLift, [.002, .12], .015);
+    }
     if (out.kind === "tile" && f.plazaCourses === true && coords.length === 4) out.plazaCourses = true;
     // grade は舗装の各頂点の仕上がり標高 (m)。決まった勾配の舗装を地形タイルの補間から独立させる。
     if (Array.isArray(f.grade) && f.grade.length === coords.length && f.grade.every(Number.isFinite)) {
@@ -1018,13 +1054,18 @@ export function normalizeFeature(f) {
       const [bearing, depth, gap] = f.stepping;
       out.stepping = [((bearing % 180) + 180) % 180, round2(clampTo(depth, [0.15, 2], 0.48)), round2(clampTo(gap, [0.03, 1], 0.07))];
     }
+    if (out.kind === "slab" && out.paving === "roughStone" && Number.isFinite(f.stoneLip)) out.stoneLip = round2(clampTo(f.stoneLip, [.01, .05], .02));
   } else if (f.type === "marking") {
     out.kind = MARKING_KIND_KEYS.includes(f.kind) ? f.kind : d.kind;
+    if (Number.isFinite(f.width) && f.width > 0) out.width = round2(clampTo(f.width, [0.02, 5], 0.15));
     if ((out.kind === "tactile" || out.kind === "tactileWarning") && ["stone", "ochre", "sand"].includes(f.finish)) out.finish = f.finish;
+    if (["solid", "dashed", "stop", "wide", "thin", "text"].includes(out.kind) && f.finish === "block") out.finish = f.finish;
+    if (["solid", "text", "yellow"].includes(out.kind) && f.finish === "faded") out.finish = f.finish;
     if (out.kind === "text") { out.text = String(f.text || "").slice(0, 8); if (Number.isFinite(+f.size)) out.size = round2(clampTo(f.size, [0.3, 4], 1.8)); }
   } else if (f.type === "crosswalk") {
     out.coords = coords.slice(0, 2);
     out.width = round2(clampTo(f.width, RANGE.crosswalk, d.width));
+    if (["block", "weathered"].includes(f.finish)) out.finish = f.finish;
   } else if (f.type === "floor") {
     normalizeFloor(f, out, d);
   } else if (f.type === "track") {
@@ -1077,8 +1118,16 @@ export function normalizeFeature(f) {
       out.railing = f.railing == null ? d.railing : !!f.railing;
       out.piers = f.piers == null ? d.piers : !!f.piers;
       out.surface = SURFACE_LABEL[f.surface] ? f.surface : d.surface;
+      // 地面から離れた外階段。steps は上下の踊り場の間の蹴上げ数。
+      if (coords.length === 2 && Number.isInteger(f.steps) && f.steps >= 2) out.steps = Math.min(200, f.steps);
+      if (Array.isArray(f.groundRef) && f.groundRef.length === 2 && f.groundRef.every(Number.isFinite)) out.groundRef = f.groundRef.map(round7);
       if (out.railing && f.bars === true) out.bars = true; // 手すりを縦の格子に（2026-11-16）
       if (out.railing && f.handrail === "round") out.handrail = "round";
+      if (out.railing && f.handrail === "pickets") out.handrail = "pickets";
+      if (["roseFlags", "apronConcrete"].includes(f.paving)) {
+        out.paving = f.paving;
+        if (Number.isFinite(f.pavingBearing)) out.pavingBearing = f.pavingBearing;
+      }
     }
   }
   if (f.plant === "goldenrod" && (out.kind === "shrubs" || out.kind === "hedge")) out.plant = f.plant;
@@ -1313,7 +1362,7 @@ function normalizeFloor(f, out, d) {
     if (o.auto && o.kind === "glass" && w.motif === "storeStripe") o.motif = w.motif;
     if (o.auto && w.kind === "curtain" && w.swing === true) o.swing = true;
     // 黒い枠（frame "dark"。石川台8号館のラウンジのガラスの仕切り。2026-11-17）
-    if ((o.kind === "glass" || o.kind === "curtain") && ["dark", "recessed", "aluminum"].includes(w.frame)) o.frame = w.frame;
+    if ((o.kind === "glass" || o.kind === "curtain") && ["dark", "recessed", "aluminum", "buttJoint"].includes(w.frame)) o.frame = w.frame;
     // すりガラスの菱形の模様の帯（glass）：band＝[下, 上]（壁の下の端から m）か [下, 上, 大きさの倍率]（附属図書館の学習棟：3 階のグループ研究室の
     // ガラスは 1、外まわりの窓のフリットは大きめ。2026-11-13）
     if (o.kind === "glass" && Array.isArray(w.band) && (w.band.length === 2 || w.band.length === 3) && w.band.every((v) => v != null && v !== "" && Number.isFinite(+v)) && +w.band[1] > +w.band[0]) {
@@ -2425,9 +2474,29 @@ function pathOf(f, xy, cum, deckAt, hwv = null, cv = null) {
 }
 export function prepareBridge(f, groundAt) {
   const xy = f.coords.map(toXY);
-  const { cum, elev } = vertexElevations(f.coords, f.z, groundAt);
+  const datum = f.groundRef && groundAt(f.groundRef);
+  const { cum, elev } = vertexElevations(f.coords, f.z, f.groundRef ? () => datum : groundAt);
   if (elev.some((v) => !Number.isFinite(v))) return null;
-  return { ...pathOf(f, xy, cum, (s) => lerpAlong(cum, elev, s)), elev };
+  const path = { ...pathOf(f, xy, cum, s => lerpAlong(cum, elev, s)), elev };
+  if (!f.steps || xy.length !== 2 || !cum[1] || elev[0] === elev[1]) return path;
+  const reversed = elev[0] > elev[1], A = xy[reversed ? 1 : 0], B = xy[reversed ? 0 : 1];
+  const length = cum[1], ux = (B[0] - A[0])/length, uy = (B[1] - A[1])/length;
+  const low = Math.min(...elev), rise = Math.abs(elev[1] - elev[0]);
+  const riser = rise / f.steps, tread = length / (f.steps - 1);
+  const at = (s, v) => [A[0] + ux*s - uy*v, A[1] + uy*s + ux*v];
+  const run = (x, y) => Math.max(0, Math.min(length, (x-A[0])*ux + (y-A[1])*uy));
+  const slope = s => low + rise*s/length;
+  const top = s => low + riser * Math.max(1, Math.min(f.steps, 1 + Math.floor(s/tread + 1e-8)));
+  const under = s => slope(s) - f.thickness;
+  const steel = f.surface === "checkerplate";
+  const cheek = Math.min(f.width/8, steel ? .056 : .155);
+  const across = (x,y) => (y-A[1])*ux - (x-A[0])*uy;
+  const fold = Math.min(.045, riser);
+  const bottom = (s,v) => steel && Math.abs(v) < f.width/2-cheek ? top(s)-fold : under(s);
+  path.flight = { length, low, rise, riser, tread, cheek, fold, at, run, across, top, slope, under, bottom };
+  path.treadAt = s => top(reversed ? length-s : s);
+  path.step = tread;
+  return path;
 }
 // 階段の上のルートの通り道：手すりのあいだでいちばん広いところのまん中（中心線から左へ m）。
 // 手すりが段の両端だけならまん中。まん中に手すりがあるときに、ルートが手すりの支柱に隠れて途切れないように
@@ -2578,13 +2647,14 @@ export function splitByBridges(lines, bridges, { margin = 0.6, side = 0.6, toDec
       const deckPoint = (br, t, raw = false) => {
         const q = at(t);
         const { s, lo, hi } = stripDistance(br.xy, br.cum, br.hwv || br.hw, q, br.cv || 0);
-        if (!toDeck || raw) return [...toLngLat(q), br.deckAt(s)];
+        const z = br.flight ? br.treadAt(s) + STAIRS_CLEAR : br.deckAt(s);
+        if (!toDeck || raw) return [...toLngLat(q), z];
         const c = centerAt(br, s);
         const off = (q[0] - c.p[0]) * c.n[0] + (q[1] - c.p[1]) * c.n[1];
         // 床の内側（ふちから 0.4m）までに抑える。床がせまければまん中
         const free = (lo + 0.4 <= hi - 0.4 ? Math.max(lo + 0.4, Math.min(hi - 0.4, off)) : (lo + hi) / 2) - off;
         const o = br.laneAt ? br.laneAt(s) - off : free;
-        const p = [...toLngLat([q[0] + c.n[0] * o, q[1] + c.n[1] * o]), br.deckAt(s)];
+        const p = [...toLngLat([q[0] + c.n[0] * o, q[1] + c.n[1] * o]), z];
         if (br.laneAt) p.free = toLngLat([q[0] + c.n[0] * free, q[1] + c.n[1] * free]); // 通り道へ寄せる前の位置（両端でなめらかに寄せる）
         return p;
       };

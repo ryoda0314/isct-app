@@ -1,19 +1,20 @@
-// 歩いて見るときの乗り物（2026-11-17 ユーザー「自転車と車とかドローンとか作って」）：自転車（ママチャリ）・車（小さな乗用車）・ドローン。
+// バーチャルキャンパスの乗り物。クーペとジェットの運動は campus3dCar・campus3dJet に置く。
 // 持ち物（campus3dInventory）と同じくゲームの中のもの（構想書 v0.3 の Layer B：仮想の拡張）：建物のデータ（features.json）とは混ぜず、
 // 歩いて見ているあいだだけ出す。置いた所は端末の中だけ（localStorage。外へは送らない）。
 // ここは動き・置き場所・カメラの計算（DOM も MapLibre も使わない。歩ける世界 campus3dWalk の walkWorld を使う）。形は campus3dVehicleMesh.js
 // 座標は平面の m（x 東・y 北）、高さは標高 m、向き yaw は北から時計回りの度（歩く人と同じ）。乗り物の基準の点は地面の上のまん中
 
-const DEG = Math.PI / 180;
-const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+import { DEG, clamp, norm360, angDiffV, fwdOf, leftOf, spanBlocked, floorZ } from "./campus3dVehicleMath.js";
+import { CAR, carFits } from "./campus3dCar.js";
+import { JET, launchJet } from "./campus3dJet.js";
+export { angDiffV, fwdOf, leftOf, CAR, carFits };
+export { stepCar } from "./campus3dCar.js";
+export { stepJet } from "./campus3dJet.js";
+
 const lerp = (a, b, t) => a + (b - a) * t;
-const norm360 = (a) => ((a % 360) + 360) % 360;
-export const angDiffV = (to, from) => ((((to - from) % 360) + 540) % 360) - 180;
-export const fwdOf = (yaw) => [Math.sin(yaw * DEG), Math.cos(yaw * DEG)];
-export const leftOf = (yaw) => [-Math.cos(yaw * DEG), Math.sin(yaw * DEG)];
 const G = 9.8;
 
-export const VEHICLE_KINDS = ["bike", "car", "drone"];
+export const VEHICLE_KINDS = ["car", "jet", "bike", "drone"];
 
 // 自転車（26 インチのママチャリ：前かご・どろよけ・荷台・チェーンケース・両立スタンド）。速さは歩く 4.3m/s より少し速いくらい（16 km/h）、
 // 立ちこぎ（Shift・「走る」）で 23 km/h。階段・崖（0.9m 先までで 0.26m より上り下りする所）は通れない。縁石（0.16m まで）はこえる
@@ -24,15 +25,6 @@ export const BIKE = {
   step: 0.16, stairsRise: 0.26, gear: 2.06,
   eye: 1.58, eyeBack: 0.1, // 座った目の高さ（地面から）・まん中から後ろへ
 };
-// 車（全長 3.95m・幅 1.69m の小さな 5 ドア。右ハンドル）。構内の速さ 30 km/h、Shift・「走る」で 50 km/h、止まってから S で後ろへ 10 km/h。
-// 段（0.2m まで）はこえる。階段・崖・せまい所（建物・壁・柵・柱）は通れない
-export const CAR = {
-  length: 3.95, width: 1.69, height: 1.5, wheelbase: 2.55, track: 1.47, wheelR: 0.31,
-  speed: 8.4, sprint: 13.9, accel: 2.6, sprintAccel: 3.8, brake: 7, drag: 0.35, back: 2.8,
-  steerMax: 34, steerMin: 9, steerRate: 100,
-  step: 0.2, stairsRise: 0.3, maxTilt: 18,
-  driver: [-0.3, -0.36, 1.17], // 運転席の目（まん中から前・左・上。右ハンドルなので右＝左の −）
-};
 // ドローン（対角 0.35m の小さな 4 枚羽根）：前後左右 8m/s（スポーツ 15m/s）、上 3.5m/s・下 3m/s。離陸した地面から 120m・操縦する人から 500m まで。
 // 電池は 15 分（スポーツは 1.5 倍の速さで減る）。15% で知らせ、8% で操縦する人のところへ戻る
 export const DRONE = {
@@ -41,17 +33,6 @@ export const DRONE = {
   rthAlt: 30, rthSpeed: 9, liftOff: 1.4,
 };
 
-// 体（足の 0.1〜1.8m 上）のかわりに、高さの区間 [lo, hi] でぶつかるか（古い walkWorld には blockedSpan がない：足の高さで代える）
-const spanBlocked = (world, x, y, lo, hi) => (world.blockedSpan ? world.blockedSpan(x, y, lo, hi) : world.blocked(x, y, lo - 0.1));
-
-// その点の足場（いまの高さ z から step m まで上れる）の高さ。なければ null
-const floorZ = (world, x, y, z, step) => {
-  const f = world.floorBelow(x, y, z + step);
-  return f ? f.z : null;
-};
-
-// 進む向きの先の段：前の端から 0.3・0.6・0.9m の足場をたどって、1 歩ごとに step より大きく上り下りするか、0.9m で rise より上り下りすれば
-// 階段・崖（通れない）。0.5m より高い面は見ない（壁は blocked で止める）
 function stairsAhead(world, px, py, ux, uy, z, step, rise) {
   let prev = z;
   for (const d of [0.3, 0.6, 0.9]) {
@@ -179,129 +160,6 @@ export function stepBike(b, input, dt, world) {
   const wheel = ((b.wheel || 0) + (v * dt) / S.wheelR) % (Math.PI * 2);
   const crank = pedal && v > 0.1 ? ((b.crank || 0) + ((v / S.wheelR) * dt) / S.gear) % (Math.PI * 2) : b.crank || 0;
   return { ...b, x, y, z, yaw, v, steer, vz, air, lean, pitch, wheel, crank, hit, stairs, pedal };
-}
-
-// 車の四隅の車輪・車体のまわり（BODY 0.3m の余白のぶん内側の長方形）で、その位置・向きに置けるか。dir は進む向き
-const CAR_RING = (() => {
-  const S = CAR;
-  const hl = S.length / 2 - 0.28, hw = S.width / 2 - 0.28;
-  const out = [];
-  const nl = 6, nw = 2;
-  for (let i = 0; i <= nl; i++) for (const s of [1, -1]) out.push([-hl + (2 * hl * i) / nl, s * hw]);
-  for (let j = 1; j < nw; j++) for (const s of [1, -1]) out.push([s * hl, -hw + (2 * hw * j) / nw]);
-  return out;
-})();
-export function carFits(world, x, y, z, yaw, dir = 0) {
-  const S = CAR;
-  const [fx, fy] = fwdOf(yaw);
-  const [lx, ly] = leftOf(yaw);
-  const at = (a, l) => [x + fx * a + lx * l, y + fy * a + ly * l];
-  const wz = [];
-  for (const [a, l] of [[S.wheelbase / 2, S.track / 2], [S.wheelbase / 2, -S.track / 2], [-S.wheelbase / 2, S.track / 2], [-S.wheelbase / 2, -S.track / 2]]) {
-    const [px, py] = at(a, l);
-    const q = floorZ(world, px, py, z, S.step);
-    if (q == null) return { ok: false };
-    if (q < z - 0.45) return { ok: false, stairs: true }; // 崖（落ちない）
-    wz.push(q);
-  }
-  const zb = (wz[0] + wz[1] + wz[2] + wz[3]) / 4;
-  const pitch = Math.atan2((wz[0] + wz[1]) / 2 - (wz[2] + wz[3]) / 2, S.wheelbase) / DEG;
-  const roll = Math.atan2((wz[1] + wz[3]) / 2 - (wz[0] + wz[2]) / 2, S.track) / DEG; // 右が上がると +（右へ倒れるのとは逆）
-  if (Math.abs(pitch) > S.maxTilt || Math.abs(roll) > S.maxTilt) return { ok: false, stairs: true };
-  // 車体のまわり：その点の足場（段 step まで）の高さで、体の区間にかかるものがあれば通れない（縁石・低い平地のふちは車輪でこえる）
-  for (const [a, l] of CAR_RING) {
-    const [px, py] = at(a, l);
-    const zp = zb + a * Math.tan(pitch * DEG);
-    const q = floorZ(world, px, py, zp, S.step);
-    if (world.blocked(px, py, q ?? zp)) return { ok: false };
-  }
-  if (dir) {
-    for (const s of [1, -1]) {
-      const [px, py] = at((dir > 0 ? 1 : -1) * (S.wheelbase / 2), (s * S.track) / 2);
-      const q = wz[dir > 0 ? (s > 0 ? 0 : 1) : s > 0 ? 2 : 3];
-      if (stairsAhead(world, px, py, fx * dir, fy * dir, q, S.step, S.stairsRise)) return { ok: false, stairs: true };
-    }
-  }
-  return { ok: true, z: zb, pitch, roll };
-}
-
-/**
- * 車を 1 フレーム動かす。c は { x, y, z, yaw, v, steer, pitch, roll, wheel }、input は { fwd（アクセル + / ブレーキ・後ろ −）, side, turn, sprint }。
- * 後輪の軸を基準に曲がる。ぶつかると少し跳ね返って止まる（hit）
- */
-export function stepCar(c, input, dt, world) {
-  const S = CAR;
-  let { x, y, z, yaw } = c;
-  let v = c.v || 0, steer = c.steer || 0;
-  const thr = clamp(input.fwd || 0, -1, 1);
-  const sin = clamp((input.side || 0) + (input.turn || 0), -1, 1);
-  const vmax = input.sprint ? S.sprint : S.speed;
-  let braking = false;
-  let reverse = false;
-  if (thr > 0.05) {
-    if (v < -0.05) {
-      v = Math.min(0, v + S.brake * thr * dt);
-      braking = true;
-    } else {
-      const tgt = thr * vmax;
-      const a = input.sprint ? S.sprintAccel : S.accel;
-      v = v < tgt ? Math.min(tgt, v + a * dt) : Math.max(tgt, v - S.drag * 2 * dt);
-    }
-  } else if (thr < -0.05) {
-    if (v > 0.05) {
-      v = Math.max(0, v - S.brake * -thr * dt);
-      braking = true;
-    } else {
-      v = Math.max(-S.back * -thr, v - S.accel * 0.8 * dt);
-      reverse = true;
-    }
-  } else {
-    // アクセルを離す：エンジンブレーキと転がる抵抗で止まる（坂ではゆっくり転がる）
-    const gr = Math.sin((c.pitch || 0) * DEG);
-    v -= G * gr * 0.5 * dt;
-    const d = (S.drag + 0.004 * v * v) * dt;
-    v = Math.abs(v) <= d && Math.abs(gr) < 0.05 ? 0 : v - Math.sign(v) * d;
-  }
-  const vm = Math.abs(v);
-  const dmax = lerp(S.steerMax, S.steerMin, clamp((vm - 2) / 12, 0, 1));
-  steer += clamp(-sin * dmax - steer, -S.steerRate * dt, S.steerRate * dt);
-  const rate = -((v * Math.tan(steer * DEG)) / S.wheelbase) / DEG; // 度/秒（右へ +）
-  const dist = v * dt;
-  const n = Math.max(1, Math.ceil(Math.abs(dist) / 0.25));
-  let hit = false;
-  let stairs = false;
-  let cur = { x, y, yaw, z: c.zr ?? z, pitch: c.pitch || 0, roll: c.roll || 0 }; // 動きは足場どおりの高さ zr で（z は見た目になめらかにした高さ）
-  const half = S.wheelbase / 2;
-  for (let i = 0; i < n; i++) {
-    const y0 = cur.yaw;
-    const y1 = norm360(y0 + (rate * dt) / n);
-    const [ax, ay] = fwdOf(y0);
-    const rx = cur.x - ax * half, ry = cur.y - ay * half;
-    const [bx, by] = fwdOf(y0 + angDiffV(y1, y0) / 2);
-    const nrx = rx + bx * (dist / n), nry = ry + by * (dist / n);
-    const [cx, cy] = fwdOf(y1);
-    const nx = nrx + cx * half, ny = nry + cy * half;
-    if (Math.abs(dist) < 1e-6 && Math.abs(angDiffV(y1, y0)) < 1e-6) break;
-    const r = carFits(world, nx, ny, cur.z, y1, Math.sign(dist));
-    if (!r.ok) {
-      hit = true;
-      stairs = !!r.stairs;
-      v = stairs ? 0 : -v * 0.2;
-      break;
-    }
-    cur = { x: nx, y: ny, yaw: y1, z: r.z, pitch: r.pitch, roll: r.roll };
-  }
-  // 止まっていても、足場（坂・段）に合わせる
-  if (!hit && Math.abs(dist) < 1e-6) {
-    const r = carFits(world, cur.x, cur.y, cur.z, cur.yaw, 0);
-    if (r.ok) Object.assign(cur, { z: r.z, pitch: r.pitch, roll: r.roll });
-  }
-  const k = Math.min(1, dt * 10);
-  const pitch = (c.pitch || 0) + (cur.pitch - (c.pitch || 0)) * k;
-  const roll = (c.roll || 0) + (cur.roll - (c.roll || 0)) * k;
-  const z1 = (c.z ?? cur.z) + (cur.z - (c.z ?? cur.z)) * Math.min(1, dt * 14);
-  const wheel = ((c.wheel || 0) + dist / S.wheelR) % (Math.PI * 2);
-  return { ...c, x: cur.x, y: cur.y, z: Math.abs(z1 - cur.z) > 0.5 ? cur.z : z1, zr: cur.z, yaw: cur.yaw, v, steer, pitch, roll, wheel, hit, stairs, braking, reverse: reverse || v < -0.1 };
 }
 
 // ドローンの体（まん中から半径 radius・上下 half）がぶつかるか
@@ -448,6 +306,7 @@ export function stepDrone(d, input, dt, world, home) {
 
 // 乗り物を置く所：歩く人（足 at = { x, y, z, yaw }）の前から、まわりへ広げて探す。置けなければ null
 export function placeVehicle(kind, world, at) {
+  if (kind === "jet") return launchJet(world, at);
   // 自転車・車は歩く人がそのまま乗れる所から（自転車はまたがる所、車は運転席が歩く人の所）。だめなら前から、まわりへ広げて探す
   const [f0x, f0y] = fwdOf(at.yaw);
   const [l0x, l0y] = leftOf(at.yaw);
@@ -469,8 +328,9 @@ export function placeVehicle(kind, world, at) {
       const r = bikeFits(world, px, py, fz, yaw, 0);
       if (r.ok) return { x: px, y: py, z: r.z, yaw };
     } else if (kind === "car") {
-      const r = carFits(world, px, py, fz, yaw, 0);
-      if (r.ok) return { x: px, y: py, z: r.z, zr: r.z, yaw, pitch: r.pitch, roll: r.roll };
+      const r = carFits(world, px, py, fz, yaw, true);
+      if (r.ok) return { x: px, y: py, z: r.z, zr: r.z, yaw, pitch: r.pitch, roll: r.roll,
+        roadPitch:r.pitch, roadRoll:r.roll, heights:r.heights };
     } else if (!droneHit(world, px, py, fz + DRONE.legs + 0.01, yaw) && !droneHit(world, px, py, fz + DRONE.liftOff, yaw)) {
       return { x: px, y: py, z: fz + DRONE.legs, yaw };
     }
@@ -492,6 +352,12 @@ export function dismountSpot(kind, v, world) {
     return [px, py, f.z];
   }
   return null;
+}
+
+export function parkRide(v) {
+  return { ...v, v: 0, slip: 0, spin: 0, vz: 0, steer: 0, lean: 0, kick: 0, cooldown: 0, impact: 0,
+    contact: null, markAnchor: null, marks: [], hit: false, stairs: false, air: false, braking: false, reverse: false,
+    z: v.zr ?? v.z, pitch: v.roadPitch ?? v.pitch, roll: v.roadRoll ?? v.roll };
 }
 
 // 置いてある自転車・車（乗っているもの ride は除く）が、点 (x, y)・足の高さ z の体（足の 0.1〜1.8m 上）をふさぐか。pad は体の半径（0.3m）。
@@ -549,6 +415,7 @@ export function pickVehicle(list, o, d, reach = 3.5) {
  */
 export function vehicleCamera(kind, v, view, look, dt, world, prev = null) {
   const lyaw = look.yaw || 0;
+  const kick = !look.steady && kind === "car" && v.kick ? v.kick*Math.cos(v.fxAge*42) : 0;
   if (kind === "drone") {
     if (view === "fp") {
       const [fx, fy] = fwdOf(v.yaw);
@@ -558,9 +425,13 @@ export function vehicleCamera(kind, v, view, look, dt, world, prev = null) {
   if (view === "fp") {
     const [fx, fy] = fwdOf(v.yaw);
     const [lx, ly] = leftOf(v.yaw);
-    if (kind === "car") {
-      const [a, l, h] = CAR.driver;
-      return { x: v.x + fx * a + lx * l, y: v.y + fy * a + ly * l, z: v.z + h + a * Math.sin((v.pitch || 0) * DEG), yaw: norm360(v.yaw + lyaw), pitch: look.pitch };
+    if (kind === "car" || kind === "jet") {
+      const [a, l, h] = kind === "car" ? CAR.driver : [1.88, 0, 1.99];
+      const pitch = (v.pitch || 0)*DEG, roll = (kind === "car" ? -(v.roll || 0) : v.bank || 0)*DEG;
+      const side = l*Math.cos(roll) - h*Math.sin(roll), up = l*Math.sin(roll) + h*Math.cos(roll);
+      const fore = a*Math.cos(pitch) - up*Math.sin(pitch);
+      return { x: v.x+fx*fore+lx*side, y: v.y+fy*fore+ly*side, z: v.z+a*Math.sin(pitch)+up*Math.cos(pitch),
+        yaw: norm360(v.yaw+lyaw), pitch: clamp(look.pitch+(v.pitch||0)+kick*1.6,10,125), roll: look.steady ? 0 : roll/DEG*.72 };
     }
     // 曲がるときは内へ倒れる（MapLibre のカメラは横に傾けられないので、目を内へずらすだけ）
     const lean = (v.lean || 0) * DEG;
@@ -570,38 +441,46 @@ export function vehicleCamera(kind, v, view, look, dt, world, prev = null) {
   const want = norm360(v.yaw + lyaw);
   const cy0 = prev?.camYaw ?? want;
   const camYaw = norm360(cy0 + angDiffV(want, cy0) * Math.min(1, dt * 5));
-  const dist = kind === "car" ? 6.2 : kind === "bike" ? 3.6 : 2.4;
-  const tz = kind === "car" ? 1.15 : kind === "bike" ? 1.15 : 0.05;
-  const pitch = clamp(look.pitch, kind === "drone" ? 35 : 55, 104);
+  const jet = kind === "jet";
+  const speedFraction = clamp(Math.abs(v.v || 0)/(jet ? JET.maxSpeed : CAR.sprint),0,1);
+  const dist = jet ? 15.5+speedFraction*4 : kind === "car" ? 5.75+speedFraction*2.0 : kind === "bike" ? 3.6 : 2.4;
+  const tz = jet ? 2.65 : kind === "car" ? 1.19 : kind === "bike" ? 1.15 : 0.05;
+  const pitch = clamp(look.pitch + (jet ? v.pitch*.30 : kick*1.1), kind === "drone" ? 35 : 51, 104);
   const p = pitch * DEG, b = camYaw * DEG;
   const dir = [Math.sin(p) * Math.sin(b), Math.sin(p) * Math.cos(b), -Math.cos(p)];
-  const tx = v.x, ty = v.y, tzz = v.z + tz;
+  const lead = jet ? 1.5 : kind === "car" ? .58 + speedFraction*.85 : 0;
+  const tx = v.x+Math.sin(b)*lead, ty = v.y+Math.cos(b)*lead, tzz = v.z + tz + kick*.055;
   let D = dist;
   if (world) {
     // 乗り物から後ろへ線をたどり、建物・壁・地面に入る手前で止める
-    for (let s = 0.4; s <= dist; s += 0.2) {
+    for (let s = 0.4; s <= dist; s += jet ? .55 : .22) {
       const px = tx - dir[0] * s, py = ty - dir[1] * s, pz = tzz - dir[2] * s;
       const g = world.floorBelow(px, py, pz + 0.3);
-      if (spanBlocked(world, px, py, pz - 0.2, pz + 0.2) || (g && pz < g.z + 0.25)) {
+      if (!g || pz < g.z + .25 || spanBlocked(world, px, py, pz - .2, pz + .2)) {
         D = Math.max(0.6, s - 0.35);
         break;
       }
     }
   }
   const D1 = prev?.D != null ? (D < prev.D ? D : prev.D + (D - prev.D) * Math.min(1, dt * 2.5)) : D;
-  return { x: tx - dir[0] * D1, y: ty - dir[1] * D1, z: tzz - dir[2] * D1, yaw: camYaw, pitch, camYaw, D: D1 };
+  return { x: tx - dir[0] * D1, y: ty - dir[1] * D1, z: tzz - dir[2] * D1, yaw: camYaw, pitch, camYaw, D: D1,
+    roll: jet && !look.steady ? v.bank*.16 : 0 };
 }
 
 // ── 置いた所の保存（端末の中だけ）──
 export const VEH_KEY = "cb3Vehicles";
 export function loadVehicles() {
-  const out = { v: 1, parked: { bike: null, car: null }, view: { bike: "fp", car: "tp", drone: "tp" } };
+  const out = { v: 1, parked: { bike: null, car: null }, view: { bike: "fp", car: "tp", drone: "tp", jet: "tp" } };
   try {
     const j = JSON.parse(localStorage.getItem(VEH_KEY) || "null");
     if (j && j.v === 1) {
       for (const k of ["bike", "car"]) {
         const p = j.parked?.[k];
-        if (p && [p.x, p.y, p.z, p.yaw].every(Number.isFinite)) out.parked[k] = { x: p.x, y: p.y, z: p.z, yaw: p.yaw };
+        if (p && [p.x, p.y, p.z, p.yaw].every(Number.isFinite)) {
+          out.parked[k] = { x: p.x, y: p.y, z: p.z, yaw: p.yaw };
+          if (k === "car" && Array.isArray(p.dents) && p.dents.length === 4 && p.dents.every(Number.isFinite))
+            out.parked[k].dents = p.dents.map(v => clamp(v, 0, 1));
+        }
       }
       for (const k of VEHICLE_KINDS) if (j.view?.[k] === "fp" || j.view?.[k] === "tp") out.view[k] = j.view[k];
     }

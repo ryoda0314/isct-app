@@ -13,7 +13,7 @@ import { MARKS_KEY, fromWorld, marksJSON, nearFeatures, parseMarks, pointOnRay, 
 
 const SHOT_KEY = "cb3DebugShot";
 const CSS = `
-.cb3-dbg-btn{position:absolute;right:10px;bottom:274px;width:40px;height:40px;border:none;border-radius:14px;background:var(--cb3-btn);color:var(--cb3-btn-tx);
+.cb3-dbg-btn{position:absolute;left:10px;bottom:66px;width:40px;height:40px;border:none;border-radius:14px;background:var(--cb3-btn);color:var(--cb3-btn-tx);
   box-shadow:0 6px 16px -6px rgba(0,0,0,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;z-index:2}
 .cb3-dbg-btn.on{background:#e11d48;color:#fff}
 .cb3-dbg-btn .cb3-dbg-n{position:absolute;right:-4px;top:-4px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#e11d48;color:#fff;font-size:10px;font-weight:800;line-height:16px}
@@ -46,7 +46,7 @@ const CSS = `
 .cb3-dbg-hint{position:absolute;left:50%;top:14px;transform:translateX(-50%);padding:7px 13px;border-radius:14px;background:rgba(225,29,72,.92);color:#fff;font-size:12.5px;font-weight:700;
   z-index:4;pointer-events:none;white-space:nowrap}
 .cb3-placing .maplibregl-canvas{cursor:crosshair!important}
-.cb3-dbg-walkbtn{position:absolute;right:12px;top:14px;height:38px;padding:0 14px;border:none;border-radius:19px;background:rgba(225,29,72,.9);color:#fff;font-size:13px;font-weight:800;
+.cb3-dbg-walkbtn{position:absolute;left:10px;top:94px;height:32px;padding:0 12px;border:none;border-radius:16px;background:rgba(225,29,72,.9);color:#fff;font-size:12px;font-weight:800;
   pointer-events:auto;cursor:pointer;z-index:4}
 `;
 const PIN_ICON = (

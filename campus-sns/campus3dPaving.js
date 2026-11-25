@@ -69,7 +69,8 @@ export function attachPaving(map, ml, surfaces, bounds) {
     blank?.then(bitmap => bitmap.close?.(), () => {});
     ml.removeProtocol(protocol);
   });
-  map.addSource("cbPaving", { type: "raster", tiles: [url()], bounds: [bounds.w, bounds.s, bounds.e, bounds.n], tileSize: TILE, minzoom: 18, maxzoom: 22 });
+  // At walking distance level 23 resolves a 10 cm paver across about thirteen texels.
+  map.addSource("cbPaving", { type: "raster", tiles: [url()], bounds: [bounds.w, bounds.s, bounds.e, bounds.n], tileSize: TILE, minzoom: 18, maxzoom: 23 });
   map.addLayer({ id: "cb-paving-detail", type: "raster", source: "cbPaving", minzoom: 18, paint: {
     "raster-opacity": ["interpolate", ["linear"], ["zoom"], 18, 0, 20, 1], "raster-fade-duration": 0,
   } }, "cb-pave-fine");

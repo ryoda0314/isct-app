@@ -5,6 +5,9 @@
 // ぶつかり：建物（高さのぶんだけ。通り抜け・くり抜きはくぐれる）・手で足した壁・木の幹・池・街灯の柱・地図の外。橋や階段の横、くり抜きの床のふち
 // （手すり）、平地の段差のふち（柵）からは落ちない。どこからでも歩きはじめられるよう、画面で指したところの立てる面も出す（pick）。
 // ここは位置・速さ・向きの計算と、目の位置から MapLibre のカメラ（中心・ズーム・中心の標高）を出す計算。DOM も MapLibre も使わない
+import { squareGrade } from "./campus3dStreetPavement.js";
+import { streetShopObstacles } from "./campus3dStreetLayout.js";
+import { shoppingStreetSupports, streetRoute } from "./campus3dShoppingStreet.js";
 import { BOARD_T, STAIRS_CLEAR, WALL_IN, WALL_T, basementRegions, buildingOpenings, buildingRoof, buildingSoffit, clearGlassFace, cumulative, densify, edgeOpen, inBasement, isOpenStairs, curbWidth, offsetLine, overLids, panelSlices, pointInRing, prepareBridge, preparePaving, prepareSurveyGround, pavingSubgrade, railGround, signFrame, ringArea, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, vertexShifts, vertexWidths, withAutoOpenStairs } from "./campus3dFeatures.js";
 import { carveSurfaces, reachOut, trunkRadius } from "./campus3dMesh.js";
 import { lecturePostFootprints } from "./campus3dLectureArcade.js";
@@ -23,6 +26,7 @@ export const SPRINT_FOV = 8; // ダッシュ中は画角を少し広げる（Min
 // カメラから地図の中心（視線の先）まで(m)。MapLibre は近い面を「中心までの距離 ÷ 35 ほど」に置くので、近いほど
 // 目の前の壁が切れない（体の半径 BODY より近い面が手前に来ないように）。中心は視線の先の宙か地面の下でよい。ズームはおよそ 22.5
 export const VIEW_D = 8;
+export const WALK_MAX_ZOOM = 24;
 const BODY = 0.3; // 体の半径：壁にこれより近づかない（Minecraft と同じ）
 const AUTO_DOOR_H = 2.3; // 平地の面の自動ドアの口の高さ（面の下の端から。campus3dMesh の addFace の板の上の端と同じ）
 const STEP = 0.6; // 歩いて上れる段（Minecraft と同じ）。地面に沿って下りる段も
@@ -101,12 +105,23 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
   const edges = new Grid(10);
   const ALL = [[-Infinity, Infinity]];
   const inRings = (x, y, rings) => rings.some((r) => pointInRing(x, y, r));
+  // At a stair/landing joint the contact surface is the actual nosing. Expanding
+  // the landing rim by a body radius would cover the last tread of a short run.
+  const stairEnds = new Grid(8);
+  for (const d of decks) if (d.flight) {
+    const g = d.flight;
+    for (const s of [0, g.length]) {
+      const a = g.at(s, -d.hw), b = g.at(s, d.hw);
+      stairEnds.add(boxOf([a, b], .06), { a, b, z: g.slope(s), riser: g.riser });
+    }
+  }
   const ground = (x, y) => groundAt(toLngLat([x, y]));
   const terrain = surfaceAt ? (x, y) => surfaceAt(toLngLat([x, y])) : ground;
   const paving = new Grid(10);
   const plates = features.filter(f => f.grade).map(preparePaving).filter(Boolean);
   const surveyGround = prepareSurveyGround(plates);
   for (const plate of plates) paving.add(plate.box, plate);
+  const plazaGrade=squareGrade(features.find(f=>f.shopfronts?.some(s=>s.shop==="shibata")),groundAt);
   const pavedHeight = (x, y) => {
     let top = null;
     paving.some(x, y, 0, plate => {
@@ -114,7 +129,7 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
       if (z != null && (top == null || z > top)) top = z;
       return false;
     });
-    return top;
+    return top ?? plazaGrade?.(x,y) ?? null;
   };
   const surface = (x, y) => pavedHeight(x, y) ?? terrain(x, y);
   // 壁：線分 a–b から half m 以内で、高さの区間 spans にかかる体は通れない（stand なら区間の上には立てる：体が少しでもかかる段には
@@ -152,7 +167,11 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
           // 1 階の床の口のふちが、床のない扉の前をふさいでいた）
           if (!pIn && !inside(m[0] - nx * 0.05, m[1] - ny * 0.05)) continue;
           const s = pIn ? [m[0] + nx * 0.05, m[1] + ny * 0.05] : [m[0] - nx * 0.05, m[1] - ny * 0.05];
-          addEdge(p, q, BODY, spans(s[0], s[1]), solid);
+          const band = spans(s[0], s[1]);
+          const meetsFlight = stairEnds.m.size && stairEnds.some(m[0], m[1], .06, lip =>
+            segDist(...p, lip.a, lip.b) < .06 && segDist(...q, lip.a, lip.b) < .06 &&
+            band.some(([, hi]) => Math.abs(hi - lip.z) <= lip.riser + .01));
+          addEdge(p, q, meetsFlight ? .01 : BODY, band, solid);
         }
       }
     }
@@ -202,6 +221,12 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
   // 壁・柵の足もと：天井のある平地のふたの上では、ふたの上（焼き込んだ地面は下の部屋の床）
   const wallGround = overLids(groundAt, features.filter((f) => f.type === "terrace" && f.ceiling > 0 && !(f.side > 0) && f.coords?.length > 2).map((f) => terraceLid(f, f.coords.map(toXY), f.elev, ground)).filter(Boolean));
   for (const f of features) {
+    if (f.shoppingStreet) {
+      for (const { post, radius, dim } of shoppingStreetSupports(streetRoute(f.coords))) {
+        const z = ground(...post);
+        if (Number.isFinite(z)) addEdge(post, post, BODY + radius, [[z, z + dim[2]]], null, false);
+      }
+    }
     if (f.type === "building") {
       // 手で足した建物：屋根の高さはその点の屋根（斜めに切った面）。くり抜き・建物を通る通り抜けのところは、床より下と天井より上だけ
       const ring = f.coords.map(toXY);
@@ -210,6 +235,7 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
       const ref = f.groundRef ? toXY(f.groundRef) : mean; // 高さを測る地面の点（描くのと同じ）
       const g0 = ground(ref[0], ref[1]);
       if (!Number.isFinite(g0)) continue;
+      if (f.shopfronts) streetShopObstacles(f, toXY, (ring, h) => addSolid(ring, [], () => [[g0, g0 + h]]));
       const roofOf = buildingRoof(f);
       const hAt = roofOf.hAt;
       const carves = buildingOpenings(f, features).map((cv) => {
@@ -378,6 +404,20 @@ export function walkWorld({ data, features = [], cut = null, replaced = null, he
   const bridgeStrips = crossFeats.map((f, i) => {
     if (f.type !== "bridge") return null;
     const pb = prepareBridge(f, groundAt);
+    if (pb?.flight) {
+      const g = pb.flight, L = g.length, w = pb.hw;
+      addSolid([g.at(0,w), g.at(0,-w), g.at(L,-w), g.at(L,w)], [], (x,y) => {
+        const s = g.run(x,y);
+        return [[g.bottom(s, g.across(x,y)), g.top(s)]];
+      }, g.tread);
+      if (f.railing) for (const side of [-1,1]) {
+        for (let k = 0; k < f.steps-1; k++) {
+          const a = k*g.tread, b = (k+1)*g.tread, h = g.slope(a);
+          addEdge(g.at(a,side*(w-.06)), g.at(b,side*(w-.06)), BODY+.025,
+            [[h-.04, g.slope(b)+1.06]], null, false);
+        }
+      }
+    }
     return pb ? { ...crossings[i], id: f.id, under: (x, y) => pb.deckAt(stripDistance(pb.xy, pb.cum, pb.hwv, [x, y], pb.cv).s) - f.thickness } : null;
   }).filter(Boolean);
   const underBridge = (x, y) => {
@@ -1046,6 +1086,34 @@ export function stepRoute(s, path, dt, world, { run = false, steer = true } = {}
   return { ...s, x, y, along, yaw, z: f ? f.z : s.z, deck: f ? f.deck : null, vx: 0, vy: 0, vz: 0, onGround: true, stepUp: f ? f.z - s.z : 0, done: along >= path.len - 0.01 };
 }
 
+// Ground displacement after collision detection drives the steps. A head
+// translates a few centimetres; the small residual angular motion is what
+// remains visible against the distant skyline. Angles are in degrees.
+export function stepWalkView(w, distance, dt, fov, steady = false) {
+  if (steady) {
+    w.bobAmp = 0;
+    return { height: 0, yaw: 0, pitch: 0 };
+  }
+  const speed = dt > 0 ? Math.min(SPEED.sprint, distance / dt) : 0;
+  const strength = Math.sqrt(speed / SPEED.walk);
+  w.bobAmp += (strength - w.bobAmp) * -Math.expm1(-dt * (strength > w.bobAmp ? 8 : 15));
+  if (speed > 0.02) {
+    const stepsPerSecond = 1.2 + 0.27 * speed;
+    w.bobPhase = (w.bobPhase + Math.PI * stepsPerSecond * dt) % (2 * Math.PI);
+  } else if (w.bobAmp < 0.002) {
+    w.bobAmp = 0;
+  }
+  const stride = w.bobPhase;
+  // Keep a tracking telephoto lens usable while walking. A narrow field
+  // magnifies even a fraction of a degree of head rotation.
+  const lens = Math.min(1, 1.45 * Math.tan(fov * DEG / 2) / Math.tan(WALK_FOV * DEG / 2));
+  return {
+    height: -0.025 * (1 - Math.cos(2 * stride)) * w.bobAmp,
+    yaw: 0.10 * Math.sin(stride) * w.bobAmp * lens,
+    pitch: 0.16 * Math.sin(2 * stride) * w.bobAmp * lens,
+  };
+}
+
 /**
  * 目（平面の x, y と標高 z）・方位 yaw・pitch から MapLibre の jumpTo に渡すカメラ。中心は視線の先 D m（宙か地面の下でもよい）。
  * view は { height（地図の高さ px）, fov（縦の画角、ラジアン） }
@@ -1053,8 +1121,13 @@ export function stepRoute(s, path, dt, world, { run = false, steer = true } = {}
 export function eyeCamera({ x, y, z }, yaw, pitch, view, D = VIEW_D) {
   const p = pitch * DEG;
   const b = yaw * DEG;
+  // A telephoto view can exceed MapLibre's zoom limit at the usual 8 m focus
+  // distance. Move the map centre along the same ray so the eye stays put.
+  const focal = .5 * view.height / Math.tan(view.fov / 2);
+  const metresPerPixel = 40075016.686 * Math.cos(toLngLat([x,y])[1] * DEG) / (512 * 2**WALK_MAX_ZOOM);
+  D = Math.max(D, focal * metresPerPixel * 1.0001);
   const h = D * Math.sin(p);
   const [lng, lat] = toLngLat([x + h * Math.sin(b), y + h * Math.cos(b)]);
-  const zoom = Math.log2((((0.5 * view.height) / Math.tan(view.fov / 2)) * 40075016.686 * Math.cos(lat * DEG)) / (D * 512));
+  const zoom = Math.log2((focal * 40075016.686 * Math.cos(lat * DEG)) / (D * 512));
   return { center: [lng, lat], elevation: z - D * Math.cos(p), zoom, bearing: yaw, pitch };
 }

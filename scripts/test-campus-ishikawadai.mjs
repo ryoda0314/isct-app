@@ -6,8 +6,10 @@ import clip from "polygon-clipping";
 import sharp from "sharp";
 import { raycastMesh } from "../campus-sns/campus3dDebug.js";
 import { stepDoors } from "../campus-sns/campus3dDoors.js";
-import { burnsGround, detailView, parseFeatures, prepareBridge, replacedBuildings, stairsPath, toLngLat, toXY } from "../campus-sns/campus3dFeatures.js";
+import { burnsGround, detailView, parseFeatures, pointInRing, prepareBridge, preparePaving, replacedBuildings, stairsPath, toLngLat, toXY } from "../campus-sns/campus3dFeatures.js";
 import { buildMesh, worldOf } from "../campus-sns/campus3dMesh.js";
+import { paintFeatures } from "../campus-sns/campus3dPaint.js";
+import { rainMaterial } from "../campus-sns/campus3dRainGround.js";
 import { walkWorld } from "../campus-sns/campus3dWalk.js";
 import { BASEMAP } from "../campus-sns/campusBasemapData.js";
 import { dem } from "../campus-sns/campusDem.js";
@@ -88,6 +90,12 @@ test("the street spans a separate asphalt tunnel, with a continuous upper roadbe
   const hit = raycastMesh(mesh, { o: [...worldOf(p), 28], d: [0,0,-1] }, ["floors"]);
   assert.ok(hit && Math.abs(28-hit.t-levels[0]) < .025);
   assert.equal(mesh.floors.batches.find(b => hit.tri*3 >= b.first && hit.tri*3 < b.first+b.count)?.finish, "paving/asphalt");
+  const upper = byId.get("sg-crossing-carriage"), formation = byId.get(upper.pavingHost);
+  const raised = buildMesh([tunnel,formation,upper], { groundAt, terraces: dem.terraces.filter(tr => [tunnel.id,formation.id].includes(tr.f.id)), clip });
+  const roadHit = raycastMesh(raised, {o:[...worldOf(p),32],d:[0,0,-1]});
+  assert.equal(roadHit?.pass,"floors");
+  assert.ok(Math.abs(32-roadHit.t-levels[1]) < .035);
+  assert.equal(raised.floors.batches.find(b => roadHit.tri*3 >= b.first && roadHit.tri*3 < b.first+b.count)?.finish,"paving/campusAsphalt");
 });
 
 test("pedestrians can pass the gate bollards and each ELSI entrance opens independently", () => {
@@ -105,5 +113,50 @@ test("pedestrians can pass the gate bollards and each ELSI entrance opens indepe
     stepDoors(doors, state, { x: (d.a[0]+d.b[0])/2, y: (d.a[1]+d.b[1])/2, z: d.z0+.05 }, 1);
     assert.equal(state[i], 1);
     assert.equal(state[1-i], 0);
+  }
+});
+
+test("the stone, brick and asphalt along the route survive terrain paint ordering", () => {
+  const present = raw.features.filter(f => f.type === "surface" && (!f.until || f.until > "2026-11-19"));
+  const painted = paintFeatures(parseFeatures(present)).surfaces.features;
+  const samples = [
+    [[142,240], "gateAshlar"], [[124,146], "walkBond"], [[40,17], "granite"],
+    [xy(1,202), "avenueHerring"], [xy(2,49), "avenueHerring"], [xy(-2.7,37), "walkBond"],
+    [xy(-8,66), "clayHerring"], [xy(-16,72.5), "clayHerring"], [xy(-4,-32), "walkBond"],
+    [xy(-4,-52), "campusAsphalt"], [xy(8,-71.99), "campusAsphalt"],
+  ];
+  for (const [point, expected] of samples) {
+    const ll = toLngLat(point);
+    const top = painted.findLast(({geometry}) => {
+      const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
+      return polygons.some(([outer,...holes]) => pointInRing(...ll,outer) && !holes.some(r => pointInRing(...ll,r)));
+    });
+    assert.equal(top?.properties.paving, expected, "finish at " + point);
+    assert.ok(rainMaterial(top.properties) > .5, "missing wet finish at " + point);
+  }
+});
+
+test("crossing finishes use separate inlaid blocks and continuous paint with worn-through holes", () => {
+  const paint = id => paintFeatures([byId.get(id)]).paint.features.flatMap(f => f.geometry.coordinates);
+  const pavers = paint("ginkgo-shop-cross"), stripes = paint("sg-cross");
+  assert.ok(pavers.length > 150 && pavers.every(rings => rings.length === 1));
+  assert.ok(stripes.length >= 5 && stripes.length < 10);
+  assert.ok(stripes.every(rings => rings.length > 10));
+  const [near,far] = byId.get("ud-ramp-stop-text").coords.map(toXY);
+  const stop = toXY(byId.get("ud-ramp-stop-bar").coords[0]);
+  const [wing, tip] = byId.get("ud-up-chevron-1").coords.map(toXY);
+  assert.ok(near[1] > far[1] && far[1] > stop[1] && stop[1] > wing[1] && wing[1] > tip[1],
+    "the downhill rider sees the lettering, stop bar, then the forward-pointing chevron");
+});
+
+test("flush hardware and the ELSI resurfacing follow the surveyed walking plane", () => {
+  for (const [insetId, baseId, point, low, high] of [
+    ["elsi-road-repair","ig-entry-apron",xy(8,-71.99),.009,.015],
+    ["sg-road-drain-2","sg-crossing-n-gutter",xy(-1.75,-48.66),.010,.032],
+  ]) {
+    const base = byId.get(baseId), surface = preparePaving(base).heightAt(...point);
+    const mesh = buildMesh([base,byId.get(insetId)],{groundAt:()=>15, clip});
+    const hit = raycastMesh(mesh,{o:[...worldOf(point),surface+1],d:[0,0,-1]});
+    assert.ok(hit && (1-hit.t) >= low && (1-hit.t) <= high, insetId);
   }
 });

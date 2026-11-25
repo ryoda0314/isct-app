@@ -95,7 +95,7 @@ test("every assortment has independently positioned, volumetric products at both
   for (const chunk of mesh.marketStock.chunks)
     for (const g of chunk.groups) {
       assert.equal(g.instances.length % STOCK_STRIDE, 0);
-      if (g.model.startsWith("price") || g.model === "iceBed" || MARKET_SHELF_LABELS[g.model]) continue;
+      if (g.model.startsWith("street/") || g.model.startsWith("price") || g.model === "iceBed" || MARKET_SHELF_LABELS[g.model]) continue;
       inventory.set(g.model, (inventory.get(g.model) || 0) + g.instances.length / STOCK_STRIDE);
       facings.add(g.behind);
       for (let j = 0; j < g.instances.length; j += STOCK_STRIDE) {

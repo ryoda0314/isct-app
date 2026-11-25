@@ -14,12 +14,12 @@ import { walkWorld } from "../campus-sns/campus3dWalk.js";
 const { features } = JSON.parse(readFileSync(new URL("../public/map-3d/features.json", import.meta.url)));
 
 test("the shaped study table and its five webbed chairs are on Taki Plaza's second floor", () => {
-  const floors = features.filter(f => f.id.startsWith("taki-int-")).map(f => normalizeFeature(f));
-  const levelsFor = (kind, style) => floors.flatMap(f =>
-    f.items.filter(it => it.kind === kind && it.style === style).map(() => f.level)
+  const floors = features.filter(f => f.id.startsWith("taki-int-"));
+  const levelsFor = (kind, style, name) => floors.flatMap(f =>
+    normalizeFeature(f).items.filter((it, j) => it.kind === kind && it.style === style && f.items[j].name === name).map(() => f.level)
   );
-  assert.deepEqual(levelsFor("table", "slab"), ["2F"]);
-  assert.deepEqual(levelsFor("woodchair", "webbed"), Array(5).fill("2F"));
+  assert.deepEqual(levelsFor("table", "slab", "学習スペースの変形テーブル"), ["2F"]);
+  assert.deepEqual(levelsFor("woodchair", "webbed", "変形テーブルの編み座椅子"), Array(5).fill("2F"));
 });
 
 // Metres along the second-floor plan, turned to the building's bearing.

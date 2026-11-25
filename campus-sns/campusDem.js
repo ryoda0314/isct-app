@@ -74,6 +74,42 @@ async function encodePng(vals) {
   return blob.arrayBuffer();
 }
 
+// 焼き込む物（平地・ねじれた面・坂道・階段）を升目に分けておく（並びごとに一度。並びは setBurns で入れかわるだけで、中は変えない）。
+// どれも箱の外では v をそのまま返すので、点の升目に箱がかかる物だけを、もとの並びの順に当てれば答えは同じ（2026-11-25：地面の高さを
+// 聞くたびに全部（数百）の箱を見ていて、歩く世界を作る時間の半分ほどがこれだった）
+const BURN_CELL = 16;
+const BURN_LIM = 100000; // 升目の番号がこれより大きい箱（ふつうはない）は、いつも当てる側に入れる
+const BURN_IDX = new WeakMap();
+function burnsNear(list, x, y) {
+  if (list.length < 8) return list;
+  let g = BURN_IDX.get(list);
+  if (!g) {
+    const ids = new Map();
+    const always = [];
+    list.forEach((it, i) => {
+      const b = it.box;
+      const c = b && [Math.floor(b[0] / BURN_CELL), Math.floor(b[1] / BURN_CELL), Math.floor(b[2] / BURN_CELL), Math.floor(b[3] / BURN_CELL)];
+      if (!c || !c.every((v) => Number.isFinite(v) && Math.abs(v) < BURN_LIM)) { always.push(i); return; }
+      for (let cx = c[0]; cx <= c[2]; cx++) {
+        for (let cy = c[1]; cy <= c[3]; cy++) {
+          const k = cx * (2 * BURN_LIM + 1) + cy;
+          if (!ids.has(k)) ids.set(k, []);
+          ids.get(k).push(i);
+        }
+      }
+    });
+    const cells = new Map();
+    for (const [k, a] of ids) cells.set(k, (always.length ? [...a, ...always].sort((p, q) => p - q) : a).map((i) => list[i]));
+    g = { cells, rest: always.map((i) => list[i]) };
+    BURN_IDX.set(list, g);
+  }
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return g.rest;
+  const cx = Math.floor(x / BURN_CELL);
+  const cy = Math.floor(y / BURN_CELL);
+  if (Math.abs(cx) >= BURN_LIM || Math.abs(cy) >= BURN_LIM) return g.rest;
+  return g.cells.get(cx * (2 * BURN_LIM + 1) + cy) || g.rest;
+}
+
 class Dem {
   constructor() {
     this.tiles = new Map(); // "x/y"（ズーム15）→ Float32Array | null（取れなかった）
@@ -158,9 +194,9 @@ class Dem {
     let v = this.baseAt(ll);
     if ((!this.terraces.length && !this.shells.length) || !Number.isFinite(v)) return v;
     const [x, y] = toXY(ll);
-    for (const t of this.terraces) v = shown ? t.burn(x, y, v) : t.level(x, y, v);
+    for (const t of burnsNear(this.terraces, x, y)) v = shown ? t.burn(x, y, v) : t.level(x, y, v);
     if (!shown) v = this.deckHeight(x, y, v);
-    for (const s of this.shells) v = s.burn(x, y, v);
+    for (const s of burnsNear(this.shells, x, y)) v = s.burn(x, y, v);
     return v;
   }
 
@@ -169,7 +205,7 @@ class Dem {
     let v = this.levelAt(ll, true);
     if ((!this.slopes.length && !this.deckFloors.length && !this.surveyGround) || !Number.isFinite(v)) return v;
     const [x, y] = toXY(ll);
-    for (const s of this.slopes) v = s.burn(x, y, v);
+    for (const s of burnsNear(this.slopes, x, y)) v = s.burn(x, y, v);
     v = this.deckHeight(x, y, v);
     return this.surveyGround ? this.surveyGround.at(x, y, v) : v;
   }

@@ -3,6 +3,8 @@
 // 描き方（空・木・雨）はこの状態を読むだけ（芯 3）。DOM も MapLibre も使わない
 import { SUN_SITE, sunPosition } from "./campus3dSky.js";
 import { dayOfYear } from "./campus3dClock.js";
+import { moonPosition } from "./campus3dMoon.js";
+export { moonPosition };
 
 const DEG = Math.PI / 180;
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
@@ -21,73 +23,36 @@ export const SRC = {
   unknown: "不明",
 };
 
-// ── 月（SunCalc と同じ低精度の式。1〜2° ほど）と満ち欠け ──
 // 2000 年 1 月 1 日 12 時（UT）からの日数
 const daysJ2000 = (date) => date.getTime() / 86400000 + 2440587.5 - 2451545.0;
-const OBL = 23.4397 * DEG;
-function eclToEq(lon, lat) {
-  const ra = Math.atan2(Math.sin(lon) * Math.cos(OBL) - Math.tan(lat) * Math.sin(OBL), Math.cos(lon));
-  const dec = Math.asin(Math.sin(lat) * Math.cos(OBL) + Math.cos(lat) * Math.sin(OBL) * Math.sin(lon));
-  return { ra, dec };
-}
 // 地方恒星時（ラジアン）
 export function siderealTime(date, lng = SUN_SITE.lng) {
   const n = daysJ2000(date);
   const gmst = (((18.697374558 + 24.06570982441908 * n) % 24) + 24) % 24;
   return ((gmst * 15 + lng) % 360) * DEG;
 }
-function horizontal(ra, dec, date, lat = SUN_SITE.lat, lng = SUN_SITE.lng) {
-  const H = siderealTime(date, lng) - ra;
-  const phi = lat * DEG;
-  const el = Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H));
-  const az = Math.atan2(-Math.sin(H), Math.tan(dec) * Math.cos(phi) - Math.sin(phi) * Math.cos(H));
-  return { elevation: el / DEG, azimuth: (((az / DEG) % 360) + 360) % 360 };
-}
-export function moonPosition(date) {
-  const d = daysJ2000(date);
-  const L = (218.316 + 13.176396 * d) * DEG;
-  const M = (134.963 + 13.064993 * d) * DEG;
-  const F = (93.272 + 13.22935 * d) * DEG;
-  const lon = L + 6.289 * DEG * Math.sin(M);
-  const lat = 5.128 * DEG * Math.sin(F);
-  const dist = 385001 - 20905 * Math.cos(M); // km
-  const { ra, dec } = eclToEq(lon, lat);
-  const h = horizontal(ra, dec, date);
-  // 地平視差（月は近いので、地上から見ると少し低い）
-  const par = Math.asin(6378.14 / dist) / DEG;
-  h.elevation -= par * Math.cos(h.elevation * DEG);
-  // 満ち欠け：太陽との離角から光っている割合
-  const ms = daysJ2000(date);
-  const sM = (357.5291 + 0.98560028 * ms) * DEG;
-  const sL = sM + (1.9148 * Math.sin(sM) + 0.02 * Math.sin(2 * sM) + 0.0003 * Math.sin(3 * sM)) * DEG + 102.9372 * DEG + Math.PI;
-  const sun = eclToEq(sL, 0);
-  const phi = Math.acos(Math.min(1, Math.max(-1, Math.sin(sun.dec) * Math.sin(dec) + Math.cos(sun.dec) * Math.cos(dec) * Math.cos(sun.ra - ra))));
-  const inc = Math.atan2(149598000 * Math.sin(phi), dist - 149598000 * Math.cos(phi));
-  const lit = (1 + Math.cos(inc)) / 2;
-  const waxing = ((lon - sL) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) < Math.PI;
-  return { ...h, lit, waxing, dist };
-}
-
 // 高さ・方位（度。方位は北 0・時計回り）→ 東・北・上の単位ベクトル
 export function dirOf({ elevation, azimuth }) {
   const e = elevation * DEG;
   const a = azimuth * DEG;
   return [Math.cos(e) * Math.sin(a), Math.cos(e) * Math.cos(a), Math.sin(e)];
 }
-// 星を回すための行列：東・北・上の向き d → 天球に固定した向き（x：春分点・z：天の北極）。行ごとに [r0, r1, r2]
-export function starMatrix(date, lat = SUN_SITE.lat) {
-  const phi = lat * DEG;
-  const lst = siderealTime(date);
-  const mer = [0, -Math.sin(phi), Math.cos(phi)]; // 子午線上の天の赤道（時角 0）
-  const east = [1, 0, 0]; // 東の点（赤経が lst + 90°）
-  const pole = [0, Math.cos(phi), Math.sin(phi)];
-  const c = Math.cos(lst);
-  const s = Math.sin(lst);
-  // v = Rz(lst) · [mer·d, east·d, pole·d]
+// 東・北・上 → 星表の J2000 赤道座標（行優先）。恒星時は当日の春分点を使うので、歳差を戻す。
+export function starMatrix(date, lat = SUN_SITE.lat, lng = SUN_SITE.lng) {
+  const t = daysJ2000(date) / 36525, arcsec = DEG / 3600;
+  // IAU 1976 precession from J2000, in arcseconds.
+  const zeta = t * (2306.2181 + t * (0.30188 + 0.017998 * t)) * arcsec;
+  const z = t * (2306.2181 + t * (1.09468 + 0.018203 * t)) * arcsec;
+  const theta = t * (2004.3109 - t * (0.42665 + 0.041833 * t)) * arcsec;
+  const phi = lat * DEG, h = siderealTime(date, lng) - z;
+  const mer = [0, -Math.sin(phi), Math.cos(phi)], pole = [0, Math.cos(phi), Math.sin(phi)];
+  const x = [-Math.sin(h), Math.cos(h) * mer[1], Math.cos(h) * mer[2]];
+  const y = [Math.cos(h), Math.sin(h) * mer[1], Math.sin(h) * mer[2]];
+  const tilted = x.map((v, i) => Math.cos(theta) * v + Math.sin(theta) * pole[i]);
   return [
-    [c * mer[0] - s * east[0], c * mer[1] - s * east[1], c * mer[2] - s * east[2]],
-    [s * mer[0] + c * east[0], s * mer[1] + c * east[1], s * mer[2] + c * east[2]],
-    pole,
+    tilted.map((v, i) => Math.cos(zeta) * v + Math.sin(zeta) * y[i]),
+    tilted.map((v, i) => -Math.sin(zeta) * v + Math.cos(zeta) * y[i]),
+    pole.map((v, i) => Math.cos(theta) * v - Math.sin(theta) * x[i]),
   ];
 }
 
@@ -400,7 +365,6 @@ export function envAt(date, W, fixedSun = null) {
   const sun = fixedSun ? { ...fixedSun } : sunPosition(date);
   sun.dir = dirOf(sun);
   const moon = moonPosition(date);
-  moon.dir = dirOf(moon);
   const doy = dayOfYear(date.getTime());
   const plants = {};
   for (const k of SPECIES_ORDER) plants[k] = phenology(k, doy);
@@ -412,8 +376,8 @@ export function envAt(date, W, fixedSun = null) {
     weather: W,
     prov: {
       sun: { kind: fixedSun ? SRC.stylized : SRC.computed, note: fixedSun ? "見え方を固定（昼・夕方・夜）" : "NOAA の近似式（誤差 約 1°）" },
-      moon: { kind: SRC.computed, note: "低精度の式（誤差 1〜2°）・満ち欠け" },
-      stars: { kind: SRC.stylized, note: "星の並びは作りもの（地球の回転・緯度は計算どおり）" },
+      moon: { kind: SRC.computed, note: "大岡山の観測位置と時刻から月の方位・視直径・満ち欠け・秤動を計算。月面は NASA/SVS の LROC 撮像・LOLA 測高データ" },
+      stars: { kind: SRC.computed, note: "輝星星表の位置・等級・色と、大岡山の緯度・経度、時刻から計算。惑星は JPL の近似軌道。街明かりによる見え方は推定" },
       plants: { kind: SRC.estimated, note: "樹種ごとの時期（気象庁 東京の平年値などから）＋木ごとのずれ" },
       lawn: { kind: SRC.estimated, note: "コウライシバの一般的な時期" },
       weather: known ? { kind: W.src === "manual" ? SRC.manual : SRC.observed, note: W.preset ? WEATHER_PRESETS[W.preset].label : "値を決めた" } : { kind: SRC.unknown, note: "観測データなし（雲・雨なしで描く）" },

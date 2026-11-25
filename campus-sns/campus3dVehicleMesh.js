@@ -1,4 +1,4 @@
-// 乗り物（campus3dVehicles）の形：自転車（26 インチのママチャリ）・車（右ハンドルの小さな 5 ドア）・ドローン（4 枚羽根）と、乗る人・操縦する人。
+// 乗り物と乗員をキャンパスの描画座標へ変換する。クーペとジェット機の部品は campus3dMotorModels。
 // ローカルの座標（前 x・左 y・上 z、m。乗り物の基準の点が原点）で部品ごとに三角形を作っておき（はじめの 1 回）、毎フレーム、向き・傾き・
 // 車輪の回り・ハンドル・羽根を当てて描く座標（worldOf と標高 m）に書く。色のアルファ 0.5 は光を受けない（点いたライト）。
 // 描くのは campus3dLayer の createVehiclesLayer：solid（ふつう）・glass（車の窓。濃い半透明）・screen（前かごの網・回る羽根。薄い半透明）・glow（光のにじみ）
@@ -6,195 +6,10 @@ import earcut from "earcut";
 import { GlowMesh, worldOf } from "./campus3dMesh.js";
 import { BIKE, CAR, DRONE } from "./campus3dVehicles.js";
 
-const DEG = Math.PI / 180;
-const TAU = Math.PI * 2;
-// ── ベクトル ──
-const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
-const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-const mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
-const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-const unit = (a) => {
-  const l = Math.hypot(a[0], a[1], a[2]) || 1;
-  return [a[0] / l, a[1] / l, a[2] / l];
-};
-const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-const basis = (ax) => {
-  const t = Math.abs(ax[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
-  const u = unit(cross(ax, t));
-  return [u, cross(ax, u)];
-};
-// 3×3（行ごと）
-const rotAxis = (ax, a) => {
-  const [x, y, z] = unit(ax);
-  const c = Math.cos(a), s = Math.sin(a), t = 1 - c;
-  return [t * x * x + c, t * x * y - s * z, t * x * z + s * y, t * x * y + s * z, t * y * y + c, t * y * z - s * x, t * x * z - s * y, t * y * z + s * x, t * z * z + c];
-};
-const mm = (A, B) => {
-  const o = new Array(9);
-  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) o[r * 3 + c] = A[r * 3] * B[c] + A[r * 3 + 1] * B[3 + c] + A[r * 3 + 2] * B[6 + c];
-  return o;
-};
-const mv = (A, v) => [A[0] * v[0] + A[1] * v[1] + A[2] * v[2], A[3] * v[0] + A[4] * v[1] + A[5] * v[2], A[6] * v[0] + A[7] * v[1] + A[8] * v[2]];
-const I3 = [1, 0, 0, 0, 1, 0, 0, 0, 1];
-// 点 p のまわりに回す（v → R(v − p) + p）
-const about = (R, p) => ({ R, t: sub(p, mv(R, p)) });
-const compose = (A, B) => ({ R: mm(A.R, B.R), t: add(mv(A.R, B.t), A.t) }); // A のあとに B を先に当てる：v → A(B v)
-const ID = { R: I3, t: [0, 0, 0] };
+import { DEG, TAU, add, sub, mul, dot, unit, rotAxis, mm, mv, I3, about, compose, ID, Part, tube, tubes, torus, disc, cyl, box, obox, limb, ellipsoid, rgb } from "./campus3dVehicleGeometry.js";
+import { carParts, dentedShell, jetParts } from "./campus3dMotorModels.js";
+import { BLASTER, addBlaster, addCanopy } from "./campus3dRoyaleModels.js";
 
-// ── 部品：ローカルの三角形 ──
-class Part {
-  constructor() {
-    this.p = [];
-    this.n = [];
-    this.c = [];
-  }
-
-  tri(a, b, c, col, nrm = null, ref = null) {
-    let n = nrm || unit(cross(sub(b, a), sub(c, a)));
-    if (ref && dot(n, sub(add(add(a, b), c).map((v) => v / 3), ref)) < 0) n = mul(n, -1);
-    this.p.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
-    for (let i = 0; i < 3; i++) {
-      this.n.push(n[0], n[1], n[2]);
-      this.c.push(col[0], col[1], col[2], col[3] ?? 1);
-    }
-  }
-
-  // 四角形 a→b→c→d。ref（中の点）があれば法線をそこから離れる向きに
-  quad(a, b, c, d, col, ref = null, nrm = null) {
-    let n = nrm || unit(cross(sub(c, a), sub(d, b)));
-    if (ref && dot(n, sub(lerp3(a, c, 0.5), ref)) < 0) n = mul(n, -1);
-    this.tri(a, b, c, col, n);
-    this.tri(a, c, d, col, n);
-  }
-
-  // 両面の四角形（薄い板：裏から見ても光の当たり方が合う）
-  quad2(a, b, c, d, col, nrm = null) {
-    const n = nrm || unit(cross(sub(c, a), sub(d, b)));
-    this.tri(a, b, c, col, n);
-    this.tri(a, c, d, col, n);
-    const m = mul(n, -1);
-    this.tri(a, c, b, col, m);
-    this.tri(a, d, c, col, m);
-  }
-
-  freeze() {
-    this.P = new Float32Array(this.p);
-    this.N = new Float32Array(this.n);
-    this.C = new Float32Array(this.c);
-    this.count = this.p.length / 3;
-    this.p = this.n = this.c = null;
-    return this;
-  }
-}
-
-// 筒（a → b、半径 r）
-function tube(P, a, b, r, col, sides = 6, caps = false) {
-  const ax = unit(sub(b, a));
-  const [u, v] = basis(ax);
-  const d = (k) => add(mul(u, Math.cos((k / sides) * TAU)), mul(v, Math.sin((k / sides) * TAU)));
-  for (let k = 0; k < sides; k++) {
-    const d0 = d(k), d1 = d(k + 1);
-    P.quad(add(a, mul(d0, r)), add(b, mul(d0, r)), add(b, mul(d1, r)), add(a, mul(d1, r)), col, null, unit(add(d0, d1)));
-  }
-  if (caps) {
-    for (const [c, s] of [[a, -1], [b, 1]]) for (let k = 0; k < sides; k++) P.tri(c, add(c, mul(d(k), r)), add(c, mul(d(k + 1), r)), col, mul(ax, s));
-  }
-}
-// 折れ線に沿った筒
-const tubes = (P, pts, r, col, sides = 6) => {
-  for (let i = 0; i + 1 < pts.length; i++) tube(P, pts[i], pts[i + 1], r, col, sides, false);
-};
-// 輪（タイヤ）：中心 c・軸 ax のまわりの半径 R、太さ r
-function torus(P, c, ax, R, r, col, seg = 24, sides = 6) {
-  const A = unit(ax);
-  const [u, v] = basis(A);
-  const pt = (i, j) => {
-    const ph = (i / seg) * TAU, ps = (j / sides) * TAU;
-    const rho = add(mul(u, Math.cos(ph)), mul(v, Math.sin(ph)));
-    const n = add(mul(rho, Math.cos(ps)), mul(A, Math.sin(ps)));
-    return [add(add(c, mul(rho, R)), mul(n, r)), n];
-  };
-  for (let i = 0; i < seg; i++) {
-    for (let j = 0; j < sides; j++) {
-      const [p00, n00] = pt(i, j), [p10, n10] = pt(i + 1, j), [p11, n11] = pt(i + 1, j + 1), [p01, n01] = pt(i, j + 1);
-      P.quad(p00, p10, p11, p01, col, null, unit(add(add(n00, n10), add(n11, n01))));
-    }
-  }
-}
-// 円板（両面）
-function disc(P, c, ax, R, col, seg = 20, r0 = 0) {
-  const A = unit(ax);
-  const [u, v] = basis(A);
-  const at = (k, r) => add(c, add(mul(u, Math.cos((k / seg) * TAU) * r), mul(v, Math.sin((k / seg) * TAU) * r)));
-  for (let k = 0; k < seg; k++) {
-    if (r0 > 0) P.quad2(at(k, r0), at(k, R), at(k + 1, R), at(k + 1, r0), col, A);
-    else {
-      P.tri(c, at(k, R), at(k + 1, R), col, A);
-      P.tri(c, at(k + 1, R), at(k, R), col, mul(A, -1));
-    }
-  }
-}
-// 円柱（まん中 c・軸 ax・長さ h）
-function cyl(P, c, ax, R, h, col, seg = 12, caps = true, capCol = col) {
-  const A = unit(ax);
-  const a = add(c, mul(A, -h / 2)), b = add(c, mul(A, h / 2));
-  tube(P, a, b, R, col, seg, false);
-  if (caps) {
-    const [u, v] = basis(A);
-    const at = (o, k) => add(o, add(mul(u, Math.cos((k / seg) * TAU) * R), mul(v, Math.sin((k / seg) * TAU) * R)));
-    for (let k = 0; k < seg; k++) {
-      P.tri(b, at(b, k), at(b, k + 1), capCol, A);
-      P.tri(a, at(a, k + 1), at(a, k), capCol, mul(A, -1));
-    }
-  }
-}
-// 箱（まん中 c・軸ごとの大きさ s）。cols は [横, 上, 下] か 1 色
-function box(P, c, s, col, top = col, bottom = col) {
-  const [x, y, z] = c;
-  const [hx, hy, hz] = [s[0] / 2, s[1] / 2, s[2] / 2];
-  const v = (i, j, k) => [x + i * hx, y + j * hy, z + k * hz];
-  P.quad(v(1, -1, -1), v(1, 1, -1), v(1, 1, 1), v(1, -1, 1), col, null, [1, 0, 0]);
-  P.quad(v(-1, 1, -1), v(-1, -1, -1), v(-1, -1, 1), v(-1, 1, 1), col, null, [-1, 0, 0]);
-  P.quad(v(1, 1, -1), v(-1, 1, -1), v(-1, 1, 1), v(1, 1, 1), col, null, [0, 1, 0]);
-  P.quad(v(-1, -1, -1), v(1, -1, -1), v(1, -1, 1), v(-1, -1, 1), col, null, [0, -1, 0]);
-  P.quad(v(-1, -1, 1), v(1, -1, 1), v(1, 1, 1), v(-1, 1, 1), top, null, [0, 0, 1]);
-  P.quad(v(-1, 1, -1), v(1, 1, -1), v(1, -1, -1), v(-1, -1, -1), bottom, null, [0, 0, -1]);
-}
-// 向きのある箱（まん中 c・軸 ex, ey, ez（単位）・半分の大きさ h）
-function obox(P, c, ex, ey, ez, h, col) {
-  const v = (i, j, k) => add(c, add(add(mul(ex, i * h[0]), mul(ey, j * h[1])), mul(ez, k * h[2])));
-  const f = (a, b, cc, d, n) => P.quad(a, b, cc, d, col, null, n);
-  f(v(1, -1, -1), v(1, 1, -1), v(1, 1, 1), v(1, -1, 1), ex);
-  f(v(-1, 1, -1), v(-1, -1, -1), v(-1, -1, 1), v(-1, 1, 1), mul(ex, -1));
-  f(v(1, 1, -1), v(-1, 1, -1), v(-1, 1, 1), v(1, 1, 1), ey);
-  f(v(-1, -1, -1), v(1, -1, -1), v(1, -1, 1), v(-1, -1, 1), mul(ey, -1));
-  f(v(-1, -1, 1), v(1, -1, 1), v(1, 1, 1), v(-1, 1, 1), ez);
-  f(v(-1, 1, -1), v(1, 1, -1), v(1, -1, -1), v(-1, -1, -1), mul(ez, -1));
-}
-// 2 点のあいだの、向きのある箱（太さ w × d。体の手足・板）
-function limb(P, a, b, w, d, col, side = [0, 0, 1]) {
-  const ez = unit(sub(b, a));
-  let ex = unit(cross(side, ez));
-  if (!Number.isFinite(ex[0]) || Math.hypot(...cross(side, ez)) < 1e-4) ex = basis(ez)[0];
-  const ey = cross(ez, ex);
-  obox(P, lerp3(a, b, 0.5), ex, ey, ez, [w / 2, d / 2, Math.hypot(...sub(b, a)) / 2], col);
-}
-// だ円体（頭・サドル）
-function ellipsoid(P, c, r, col, seg = 10, rings = 6) {
-  const pt = (i, j) => {
-    const th = (i / seg) * TAU, ph = -Math.PI / 2 + (j / rings) * Math.PI;
-    const n = [Math.cos(ph) * Math.cos(th), Math.cos(ph) * Math.sin(th), Math.sin(ph)];
-    return [[c[0] + n[0] * r[0], c[1] + n[1] * r[1], c[2] + n[2] * r[2]], unit([n[0] / r[0], n[1] / r[1], n[2] / r[2]])];
-  };
-  for (let i = 0; i < seg; i++) {
-    for (let j = 0; j < rings; j++) {
-      const [a, na] = pt(i, j), [b, nb] = pt(i + 1, j), [cc, nc] = pt(i + 1, j + 1), [d, nd] = pt(i, j + 1);
-      P.quad(a, b, cc, d, col, null, unit(add(add(na, nb), add(nc, nd))));
-    }
-  }
-}
-// 円弧の帯（どろよけ）：車軸 c（xz の面）のまわり、半径 R・幅 w（y）・角度 a0〜a1（x から z へ、度）
 function arcStrip(P, c, R, w, a0, a1, col, seg = 14, y0 = 0) {
   for (let i = 0; i < seg; i++) {
     const t0 = (a0 + ((a1 - a0) * i) / seg) * DEG, t1 = (a0 + ((a1 - a0) * (i + 1)) / seg) * DEG;
@@ -206,50 +21,12 @@ function arcStrip(P, c, R, w, a0, a1, col, seg = 14, y0 = 0) {
     for (const s of [1, -1]) P.quad(p(t0, (s * w) / 2, R), p(t1, (s * w) / 2, R), p(t1, (s * w) / 2, R - 0.022), p(t0, (s * w) / 2, R - 0.022), col, null, [0, s, 0]);
   }
 }
-// 横から見た形（x・z の多角形、反時計回り）を y の向きに押し出す。half(x, z) は半分の幅（場所で変わる：角を丸く・上ほど内へ）。
-// edgeCol(i) は i 番目の辺の面の色（null なら描かない）、sideCol は両わきの面の色
-function extrude(P, prof, half, sideCol, edgeCol) {
-  const flat = [];
-  prof.forEach((p) => flat.push(p[0], p[1]));
-  const idx = earcut(flat);
-  for (const s of [1, -1]) {
-    for (let i = 0; i < idx.length; i += 3) {
-      const q = [idx[i], idx[i + 1], idx[i + 2]].map((k) => [prof[k][0], s * half(prof[k][0], prof[k][1]), prof[k][1]]);
-      const n = unit(cross(sub(q[1], q[0]), sub(q[2], q[0])));
-      P.tri(q[0], q[1], q[2], sideCol, n[1] * s >= 0 ? n : mul(n, -1));
-    }
-  }
-  for (let i = 0; i < prof.length; i++) {
-    const col = edgeCol(i);
-    if (!col) continue;
-    const a = prof[i], b = prof[(i + 1) % prof.length];
-    const dx = b[0] - a[0], dz = b[1] - a[1];
-    const L = Math.hypot(dx, dz) || 1;
-    const n = [dz / L, 0, -dx / L]; // 反時計回りの外向き
-    const A = (p, s) => [p[0], s * half(p[0], p[1]), p[1]];
-    P.quad(A(a, -1), A(b, -1), A(b, 1), A(a, 1), col, null, n);
-  }
-}
-// 横の面（y = ±half(x, z) の曲がった面）に貼る四角（x, z の 4 点。少し外へ浮かせる）
-function sidePatch(P, pts, half, s, col, lift = 0.004) {
-  const q = pts.map(([x, z]) => [x, s * (half(x, z) + lift), z]);
-  const n = unit(cross(sub(q[2], q[0]), sub(q[3], q[1])));
-  P.quad(q[0], q[1], q[2], q[3], col, null, n[1] * s >= 0 ? n : mul(n, -1));
-}
-
-// ── 色 ──
-const rgb = (hex, a = 1) => {
-  const n = parseInt(hex.slice(1), 16);
-  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, a];
-};
 const C = {
   frame: rgb("#8fb2c8"), // 自転車の車体（灰色がかった水色）
   tire: rgb("#1b1c1e"), rim: rgb("#c9cdd1"), spoke: rgb("#b4b9be"), hub: rgb("#8c9196"), chrome: rgb("#cfd3d6"),
   saddle: rgb("#2a2422"), grip: rgb("#2b2c2e"), basket: rgb("#26282b"), guard: rgb("#4b5560"), lampBody: rgb("#d7d9db"), lens: rgb("#e9e4cf"),
   reflector: rgb("#c62b22"), pedal: rgb("#2f3134"), stand: rgb("#9da2a7"),
-  car: rgb("#2c5f8f"), carDark: rgb("#16181b"), trim: rgb("#202326"), glass: rgb("#121a22"), glassTop: rgb("#5d7385"), interior: rgb("#3a3c40"), seat: rgb("#2f3236"), roofIn: rgb("#b8b6b0"),
-  carTire: rgb("#141516"), carWall: rgb("#232427"), wheel: rgb("#b9bec3"), wheelDark: rgb("#4a4f55"), plate: rgb("#eef0ec"), plateText: rgb("#2f6b3c"),
-  head: rgb("#dfe3e6"), tail: rgb("#8a1c17"), grille: rgb("#1d2023"), mirror: rgb("#2c5f8f"),
+  trim: rgb("#202326"),
   drone: rgb("#3b3e43"), droneTop: rgb("#5b5f66"), droneDark: rgb("#1d1f22"), prop: rgb("#9ea3a8"), lensDark: rgb("#0d1420"),
   skin: rgb("#d9ad8c"), hair: rgb("#1f1a17"), shirt: rgb("#2f4867"), pants: rgb("#2b2f36"), shoe: rgb("#e6e4de"), controller: rgb("#2a2c30"),
 };
@@ -361,196 +138,6 @@ function bikeParts() {
   arcStrip(fr, B.front, R + 0.03, 0.07, -15, 140, C.chrome, 14);
   BIKE_PARTS = { frame: frame.freeze(), stand: stand.freeze(), front: fr.freeze(), net: net.freeze(), rearWheel: wheelPart(B.rear, R), frontWheel: wheelPart(B.front, R) };
   return BIKE_PARTS;
-}
-
-// ── 車（右ハンドルの 5 ドアのハッチバック）──
-const CW = CAR.wheelbase / 2;
-const ARCH = 0.37;
-function carProfile() {
-  const pts = [];
-  const kinds = [];
-  const push = (x, z, k) => {
-    pts.push([x, z]);
-    kinds.push(k);
-  };
-  push(-1.9, 0.3, "under");
-  push(-1.72, 0.235, "under");
-  const arch = (xc) => {
-    push(xc - ARCH - 0.02, 0.235, "arch");
-    for (let i = 0; i <= 10; i++) {
-      const a = (192 - (i / 10) * 204) * DEG;
-      push(xc + Math.cos(a) * ARCH, CAR.wheelR + Math.sin(a) * ARCH, i === 10 ? "under" : "arch");
-    }
-  };
-  arch(-CW);
-  push(-CW + ARCH + 0.02, 0.235, "under");
-  push(CW - ARCH - 0.04, 0.235, "under");
-  arch(CW);
-  push(1.72, 0.245, "under");
-  push(1.92, 0.33, "front");
-  push(1.975, 0.43, "front");
-  push(1.975, 0.62, "front");
-  push(1.95, 0.72, "front");
-  push(1.86, 0.8, "hood");
-  push(1.5, 0.87, "hood");
-  push(1.1, 0.915, "hood");
-  push(0.82, 0.94, "open"); // ここから後ろはドアの上（車内は開けて、ドアの上のふちと車内を別に描く）
-  push(-1.84, 0.97, "rear");
-  push(-1.93, 0.95, "rear");
-  push(-1.975, 0.8, "rear");
-  push(-1.975, 0.45, "rear");
-  push(-1.945, 0.33, "under");
-  return { pts, kinds };
-}
-const bodyHalf = (x, z) => {
-  const ax = Math.abs(x);
-  const t = ax > 1.45 ? 1 - 0.15 * ((ax - 1.45) / 0.525) ** 2 : 1;
-  return CAR.width / 2 * t - (z > 0.82 ? (z - 0.82) * 0.3 : 0) - (z < 0.3 ? (0.3 - z) * 0.4 : 0);
-};
-const CABIN = [[-1.84, 0.97], [0.82, 0.94], [-0.02, 1.47], [-0.22, 1.5], [-1.3, 1.5], [-1.46, 1.465], [-1.86, 1.04]];
-const cabinHalf = (x, z) => {
-  const t = clamp01((z - 0.94) / 0.56);
-  const front = x > 0.3 ? 1 - ((x - 0.3) / 0.52) * 0.05 : 1;
-  return (0.8 - 0.19 * t) * front;
-};
-function clamp01(v) {
-  return Math.min(1, Math.max(0, v));
-}
-// 横の窓の面の上での、窓の縁に沿った帯（柱）の 4 点：a→b の線から内へ w（x・z の面で、線の左＝窓の中の側）
-const pillarStrip = (a, b, w) => {
-  const dx = b[0] - a[0], dz = b[1] - a[1];
-  const L = Math.hypot(dx, dz) || 1;
-  const n = [-dz / L, dx / L];
-  return [a, b, [b[0] + n[0] * w, b[1] + n[1] * w], [a[0] + n[0] * w, a[1] + n[1] * w]];
-};
-let CAR_PARTS = null;
-function carParts() {
-  if (CAR_PARTS) return CAR_PARTS;
-  const body = new Part();
-  const { pts, kinds } = carProfile();
-  extrude(body, pts, bodyHalf, C.car, (i) => (kinds[i] === "under" ? C.carDark : kinds[i] === "arch" ? C.carDark : kinds[i] === "open" ? null : C.car));
-  // ドアの上のふち（車内の両わき）と、車内（床・ドアの内張り・後ろの座席の背・荷室）
-  for (const s of [1, -1]) {
-    const q = (x, z, d) => [x, s * (bodyHalf(x, z) - d), z];
-    body.quad(q(0.82, 0.94, 0), q(-1.84, 0.97, 0), q(-1.84, 0.97, 0.07), q(0.82, 0.94, 0.07), C.car, null, [0, 0, 1]);
-    body.quad(q(0.82, 0.94, 0.07), q(-1.84, 0.97, 0.07), q(-1.84, 0.4, 0.07), q(0.82, 0.4, 0.07), C.interior, null, [0, -s, 0]);
-  }
-  body.quad([0.82, 0.78, 0.4], [-1.84, 0.78, 0.4], [-1.84, -0.78, 0.4], [0.82, -0.78, 0.4], C.interior, null, [0, 0, 1]);
-  body.quad([-1.84, 0.78, 0.4], [-1.84, 0.78, 0.97], [-1.84, -0.78, 0.97], [-1.84, -0.78, 0.4], C.interior, null, [1, 0, 0]);
-  // 前の面：ライト・グリル・下の口・ナンバー。後ろの面：テールランプ・ナンバー・バンパーの黒
-  const fx = 1.976;
-  const fpatch = (y0, y1, z0, z1, col, x = fx + 0.004) => body.quad([x, y0, z0], [x, y1, z0], [x, y1, z1], [x, y0, z1], col, null, [1, 0, 0]);
-  fpatch(-0.36, 0.36, 0.5, 0.66, C.grille);
-  fpatch(-0.55, 0.55, 0.3, 0.42, C.grille);
-  fpatch(-0.165, 0.165, 0.43, 0.5, C.plate, fx + 0.008);
-  fpatch(-0.15, -0.06, 0.455, 0.475, C.plateText, fx + 0.011);
-  fpatch(0.0, 0.14, 0.455, 0.475, C.plateText, fx + 0.011);
-  const rx = -1.976;
-  const rpatch = (y0, y1, z0, z1, col, x = rx - 0.004) => body.quad([x, y1, z0], [x, y0, z0], [x, y0, z1], [x, y1, z1], col, null, [-1, 0, 0]);
-  rpatch(-0.165, 0.165, 0.6, 0.7, C.plate, rx - 0.008);
-  rpatch(-0.15, -0.06, 0.625, 0.645, C.plateText, rx - 0.011);
-  rpatch(0.0, 0.14, 0.625, 0.645, C.plateText, rx - 0.011);
-  rpatch(-0.72, 0.72, 0.32, 0.43, C.trim);
-  // 横：ドアのすき間・取っ手・サイドの黒い帯（すそ）
-  for (const s of [1, -1]) {
-    for (const x of [0.66, -0.5, -1.38]) sidePatch(body, [[x - 0.006, 0.3], [x + 0.006, 0.3], [x + 0.006, 0.94], [x - 0.006, 0.94]], bodyHalf, s, C.trim, 0.003);
-    for (const x of [0.02, -1.0]) sidePatch(body, [[x - 0.07, 0.8], [x + 0.07, 0.8], [x + 0.07, 0.83], [x - 0.07, 0.83]], bodyHalf, s, C.trim, 0.006);
-    sidePatch(body, [[-1.6, 0.27], [1.6, 0.27], [1.6, 0.31], [-1.6, 0.31]], bodyHalf, s, C.trim, 0.003);
-  }
-  // 窓：横の窓（面）・前の窓・後ろの窓はガラス。屋根・柱は車体の色
-  const glass = new Part();
-  for (const s of [1, -1]) {
-    const flat = [];
-    CABIN.forEach((p) => flat.push(p[0], p[1]));
-    const idx = earcut(flat);
-    for (let i = 0; i < idx.length; i += 3) {
-      const q = [idx[i], idx[i + 1], idx[i + 2]].map((k) => [CABIN[k][0], s * cabinHalf(CABIN[k][0], CABIN[k][1]), CABIN[k][1]]);
-      glass.tri(q[0], q[1], q[2], C.glass, unit([0, s, 0.25]));
-    }
-  }
-  const edgeQuad = (P, a, b, col) => {
-    const dx = b[0] - a[0], dz = b[1] - a[1];
-    const L = Math.hypot(dx, dz) || 1;
-    const A = (p, s) => [p[0], s * cabinHalf(p[0], p[1]), p[1]];
-    P.quad(A(a, -1), A(b, -1), A(b, 1), A(a, 1), col, null, [dz / L, 0, -dx / L]);
-  };
-  edgeQuad(glass, CABIN[1], CABIN[2], C.glass); // 前の窓
-  edgeQuad(glass, CABIN[5], CABIN[6], C.glass); // 後ろの窓
-  edgeQuad(glass, CABIN[6], CABIN[0], C.glass);
-  edgeQuad(body, CABIN[2], CABIN[3], C.car);
-  edgeQuad(body, CABIN[3], CABIN[4], C.car);
-  edgeQuad(body, CABIN[4], CABIN[5], C.car);
-  // 屋根の裏（車内から見上げたとき）
-  for (const [a, b] of [[CABIN[2], CABIN[3]], [CABIN[3], CABIN[4]], [CABIN[4], CABIN[5]]]) {
-    const A = (p, s) => [p[0], s * (cabinHalf(p[0], p[1]) - 0.03), p[1] - 0.03];
-    body.quad(A(a, 1), A(b, 1), A(b, -1), A(a, -1), C.roofIn, null, [0, 0, -1]);
-  }
-  // 柱（前の窓のわき・まん中・後ろ）と、窓の上・下の縁
-  for (const s of [1, -1]) {
-    const sp = (q, col = C.car) => sidePatch(body, q, cabinHalf, s, col, 0.005);
-    sp(pillarStrip(CABIN[1], CABIN[2], 0.075));
-    sp([[-0.52, 0.95], [-0.42, 0.95], [-0.46, 1.48], [-0.56, 1.48]], C.trim);
-    sp(pillarStrip(CABIN[5], CABIN[6], 0.3));
-    sp([[CABIN[6][0], 0.975], [CABIN[6][0] + 0.12, 0.975], [CABIN[6][0] + 0.12, 1.1], [CABIN[6][0], 1.04]]);
-    sp([[-1.46, 1.43], [-0.02, 1.43], [-0.22, 1.5], [-1.3, 1.5]]);
-    sp([[-1.84, 0.95], [0.82, 0.93], [0.82, 0.975], [-1.84, 0.99]], C.trim);
-  }
-  // ドアミラー
-  for (const s of [1, -1]) {
-    box(body, [0.6, s * 0.93, 1.0], [0.1, 0.13, 0.09], C.mirror);
-    tube(body, [0.62, s * 0.82, 0.96], [0.62, s * 0.88, 0.99], 0.012, C.trim, 5);
-  }
-  // 車内：ダッシュボード・座席（前 2・後ろ）
-  const inside = new Part();
-  box(inside, [0.66, 0, 0.81], [0.3, 1.5, 0.18], C.interior);
-  box(inside, [0.58, 0, 0.905], [0.14, 1.42, 0.03], C.carDark);
-  box(inside, [0.52, -0.36, 0.935], [0.13, 0.34, 0.05], C.carDark); // メーターのひさし
-  for (const s of [1, -1]) {
-    box(inside, [-0.3, s * 0.36, 0.52], [0.5, 0.48, 0.14], C.seat);
-    obox(inside, [-0.58, s * 0.36, 0.86], unit([0.95, 0, 0.3]), [0, 1, 0], unit([-0.3, 0, 0.95]), [0.06, 0.24, 0.3], C.seat);
-    box(inside, [-0.66, s * 0.36, 1.24], [0.08, 0.24, 0.16], C.seat);
-  }
-  box(inside, [-1.2, 0, 0.5], [0.5, 1.3, 0.14], C.seat);
-  obox(inside, [-1.47, 0, 0.82], unit([0.96, 0, 0.25]), [0, 1, 0], unit([-0.25, 0, 0.96]), [0.06, 0.65, 0.28], C.seat);
-  // ハンドル（運転席の前。ハンドルの切れで回す）
-  const wheelC = [0.3, -0.36, 0.86];
-  const WAX = unit([-0.8, 0, 0.6]);
-  const sw = new Part();
-  torus(sw, wheelC, WAX, 0.18, 0.016, C.carDark, 20, 5);
-  const [su, sv] = basis(WAX);
-  for (const a of [0, 2.3, 4.0]) tube(sw, wheelC, add(wheelC, add(mul(su, Math.cos(a) * 0.17), mul(sv, Math.sin(a) * 0.17))), 0.012, C.carDark, 4);
-  cyl(sw, wheelC, WAX, 0.05, 0.05, C.carDark, 10);
-  // 車輪（4 つ。前の 2 つはハンドルで向きが変わる）
-  const wheels = [];
-  for (const [x, s] of [[CW, 1], [CW, -1], [-CW, 1], [-CW, -1]]) {
-    const P = new Part();
-    const c = [x, s * (CAR.track / 2), CAR.wheelR];
-    const ax = [0, 1, 0];
-    cyl(P, c, ax, CAR.wheelR, 0.19, C.carTire, 22, false);
-    const face = add(c, [0, s * 0.096, 0]);
-    disc(P, face, ax, CAR.wheelR - 0.005, C.carWall, 22, 0.215);
-    disc(P, add(face, [0, s * 0.004, 0]), ax, 0.212, C.wheel, 20);
-    // 5 本のスポークのすき間（暗い穴）
-    for (let k = 0; k < 5; k++) {
-      const a0 = (k / 5) * TAU + 0.3, a1 = a0 + 0.62;
-      const at = (a, r) => add(face, [Math.cos(a) * r, s * 0.007, Math.sin(a) * r]);
-      for (let j = 0; j < 3; j++) {
-        const t0 = a0 + ((a1 - a0) * j) / 3, t1 = a0 + ((a1 - a0) * (j + 1)) / 3;
-        P.quad2(at(t0, 0.08), at(t0, 0.19), at(t1, 0.19), at(t1, 0.08), C.wheelDark, [0, s, 0]);
-      }
-    }
-    disc(P, add(face, [0, s * 0.009, 0]), ax, 0.045, C.wheelDark, 10);
-    P.freeze();
-    wheels.push({ P, c, front: x > 0 });
-  }
-  // 窓の色：下は暗く、上は空を映して明るく（建物のガラスの glassLo → glassHi と同じ考え）
-  const gl0 = C.glass, gl1 = C.glassTop;
-  for (let i = 0; i < glass.c.length / 4; i++) {
-    const k = Math.min(1, Math.max(0, (glass.p[i * 3 + 2] - 0.95) / 0.55));
-    for (let j = 0; j < 3; j++) glass.c[i * 4 + j] = gl0[j] + (gl1[j] - gl0[j]) * k;
-  }
-  CAR_PARTS = { body: body.freeze(), glass: glass.freeze(), inside: inside.freeze(), wheelPart: sw.freeze(), wheelC, WAX, wheels };
-  return CAR_PARTS;
 }
 
 // ── ドローン ──
@@ -675,10 +262,10 @@ function ik(a, c, l1, l2, pole) {
   const p = unit(sub(pole, mul(u, dot(pole, u))));
   return add(add(a, mul(u, x)), mul(p, h));
 }
-function personParts(P, j, { head = true, torso = true } = {}) {
-  // j：pelvis, neck, head, shoulders [L, R], elbows, hands, hips, knees, ankles, toes
+function personParts(P, j, { head = true, torso = true, shirt = C.shirt } = {}) {
+  // j：pelvis, neck, head, shoulders [L, R], elbows, hands, hips, knees, ankles, toes。shirt は服の色（ほかの人はその人の色）
   if (torso) {
-    limb(P, j.pelvis, j.neck, 0.2, 0.34, C.shirt, [0, 1, 0]);
+    limb(P, j.pelvis, j.neck, 0.2, 0.34, shirt, [0, 1, 0]);
     limb(P, add(j.pelvis, [0, 0, -0.04]), add(j.pelvis, [0, 0, 0.08]), 0.21, 0.32, C.pants, [0, 1, 0]);
   }
   if (head) {
@@ -687,8 +274,8 @@ function personParts(P, j, { head = true, torso = true } = {}) {
     ellipsoid(P, add(j.head, [-0.012, 0, 0.03]), [0.1, 0.09, 0.09], C.hair, 10, 5);
   }
   for (let s = 0; s < 2; s++) {
-    limb(P, j.shoulders[s], j.elbows[s], 0.09, 0.09, C.shirt);
-    limb(P, j.elbows[s], j.hands[s], 0.075, 0.075, C.shirt);
+    limb(P, j.shoulders[s], j.elbows[s], 0.09, 0.09, shirt);
+    limb(P, j.elbows[s], j.hands[s], 0.075, 0.075, shirt);
     ellipsoid(P, j.hands[s], [0.045, 0.035, 0.04], C.skin, 6, 4);
     limb(P, j.hips[s], j.knees[s], 0.13, 0.13, C.pants);
     limb(P, j.knees[s], j.ankles[s], 0.1, 0.1, C.pants);
@@ -746,10 +333,11 @@ function driverJoints(steer) {
  * glow は夜の明るさ（0〜1）、now は ms（ドローンの点滅）、pool は書き出す先（既定は毎フレーム用。止めてある乗り物は別の入れ物）
  * @returns { solid, glass, screen（Mesh の結果と同じ形）, glow（GlowMesh の結果） }
  */
-export function vehicleMeshes(list, { pilot = null, glow = 0, now = 0, pool = POOL } = {}) {
+export function vehicleMeshes(list, { pilot = null, glow = 0, now = 0, pool = POOL, detailedCar = false } = {}) {
   const solid = pool.solid, glass = pool.glass, screen = pool.screen;
   solid.n = glass.n = screen.n = 0;
   const light = new GlowMesh();
+  const cars = [];
   const night = Math.min(1, Math.max(0, glow));
   for (const it of list) {
     const s = it.s;
@@ -789,40 +377,65 @@ export function vehicleMeshes(list, { pilot = null, glow = 0, now = 0, pool = PO
       const CP = carParts();
       const pose = poseOf(s.x, s.y, s.z, s.yaw, s.pitch || 0, -(s.roll || 0));
       const fp = it.view === "fp";
-      emit(solid, CP.body, ID, pose);
-      emit(solid, CP.inside, ID, pose);
-      if (!fp) emit(glass, CP.glass, ID, pose);
+      if (!fp) {
+        const floor=s.zr ?? s.z, pitch=s.roadPitch ?? s.pitch ?? 0, roll=s.roadRoll ?? s.roll ?? 0;
+        const road=poseOf(s.x,s.y,floor,s.yaw,pitch,-roll);
+        emit(screen,CP.shadow,ID,road);
+        if(!s.air) for(const [i,w] of CP.wheels.entries()){
+          const [x,y]=w.c,plane=floor+x*Math.sin(pitch*DEG)-y*Math.sin(roll*DEG);
+          emit(screen,CP.tireShadow,{R:I3,t:[x,y,.009+((s.heights?.[i]??plane)-plane)]},road);
+        }
+      }
       const steer = s.steer || 0;
-      emit(solid, CP.wheelPart, about(rotAxis(CP.WAX, steer * 3 * DEG), CP.wheelC), pose); // 前輪の切れの 3 倍（見た目）
-      for (const w of CP.wheels) {
-        let A = about(rotAxis([0, 1, 0], -(s.wheel || 0)), w.c);
-        if (w.front) A = compose(about(rotAxis([0, 0, 1], steer * DEG), w.c), A);
-        emit(solid, w.P, A, pose);
+      const on = it.rider && night > .05, brake = it.rider && s.braking;
+      cars.push({s,pose,fp,night,on,brake,reverse:it.rider && s.reverse});
+      if (!detailedCar) {
+        const shell = part => dentedShell(part,s.dents);
+        emit(solid,shell(CP.body),ID,pose);
+        emit(solid,CP.inside,ID,pose);
+        if (!fp) emit(glass,CP.glass,ID,pose);
+        emit(solid,CP.wheelPart,about(rotAxis(CP.WAX,steer*3*DEG),CP.wheelC),pose);
+        for (const [i,w] of CP.wheels.entries()) {
+          const hub=about(rotAxis([0,0,1],w.front ? steer*DEG : 0),w.c);
+          if(s.heights){
+            const plane=s.z+w.c[0]*Math.sin((s.pitch||0)*DEG)-w.c[1]*Math.sin((s.roll||0)*DEG);
+            hub.t[2]+=Math.max(-.18,Math.min(.19,s.heights[i]-plane));
+          }
+          emit(solid,w.caliper,hub,pose);
+          emit(solid,w.P,compose(hub,about(rotAxis([0,1,0],s.wheel||0),w.c)),pose);
+        }
+        emit(solid,shell(CP.head),ID,pose,on ? lit([.97,.96,.82]) : null);
+        emit(solid,shell(CP.brake),ID,pose,brake ? lit([1,.09,.045]) : on ? lit([.82,.13,.08]) : null);
+        if(s.reverse && it.rider) emit(solid,shell(CP.reverse),ID,pose,lit([.98,.98,.9]));
       }
       if (it.rider === "tp") {
         const P = new Part();
         personParts(P, driverJoints(steer));
-        emit(solid, P.freeze(), ID, pose);
+        emit(solid, P.freeze(), { R: I3, t: detailedCar ? [.50,.36,-.27] : [0,-.03,-.12] }, pose);
       }
       // ライト：前照灯（夜）・尾灯（夜は点く、ブレーキで明るく）・後退灯
-      const on = it.rider && night > 0.05;
-      const brake = it.rider && s.braking;
-      const L = new Part();
-      const fx = 1.981, rx = -1.981;
-      for (const sd of [1, -1]) {
-        const y0 = sd * 0.47, y1 = sd * 0.78;
-        L.quad([fx, Math.min(y0, y1), 0.66], [fx, Math.max(y0, y1), 0.66], [fx - 0.06, Math.max(y0, y1) - 0.02, 0.76], [fx - 0.06, Math.min(y0, y1), 0.76], on ? lit(C.head, 1.15) : C.head, null, unit([0.8, 0, 0.6]));
-        const t0 = sd * 0.52, t1 = sd * 0.8;
-        L.quad([rx, Math.max(t0, t1), 0.8], [rx, Math.min(t0, t1), 0.8], [rx, Math.min(t0, t1), 0.97], [rx, Math.max(t0, t1), 0.97], brake ? lit([1, 0.12, 0.08], 1) : on ? lit([0.8, 0.1, 0.06], 1) : C.tail, null, [-1, 0, 0]);
-        if (s.reverse && it.rider) L.quad([rx - 0.002, sd * 0.62, 0.72], [rx - 0.002, sd * 0.52, 0.72], [rx - 0.002, sd * 0.52, 0.79], [rx - 0.002, sd * 0.62, 0.79], lit([1, 1, 0.96], 1), null, [-1, 0, 0]);
-      }
-      emit(solid, L.freeze(), ID, pose);
       if (on) {
-        for (const sd of [1, -1]) light.sprite(worldPt(pose, ID, [2.02, sd * 0.63, 0.71]), 0.55, [night, 0.96 * night, 0.86 * night], 2.5, 0.3);
-        groundBeam(light, pose, ID, [2.0, 0, 0], 22, 1.0, 5.5, 0.5 * night);
+        for (const side of [-1,1]) light.sprite(worldPt(pose,ID,detailedCar ? [2.02,side*.52,.65] : [2.17,side*.67,.59]), .37, [night,.95*night,.84*night], 2.5, .14);
+        groundBeam(light, pose, ID, [2.16,0,0], 24, .9, 5.6, .52*night);
       }
-      if (on || brake) for (const sd of [1, -1]) light.sprite(worldPt(pose, ID, [-2.02, sd * 0.66, 0.88]), brake ? 0.5 : 0.32, brake ? [0.95, 0.12, 0.06] : [0.55 * night, 0.06 * night, 0.04 * night], 2, 0.3);
-      if (s.reverse && it.rider) for (const sd of [1, -1]) light.sprite(worldPt(pose, ID, [-2.02, sd * 0.57, 0.75]), 0.22, [0.6, 0.6, 0.56], 2, 0.3);
+      if (on || brake) for (const side of [-1,1]) light.sprite(worldPt(pose,ID,detailedCar ? [-1.61,side*.48,.95] : [-2.24,side*.66,.72]), brake ? .35 : .22, [brake ? .9 : .45*night,.045,.025], 2, .13);
+      if (it.rider) drawRoadEffects(s, screen, solid, light);
+    } else if (it.kind === "jet") {
+      const J = jetParts(), pose = poseOf(s.x,s.y,s.z,s.yaw,s.pitch || 0,s.bank || 0);
+      emit(solid, J.cockpit, ID, pose);
+      if (it.view !== "fp") {
+        emit(solid, J.body, ID, pose);
+        emit(glass, J.glass, ID, pose);
+        for (const control of J.controls) {
+          const deflection = control.side ? -control.side*(s.aileron || 0)*17 : (s.elevator || 0)*13;
+          emit(solid,control.part,about(rotAxis(control.axis,deflection*DEG),control.hinge),pose);
+        }
+        for (const fan of J.fans) emit(solid,fan.part,about(rotAxis([1,0,0],s.fanAngle || 0),fan.hub),pose);
+        const gear = s.gearDown ?? 1;
+        if (gear > .03) emit(solid, J.gear, { R: I3, t: [0,0,(1-gear)*.86] }, pose);
+        for (const side of [-1,1]) light.sprite(worldPt(pose, ID, [-1.86,side*4.56,1.32]), .14, side>0 ? [.9,.03,.03] : [.04,.82,.30], 3,.07);
+        if (now%1450 < 110) light.sprite(worldPt(pose, ID, [-4.65,0,3.70]), .24, [1,.96,.82], 3,.08);
+      }
     } else if (it.kind === "drone") {
       const DP = droneParts();
       const tilt = s.tilt || [0, 0];
@@ -851,7 +464,186 @@ export function vehicleMeshes(list, { pilot = null, glow = 0, now = 0, pool = PO
     box(P, [0.33, 0, 1.12], [0.08, 0.17, 0.035], C.controller);
     emit(solid, P.freeze(), ID, pose);
   }
-  return { solid: solid.result(), glass: glass.result(), screen: screen.result(), glow: light.result() };
+  return { solid: solid.result(), glass: glass.result(), screen: screen.result(), glow: light.result(), cars };
+}
+
+function drawRoadEffects(s, screen, solid, light) {
+  if (s.marks?.length) {
+    const tread = new Part();
+    for (const mark of s.marks) for (let i=0;i<2;i++) {
+      const a=mark.from[i], b=mark.to[i], dx=b[0]-a[0], dy=b[1]-a[1], w=.095/(Math.hypot(dx,dy)||1);
+      const p=(v,sd)=>[v[0]-s.x-sd*dy*w,v[1]-s.y+sd*dx*w,v[2]-s.z];
+      tread.quad(p(a,1),p(b,1),p(b,-1),p(a,-1),C.tire,null,[0,0,1]);
+    }
+    emit(screen,tread.freeze(),ID,poseOf(s.x,s.y,s.z,90));
+  }
+  const q=s.contact, age=s.fxAge;
+  if (!q || age>=.58) return;
+  const pose=poseOf(q.x,q.y,q.z,90), P=new Part();
+  for (let i=0;i<9;i++) {
+    const angle=i*2.40, speed=(2.1+(i%4)*1.25)*q.force;
+    const dx=q.ax*1.6+Math.cos(angle)*speed, dy=q.ay*1.6+Math.sin(angle)*speed;
+    const z=(1.3+i%3)*q.force*age-6.3*age*age;
+    if (z < -.48) continue;
+    const end=[dx*age,dy*age,z];
+    const start=[end[0]-dx*.031,end[1]-dy*.031,z-.034];
+    tube(P,start,end,i%3===0?.023:.012,i%3===0?C.trim:lit([1,.66,.23]),4);
+  }
+  if (P.p.length) emit(solid,P.freeze(),ID,pose);
+  if (age<.10) light.sprite(worldPt(pose,ID,[q.ax*.09,q.ay*.09,0]),q.force*.48,[.88,.47,.19],2,.07);
+}
+
+// ── ほかの人（バーチャルキャンパス。campus3dPeers の peers() の結果）。歩く・走る速さで手足を振る、座る、手を振る・跳ねる・拍手の合図 ──
+const POOL_PEOPLE = { solid: new Out(), glass: new Out(), screen: new Out() };
+// 立つ・歩く人の関節。ph は歩みの位相（rad）、amp は振りの大きさ（0＝立つ、1＝歩く、1.5＝走る）、wave は手を振る合図の位相（なければ null）、
+// clap は拍手の位相、sit は座る、hold はブラスターを両手で前に構える（キャンパスロワイヤル）
+function walkJoints(ph, amp, { wave = null, clap = null, sit = false, hold = false } = {}) {
+  const sw = Math.sin(ph) * 0.32 * amp, lift = (v) => Math.max(0, v) * 0.12 * amp;
+  const drop = sit ? 0.42 : 0, fwd = sit ? 0.38 : 0;
+  const hips = [[0, 0.1, 0.92 - drop], [0, -0.1, 0.92 - drop]];
+  const ankles = sit ? [[fwd + 0.05, 0.11, 0.08], [fwd + 0.05, -0.11, 0.08]] : [[sw, 0.11, 0.08 + lift(Math.cos(ph))], [-sw, -0.11, 0.08 + lift(-Math.cos(ph))]];
+  const knees = [0, 1].map((s) => (sit ? [fwd, s ? -0.1 : 0.1, 0.52] : ik(hips[s], ankles[s], 0.43, 0.43, [1, 0, 0.15])));
+  const toes = ankles.map((a) => [a[0] + 0.15, a[1] + (a[1] > 0 ? 0.01 : -0.01), a[2] - 0.03]);
+  const shoulders = [[0, 0.19, 1.42 - drop], [0, -0.19, 1.42 - drop]];
+  const hands = [[-sw * 0.8 + 0.04, 0.24, 0.88 - drop + Math.abs(sw) * 0.25], [sw * 0.8 + 0.04, -0.24, 0.88 - drop + Math.abs(sw) * 0.25]];
+  if (sit) { hands[0] = [fwd - 0.05, 0.14, 0.58]; hands[1] = [fwd - 0.05, -0.14, 0.58]; }
+  if (hold) { hands[1] = [0.34, -0.06, 1.2 - drop]; hands[0] = [0.5, 0.0, 1.22 - drop]; }
+  if (wave != null) hands[1] = [0.1, -0.34 - Math.sin(wave) * 0.13, 1.78 - drop];
+  if (clap != null) { const g = 0.05 + Math.abs(Math.sin(clap)) * 0.1; hands[0] = [0.3, g, 1.25 - drop]; hands[1] = [0.3, -g, 1.25 - drop]; }
+  const elbows = [0, 1].map((s) => ik(shoulders[s], hands[s], 0.29, 0.28, [-0.4, s ? -1 : 1, -0.6]));
+  return { pelvis: [0, 0, 0.95 - drop], neck: [0, 0, 1.45 - drop], head: [0.01, 0, 1.6 - drop], shoulders, elbows, hands, hips, knees, ankles, toes };
+}
+// 空の人（キャンパスロワイヤル）：落下中は手足を広げる（体は poseOf の pitch −90 で腹ばいにする）、パラシュートは手を上げてひもを持つ
+function skyJoints(chute, t) {
+  if (chute) {
+    const s = Math.sin(t * 2.1) * 0.04;
+    const hips = [[0, 0.1, 0.92], [0, -0.1, 0.92]];
+    const ankles = [[0.12 + s, 0.13, 0.12], [0.1 - s, -0.13, 0.1]];
+    const knees = [0, 1].map((k) => ik(hips[k], ankles[k], 0.43, 0.43, [1, 0, 0.15]));
+    const toes = ankles.map((a) => [a[0] + 0.15, a[1], a[2] - 0.05]);
+    const shoulders = [[0, 0.19, 1.42], [0, -0.19, 1.42]];
+    const hands = [[0.06, 0.27, 2.02], [0.06, -0.27, 2.02]];
+    const elbows = [0, 1].map((k) => ik(shoulders[k], hands[k], 0.29, 0.28, [0, k ? -1 : 1, 0]));
+    return { pelvis: [0, 0, 0.95], neck: [0, 0, 1.45], head: [0.02, 0, 1.6], shoulders, elbows, hands, hips, knees, ankles, toes };
+  }
+  const f = Math.sin(t * 9) * 0.03;
+  const hips = [[0, 0.1, 0.92], [0, -0.1, 0.92]];
+  const ankles = [[-0.18, 0.32 + f, 0.16], [-0.18, -0.32 - f, 0.16]];
+  const knees = [0, 1].map((k) => ik(hips[k], ankles[k], 0.43, 0.43, [-1, k ? -0.4 : 0.4, 0]));
+  const toes = ankles.map((a) => [a[0] - 0.12, a[1], a[2] - 0.02]);
+  const shoulders = [[0, 0.19, 1.42], [0, -0.19, 1.42]];
+  const hands = [[0.08, 0.62, 1.66 + f], [0.08, -0.62, 1.66 - f]];
+  const elbows = [0, 1].map((k) => ik(shoulders[k], hands[k], 0.29, 0.28, [-0.5, k ? -1 : 1, 0]));
+  return { pelvis: [0, 0, 0.95], neck: [0, 0, 1.45], head: [0.03, 0, 1.6], shoulders, elbows, hands, hips, knees, ankles, toes };
+}
+/**
+ * ほかの人の形（毎フレーム）。people は [{ id, x, y, z, yaw, st（0 歩く 1 走る 2 座る … 8 落下 9 パラシュート）, speed（m/s）, col（#rrggbb）,
+ * emote（0 手を振る 1 跳ねる 2 拍手）, emoteAt, hold（キャンパスロワイヤルで手に持つ装備の id。"fist" か無しなら素手） }]、now は ms、
+ * pool は書き出す先（既定はバーチャルキャンパスのほかの人。キャンパスロワイヤルの自分の体は別の入れ物）
+ * @returns { solid, glass, screen, glow }（乗り物のレイヤーと同じ形）
+ */
+export function peopleMeshes(people, { now = 0, pool = POOL_PEOPLE, viewer = null } = {}) {
+  const { solid, glass, screen } = pool;
+  solid.n = glass.n = screen.n = 0;
+  for (const q of people) {
+    if (![q.x, q.y, q.z, q.yaw].every(Number.isFinite)) continue;
+    const shirt = /^#[0-9a-fA-F]{6}$/.test(q.col || "") ? rgb(q.col) : C.shirt;
+    // 近い人（30 m 以内・見る人が分からなければ近い扱い）は丸みのある形、遠い人は軽い箱の形
+    const nearBy = !viewer || Math.hypot(q.x - viewer.x, q.y - viewer.y) < 30;
+    const body = (P, j) => (nearBy ? smoothPersonParts(P, j, { shirt, pack: !!q.hold, dummy: !!q.dummy }) : personParts(P, j, { shirt }));
+    if (q.st === 8 || q.st === 9) {
+      // 空の人：落下は腹ばい（へそのところで回す）、パラシュートは立った姿で傘の下
+      const chute = q.st === 9;
+      const j = skyJoints(chute, now / 1000 + (q.id || 0));
+      const P = new Part();
+      body(P, j);
+      if (chute) addCanopy(P, q.col, j.hands);
+      if (chute) emit(solid, P.freeze(), ID, poseOf(q.x, q.y, q.z, q.yaw));
+      else emit(solid, P.freeze(), { R: I3, t: [0, 0, -0.95] }, poseOf(q.x, q.y, q.z + 0.95, q.yaw, -82));
+      continue;
+    }
+    const sp = Math.max(0, q.speed || 0), amp = Math.min(1.5, sp / 1.3);
+    const ph = (now / 1000) * (4.2 + sp * 1.6) + (q.id || 0) * 1.7; // 歩みの速さは進む速さで。人ごとに位相をずらす
+    const te = q.emote != null ? (now - (q.emoteAt || now)) / 1000 : null;
+    const hop = q.emote === 1 && te != null ? Math.max(0, Math.sin(Math.min(1, te / 0.5) * Math.PI)) * 0.35 : 0;
+    const hold = !!(q.hold && BLASTER[q.hold] && q.st !== 2);
+    const j = walkJoints(ph, amp, { wave: q.emote === 0 ? (te || 0) * 9 : null, clap: q.emote === 2 ? (te || 0) * 14 : null, sit: q.st === 2, hold });
+    const P = new Part();
+    body(P, j);
+    if (hold) addBlaster(P, q.hold, j.hands[1]);
+    emit(solid, P.freeze(), ID, poseOf(q.x, q.y, q.z + hop, q.yaw));
+  }
+  return { solid: solid.result(), glass: glass.result(), screen: screen.result(), glow: new GlowMesh().result() };
+}
+
+// 丸みのある人（バーチャルキャンパス・キャンパスロワイヤルの近くの人。2026-11-25「安っぽい」）：
+// 胴は楕円の輪をつないだ筒（腰・胸・肩）、手足は先の細い筒、関節は球、靴は丸い箱、顔に小さな目。pack は背中のバッグ、dummy は練習の的（胸に的の印）
+const SKIN2 = rgb("#d9ad8c"), SHOE2 = rgb("#ecebe6"), SOLE = rgb("#3a3c40"), PACK = rgb("#30353c"), STRAP = rgb("#22262b"), EYE = rgb("#1b1d20");
+function taper(P, a, b, ra, rb, col, sides = 8) {
+  const ax = unit(sub(b, a));
+  const t0 = Math.abs(ax[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+  const u = unit([ax[1] * t0[2] - ax[2] * t0[1], ax[2] * t0[0] - ax[0] * t0[2], ax[0] * t0[1] - ax[1] * t0[0]]);
+  const v = [ax[1] * u[2] - ax[2] * u[1], ax[2] * u[0] - ax[0] * u[2], ax[0] * u[1] - ax[1] * u[0]];
+  const ring = (c, r, k) => { const a1 = (k / sides) * Math.PI * 2; return add(c, add(mul(u, Math.cos(a1) * r), mul(v, Math.sin(a1) * r))); };
+  for (let k = 0; k < sides; k++) {
+    const n = unit(add(mul(u, Math.cos(((k + 0.5) / sides) * Math.PI * 2)), mul(v, Math.sin(((k + 0.5) / sides) * Math.PI * 2))));
+    P.quad(ring(a, ra, k), ring(b, rb, k), ring(b, rb, k + 1), ring(a, ra, k + 1), col, null, n);
+  }
+}
+function smoothPersonParts(P, j, { shirt = C.shirt, pack = false, dummy = false } = {}) {
+  const pants = C.pants;
+  // 胴：腰（幅 0.32・厚み 0.2）→ 胸 → 肩 → 首の付け根。輪は胴の軸に直角
+  const up = unit(sub(j.neck, j.pelvis));
+  const fwd = unit(sub([1, 0, 0], mul(up, dot([1, 0, 0], up))));
+  const left = [up[1] * fwd[2] - up[2] * fwd[1], up[2] * fwd[0] - up[0] * fwd[2], up[0] * fwd[1] - up[1] * fwd[0]];
+  const L = Math.hypot(...sub(j.neck, j.pelvis));
+  const rings = [[-0.06, 0.16, 0.105, pants], [0.08, 0.165, 0.105, pants], [0.1, 0.165, 0.11, shirt], [0.55, 0.18, 0.12, shirt], [0.86, 0.2, 0.11, shirt], [1.0, 0.085, 0.07, shirt]];
+  const N = 12;
+  const pt = (h, w, d, k) => { const a = (k / N) * Math.PI * 2; return add(add(j.pelvis, mul(up, h * L)), add(mul(fwd, Math.cos(a) * d), mul(left, Math.sin(a) * w))); };
+  for (let r = 0; r + 1 < rings.length; r++) {
+    const [h0, w0, d0] = rings[r], [h1, w1, d1, c1] = rings[r + 1];
+    if (r === 1) continue; // 腰と服の境目（同じ高さの近く）は輪を重ねるだけ
+    for (let k = 0; k < N; k++) {
+      const n = unit(add(mul(fwd, Math.cos(((k + 0.5) / N) * Math.PI * 2)), mul(left, Math.sin(((k + 0.5) / N) * Math.PI * 2))));
+      P.quad(pt(h0, w0, d0, k), pt(h1, w1, d1, k), pt(h1, w1, d1, k + 1), pt(h0, w0, d0, k + 1), r === 0 ? pants : c1, null, n);
+    }
+  }
+  // 腰の下のふた
+  for (let k = 0; k < N; k++) P.tri(add(j.pelvis, mul(up, -0.06 * L)), pt(-0.06, 0.16, 0.105, k + 1), pt(-0.06, 0.16, 0.105, k), pants, mul(up, -1));
+  // 首と頭（髪、小さな目）
+  taper(P, j.neck, add(j.neck, mul(up, 0.08)), 0.045, 0.042, SKIN2, 8);
+  ellipsoid(P, j.head, [0.098, 0.088, 0.112], SKIN2, 12, 7);
+  ellipsoid(P, add(j.head, add(mul(fwd, -0.014), mul(up, 0.028))), [0.104, 0.094, 0.094], C.hair, 12, 6);
+  for (const s of [1, -1]) ellipsoid(P, add(j.head, add(add(mul(fwd, 0.088), mul(left, s * 0.034)), mul(up, 0.008))), [0.008, 0.012, 0.014], EYE, 6, 4);
+  // 腕（袖は服の色・手は肌）・脚（ズボン）・靴
+  for (let s = 0; s < 2; s++) {
+    ellipsoid(P, j.shoulders[s], [0.068, 0.068, 0.066], shirt, 8, 5);
+    taper(P, j.shoulders[s], j.elbows[s], 0.058, 0.047, shirt, 8);
+    ellipsoid(P, j.elbows[s], [0.047, 0.047, 0.047], shirt, 8, 4);
+    taper(P, j.elbows[s], j.hands[s], 0.045, 0.036, shirt, 8);
+    ellipsoid(P, j.hands[s], [0.048, 0.036, 0.046], SKIN2, 8, 5);
+    taper(P, j.hips[s], j.knees[s], 0.078, 0.062, pants, 8);
+    ellipsoid(P, j.knees[s], [0.062, 0.062, 0.06], pants, 8, 4);
+    taper(P, j.knees[s], j.ankles[s], 0.06, 0.046, pants, 8);
+    const toe = j.toes[s], ank = j.ankles[s];
+    const mid = [(toe[0] + ank[0]) / 2, (toe[1] + ank[1]) / 2, Math.min(toe[2], ank[2]) + 0.0];
+    ellipsoid(P, add(mid, [0.01, 0, -0.005]), [0.13, 0.055, 0.045], SHOE2, 10, 5);
+    box(P, add(mid, [0.01, 0, -0.04]), [0.25, 0.1, 0.018], SOLE);
+  }
+  // 背中のバッグ（試合中）と肩ひも
+  if (pack) {
+    const c = add(add(j.pelvis, mul(up, 0.55 * L)), mul(fwd, -0.19));
+    obox(P, c, fwd, left, up, [0.075, 0.15, 0.19], PACK);
+    obox(P, add(c, mul(up, -0.13)), fwd, left, up, [0.085, 0.13, 0.06], STRAP);
+    for (const s of [1, -1]) taper(P, add(add(j.pelvis, mul(up, 0.95 * L)), add(mul(left, s * 0.1), mul(fwd, -0.04))), add(add(j.pelvis, mul(up, 0.35 * L)), add(mul(left, s * 0.12), mul(fwd, 0.1))), 0.016, 0.016, STRAP, 4);
+  }
+  // 練習の的：胸に白と赤の的
+  if (dummy) {
+    const c = add(add(j.pelvis, mul(up, 0.6 * L)), mul(fwd, 0.123));
+    disc(P, c, fwd, 0.1, rgb("#f4f4f2"), 16);
+    disc(P, add(c, mul(fwd, 0.002)), fwd, 0.066, rgb("#d64545"), 16);
+    disc(P, add(c, mul(fwd, 0.004)), fwd, 0.033, rgb("#f4f4f2"), 12);
+  }
 }
 
 // 歩いて見るあいだの毎フレームの形（乗り物のレイヤーへ）。2 つの群に分ける：
@@ -859,27 +651,48 @@ export function vehicleMeshes(list, { pilot = null, glow = 0, now = 0, pool = PO
 // - move：動いているもの（乗っている 1 台・ドローン・操縦する人）。毎フレーム作って送る（ver: null）
 // 止めてある乗り物の形は夜の明るさ・時刻によらない（灯は乗っているときだけ）
 const POOL_PARK = { solid: new Out(), glass: new Out(), screen: new Out() };
+const PEER_MOTORS = { solid: new Out(), glass: new Out(), screen: new Out() };
+export function peerFrameMeshes(list, now, glow, viewer, detailedCar = false) {
+  const people = [], vehicles = [];
+  for (const p of list) {
+    const kind = p.st === 5 ? "car" : p.st === 7 ? "jet" : p.st === 4 ? "bike" : null;
+    if (!kind) { people.push(p); continue; }
+    if (Math.hypot(p.x-viewer.x, p.y-viewer.y) > (kind === "jet" ? 500 : 210)) continue;
+    const s = { ...p, v: p.speed, wheel: now*.001*p.speed/(kind === "car" ? CAR.wheelR : .33) };
+    if (kind === "jet") {
+      s.pitch = Math.max(-25, Math.min(25, p.flightPitch || 0));
+      s.bank = Math.max(-51, Math.min(51, p.turnRate || 0));
+      s.gearDown = p.speed < 22 && p.z-(viewer.world.floorBelow(p.x,p.y,p.z+1)?.z ?? p.z) < 9 ? 1 : 0;
+    }
+    vehicles.push({kind, s, rider:"tp", view:"tp"});
+  }
+  const groups = [];
+  if (people.length) groups.push({ id:"people", ver:null, ...peopleMeshes(people,{now, viewer}) });
+  if (vehicles.length) groups.push({ id:"motors", ver:null, ...vehicleMeshes(vehicles,{glow,now,pool:PEER_MOTORS,detailedCar}) });
+  return { groups };
+}
 const PARK = { key: null, mesh: null, ver: 0 };
 const parkKeyOf = (it) => {
   const s = it.s;
-  return [it.kind, s.x, s.y, s.z, s.yaw, s.pitch || 0, s.lean || 0, s.roll || 0, s.parkSteer ?? 14, s.steer || 0, s.wheel || 0, s.crank || 0].join(",");
+  return [it.kind, s.x, s.y, s.z, s.yaw, s.pitch || 0, s.lean || 0, s.roll || 0, s.parkSteer ?? 14, s.steer || 0, s.wheel || 0, s.crank || 0, ...(s.dents || [])].join(",");
 };
-export function vehicleFrameMeshes(list, { pilot = null, glow = 0, now = 0 } = {}) {
+export function vehicleFrameMeshes(list, { pilot = null, glow = 0, now = 0, detailedCar = false } = {}) {
   const parked = [];
   const moving = [];
   for (const it of list) {
     if (!it?.s) continue;
     (!it.rider && !it.view && it.kind !== "drone" ? parked : moving).push(it);
   }
-  const key = parked.map(parkKeyOf).join(";");
+  const key = detailedCar + ":" + parked.map(parkKeyOf).join(";");
   if (key !== PARK.key) {
     PARK.key = key;
-    PARK.mesh = parked.length ? vehicleMeshes(parked, { pool: POOL_PARK }) : null;
+    PARK.mesh = parked.length ? vehicleMeshes(parked, { pool: POOL_PARK, detailedCar }) : null;
     PARK.ver++;
   }
   const groups = [];
-  if (PARK.mesh) groups.push({ id: "park", ver: PARK.ver, ...PARK.mesh });
-  if (moving.length || pilot) groups.push({ id: "move", ver: null, ...vehicleMeshes(moving, { pilot, glow, now }) });
+  if (PARK.mesh) groups.push({ id: "park", ver: PARK.ver, ...PARK.mesh,
+    cars:PARK.mesh.cars.map(c=>({...c,night:Math.max(0,Math.min(1,glow))})) });
+  if (moving.length || pilot) groups.push({ id: "move", ver: null, ...vehicleMeshes(moving, { pilot, glow, now, detailedCar }) });
   return groups.length ? { groups } : null;
 }
 
@@ -901,8 +714,12 @@ function groundBeam(light, pose, A, p0, len, w0, w1, k) {
 export function vehiclePartCounts() {
   const b = bikeParts(), c = carParts(), d = droneParts();
   return {
+    jet: Object.fromEntries(["body","glass","gear","cockpit"].map(k => [k, jetParts()[k].count])),
     bike: Object.fromEntries(Object.entries(b).map(([k, v]) => [k, v.count])),
     car: { body: c.body.count, glass: c.glass.count, inside: c.inside.count, wheel: c.wheels[0].P.count },
     drone: Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v.count])),
   };
 }
+
+// キャンパスロワイヤルの形（campus3dRoyaleMesh.js）が同じ書き出し方を使う
+export { Out, poseOf, emit, worldPt };

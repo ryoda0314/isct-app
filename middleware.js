@@ -140,6 +140,16 @@ export function middleware(request) {
   // Generate nonce for CSP (allows Next.js inline scripts)
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
 
+  // バーチャルキャンパスの部屋サーバー（cf-walk-rooms。Cloudflare Workers の WebSocket）だけを接続先に足す。
+  // 公開のときは NEXT_PUBLIC_WALK_ROOMS_URL（wss://…）のホスト、開発のときは手元の wrangler dev（8799 番）
+  let walkRoomsSrc = '';
+  try {
+    // 既定は公開の部屋サーバー（campus-sns/views/VirtualCampusView.jsx の WALK_ROOMS_URL と同じ）
+    const u = new URL(process.env.NEXT_PUBLIC_WALK_ROOMS_URL || 'wss://isct-walk-rooms.learnguages-poly.workers.dev');
+    if (u && (u.protocol === 'wss:' || u.protocol === 'ws:')) walkRoomsSrc += ` ${u.protocol}//${u.host}`;
+  } catch { /* 形のちがう値は足さない */ }
+  if (process.env.NODE_ENV === 'development') walkRoomsSrc += ' ws://localhost:8799 ws://127.0.0.1:8799';
+
   // M1: Content-Security-Policy with nonce for inline scripts
   const cspValue = isPitchPage ? [
     "default-src 'self'",
@@ -159,7 +169,7 @@ export function middleware(request) {
     "img-src 'self' https: data: blob:",
     // 音楽機能: Supabase Storage の署名URLから音声を再生（media-src 未指定だと default-src にフォールバックしてブロックされる）
     "media-src 'self' blob: data: https://*.supabase.co",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lms.s.isct.ac.jp https://api.open-meteo.com https://geocoding-api.open-meteo.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com https://server.arcgisonline.com https://tile.openstreetmap.org",
+    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lms.s.isct.ac.jp https://api.open-meteo.com https://geocoding-api.open-meteo.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com https://server.arcgisonline.com https://tile.openstreetmap.org${walkRoomsSrc}`,
     "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com",
     // キャンパスナビの3D表示（MapLibre GL）は地図の処理を blob: の Web Worker で動かす
     "worker-src 'self' blob:",

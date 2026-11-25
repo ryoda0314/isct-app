@@ -274,6 +274,7 @@ function fallenPieces(inst, f, p, groundAt, species, female, base, radius) {
 export function buildVeg(features, groundAt, { selectedId = null } = {}) {
   const instances = new ShootInstances();
   const V = new VegMesh(instances);
+  const shadows = [];
   let trees = 0;
   const groundXY = (x, y) => groundAt(toLngLat([x, y]));
   const lids = features
@@ -337,7 +338,10 @@ export function buildVeg(features, groundAt, { selectedId = null } = {}) {
         ? null
         : { anchor, size: Math.max(0.35, Math.min(f.height * 0.16, (f.crown || f.height * 0.6) * 0.125)) };
     instances.begin({ species: sp, off, phase, selected: !!sel, base: g, treeLOD });
+    V.shade = f.height >= 3 ? { x:p[0], y:p[1], base:g, h:f.height, spread:f.crown || f.height*.7, radius:trunkRadius(f), species:sp, limbs:[], crowns:[] } : null;
     treeModel(V, f, p, g, sp, TREE_CLEAR[kind], trunkRadius(f), rnd);
+    if (V.shade) shadows.push(V.shade);
+    V.shade = null;
     trees++;
     if (SPECIES[sp]?.deciduous)
       fallenPieces(instances, f, p, groundAt, sp, female, g, Math.max(1.5, (f.crown || f.height * 0.6) * 0.575));
@@ -362,7 +366,7 @@ export function buildVeg(features, groundAt, { selectedId = null } = {}) {
     range.bounds = bounds;
   }
   solid.ranges = ranges;
-  return { solid, shoots: instances.pack(), trees };
+  return { solid, shoots: instances.pack(), trees, shadows };
 }
 
 // Use the actual crown/bed bounds, including branches across cell borders. Merge adjacent draws.
@@ -522,9 +526,12 @@ void main() {
   float pixels=u_focal*gl_FragCoord.w;
   if (v_role<1.5) {
     float wood=grain(v_site*vec3(3.1,3.1,1.7));
-    float furrow=grain(v_site*vec3(52.0,52.0,5.8)+wood*1.7);
-    v = 0.92+0.14*wood;
-    v += (0.085-0.20*smoothstep(0.47,0.85,furrow))*smoothstep(14.0,62.0,pixels);
+    vec3 ridge=v_site*vec3(23.,23.,2.2)+wood*1.9;
+    float cut=grain(ridge), edge=grain(ridge+vec3(.18,-.16,.06));
+    float furrow=grain(v_site*vec3(59.0,59.0,5.8)+wood*2.1);
+    v = .88+.24*wood;
+    v += (.29*(edge-cut)+.065-.29*smoothstep(.49,.83,cut))*smoothstep(11.,48.,pixels);
+    v += (.09-.21*smoothstep(.54,.82,furrow))*smoothstep(34.,100.,pixels);
   } else if (v_role<4.5) {
     v = 0.90+0.19*grain(v_site*2.8)+(grain(v_site*22.0)-0.5)*0.25*smoothstep(12.0,48.0,pixels);
   }

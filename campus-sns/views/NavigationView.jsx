@@ -5,10 +5,12 @@ import { I } from "../icons.jsx";
 import { useLeaflet, useMapLibre, Loader } from "../shared.jsx";
 import { CAMPUS_CENTER, CAMPUS_ZOOM, CAMPUS_BOUNDARY, SPOTS, SPOT_CATS, ENTRANCES, AREAS, roomToSpot } from "../hooks/useLocationSharing.js";
 import { useNavigation, NAV_SPOTS } from "../hooks/useNavigation.js";
+import { getRecentDestinations as getRecent, rememberDestination as pushRecent } from "../navDestinations.js";
 import { createCampusBasemap, isDarkColor } from "../campusBasemap.js";
 import { getNextClass } from "../todayClasses.js";
 import { CampusMap3D, DETAIL_ICON, LOOK_ICON, LOOK_LABEL, SLIP_ERAS, SLIP_ICON, WALK_ICON } from "../components/CampusMap3D.jsx";
 import { onWorldClock, slipDay, slipTo, worldLive } from "../campus3dClock.js";
+import { linkedStreetView } from "../campus3dStreetViews.js";
 import { LOOK_MODES } from "../campus3dSky.js";
 import { FEATURES_URL, parseFeatures } from "../campus3dFeatures.js";
 
@@ -130,9 +132,6 @@ const getGroupPrefix=(id)=>{const g=SPOT_GROUPS.find(g=>id.startsWith(g.prefix+"
 const isGroupableSpot=(s)=>(s.cat==="outdoor"||s.cat==="restaurant")&&getGroupPrefix(s.id)!=null;
 
 /* ── スポット選択シート（検索・出発地・目的地で共通） ── */
-const RECENT_KEY="navRecentSpots";
-const getRecent=()=>{try{const v=JSON.parse(localStorage.getItem(RECENT_KEY)||"[]");return Array.isArray(v)?v:[];}catch{return [];}};
-const pushRecent=(id)=>{if(!id)return;try{localStorage.setItem(RECENT_KEY,JSON.stringify([id,...getRecent().filter(x=>x!==id)].slice(0,6)));}catch{}};
 const normQ=(s)=>String(s||"").normalize("NFKC").toLowerCase().replace(/\s+/g,"");
 const catLabelOf=(id)=>SPOT_CATS.find(c=>c.id===id)?.label||"";
 const fmtDist=(m)=>m<1000?`${Math.max(10,Math.round(m/10)*10)}m`:`${(m/1000).toFixed(1)}km`;
@@ -407,17 +406,21 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
   const [bmVersion,setBmVersion]=useState(0); // イラスト地図を作り直したら増やす（マーカーの描き直し用）
   const [outOfRegion,setOutOfRegion]=useState(false);
   // 3D表示（MapLibre GL。イラスト地図と同じデータで建物を立ち上げる）。使えない端末では 2D のまま
-  const [view3d,setView3d]=useState(()=>{try{return localStorage.getItem("navView3d")==="1"&&hasWebGL();}catch{return false;}});
+  const [streetView] = useState(() => typeof window !== "undefined" && linkedStreetView(window.location.search));
+  const [view3d,setView3d]=useState(()=>{try{return (streetView || localStorage.getItem("navView3d")==="1")&&hasWebGL();}catch{return false;}});
+  const map3dKey = `${isDarkColor(T.bg)?"d":"l"}${T.accent}`;
+  const [readyMapKey,setReadyMapKey]=useState(null);
+  useEffect(()=>{if(!view3d)setReadyMapKey(null);},[view3d]);
   // 3D の見え方：時刻に合わせる（auto）・昼・夕方・夜。いまの昼・夕方・夜はアイコンに出す
-  const [look3d,setLook3d]=useState(()=>{try{const v=localStorage.getItem("cb3Look");return LOOK_MODES.includes(v)?v:"auto";}catch{return "auto";}});
+  const [look3d,setLook3d]=useState(()=>{if(streetView?.shop)return "day";try{const v=localStorage.getItem("cb3Look");return LOOK_MODES.includes(v)?v:"auto";}catch{return "auto";}});
   const [lookPhase3d,setLookPhase3d]=useState("day");
   // 3D の詳細モード（建物の中を見る。階のある建物だけ）
   const [detail3d,setDetail3d]=useState(()=>{try{return localStorage.getItem("cb3Detail")==="1";}catch{return false;}});
   const toggleDetail3d=()=>{const n=!detail3d;setDetail3d(n);try{localStorage.setItem("cb3Detail",n?"1":"0");}catch{}};
   const [lookNote,setLookNote]=useState(null);
   const lookNoteTimer=useRef(0);
-  const cycleLook3d=()=>{
-    const next=LOOK_MODES[(LOOK_MODES.indexOf(look3d)+1)%LOOK_MODES.length];
+  // 見え方を選ぶ（2026-11-25 整理：「表示」の枠の中のボタン。前は押すたびに順に変わるボタン）
+  const pickLook3d=(next)=>{
     setLook3d(next);
     try{localStorage.setItem("cb3Look",next);}catch{}
     clearTimeout(lookNoteTimer.current);
@@ -1506,32 +1509,52 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     {basemap==="illust"?t("navi.mapPhoto"):t("navi.mapIllust")}
   </button>);
   // 3D表示の切り替え（案内中も使える）。読み込み中は点滅させる
-  const loading3d=view3d&&(!mapLibre.ready||!bmData||!features3d);
-  // 3D の見え方（時刻に合わせる・昼・夕方・夜）。時刻に合わせるときは右下に小さく A
-  if(view3d&&(showMapToggle||guiding)&&!pickerOpen)btnStack.push(<button key="look" onClick={cycleLook3d} title={`${t("navi.look")}：${t(LOOK_LABEL[look3d])}`} aria-label={t("navi.look")} style={{...sideBtn,position:"relative"}}>
-    {LOOK_ICON[look3d==="auto"?lookPhase3d:look3d]}
-    {look3d==="auto"&&<span style={{position:"absolute",right:6,bottom:5,fontSize:8,fontWeight:800,lineHeight:1,opacity:.7}}>A</span>}
-  </button>);
-  // タイムスリップ（日付のついた構造物があるときだけ）。過去にいるあいだは色をつけ、右下に年の下 2 けた
-  if(view3d&&!loading3d&&(hasEras3d||slip3d)&&(showMapToggle||guiding)&&!pickerOpen)btnStack.push(<button key="slip" onClick={()=>setSlipOpen(v=>!v)} title={t("navi.slip")} aria-label={t("navi.slip")} aria-expanded={slipOpen} aria-pressed={!!slip3d} style={{...sideBtn,position:"relative",background:slip3d?T.accent:T.bg2,color:slip3d?"#fff":T.txH,border:`1px solid ${slip3d?T.accent:T.bdL}`}}>
-    {SLIP_ICON}
-    {slip3d&&<span style={{position:"absolute",right:4,bottom:4,fontSize:8,fontWeight:800,lineHeight:1}}>{`'${slip3d.slice(2,4)}`}</span>}
-  </button>);
-  // 目の高さで歩いて見る（ルートがあれば、その出発点から。歩いているあいだは 3D の地図が画面の上に出る）
-  if(view3d&&!loading3d&&(showMapToggle||guiding)&&!pickerOpen)btnStack.push(<button key="walk" onClick={()=>map3dRef.current?.startWalk()} title={t("navi.stroll")} aria-label={t("navi.stroll")} style={sideBtn}>{WALK_ICON}</button>);
-  // 詳細モード（建物の中）：階のある建物があるときだけ。階を選ぶボタンは 3D の地図の上（ボタンの列の左）に出る
-  if(view3d&&!loading3d&&(showMapToggle||guiding)&&!pickerOpen&&features3d?.some(f=>f.type==="floor"))btnStack.push(<button key="detail" onClick={toggleDetail3d} title={t("navi.detail")} aria-label={t("navi.detail")} aria-pressed={detail3d} style={{...sideBtn,background:detail3d?T.accent:T.bg2,color:detail3d?"#fff":T.txH,border:`1px solid ${detail3d?T.accent:T.bdL}`}}>{DETAIL_ICON}</button>);
-  if((showMapToggle||guiding)&&!pickerOpen)btnStack.push(<button key="3d" onClick={toggle3d} title={t("navi.view3d")} aria-label={t("navi.view3d")} aria-pressed={view3d} style={{...sideBtn,fontSize:14,fontWeight:900,letterSpacing:"-.02em",background:view3d?T.accent:T.bg2,color:view3d?"#fff":T.txH,border:`1px solid ${view3d?T.accent:T.bdL}`,animation:loading3d?"nav3dLoad 1s ease-in-out infinite":"none"}}>3D</button>);
-  if(showMapToggle&&!pickerOpen)btnStack.push(<button key="loc" title={t("navi.locateMe")} aria-label={t("navi.locateMe")} onClick={()=>{
+  const loading3d=view3d&&(!mapLibre.ready||!bmData||!features3d||readyMapKey!==map3dKey);
+  // 2026-11-25 作り直し：名前のない丸いボタンが 6 つ並び、何のボタンか分かりにくかった → アイコンの下に短い名前。地図の見せ方の
+  // 切りかえ（3D・建物の中・表示）は 1 枚のカードにまとめ、いちばん使う「歩いて見る」だけ色のついた文字のボタンにする。並びは下から
+  const TILE_W=56;
+  const tileCard={display:"flex",flexDirection:"column",width:TILE_W,background:T.bg2,border:`1px solid ${T.bdL}`,borderRadius:14,boxShadow:"0 6px 16px -6px rgba(0,0,0,.35)",overflow:"hidden",flex:"none"};
+  const tileBtn=(on)=>({position:"relative",width:"100%",height:52,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,padding:0,border:"none",background:on?`${T.accent}1f`:"transparent",color:on?T.accent:T.txH,cursor:"pointer",font:"inherit"});
+  const tileName={fontSize:10.5,fontWeight:800,lineHeight:1,whiteSpace:"nowrap"};
+  const tileSep=<div style={{height:1,background:T.bdL,flex:"none"}}/>;
+  // 歩いて見る（目の高さで。歩いているあいだは 3D の地図が画面の上に出る）：いちばん下に、色のついた文字のボタン
+  if(view3d&&!loading3d&&(showMapToggle||guiding)&&!pickerOpen)btnStack.push(<button key="walk" onClick={()=>map3dRef.current?.startWalk()} title={t("navi.stroll")} aria-label={t("navi.stroll")} style={{height:44,padding:"0 16px 0 12px",borderRadius:22,display:"flex",alignItems:"center",gap:6,border:"none",background:T.accent,color:"#fff",fontSize:13.5,fontWeight:800,boxShadow:"0 6px 16px -6px rgba(0,0,0,.45)",cursor:"pointer",whiteSpace:"nowrap",flex:"none"}}>{WALK_ICON}{t("navi.stroll")}</button>);
+  // 見せ方のカード：3D／建物の中（階のある建物があるときだけ。階を選ぶボタンはカードの左に出る）／表示（見え方・タイムスリップ。
+  // 押すと左に選ぶ枠。アイコンはいまの見え方で、時刻に合わせるときは小さく A、過去にいるあいだは年の下 2 けた）
+  if((showMapToggle||guiding)&&!pickerOpen){
+    const showDetail=view3d&&!loading3d&&features3d?.some(f=>f.type==="floor");
+    btnStack.push(<div key="view" style={tileCard}>
+      <button onClick={toggle3d} title={t("navi.view3d")} aria-label={t("navi.view3d")} aria-pressed={view3d} style={{...tileBtn(view3d),animation:loading3d?"nav3dLoad 1s ease-in-out infinite":"none"}}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M12 2.5 20.5 7v10L12 21.5 3.5 17V7z"/><path d="M3.5 7 12 11.5 20.5 7M12 11.5v10"/></svg>
+        <span style={tileName}>3D</span>
+      </button>
+      {showDetail&&tileSep}
+      {showDetail&&<button onClick={toggleDetail3d} title={t("navi.detail")} aria-pressed={detail3d} style={tileBtn(detail3d)}>
+        {DETAIL_ICON}
+        <span style={tileName}>{t("navi.tileInside")}</span>
+      </button>}
+      {view3d&&tileSep}
+      {view3d&&<button onClick={()=>setSlipOpen(v=>!v)} title={t("navi.viewMenu")} aria-label={t("navi.viewMenu")} aria-expanded={slipOpen} aria-pressed={!!slip3d} style={tileBtn(slipOpen||!!slip3d)}>
+        <span style={{position:"relative",display:"flex"}}>
+          {LOOK_ICON[look3d==="auto"?lookPhase3d:look3d]}
+          {slip3d?<span style={{position:"absolute",right:-13,bottom:-2,fontSize:8.5,fontWeight:800,lineHeight:1}}>{`'${slip3d.slice(2,4)}`}</span>:look3d==="auto"&&<span style={{position:"absolute",right:-8,bottom:-2,fontSize:8,fontWeight:800,lineHeight:1,opacity:.7}}>A</span>}
+        </span>
+        <span style={tileName}>{t("navi.tileView")}</span>
+      </button>}
+    </div>);
+  }
+  // 現在地（カード 1 枚。名前つき）
+  if(showMapToggle&&!pickerOpen)btnStack.push(<div key="loc" style={tileCard}><button title={t("navi.locateMe")} aria-label={t("navi.locateMe")} onClick={()=>{
     if(gpsPos&&view3d&&map3dRef.current){map3dRef.current.flyTo(gpsPos.lat,gpsPos.lng,17.5);return;}
     const map=mapInst.current;
     if(gpsPos&&map){
       if(mapRotated)followTo(map,[gpsPos.lat,gpsPos.lng],Math.max(map.getZoom(),17.5));
       else map.flyTo([gpsPos.lat,gpsPos.lng],Math.max(map.getZoom(),17.5),{duration:0.5});
     }else requestLocation();
-  }} style={{...sideBtn,color:gpsPos?ROUTE_COL:T.txD}}>
+  }} style={{...tileBtn(false),color:gpsPos?ROUTE_COL:T.txH}}>
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="3.2" fill={gpsPos?"currentColor":"none"}/><circle cx="12" cy="12" r="8"/><path d="M12 1.5v3m0 15v3M1.5 12h3m15 0h3"/></svg>
-  </button>);
+    <span style={tileName}>{t("navi.tileLocate")}</span>
+  </button></div>);
   if((mapRotated||guiding)&&!(mob&&bottomCardShown&&!guiding)&&!pickerOpen)btnStack.push(<button key="compass" title={guiding?(northUp?t("navi.headingUp"):t("navi.northUp")):t("navi.northUp")} aria-label={t("navi.northUp")} onClick={()=>{
     if(guiding){setNorthUp(v=>!v);setFollowing(true);}
     else if(view3d&&map3dRef.current)map3dRef.current.resetNorth();
@@ -1545,7 +1568,8 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m-10-10h4m12 0h4"/></svg>
     {t("navi.recenter")}
   </button>);
-  const mapButtons=btnStack.length>0&&<div style={{position:"absolute",right:mob?10:14,bottom:mob?118:122,zIndex:999,display:"flex",flexDirection:"column-reverse",flexWrap:"wrap-reverse",alignItems:"flex-end",alignContent:"flex-start",gap:10,maxHeight:`calc(100% - ${(mob?118:122)+(mob?120:14)}px)`,minHeight:44}}>{btnStack}</div>;
+  // wrap-reverse で横の向きが入れかわるので、flex-start が右端（幅のちがうカードと「歩いて見る」を右端でそろえる）
+  const mapButtons=btnStack.length>0&&<div style={{position:"absolute",right:10,bottom:mob?118:122,zIndex:999,display:"flex",flexDirection:"column-reverse",flexWrap:"wrap-reverse",alignItems:"flex-start",alignContent:"flex-start",gap:10,maxHeight:`calc(100% - ${(mob?118:122)+(mob?120:14)}px)`,minHeight:44}}>{btnStack}</div>;
   const outOfRegionChip=basemap==="illust"&&!view3d&&(outOfRegion||(gpsPos&&!inCampusArea(gpsPos.lat,gpsPos.lng)))&&!guiding&&!bottomCardShown&&!pickerOpen&&<div style={{position:"absolute",left:mob?10:0,right:mob?64:0,bottom:mob?18:24,zIndex:999,display:"flex",justifyContent:mob?"flex-start":"center",pointerEvents:"none"}}>
     <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 8px 8px 14px",borderRadius:20,background:T.bg2,border:`1px solid ${T.bdL}`,boxShadow:"0 6px 16px -6px rgba(0,0,0,.4)",whiteSpace:"nowrap",animation:"navSlideUp .2s ease-out",pointerEvents:"auto"}}>
       <span style={{fontSize:12,color:T.tx}}>{t("navi.illustAreaOnly")}</span>
@@ -1592,11 +1616,12 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
     {/* Full-screen map（zIndex で Leaflet 内部の重なりを閉じ込め、3D表示をその上に重ねる） */}
     <div ref={mapRef} style={{position:"absolute",inset:0,zIndex:0}}/>
     {view3d&&mapLibre.ready&&bmData&&features3d&&<CampusMap3D
-      key={`${isDarkColor(T.bg)?"d":"l"}${T.accent}`}
+      key={map3dKey}
       ref={map3dRef}
       data={bmData}
       trains
       features={features3d}
+      streetView={streetView}
       dark={isDarkColor(T.bg)}
       accent={T.accent}
       initialView={leafletView()}
@@ -1616,24 +1641,34 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
       onMapClick={()=>{if(navPhaseRef.current==="search")setSearchMin(true);}}
       onUserMove={()=>{if(guidingRef.current)setFollowing(false);}}
       onRotate={(b)=>syncCompass(-b)}
-      onLoad={scheduleView}
+      onLoad={()=>{setReadyMapKey(map3dKey);scheduleView();}}
       onError={()=>{setView3d(false);setNotice3d(true);}}
       lookMode={look3d}
       onLookPhase={setLookPhase3d}
       detail={detail3d}
-      floorsStyle={{right:mob?64:72,bottom:mob?118:122}}
+      floorsStyle={{right:74,bottom:(mob?118:122)+54,maxHeight:`calc(100% - ${(mob?118:122)+54+(mob?120:20)}px)`,overflowY:"auto",padding:"2px 2px 2px 0"}}
+      zoomWidth={56}
     />}
     {/* タイムスリップの行き先（ボタンの列の左）。いまいる時代の枠に色 */}
-    {slipOpen&&view3d&&<div role="dialog" aria-label={t("navi.slip")} style={{position:"absolute",right:mob?62:70,bottom:mob?118:122,zIndex:1002,width:mob?"min(272px, calc(100% - 82px))":292,boxSizing:"border-box",background:T.bg2,border:`1px solid ${T.bdL}`,borderRadius:14,boxShadow:"0 10px 28px -10px rgba(0,0,0,.5)",padding:"10px 10px 9px",animation:"navSlideUp .18s ease-out"}}>
-      <div style={{display:"flex",alignItems:"center",gap:7,margin:"0 2px 9px",color:T.txH,fontSize:13.5,fontWeight:800}}>
-        <span style={{display:"flex",color:T.accent}}>{SLIP_ICON}</span>{t("navi.slip")}
+    {slipOpen&&view3d&&<div role="dialog" aria-label={t("navi.viewMenu")} style={{position:"absolute",right:74,bottom:(mob?118:122)+54,zIndex:1002,width:mob?"min(272px, calc(100% - 82px))":292,maxHeight:`calc(100% - ${(mob?118:122)+54+(mob?120:20)}px)`,overflowY:"auto",boxSizing:"border-box",background:T.bg2,border:`1px solid ${T.bdL}`,borderRadius:14,boxShadow:"0 10px 28px -10px rgba(0,0,0,.5)",padding:"10px 10px 9px",animation:"navSlideUp .18s ease-out"}}>
+      <div style={{display:"flex",alignItems:"center",gap:7,margin:"0 2px 8px",color:T.txH,fontSize:13.5,fontWeight:800}}>
+        {t("navi.viewLook")}
         <button type="button" onClick={()=>setSlipOpen(false)} aria-label={t("navi.slipClose")} style={{marginLeft:"auto",border:"none",background:"none",color:T.txD,fontSize:18,lineHeight:1,cursor:"pointer",padding:"0 4px"}}>×</button>
       </div>
-      {SLIP_ERAS.map(era=>{const on=(era.day||null)===(slip3d||null);return <button type="button" key={era.id} onClick={()=>pickSlip(era)} aria-pressed={on} style={{display:"block",width:"100%",boxSizing:"border-box",textAlign:"left",margin:"0 0 7px",padding:"9px 11px",borderRadius:10,border:`1.5px solid ${on?T.accent:T.bdL}`,background:on?`${T.accent}14`:"transparent",color:T.txH,cursor:"pointer",font:"inherit"}}>
+      {/* 見え方：時刻に合わせる・昼・夕方・夜（2026-11-25 整理：前は押すたびに順に変わるボタン） */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,margin:"0 0 10px"}}>
+        {LOOK_MODES.map(m=>{const on=look3d===m;return <button type="button" key={m} onClick={()=>pickLook3d(m)} aria-pressed={on} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 9px",borderRadius:10,border:`1.5px solid ${on?T.accent:T.bdL}`,background:on?`${T.accent}14`:"transparent",color:T.txH,cursor:"pointer",font:"inherit",fontSize:12.5,fontWeight:700,textAlign:"left"}}>
+          <span style={{display:"flex",flex:"none"}}>{LOOK_ICON[m==="auto"?lookPhase3d:m]}</span>{t(LOOK_LABEL[m])}
+        </button>;})}
+      </div>
+      {!loading3d&&(hasEras3d||slip3d)&&<div style={{display:"flex",alignItems:"center",gap:7,margin:"0 2px 8px",color:T.txH,fontSize:13.5,fontWeight:800}}>
+        <span style={{display:"flex",color:T.accent}}>{SLIP_ICON}</span>{t("navi.slip")}
+      </div>}
+      {!loading3d&&(hasEras3d||slip3d)&&SLIP_ERAS.map(era=>{const on=(era.day||null)===(slip3d||null);return <button type="button" key={era.id} onClick={()=>pickSlip(era)} aria-pressed={on} style={{display:"block",width:"100%",boxSizing:"border-box",textAlign:"left",margin:"0 0 7px",padding:"9px 11px",borderRadius:10,border:`1.5px solid ${on?T.accent:T.bdL}`,background:on?`${T.accent}14`:"transparent",color:T.txH,cursor:"pointer",font:"inherit"}}>
         <div style={{fontSize:13,fontWeight:800}}>{t(era.label)}</div>
         <div style={{fontSize:11.5,color:T.txD,marginTop:2,lineHeight:1.4}}>{t(era.sub)}</div>
       </button>;})}
-      <div style={{fontSize:11,color:T.txD,lineHeight:1.5,margin:"1px 2px 0"}}>{t("navi.slipNote")}</div>
+      {!loading3d&&(hasEras3d||slip3d)&&<div style={{fontSize:11,color:T.txD,lineHeight:1.5,margin:"1px 2px 0"}}>{t("navi.slipNote")}</div>}
     </div>}
     {slipNote&&view3d&&<div style={{position:"absolute",left:0,right:0,bottom:mob?18:24,zIndex:1001,display:"flex",justifyContent:"center",pointerEvents:"none"}}>
       <div style={{padding:"8px 14px",borderRadius:16,background:"rgba(14,32,48,.88)",color:"#fff",fontSize:12.5,fontWeight:700,boxShadow:"0 6px 16px -6px rgba(0,0,0,.5)",animation:"navSlideUp .2s ease-out"}}>{slipNote==="now"?t("navi.slipBackNote"):t("navi.slipToNote",{era:t(SLIP_ERAS.find(e=>e.id===slipNote)?.label||"navi.slip")})}</div>

@@ -56,6 +56,8 @@ const CSS = `
 .cb3-inv{position:absolute;left:50%;bottom:calc(10px + var(--cb3-sb,env(safe-area-inset-bottom,0px)));transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none;z-index:4}
 .cb3-inv-wallet{padding:3px 10px;border-radius:10px;background:rgba(14,32,48,.78);color:#fff;font-size:11.5px;font-weight:700;white-space:nowrap}
 .cb3-inv-wallet small{opacity:.75;font-weight:600;margin-left:4px}
+.cb3-moon-lens{pointer-events:auto;border:1px solid #abb9c5;border-radius:16px;padding:6px 12px;background:#152532;color:white;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.cb3-moon-lens kbd{margin-left:6px;font:inherit;opacity:.7}
 .cb3-inv-bar{display:flex;gap:3px;padding:3px;border-radius:12px;background:rgba(14,32,48,.55);pointer-events:auto}
 .cb3-inv-slot{position:relative;width:36px;height:36px;border:2px solid transparent;border-radius:9px;background:rgba(255,255,255,.14);padding:0;cursor:pointer;
   display:flex;align-items:center;justify-content:center;color:#fff;touch-action:manipulation}
@@ -291,19 +293,23 @@ function MiniMap({ walkRef, data, features, accent }) {
   );
 }
 
-export function MapInventory({ inv, touch, menu, toast, walkRef, data, features, accent, onSelect, onUse, onCloseMenu, onBuy, onCharge, onRename }) {
+export function MapInventory({ inv, bar = true, touch, menu, toast, walkRef, data, features, accent, onSelect, onUse, onCloseMenu, onBuy, onCharge, onRename, moonScope, onMoonScope }) {
   if (!inv) return null;
   const sel = inv.slots[inv.sel];
   return (
     <>
       <style>{CSS}</style>
-      {sel?.id === "map" && <MiniMap walkRef={walkRef} data={data} features={features} accent={accent} />}
+      {/* bar：持ち物を出しているか（しまっているときは、9 マス・お金・手に持った地図・月を見るボタンを出さない。2026-11-25 整理） */}
+      {bar && sel?.id === "map" && <MiniMap walkRef={walkRef} data={data} features={features} accent={accent} />}
       <div className="cb3-inv">
-        <div className="cb3-inv-wallet">
+        {bar && sel?.id === "camera" && onMoonScope && <button type="button" className="cb3-moon-lens" aria-pressed={!!moonScope} onClick={onMoonScope}>
+          {t(moonScope ? "inv.moonWide" : "inv.moonScope")}{!touch && <kbd>T</kbd>}
+        </button>}
+        {bar && <div className="cb3-inv-wallet">
           {t("inv.money")} {yen(inv.money)}{t("inv.yen")} ・ IC {yen(inv.ic)}{t("inv.yen")}
           <small>{t("inv.inGame")}</small>
-        </div>
-        <div className="cb3-inv-bar" role="toolbar" aria-label={t("inv.title")}>
+        </div>}
+        {bar && <div className="cb3-inv-bar" role="toolbar" aria-label={t("inv.title")}>
           {inv.slots.map((s, i) => (
             <button key={i} type="button" className={`cb3-inv-slot${i === inv.sel ? " on" : ""}`} aria-label={s ? t(ITEMS[s.id].name) : t("inv.empty")} aria-pressed={i === inv.sel} onClick={() => onSelect(i)}>
               {!touch && <span className="cb3-inv-k">{i + 1}</span>}
@@ -311,7 +317,7 @@ export function MapInventory({ inv, touch, menu, toast, walkRef, data, features,
               {s && s.n > 1 && <span className="cb3-inv-n">{s.n}</span>}
             </button>
           ))}
-        </div>
+        </div>}
       </div>
       {toast && <div className="cb3-inv-toast">{toast}</div>}
       {menu && (

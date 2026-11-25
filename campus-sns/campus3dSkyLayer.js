@@ -1,10 +1,12 @@
 // 空（デジタルツインの芯 3 の描き方。2026-11-10）：MapLibre の独自レイヤーで、いちばん下に画面いっぱいの空を描く（地形・建物はその上）。
 // 空の色＝大気の 1 回散乱（レイリー・ミー・オゾン）を JS で計算した表（見る高さ × 太陽からの方位の差）。太陽の高さが変わったら作り直す。
-// その上に、太陽（大気を通った色・まわりの光）、月（太陽の向きから満ち欠け）、星（地球の回転どおりに回る。並びは作りもの）、
+// その上に、太陽（大気を通った色・まわりの光）、月（太陽の向きから満ち欠け）、星表の恒星・肉眼で見える惑星、
 // 雲（量・暗さ・種類・風で流れる）、霧（見通し）、稲光。夜は街の明かりで空の下のほうと雲の底が明るい（東京）。
 // 状態は campus3dEnv の envAt（setEnv）。DOM は使わない
 import { PER_M, compile, matrixFor } from "./campus3dLayer.js";
 import { BOLT_SEGS, dirOf, lightningCreate, lightningStep } from "./campus3dEnv.js";
+import { createStarField, twilightLimit } from "./campus3dStars.js";
+import { createMoonTextures, MOON_SURFACE, moonFromEye } from "./campus3dMoonSurface.js";
 
 export const SKY_LAYER_ID = "cb-sky";
 const DEG = Math.PI / 180;
@@ -189,10 +191,10 @@ export function exposureAt(el) {
   }
   return 10 ** EXPOSURE[el > 0 ? 0 : EXPOSURE.length - 1][1];
 }
-// 夜の街の明かり（東京の空。地平線のほうが明るい茶色）。見る高さ e（度）。sRGB 0〜1。演出（推定）
+// 街明かりの推定。地平付近の暖かい散乱光から、天頂の暗い青灰色へ。
 export function cityGlow(e) {
-  const k = Math.exp(-Math.max(0, e) / 14);
-  return [0.07 + 0.17 * k, 0.075 + 0.12 * k, 0.11 + 0.07 * k];
+  const high = Math.exp(-Math.max(0, e) / 32), low = Math.exp(-Math.max(0, e) / 9);
+  return [0.046 + 0.058 * high + 0.133 * low, 0.058 + 0.053 * high + 0.096 * low, 0.088 + 0.059 * high + 0.064 * low];
 }
 const toneMap = (x, ex) => 1 - Math.exp(-x * ex);
 const toSrgb = (x) => (x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055);
@@ -282,34 +284,173 @@ export function atmosphere(turbidity) {
 }
 
 // ── シェーダー ──
-const VS = `
-attribute vec2 a_ndc;
-attribute vec3 a_dir;
-varying vec3 v_dir;
+// RGB holds independent lattice noise. Alpha holds the tileable cloud envelope.
+// Bake it once so crossing a cloud only needs one filtered envelope lookup per sample.
+function cloudNoiseData() {
+  const size = 256, tile = 16;
+  const data = new Uint8Array(size * size * 4);
+  let seed = 12345;
+  for (let i = 0; i < data.length; i++) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    data[i] = seed >>> 24;
+  }
+  const envelope = new Float32Array(size * size);
+  let xOffset = 0, yOffset = 0, amplitude = 0.5;
+  for (let octave = 0; octave < 5; octave++) {
+    const period = tile << octave;
+    function samples(offset) {
+      const first = Math.floor(offset - period / 2);
+      return Array.from({ length: size }, (_, i) => {
+        const p = ((i + 0.5) / size - 0.5) * period + offset;
+        const cell = Math.floor(p), f = p - cell;
+        const wrap = (j) => (first + ((j - first) & (period - 1))) & 255;
+        return [wrap(cell), wrap(cell + 1), f * f * (3 - 2 * f)];
+      });
+    }
+    const xs = samples(xOffset), ys = samples(yOffset);
+    for (let y = 0; y < size; y++) {
+      const [y0, y1, fy] = ys[y];
+      for (let x = 0; x < size; x++) {
+        const [x0, x1, fx] = xs[x];
+        const a = data[(y0 * size + x0) * 4], b = data[(y1 * size + x0) * 4];
+        const lo = a + (data[(y0 * size + x1) * 4] - a) * fx;
+        const hi = b + (data[(y1 * size + x1) * 4] - b) * fx;
+        envelope[y * size + x] += (lo + (hi - lo) * fy) * amplitude;
+      }
+    }
+    xOffset = xOffset * 2.03 + 17.1;
+    yOffset = yOffset * 2.03 + 9.2;
+    amplitude *= 0.5;
+  }
+  for (let i = 0; i < envelope.length; i++) data[i * 4 + 3] = Math.round(envelope[i]);
+  return data;
+}
+
+// The sky and the individual star directions sample the same moving cloud field.
+const CLOUDS = `
+uniform sampler2D u_noise;
+uniform vec4 u_cloud;
+uniform vec3 u_cloudFrame; // camera east/north minus wind travel, and observer altitude (km)
+uniform float u_cloudPixel; // angular span of a drawing-buffer pixel at the centre of the view
+vec4 cloudNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+  return texture2DLod(u_noise, (i+f+0.5)/256.0, 0.0);
+}
+float resolved(float cellsPerPixel) {
+  return 1.0-smoothstep(0.24,0.80,cellsPerPixel);
+}
+float fbm(vec2 p, float footprint) {
+  // 256 texels cover 16 lattice cells. Select the same mip in both shader stages.
+  float lod=log2(max(1.0,footprint*16.0));
+  return texture2DLod(u_noise,p/16.0+0.5,lod).a;
+}
+float shellDistance(float gap, float up) {
+  return 2.0*gap/(sqrt(up*up+2.0*gap/6371.0)+up+0.000001);
+}
+const float CUMULUS_DEPTH=0.32; // km above the condensation level
+float cumulusContour(float h) {
+  return mix(0.74,0.30,u_cloud.x)+0.014+0.14*h*h;
+}
+float cumulusDetail(vec2 q, float h, float footprint) {
+  float weight=resolved(footprint*7.0);
+  if (weight<=0.0) return 0.0;
+  vec2 warp=cloudNoise(q*2.2+vec2(0.5,-0.3)*h).gb-0.5;
+  vec2 curl=mat2(0.8,0.6,-0.6,0.8)*q*7.0+warp*1.8+vec2(1.1,-0.8)*h;
+  return (cloudNoise(curl).g-0.5)*0.062*weight
+       + (cloudNoise(curl*2.17+15.4).b-0.5)*0.026*resolved(footprint*15.2);
+}
+// Integrate a shallow volume from its base to its domed top. Samples stay fixed
+// within the layer as the eye moves. The same opacity obscures the Moon and stars.
+float cumulus(vec3 d, float nearKm, inout vec2 p, inout float footprint, out float mass, out float litHeight) {
+  const int steps=5;
+  float base=u_cloud.w, eye=u_cloudFrame.z;
+  if (eye>=base+CUMULUS_DEPTH) { mass=0.0; litHeight=1.0; return 0.0; }
+  float farKm=shellDistance(base+CUMULUS_DEPTH-eye,max(0.0,d.z));
+  float travel=max(0.0,farKm-nearKm);
+  vec2 span=d.xy*travel;
+  float start=clamp((eye-base)/CUMULUS_DEPTH,0.0,1.0);
+  // A long grazing segment also averages over fine structure along the ray.
+  footprint=max(footprint,length(span)*(0.28/float(steps)));
+  float soften=min(0.034,footprint*0.10);
+  float opacity=0.0, heightSum=0.0, massSum=0.0;
+  float path=min(travel/CUMULUS_DEPTH,3.5*(1.0-start));
+  for (int i=0; i<steps; i++) {
+    float t=(float(i)+0.5)/float(steps), h=mix(start,1.0,t);
+    vec2 q=p+span*t;
+    float field=fbm(q*0.55,footprint*0.55);
+    float contour=cumulusContour(h);
+    // No amount of fine detail can bring a sample this far outside into the cloud.
+    if (field+0.044<contour-0.010-soften) continue;
+    field+=cumulusDetail(q,h,footprint);
+    float edge=field-contour;
+    float water=smoothstep(-0.010-soften,0.064+soften,edge);
+    float scatter=(1.0-opacity)*(1.0-exp(-water*path*(3.8/float(steps))));
+    opacity+=scatter;
+    heightSum+=scatter*t;
+    massSum+=scatter*field;
+  }
+  float meanT=heightSum/max(opacity,0.0001);
+  p+=span*meanT;
+  mass=massSum/max(opacity,0.0001);
+  litHeight=mix(start,1.0,meanT);
+  return opacity;
+}
+float cloudDensity(vec3 d, out vec2 p, out float mass, out float footprint, out float litHeight) {
+  float cover=u_cloud.x, type=u_cloud.z;
+  // Intersect a finite cloud layer, in campus coordinates. Earth's curvature
+  // gives a finite distance even at the horizon. Both celestial passes use it.
+  float gap=max(0.0,u_cloud.w-u_cloudFrame.z);
+  float up=max(0.0,d.z);
+  float slant=sqrt(up*up+2.0*gap/6371.0);
+  float distanceKm=shellDistance(gap,up);
+  p=u_cloudFrame.xy+d.xy*distanceKm;
+  footprint=u_cloudPixel*distanceKm/max(slant,0.001);
+  float horizon=mix(cover*cover,1.0,smoothstep(0.0,0.16,d.z))*smoothstep(-0.012,0.012,d.z);
+  if (type<0.5) {
+    float opacity=cumulus(d,distanceKm,p,footprint,mass,litHeight);
+    return opacity*horizon;
+  }
+  litHeight=0.35;
+  float low=smoothstep(0.012,0.09,d.z);
+  mass=mix(0.5,fbm(p*0.55,footprint*0.55),low);
+  float density;
+  if (type<1.5) density=clamp(cover*(0.86+0.42*(mass-0.5)),0.0,1.0);
+  else if (type<2.5) {
+    float streak=fbm(vec2(p.x*0.22,p.y*1.5)*0.45+5.0,footprint*0.675), threshold=mix(0.72,0.36,cover);
+    density=smoothstep(threshold,threshold+0.3,streak)*0.6;
+  } else density=clamp(smoothstep(mix(0.62,0.3,cover),0.7,mass)*0.6+cover*0.45,0.0,1.0);
+  float column=smoothstep(0.0,min(0.35,0.18*u_cloud.w),gap);
+  return density*column*horizon;
+}`;
+const VS = `#version 300 es
+in vec2 a_ndc;
+in vec3 a_dir;
+out vec3 v_dir;
 void main() { v_dir = a_dir; gl_Position = vec4(a_ndc, 0.9999, 1.0); }`;
-const FS = `
+const FS = `#version 300 es
+#define texture2D texture
+#define texture2DLod textureLod
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
 #else
 precision mediump float;
 #endif
-varying vec3 v_dir;
+in vec3 v_dir;
+out vec4 fragColor;
 uniform sampler2D u_lut;
 uniform vec2 u_lutSize;
 uniform vec3 u_sun;
 uniform vec3 u_sunCol;
 uniform float u_sunPow;
 uniform vec3 u_moon;
-uniform float u_moonVis;
 uniform float u_night;
-uniform mat3 u_starM;
 uniform float u_pix;
-uniform vec4 u_cloud;   // 量・暗さ・種類（0 積雲 1 層雲 2 巻雲 3 積乱雲）・雲の底の高さ（km）
-uniform vec2 u_wind;    // 雲の流れた量（km）
+uniform float u_moonLight;
 uniform vec3 u_ambient; // 雲を下から照らす空の色
 uniform vec3 u_glow;    // 夜の街の明かり（雲の底）
 uniform vec3 u_fog;     // 霧・もやの色
 uniform float u_fogAmt; // 空全体の霧（見通しが短いほど 1）
+uniform float u_filmExposure;
 uniform float u_haze;   // 地平線のもや
 uniform float u_flash;  // 稲光の明るさ（0〜1.6）
 uniform vec4 u_flashDir; // 光った向き（東・北・上）・照らす広がり（ラジアン。近いほど空いっぱい）
@@ -317,43 +458,12 @@ uniform vec4 u_flashPos; // 光ったところ（東・北 km）・雲の底を�
 uniform vec4 u_bolt;     // 落雷の光の道：方位（ラジアン）・明るさ・幹の線の本数・太さ（画素。近いほど太い）
 uniform vec4 u_boltBox;  // 光の道のある範囲：横の角の最小・最大、高さの角の最小・最大（ラジアン）
 uniform vec4 u_seg[${BOLT_SEGS}]; // 光の道の線（横の角・高さの角の 2 点）
-uniform float u_starCut; // これより暗い星は見えない（月・街の明かり）
 const float PI = 3.14159265;
-uniform sampler2D u_noise; // 乱数（256×256、くり返し）
-float hash3(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
-// 値のノイズ：乱数のテクスチャを、升の中はなめらか（smoothstep）に補間して引く（式で作る乱数は大きな座標で桁が落ち、雲に直線のずれが出た）
-float noise(vec2 p) {
-  vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
-  return texture2D(u_noise, (i + f + 0.5) / 256.0).r;
-}
-float fbm(vec2 p) {
-  float s = 0.0; float a = 0.5;
-  for (int i = 0; i < 5; i++) { s += a * noise(p); p = p * 2.03 + vec2(17.1, 9.2); a *= 0.5; }
-  return s;
-}
-// 星：天球に固定した向き q を立方体の面の升目に分け、升ごとに星をひとつ（明るさ・色は升で決まる）
-vec3 stars(vec3 q) {
-  vec3 a = abs(q);
-  vec2 uv; float face;
-  if (a.x >= a.y && a.x >= a.z) { uv = q.yz / a.x; face = q.x > 0.0 ? 0.0 : 1.0; }
-  else if (a.y >= a.z) { uv = q.xz / a.y; face = q.y > 0.0 ? 2.0 : 3.0; }
-  else { uv = q.xy / a.z; face = q.z > 0.0 ? 4.0 : 5.0; }
-  float N = 70.0;
-  vec2 g = (uv * 0.5 + 0.5) * N;
-  vec2 cell = floor(g);
-  float h = hash3(vec3(cell, face));
-  if (h > 0.34) return vec3(0.0);
-  vec2 c = cell + 0.2 + 0.6 * vec2(hash3(vec3(cell, face + 7.0)), hash3(vec3(cell, face + 13.0)));
-  float px = u_pix * N * 0.5 * max(a.x, max(a.y, a.z)); // 1 画素が升でいくつか
-  float d = length(g - c) / max(px, 1e-4);
-  float mag = pow(hash3(vec3(cell, face + 3.0)), 6.0); // 明るい星は少ない
-  float b = exp(-d * d * 0.9) * max(0.0, mag * 2.2 - u_starCut) / (1.0 - u_starCut * 0.4);
-  float t = hash3(vec3(cell, face + 21.0));
-  vec3 col = mix(vec3(0.75, 0.82, 1.0), vec3(1.0, 0.85, 0.7), t);
-  return col * b;
-}
+${MOON_SURFACE}
+${CLOUDS}
 void main() {
   vec3 d = normalize(v_dir);
+  vec3 dx = dFdx(d), dy = dFdy(d);
   float el = asin(clamp(d.z, -1.0, 1.0));
   // 空の表
   vec2 hz = d.xy + vec2(1e-6, 0.0);
@@ -363,40 +473,29 @@ void main() {
   vec2 uv = (vec2(rel, ev) * (u_lutSize - 1.0) + 0.5) / u_lutSize;
   vec3 sky = texture2D(u_lut, uv).rgb;
   // 地平線より下（地形の外の遠く）：もやの色へ
-  sky = mix(sky, u_fog, smoothstep(0.0, -0.06, d.z));
+  sky = mix(sky, u_fog, 1.0-smoothstep(-0.06, 0.0, d.z));
   // 地平線のもや（見通しが短いほど高くまで）
   sky = mix(sky, u_fog, u_haze * exp(-max(d.z, 0.0) * 9.0));
-  // 星（夜。雲・霧で消える）
-  if (u_night > 0.02) sky += stars(u_starM * d) * u_night * (1.0 - u_fogAmt) * (1.0 - u_cloud.x);
-  // 月（太陽の向きから明るい側。昼は淡く）
-  float mr = 0.0046;
   float mc = dot(d, u_moon);
-  if (mc > cos(mr * 3.0) && u_moonVis > 0.0) {
-    vec3 up = abs(u_moon.z) < 0.99 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
-    vec3 rt = normalize(cross(u_moon, up));
-    vec3 u2 = cross(rt, u_moon);
-    vec2 o = vec2(dot(d, rt), dot(d, u2)) / tan(mr);
-    float r2 = dot(o, o);
-    if (r2 < 1.0) {
-      vec3 n = rt * o.x + u2 * o.y - u_moon * sqrt(1.0 - r2);
-      float lit = clamp(dot(n, u_sun) * 1.4 + 0.05, 0.0, 1.0);
-      float edge = smoothstep(1.0, 0.92, r2);
-      vec3 mcol = vec3(0.96, 0.94, 0.88) * (0.04 + 0.96 * lit) * (0.9 + 0.1 * noise(o * 4.0 + 3.0));
-      sky = mix(sky, max(sky, mcol), edge * u_moonVis);
-    }
-    sky += vec3(0.6, 0.65, 0.75) * exp(-acos(clamp(mc, -1.0, 1.0)) * 40.0) * 0.12 * u_moonVis * u_night;
+  // 月光の前方散乱。月の位相と高さに応じて、周囲数度から十数度の空を照らす。
+  float moonCloud = 0.0;
+  if (u_moonLight > 0.001) {
+    float ma = acos(clamp(mc, -1.0, 1.0));
+    sky += vec3(0.78,0.84,1.0) * u_moonLight * (0.065*exp(-ma*6.5) + 0.13*exp(-ma*45.0));
+    moonCloud = u_moonLight*exp(-ma*2.8);
   }
   // 太陽（円盤・まわりの光）
   float sc = dot(d, u_sun);
   float sa = acos(clamp(sc, -1.0, 1.0));
   float sr = 0.00465;
-  float disc = smoothstep(sr + u_pix, sr - u_pix, sa);
+  float disc = 1.0-smoothstep(sr - u_pix, sr + u_pix, sa);
   float limb = 1.0 - 0.55 * (1.0 - sqrt(max(0.0, 1.0 - (sa / sr) * (sa / sr))));
   float above = smoothstep(-0.01, 0.004, u_sun.z);
   vec3 sunDisc = mix(u_sunCol, vec3(1.0, 0.98, 0.92), u_sunPow * 0.6) * limb * 1.6;
   vec3 halo = u_sunCol * (exp(-sa * 55.0) * 0.45 + exp(-sa * 9.0) * 0.12) * above * (0.4 + 0.6 * u_sunPow);
-  sky = mix(sky, sunDisc, disc * above);
-  sky += halo;
+  vec3 air = sky + halo;
+  sky = mix(sky, sunDisc, disc * above) + halo;
+  vec3 lunarContrast = lunarDisc(d, dx, dy, sky, air) - sky;
   // 稲光：光った向きのまわりほど明るい（近い雷は空いっぱい、遠い雷は地平線の一部）
   // fg：空気（雨・もや）の光は向きのまわり。cgl：雲の底（1.2km）の、その向きに見える点が、光ったところからどれだけ近いか（近い雷なら頭の上も明るい）
   float fg = 0.0;
@@ -413,38 +512,44 @@ void main() {
   // 雲
   float dens = 0.0;
   if (u_cloud.x > 0.001 && d.z > -0.02) {
-    float zz = max(d.z, 0.035);
-    vec2 p = d.xy * (u_cloud.w / zz) + u_wind;
-    // 地平線の近くは雲の面がつぶれてノイズが縦に伸びる（縦じま）ので、平均の濃さに寄せる
-    float low = smoothstep(0.012, 0.09, d.z);
-    float n = mix(0.5, fbm(p * 0.55), low);
-    float type = u_cloud.z;
-    float cover = u_cloud.x;
-    if (type < 0.5) {
-      float thr = mix(0.74, 0.3, cover);
-      dens = smoothstep(thr, thr + 0.16, n);
+    vec2 p; float mass, footprint, litHeight;
+    dens = cloudDensity(d, p, mass, footprint, litHeight);
+    if (dens>0.0) {
+      // The illuminated side and the high ridges catch direct light. At night
+      // the Moon lights the rim and city light reaches the lower surface.
+      float sunUp = smoothstep(-0.05, 0.08, u_sun.z);
+      vec3 lightDir = mix(u_moon,u_sun,sunUp);
+      float shade;
+      if (u_cloud.z<0.5) {
+        // Optical depth toward the light, through the same cloud that obscures the stars.
+        float path=min(0.65,(1.0-litHeight)*CUMULUS_DEPTH/max(0.12,lightDir.z));
+        float shadow=0.0;
+        for (int i=0; i<2; i++) {
+          float stepKm=path*(0.25+0.5*float(i));
+          vec2 q=p+lightDir.xy*stepKm;
+          float h=clamp(litHeight+lightDir.z*stepKm/CUMULUS_DEPTH,0.0,1.0);
+          float edge=fbm(q*0.55,footprint*0.55)-cumulusContour(h);
+          if (abs(edge-0.03)<0.10) edge+=cumulusDetail(q,h,footprint);
+          shadow+=smoothstep(-0.012,0.076,edge);
+        }
+        shade=(0.53+0.78*exp(-2.9*path*shadow))*(0.90+0.48*litHeight);
+      } else {
+        float ahead=fbm((p+0.37*lightDir.xy)*0.55,footprint*0.55);
+        shade=clamp(1.0+(mass-ahead)*3.8,0.50,1.35)*(1.04-0.20*dens);
+      }
+      float silver = pow(max(sc,0.0),10.0)*(1.15-0.85*dens)*(1.0-u_cloud.y);
+      vec3 lit = u_sunCol*(0.72*shade+silver)*sunUp*mix(0.35,1.0,u_sunPow)+u_ambient*(0.64+0.16*shade);
+      float underside=mix(0.93+0.10*dens,0.52+0.63*shade,min(1.0,u_moonLight*3.0));
+      vec3 col = mix(lit,lit*vec3(0.33,0.34,0.37),u_cloud.y)+u_glow*u_night*underside;
+      col += vec3(0.11,0.13,0.17)*moonCloud*(0.48+0.72*shade+0.32*(1.0-dens));
+      col += vec3(0.8,0.84,1.0)*u_flash*(0.04+0.6*cgl)*(0.5+0.5*dens)*(0.7+0.6*mass);
+      sky = mix(sky,col,dens);
     }
-    else if (type < 1.5) dens = clamp(cover * (0.86 + 0.42 * (n - 0.5)), 0.0, 1.0);
-    else if (type < 2.5) {
-      float n2 = fbm(vec2(p.x * 0.22, p.y * 1.5) * 0.45 + 5.0);
-      float thr = mix(0.72, 0.36, cover);
-      dens = smoothstep(thr, thr + 0.3, n2) * 0.6;
-    } else dens = clamp(smoothstep(mix(0.62, 0.3, cover), 0.7, n) * 0.6 + cover * 0.45, 0.0, 1.0);
-    // 遠く（地平線の近く）の雲は空の色に溶ける。量が多い（くもり）なら地平線まで
-    float far = smoothstep(0.0, 0.16, d.z);
-    dens *= mix(cover * cover, 1.0, far) * smoothstep(-0.012, 0.012, d.z);
-    // 光：太陽の側は明るく（縁が光る）、太陽へ向かって雲が濃いところは陰。下からは空の色、夜は街の明かり
-    float n2s = mix(0.5, fbm((p + u_sun.xy * 0.45) * 0.55), low);
-    float self = clamp(1.0 - (n2s - n) * 2.8, 0.35, 1.25);
-    float toward = max(sc, 0.0);
-    float silver = pow(toward, 10.0) * 1.4 * (1.0 - u_cloud.y);
-    float sunUp = smoothstep(-0.05, 0.08, u_sun.z);
-    vec3 lit = u_sunCol * (0.72 * self + silver) * sunUp * mix(0.35, 1.0, u_sunPow) + u_ambient * 0.8;
-    vec3 col = mix(lit, lit * vec3(0.33, 0.34, 0.37), u_cloud.y) + u_glow * u_night * 1.1;
-    // 稲光：雲の中から照らす（雲の濃さのむらで明るさもむら）
-    col += vec3(0.8, 0.84, 1.0) * u_flash * (0.04 + 0.6 * cgl) * (0.5 + 0.5 * dens) * (0.7 + 0.6 * n);
-    sky = mix(sky, col, dens);
   }
+  // Thin high clouds transmit the disk. A thick, dark cloud bank extinguishes
+  // its surface detail while the surrounding cloud can still scatter moonlight.
+  float moonThroughCloud = (1.0-dens)*exp(-dens*(0.7+5.0*u_cloud.y));
+  sky += lunarContrast*moonThroughCloud;
   // 落雷の光の道（雲の底から地面まで。下のほうは建物・地形が上に描かれて隠れる）
   if (u_bolt.y > 0.003) {
     float bel = asin(clamp(d.z, -1.0, 1.0));
@@ -471,7 +576,14 @@ void main() {
   sky = mix(sky, u_fog + u_sunCol * exp(-sa * 6.0) * 0.25 * above * u_sunPow, u_fogAmt);
   // 稲光が雨・霧の空気を照らす
   sky += vec3(0.75, 0.78, 0.95) * u_flash * mix(0.02 + 0.12 * fg, 0.3, u_fogAmt);
-  gl_FragColor = vec4(clamp(sky, 0.0, 1.0), 1.0);
+  if(u_filmExposure>.0) {
+    vec3 afternoon=mix(vec3(.91,.925,.94),vec3(.62,.72,.87),smoothstep(.0,.82,d.z));
+    float glare=smoothstep(-.16,.95,dot(d,normalize(vec3(-.78,-.49,.30))));
+    afternoon=mix(afternoon,vec3(.96,.963,.96),.73*glare);
+    sky=mix(sky,afternoon,u_filmExposure);
+  }
+  float dither=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(0.06711056,0.00583715))))-0.5;
+  fragColor = vec4(clamp(sky + dither*u_night/255.0, 0.0, 1.0), 1.0);
 }`;
 
 // 4×4 の逆行列（列優先。float64 で）
@@ -502,6 +614,12 @@ const xform = (m, v) => [0, 1, 2, 3].map((i) => m[i] * v[0] + m[4 + i] * v[1] + 
 // 描く座標の向き（x, y はメルカトルの差 × MERC_SCALE、z は m）→ 東・北・上（m）
 const PM_DET = PER_M.e[0] * PER_M.n[1] - PER_M.e[1] * PER_M.n[0];
 const toENU = (dx, dy, dz) => [(dx * PER_M.n[1] - dy * PER_M.n[0]) / PM_DET, (PER_M.e[0] * dy - PER_M.e[1] * dx) / PM_DET, dz];
+// Inverse-project the eye (clip x = y = w = 0) from the same matrix as the
+// stars and scenery. This also follows a drone, an orbiting map and a zoom lens.
+export function skyEye(inv) {
+  const w = inv[11];
+  return w ? toENU(inv[8]/w, inv[9]/w, inv[10]/w) : [0, 0, 40];
+}
 // 画面の点（NDC）を通る視線（東・北・上。手前の面から奥の面までの差＝長さはそろえない）。この差は画面の上で直線的に変わるので、
 // 三角形の角に置いて補間できる（長さを 1 にした向きを補間すると、まん中の向きがゆがむ）
 export function rayVec(inv, x, y) {
@@ -519,6 +637,9 @@ export function rayDir(inv, x, y) {
 }
 
 const CLOUD_TYPE = { cumulus: 0, stratus: 1, cirrus: 2, cumulonimbus: 3 };
+// Representative heights above sea level (km) within the WMO temperate cloud levels.
+// https://cloudatlas.wmo.int/en/some-useful-concepts-levels.html
+const CLOUD_HEIGHT = { cumulus: 1.64, stratus: 0.64, cirrus: 7.04, cumulonimbus: 1.24 };
 const hexRgb = (h) => {
   const n = parseInt(String(h).slice(1, 7), 16);
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
@@ -534,8 +655,10 @@ export function createSkyLayer() {
   let prog = null;
   let tex = null;
   let noiseTex = null;
+  let moonTextures = null;
   let ndcBuf = null;
   let dirBuf = null;
+  let starField = null;
   let env = null;
   let table = null;
   let tableKey = "";
@@ -560,19 +683,14 @@ export function createSkyLayer() {
       gl.bindBuffer(gl.ARRAY_BUFFER, ndcBuf);
       gl.bufferData(gl.ARRAY_BUFFER, NDC, gl.STATIC_DRAW);
       dirBuf = gl.createBuffer();
+      moonTextures = createMoonTextures(gl, () => map?.triggerRepaint());
       tex = gl.createTexture();
-      // 雲の乱数のテクスチャ（毎回同じ乱数）
       noiseTex = gl.createTexture();
-      const N = new Uint8Array(256 * 256 * 4);
-      let seed = 12345;
-      for (let i = 0; i < N.length; i++) {
-        seed = (seed * 1664525 + 1013904223) >>> 0;
-        N[i] = seed >>> 24;
-      }
       gl.bindTexture(gl.TEXTURE_2D, noiseTex);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 256, 0, gl.RGBA, gl.UNSIGNED_BYTE, N);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 256, 0, gl.RGBA, gl.UNSIGNED_BYTE, cloudNoiseData());
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
@@ -580,12 +698,15 @@ export function createSkyLayer() {
     },
     onRemove() {
       if (gl) {
+        starField?.remove();
+        moonTextures?.remove();
         if (prog) gl.deleteProgram(prog.p);
         if (ndcBuf) gl.deleteBuffer(ndcBuf);
         if (dirBuf) gl.deleteBuffer(dirBuf);
         if (tex) gl.deleteTexture(tex);
         if (noiseTex) gl.deleteTexture(noiseTex);
       }
+      starField = null;
       map = null;
       gl = null;
     },
@@ -627,8 +748,10 @@ export function createSkyLayer() {
       const wv = Number(W.wind) || 0;
       const wd = ((Number(W.windDir) || 0) + 180) * DEG; // 吹いていく向き
       const sp = (wv * 2.2 * dt) / 1000; // 上空は地上より速い（km）
-      wind[0] = (wind[0] + Math.sin(wd) * sp) % 1000;
-      wind[1] = (wind[1] + Math.cos(wd) * sp) % 1000;
+      wind[0] += Math.sin(wd) * sp;
+      wind[1] += Math.cos(wd) * sp;
+      const eye = skyEye(inv);
+      const frame = [eye[0]/1000 - wind[0], eye[1]/1000 - wind[1], eye[2]/1000];
       // 稲光：光った向き・広がり、落雷なら光の道（霧・雨の見通しで遠いほど見えにくい）
       const S = L.strike;
       const flashDir = S ? [...dirOf({ elevation: S.el, azimuth: S.az }), Math.atan2(4, S.dist)] : [0, 0, 1, 1];
@@ -661,31 +784,46 @@ export function createSkyLayer() {
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, noiseTex);
       gl.uniform1i(p.loc("u_noise"), 1);
+      moonTextures.bind();
+      gl.uniform1i(p.loc("u_lunarColor"), 2);
+      gl.uniform1i(p.loc("u_lunarHeight"), 3);
       gl.activeTexture(gl.TEXTURE0);
       gl.uniform2f(p.loc("u_lutSize"), table.W, table.H);
       const u = layer.uniforms;
+      const lunarView = moonFromEye(env.moon, eye);
+      u.moon = lunarView.dir;
+      u.moonRadius = lunarView.radius;
       gl.uniform3fv(p.loc("u_sun"), u.sun);
       gl.uniform3fv(p.loc("u_sunCol"), u.sunCol);
       gl.uniform1f(p.loc("u_sunPow"), u.sunPow);
       gl.uniform3fv(p.loc("u_moon"), u.moon);
-      gl.uniform1f(p.loc("u_moonVis"), u.moonVis);
+      const moon = env.moon;
+      gl.uniformMatrix3fv(p.loc("u_localToMoon"), false, moon.localToBody);
+      gl.uniform1f(p.loc("u_moonRadius"), u.moonRadius);
+      gl.uniform1f(p.loc("u_moonVertical"), moon.verticalScale);
+      gl.uniform1f(p.loc("u_moonLit"), moon.lit);
+      gl.uniform4fv(p.loc("u_lunarSun"), moon.sun);
+      gl.uniform4fv(p.loc("u_lunarEarth"), moon.earth);
+      gl.uniform3fv(p.loc("u_moonTransmission"), u.moonTransmission);
       gl.uniform1f(p.loc("u_night"), u.night);
-      gl.uniformMatrix3fv(p.loc("u_starM"), false, u.starM);
+      gl.uniform1f(p.loc("u_moonLight"), u.moonLight);
       gl.uniform1f(p.loc("u_pix"), ((map.transform.fov || 37) * DEG) / Math.max(1, map.getCanvas().clientHeight));
       gl.uniform4fv(p.loc("u_cloud"), u.cloud);
-      gl.uniform2f(p.loc("u_wind"), wind[0], wind[1]);
+      gl.uniform3fv(p.loc("u_cloudFrame"), frame);
+      u.cloudPixel = 2 * Math.tan(map.transform.fovInRadians / 2) / Math.max(1, gl.drawingBufferHeight);
+      gl.uniform1f(p.loc("u_cloudPixel"), u.cloudPixel);
       gl.uniform3fv(p.loc("u_ambient"), u.ambient);
       gl.uniform3fv(p.loc("u_glow"), u.glow);
       gl.uniform3fv(p.loc("u_fog"), u.fog);
       gl.uniform1f(p.loc("u_fogAmt"), u.fogAmt);
       gl.uniform1f(p.loc("u_haze"), u.haze);
+      gl.uniform1f(p.loc("u_filmExposure"), layer.filmExposure || 0);
       gl.uniform1f(p.loc("u_flash"), L.level);
       gl.uniform4fv(p.loc("u_flashDir"), flashDir);
       gl.uniform4fv(p.loc("u_flashPos"), flashPos);
       gl.uniform4fv(p.loc("u_bolt"), bolt);
       gl.uniform4fv(p.loc("u_boltBox"), box);
       gl.uniform4fv(p.loc("u_seg[0]"), segBuf);
-      gl.uniform1f(p.loc("u_starCut"), u.starCut);
       const an = p.att("a_ndc");
       const ad = p.att("a_dir");
       gl.bindBuffer(gl.ARRAY_BUFFER, ndcBuf);
@@ -697,6 +835,10 @@ export function createSkyLayer() {
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.disableVertexAttribArray(an);
       gl.disableVertexAttribArray(ad);
+      if (u.showStars && !(u.overcast && frame[2] < u.cloud[3] - Math.min(0.35, 0.18 * u.cloud[3]))) {
+        starField ||= createStarField(gl, CLOUDS);
+        starField.draw(M, u, frame, env.date, now, map.getCanvas());
+      }
       gl.bindBuffer(gl.ARRAY_BUFFER, null);
       gl.depthMask(true);
       gl.enable(gl.DEPTH_TEST);
@@ -709,10 +851,12 @@ export function createSkyLayer() {
     const fogM = Number(W.fog) || 30000;
     // にごり：晴れて見通しがよいと 1.5、もや・霧ほど大きい（0.25 ずつ。変わると表を作り直す 80ms ほど）
     const turb = Math.round((1.5 + 2.5 * Math.min(1, Math.max(0, (20000 - fogM) / 18000))) * 4) / 4;
-    const key = `${Math.round(e.sun.elevation / 0.15)}|${turb}`;
+    // Deep night has the same 8-bit solar scattering table as −24°. The stars and Moon still move.
+    const tableElevation = Math.max(-24, e.sun.elevation);
+    const key = `${Math.round(tableElevation / 0.15)}|${turb}`;
     if (key !== tableKey) {
       if (!T || T.turbidity !== turb) T = atmosphere(turb);
-      table = skyTable(e.sun.elevation, { turbidity: turb, T: T.T, Mt: T.Mt });
+      table = skyTable(tableElevation, { turbidity: turb, T: T.T, Mt: T.Mt });
       tableKey = key;
       dirty = true;
     }
@@ -731,20 +875,27 @@ export function createSkyLayer() {
     fog = lerp3(fog, [0.16, 0.15, 0.16], night);
     // 雲を下から照らす空の色：くもりほど灰色
     const ambient = lerp3(table.zenith, [0.62, 0.64, 0.67], cloud * 0.6).map((v) => v * (1 - 0.55 * night));
-    const glow = [0.33, 0.25, 0.2]; // 夜の雲の底（街の明かり）
+    const glow = [0.205, 0.19, 0.194]; // 市街地の夜間照明に照らされた雲底
     const moonUp = smooth(-1, 3, e.moon.elevation);
+    const airmass = 1 / (Math.max(0, e.moon.dir[2]) + 0.50572 * (Math.max(0, e.moon.elevation) + 6.07995) ** -1.6364);
+    const moonLight = moonUp * e.moon.sunlightFraction * e.moon.lit ** 1.65 * (0.35 + 0.65*Math.sqrt(Math.max(0,e.moon.dir[2])));
     layer.uniforms = {
       sun: e.sun.dir,
       sunCol: table.sunColor,
       sunPow: table.sunPower * (1 - 0.85 * cloud * (W.type === "cirrus" ? 0.4 : 1)),
       moon: e.moon.dir,
-      moonVis: moonUp * (0.35 + 0.65 * night) * Math.min(1, 0.2 + e.moon.lit),
+      moonRadius: e.moon.radius,
+      moonVertical: e.moon.verticalScale,
+      moonTransmission: [0.035, 0.065, 0.12].map(k => Math.exp(-k * Math.max(0, airmass - 1))),
+      moonLight: moonLight * night,
       night,
-      starM: new Float32Array([e.stars[0][0], e.stars[1][0], e.stars[2][0], e.stars[0][1], e.stars[1][1], e.stars[2][1], e.stars[0][2], e.stars[1][2], e.stars[2][2]]),
-      cloud: [cloud, dark, CLOUD_TYPE[W.type] ?? 0, W.type === "cirrus" ? 7 : W.type === "cumulonimbus" ? 1.2 : 1.6],
+      // The rows of local → J2000 are the columns of its inverse (an orthonormal rotation).
+      equatorialToLocal: new Float32Array(e.stars.flat()),
+      starAir: [twilightLimit(sunEl), 0.20 + 0.36*(1-smooth(3000,30000,vis)), fogAmt, moonLight],
+      showStars: sunEl < 3 && fogAmt < 0.98,
+      overcast: cloud >= 0.97 && (W.type === "stratus" || W.type === "cumulonimbus"),
+      cloud: [cloud, dark, CLOUD_TYPE[W.type] ?? 0, CLOUD_HEIGHT[W.type] ?? CLOUD_HEIGHT.cumulus],
       ambient, glow, fog, fogAmt, haze,
-      // 東京の夜：見える星は 3〜4 等まで。月が出ていると、さらに少ない
-      starCut: 0.32 + 0.45 * moonUp * e.moon.lit,
     };
     // 地図の霧・もや（MapLibre の sky）と、ほかのレイヤーの光に使う色
     layer.colors = {

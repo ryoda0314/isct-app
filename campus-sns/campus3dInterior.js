@@ -7,7 +7,7 @@
 import { floorUV } from "./campus3dFloorMaterials.js";
 import { addAcousticShell, addAuditoriumSeat, addAuditoriumSpeaker, addStageBatten, addStageWing, addVaultFixture } from "./campus3dAuditorium.js";
 import { ceilingMount, ceilingProfile } from "./campus3dCeiling.js";
-import { iconCells } from "./campus3dSignText.js";
+import { iconCells, textCells } from "./campus3dSignText.js";
 import { SHOP_PRINTS, shopFace, shopQueue, shopRow } from "./campus3dShop.js";
 import { addMarketDownlight, addMarketFixture } from "./campus3dMarket.js";
 import { MARKET_ART, addMarketArt } from "./campus3dMarketSigns.js";
@@ -17,12 +17,16 @@ import { drawStationFloor, isStationTile } from "./campus3dStationFloor.js";
 import { glassPalette, glassPanels } from "./campus3dGlassArtwork.js";
 import { addPicody, addPicodyStand } from "./campus3dPicody.js";
 import { drawKuramaeItem } from "./campus3dKuramaeCafe.js";
+import { addFoldedLounge, addLobbyLowTable, addSeattleTable, addCafeBowChair, addCafeBell, addCafeJoinery,
+  addCafePastryCase, addRibbedMat, addVestibuleGrate, concretePanels } from "./campus3dTakiLobby.js";
 import { addTakiVending, addTakiSorting, addBinLiner } from "./campus3dTakiVending.js";
 import { addCeramicRelief, addReliefPlaque, addLobbyCase, addCaseCaption, addGalleryPlaster, addGalleryTrack, reliefWalkSpans } from "./campus3dTakiExhibition.js";
 import polygonClipping from "polygon-clipping";
 import { LIFT_DOOR_H, LIFT_DOOR_W, LIFT_WALL, WALL_CAP, WALL_T, archTop, buildingRoof, offsetRingBy, pointInRing, ringArea, roofSlab, toLngLat, toXY, trackZs } from "./campus3dFeatures.js";
 
 const TAKI_FIXTURES = {
+  folded:addFoldedLounge, lobbyLow:addLobbyLowTable, cafePedestal:addSeattleTable, cafeHigh:addSeattleTable, cafeBow:addCafeBowChair,
+  brassBell:addCafeBell, cafeBar:addCafeJoinery, cafeCupboard:addCafeJoinery, pastryGlass:addCafePastryCase, entryRib:addRibbedMat,
   takiVending:addTakiVending, takiSorting:addTakiSorting,
   galleryPlaster:addGalleryPlaster, galleryTrack:addGalleryTrack,
   ceramicRelief:addCeramicRelief, reliefPlaque:addReliefPlaque, picody:addPicody,
@@ -748,9 +752,13 @@ function addSlattedFurniture(m, it, r, z0, z1, T) {
 }
 
 // 輪郭は現地写真から採った平面形。その内側に積層の天板、そり脚、電源タップを組む。
-function addSlabTable(M, r, z0, z1, grid, T, highlight) {
+function addSlabTable(M, r, z0, z1, grid, T, highlight, branched) {
   const { m } = M;
-  const u = dirOf(grid?.[0] || 0), v = [-u[1], u[0]];
+  // The B1 survey outline starts at the narrow finger. Run the sleds across
+  // the slab there and at the broad end, keeping all uprights inside the rim.
+  const axis = sub(centroid(r), r[0]), axisLength = len(axis) || 1;
+  const u = branched ? axis.map(v => v / axisLength) : dirOf(grid?.[0] || 0);
+  const v = [-u[1], u[0]];
   const extent = axis => {
     const values = r.map(p => p[0] * axis[0] + p[1] * axis[1]);
     return [Math.min(...values), Math.max(...values)];
@@ -758,9 +766,24 @@ function addSlabTable(M, r, z0, z1, grid, T, highlight) {
   const [x0, x1] = extent(u), [y0, y1] = extent(v);
   const P = (x, y) => [u[0] * (x0 + x) + v[0] * (y0 + y), u[1] * (x0 + x) + v[1] * (y0 + y)];
   const W = x1 - x0, D = y1 - y0, metal = T("steel");
-  for (const x of [W * 0.26, W * 0.74]) {
-    for (const y of [D * 0.25, D * 0.75]) bar(m, [P(x, y), z0 + 0.018], [P(x, y), z1 - 0.10], 0.032, metal);
-    bar(m, [P(x, D * 0.25), z0 + 0.018], [P(x, D * 0.75), z0 + 0.018], 0.032, metal);
+  for (const x of [W * (branched ? 0.30 : 0.26), W * 0.74]) {
+    let lo = D * 0.25, hi = D * 0.75;
+    if (branched) {
+      const cut = x0 + x, hits = [];
+      r.forEach((a, i) => {
+        const b = r[(i + 1) % r.length], ax = a[0] * u[0] + a[1] * u[1], bx = b[0] * u[0] + b[1] * u[1];
+        if ((ax < cut) === (bx < cut)) return;
+        const p = lerp2(a, b, (cut - ax) / (bx - ax));
+        hits.push(p[0] * v[0] + p[1] * v[1] - y0);
+      });
+      hits.sort((a, b) => a - b);
+      if (hits.length < 2) continue;
+      const inset = Math.min(.14, (hits[1] - hits[0]) / 4);
+      lo = hits[0] + inset;
+      hi = hits[1] - inset;
+    }
+    for (const y of [lo, hi]) bar(m, [P(x, y), z0 + 0.018], [P(x, y), z1 - 0.10], 0.032, metal);
+    bar(m, [P(x, lo), z0 + 0.018], [P(x, hi), z0 + 0.018], 0.032, metal);
   }
   const layers = ["#aa7e4a", "#c39560", "#ac8251", "#d0a675", "#bb905b"];
   layers.forEach((tone, i) => prismPoly(m, r, z1 - 0.105 + i * 0.021, z1 - 0.105 + (i + 1) * 0.021, T(tone), { top: false, bottom: i === 0 }));
@@ -1677,6 +1700,10 @@ function floorSurfaces(f) {
 }
 
 function drawFloorFinish(M, area, finish, uv, z, T, highlight = [0, 0, 0, 0]) {
+  if (finish === "takiConcrete") {
+    for (const poly of area) M.m.polygon(poly, z-.003, [0,0,1], T("#938c80"));
+    area = concretePanels(area);
+  }
   if (uv && isStationTile(finish)) {
     drawStationFloor(M, area, finish, uv, z, T, highlight);
     return;
@@ -1922,10 +1949,12 @@ export function addFloor(M, f, ctx) {
         }
         if (f.trim && w.kind === "wall") addTrim(m, pc, t, ba, bb, ta, tb, f.trim, T);
       } else if (w.kind === "glass" || w.kind === "curtain") {
+        if (w.shellGlazing && w.pane && ctx.hostShell) continue;
         // frame "dark"：黒い枠（石川台8号館のラウンジのガラスの仕切り。2026-11-17）
         const recessed = w.frame === "recessed";
-        const frameC = T(recessed ? "wall" : w.frame === "aluminum" ? "steelEdge" : w.frame === "dark" ? "darkItem" : w.kind === "curtain" ? "mullionDark" : "mullion");
-        const fw = pointedPane ? 0.028 : w.kind === "curtain" ? 0.07 : 0.05;
+        const butt = w.frame === "buttJoint";
+        const frameC = T(butt ? "#656a64" : recessed ? "wall" : w.frame === "aluminum" ? "steelEdge" : w.frame === "dark" ? "darkItem" : w.kind === "curtain" ? "mullionDark" : "mullion");
+        const fw = butt ? .018 : pointedPane ? 0.028 : w.kind === "curtain" ? 0.07 : 0.05;
         const pitch = w.kind === "curtain" ? 1.25 : 1.5;
         const L = len(sub(pc.b, pc.a));
         const sill = pc.door ? (w.doorHeight ?? DOOR_H) + 0.05 : pointedPane ? 0 : 0.02;
@@ -2091,7 +2120,9 @@ export function addFloor(M, f, ctx) {
     }
     if (it.style && drawKuramaeItem(m, it, r, z0, z1, T, ctx, f.items)) continue;
     const fixture = Object.hasOwn(TAKI_FIXTURES,it.style) && TAKI_FIXTURES[it.style];
-    if (fixture && r.length === 4) {
+    if (it.style === "vestibuleGrate" && r.length === 4) {
+      addVestibuleGrate(m,r,z0,z1,T);
+    } else if (fixture && r.length === 4) {
       const F=frontOf(r);
       fixture(M,F,depthOf(F,r),z0,z1,T,it.style);
     } else if (it.kind === "dlight" && f.finish === "marketVinyl") {
@@ -2125,8 +2156,8 @@ export function addFloor(M, f, ctx) {
       }
       const forward = F.u[0]*-F.nf[1]+F.u[1]*F.nf[0]>0;
       shopRow(m,ctxG,T,(x,y)=>P(forward?x:L-x,D*.24+y),"bakery",L*.08,L*.92,z1+.051,.14,0,7);
-    } else if (it.kind === "table" && it.style === "slab" && z1 - z0 > 0.2) {
-      addSlabTable(M, r, z0, z1, f.grid, T, ctx.highlight);
+    } else if (it.kind === "table" && ["slab", "branchSlab"].includes(it.style) && z1 - z0 > 0.2) {
+      addSlabTable(M, r, z0, z1, f.grid, T, ctx.highlight, it.style === "branchSlab");
     } else if (it.kind === "table" && ["study", "railCounter"].includes(it.style) && r.length === 4 && z1 - z0 > 0.3) {
       addStudyTable(m, it, r, z0, z1, T);
     } else if (it.kind === "table" && it.style === "tripod" && z1 - z0 > 0.2) {
@@ -3510,7 +3541,7 @@ export function addRoofCeiling(m, f, groundAt, tint = (c) => c, { cols = [], flo
       .map((pg) => ({ poly: pg, box: boxOf(pg[0]), zAt: pc.zAt }))),
   };
   if (!C.pieces.length) return;
-  const panel = shade(tint(COL.roofCeil), [0, 0, -1]);
+  const panel = shade(tint(f.roofFrame?.soffitColor ? hex(f.roofFrame.soffitColor) : COL.roofCeil), [0, 0, -1]);
   const beamC = tint(COL.beam);
   const zc = C.soffit;
   const floorZ = (q) => {
@@ -5699,7 +5730,27 @@ function addWoodSign(m, it, r, z0, z1, T, tint, txt) {
   const n = Math.max(3, Math.round(F.L / 0.016));
   const slats = it.style === "slats";
   const bow = y => slats ? 0.024 * (2 * y / H - 1) ** 2 : 0;
-  if (it.style === "fascia") {
+  if (it.style === "hangingLetters") {
+    const opt={stroke:.14,d0:.001,d1:.021}, ux=rightOf(F), lf=leftEnd(F);
+    const point=(x,y,d=0)=>[[lf[0]+ux[0]*x+F.nf[0]*d,lf[1]+ux[1]*x+F.nf[1]*d],z0+y];
+    const letterH=Math.min(H*.47,F.L/Math.max(1,txt?.textWidth(it.text,1,opt) || 1));
+    const frame=T("#83745d"), rail=H*.40;
+    bar(m,point(0,rail),point(F.L,rail),.019,frame);
+    for (const t of [.07,.50,.93]) bar(m,point(t*F.L,rail),point(t*F.L,H),.013,frame);
+    const serif=it.text && textCells(it.text,letterH,{serif:true});
+    if (serif?.rects.length) {
+      const baseline=Math.min(...serif.rects.map(r=>r[1])), scale=letterH/Math.max(...serif.rects.map(r=>r[1]+r[3]-baseline));
+      const P=(x,y,d)=>point(x*(F.L-.10)/serif.w+.05,.006+(y-baseline)*scale,d);
+      for (const [x,y,w,h] of serif.rects) {
+        m.quad([P(x,y,.034),P(x+w,y,.034),P(x+w,y+h,.034),P(x,y+h,.034)],[...F.nf,0],T("#fff0b4"));
+        m.quad([P(x,y,.012),P(x+w,y,.012),P(x+w,y,.034),P(x,y,.034)],[0,0,-1],T("#a6854f"));
+      }
+    } else if (txt && it.text) {
+      const plane={P:(x,y,d)=>point(x,y,.016+d),N:[...F.nf,0],U:[...ux,0],V:[0,0,1]};
+      txt.planeText(m,plane,it.text,(F.L-txt.textWidth(it.text,letterH,opt))/2,.006,letterH,opt,T("#fff0b4"),T("#a6854f"));
+    }
+    return;
+  } else if (it.style === "fascia") {
     prismPoly(m,r,z0,z1,T("wall"));
   } else if (slats) {
     const point = (x, y, d) => [[F.a[0] + F.u[0] * x + F.nf[0] * d, F.a[1] + F.u[1] * x + F.nf[1] * d], z0 + y];

@@ -4,7 +4,7 @@ import test from "node:test";
 import clip from "polygon-clipping";
 import { raycastMesh } from "../campus-sns/campus3dDebug.js";
 import { doorBatches, doorLeaves, roomDoorBlocked, stepDoors } from "../campus-sns/campus3dDoors.js";
-import { burnsGround, detailView, normalizeFeature, panelSlices, prepareBridge, preparePaving, prepareTerrace, toXY } from "../campus-sns/campus3dFeatures.js";
+import { burnsGround, detailView, normalizeFeature, panelSlices, pointInRing, prepareBridge, preparePaving, prepareTerrace, toXY } from "../campus-sns/campus3dFeatures.js";
 import { stairGeom } from "../campus-sns/campus3dInterior.js";
 import { buildMesh, worldOf } from "../campus-sns/campus3dMesh.js";
 import { walkWorld } from "../campus-sns/campus3dWalk.js";
@@ -203,25 +203,33 @@ test("adjoining wings have clear corridors on all four levels and keep their exp
   assert.ok(faceBetween(xy(-8.9, 12.39), xy(-7.8, 12.39), datum + 15.3), "wall above the lower wing's roof");
 });
 
-test("the northeast light well keeps its retaining edge outside basement rooms", () => {
-  const well = feature("hon-dry-ne");
+test("both northeast light wells keep their retaining edges outside the adjoining basement rooms", () => {
   const base = 33.6;
-  const terrace = prepareTerrace(well, () => base);
-  const groundAt = p => terrace.level(...toXY(p), base);
-  const wing = { ...feature("hon-wing-45"), groundRef: well.coords[0] };
-  const mesh = buildMesh([well, wing, feature("hon-int-b1")], { groundAt, terraces: [terrace], clip });
-  const [corner, next] = terrace.ring;
-  const length = Math.hypot(next[0] - corner[0], next[1] - corner[1]);
-  const dx = (next[0] - corner[0]) / length, dy = (next[1] - corner[1]) / length;
-  const capAt = (along, outward) => {
-    const p = [corner[0] + along * dx + outward * dy, corner[1] + along * dy - outward * dx];
-    const hit = raycastMesh(mesh, { o: [...worldOf(p), base + .05], d: [0, 0, -.25] }, [""]);
-    return hit != null && hit.t <= 1;
-  };
-  assert.equal(capAt(-1.4, .21), false, "corner fan inside the north room");
-  assert.equal(capAt(1.4, -7.5), false, "straight retaining edge inside the south room");
-  assert.ok(capAt(.4, .6), "corner cap outside the facade");
-  assert.ok(capAt(4.6, -4), "outer retaining wall");
+  const basement = feature("hon-int-b1");
+  const rooms = basement.rooms.map(room => room.coords.map(toXY));
+  for (const id of ["ave-main-n-well-south", "hon-dry-ne"]) {
+    const well = feature(id), terrace = prepareTerrace(well, () => base);
+    const groundAt = p => terrace.level(...toXY(p), base);
+    const wing = { ...feature("hon-wing-45"), groundRef: well.coords[0] };
+    const mesh = buildMesh([well, wing, basement], { groundAt, terraces: [terrace], clip });
+    const [corner, next] = terrace.ring;
+    const width = Math.hypot(next[0] - corner[0], next[1] - corner[1]);
+    const dx = (next[0] - corner[0]) / width, dy = (next[1] - corner[1]) / width;
+    // The entrance separates two wells of different widths. At the same corner
+    // offset the northern bay meets a room; the southern bay opens onto paving.
+    for (const [along, outward, inside, label] of [
+      [-1.4, .21, true, "corner fan beside the room"],
+      [-.4, -3, true, "straight edge beside the room"],
+      [.4, .6, id === "hon-dry-ne", "return at the entrance"],
+      [width - .55, .6, false, "exposed corner cap"],
+      [width + .32, -4, false, "outer retaining wall"],
+    ]) {
+      const p = [corner[0] + along * dx + outward * dy, corner[1] + along * dy - outward * dx];
+      assert.equal(rooms.some(room => pointInRing(...p, room)), inside, id + " location: " + label);
+      const hit = raycastMesh(mesh, { o: [...worldOf(p), base + .05], d: [0, 0, -.25] }, [""]);
+      assert.equal(hit != null && hit.t <= 1, !inside, id + " cap: " + label);
+    }
+  }
 });
 
 test("room door panels, windows and walking collisions follow their hinges", () => {

@@ -8,12 +8,22 @@ compatibility_date = "2026-11-01"
 name = "ROOMS"
 class_name = "WalkRoom"
 
+# キャンパスロワイヤル（バーチャルキャンパスのゲーム）の部屋：/royale/<部屋>（src/royale.js）
+[[durable_objects.bindings]]
+name = "ROYALE"
+class_name = "RoyaleRoom"
+
 # 無料プランの Durable Objects は SQLite の入れ物だけ
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["WalkRoom"]
 
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["RoyaleRoom"]
+
 [vars]
 # つないでよいページの出どころ（カンマ区切り）。手元の開発サーバーも入れる
 ALLOWED_ORIGINS = "https://sciencetokyo.app,http://localhost:3000,http://localhost:3123"
 MAX_PEERS = "40"
+ROYALE_MAX = "24"

@@ -1,0 +1,18 @@
+Campus coupe
+
+Car Concept model and textures by Eric Chadwick, Darmstadt Graphics Group GmbH (2024).
+Adapted from a public-domain concept car by Unity Fan.
+Source and original notices
+https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CarConcept
+Licensed under Creative Commons Attribution 4.0 International
+https://creativecommons.org/licenses/by/4.0/
+
+Campus adaptation includes simplified meshes at two levels of detail, reset wheel
+poses, vertex ambient occlusion, new paint and materials, custom instruments and
+number plate, damage deformation, and controls for steering, suspension and lights.
+This adaptation omits the original brand artwork.
+
+Urban Courtyard 02 reflection environment from Poly Haven, resized and filtered.
+https://polyhaven.com/a/urban_courtyard_02
+CC0 1.0 Universal
+https://creativecommons.org/publicdomain/zero/1.0/

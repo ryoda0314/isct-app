@@ -56,7 +56,8 @@ import { SearchView } from "./views/SearchView.jsx";
 import { BookmarkView } from "./views/BookmarkView.jsx";
 import { CalendarView } from "./views/CalendarView.jsx";
 import { SetupView } from "./views/SetupView.jsx";
-import { NavigationView } from "./views/NavigationView.jsx";
+import { CampusNavigation as NavigationView } from "./views/CampusNavigation.jsx";
+import { VirtualCampusView } from "./views/VirtualCampusView.jsx";
 import { FacilityReservationView } from "./views/FacilityReservationView.jsx";
 import { TrainView } from "./views/TrainView.jsx";
 import { LibraryView } from "./views/LibraryView.jsx";
@@ -207,7 +208,7 @@ export default function App(){
   useEffect(()=>{document.documentElement.style.background=T.bg;document.body.style.background=T.bg;},[themeMode,accentPref]);
   // 深いリンク（#navi / #freshman / #reg / #festival / #career）。以前はその 1 画面だけのゲスト専用シェルだったが、
   // 今は普通のアプリでその画面を開く（ログインしていてもいなくても同じ）。
-  const deepLinkRef=useRef((()=>{if(typeof window==="undefined")return null;const h=window.location.hash;return h==="#freshman"?"freshman":h==="#navi"?"navigation":h==="#reg"?"reg":h==="#festival"?"festival":h==="#career"?"career":null;})());
+  const deepLinkRef=useRef((()=>{if(typeof window==="undefined")return null;const h=window.location.hash;return h==="#freshman"?"freshman":(h==="#navi"||h==="#navi/yokohama"||h==="#navi/yushima")?"navigation":h==="#vcampus"||h==="#vcampus/royale"?"vcampus":h==="#reg"?"reg":h==="#festival"?"festival":h==="#career"?"career":null;})());
   // ログイン画面（アプリの上に重ねて開く）。{ intent: 使おうとした機能の view ID, returnTo: ログイン後に開く画面 }
   const [loginReq,setLoginReq]=useState(null);
   const loginReqRef=useRef(null);
@@ -1299,6 +1300,7 @@ export default function App(){
           {view==="profile"&&<ProfileView mob={false} togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} sitelenPref={sitelenPref} setSitelenPref={setSitelenPref} asgn={asgn} courses={coursesEff} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser} setView={setView}/>}
           {view==="support"&&gated("support")&&fg("support")}
           {view==="support"&&!gated("support")&&<SupportChat embedded userId={user?.moodleId||user?.id} langPref={langPref} currentView="support" onClose={goBack}/>}
+          {view==="vcampus"&&<VirtualCampusView mob={false} user={user}/>}
           {view==="navigation"&&<NavigationView mob={false} initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}} qDataAll={qDataEff}/>}
           {view==="takiplaza"&&(gated("takiplaza")?fg("takiplaza"):<FacilityReservationView mob={false} onNavigate={goToBuilding}/>)}
           {view==="gym"&&(gated("gym")?fg("gym"):<GymView mob={false}/>)}
@@ -1370,6 +1372,7 @@ export default function App(){
         {view==="profile"&&<><MHdr title={t("nav.profile")} back={mBack}/><ProfileView mob togTheme={togTheme} dark={dark} themePref={themePref} setThemePref={setThemePref} accentPref={accentPref} setAccentPref={setAccentPref} langPref={langPref} setLangPref={setLangPref} sitelenPref={sitelenPref} setSitelenPref={setSitelenPref} asgn={asgn} courses={coursesEff} user={user} notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled} notifSettings={notifSettings} setNotifSettings={setNotifSettings} onLogout={onLogout} appLock={appLock} blocks={blockList} unblockUser={unblockUser} mutes={muteList} unmuteUser={unmuteUser} setView={setView}/></>}
         {view==="support"&&gated("support")&&<><MHdr title={t("support.title")} back={mBack}/>{fg("support")}</>}
         {view==="support"&&!gated("support")&&<SupportChat embedded mob userId={user?.moodleId||user?.id} langPref={langPref} currentView="support" onClose={mBack}/>}
+        {view==="vcampus"&&<><MHdr title={t("nav.vcampus")} back={mBack}/><VirtualCampusView mob user={user}/></>}
         {view==="navigation"&&<><MHdr title={t("nav.navigation")} back={mBack}/><NavigationView mob initialDest={navDest} initialOrig={navOrig} onDestUsed={()=>{setNavDest(null);setNavOrig(null);}} qDataAll={qDataEff}/></>}
         {view==="takiplaza"&&<><MHdr title="Taki Plaza" back={mBack}/>{gated("takiplaza")?fg("takiplaza"):<FacilityReservationView mob onNavigate={goToBuilding}/>}</>}
         {view==="gym"&&<><MHdr title={t("tool.gym")} back={mBack}/>{gated("gym")?fg("gym"):<GymView mob/>}</>}

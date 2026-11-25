@@ -2,6 +2,14 @@
 import { marketLetters } from "./campus3dMarketLettering.js";
 
 const colors = new Map();
+// Procedural finishes for the outdoor architectural meshes. These IDs, like clear
+// glass and illuminated lettering, travel with the vertices in the material channel.
+const streetFinishes = {
+  glass: 5, brick: 6, tile: 7, stucco: 8, road: 9, canvas: 10, timber: 11, frost: 12,
+  stone: 13, shopglass: 14, slab: 15, tintedglass: 16,
+  ashlar: 17, carvedStone: 18, cutGranite: 19, doorGlass: 20, spall: 21,
+  castConcrete: 22, punchedMetal: 23, patina: 24, polishedGranite: 25, broadleaf: 26, portraitBronze: 27
+};
 export function marketRGB(hex) {
   if (!colors.has(hex))
     colors.set(
@@ -64,22 +72,30 @@ export class MarketModel {
     this.detail = detail;
     this.v = [];
     this.i = [];
+    this.glassIndices = [];
   }
   vertex(p, n, material) {
     const clear = material === "clear", dynamic = typeof material === "number";
     const luminous = !dynamic && material.startsWith("lit:");
-    const rgb = clear ? [0.84, 0.9, 0.89] : dynamic ? [1, 1, 1] : marketRGB(luminous ? material.slice(4) : material);
+    const sep = !dynamic && !clear ? material.indexOf(":") : -1;
+    const finish = sep > 0 ? streetFinishes[material.slice(0, sep)] : 0;
+    const rgb = clear ? [0.84, 0.9, 0.89] : dynamic ? [1, 1, 1] : marketRGB(sep > 0 ? material.slice(sep + 1) : material);
     const i = this.v.length / 10;
-    this.v.push(...p, ...n, ...rgb, luminous ? 4 : clear ? 3 : dynamic ? material : 0);
+    this.v.push(...p, ...n, ...rgb, finish || (luminous ? 4 : clear ? 3 : dynamic ? material : 0));
     return i;
   }
-  face(points, mat, expected) {
+  face(points, mat, expected, indices = this.i) {
     const a = points[0];
     let n = unit(cross(difference(points[1], a), difference(points[2], a)));
     if (expected && dot(n, expected) < 0) n = n.map((x) => -x);
     const i = this.v.length / 10;
     for (const p of points) this.vertex(p, n, mat);
-    for (let j = 1; j + 1 < points.length; j++) this.i.push(i, i + j, i + j + 1);
+    for (let j = 1; j + 1 < points.length; j++) indices.push(i, i + j, i + j + 1);
+  }
+  windowPane(left, right, bottom, top, y, tint, finish = "shopglass") {
+    // The sash supplies the thickness. Both sides look through the same sheet.
+    this.face([[left, y, bottom], [right, y, bottom], [right, y, top], [left, y, top]],
+      finish + ":" + tint, [0, -1, 0], this.glassIndices);
   }
   // Successive closed cross sections form package shoulders, folded tops, tray lips and bottle necks.
   loft(rings, mat) {
@@ -182,9 +198,14 @@ export class MarketModel {
     }
   }
   finish() {
+    const Index = this.v.length / 10 > 65535 ? Uint32Array : Uint16Array;
+    const indices = new Index(this.i.length + this.glassIndices.length);
+    indices.set(this.i);
+    indices.set(this.glassIndices, this.i.length);
     return {
       vertices: Float32Array.from(this.v),
-      indices: this.v.length / 10 > 65535 ? Uint32Array.from(this.i) : Uint16Array.from(this.i)
+      indices,
+      opaqueCount: this.i.length
     };
   }
 }

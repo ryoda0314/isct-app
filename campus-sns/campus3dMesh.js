@@ -3,9 +3,10 @@
 import earcut from "earcut";
 import polygonClipping from "polygon-clipping";
 import { CAMPUS_CENTER } from "./hooks/useLocationSharing.js";
-import { archTop, BOARD_BASE_DROP, BOARD_T, DECK_FASCIA, DECK_POST, WALL_CAP, WALL_IN, WALL_T, basementRegions, buildingOpenings, clearGlassFace, floorHosts, cumulative, inBasement, curbWidth, overLids, railGround, signFrame, buildingRoof, buildingSoffit, roofSlab, clipHalf, offsetRingBy, densify, edgeOpen, isOpenStairs, lerpAlong, offsetLine, pointInRing, preparePaving, prepareSurveyGround, pavingSubgrade, ringArea, roofPieces, roofRisers, shellGeom, stairSteps, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, treeBedRing, vertexElevations } from "./campus3dFeatures.js";
-import { SURFACE_KINDS, SURFACE_ORDER, lineBars, paintFeatures, surfaceColor } from "./campus3dPaint.js";
+import { archTop, BOARD_BASE_DROP, BOARD_T, DECK_FASCIA, DECK_POST, WALL_CAP, WALL_IN, WALL_T, basementRegions, buildingOpenings, clearGlassFace, floorHosts, cumulative, inBasement, curbWidth, overLids, railGround, signFrame, buildingRoof, buildingSoffit, roofSlab, clipHalf, offsetRingBy, densify, edgeOpen, isOpenStairs, lerpAlong, offsetLine, pointInRing, prepareBridge, preparePaving, prepareSurveyGround, pavingSubgrade, ringArea, roofPieces, roofRisers, shellGeom, stairSteps, stairsOpening, stripDistance, terraceLid, toLngLat, toXY, treeBedRing, vertexElevations } from "./campus3dFeatures.js";
+import { SURFACE_KINDS, SURFACE_ORDER, lineBars, paintFeatures, steppingStoneRings, surfaceColor } from "./campus3dPaint.js";
 import { deckUV, isDeckPlank, pavingUV } from "./campus3dPavingTiles.js";
+import { drawRoadHardware } from "./campus3dRoadInsets.js";
 import { ceilingLightPlan, floorUV } from "./campus3dFloorMaterials.js";
 import { projectBookRack } from "./campus3dLibraryBooks.js";
 import { addHisho } from "./campus3dHisho.js";
@@ -19,6 +20,7 @@ import { menuUV, TSUBAME_ATLAS, tsubameMenuLayout } from "./campus3dTsubameMenu.
 import { SHOP_PRINTS, shopFace } from "./campus3dShop.js";
 import { MARKET_ART, addMarketArt } from "./campus3dMarketSigns.js";
 import { marketStockCollection } from "./campus3dMarketLayer.js";
+import { addShoppingFronts, addShoppingStreet } from "./campus3dShoppingStreet.js";
 
 export const MERC_SCALE = 2 ** 20;
 const DEG = Math.PI / 180;
@@ -164,7 +166,8 @@ export const setMeshPacking = (on) => {
   MESH_PACKED = !!on;
 };
 export class Mesh {
-  constructor() {
+  constructor(daylightAt = null) {
+    this.daylightAt = daylightAt;
     this.packed = MESH_PACKED;
     this.s = { n: 0, cap: 0, pos: null, nrm: null, col: null };
   }
@@ -190,6 +193,10 @@ export class Mesh {
   // xy は平面の m 座標、z は標高(m)、n は法線（東・北・上）
   vert(xy, z, n, c) {
     const s = this.s;
+    if (this.daylightAt && c[3] > .99) {
+      const daylight = this.daylightAt(xy,z);
+      if (daylight < 1) c = [c[0]*daylight,c[1]*daylight,c[2]*daylight,c[3]];
+    }
     if (s.n >= s.cap) this.grow(s.n + 1);
     const [x, y] = worldOf(xy);
     const i = s.n++;
@@ -971,6 +978,9 @@ function addWireFence(m, f, groundAt, frame, wire, hz) {
   const h = f.height;
   const bay = f.bay || 2;
   const chain = f.kind === "chain";
+  const cable = f.style === "cableNet";
+  const wireWidth = cable ? .0045 : WIRE;
+  const diamondWidth = cable ? .083 : CHAIN_W;
   const POST = 0.05;
   const RAIL = chain ? 0.035 : 0.03; // 上の手すりの厚さと幅（chain は幅 0.065 の平たい材）
   const RAIL_W = chain ? 0.065 : 0.04;
@@ -991,6 +1001,10 @@ function addWireFence(m, f, groundAt, frame, wire, hz) {
     for (let k = 0; k <= n; k++) {
       if (k === 0 && i > 0) continue; // 折れ目の柱は前の区間で
       const sv = (L * k) / n;
+      if (cable) {
+        const feet=[at(sv-.05), at(sv+.05)];
+        m.prism(...band(feet,.044,-.044),[gz(sv),gz(sv)],[gz(sv)+.015,gz(sv)+.015],{top:frame, side:frame});
+      }
       if (f.style === "tubular") addTube(m, P(sv, -0.05), P(sv, h + 0.025), 0.04, frame, 12);
       else addBeam(m, [at(sv), gz(sv) - 0.05], [at(sv), gz(sv) + h], POST, frame);
     }
@@ -1004,25 +1018,25 @@ function addWireFence(m, f, groundAt, frame, wire, hz) {
       const [Lb, Rb] = side(0.02);
       m.prism(Lb, Rb, [g0 + 0.05, g1 + 0.05], [g0 + 0.09, g1 + 0.09], { top: frame, side: frame });
     }
-    const tb = chain ? -0.05 : 0.09;
+    const tb = cable ? .045 : chain ? -0.05 : 0.09;
     const tt = h - RAIL;
     const nrm = [nn[0], nn[1], 0];
     // 針金：柵の面の (s, t) の線分を、太さ WIRE の細い四角に
     const seg = (s0, t0, s1, t1) => {
       const dl = Math.hypot(s1 - s0, t1 - t0) || 1;
-      const ps = (-(t1 - t0) / dl) * (WIRE / 2);
-      const pt = ((s1 - s0) / dl) * (WIRE / 2);
+      const ps = (-(t1 - t0) / dl) * (wireWidth / 2);
+      const pt = ((s1 - s0) / dl) * (wireWidth / 2);
       m.quad([P(s0 - ps, t0 - pt), P(s1 - ps, t1 - pt), P(s1 + ps, t1 + pt), P(s0 + ps, t0 + pt)], nrm, wire);
     };
     if (chain) {
       // ひし形：傾き ±k の 2 組の線 s = a ± (t − tb)/k（a は CHAIN_W おき）を、網の四角（0〜L × tb〜tt）で切る
-      const k = CHAIN_H / CHAIN_W;
+      const k = (cable ? .17 : CHAIN_H) / diamondWidth;
       const span = (tt - tb) / k;
       for (const sg of [1, -1]) {
-        const j0 = sg > 0 ? Math.ceil(-span / CHAIN_W) : 0;
-        const j1 = sg > 0 ? Math.floor(L / CHAIN_W) : Math.floor((L + span) / CHAIN_W);
+        const j0 = sg > 0 ? Math.ceil(-span / diamondWidth) : 0;
+        const j1 = sg > 0 ? Math.floor(L / diamondWidth) : Math.floor((L + span) / diamondWidth);
         for (let j = j0; j <= j1; j++) {
-          const a = j * CHAIN_W;
+          const a = j * diamondWidth;
           const lo = Math.max(tb, sg > 0 ? tb - k * a : tb + k * (a - L));
           const hi = Math.min(tt, sg > 0 ? tb + k * (L - a) : tb + k * a);
           if (hi - lo < 1e-3) continue;
@@ -1161,8 +1175,8 @@ function addRail(m, f, groundAt, c) {
     const L = Math.hypot(q[0] - p[0], q[1] - p[1]);
     if (L < 1e-3) continue;
     const nn = [-(q[1] - p[1]) / L, (q[0] - p[0]) / L];
-    const g0 = datum ?? (f.rim ? railGround(groundAt, p, nn) : groundAt(toLngLat(p)));
-    const g1 = datum ?? (f.rim ? railGround(groundAt, q, nn) : groundAt(toLngLat(q)));
+    const foot = v => (datum ?? (f.rim ? railGround(groundAt, v, nn) : groundAt(toLngLat(v)))) + (f.base || 0);
+    const g0 = foot(p), g1 = foot(q);
     if (!Number.isFinite(g0) || !Number.isFinite(g1)) continue;
     const at = (s) => [p[0] + ((q[0] - p[0]) * s) / L, p[1] + ((q[1] - p[1]) * s) / L];
     const gz = (s) => g0 + ((g1 - g0) * s) / L;
@@ -1920,10 +1934,110 @@ function addTrellis(m, tr, q, n, g0, look) {
   });
 }
 
-function addBridge(m, f, groundAt, pal, cols, tint) {
-  const { cum, elev } = vertexElevations(f.coords, f.z, groundAt);
-  if (!finite(elev)) return;
-  const xy = f.coords.map(toXY);
+// Outdoor stair slabs have daylight below the sloping soffit. Treads, stringers and rails share the walking profile.
+function addBridgeStairs(m, bridge, cols, tint, finishes) {
+  const { f, flight: g } = bridge;
+  const { at, length, low, riser, tread, slope, under } = g;
+  const steel = f.surface === "checkerplate", half = f.width / 2;
+  const clear = half - g.cheek;
+  const color = key => tint(rgba(cols[key]));
+  const stone = steel ? mix(color("charcoal"), color("frameSteel"), .12) : mix(color("charcoal"), color("graniteDark"), .53);
+  const front = mix(stone, color("graniteDark"), steel ? .08 : .18);
+  const edge = steel ? stone : mix(color("stone"), color("concrete"), .50);
+  const nose = mix(stone, color("stone"), steel ? .24 : .85);
+  const lead = at(0, 0), end = at(length, 0);
+  const normal = [(lead[0]-end[0])/length, (lead[1]-end[1])/length, 0];
+  const finish = "paving/roughStone";
+  if (!steel && !finishes.has(finish)) finishes.set(finish, []);
+  const rectangle = (s0, s1, left, right, z, c, n = [0,0,1]) => m.quad([
+    [at(s0,left),z], [at(s0,right),z], [at(s1,right),z], [at(s1,left),z],
+  ], n, c);
+  const riserFace = (s, left, right, bottom, top, c) => m.quad([
+    [at(s,left),bottom], [at(s,right),bottom], [at(s,right),top], [at(s,left),top],
+  ], null, c);
+
+  for (let i = 0; i < f.steps; i++) {
+    const s = i*tread, z = low + (i+1)*riser;
+    const top = i < f.steps-1;
+    if (steel) {
+      if (top) {
+        const back = s+tread-.012;
+        rectangle(s, back, clear, -clear, z, stone);
+        rectangle(s, back, clear, -clear, z-.025, stone, [0,0,-1]);
+        riserFace(back, -clear, clear, z-.025, z, front);
+      }
+      riserFace(s, clear, -clear, z-g.fold, z, front);
+    } else {
+      // Use the same mineral-grain finish on individual stone faces, with its UVs
+      // in metres so the grain wraps across each nose without stretching.
+      const faces = finishes.get(finish), u = 2*clear/.48, v = s/.48, h = z/.48;
+      const darken = (c, light) => [c[0]*light, c[1]*light, c[2]*light, c[3]];
+      const exposure = .47 + .36*s/length;
+      faces.push({ face: [[at(s,clear),z-riser],[at(s,-clear),z-riser],[at(s,-clear),z],[at(s,clear),z]],
+        normal, uvCorners: [[0,h-riser/.48],[u,h-riser/.48],[u,h],[0,h]], highlight: darken(front, exposure) });
+      if (top) faces.push({ face: [[at(s,clear),z],[at(s,-clear),z],[at(s+tread,-clear),z],[at(s+tread,clear),z]],
+        normal: [0,0,1], uvCorners: [[0,v],[u,v],[u,v+tread/.48],[0,v+tread/.48]], highlight: darken(stone, exposure+.14) });
+    }
+    const count = steel ? 1 : Math.max(1, Math.round(2*clear/.30));
+    for (let j = 0; j < count; j++) {
+      const right = -clear + 2*clear*j/count + .002, left = -clear + 2*clear*(j+1)/count - .002;
+      const lip = steel ? .008 : .017;
+      rectangle(s-lip, s+Math.min(.05, tread/3), left, right, z+.004, nose);
+      riserFace(s-lip, left, right, z-(steel ? .012 : .025), z+.004, nose);
+    }
+  }
+  if (!steel) {
+    const diagonal = Math.hypot(length, g.rise);
+    const undersideNormal = [-normal[0]*g.rise/diagonal, -normal[1]*g.rise/diagonal, -length/diagonal];
+    m.quad([[at(0,-clear),under(0)], [at(0,clear),under(0)], [at(length,clear),under(length)], [at(length,-clear),under(length)]], undersideNormal, edge);
+    riserFace(0, clear, -clear, under(0), low, edge);
+  }
+  const start = steel ? 0 : Math.min(.47, length/4);
+  const curb = steel ? .085 : .20;
+  for (const side of [-1, 1]) {
+    const stations = start ? [0, start, length] : [0, length];
+    const a = side*half, b = side*clear, vs = (v) => stations.map(s => at(s,v));
+    const crest = s => slope(Math.max(start,s)) + curb;
+    m.prism(vs(Math.max(a,b)), vs(Math.min(a,b)), stations.map(under), stations.map(crest),
+      { top: edge, side: edge, bottom: edge }, { bottom: true });
+    if (!f.railing) continue;
+    const v = (a+b)/2, rail = steel ? mix(stone, color("railing"), .26) : mix(color("railing"), color("frameSteel"), .38);
+    const spacing = f.bars ? .122 : 1.05;
+    const bars = Math.max(1, Math.round((length-start)/spacing));
+    for (let i = 0; i <= bars; i++) {
+      const s = start + (length-start)*i/bars, p = at(s,v);
+      addBeam(m, [p,crest(s)], [p,slope(s)+1.03], f.bars ? .027 : .042, rail);
+    }
+    addBeam(m, [at(start,v),slope(start)+1.03], [at(length,v),slope(length)+1.03], .055, rail);
+    if (!f.bars) addBeam(m, [at(start,v),slope(start)+.56], [at(length,v),slope(length)+.56], .032, rail);
+  }
+}
+
+function addPicketRail(m, path, heights, rail, curb) {
+  m.prism(...band(path, .052, -.052), heights, heights.map(z => z + .112), { top: curb, side: curb });
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i], b = path[i+1], dz = heights[i+1] - heights[i];
+    const length = Math.hypot(b[0]-a[0], b[1]-a[1]);
+    const at = (t,h) => [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, heights[i]+dz*t+h];
+    for (const [h,r] of [[.18,.015],[1.04,.030]]) addLimb(m, at(0,h), at(1,h), r, r, rail, 8);
+    const bays = Math.max(1, Math.round(length / 1.72));
+    for (let j = 0; j < bays; j++) {
+      addLimb(m, at(j/bays,.10), at(j/bays,1.05), .028, .028, rail, 8);
+      const gaps = Math.max(1, Math.round(length / bays / .135));
+      for (let k = 1; k < gaps; k++) {
+        const t = (j+k/gaps)/bays;
+        addLimb(m, at(t,.18), at(t,1.03), .008, .008, rail, 5);
+      }
+    }
+    if (i === path.length-2) addLimb(m, at(1,.10), at(1,1.05), .028, .028, rail, 8);
+  }
+}
+
+function addBridge(m, f, groundAt, pal, cols, tint, finishes) {
+  const bridge = prepareBridge(f, groundAt);
+  if (!bridge) return;
+  if (bridge.flight) return addBridgeStairs(m, bridge, cols, tint, finishes);
+  const { xy, cum, elev } = bridge;
   const { pts, s } = densify(xy, 2);
   const deck = s.map((v) => lerpAlong(cum, elev, v));
   const hw = f.width / 2;
@@ -1931,7 +2045,17 @@ function addBridge(m, f, groundAt, pal, cols, tint) {
   const plate = f.surface === "checkerplate";
   const surface = tint(rgba(plate ? cols.rust : f.surface === "rail" ? pal.rail : f.surface === "street" ? pal.street : f.surface === "deck" ? cols.bridgeDeck : f.surface === "redtile" ? cols.bridgeTile : pal.walk));
   const side = tint(rgba(plate ? cols.graniteDark : cols.deckSide));
-  m.prism(offsetLine(pts, hw), offsetLine(pts, -hw), deck.map((v) => v - f.thickness), deck, { top: surface, side, bottom: side }, { bottom: true });
+  let topFace;
+  if (f.paving) {
+    const finish = "paving/" + f.paving, uv = pavingUV(f.paving, f.pavingBearing ?? 90);
+    if (!finishes.has(finish)) finishes.set(finish, []);
+    const highlight = f.paving === "roseFlags" ? mix(tint(rgba(cols.rose)), tint(rgba(cols.graniteDark)), .14) : tint(rgba(cols.concrete));
+    topFace = face => {
+      finishes.get(finish).push({ face, uvCorners: face.map(([p]) => uv(toLngLat(p))), highlight });
+      return true;
+    };
+  }
+  m.prism(offsetLine(pts, hw), offsetLine(pts, -hw), deck.map((v) => v - f.thickness), deck, { top: surface, side, bottom: side }, { bottom: true, topFace });
   if (plate) {
     const rib = mix(surface,tint(rgba(cols.steelHi)),.26);
     for (let j=1;j<xy.length;j++) {
@@ -1951,7 +2075,10 @@ function addBridge(m, f, groundAt, pal, cols, tint) {
       }
     }
   }
-  if (f.railing && f.handrail === "round") {
+  if (f.railing && f.handrail === "pickets") {
+    const rail = tint(rgba(cols.steelHi)), curb = tint(rgba(cols.concrete));
+    for (const sign of [-1, 1]) addPicketRail(m, offsetLine(xy, sign*(hw-.052)), elev, rail, curb);
+  } else if (f.railing && f.handrail === "round") {
     const steel = tint(rgba(cols.railing));
     for (const side of [-1, 1]) {
       const edge = offsetLine(pts, side*(hw-.055));
@@ -2151,7 +2278,7 @@ function addDeckFloors(m, { terraces, slopes, planks, graded, features, clip, lo
   const marks = [];
   for (const f of features) {
     const tactile = f.type === "marking" && (f.kind === "tactile" || f.kind === "tactileWarning");
-    const laneLine = f.type === "marking" && (f.kind === "orange" || f.kind === "yellow");
+    const laneLine = f.type === "marking" && (f.kind === "orange" || f.kind === "yellow" || f.finish === "faded" || f.finish === "block");
     if (!tactile && f.type !== "crosswalk" && !laneLine) continue;
     const path = f.coords.map(toXY);
     const xs = path.map(p => p[0]), ys = path.map(p => p[1]);
@@ -2211,6 +2338,19 @@ function addDeckFloors(m, { terraces, slopes, planks, graded, features, clip, lo
 // 判定は campus3dFeatures.js の edgeOpen：焼き込みでも同じところのふちの外を掘らない）。
 // ふちの外が建物で、その建物の壁が平地の高さより下まであれば、建物の壁が平地の壁（buildings：{ ring, bot }）。
 // 天井のある平地（lids：平地 → terraceLid）は addCovered で描き、そのふちに面した低い平地の壁は、天井から上（まぐさ）だけ
+// 輪を囲む箱（輪の配列ごとに 1 回だけ数える）。箱の外の点は輪の外（pointInRing と同じ答え）なので、先に箱でふるう（2026-11-24：
+// 段差の壁の 1 m おきの点ごとに全部の建物・平地の輪を調べていて、形を作る時間の 1 割ほどがこれだった）
+const RING_BOX = new WeakMap();
+const ringBoxOf = (r) => {
+  let b = RING_BOX.get(r);
+  if (!b) {
+    b = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const p of r) { if (p[0] < b[0]) b[0] = p[0]; if (p[1] < b[1]) b[1] = p[1]; if (p[0] > b[2]) b[2] = p[0]; if (p[1] > b[3]) b[3] = p[1]; }
+    RING_BOX.set(r, b);
+  }
+  return b;
+};
+const inRingBoxed = (q, r) => { const b = ringBoxOf(r); return q[0] >= b[0] && q[0] <= b[2] && q[1] >= b[1] && q[1] <= b[3] && pointInRing(q[0], q[1], r); };
 function addTerraceWalls(m, tr, { groundAt, surveyGround, terraces, paths, buildings = [], lids = null, covered = null, topColor = null, boardCap, deckTop = false, basements = [], basementsCov = null, glazed = null, cull = null, portal = null }, c, look = null) {
   const lid = lids?.get(tr);
   if (lid) {
@@ -2268,13 +2408,13 @@ function addTerraceWalls(m, tr, { groundAt, surveyGround, terraces, paths, build
       const dirs = [dirOf(i > 0 ? pts[i - 1] : pts[last - 1], p), dirOf(p, i < last ? pts[i + 1] : pts[1])];
       if (dirs.every((dir) => edgeOpen(opens, p, dir))) return null;
     }
-    if (buildings.some((bd) => bd.bot <= tr.elev + 0.05 && qs.every((q) => pointInRing(q[0], q[1], bd.ring)))) return null;
+    if (buildings.some((bd) => bd.bot <= tr.elev + 0.05 && qs.every((q) => inRingBoxed(q, bd.ring)))) return null;
     // となりの平地のほうが高ければ、そちらが壁を立てる（ふちを斜めにした平地 side > 0 は壁を立てないので、こちらで）。
     // そちらが天井のある平地なら、こちらは天井から上の壁（まぐさ）だけ
-    if (!mo && terraces.some((t) => t !== tr && !(t.side > 0) && t.elev > tr.elev + 0.05 && qs.some((q) => pointInRing(q[0], q[1], t.ring)))) return null;
+    if (!mo && terraces.some((t) => t !== tr && !(t.side > 0) && t.elev > tr.elev + 0.05 && qs.some((q) => inRingBoxed(q, t.ring)))) return null;
     // 天井のある平地のふたの下（掘った帯）は、ふたの上の地面の高さ（口の両わきの壁が、掘った帯で低くならないように）
     let g = Math.max(...qs.map((q) => groundAt(toLngLat(q))));
-    if (lids) for (const [t, L] of lids) if (t !== tr && qs.some((q) => pointInRing(q[0], q[1], L.poly))) g = Math.max(g, L.top);
+    if (lids) for (const [t, L] of lids) if (t !== tr && qs.some((q) => inRingBoxed(q, L.poly))) g = Math.max(g, L.top);
     return Number.isFinite(g) && Math.abs(tr.elev - g) >= 0.15 ? g : null;
   });
   // 壁の上の面の色（点ごと）：段差の高い側の、壁の帯の外の路面の色（topColor。なければ壁の色）
@@ -5092,10 +5232,39 @@ function checkerTop(m, a, b, c, d, z, k, flat, col) {
     }
   }
 }
+function addCastLogEdge(m, left, right, top, rise, color) {
+  const width = Math.hypot(right[0]-left[0], right[1]-left[1]);
+  if (width < .3) return;
+  const radius = Math.min(.094, rise * .53);
+  const normal = [(right[1]-left[1])/width, (left[0]-right[0])/width];
+  const at = (t, offset, z) => [left[0]+(right[0]-left[0])*t+normal[0]*offset, left[1]+(right[1]-left[1])*t+normal[1]*offset, z];
+  const centre = top - radius + .012;
+  addLimb(m, at(.018,.013,centre), at(.982,.013,centre), radius, radius, color, 14);
+  // Cast-in bark is shallow and irregular. Follow the curvature of the exposed half of the log.
+  const seed = top * 5.73;
+  for (let k=0; k<8; k++) {
+    const relief = mix(color, k%3 ? [.22,.21,.18,1] : [.65,.63,.56,1], k%3 ? .22 : .29);
+    let previous;
+    for (let j=0; j<=13; j++) {
+      const t=.025+.95*j/13, angle=-1.0+k*.31+.052*Math.sin(seed+k*2.6+j*.91);
+      const p=at(t,.013+(radius+.002)*Math.cos(angle),centre+(radius+.002)*Math.sin(angle));
+      if (previous) addLimb(m,previous,p,.0035,.0055,relief,4);
+      previous=p;
+    }
+  }
+  for (const t of [.01,.99]) {
+    const stake = at(t,-.07,top+.055);
+    addLimb(m, [stake[0],stake[1],top-rise-.03], stake, .081, .079, color, 10);
+    const cap = Array.from({length:10}, (_,i) => [stake[0]+.079*Math.cos(i*Math.PI/5),stake[1]+.079*Math.sin(i*Math.PI/5)]);
+    m.polygon([cap], stake[2], [0,0,1], color);
+  }
+}
+
 function addStairs(m, rm, sl, groundAt, cols, tint, finishes, highlight) {
   const f = sl.f;
   const mosaic = f.material === "clayMosaic";
-  const c = tint(rgba(mosaic ? "#a39485" : cols[stairsColorKey(f)]));
+  const castLog = f.material === "castLog";
+  const c = castLog ? mix(tint(rgba(cols.concrete)), tint(rgba(cols.taupe)), .37) : tint(rgba(mosaic ? "#a39485" : cols[stairsColorKey(f)]));
   const noseC = f.material === "oak" ? tint(rgba(cols.stairsNose)) : null; // 段の鼻のステンレスの帯の色（オークだけ）
   const riserC = f.material === "granite" ? tint(rgba(cols.stairsGraniteRiser)) : f.material === "checker" ? tint(rgba(cols.stairsCheckerRiser)) : c; // 御影石：蹴上げは赤茶（踏面は桃色がかった灰色）
   const chk = mosaic ? {size:.105, dark:tint(rgba("#967357")), mid:tint(rgba("#c09873")), base:tint(rgba("#c6ae8c"))} :
@@ -5103,6 +5272,15 @@ function addStairs(m, rm, sl, groundAt, cols, tint, finishes, highlight) {
   const lineC = f.material === "granite" || f.material === "nonslip" ? tint(rgba(cols.stairsLine)) : null; // 段の鼻の 2 本のすべり止めの線
   const L = offsetLine(sl.xy, sl.hwv.map((h, i) => sl.cv[i] + h));
   const R = offsetLine(sl.xy, sl.hwv.map((h, i) => sl.cv[i] - h));
+  let castTop;
+  if (castLog) {
+    const key = "paving/roughStone", uv = pavingUV("roughStone", 7.7);
+    if (!finishes.has(key)) finishes.set(key, []);
+    castTop = face => {
+      finishes.get(key).push({ face, uvCorners: face.map(([p]) => uv(toLngLat(p))), highlight: c });
+      return true;
+    };
+  }
   // 明かり取りの大階段は、地下の流れと踊り場だけ溝の入った板張り。既存の段と同じ面に貼る。
   const treadTops = f.treadFinishes?.map((finish, i) => {
     if (!finish) return null;
@@ -5124,7 +5302,13 @@ function addStairs(m, rm, sl, groundAt, cols, tint, finishes, highlight) {
     // 段の下の地面より下から。まわりより高い段（下は元の地面のまま）は、その下の地面まで下ろす（壁がなくても浮かない）
     const foot = [at(L, i, t0), at(L, i, t1), at(R, i, t0), at(R, i, t1)].map((q) => groundAt(toLngLat(q))).filter(Number.isFinite);
     const base = Math.min(lerpAlong(sl.under.s, sl.under.e, st.s0) - 0.5, lerpAlong(sl.under.s, sl.under.e, st.s1) - 0.5, ...foot.map((g) => g - 0.3));
-    m.prism([at(L, i, t0), at(L, i, t1)], [at(R, i, t0), at(R, i, t1)], [base, base], [st.top, st.top], { top: c, side: riserC }, { topFace: treadTops?.[i] });
+    m.prism([at(L, i, t0), at(L, i, t1)], [at(R, i, t0), at(R, i, t1)], [base, base], [st.top, st.top], { top: c, side: riserC }, { topFace: treadTops?.[i] || castTop });
+    if (castLog && !st.flat) {
+      const up = sl.prof.e[i + 1] > sl.prof.e[i], t = up ? t0 : t1;
+      const a = at(up ? L : R,i,t), b = at(up ? R : L,i,t);
+      const adjacent = steps[k+(up?-1:1)]?.top ?? sl.prof.e[up?i:i+1];
+      if (st.top > adjacent+.012) addCastLogEdge(m, a,b,st.top,st.top-adjacent,c);
+    }
     if (chk) checkerTop(m, at(L, i, t0), at(L, i, t1), at(R, i, t1), at(R, i, t0), st.top, k, !!st.flat, chk);
     if (mosaic) {
       const previous = k ? steps[k-1].top : sl.prof.e[0], next = k+1<steps.length ? steps[k+1].top : sl.prof.e.at(-1);
@@ -5299,6 +5483,28 @@ function buildFloorFinishes(finishes) {
 }
 
 // digs は詳細モードで地下の階の下を掘ったもの（dem.digs）
+// Daylight entering the deep, open-ended passage beside the photo booth. The
+// four existing slab corners set the aperture; the stairs rise out of its shade.
+function pilotisDaylight(features, groundAt) {
+  const roof=features.find(f=>f.id==="c1-corr-2f");
+  if (!roof || roof.coords.length!==4) return null;
+  const pts=roof.coords.map(toXY).sort((a,b)=>b[0]-a[0]);
+  const middle=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+  const front=middle(pts[0],pts[1]), back=middle(pts[2],pts[3]);
+  const depth=Math.hypot(back[0]-front[0],back[1]-front[1]);
+  const halfWidth=Math.hypot(pts[1][0]-pts[0][0],pts[1][1]-pts[0][1])/2;
+  const head=groundAt(roof.groundRef||roof.coords[0])+roof.base;
+  if (!Number.isFinite(head) || depth<1) return null;
+  const dx=(back[0]-front[0])/depth,dy=(back[1]-front[1])/depth;
+  const minX=Math.min(...pts.map(p=>p[0]))-.5,maxX=front[0]+1;
+  return ([x,y],z)=>{
+    if (z>head+.07 || z<head-4.3 || x<minX || x>maxX) return 1;
+    const a=x-front[0], b=y-front[1], d=a*dx+b*dy, side=Math.abs(a*dy-b*dx);
+    if(side>halfWidth+.10 || d<-.25 || d>depth+.1) return 1;
+    return 1-.69*Math.min(1,Math.max(0,(d+.25)/3.5))*Math.min(1,(halfWidth+.10-side)/.14);
+  };
+}
+
 export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceilings = [], digs = [], pal, dark, selectedId = null, accent = "#28c868", bldColor = null, clip = null, tone = null, trees = true, plantings = true }) {
   // いくつもの建物にまたがる階（hostRefs。2026-11-15 本館）の殻どうしが接する面：外がとなりの殻の中なら、となりの屋根の高さまでは
   // 描かない。隣棟が始まる点と終わる点で外壁を分割し、各区間で隣の屋根から上を残す。
@@ -5388,7 +5594,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
   autoPsd = [];
   autoEsc = [];
   autoClocks = [];
-  const m = new Mesh();
+  const m = new Mesh(pilotisDaylight(features,groundAt));
   const finishes = new Map();
   const lightPlans = [];
   const bookRacks = [];
@@ -5435,12 +5641,16 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     else if (f.type === "wall" && f.kind === "slant") addSlantFence(m, f, wallAt, tint(rgba(cols.rail)), tint(rgba(cols.stone)));
     else if (f.type === "wall" && f.kind === "xbrace") addCrossRail(m, f, wallAt, tint(rgba(cols.xbrace)));
     else if (f.type === "wall" && f.kind === "chain") addWireFence(m, f, wallAt, tint(rgba(cols.chainFrame)), tint(rgba(cols.chainWire)), haze);
-    else if (f.type === "wall" && f.kind === "mesh") addWireFence(m, f, wallAt, tint(rgba(cols.meshFrame)), tint(rgba(cols.meshWire)), haze);
+    else if (f.type === "wall" && f.kind === "mesh") {
+      const frame = tint(rgba(cols.meshFrame)), wire = tint(rgba(cols.meshWire));
+      const finish = color => f.coating === "white" ? mix(color, rgba("#e4e3d7"), .66) : color;
+      addWireFence(m, f, wallAt, finish(frame), finish(wire), haze);
+    }
     else if (f.type === "wall" && f.kind === "bench") addBench(m, f, wallAt, tint(rgba(cols.benchWood)));
     else if (f.type === "signal") addSignal(m, f, groundAt, cols, tint);
     else if (f.type === "sign") addSign(m, f, groundAt, cols, tint, finishes, f.id === selectedId ? [acc[0], acc[1], acc[2], 0.45] : [0, 0, 0, 0], nightDeck > 0.3);
     else if (f.type === "wall") addWall(m, f, wallAt, tint(rgba(cols.wall)));
-    else if (f.type === "bridge") addBridge(m, f, groundAt, pal, cols, tint);
+    else if (f.type === "bridge") addBridge(m, f, groundAt, pal, cols, tint, finishes);
     else if (f.type === "track") addTrack(m, f); // 駅の中の線路：レールとまくらぎ（campus3dInterior.js）
     else if (f.type === "tree") {
       if (f.grate) addTreeGrate(m, f, groundAt, tint(rgba(cols.frameSteel)), tint(rgba(cols.soil || "#645746")));
@@ -5454,14 +5664,28 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     }
     else if (f.type === "surface" && f.kind === "stones" && f.stoneSize) addCobbleBed(m, f, groundAt, cols, tint);
     // 建物を通る通り抜けも、くり抜き（地面から通り抜けの高さまで）として穴をあける
+    else if (f.type === "road" && f.shoppingStreet) addShoppingStreet(marketStock, f, groundAt, features);
     else if (f.type === "building") {
       // 明かりのある店の中の物（indoor と glow）：昼の色のまま、光を受けない色（アルファ 0.5）で
       if (f.sculpture) { addHisho(m, f, groundAt, tint); return; }
-      if (f.streetFixture) { drawPlazaDirectory(m, f, groundAt, tint); return; }
+      if (f.streetFixture === "plazaDirectory") { drawPlazaDirectory(m, f, groundAt, tint); return; }
+      if (f.streetFixture) {
+        const [a, b, c, d] = f.coords.map(toXY);
+        const center = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2];
+        const ground = groundAt(f.groundRef || toLngLat(center));
+        const angle = Math.atan2(b[1] - a[1], b[0] - a[0]);
+        const width = Math.hypot(b[0] - a[0], b[1] - a[1]), depth = Math.hypot(d[0] - a[0], d[1] - a[1]);
+        const enamel = ["#727e80", "#384854", "#718e95", "#a7aaa0", "#64504a"];
+        const color = enamel[Math.abs(Math.round(center[0] * 7 + center[1] * 11)) % enamel.length];
+        if (Number.isFinite(ground)) marketStock.add("street/avenue/" + f.streetFixture, center, ground + (f.base || 0),
+          angle, [width, depth, f.height - (f.base || 0)], [color, "#c0c4bd"]);
+        return;
+      }
       const shopLit = f.indoor && f.glow;
       const colsB = shopLit ? COLORS.light : cols;
       const tintB = shopLit ? (cc) => { const t = tint(cc); return [t[0], t[1], t[2], 0.5]; } : tint;
-      const c = tintB(rgba(f.material ? colsB[MATERIAL_COLOR[f.material]] : bldColor ? bldColor(f) : pal?.bld || "#ffffff"));
+      const streetWall = f.shopfronts && addShoppingFronts(marketStock, f, groundAt);
+      const c = tintB(rgba(streetWall || (f.material ? colsB[MATERIAL_COLOR[f.material]] : bldColor ? bldColor(f) : pal?.bld || "#ffffff")));
       // 白い点の模様のガラス（glassFrit）は、白を混ぜて明るく
       const frit = (k, t) => (f.glassFrit ? mix(rgba(colsB[k]), rgba(colsB.fritWhite), t) : rgba(colsB[k]));
       const look = {
@@ -5576,7 +5800,59 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     finishes.get(finish).push({ area, uv: p.uv, z, highlight });
   };
   const graded = paints.filter(s => s.f.grade).map(s => preparePaving(s.f)).filter(Boolean);
+  for (const { f, ring } of paints) {
+    if (!f.stoneLip) continue;
+    const stones = f.stepping ? steppingStoneRings(ring, f.stepping) : [ring];
+    const uv = pavingUV(f.paving, f.pavingBearing ?? 90), color = paintTone(surfaceColor(f));
+    const edge = mix(color, paintTone({ light:"#363734", dark:"#20211f" }), .60);
+    for (const stone of stones) {
+      const base = stone.map(p => wallAt(toLngLat(p)));
+      if (!base.every(Number.isFinite)) continue;
+      const sign = ringArea(stone) >= 0 ? 1 : -1;
+      stone.forEach((a,i) => {
+        const j = (i+1)%stone.length, b = stone[j], dx = b[0]-a[0], dy = b[1]-a[1], len = Math.hypot(dx,dy) || 1;
+        m.quad([[a,base[i]-.012],[b,base[j]-.012],[b,base[j]+f.stoneLip],[a,base[i]+f.stoneLip]], [sign*dy/len,-sign*dx/len,0], edge);
+      });
+      layPaving({f, finish:"paving/"+f.paving, color, uv:p=>uv(toLngLat(p))}, [[stone]], p=>wallAt(toLngLat(p))+f.stoneLip);
+    }
+  }
+  // Road paint on a bridge belongs to the upper deck. A terrain grade here would also
+  // raise the walking surface in the passage below. Only the renderer sees these faces.
+  if (clip) for (const {f,ring} of paints) {
+    if (!f.pavingHost) continue;
+    const deck = terraces.find(tr => tr.f.id === f.pavingHost);
+    if (!deck || !Number.isFinite(deck.elev)) continue;
+    for (const [outer] of clip.intersection([ring],[deck.ring])) {
+      const coords = outer.slice(0,-1).map(toLngLat);
+      const piece = preparePaving({...f,coords,grade:coords.map(() => deck.elev + (f.pavingLift ?? .015))});
+      if (piece) graded.push(piece);
+    }
+  }
   const surveyGround = prepareSurveyGround(graded);
+  for (const { f, ring, box } of paints) {
+    if (!f.roadInset) continue;
+    const nearby = graded.filter(g => g.box[0] <= box[2] && g.box[2] >= box[0] && g.box[1] <= box[3] && g.box[3] >= box[1]);
+    if (f.roadInset === "resurfacing" || f.roadInset === "oxideAsphalt" || f.roadInset === "borderCourse") {
+      // Terrain paint is hidden by a surveyed mesh. Clip the inlay onto each of its planes.
+      if (!clip || !nearby.length) continue;
+      const uv = pavingUV(f.paving, f.pavingBearing ?? 90);
+      const paint = { f, finish: "paving/" + f.paving, color: paintTone(surfaceColor(f)), uv: p => uv(toLngLat(p)) };
+      for (const g of nearby) for (const piece of g.pieces) {
+        const area = clip.intersection([ring], [piece.ring]);
+        if (area.length) layPaving(paint, area, p => piece.at(p) + .012);
+      }
+      continue;
+    }
+    const height = p => {
+      let top = -Infinity;
+      for (const g of nearby) {
+        const z = g.heightAt(...p);
+        if (z != null) top = Math.max(top,z);
+      }
+      return Number.isFinite(top) ? top : wallAt(toLngLat(p));
+    };
+    if (ring.every(p => Number.isFinite(height(p)))) drawRoadHardware(m, ring, f.roadInset, height, paintTone);
+  }
   for (const g of graded) {
     const { f, ring } = g, color = paintTone(surfaceColor(f));
     const uv = f.paving && pavingUV(f.paving, f.boards?.[1] ?? f.pavingBearing ?? 90, f.boards?.[0]);
@@ -5585,6 +5861,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
       if (uv) layPaving(paint, [[piece.ring]], piece.at);
       else m.polygon([piece.ring], piece.at, [0, 0, 1], color);
     }
+    if (f.pavingHost) continue;
     const side = f.riserFinish === "castConcrete" ? [color[0]*.91,color[1]*.90,color[2]*.87,.5] : [color[0] * .64, color[1] * .64, color[2] * .64, 1];
     const base = f.coords.map((p, i) => {
       const ground = groundAt(p);
@@ -5745,6 +6022,9 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
       plenum.set(f.id, o);
     });
   }
+  // 殻のある建物の階（外からは殻の窓ごしにしか見えない）の三角形の範囲（頂点の番号）。描く側（campus3dChunks）が遠い升目では描かない
+  const interior = { m: [], glass: [], veil: [], cull: [] };
+  const INSIDE_KEYS = ["m", "glass", "veil", "cull"];
   // 詳細モード：建物の階（切り取った階は、その階の壁の上の端より上を描かない）と、地下の階の下を掘ったふちの帯
   features.forEach((f) => {
     if (f.type !== "floor") return;
@@ -5777,7 +6057,9 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
       };
     }
     const highlight = f.id === selectedId ? [acc[0], acc[1], acc[2], 0.45] : [0, 0, 0, 0];
+    const shut = drawnShells.has(f.host), n0 = shut ? [m.s.n, glassy.s.n, veil.s.n, cull.s.n] : null;
     addFloor({ m, finishes, glassy, veil, cull }, f, { groundAt, hostShell:drawnShells.has(f.host), tint, highlight, bookRacks, marketStock, plazaLights, deckTint: deckTint(f.id), paintAt, ceilAt, cutTop: f.cut && Number.isFinite(g0) ? g0 + f.z + f.height - f.slab + 0.05 : Infinity, glazed, doors: autoDoors, psd: autoPsd, esc: autoEsc, clocks: autoClocks, text: FLOOR_TEXT, ...(plenum.get(f.id) || {}) });
+    if (shut) [m, glassy, veil, cull].forEach((x, i) => { if (x.s.n > n0[i]) interior[INSIDE_KEYS[i]].push([n0[i], x.s.n]); });
   });
   // 掘らない地下の階に面したふちの帯は、その床から PASS_CLEAR m より上だけ（連絡通路の口。歩く当たり campus3dWalk と同じ形）
   const cutFloors = cutFloorRegions(features, groundAt);
@@ -5794,7 +6076,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
   // 計算式の時計の面（{ o, u, n, z0, w, h, d }。光る字は campus3dMathClock）
   const clocks = autoClocks;
   autoClocks = null;
-  return { ...m.result(), floors: buildFloorFinishes(finishes), lightPlans, marketStock: marketStock.result(), bookRacks: bookRacks.map(r => projectBookRack(r, worldOf)), thin: thin.result(), glass: glassy.result(), screen: screen.result(), haze: haze.result(), veil: veil.result(), cull: cull.result(), portal: portal.result(), under: under.result(), doors, psd, esc, clocks };
+  return { ...m.result(), floors: buildFloorFinishes(finishes), lightPlans, marketStock: marketStock.result(), bookRacks: bookRacks.map(r => projectBookRack(r, worldOf)), thin: thin.result(), glass: glassy.result(), screen: screen.result(), haze: haze.result(), veil: veil.result(), cull: cull.result(), portal: portal.result(), under: under.result(), doors, psd, esc, clocks, interior };
 }
 
 // 中のある建物（detailShell）の屋根の下の天井に渡すもの：大梁を通す柱（その建物の階の、屋根の下の天井まで届く細い物の中心）と、

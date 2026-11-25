@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>湯島キャンパスの実景と3D</title>
+<style>
+  * { box-sizing: border-box }
+  body { margin: 0 auto; max-width: 1370px; padding: 24px clamp(16px, 3vw, 44px) 40px; color: #213a3a; background: #fbfaf7; font: 16px/1.65 system-ui, sans-serif }
+  h1 { font-size: clamp(24px, 3.3vw, 42px); margin: 0 0 8px }
+  h2 { font-size: 22px; margin: 8px 0 }
+  p { margin: 5px 0 14px }
+  section { margin-top: 34px; border-top: 1px solid #cccfbf; padding-top: 10px }
+  .pair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px }
+  figure { margin: 0 }
+  .frame { display: block; position: relative; overflow: hidden; background: #e7e8df; aspect-ratio: 1180 / 771 }
+  .frame img { width: 100%; height: 100%; object-fit: contain; display: block }
+  .model img { position: absolute; width: 115.254%; height: auto; top: -10.895%; left: -15.254% }
+  figcaption { padding-top: 4px; font-size: 14px }
+  a { color: #125956; text-underline-offset: .2em }
+  @media(max-width:720px){ .pair { grid-template-columns: 1fr; gap: 12px } }
+</style>
+<main>
+  <h1>湯島キャンパスの実景と3D</h1>
+  <p>大学・設計者が掲載した外観写真と、同じ方向を向いて撮った学内マップの歩行画面です。各画像を開くと原寸で確認できます。</p>
+  <section>
+    <h2>知と癒しの庭からM&amp;Dタワーへ</h2>
+    <p>中央の木の足元には、外側の花壇、明るい砂利、内側の小さな植栽が五組並びます。奥には玄関の庇と、石の外壁に縦の小窓が見えます。</p>
+    <div class="pair">
+      <figure><a class="frame" href="https://admissions.isct.ac.jp/cms/component/data/6322/2624a4a96454ce5167991ef2a7a603b8.webp"><img alt="大学の写真。梅形の花壇の向こうにタワーの玄関が見える" src="https://admissions.isct.ac.jp/cms/component/data/6322/2624a4a96454ce5167991ef2a7a603b8.webp"></a><figcaption>実景 · <a href="https://admissions.isct.ac.jp/ja/001/student-life-and-careers/campus-intro/yushima-surugadai">東京科学大学</a></figcaption></figure>
+      <figure><a class="frame model" href="qa/garden.png"><img alt="南の園路から梅形花壇を望む学内マップの画面" src="qa/garden.png"></a><figcaption>学内マップ · <a href="http://127.0.0.1:3186/?walk=healing-garden#navi/yushima">庭園を歩く</a></figcaption></figure>
+    </div>
+  </section>
+  <section>
+    <h2>お茶の水橋から見る病院C棟</h2>
+    <p>暗い格子の下に二段の窓列があります。橋から進むにつれ、庇の下の列柱、引き込んだガラス扉、玄関前の植栽と石積みが見えてきます。</p>
+    <div class="pair">
+      <figure><a class="frame" href="https://k-ito.co.jp/files/work/image1/386/1.jpg"><img loading="lazy" alt="設計者が掲載した病院C棟の正面外観" src="https://k-ito.co.jp/files/work/image1/386/1.jpg"></a><figcaption>実景 · <a href="https://k-ito.co.jp/works/detail/386">伊藤喜三郎建築研究所</a></figcaption></figure>
+      <figure><a class="frame model" href="qa/clinical.png"><img loading="lazy" alt="お茶の水橋から病院C棟正面を見上げた学内マップの画面" src="qa/clinical.png"></a><figcaption>学内マップ · <a href="http://127.0.0.1:3186/?walk=med-c#navi/yushima">橋からC棟を見る</a></figcaption></figure>
+    </div>
+    <p><a href="qa/road-comparison.jpg">C棟前の横断歩道、お茶の水門、外堀通りの舗装修正を同じ視点で比較する</a></p>
+  </section>
+  <section>
+    <h2>2号館の玄関</h2>
+    <p>建物に沿う配管の折れ曲がり、階段脇の花壇、庇とその下の斜めの支えを照合しました。</p>
+    <div class="pair">
+      <figure><a class="frame" href="https://www.tmd.ac.jp/cmn/jdp/images/science_tokyo_advantages/img15.jpg"><img loading="lazy" alt="大学が掲載した2号館の階段と玄関" src="https://www.tmd.ac.jp/cmn/jdp/images/science_tokyo_advantages/img15.jpg"></a><figcaption>実景 · <a href="https://www.tmd.ac.jp/cmn/jdp/science_tokyo_advantages.html">東京科学大学</a></figcaption></figure>
+      <figure><a class="frame model" href="qa/building2.png"><img loading="lazy" alt="2号館の階段と庇を斜めから見た学内マップの画面" src="qa/building2.png"></a><figcaption>学内マップ · <a href="http://127.0.0.1:3186/?walk=b2#navi/yushima">玄関の前を歩く</a></figcaption></figure>
+    </div>
+  </section>
+</main>
+</html>

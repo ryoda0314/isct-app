@@ -300,6 +300,8 @@ export const SPOTS = [
   { id: "bench_20", label: "ベンチ（ベンチ）", short: "B20", col: "#8bc34a", cat: "outdoor", lat: 35.60664, lng: 139.68421 },
   // その他
   { id: "eki", label: "大岡山駅", short: "駅", col: "#e07050", cat: "other", lat: 35.60752, lng: 139.68588 },
+  { id: "ookayama_kitaguchi", label: "大岡山北口商店街（駅前入口）", short: "商店街", col: "#76634e", cat: "other", lat: 35.607815, lng: 139.685337 },
+  { id: "tokyu_store", label: "東急ストア 大岡山店", short: "ストア", col: "#ba504b", cat: "other", lat: 35.607118, lng: 139.684801 }, // 売り場の正面自動ドア前
   { id: "home_loc", label: "自宅", short: "自", col: "#56b6c2", cat: "other", lat: null, lng: null },
   { id: "commute", label: "通学中", short: "移", col: "#61afef", cat: "other", lat: null, lng: null },
   { id: "off_campus", label: "キャンパス外", short: "外", col: "#8888a0", cat: "other", lat: null, lng: null },
@@ -1146,6 +1148,7 @@ export const EDGES = [
   ["wp_mmao83qe", "wp_mmao807r"],
   ["wp_mmao83qe", "wp_mmao8636"],
   ["wp_mmao83qe", "wp_mmao8saj"],
+  ["wp_mmao83qe", "tokyu_store"], // 駅からは通り沿いに正面自動ドアまで
   ["wp_mmao8636", "wp_mmaoabbl"],
   ["wp_mmao8636", "wp_mmaoatnd"],
   ["wp_mmaoatnd", "wp_mmaoay6b"],

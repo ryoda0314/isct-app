@@ -6,8 +6,9 @@
 //   中央線・車線境界線・外側線は、交わる道の車道＋CORNER_R の手前と、横断歩道の上で切る。T字路の突き当たる側の道は、
 //   相手の車道へ 1m だけ入るとして切る（相手の中央線は通したまま、外側線だけ切れる）。まっすぐ続く道どうしは切らない
 // 道路の重ね合わせ（union・difference）には polygon-clipping を使う（paintFeatures に渡す。なければ道路は描かない）
-import { cumulative, offsetLine, ringArea, toLngLat, toXY, treeBedRing } from "./campus3dFeatures.js";
+import { cumulative, offsetLine, pointInRing, ringArea, toLngLat, toXY, treeBedRing } from "./campus3dFeatures.js";
 import { isDeckPlank } from "./campus3dPavingTiles.js";
+import { roadInsetFootprint } from "./campus3dRoadInsets.js";
 
 // 路面の種類（塗る色は明るい地図・暗い地図それぞれ）
 export const SURFACE_KINDS = {
@@ -17,6 +18,7 @@ export const SURFACE_KINDS = {
   // 人工芝（グラウンド。2026-11-16、isct-45）：冬も枯れ色にしない（GROUND_OF は ground）。いちばん下の芝生のすぐ上に描き、土・線・トラックを上に重ねる
   turf: { label: "人工芝", light: "#8fbf78", dark: "#25402a" },
   road: { label: "車道", light: "#808184", dark: "#383b3e" },
+  darkAsphalt: { label: "黒いアスファルト", light: "#36383b", dark: "#202123" },
   walk: { label: "歩道", light: "#e6e8e3", dark: "#4a5058" },
   plaza: { label: "広場", light: "#cdb49a", dark: "#5f5245" },
   tile: { label: "石畳（灰）", light: "#bcb9b3", dark: "#46484d" },
@@ -68,9 +70,11 @@ const TACTILE_FINISH = {
   ochre: { base: { light: "#cfb05d", dark: "#837238" }, relief: { light: "#e3ca85", dark: "#ab9756" } },
   sand: { base: { light: "#c3bba4", dark: "#656257" }, relief: { light: "#d7d0b9", dark: "#858171" } },
 };
+const FADED_PAINT = { yellow: { light: "#cbbb90", dark: "#87784f" }, white: { light: "#d5d5cf", dark: "#979996" } };
 const PAVING_COLORS = {
   courtGravel: { light: "#8c8980", dark: "#383b36" },
   plazaBlock: { light: "#a49e96", dark: "#494844" },
+  stationSetts: { light: "#81827f", dark: "#414342" },
   blueTile: { light: "#66839c", dark: "#334252" },
   groundcover: { light: "#657044", dark: "#333c28" },
   aggregate: { light: "#d6cfc1", dark: "#534f48" },
@@ -80,8 +84,28 @@ const PAVING_COLORS = {
   deckComposite: { light: "#aaa7a1", dark: "#454440" },
   deckTimber: { light: "#82776c", dark: "#39332e" },
   apronConcrete: { light: "#b3b2aa", dark: "#454641" },
+  gateAshlar: { light: "#acaaa5", dark: "#48494a" },
+  walkBond: { light: "#8c8984", dark: "#414142" },
+  avenueHerring: { light: "#777674", dark: "#37393b" },
+  clayHerring: { light: "#957e75", dark: "#493d36" },
+  lawnBrick: { light: "#a28d81", dark: "#463b34" },
+  memorialBrick: { light: "#a57866", dark: "#49382f" },
+  campusAsphalt: { light: "#62636a", dark: "#37393c" },
+  roseFlags: { light: "#b7aaa9", dark: "#555052" },
+  exposedFlags: { light: "#807e74", dark: "#373834" },
+  arcadeBrick: { light: "#a59b8e", dark: "#8d8576" },
+  lightDeck: { light: "#b9b1a2", dark: "#504c45" },
 };
-export const surfaceColor = f => PAVING_COLORS[f.paving] || SURFACE_KINDS[f.kind] || SURFACE_KINDS.road;
+const INSET_COLORS = {
+  oxideAsphalt: { light: "#91675e", dark: "#443533" },
+  graniteCourse: { light: "#b8b5ad", dark: "#565958" }, slotDrain: { light: "#6a6a64", dark: "#36393a" },
+  grate: { light: "#45474a", dark: "#25282a" }, ironCover: { light: "#595853", dark: "#303032" },
+  resurfacing: { light: "#505054", dark: "#292a2d" }, borderCourse: { light: "#686866", dark: "#343537" },
+};
+export const surfaceColor = f => INSET_COLORS[f.roadInset] ||
+  (f.paving === "lightDeck" && f.kind === "slab" ? { light: "#d6cebc", dark: "#615d51" } :
+    f.paving === "clayHerring" && f.kind === "redbrick" ? { light: "#98796a", dark: "#47362e" } :
+    PAVING_COLORS[f.paving] || SURFACE_KINDS[f.kind] || SURFACE_KINDS.road);
 // 歩道のふち（縁石）の線の色。3D表示の cb-pave-edge が描く
 export const CURB = { light: "#b9bdb6", dark: "#5d646c" };
 
@@ -149,6 +173,51 @@ export function crosswalkBars(a, b, width) {
   return out;
 }
 
+// White concrete units in the avenue and chipped thermoplastic on the public road.
+// Group identical shades in one draw feature. The gaps reveal the actual surface underneath.
+function crossingFinish(bars, finish, id, tone) {
+  const blocks = finish === "block";
+  const shades = blocks ? ["#c5c3be","#d0cec6","#dedbd1"] : ["#c3c2bc","#c8c7c1","#c6c5be"];
+  const groups = shades.map(() => []);
+  bars.forEach(([a,b,,d], index) => {
+    const span = Math.hypot(b[0]-a[0], b[1]-a[1]);
+    if (span < .01) return;
+    const at = (s,t) => [a[0]+(b[0]-a[0])*s/span+(d[0]-a[0])*t, a[1]+(b[1]-a[1])*s/span+(d[1]-a[1])*t];
+    let seed = 617 + index;
+    const random = () => ((seed = (Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+    if (!blocks) {
+      const segments = Math.ceil(span/.085), top = [], bottom = [];
+      for (let k=0; k<=segments; k++) {
+        top.push(at(span*k/segments,random()*.044));
+        bottom.push(at(span*k/segments,1-random()*.044));
+      }
+      const stripe = closed([...top,...bottom.reverse()]);
+      for (let j=0; j<6; j++) for (let k=0; k<segments; k++) {
+        if (random()>.48) continue;
+        const x = (k+.40+.18*random())*span/segments, y = (j+.45+.12*random())/6;
+        const rx = (.10+.24*random())*span/segments, ry = .018+.034*random();
+        const chip = [at(x-rx,y),at(x-rx*.32,y+ry),at(x+rx,y+ry*.46),at(x+rx*.56,y-ry)];
+        stripe.push([...chip,chip[0]]);
+      }
+      groups[index%3].push(stripe);
+      return;
+    }
+    const rows = Math.max(1,Math.round(Math.hypot(d[0]-a[0],d[1]-a[1])/.10));
+    const step = .20;
+    for(let j=0; j<rows; j++) {
+      const start = -(j%2)*step/2;
+      for(let s=start; s<span-.004; s+=step) {
+        const left = Math.max(0,s) + .004, right = Math.min(s+step,span);
+        if (right-left<.008) continue;
+        const top = (j+.035)/rows, bottom = (j+1)/rows;
+        const pts = [at(left,top),at(right,top),at(right,bottom),at(left,bottom)];
+        groups[Math.floor(random()*3)].push(closed(pts));
+      }
+    }
+  });
+  return groups.flatMap((group,i) => group.length ? [multi(group,{id,color:tone({light:shades[i],dark:blocks ? "#777771" : "#848581"})})] : []);
+}
+
 // 折れ線を幅 w の帯（区間ごとの四角）に。dash = [引く, あける] なら破線
 export function lineBars(pts, w, dash) {
   const out = [];
@@ -191,6 +260,29 @@ export function roadTextBars(pts, text, size = 1.8, w = 0.15) {
   return out;
 }
 
+// The stop legend by South 6 is laid in whole white pavers, including the diagonals of the kana.
+function paverLettering(path, strokes, size, id, tone) {
+  if (!strokes.length) return [];
+  const a = path[0], b = path[path.length - 1];
+  const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  if (length < 0.1) return [];
+  const dx = (b[0] - a[0]) / length, dy = (b[1] - a[1]) / length;
+  const point = (across, along) => [a[0] + dx * along + dy * across, a[1] + dy * along - dx * across];
+  const groups = [[], [], []];
+  const columns = Math.ceil((size / 2 + 0.24) / 0.105);
+  for (let col = -columns; col <= columns; col++) {
+    for (let row = 0; row * 0.205 <= length; row++) {
+      const x = col * 0.105, y = (row + (Math.abs(col) % 2) / 2) * 0.205;
+      const [px, py] = point(x, y);
+      if (!strokes.some(stroke => pointInRing(px, py, stroke))) continue;
+      const ring = [point(x-.049,y-.099), point(x+.049,y-.099), point(x+.049,y+.099), point(x-.049,y+.099)];
+      groups[Math.abs(7 * col + 5 * row) % 3].push(closed(ring));
+    }
+  }
+  const shades = ["#c4c2b8", "#d8d6cb", "#e2e0d5"];
+  return groups.flatMap((g, i) => g.length ? [multi(g, { id, color: tone({ light: shades[i], dark: "#797a76" }) })] : []);
+}
+
 // 路面の矢印：折れ線の終わりが矢の先。軸は幅 w、先は幅 3w・長さ 4w の三角（軸は三角の底まで）
 export function arrowBars(pts, w = 0.3) {
   if (pts.length < 2) return [];
@@ -211,11 +303,16 @@ export function boardSeams(pts, w, bearing) {
 }
 
 // The lawn slabs have worn corners. On a sliver at a brick junction, shorten the bevel to fit.
-function stoneRing(quad) {
-  return closed(quad.flatMap(([x, y], i) => [quad[(i + 3) % 4], quad[(i + 1) % 4]].map(([u, v]) => {
-    const t = Math.min(0.2, 0.045 / (Math.hypot(u - x, v - y) || 1));
+function stoneRing(quad, index) {
+  return quad.flatMap(([x, y], i) => [quad[(i + 3) % 4], quad[(i + 1) % 4]].map(([u, v], side) => {
+    const worn = .035 + ((index * 7 + i * 3 + side * 5) % 13) * .004;
+    const t = Math.min(0.2, worn / (Math.hypot(u - x, v - y) || 1));
     return [x + (u - x) * t, y + (v - y) * t];
-  })));
+  }));
+}
+
+export function steppingStoneRings(points, [bearing, depth, gap]) {
+  return stripeBars(points, -bearing, depth + gap, depth, (depth + gap) / 2).map(stoneRing);
 }
 
 // 多角形の中を、角度 deg（東から左回り）に走る幅 bw の縞で、間隔 step・最初の縞は端から first で埋める
@@ -481,20 +578,19 @@ export function paintFeatures(features, dark = false, pc = null) {
       layers.soil.push(poly(bed, { id: f.id, color: tone({ light: "#62583e", dark: "#29271d" }, "soil"), paving: "rootBed" }));
     }
     if (f.type !== "surface") continue;
-    const pts = f.coords.map(toXY);
+    if (f.roadInset === "paverHatch") continue; // The steel frame retains the pavement inside it.
+    const pts = roadInsetFootprint(f.coords.map(toXY), f.roadInset);
     if (pts.length < 3) continue;
     const k = surfaceColor(f);
-    const paving = f.paving || ({ road: "asphalt", zebra: "asphalt", brick: "running", darkbrick: "running" })[f.kind];
+    const paving = f.paving || ({ road: "asphalt", darkAsphalt: "asphalt", zebra: "asphalt", brick: "running", darkbrick: "running" })[f.kind];
     const material = paving ? { paving, pavingBearing: f.pavingBearing } : {};
     const texturedBoards = f.boards && isDeckPlank(paving);
     if (texturedBoards) [material.pavingBoardWidth, material.pavingBearing] = f.boards;
     if (f.pavingHoles?.length) material.pavingHoles = f.pavingHoles;
     const props = { id: f.id, kind: f.kind, color: tone(k, paving === "groundcover" ? "soil" : f.kind), ...material };
     if (f.stepping) {
-      const [bearing, depth, gap] = f.stepping;
-      const pitch = depth + gap;
-      const stones = stripeBars(pts, -bearing, pitch, depth, pitch / 2);
-      if (stones.length) layers.slab.push(multi(stones.map(stoneRing), props));
+      const stones = steppingStoneRings(pts, f.stepping);
+      if (stones.length) layers.slab.push(multi(stones.map(closed), props));
     } else if (f.kind === "lawn" && f.groundBlend != null) {
       // 実測した法面は、敷地全体に敷いたアスファルトの下地より上に塗る。
       surveyedLawns.push(poly(pts, props));
@@ -515,11 +611,19 @@ export function paintFeatures(features, dark = false, pc = null) {
     if (f.type === "marking") {
       const k = MARKING_KINDS[f.kind] || MARKING_KINDS.solid;
       const finish = TACTILE_FINISH[f.finish];
-      const color = tone(finish?.base || PAINT[k.color]);
-      if (k.text) { for (const q of roadTextBars(f.coords.map(toXY), f.text, f.size, f.width || k.width)) paint.push(poly(q, { id: f.id, color })); continue; }
+      const color = tone(finish?.base || (f.finish === "faded" && FADED_PAINT[k.color]) || PAINT[k.color]);
+      if (k.text) {
+        const path = f.coords.map(toXY), size = f.size || 1.8;
+        const strokes = roadTextBars(path, f.text, size, f.width || k.width);
+        if (f.finish === "block") paint.push(...paverLettering(path, strokes, size, f.id, tone));
+        else for (const q of strokes) paint.push(poly(q, { id: f.id, color }));
+        continue;
+      }
       if (k.arrow) { for (const q of arrowBars(f.coords.map(toXY), f.width || k.width)) paint.push(poly(q, { id: f.id, color })); continue; }
       const path = f.coords.map(toXY);
-      for (const q of lineBars(path, f.width || k.width, k.dash)) paint.push(poly(q, { id: f.id, color }));
+      const strips = lineBars(path, f.width || k.width, k.dash);
+      if (f.finish === "block") paint.push(...crossingFinish(strips, f.finish, f.id, tone));
+      else for (const q of strips) paint.push(poly(q, { id: f.id, color }));
       if (f.kind === "tactile") {
         const rib = tone(finish?.relief || { light: "#f4cf59", dark: "#ab933e" });
         for (const offset of [-0.09, -0.03, 0.03, 0.09]) {
@@ -533,7 +637,9 @@ export function paintFeatures(features, dark = false, pc = null) {
     } else if (f.type === "crosswalk" && f.coords.length >= 2) {
       const [a, b] = f.coords.map(toXY);
       const color = tone(PAINT.white);
-      for (const q of crosswalkBars(a, b, f.width || 4)) paint.push(poly(q, { id: f.id, color }));
+      const bars = crosswalkBars(a, b, f.width || 4);
+      if (f.finish) paint.push(...crossingFinish(bars, f.finish, f.id, tone));
+      else for (const q of bars) paint.push(poly(q, { id: f.id, color }));
     }
   }
   return {

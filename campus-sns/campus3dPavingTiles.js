@@ -5,7 +5,12 @@ const CELL = 128;
 const repeat = { asphalt: 0.96, running: 0.84, herring: 0.84, granite: 1.28, plazaBlock: 2.4, blueTile: 1.2, groundcover: 0.92, aggregate: 0.8, grass: 3.2, basketweave: 0.8, roughStone: 0.48, deckComposite: 2.88, deckTimber: 3.12, rootBed: 0.86, apronConcrete: 0.64 };
 const BOARDS_PER_STAMP = 12;
 repeat.courtGravel = 4.8;
-export const isDeckPlank = name => name === "deckComposite" || name === "deckTimber";
+repeat.memorialBrick = 2.40;
+repeat.stationSetts = 1.6;
+// Full stamp widths in metres; the workshop and the avenue use 100 × 200 mm blocks.
+Object.assign(repeat, { gateAshlar: 3.072, walkBond: 2.448, avenueHerring: 2.4, clayHerring: 2.4, lawnBrick: 2.52, campusAsphalt: 3.2 });
+Object.assign(repeat, { roseFlags: 1.8, exposedFlags: 2, arcadeBrick: 2.88, lightDeck: 2.4 });
+export const isDeckPlank = name => name === "deckComposite" || name === "deckTimber" || name === "lightDeck";
 export const pavingStampName = finish => isDeckPlank(finish) ? finish : finish.startsWith("paving/") ? finish.slice(7) : null;
 const stamps = new Map();
 
@@ -52,6 +57,7 @@ async function loadStamp(name) {
   const url = "/map-3d/paving/" + name + ".png";
   let image;
   if (name === "courtGravel") image = courtyardGravel();
+  else if (name === "stationSetts") image = stationSetts();
   else if (typeof createImageBitmap === "function") {
     const response = await fetch(url);
     if (!response.ok) throw new Error("Could not load " + url);
@@ -68,6 +74,26 @@ async function loadStamp(name) {
     levels.push(c);
   }
   return levels;
+}
+
+// Eight 20 cm square aggregate blocks across a seamless stamp (IMG_0719, 00:53).
+function stationSetts() {
+  const c = canvas(TILE), ctx = c.getContext("2d"), pixels = ctx.createImageData(TILE,TILE);
+  const pitch = TILE / 8;
+  let seed = 719;
+  const random = () => ((seed = (Math.imul(seed,1664525)+1013904223) >>> 0) / 4294967296);
+  const stone = Array.from({length:64},() => 116 + 14*random());
+  for (let y=0;y<TILE;y++) for (let x=0;x<TILE;x++) {
+    const sx=x%pitch, sy=y%pitch, edge=Math.min(sx,sy,pitch-1-sx,pitch-1-sy);
+    const block=stone[(y/pitch|0)*8+(x/pitch|0)];
+    const fleck=random(), grit=37*(random()-.5)+(fleck>.935?28:fleck<.072?-28:0);
+    const tone=edge===0 ? block-39+grit*.5 : block+grit+(sx===1||sy===1?7:0);
+    const i=(y*TILE+x)*4;
+    pixels.data[i]=tone; pixels.data[i+1]=tone+.5; pixels.data[i+2]=tone-1;
+    pixels.data[i+3]=193;
+  }
+  ctx.putImageData(pixels,0,0);
+  return c;
 }
 
 function stamp(name) {
@@ -113,7 +139,7 @@ function cells(left, top, right, bottom, visit) {
   }
 }
 
-async function snapshot(c) {
+export async function tileSnapshot(c) {
   if (c.transferToImageBitmap) return c.transferToImageBitmap();
   if (typeof createImageBitmap === "function") return createImageBitmap(c);
   const blob = await new Promise(resolve => c.toBlob(resolve, "image/png"));
@@ -218,12 +244,12 @@ export function pavingTiles(collection) {
       }
       painted = true;
     }
-    return snapshot(c);
+    return tileSnapshot(c);
   };
 }
 
 export function emptyPavingTile() {
   const c = canvas(1);
   c.getContext("2d").clearRect(0, 0, 1, 1);
-  return snapshot(c);
+  return tileSnapshot(c);
 }

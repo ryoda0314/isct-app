@@ -20,6 +20,15 @@ const MAX_BYTES = 200;
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // キャンパスロワイヤル（バーチャルキャンパスのゲーム）の部屋：/royale/<部屋>。中身は royale.js の RoyaleRoom
+    const royale = url.pathname.match(/^\/royale\/([a-z0-9-]{1,32})$/);
+    if (royale) {
+      if (request.headers.get("Upgrade") !== "websocket") return new Response("websocket only", { status: 426 });
+      const origin = request.headers.get("Origin") || "";
+      const allowed = String(env.ALLOWED_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean);
+      if (allowed.length && !allowed.includes(origin)) return new Response("origin", { status: 403 });
+      return env.ROYALE.get(env.ROYALE.idFromName(royale[1])).fetch(request);
+    }
     const m = url.pathname.match(/^\/room\/([a-z0-9-]{1,32})$/);
     if (!m) return new Response("isct walk rooms", { status: url.pathname === "/" ? 200 : 404 });
     if (request.headers.get("Upgrade") !== "websocket") return new Response("websocket only", { status: 426 });
@@ -127,3 +136,5 @@ export class WalkRoom {
     this.webSocketClose(ws);
   }
 }
+
+export { RoyaleRoom } from "./royale.js";

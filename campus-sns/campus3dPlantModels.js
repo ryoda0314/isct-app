@@ -30,6 +30,7 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
 
 // Consecutive segments share each ring. Old cherry scaffolds bend and taper continuously.
 function bough(m, pts, radii, color, sides = 7) {
+  if (m.shade && radii[0] >= .065) m.shade.limbs.push(pts.map((p,i) => [p[0],p[1],p[2],radii[i]]));
   if (sides >= 8 && radii[0] > 0.12) {
     const path = [pts[0]],
       widths = [radii[0]];
@@ -97,6 +98,7 @@ function subtractAlong(points, index) {
 // A terminal shoot grows directly out of a scaffold or a side twig. The shared
 // mesh contains its woody axes, petioles and individual three-dimensional blades.
 function foliage(m, end, radius, depth, tree, density, parent = end) {
+  if (m.shade) m.shade.crowns.push([end[0], end[1], end[2], radius, depth]);
   const { rnd, kind, base, h, p } = tree;
   const outward = Math.atan2(end[1] - p[1], end[0] - p[0]);
   const phase = rnd() * TAU;
@@ -231,13 +233,29 @@ function tieredTree(m, t, sp) {
   const { p, base, h, w, tr, rnd, bark } = t,
     root = [...p, base],
     top = radial(root, rnd() * TAU, tr * 0.75, h * 0.97);
+  const mature = sp === "ginkgo" && tr >= .31;
   m.part(PLANT_PART.trunk);
+  if (mature) {
+    // Irregular flutes widen into exposed roots at pavement level. A continuous
+    // ring gives the trunk a different outline as the walker goes around it.
+    const phase=p[0]*.19+p[1]*.07, sides=28;
+    const levels=[[-.045,1.44,.56],[.075,1.23,.44],[.32,1.04,.24],[.78,.97,.10],[1.38,.92,.035]];
+    const rings=levels.map(([z,r,amplitude])=>Array.from({length:sides},(_,i)=>{
+      const a=i*TAU/sides, lobes=.54*Math.cos(a*5+phase+.11*z)+.29*Math.cos(a*3-phase)+.17*Math.sin(7*a+phase);
+      return radial(root,a,tr*(r+amplitude*lobes),z);
+    }));
+    for(let band=1;band<rings.length;band++) for(let i=0;i<sides;i++){
+      const j=(i+1)%sides, a=rings[band-1][i], b=rings[band-1][j], c=rings[band][j], d=rings[band][i];
+      const normal=unit(cross(b.map((v,k)=>v-a[k]),d.map((v,k)=>v-a[k])));
+      for (const v of [a,b,c,a,c,d]) m.vert(v,v[2],normal,bark);
+    }
+  }
   bough(
     m,
     [[...p, base - 0.15], mix(root, top, 0.1), mix(root, top, 0.55), top],
-    [tr * 1.34, tr * 0.97, tr * 0.6, tr * 0.08],
+    [tr * (mature ? .95 : 1.34), tr * 0.97, tr * 0.6, tr * 0.08],
     bark,
-    9,
+    mature ? 14 : 9,
   );
   const conifer = sp === "cedar",
     ginkgo = sp === "ginkgo",
@@ -249,7 +267,7 @@ function tieredTree(m, t, sp) {
     const width = conifer
       ? 1 - 0.86 * u
       : (ginkgo ? Math.pow(1 - u, 0.65) : Math.sin(Math.PI * (0.17 + u * 0.76))) * (ginkgo ? 1 : 1.05);
-    const count = conifer ? 6 : ginkgo ? 4 : 5,
+    const count = conifer ? 6 : mature ? 5 : ginkgo ? 4 : 5,
       phase = rnd() * TAU;
     for (let i = 0; i < count; i++) {
       const a = phase + (i * TAU) / count + (rnd() - 0.5) * 0.5,
@@ -263,6 +281,11 @@ function tieredTree(m, t, sp) {
       const cr = Math.max(w * 0.045, w * (conifer ? 0.15 : ginkgo ? 0.14 : 0.2) * width);
       foliage(m, end, cr, conifer ? cr * 0.48 : cr * 1.05, t, conifer ? 10 : ginkgo ? 12 : 17, mid);
       foliage(m, mid, cr * 0.83, conifer ? cr * 0.45 : cr * 0.82, t, conifer ? 6 : 8, start);
+      if (mature && k<5) {
+        const fork=radial(mid,a+(i%2 ? .75 : -.75),r*.64,rise*.48);
+        bough(m,[mid,fork],[tr*.14,.018],bark,5);
+        foliage(m,fork,cr*1.13,cr*.83,t,12,mid);
+      }
     }
   }
   foliage(m, mix(root, top, 0.93), w * 0.08, h * 0.08, t, 8);
@@ -711,8 +734,10 @@ export function plantingModel(m, f, groundAt, wallAt) {
   const rnd = seeded(hashStr(f.id));
   if (f.plant === "goldenrod") return goldenrod(m, f, groundAt, rnd);
   if (f.type === "wall") return hedge(m, f, wallAt, rnd);
-  if (f.type === "surface")
-    return bed(m, f.coords.map(toXY), (p) => groundAt(toLngLat(p)), 1.13, 0.84, rnd, m.libraryBed);
+  if (f.type === "surface") {
+    const height = f.height ?? .84;
+    return bed(m, f.coords.map(toXY), p => groundAt(toLngLat(p)), height < .4 ? .57 : 1.13, height, rnd, m.libraryBed);
+  }
   const boards = roofBoards(f).list.filter((b) => b.kind === "green");
   const mean = f.coords.reduce((a, p) => [a[0] + p[0] / f.coords.length, a[1] + p[1] / f.coords.length], [0, 0]);
   const g = groundAt(f.groundRef || mean);

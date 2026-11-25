@@ -4,11 +4,13 @@ import { MERC_SCALE, ORIGIN, worldOf } from "./campus3dMesh.js";
 import { SURFACE_PRINT_IMAGES } from "./campus3dFeatures.js";
 import { createBookRenderer } from "./campus3dBookLayer.js";
 import { createMarketRenderer } from "./campus3dMarketLayer.js";
+import { createCoupeRenderer } from "./campus3dCoupeRenderer.js";
 import { TSUBAME_ATLAS } from "./campus3dTsubameMenu.js";
 import { tsubameMenuPixels } from "./campus3dTsubameMenuArt.js";
 import { ceilingLightPixels, createFloorTexture, insideLightPlan, signPrintPixels, uploadFloorTexture } from "./campus3dFloorMaterials.js";
 import { deckStampPixels, pavingStampName } from "./campus3dPavingTiles.js";
 import { interiorPalette } from "./campus3dInterior.js";
+import { chunkTriangles, chunkRanges, frustumOf } from "./campus3dChunks.js";
 
 export const EXTRAS_LAYER_ID = "cb-extras";
 const GLASS_ALPHA = 0.3; // ガラスの手すりの板の濃さ
@@ -326,7 +328,7 @@ function drawGlow(gl, prog, b, M, basis, gain) {
  * @param light  { position: [r, 方位, 仰角], intensity, color }（スタイルの light と同じ値。setLight で差し替える）
  * @param route  { width: (zoom) => px, casing: (zoom) => px, color, casingColor }
  */
-export function createExtrasLayer({ light, route, exaggeration = 1 }) {
+export function createExtrasLayer({ light, route, exaggeration = 1, skyColors }) {
   let map = null;
   let gl = null;
   let solid = null;
@@ -340,6 +342,18 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
   const readyStamps = new Map();
   const failedStamps = new Set();
   const buf = { mesh: null, floors: null, thin: null, glass: null, screen: null, haze: null, veil: null, cull: null, portal: null, under: null, rib: null };
+  // 升目ごとに並べかえて、見えている升目だけ描く（campus3dChunks）。drawLimits は小さい三角形・建物の中を描く距離（m）
+  let drawLimits = { mid: Infinity, small: Infinity, inside: Infinity };
+  const KXY = Math.hypot(PER_M.e[0], PER_M.e[1]);
+  const withChunks = (d, inter) => {
+    const t0 = performance.now();
+    const ch = d.chunks !== undefined ? d.chunks : typeof window !== "undefined" && window.__cbNoChunks ? null : chunkTriangles(d, [["pos", 3], ["nrm", 3], ["col", 4]], { kxy: KXY, interior: inter || null });
+    if (ch && typeof window !== "undefined") (window.__cbChunkLog ||= []).push({ tris: d.count / 3, cells: ch.n, stats: ch.stats, ms: Math.round(performance.now() - t0) });
+    const b = upload(d, ["pos", "nrm", "col"]);
+    b.ch = ch;
+    b.ranges = [];
+    return b;
+  };
   let mesh = null;
   let rib = null;
   let lt = lightState(light);
@@ -466,11 +480,11 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
         free(buf.cull, ["pos", "nrm", "col"]);
         free(buf.portal, ["pos", "nrm", "col"]);
         free(buf.under, ["pos", "nrm", "col"]);
-        buf.veil = mesh.veil?.count ? upload(mesh.veil, ["pos", "nrm", "col"]) : null;
-        buf.cull = mesh.cull?.count ? upload(mesh.cull, ["pos", "nrm", "col"]) : null;
+        buf.veil = mesh.veil?.count ? withChunks(mesh.veil, mesh.interior?.veil) : null;
+        buf.cull = mesh.cull?.count ? withChunks(mesh.cull, mesh.interior?.cull) : null;
         buf.portal = mesh.portal?.count ? upload(mesh.portal, ["pos", "nrm", "col"]) : null;
         buf.under = mesh.under?.count ? upload(mesh.under, ["pos", "nrm", "col"]) : null;
-        buf.mesh = mesh.count ? upload(mesh, ["pos", "nrm", "col"]) : null;
+        buf.mesh = mesh.count ? withChunks(mesh, mesh.interior?.m) : null;
         buf.floors = mesh.floors?.count ? upload(mesh.floors, ["pos", "uv", "col"]) : null;
         lightPlans = mesh.lightPlans || [];
         hasBooks = Boolean(mesh.bookRacks?.length);
@@ -505,10 +519,10 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
           }
           gl.bindTexture(gl.TEXTURE_2D, null);
         }
-        buf.thin = mesh.thin?.count ? upload(mesh.thin, ["pos", "nrm", "col"]) : null;
-        buf.glass = mesh.glass?.count ? upload(mesh.glass, ["pos", "nrm", "col"]) : null;
-        buf.screen = mesh.screen?.count ? upload(mesh.screen, ["pos", "nrm", "col"]) : null;
-        buf.haze = mesh.haze?.count ? upload(mesh.haze, ["pos", "nrm", "col"]) : null;
+        buf.thin = mesh.thin?.count ? withChunks(mesh.thin, mesh.interior?.thin) : null;
+        buf.glass = mesh.glass?.count ? withChunks(mesh.glass, mesh.interior?.glass) : null;
+        buf.screen = mesh.screen?.count ? withChunks(mesh.screen, mesh.interior?.screen) : null;
+        buf.haze = mesh.haze?.count ? withChunks(mesh.haze, mesh.interior?.haze) : null;
         mesh = null;
       }
       if (rib) {
@@ -529,12 +543,14 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
       // 穴あきの金属板（screen）・金網の網の面（haze）・ガラスの手すりの板（glass）は最後に半透明で重ねる（奥行きは書かない）
       // 詳細モードの殻（cull）は形と同じく奥行きを書く（中からは裏の面になって描かれない）。白い格子の手すり（veil）は半透明
       const cam = cameraOf(M);
+      const planes = frustumOf(M);
+      const lim = (typeof window !== "undefined" && window.__cbLimits) || drawLimits;
       if (buf.portal && map.terrain) punchPortals(buf.portal, M);
       // 天井のない平地の床（mesh.under）：地形を外しているとき（地面の下を歩くとき）だけ。ふだんは地形が床
       [[map.terrain ? null : buf.under, true, 1], [buf.floors, true, 1], [buf.mesh, true, 1], [cam ? buf.cull : null, true, 1, true], [hasBooks ? books : null, true, 1], [hasMarket ? market : null, true, 1], [buf.thin, false, 1], [buf.screen, false, SCREEN_ALPHA], [buf.veil, false, VEIL_ALPHA], [buf.haze, false, HAZE_ALPHA], [buf.glass, false, GLASS_ALPHA]].forEach(([b, writeDepth, alpha, culled]) => {
         if (!b) return;
         if (b === books) { books.draw(M, cam); return; }
-        if (b === market) { market.draw(M, cam); return; }
+        if (b === market) { market.draw(M, cam, skyColors?.()); return; }
         if (b === buf.floors) {
           gl.useProgram(floorProg.p);
           gl.uniformMatrix4fv(floorProg.loc("u_matrix"), false, M);
@@ -592,7 +608,10 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
           gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
         }
         gl.depthMask(writeDepth);
-        gl.drawArrays(gl.TRIANGLES, 0, b.count);
+        if (b.ch) {
+          const r = chunkRanges(b.ch, planes, cam, KXY, lim, b.ranges);
+          for (let i = 0; i < r.length; i += 2) gl.drawArrays(gl.TRIANGLES, r[i], r[i + 1]);
+        } else gl.drawArrays(gl.TRIANGLES, 0, b.count);
         gl.depthMask(true);
         enabled.forEach((a) => a >= 0 && gl.disableVertexAttribArray(a));
         enabled.length = 0;
@@ -631,6 +650,10 @@ export function createExtrasLayer({ light, route, exaggeration = 1 }) {
   // 形を差し替える（GL への転送は次に描くとき）
   layer.setMesh = (m) => {
     mesh = m;
+    map?.triggerRepaint();
+  };
+  layer.setDrawLimits = (l) => {
+    drawLimits = { ...drawLimits, ...l };
     map?.triggerRepaint();
   };
   layer.setRibbons = (r) => {
@@ -966,17 +989,63 @@ export function createLightsLayer({ light, exaggeration = 1 }) {
 // ── 乗り物（campus3dVehicles・campus3dVehicleMesh：自転車・車・ドローン。歩いて見るあいだだけ。2026-11-17）──
 // 形は群ごと（campus3dVehicleMesh の vehicleFrameMeshes）：止めてある乗り物（park）は版が変わったときだけ GPU へ送る。動いているもの（move、ver: null）は毎フレーム送る
 export const VEHICLES_LAYER_ID = "cb-vehicles";
+const VS_VEHICLE = `
+attribute vec3 a_pos, a_normal;
+attribute vec4 a_color;
+uniform mat4 u_matrix;
+uniform vec4 u_eye;
+varying vec3 v_normal, v_view;
+varying vec4 v_paint;
+void main(){
+  gl_Position = u_matrix * vec4(a_pos,1.);
+  v_normal = a_normal;
+  v_view = vec3((u_eye.xy-a_pos.xy)*u_eye.w,u_eye.z-a_pos.z);
+  v_paint = a_color;
+}`;
+const FS_VEHICLE = `
+precision highp float;
+varying vec3 v_normal,v_view;
+varying vec4 v_paint;
+uniform vec3 u_lightpos,u_lightcolor;
+uniform float u_lightintensity,u_alpha;
+void main(){
+  vec3 n=normalize(v_normal), eye=normalize(v_view), sun=normalize(u_lightpos);
+  float diffuse=max(0.,dot(n,sun));
+  float level=mix(1.-u_lightintensity,1.10,diffuse);
+  vec3 base=v_paint.rgb, lit=(base+.015)*level*u_lightcolor;
+  float material=v_paint.a, opacity=u_alpha;
+  if(material<.40){
+    lit=base; opacity=material;
+  } else if(material<.75){
+    lit=base;
+  } else if(material<.97){
+    // Alpha tags distinguish machined alloy, clear-coated paint and glazing.
+    vec3 reflection=reflect(-eye,n);
+    float sky=smoothstep(-.23,.56,reflection.z);
+    float fresnel=pow(1.-clamp(abs(dot(n,eye)),0.,1.),3.);
+    float streak=exp(-8.*abs(reflection.z-.14));
+    vec3 env=mix(vec3(.105,.126,.13),vec3(.49,.67,.83),sky)+vec3(.20)*streak;
+    float spec=pow(max(0.,dot(reflection,sun)),material<.83?32.:68.);
+    if(material>.90) lit=mix(base*.68,env,.46+.41*fresnel)*u_lightcolor;
+    else lit+=env*(material<.83?.30:.085+.18*fresnel)*u_lightcolor;
+    lit+=vec3(1.,.91,.78)*spec*(.18+.54*u_lightintensity)*u_lightcolor;
+  }
+  gl_FragColor=vec4(clamp(lit,0.,1.)*opacity,opacity);
+}`;
 const VEH_GLASS_ALPHA = 0.8; // 車の窓（濃い色のガラス。中の座席・運転する人がうっすら見える）
 const VEH_SCREEN_ALPHA = 0.32; // 前かごの網・回っている羽根
 /**
  * @param frame  () => { groups: [{ id, ver（null なら毎フレーム送る）, solid, glass, screen（Mesh の結果と同じ形）, glow（GlowMesh の結果） }] } か null。
  *               群のない { solid, glass, screen, glow } も受ける（毎フレーム送る）
  */
-export function createVehiclesLayer({ light, exaggeration = 1, frame }) {
+// id：同じ描き方で別の層を作るとき（バーチャルキャンパスのほかの人 cb-peers）。onMatrix(M, canvas)：描く前に、その回の行列を知らせる
+// （名前の札を画面の位置へ置くため。形がない回は呼ばない）
+export function createVehiclesLayer({ light, exaggeration = 1, frame, id = VEHICLES_LAYER_ID, onMatrix = null }) {
   let map = null;
   let gl = null;
   let prog = null;
   let glowProg = null;
+  let coupe = null;
   const bufs = {};
   const sent = {}; // バッファの名前 → GPU にある形の版（同じ版なら送らない）
   const glowBufs = {}; // 群 → 光のにじみのバッファ
@@ -996,7 +1065,7 @@ export function createVehiclesLayer({ light, exaggeration = 1, frame }) {
     return a;
   };
   return {
-    id: VEHICLES_LAYER_ID,
+    id,
     type: "custom",
     renderingMode: "3d",
     setLight(l) {
@@ -1006,10 +1075,12 @@ export function createVehiclesLayer({ light, exaggeration = 1, frame }) {
     onAdd(m, g) {
       map = m;
       gl = g;
-      prog = compile(gl, VS_TRAIN, FS_SOLID);
+      prog = compile(gl, VS_VEHICLE, FS_VEHICLE);
       glowProg = compile(gl, VS_GLOW, FS_GLOW);
+      coupe = createCoupeRenderer(gl,compile,()=>map?.triggerRepaint());
     },
     onRemove() {
+      coupe?.dispose();coupe=null;
       if (gl) {
         Object.values(bufs).forEach((b) => gl.deleteBuffer(b));
         Object.values(glowBufs).forEach((b) => freeBufs(gl, b, GLOW_KEYS));
@@ -1020,11 +1091,15 @@ export function createVehiclesLayer({ light, exaggeration = 1, frame }) {
       map = null;
     },
     render(g, args) {
-      const f = frame();
-      const groups =(f?.groups || (f ? [{ id: "all", ver: null, ...f }] : [])).filter((G) => G.solid.count || G.glass.count || G.screen.count || G.glow?.count);
+      const detailedCar = coupe.ready;
+      const f = frame(detailedCar);
+      const groups =(f?.groups || (f ? [{ id: "all", ver: null, ...f }] : [])).filter((G) => G.solid.count || G.glass.count || G.screen.count || G.glow?.count || G.cars?.length);
       if (!groups.length) return;
       const M = matrixFor(args.modelViewProjectionMatrix, map.transform.worldSize, exaggeration);
+      if (onMatrix) onMatrix(M, map.getCanvas());
       gl.useProgram(prog.p);
+      const eye = cameraOf(M);
+      if (eye) gl.uniform4f(prog.loc("u_eye"), eye[0], eye[1], eye[2], 1 / Math.hypot(...PER_M.e));
       gl.uniformMatrix4fv(prog.loc("u_matrix"), false, M);
       gl.uniform3fv(prog.loc("u_lightpos"), lt.pos);
       gl.uniform1f(prog.loc("u_lightintensity"), lt.intensity);
@@ -1048,6 +1123,11 @@ export function createVehiclesLayer({ light, exaggeration = 1, frame }) {
       gl.depthFunc(gl.LEQUAL);
       gl.depthMask(true);
       for (const G of groups) draw(G, "solid", 1);
+      const cars=groups.flatMap(G=>G.cars||[]);
+      if(cars.length){
+        if(detailedCar){coupe.draw(cars,M,eye,lt);gl.useProgram(prog.p);}
+        else coupe.prepare();
+      }
       // 網・回る羽根・窓は半透明で重ねる（奥行きは書かない）
       if (groups.some((G) => G.screen.count || G.glass.count)) {
         gl.enable(gl.BLEND);
