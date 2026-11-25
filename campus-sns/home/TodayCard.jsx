@@ -16,12 +16,18 @@ import { DAY_NAMES, fm, dayWord, SectionHead } from "./ui.jsx";
 
 const EXAM = "#d97706";
 const colorOf = (it) => (it.type === "exam" ? EXAM : it.type === "event" ? it.ev.color || T.orange : it.co?.col || T.accent);
-const nameOf = (it) => (it.type === "exam" ? it.ex.name : it.type === "event" ? it.ev.title : it.co?.name || "");
-const leadOf = (it) => (it.type === "class" ? t("home.periodLabel", { p: it.pi + 1 }) : it.type === "exam" ? t("home.itemExam") : it.type === "med" ? it.s.timeStart : t("home.itemEvent"));
-const leadSubOf = (it) => (it.type === "med" ? "" : it.type === "exam" ? t("home.periodLabel", { p: it.ex.period }) : fm(it.sM));
+// ewc = 試験期間中の授業・補講（公式の試験時間割の「授業」の行。教室は普段と違うことがあるので行き方は出さない）
+const nameOf = (it) => (it.type === "exam" ? it.ex.name : it.type === "ewc" ? it.cl.name : it.type === "event" ? it.ev.title : it.co?.name || "");
+const leadOf = (it) => (it.type === "class" ? t("home.periodLabel", { p: it.pi + 1 }) : it.type === "exam" ? t("home.itemExam") : it.type === "ewc" ? t("home.itemExamWeekClass") : it.type === "med" ? it.s.timeStart : t("home.itemEvent"));
+const leadSubOf = (it) => (it.type === "med" ? "" : it.type === "exam" ? t("home.periodLabel", { p: it.ex.period }) : it.type === "ewc" ? t("home.periodLabel", { p: it.cl.period }) : fm(it.sM));
 const timeOf = (it) => (it.type === "med" ? `${it.s.timeStart}–${it.s.timeEnd}` : `${fm(it.sM)}–${fm(it.eM)}`);
 const placeOf = (it) => (it.type === "class" ? [it.co.room, it.co.bldg && `(${it.co.bldg})`].filter(Boolean).join(" ")
-  : it.type === "exam" ? it.ex.room : it.type === "med" ? it.s.room : it.ev.memo);
+  : it.type === "exam" ? it.ex.room : it.type === "ewc" ? it.cl.room : it.type === "med" ? it.s.room : it.ev.memo);
+/** いまの予定が終わるまでの分（med は時刻の文字列から） */
+const minutesLeft = (it, now) => {
+  const end = it.type === "med" ? (() => { const [h, m] = String(it.s.timeEnd).split(":").map(Number); return h * 60 + (m || 0); })() : it.eM;
+  return Math.max(0, end - (now.getHours() * 60 + now.getMinutes()));
+};
 
 /** 出席（理工学系の授業）: 現在地が授業の建物の範囲内なら present を記録。ポイントはアカウントのみ */
 function useCheckIn(records, setStatus, now) {
@@ -84,6 +90,8 @@ function MatLink({ co, account, onOpen }) {
 function NameBadges({ it, now }) {
   return <>
     {it.sub && <span style={{ fontSize: 9, fontWeight: 700, color: EXAM, background: `${EXAM}15`, padding: "1px 4px", borderRadius: 3, marginLeft: 4, verticalAlign: "middle" }}>{t("home.badgeMakeup")}</span>}
+    {it.type === "ewc" && <span style={{ fontSize: 9, fontWeight: 700, color: EXAM, background: `${EXAM}15`, padding: "1px 4px", borderRadius: 3, marginLeft: 4, verticalAlign: "middle" }}>{t("home.badgeExamWeek")}</span>}
+    {it.type === "exam" && it.ex._edited?.length > 0 && <span style={{ fontSize: 9, fontWeight: 600, color: T.txD, background: T.bg3, padding: "1px 4px", borderRadius: 3, marginLeft: 4, verticalAlign: "middle" }}>{t("exam.edited")}</span>}
     {it.type === "class" && it.dow && DAY_NAMES[now.getDay()] !== it.dow && (
       <span style={{ fontSize: 9, fontWeight: 600, color: T.txD, background: T.bg3, padding: "1px 4px", borderRadius: 3, marginLeft: 4, verticalAlign: "middle" }}>{t("home.dowBadge", { dow: t("dow.s." + it.dow) })}</span>
     )}
@@ -105,6 +113,7 @@ function Row({ it, items, now, checkIn, goToBuilding, open, showMat, account, op
   const col = colorOf(it);
   const done = it.st === "done", act = it.st === "now";
   const co = it.type === "class" ? it.co : null;
+  const matCo = it.type === "class" || it.type === "ewc" ? it.co : null;
   const exam = it.type === "exam";
   // 行き方の出発地: 前の授業の建物、なければ大岡山駅
   const prev = items.slice(0, items.indexOf(it)).filter((x) => x.type === "class" && x.co?.building).pop();
@@ -121,10 +130,11 @@ function Row({ it, items, now, checkIn, goToBuilding, open, showMat, account, op
         <div style={{ fontSize: 12, fontWeight: 600, color: done ? T.txD : T.txH, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nameOf(it)}<NameBadges it={it} now={now} /></div>
         <div style={{ display: "flex", gap: 6, fontSize: 10, color: T.txD, marginTop: 1, alignItems: "center", minWidth: 0 }}>
           <span style={{ flexShrink: 0 }}>{timeOf(it)}</span>
+          {act && <span style={{ flexShrink: 0, fontWeight: 700, color: col }}>{t("home.minLeft", { n: minutesLeft(it, now) })}</span>}
           {place && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{place}</span>}
           <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8, flexShrink: 0 }}>
             {co?.building && !done && <LinkBtn onClick={() => goToBuilding?.(co.building, prev?.co?.building || "eki")}><DirIcon />{t("home.directions")}</LinkBtn>}
-            {showMat && <MatLink co={co} account={account} onOpen={openMaterials} />}
+            {showMat && <MatLink co={matCo} account={account} onOpen={openMaterials} />}
           </span>
         </div>
       </div>
@@ -161,7 +171,7 @@ export function TodayCard({ items, nextDay, now, hasTimetable, periodLabel, acco
   const open = (it) => {
     if (it.type === "class") openMaterials(it.co);
     else if (it.type === "med") setView("med-tt");
-    else if (it.type === "exam") setView("exams");
+    else if (it.type === "exam" || it.type === "ewc") setView("exams");
     else setView("calendar");
   };
   const rowProps = { items, now, checkIn, goToBuilding, open, account, openMaterials };

@@ -4,6 +4,8 @@ import { getTodayClasses } from "../todayClasses.js";
 import { PERIOD_TIMES } from "../examData.js";
 import { isDemoMode } from "../demoMode.js";
 import { DEMO_EXAMS } from "../demoData.js";
+import { matchMyExams, matchMyClasses, applyExamPrefs, periodTimes, courseOf } from "../myExams.js";
+import { useExamPrefs } from "../hooks/useExamPrefs.js";
 
 export const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -36,7 +38,7 @@ function classesOn(qDataAll, medSessions, day, nowMin) {
  * 今日の予定: 授業・医歯学の授業・自分の予定・試験を時刻順に（st: done | now | next）。
  * 締切はここに入れない（ホームの「締切」に出す）。
  */
-export function buildToday({ qDataAll, medSessions, myEvents, myExams, courses, now }) {
+export function buildToday({ qDataAll, medSessions, myEvents, myExams, myClasses, courses, now }) {
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const items = classesOn(qDataAll, medSessions, now, nowMin);
   for (const ev of myEvents || []) {
@@ -50,11 +52,19 @@ export function buildToday({ qDataAll, medSessions, myEvents, myExams, courses, 
   const today = ymd(now);
   for (const ex of myExams || []) {
     if (ex.date !== today) continue;
-    const pt = PERIOD_TIMES[ex.period];
+    const pt = PERIOD_TIMES[ex.period] || periodTimes(ex.period);
     if (!pt) continue;
     const sM = minutesOf(pt.start), eM = minutesOf(pt.end);
-    const co = courses.find((c) => c.codeRaw === ex.code_raw || (c.code && c.code === ex.code));
+    const co = courseOf(ex, courses);
     items.push({ type: "exam", ex, co, sM, eM, st: stOf(nowMin, sM, eM) });
+  }
+  // 試験期間中の授業・補講（試験期間は学年暦で通常の授業が無い日なので、ここで足す）
+  for (const cl of myClasses || []) {
+    if (cl.date !== today) continue;
+    const pt = periodTimes(cl.period);
+    if (!pt) continue;
+    const sM = minutesOf(pt.start), eM = minutesOf(pt.end);
+    items.push({ type: "ewc", cl, co: courseOf(cl, courses), sM, eM, st: stOf(nowMin, sM, eM) });
   }
   return items.sort((a, b) => a.sM - b.sM);
 }
@@ -86,32 +96,22 @@ export function examStart(ex) {
 }
 
 /**
- * 自分の試験: 公開の試験日程（/api/exams）のうち、履修している科目のもの。
- * 年度・クォーターをそろえて比べる（カレンダーと同じ判定。複数クォーターの科目は該当する全クォーターに合う）。
+ * 自分の試験と、試験期間中の授業・補講: 公開の試験日程（/api/exams?classes=1）のうち、履修している科目のもの。
+ * 年度・クォーターをそろえて比べ（myExams.js の matchMyExams）、試験画面で直した日時・教室、加えた・外した試験も当てる。
+ * @returns {{ myExams: Array, myClasses: Array }}
  */
-export function useMyExams(courses) {
-  const [exams, setExams] = useState([]);
+export function useMyExamData(courses) {
+  const [data, setData] = useState({ exams: [], classes: null });
+  const [prefs] = useExamPrefs();
   useEffect(() => {
-    if (isDemoMode()) { setExams(DEMO_EXAMS.exams || []); return; }
-    fetch("/api/exams").then((r) => r.json()).then((d) => setExams(d.exams || [])).catch(() => {});
+    if (isDemoMode()) { setData({ exams: DEMO_EXAMS.exams || [], classes: DEMO_EXAMS.examWeekClasses || null }); return; }
+    fetch("/api/exams?classes=1").then((r) => r.json()).then((d) => setData({ exams: d.exams || [], classes: d.examWeekClasses || null })).catch(() => {});
   }, []);
-  return useMemo(() => {
-    if (!courses?.length || !exams.length) return [];
-    const normQ = (q) => { if (q == null || q === "") return ""; const m = String(q).match(/(\d)/); return m ? m[1] : ""; };
-    const examAY = (ds) => { const [y, m] = ds.split("-").map(Number); return m - 1 >= 3 ? y : y - 1; };
-    const matchYQ = (c, ey, eq) => {
-      if (ey && (!c.year || String(c.year) !== ey)) return false;
-      if (eq) {
-        const qs = c.quarters && c.quarters.length ? c.quarters.map(String) : c.quarter == null ? [] : [normQ(c.quarter)];
-        if (!qs.includes(eq)) return false;
-      }
-      return true;
-    };
-    return exams.filter((e) => {
-      const ey = e.year == null ? "" : String(e.year);
-      const eq = normQ(e.quarter);
-      if (ey && e.date && String(examAY(e.date)) !== ey) return false;
-      return courses.some((c) => matchYQ(c, ey, eq) && (c.codeRaw && c.codeRaw !== c.code ? c.codeRaw === e.code_raw : c.code === e.code));
-    });
-  }, [exams, courses]);
+  return useMemo(() => ({
+    myExams: applyExamPrefs(matchMyExams(data.exams, courses), data.exams, prefs),
+    myClasses: matchMyClasses(data.classes, courses),
+  }), [data, courses, prefs]);
 }
+
+/** 自分の試験だけ（修正を当てたもの） */
+export const useMyExams = (courses) => useMyExamData(courses).myExams;

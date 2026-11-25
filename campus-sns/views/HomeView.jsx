@@ -12,7 +12,7 @@ import { useWeather } from "../home/weather.jsx";
 import { Shortcuts, PortalError, usePortalLauncher, QA_ALL, QA_DEFAULT } from "../home/Shortcuts.jsx";
 import { TodayCard } from "../home/TodayCard.jsx";
 import { DeadlinesCard } from "../home/DeadlinesCard.jsx";
-import { buildToday, findNextClassDay, upcomingExams, useMyExams, ymd } from "../home/todayPlan.js";
+import { buildToday, findNextClassDay, upcomingExams, useMyExamData, ymd } from "../home/todayPlan.js";
 
 // プロフィール ＞ ホーム画面 のショートカット設定が読む
 export { QA_ALL, QA_DEFAULT };
@@ -30,9 +30,9 @@ export const HomeView = ({ asgn, setView, setCid, setCh, mob, courses = [], user
   const isMed = medSessions.length > 0;
   const weather = useWeather();
   const portal = usePortalLauncher();
-  const myExams = useMyExams(courses);
+  const { myExams, myClasses } = useMyExamData(courses);
   const dayKey = ymd(now);
-  const today = useMemo(() => buildToday({ qDataAll, medSessions, myEvents, myExams, courses, now }), [qDataAll, medSessions, myEvents, myExams, courses, now]);
+  const today = useMemo(() => buildToday({ qDataAll, medSessions, myEvents, myExams, myClasses, courses, now }), [qDataAll, medSessions, myEvents, myExams, myClasses, courses, now]);
   // 日付が変わったとき・データが変わったときだけ計算し直す
   const nextDay = useMemo(() => findNextClassDay({ qDataAll, medSessions, now }), [qDataAll, medSessions, dayKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const examsSoon = useMemo(() => upcomingExams(myExams, now), [myExams, dayKey]); // eslint-disable-line react-hooks/exhaustive-deps

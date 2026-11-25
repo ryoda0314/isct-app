@@ -1322,6 +1322,13 @@ export const NavigationView=({mob,initialDest,initialOrig,onDestUsed,qDataAll})=
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
             <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{t("navi.navigateHere")}</span>
           </button>
+          {/* 学外から向かうとき用: いつもの地図アプリで開く */}
+          {destSpotInfo.lat!=null&&destSpotInfo.lng!=null&&<div style={{display:"flex",gap:6,marginTop:8}}>
+            {[
+              {label:t("navi.openGoogleMaps"),url:`https://www.google.com/maps/search/?api=1&query=${destSpotInfo.lat},${destSpotInfo.lng}`},
+              {label:t("navi.openAppleMaps"),url:`https://maps.apple.com/?ll=${destSpotInfo.lat},${destSpotInfo.lng}&q=${encodeURIComponent(destSpotInfo.label||"")}`},
+            ].map(lk=><a key={lk.url} href={lk.url} target="_blank" rel="noopener noreferrer" style={{flex:1,textAlign:"center",padding:"7px 10px",borderRadius:8,border:`1px solid ${T.bd}`,fontSize:11,fontWeight:600,color:T.txH,textDecoration:"none"}}>{lk.label}</a>)}
+          </div>}
         </>}
       </div>
     </div>

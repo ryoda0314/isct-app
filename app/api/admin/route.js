@@ -8,6 +8,7 @@ import { getSyllabusFromDB, getSyllabusStats, fetchDeptSyllabus, getDeptList, ge
 import { fetchMedFacultySyllabus, getMedFacultyList, getMedScrapeProgress } from '../../../lib/api/syllabus-med.js';
 import { DEPT_TO_SCHOOL, SCHOOL_NAMES, DEPT_NAMES, MED_SCHOOLS, inferFromStudentId } from '../../../lib/student-affiliation.js';
 import { adminTimetableExamples } from '../../../lib/timetable-examples.js';
+import { EXAM_SOURCES, STATE_KEY as EXAM_IMPORT_STATE_KEY } from '../../../lib/exam-import/keys.js';
 
 export const maxDuration = 300;
 
@@ -586,12 +587,24 @@ export async function GET(request) {
     if (action === 'exams') {
       const year = searchParams.get('year') || '';
       const quarter = searchParams.get('quarter') || '';
-      let query = sb.from('exam_schedules').select('*').order('date').order('period');
-      if (year) query = query.eq('year', year);
-      if (quarter) query = query.eq('quarter', quarter);
-      const { data, error } = await query;
-      if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
-      return NextResponse.json({ exams: data || [], total: (data || []).length });
+      // PostgREST は 1 回 1000 行まで。全クォーターを見るときに黙って切れないよう 1000 行ずつ取る
+      const data = [];
+      for (let from = 0; ; from += 1000) {
+        let query = sb.from('exam_schedules').select('*').order('date').order('period').order('id').range(from, from + 999);
+        if (year) query = query.eq('year', year);
+        if (quarter) query = query.eq('quarter', quarter);
+        const { data: page, error } = await query;
+        if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
+        data.push(...(page || []));
+        if (!page || page.length < 1000) break;
+      }
+      return NextResponse.json({ exams: data, total: data.length });
+    }
+
+    // --- 公式 PDF からの試験時間割の取り込み状態（lib/exam-import） ---
+    if (action === 'exam_import_state') {
+      const { data } = await sb.from('site_settings').select('value, updated_at').eq('key', EXAM_IMPORT_STATE_KEY).maybeSingle();
+      return NextResponse.json({ state: data?.value || null, updatedAt: data?.updated_at || null, sources: EXAM_SOURCES });
     }
 
     // --- Syllabus scrape progress ---
@@ -1737,18 +1750,20 @@ export async function POST(request) {
 
     // --- Exam schedules CRUD ---
     if (action === 'add_exam') {
-      const { code, code_raw, name, date, day, period, room, instructor, year, quarter } = body;
-      if (!code || !name || !date || !period) {
+      const { code: codeIn, code_raw, name, date, day, period, room, instructor, year, quarter } = body;
+      if (!codeIn || !name || !date || !period) {
         return NextResponse.json({ error: 'code, name, date, period required' }, { status: 400 });
       }
-      // Validate exam fields
-      if (year && !/^\d{4}$/.test(year)) return NextResponse.json({ error: 'Invalid year' }, { status: 400 });
-      if (quarter && !['1Q', '2Q', '3Q', '4Q', '1-2Q', '3-4Q'].includes(quarter)) return NextResponse.json({ error: 'Invalid quarter' }, { status: 400 });
+      // 年度・クォーターは必須（以前は省くと 2025年度 4Q として保存されていた）
+      if (!/^\d{4}$/.test(year || '')) return NextResponse.json({ error: 'Invalid year' }, { status: 400 });
+      if (!['1Q', '2Q', '3Q', '4Q', '1-2Q', '3-4Q'].includes(quarter)) return NextResponse.json({ error: 'Invalid quarter' }, { status: 400 });
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return NextResponse.json({ error: 'Invalid date format' }, { status: 400 });
+      // 「LAL.C203-04」のように枝番付きで入力されたら、照合用のベースコードと元のコードに分ける
+      const code = String(codeIn).trim().replace(/-\d+$/, '');
       const { data, error } = await sb.from('exam_schedules').insert({
-        code, code_raw: code_raw || null, name, date, day: day || null,
+        code, code_raw: code_raw || String(codeIn).trim(), name, date, day: day || null,
         period, room: room || null, instructor: instructor || null,
-        year: year || '2025', quarter: quarter || '4Q', created_by: auth.userid,
+        year, quarter, created_by: auth.userid,
       }).select().single();
       if (error) { console.error('[Admin]', error.message); return NextResponse.json({ error: 'Internal error' }, { status: 500 }); }
       await auditLog(sb, auth.userid, 'add_exam', 'exam', data.id, { code, name });
@@ -1782,19 +1797,41 @@ export async function POST(request) {
       return NextResponse.json({ ok: true });
     }
 
+    // 大学公式の試験時間割 PDF を今すぐ確認する（dryRun: 差分だけ返す / force: PDF が前回と同じでも解析し直す）
+    if (action === 'exam_import') {
+      const { runExamImport } = await import('../../../lib/exam-import/run.js'); // PDF ライブラリはここでだけ読む
+      try {
+        const result = await runExamImport(sb, { dryRun: body.dryRun !== false, force: !!body.force });
+        if (!result.dryRun) {
+          await auditLog(sb, auth.userid, 'exam_import', 'exam', '', result.sources.map(s => ({
+            level: s.level, status: s.status, yq: `${s.year || ''}${s.quarter || ''}`,
+            added: s.added?.length || 0, updated: s.updated?.length || 0, removed: s.removed?.length || 0,
+          })));
+        }
+        return NextResponse.json({ ok: true, ...result });
+      } catch (e) {
+        console.error('[Admin] exam_import:', e?.message || e);
+        return NextResponse.json({ error: 'exam import failed' }, { status: 500 });
+      }
+    }
+
     if (action === 'bulk_import_exams') {
       const { entries } = body;
       if (!entries || !Array.isArray(entries) || entries.length === 0) {
         return NextResponse.json({ error: 'entries array required' }, { status: 400 });
       }
       if (entries.length > 500) return NextResponse.json({ error: 'Too many entries (max 500)' }, { status: 400 });
+      // 年度・クォーターは必須（以前は送られず、2025年度 4Q として保存されていた）
+      const qOk = (y, q) => /^\d{4}$/.test(y || '') && ['1Q', '2Q', '3Q', '4Q', '1-2Q', '3-4Q'].includes(q);
       const rows = entries.map(e => ({
-        code: e.code, code_raw: e.code_raw || null, name: e.name,
+        // 以前の画面は codeRaw（キャメルケース）で送っていて code_raw が空になり、取り込み直すと重複していた
+        code: String(e.code || '').replace(/-\d+$/, ''), code_raw: e.code_raw || e.codeRaw || e.code || null, name: e.name,
         date: e.date, day: e.day || null, period: e.period,
         room: e.room || null, instructor: e.instructor || null,
-        year: e.year || '2025', quarter: e.quarter || '4Q',
+        year: e.year || body.year, quarter: e.quarter || body.quarter,
         created_by: auth.userid,
-      })).filter(r => r.code && r.name && r.date && r.period);
+      })).filter(r => r.code && r.name && /^\d{4}-\d{2}-\d{2}$/.test(r.date || '') && r.period);
+      if (rows.some(r => !qOk(r.year, r.quarter))) return NextResponse.json({ error: 'year and quarter required' }, { status: 400 });
       if (rows.length === 0) return NextResponse.json({ error: 'No valid entries' }, { status: 400 });
       const { error } = await sb.from('exam_schedules').upsert(rows, {
         onConflict: 'code_raw,date,period', ignoreDuplicates: false,

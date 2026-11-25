@@ -6,6 +6,7 @@ import { getAcademicInfo, getCurrentQuarter } from "./academicCalendar.js";
 import { PERIOD_TIMES } from "./examData.js";
 import { buildTimetable } from "../lib/transform/timetable-builder.js";
 import { getSciSessions, annotateSessions } from "./attendanceUtils.js";
+import { matchMyExams as matchOfficial, applyExamPrefs, loadExamPrefs, periodTimes } from "./myExams.js";
 
 export const PD=[{s:[8,50],e:[10,30],l:"1限"},{s:[10,45],e:[12,25],l:"2限"},{s:[13,30],e:[15,10],l:"3限"},{s:[15,25],e:[17,5],l:"4限"},{s:[17,15],e:[18,55],l:"5限"}];
 const DOW_MAP={"月":0,"火":1,"水":2,"木":3,"金":4};
@@ -109,32 +110,13 @@ export function makeClassResolver({qDataAll={},pastTTCache={},courses=[],records
   };
 }
 
-/** Exams (from /api/exams) that belong to the user's enrolled courses. */
+/**
+ * Exams (from /api/exams) that belong to the user's enrolled courses, with the
+ * user's own fixes from the exam screen applied (date/room edits, added/hidden exams).
+ * 判定は myExams.js（試験・ホーム・カレンダーで共通）。
+ */
 export function matchMyExams(exams,courses){
-  if(!courses?.length||!exams?.length)return [];
-  // 試験(e)と履修科目(c)の年度/クォーターを正規化して比較
-  // exam.year:'2025' 文字列 / exam.quarter:数値or'4Q' ; course.year:'2025' / course.quarter:1-4数値
-  const normQ=q=>{if(q==null||q==="")return"";const m=String(q).match(/(\d)/);return m?m[1]:"";};
-  // 試験日(YYYY-MM-DD)が属する年度: 4月〜翌3月が同一年度 (dateToAYと同じ規則)
-  const examAY=ds=>{const [y,m]=ds.split("-").map(Number);return (m-1)>=3?y:y-1;};
-  const matchYQ=(c,ey,eq)=>{
-    if(ey&&(!c.year||String(c.year)!==ey))return false;
-    if(eq){
-      // 複数クォーター科目(例:1-2Q)は該当する全クォーターの試験にマッチ
-      const qs=(c.quarters&&c.quarters.length)?c.quarters.map(String):(c.quarter==null?[]:[normQ(c.quarter)]);
-      if(!qs.includes(eq))return false;
-    }
-    return true;
-  };
-  return exams.filter(e=>{
-    const ey=e.year==null?"":String(e.year);
-    const eq=normQ(e.quarter);
-    // 試験の年度と、表示される日付の年度が一致すること (2026年度試験→年度2026の日付にのみ)
-    if(ey&&e.date&&String(examAY(e.date))!==ey)return false;
-    return courses.some(c=>matchYQ(c,ey,eq)&&(
-      (c.codeRaw&&c.codeRaw!==c.code)?c.codeRaw===e.code_raw:c.code===e.code
-    ));
-  });
+  return applyExamPrefs(matchOfficial(exams,courses),exams,loadExamPrefs());
 }
 
 // ── iCal feed snapshot ──
@@ -190,8 +172,9 @@ export function buildFeedItems({getClasses,asgn=[],hiddenAsgn=[],courses=[],myEx
   // Exams — timed when the period is known, otherwise all-day.
   for(const ex of myExams){
     if(!ex.date||ex.date<fromIso||ex.date>=toIso)continue;
-    const pt=PERIOD_TIMES[ex.period];
-    const base={k:"exam",id:String(ex.id),t:labels.exam(ex.name),l:ex.room||undefined,d:[ex.code,ex.instructor].filter(Boolean).join(" / ")||undefined};
+    const pt=PERIOD_TIMES[ex.period]||periodTimes(ex.period);
+    // 公式から消えた試験（自分で直した・加えたもの）は id が無いのでキーで見分ける
+    const base={k:"exam",id:String(ex.id??ex._key),t:labels.exam(ex.name),l:ex.room||undefined,d:[ex.code,ex.instructor].filter(Boolean).join(" / ")||undefined};
     if(pt)items.push({...base,s:jst(ex.date,pt.start),e:jst(ex.date,pt.end)});
     else{const n=new Date(ex.date+"T00:00:00");n.setDate(n.getDate()+1);items.push({...base,s:ex.date,e:isoOf(n),allDay:true});}
   }

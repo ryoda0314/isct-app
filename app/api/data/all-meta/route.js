@@ -8,6 +8,7 @@ import { buildTimetable } from '../../../../lib/transform/timetable-builder.js';
 import { transformAssignments } from '../../../../lib/transform/assignment-transform.js';
 import { seedEnrollmentCache, syncEnrollments } from '../../../../lib/auth/course-enrollment.js';
 import { syncAssignmentDeadlines } from '../../../../lib/deadline-notify.js';
+import { examReminderItems } from '../../../../lib/exam-reminders.js';
 import { recordTimetableExample } from '../../../../lib/timetable-examples.js';
 
 const ENV_ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -127,7 +128,12 @@ export async function POST(request) {
     // Cache upcoming deadlines server-side so the pg_cron job can fire reminders
     // even while the app is closed (the LMS itself 403s server-side, so this is
     // the only way the server learns about deadlines). Best-effort, non-blocking.
-    syncAssignmentDeadlines(userid, assignments).catch(() => {});
+    // 自分の試験（前日・1 時間前に通知）も同じ表に入れる。lib/exam-reminders.js
+    // 試験を取れなかったときは、入っている試験の行を消さずに課題だけそろえる
+    examReminderItems(courses)
+      .then((examItems) => syncAssignmentDeadlines(userid, assignments, examItems),
+        () => syncAssignmentDeadlines(userid, assignments, [], { keepPrefixes: ['exam_'] }))
+      .catch(() => {});
 
     const isAdmin = await checkAdmin(userid);
 

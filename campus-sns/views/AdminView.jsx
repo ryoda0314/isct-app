@@ -3166,6 +3166,76 @@ const BooksViewer = ({ years, departments }) => {
 };
 
 // ---- Exam Timetable Tab ----
+// 大学公式の試験時間割 PDF の自動取り込み（lib/exam-import）。状態の表示と、今すぐ確認 → 反映。
+const ExamImportPanel = ({ onApplied }) => {
+  const [state, setState] = useState(null);
+  const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [force, setForce] = useState(false);
+  const [err, setErr] = useState("");
+
+  const loadState = useCallback(() => {
+    fetch(`${API}/api/admin?action=exam_import_state`).then(r => r.json()).then(d => setState(d.state)).catch(() => {});
+  }, []);
+  useEffect(() => { loadState(); }, [loadState]);
+
+  const run = async (dryRun) => {
+    setBusy(true); setErr("");
+    try {
+      const r = await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "exam_import", dryRun, force }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      setResult(d);
+      if (!dryRun) { loadState(); onApplied?.(); }
+    } catch (e) { setErr(String(e.message || e)); }
+    setBusy(false);
+  };
+
+  const fmt = (iso) => iso ? new Date(iso).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-";
+  const levelLabel = (l) => t(`admin.exam.level.${l}`);
+  const statusLabel = (s, dry) => t(`admin.exam.status.${s === "imported" && dry ? "ready" : s}`);
+  const canApply = result?.dryRun && result.sources.some(s => s.status === "imported" && ((s.added?.length || 0) + (s.updated?.length || 0) + (s.removed?.length || 0) > 0 || s.classesChanged));
+
+  return (
+    <div style={{ marginBottom: 16, padding: 14, borderRadius: 12, background: T.bg3, border: `1px solid ${T.bd}` }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: T.txH, marginBottom: 4 }}>{t("admin.exam.importTitle")}</div>
+      <div style={{ fontSize: 11, color: T.txD, marginBottom: 8, lineHeight: 1.6 }}>{t("admin.exam.importDesc")}</div>
+      {state?.sources && Object.entries(state.sources).map(([level, s]) => (
+        <div key={level} style={{ fontSize: 12, color: T.tx, marginBottom: 2 }}>
+          {levelLabel(level)}: {s.year ? `${s.year}年度 ${s.quarter}` : "-"}
+          {s.counts && ` · ${t("admin.exam.counts", { exams: s.counts.exams, classes: s.counts.classes })}`}
+          {` · ${t("admin.exam.lastChecked", { at: fmt(s.checkedAt) })} · ${t("admin.exam.lastImported", { at: fmt(s.importedAt) })}`}
+          {s.lastProblem && s.lastProblem.at >= (s.importedAt || "") && <span style={{ color: T.red }}>{` · ${t("admin.exam.lastProblem", { at: fmt(s.lastProblem.at) })}`}</span>}
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+        <Btn onClick={() => run(true)} color={T.accent} small disabled={busy}>{busy ? t("admin.exam.importRunning") : t("admin.exam.importCheck")}</Btn>
+        {canApply && <Btn onClick={() => run(false)} color={T.green} small disabled={busy}>{t("admin.exam.importApply")}</Btn>}
+        <label style={{ fontSize: 11, color: T.txD, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+          <input type="checkbox" checked={force} onChange={e => setForce(e.target.checked)} />{t("admin.exam.importForce")}
+        </label>
+      </div>
+      {err && <div style={{ fontSize: 12, color: T.red, marginTop: 8 }}>{err}</div>}
+      {result && (
+        <div style={{ marginTop: 10, fontSize: 12, color: T.tx, lineHeight: 1.7 }}>
+          {result.sources.map(s => (
+            <div key={s.level} style={{ marginBottom: 6 }}>
+              <b>{levelLabel(s.level)}</b>: {statusLabel(s.status, result.dryRun)} {s.year ? `${s.year}年度 ${s.quarter}` : ""}
+              {s.exams != null && ` · ${t("admin.exam.counts", { exams: s.exams, classes: s.classes })}`}
+              {s.added && ` · ${t("admin.exam.diff", { added: s.added.length, updated: s.updated.length, removed: s.removed.length })}`}
+              {[...(s.added || []).map(k => `+ ${k}`), ...(s.updated || []).map(k => `~ ${k}`), ...(s.removed || []).map(k => `- ${k}`)].slice(0, 30).map(line => (
+                <div key={line} style={{ fontFamily: "monospace", fontSize: 11, color: T.txD }}>{line}</div>
+              ))}
+              {(s.problems || []).map(p => <div key={p} style={{ fontSize: 11, color: T.red }}>{p}</div>)}
+            </div>
+          ))}
+          {!result.dryRun && <div style={{ color: T.green }}>{t("admin.exam.importDone")}</div>}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ExamTab = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -3178,13 +3248,34 @@ const ExamTab = () => {
   const [addForm, setAddForm] = useState({ date: "", day: "", period: "", code: "", name: "", instructor: "", room: "" });
   const [bulkText, setBulkText] = useState("");
   const [bulkMode, setBulkMode] = useState(false);
+  // 一覧・追加・一括登録の年度とクォーター（以前は送っておらず、2025年度 4Q として保存されていた）
+  const [quarters, setQuarters] = useState([]);
+  const [selYear, setSelYear] = useState("");
+  const [selQ, setSelQ] = useState("");
 
-  const load = useCallback(() => {
-    setLoading(true);
-    fetch(`${API}/api/admin?action=exams`).then(r => r.json()).then(d => setData(d)).catch(() => {}).finally(() => setLoading(false));
+  useEffect(() => {
+    fetch(`${API}/api/exams?quarters=1`).then(r => r.json()).then(d => {
+      const qs = d.quarters || [];
+      setQuarters(qs);
+      if (qs[0]) { setSelYear(qs[0].year); setSelQ(qs[0].quarter); }
+      else { const now = new Date(); setSelYear(String(now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1)); setSelQ("1Q"); }
+    }).catch(() => {});
   }, []);
 
+  const load = useCallback(() => {
+    if (!selYear || !selQ) return;
+    setLoading(true);
+    const params = new URLSearchParams({ action: "exams", year: selYear, quarter: selQ });
+    fetch(`${API}/api/admin?${params}`).then(r => r.json()).then(d => setData(d)).catch(() => {}).finally(() => setLoading(false));
+  }, [selYear, selQ]);
+
   useEffect(() => { load(); }, [load]);
+
+  const yearOptions = useMemo(() => {
+    const now = new Date();
+    const ay = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    return [...new Set([...quarters.map(q => q.year), String(ay), String(ay + 1)])].sort().reverse();
+  }, [quarters]);
 
   const exams = data?.exams || [];
   const total = data?.total || exams.length;
@@ -3233,7 +3324,7 @@ const ExamTab = () => {
     const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
     const day = addForm.day || dayNames[dt.getDay()];
     try {
-      await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "add_exam", ...addForm, day }) });
+      await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "add_exam", ...addForm, day, year: selYear, quarter: selQ }) });
       setAddForm({ date: "", day: "", period: "", code: "", name: "", instructor: "", room: "" });
       setAddMode(false);
       load();
@@ -3249,10 +3340,11 @@ const ExamTab = () => {
         const [date, period, code, name, instructor, room] = l;
         const dt = new Date(date + "T00:00:00");
         const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
-        return { date, day: dayNames[dt.getDay()] || "", period, code: code.replace(/-\d+$/, ""), codeRaw: code, name: name || "", instructor: instructor || "", room: room || "" };
+        return { date, day: dayNames[dt.getDay()] || "", period, code: code.replace(/-\d+$/, ""), code_raw: code, name: name || "", instructor: instructor || "", room: room || "" };
       });
       if (entries.length === 0) { alert(t("admin.exam.noValidLines")); return; }
-      await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "bulk_import_exams", entries }) });
+      if (!confirm(t("admin.exam.bulkConfirm", { n: entries.length, yq: `${selYear}年度 ${selQ}` }))) return;
+      await fetch(`${API}/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "bulk_import_exams", entries, year: selYear, quarter: selQ }) });
       setBulkText("");
       setBulkMode(false);
       load();
@@ -3272,6 +3364,19 @@ const ExamTab = () => {
           <Btn onClick={load} color={T.txD} small>{I.reset} {t("admin.refresh")}</Btn>
         </div>
       </div>
+
+      {/* 一覧・追加・一括登録の対象（年度・クォーター） */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: T.txD }}>{t("admin.exam.yq")}</span>
+        <select value={selYear} onChange={e => setSelYear(e.target.value)} style={selectSt}>
+          {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <select value={selQ} onChange={e => setSelQ(e.target.value)} style={selectSt}>
+          {["1Q", "2Q", "3Q", "4Q"].map(q => <option key={q} value={q}>{q}</option>)}
+        </select>
+      </div>
+
+      <ExamImportPanel onApplied={load} />
 
       {/* 一括登録モード */}
       {bulkMode && (
