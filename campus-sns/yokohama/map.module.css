@@ -1,61 +1,132 @@
-.map { position:relative; flex:1; min-width:0; min-height:0; overflow:hidden; isolation:isolate; background:#dde8e6; color:#243d36; font-family:inherit; container-type:inline-size; }
+/* 横浜・湯島の地図（campusMap/CampusExplorer）。2026-11-25：見た目と使い方を大岡山（NavigationView・CampusMap3D）にそろえた。
+   色はアプリのテーマ（theme.js の T）を、いちばん外の要素の CSS 変数で受ける：--cx-bg --cx-bd --cx-tx --cx-txh --cx-txd --cx-accent --cx-tint */
+.map { position:relative; flex:1; min-width:0; min-height:0; overflow:hidden; isolation:isolate; background:#dde8e6; color:var(--cx-tx,#243d36); font-family:inherit; container-type:inline-size; }
 .map button,.map input,.map select { font:inherit; box-sizing:border-box; }
 .map button,.map select,.map summary { cursor:pointer; }
-.map button { display:inline-flex; justify-content:center; align-items:center; gap:6px; min-height:34px; padding:6px 11px; border:1px solid #cdd7cd; border-radius:9px; background:#fff; color:#29423a; font-size:12px; font-weight:650; }
-.map button:focus-visible,.map a:focus-visible,.map summary:focus-visible { outline:3px solid #0b8270; outline-offset:2px; }
-.map button:hover { background:#f0f5ef; }
+.map button:focus-visible,.map a:focus-visible,.map summary:focus-visible { outline:3px solid var(--cx-accent,#0b8270); outline-offset:2px; }
 .map h3,.map p { margin:0; }
-.map h3 { font-size:17px; line-height:1.35; letter-spacing:-.035em; }
-.map p { font-size:12px; line-height:1.65; color:#4a5e54; }
-.map small { color:#586c61; font-size:11px; }
-.map .primary { background:#245847; border-color:#245847; color:#fff; }
-.map .primary:hover { background:#1b493b; }
+
+/* 3D・平面図・名前の札・ルートの線（変えていない） */
 .scene,.scene canvas,.map :global(.yh-plan),.map :global(.yh-labels) { position:absolute; inset:0; width:100%; height:100%; }
 .scene canvas,.map :global(.yh-plan) { display:block; touch-action:none; outline:none; }
 .map :global(.yh-labels) { pointer-events:none; overflow:hidden; }
 .map :global(.yh-route-overlay) { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-.map :global(.yh-tag) { position:absolute; pointer-events:auto; transform:translate(-50%,-100%); min-height:20px; padding:2px 7px; white-space:nowrap; font-size:10px; line-height:1.25; color:#2c433a; background:#fffffff0; border:1px solid #556b5d66; border-radius:5px; box-shadow:0 2px 5px #233d3928; }
-.map :global(.yh-tag.selected) { color:white; background:#245847; border-color:#245847; }
-.map :global(.yh-tag[hidden]),.map :global(.yh-labels[hidden]) { display:none; }
-.searchBar,.tools,.card,.picker,.info,.walkHeader,.walkHint,.notice { position:absolute; z-index:2; }
-.searchBar,.tools,.card,.picker,.info,.walkHeader,.notice { background:#fffffff7; border:1px solid #aebfb16b; box-shadow:0 5px 20px #203a351f,0 1px 4px #203a3514; }
-.searchBar { left:15px; top:15px; display:flex; align-items:center; border-radius:12px; padding:4px; }
-.searchBar .search { justify-content:flex-start; width:218px; border:0; font-size:13px; }
-.map .icon { flex:none; width:34px; height:34px; padding:0; }
-.searchBar .icon { border:0; border-left:1px solid #dce2d9; border-radius:0 8px 8px 0; }
-.tools { top:15px; right:15px; display:flex; flex-direction:column; padding:3px; border-radius:10px; }
-.tools button { width:35px; height:35px; padding:0; border:0; }
-.card,.info { bottom:30px; left:15px; width:min(350px,calc(100% - 30px)); padding:13px 15px; border-radius:13px; box-sizing:border-box; max-height:calc(100% - 96px); overflow:auto; }
-.card h3+p,.card p+.actions,.stops,.actions { margin-top:9px; }
+.map :global(.yh-tag) { position:absolute; pointer-events:auto; transform:translate(-50%,-100%); min-height:20px; padding:2px 7px; white-space:nowrap; font-size:10px; line-height:1.25; color:#2c433a; background:#fffffff0; border:1px solid #556b5d66; border-radius:5px; box-shadow:0 2px 5px #233d3928; cursor:pointer; }
+.map :global(.yh-tag.selected) { color:white; background:var(--cx-accent,#245847); border-color:var(--cx-accent,#245847); }
+.map :global(.yh-tag[hidden]),.map :global(.yh-labels[hidden]),.map :global(.yh-gps[hidden]) { display:none; }
+/* 現在地（大岡山と同じ青い点） */
+.map :global(.yh-gps) { position:absolute; width:14px; height:14px; margin:-10px 0 0 -10px; border-radius:50%; background:#2f80ed; border:3px solid #fff; box-shadow:0 0 0 7px rgba(47,128,237,.22),0 2px 6px rgba(0,0,0,.35); pointer-events:none; }
+
+/* 上：検索（大岡山と同じ大きな丸い欄。押すと下の検索の枠） */
+.searchBar { position:absolute; z-index:6; top:14px; left:14px; width:min(440px,calc(100% - 28px)); display:flex; align-items:center; gap:10px; padding:13px 18px;
+  border-radius:26px; background:var(--cx-bg); border:1px solid var(--cx-bd); box-shadow:0 10px 30px -10px rgba(0,0,0,.45),0 1px 3px rgba(0,0,0,.15);
+  color:var(--cx-tx); font-size:14.5px; text-align:left; }
+.searchBar span { color:var(--cx-txd); flex:1; }
+
+/* 右下：ボタンの列（名前つきのカード・歩いて見る・＋−）。スマホでは下のカードの上に（--cx-side-bottom） */
+.side { position:absolute; z-index:5; right:10px; bottom:var(--cx-side-bottom,24px); display:flex; flex-direction:column; align-items:flex-end; gap:10px; }
+.tileCard { display:flex; flex-direction:column; width:56px; background:var(--cx-bg); border:1px solid var(--cx-bd); border-radius:14px; box-shadow:0 6px 16px -6px rgba(0,0,0,.35); overflow:hidden; flex:none; }
+.tile { position:relative; width:100%; height:52px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:0; border:0; background:transparent; color:var(--cx-txh); }
+.tile+.tile { border-top:1px solid var(--cx-bd); }
+.tile[aria-pressed="true"] { background:var(--cx-tint); color:var(--cx-accent); }
+.tile span { font-size:10.5px; font-weight:800; line-height:1; white-space:nowrap; }
+.walkPill { height:44px; padding:0 16px 0 12px; border-radius:22px; display:flex; align-items:center; gap:6px; border:0; background:var(--cx-accent); color:#fff;
+  font-size:13.5px; font-weight:800; box-shadow:0 6px 16px -6px rgba(0,0,0,.45); white-space:nowrap; flex:none; }
+.zoom { display:flex; flex-direction:column; width:56px; border-radius:14px; overflow:hidden; border:1px solid var(--cx-bd); background:var(--cx-bg); box-shadow:0 6px 16px -6px rgba(0,0,0,.4); flex:none; }
+.zoom button { height:40px; border:0; background:transparent; color:var(--cx-txh); font-size:20px; line-height:40px; padding:0; }
+.zoom button+button { border-top:1px solid var(--cx-bd); }
+.compass { width:44px; height:44px; border-radius:22px; display:flex; align-items:center; justify-content:center; padding:0; background:var(--cx-bg); border:1px solid var(--cx-bd); box-shadow:0 6px 16px -6px rgba(0,0,0,.4); }
+@media (pointer:coarse) { .zoom { display:none; } }
+
+/* 下：カード（主な施設・施設・ルート）と、検索・出典の枠 */
+.card,.picker,.info,.notice,.loading { position:absolute; background:var(--cx-bg); border:1px solid var(--cx-bd); color:var(--cx-tx); box-sizing:border-box; box-shadow:0 10px 28px -10px rgba(0,0,0,.45),0 1px 3px rgba(0,0,0,.12); }
+.card,.info { z-index:4; left:14px; bottom:24px; width:min(380px,calc(100% - 96px)); max-height:calc(100% - 110px); overflow:auto; padding:14px 16px; border-radius:16px; }
+.picker { z-index:7; top:14px; left:14px; width:min(440px,calc(100% - 28px)); max-height:calc(100% - 28px); display:flex; flex-direction:column; gap:10px; padding:14px; border-radius:16px; }
+.card h3,.info h3 { font-size:17px; line-height:1.35; letter-spacing:-.02em; color:var(--cx-txh); }
+.card p,.info p { font-size:12.5px; line-height:1.65; color:var(--cx-tx); }
+.card small,.picker small,.info small { color:var(--cx-txd); font-size:11.5px; }
 .row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.row>.icon { min-height:26px; width:26px; height:26px; border:0; color:#65756b; }
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:6px 13px; border:1px solid var(--cx-bd); border-radius:10px; background:transparent; color:var(--cx-txh); font-size:12.5px; font-weight:700; }
+.primary { background:var(--cx-accent); border-color:var(--cx-accent); color:#fff; }
+.iconBtn { flex:none; width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; padding:0; border:0; border-radius:8px; background:none; color:var(--cx-txd); }
+.card h3+p,.card p+.actions,.stops,.actions { margin-top:10px; }
 .stops,.actions { display:flex; flex-wrap:wrap; gap:6px; }
-.stops button { min-height:29px; border-radius:6px; background:#f3f5ee; font-size:11.5px; }
-.picker { top:15px; left:15px; width:min(336px,calc(100% - 30px)); max-height:calc(100% - 45px); display:flex; flex-direction:column; gap:10px; padding:14px; box-sizing:border-box; border-radius:12px; z-index:5; }
-.picker input,.picker select { border:1px solid #bdcbbe; color:inherit; background:white; border-radius:7px; padding:7px 9px; min-width:0; }
-.picker input { width:100%; font-size:15px; }.picker select { flex:1; font-size:12px; }
-.results { min-height:0; overflow:auto; max-height:310px; }
-.results button,.map .endpoint { border:0; border-top:1px solid #e0e6dc; border-radius:0; justify-content:space-between; width:100%; background:transparent; min-height:38px; text-align:left; }
-.map .endpoint { justify-content:flex-start; padding-left:0; }.endpoint small { min-width:45px; }
-.check { display:flex; gap:6px; align-items:center; margin:7px 0 11px; font-size:12px; }.check input { accent-color:#245847; }
+.stops button { min-height:30px; padding:4px 10px; border:1px solid var(--cx-bd); border-radius:9px; background:transparent; color:var(--cx-txh); font-size:12px; font-weight:700; }
+.picker input,.picker select { border:1px solid var(--cx-bd); color:var(--cx-txh); background:transparent; border-radius:10px; padding:9px 12px; min-width:0; }
+.picker input { width:100%; font-size:15px; }
+.picker select { flex:1; font-size:12.5px; }
+.results { min-height:0; overflow:auto; max-height:340px; }
+.results button,.endpoint { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; min-height:42px; padding:6px 2px; border:0; border-top:1px solid var(--cx-bd); border-radius:0; background:transparent; color:var(--cx-txh); text-align:left; font-size:13px; font-weight:700; }
+.endpoint { justify-content:flex-start; }
+.endpoint small { min-width:48px; }
+.check { display:flex; gap:6px; align-items:center; margin:8px 0 12px; font-size:12.5px; }
+.check input { accent-color:var(--cx-accent); }
 .directions { margin-top:8px; font-size:12px; max-height:105px; overflow:auto; }
 .directions ol { padding-left:21px; line-height:1.7; margin:5px 0; }
-.info a { display:block; width:fit-content; margin-top:6px; color:#225947; font-size:12px; }.info p { margin:6px 0; }
-.sourceLink { display:inline-block; margin:4px 0; color:#3a6156; font-size:11px; }
+.info a { display:block; width:fit-content; margin-top:6px; color:var(--cx-accent); font-size:12px; }
+.info p { margin:6px 0; }
+.sourceLink { display:inline-block; margin:4px 0; color:var(--cx-accent); font-size:11.5px; }
 .credit { position:absolute; z-index:3; bottom:0; right:0; border-radius:5px 0 0 0; display:flex; align-items:center; gap:4px; background:#ffffffdc; padding:1px 6px; font-size:9px; color:#3b5148; }
-.credit a,.credit button { color:inherit; }.credit button { border:0; min-height:17px; background:none; padding:0 2px; border-radius:0; font-size:10px; text-decoration:underline; }
-.loading,.notice { position:absolute; top:72px; left:15px; border-radius:8px; padding:7px 10px; font-size:12px; }.notice { display:flex; align-items:center; gap:8px; z-index:4; }.notice button { min-height:22px; padding:2px 6px; }
-.walkHeader { display:flex; align-items:center; gap:9px; left:12px; top:12px; padding:4px 12px 4px 4px; border-radius:10px; font-size:12px; font-weight:650; }
-.walkHint { bottom:32px; left:50%; transform:translateX(-50%); padding:5px 10px; border-radius:20px; white-space:nowrap; font-size:11px; color:#fff; background:#263c38d9; }
-.walkHint span { margin-left:9px; }
-.joystick { position:absolute; left:20px; bottom:26px; width:76px; height:76px; border:2px solid #f3f6eeb3; border-radius:50%; background:#233e345b; display:grid; place-items:center; touch-action:none; user-select:none; }
-.joystick span { width:32px; height:32px; border-radius:50%; background:#ffffffe0; box-shadow:0 2px 7px #1b352b42; }
+.credit a,.credit button { color:inherit; }
+.credit button { border:0; min-height:17px; background:none; padding:0 2px; border-radius:0; font-size:10px; text-decoration:underline; }
+.loading,.notice { z-index:6; top:76px; left:14px; border-radius:12px; padding:8px 12px; font-size:12.5px; }
+.notice { display:flex; align-items:center; gap:8px; }
+.notice button { min-height:24px; padding:2px 8px; border:1px solid var(--cx-bd); border-radius:8px; background:transparent; color:var(--cx-txh); }
+
+/* 歩く画面（大岡山と同じ：照準・上の説明・左のスティック・右のボタン・右上のスマホナビ・まん中のメニュー。持ち物は MapInventory） */
+.walkUi { position:absolute; inset:0; z-index:7; pointer-events:none; }
+.cross { position:absolute; left:50%; top:50%; width:18px; height:18px; margin:-9px 0 0 -9px; pointer-events:none; opacity:.85; }
+.cross:before,.cross:after { content:""; position:absolute; background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.35); }
+.cross:before { left:8px; top:0; width:2px; height:18px; }
+.cross:after { left:0; top:8px; width:18px; height:2px; }
+.walkHint { position:absolute; left:50%; top:14px; transform:translateX(-50%); max-width:calc(100% - 32px); box-sizing:border-box; padding:8px 14px; border-radius:16px;
+  background:rgba(14,32,48,.82); color:#fff; font-size:12.5px; font-weight:700; line-height:1.5; text-align:center; }
+.guideTag { position:absolute; left:50%; top:14px; transform:translateX(-50%); padding:6px 12px; border-radius:14px; background:rgba(14,32,48,.86); color:#fff; font-size:12.5px; font-weight:800; white-space:nowrap; }
+.joy { position:absolute; left:22px; bottom:30px; width:116px; height:116px; border-radius:50%; background:rgba(14,32,48,.32); border:2px solid rgba(255,255,255,.55);
+  pointer-events:auto; touch-action:none; user-select:none; }
+.joyKnob { position:absolute; left:50%; top:50%; width:50px; height:50px; margin:-25px 0 0 -25px; border-radius:50%; background:rgba(255,255,255,.92); box-shadow:0 2px 8px rgba(0,0,0,.35); }
+.walkBtns { position:absolute; right:12px; bottom:30px; display:flex; flex-direction:column; align-items:flex-end; gap:10px; pointer-events:auto; }
+.walkBtns button { min-width:44px; height:42px; padding:0 16px; border:none; border-radius:21px; background:rgba(14,32,48,.82); color:#fff; font-size:13px; font-weight:800; box-shadow:0 6px 16px -6px rgba(0,0,0,.5); }
+.walkBtns button.on { background:var(--cx-accent); }
+.walkBtns .exit { background:#fff; color:#0e2030; }
+.walkBtns .use { background:#fff; color:#0e2030; box-shadow:0 0 0 2px var(--cx-accent),0 6px 16px -6px rgba(0,0,0,.5); }
+.walkBtns .jump { width:64px; height:64px; border-radius:50%; padding:0; font-size:12px; background:rgba(255,255,255,.88); color:#0e2030; touch-action:none; }
+.phoneBtn { position:absolute; right:12px; top:12px; display:flex; align-items:center; gap:8px; height:40px; padding:0 14px; border-radius:14px; border:1px solid var(--cx-bd); background:var(--cx-bg);
+  color:var(--cx-txh); font-size:13px; font-weight:800; box-shadow:0 6px 16px -6px rgba(0,0,0,.45); pointer-events:auto; }
+.phoneBtn kbd { font:inherit; font-size:10px; font-weight:700; padding:1px 5px; border:1px solid var(--cx-bd); border-radius:5px; color:var(--cx-txd); }
+.wmenuBack { position:absolute; inset:0; pointer-events:auto; background:rgba(8,16,24,.25); z-index:8; }
+.wmenu { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:min(300px,calc(100% - 40px)); max-height:calc(100% - 40px); overflow:auto; box-sizing:border-box;
+  padding:10px; border-radius:16px; background:rgba(14,32,48,.94); box-shadow:0 12px 30px -10px rgba(0,0,0,.6); display:flex; flex-direction:column; gap:6px; pointer-events:auto; z-index:9; }
+.wmenu button,.wmenu select { width:100%; min-height:40px; padding:0 14px; border:none; border-radius:10px; background:rgba(255,255,255,.1); color:#fff; font-size:13px; font-weight:800; text-align:left; flex:none; }
+.wmenu select option { background:#1d2b38; color:#fff; }
+.wmenu .close { background:#fff; color:#0e2030; text-align:center; }
+/* スマホナビ（歩いているあいだのキャンパスナビ：行き先を選ぶと、道に案内の線） */
+.phone { position:absolute; right:12px; top:12px; width:min(340px,calc(100% - 24px)); max-height:calc(100% - 24px); display:flex; flex-direction:column; gap:10px; box-sizing:border-box;
+  padding:14px; border-radius:22px; background:var(--cx-bg); border:1px solid var(--cx-bd); box-shadow:0 16px 40px -12px rgba(0,0,0,.6); pointer-events:auto; z-index:9; color:var(--cx-tx); }
+.phone h3 { font-size:15px; color:var(--cx-txh); }
+.phone input { width:100%; box-sizing:border-box; border:1px solid var(--cx-bd); border-radius:10px; padding:9px 12px; background:transparent; color:var(--cx-txh); font-size:14px; }
+.phone .results { max-height:min(320px,calc(100vh - 220px)); }
+.walkHint ~ .guideTag { top:62px; }
+/* スマホで歩くあいだ：画面いっぱい。縦に持っているときは横に回して描く（大岡山の .cb3-full・.cb3-rot と同じ） */
+.full { position:fixed; inset:0; z-index:1300; }
+.full.rot { inset:auto; top:0; left:100vw; width:100vh; height:100vw; transform-origin:0 0; transform:rotate(90deg); }
+@supports (width:100dvh) { .full.rot { left:100dvw; width:100dvh; height:100dvw; } }
+.full.rot .joy { left:34px; }
+.full.rot .walkBtns { right:22px; }
+.scrollLock, .scrollLock body { overflow:hidden; overscroll-behavior:none; }
+/* 手に持った地図（MapInventory の .cb3-inv-map の中）：このキャンパスの小さな地図 */
+.map :global(.cb3-inv-map .yh-mini) { position:static; display:block; width:150px; height:150px; border:0; border-radius:12px; box-shadow:none; }
 .map :global(.yh-mini) { position:absolute; right:13px; top:13px; width:109px; height:109px; border:2px solid #ffffffe0; border-radius:13px; box-shadow:0 2px 9px #16362938; pointer-events:none; }
+
+/* 幅のせまい画面（スマホ）：検索は横いっぱい、下のカードも横いっぱい。ボタンの列はカードの上 */
 @container (max-width:540px) {
-  .searchBar,.picker { left:8px; top:8px; }.searchBar .search { width:auto; white-space:nowrap; font-size:12.5px; }.tools { top:8px; right:8px; }
-  .card,.info { bottom:22px; left:8px; width:min(330px,calc(100% - 16px)); padding:10px 12px; }
-  .card h3 { font-size:15px; }.picker { width:calc(100% - 64px); }
-  .walkHint { left:auto; right:8px; transform:none; bottom:24px; }.walkHint span { display:none; }
-  .map :global(.yh-mini) { top:8px; right:8px; width:72px; height:72px; border-radius:9px; }
-  .walkHeader { max-width:calc(100% - 109px); }.walkHeader span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .searchBar,.picker { left:10px; right:10px; top:10px; width:auto; }
+  .card,.info { left:10px; right:10px; bottom:10px; width:auto; padding:12px 14px; }
+  .card h3 { font-size:15.5px; }
+  .loading,.notice { left:10px; top:70px; }
+  .walkHint { font-size:11.5px; padding:6px 12px; top:60px; }
+  .guideTag { top:60px; }
+  .walkHint ~ .guideTag { top:112px; }
+  /* 持ち物を出しているときは、スティックとボタンを 9 マスの上に */
+  .walkUi[data-kit] .joy,.walkUi[data-kit] .walkBtns { bottom:100px; }
 }

@@ -1,6 +1,6 @@
 import CampusExplorer from "../campusMap/CampusExplorer.jsx";
 import { createPlanMaps } from "../campusMap/PlanMap.jsx";
-import { buildings } from "./data.js";
+import { buildings, toLocal } from "./data.js";
 import { areas, paths } from "./groundsPaths.js";
 import { hitsLandscape } from "./groundsLevels.js";
 import { blocks, streets } from "./neighbourhoodData.js";
@@ -17,7 +17,7 @@ const {PlanMap,WalkMinimap}=createPlanMaps({
 });
 const campus={
   name:"湯島キャンパス",mapTitle:"湯島キャンパス",places,byId,defaultStart,exteriorView,network,overviewStops,searchPlaces,
-  PlanMap,WalkMinimap,loadScene:()=>import("./scene.js"),defaultView:byId.get("ochanomizu-bridge"),
+  PlanMap,WalkMinimap,loadScene:()=>import("./scene.js"),defaultView:byId.get("ochanomizu-bridge"),toLocal,
   canPickGround:(x,z)=>!hitsLandscape(x,z,0),
   searchHint:"例：M&D、歯科、湯島門",credit:"PLATEAU・東京都・国土地理院",
   sourceNote:"建物の配置と高さは大学案内図・3D都市モデル・航空レーザー点群で照合し、外観写真を参考に立体化しました。資料に写らない壁面、窓の間隔、植栽の一部は推定です。",

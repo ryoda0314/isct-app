@@ -3,7 +3,8 @@ import { getSupabaseAdmin } from '../../../lib/supabase/server.js';
 
 // app = 深いリンクなしで開いたゲスト（ログイン任意化で、ログインせずにアプリ全体を使えるようになった）
 // career = #career（インターン・就職・イベント）から来たゲスト
-const VALID_MODES = ['freshman', 'navi', 'reg', 'festival', 'app', 'career'];
+// vcampus = #vcampus・#vcampus/royale（バーチャルキャンパス）から来たゲスト（2026-11-25：足していなかったので 400 になり、数えられていなかった）
+const VALID_MODES = ['freshman', 'navi', 'reg', 'festival', 'app', 'career', 'vcampus'];
 
 // Simple in-memory rate limit for unauthenticated endpoint (10 req/min per session)
 const guestHits = new Map();

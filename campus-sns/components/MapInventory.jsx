@@ -293,14 +293,15 @@ function MiniMap({ walkRef, data, features, accent }) {
   );
 }
 
-export function MapInventory({ inv, bar = true, touch, menu, toast, walkRef, data, features, accent, onSelect, onUse, onCloseMenu, onBuy, onCharge, onRename, moonScope, onMoonScope }) {
+// miniMap：手に持った地図の中身を差しかえる（横浜・湯島の地図は大岡山のデータでなく、そのキャンパスの小さな地図。2026-11-25）
+export function MapInventory({ inv, bar = true, touch, menu, toast, walkRef, data, features, accent, onSelect, onUse, onCloseMenu, onBuy, onCharge, onRename, moonScope, onMoonScope, miniMap }) {
   if (!inv) return null;
   const sel = inv.slots[inv.sel];
   return (
     <>
       <style>{CSS}</style>
       {/* bar：持ち物を出しているか（しまっているときは、9 マス・お金・手に持った地図・月を見るボタンを出さない。2026-11-25 整理） */}
-      {bar && sel?.id === "map" && <MiniMap walkRef={walkRef} data={data} features={features} accent={accent} />}
+      {bar && sel?.id === "map" && (miniMap !== undefined ? <div className="cb3-inv-map">{miniMap}</div> : <MiniMap walkRef={walkRef} data={data} features={features} accent={accent} />)}
       <div className="cb3-inv">
         {bar && sel?.id === "camera" && onMoonScope && <button type="button" className="cb3-moon-lens" aria-pressed={!!moonScope} onClick={onMoonScope}>
           {t(moonScope ? "inv.moonWide" : "inv.moonScope")}{!touch && <kbd>T</kbd>}

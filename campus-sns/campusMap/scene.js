@@ -20,7 +20,11 @@ function release(root) {
   for(const geo of geometries) geo.dispose();
 }
 
-export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,places}, world) {
+// 2026-11-25 大岡山の歩くモードにそろえる：PC はクリックでマウスを捕まえて見回す（ポインターロック。onLock で知らせる）・C でしゃがむ・
+// 走る（スマホのボタン setRun）・ジャンプ（jump）・入力を止める（メニューやスマホを開いているあいだ setInputOff）・写真（capture）・
+// いまの位置（pose）・現在地の印（setGps・focusPoint）
+const NO_KEYS=new Set(), NO_STICK={x:0,y:0};
+export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,onLock,places}, world) {
   const {name, campus, volume, paths, groundAt, floor, walkBlocked, createModels} = world;
   const canvas=document.createElement("canvas");
   const context=canvas.getContext("webgl2",{antialias:true,alpha:false,powerPreference:"high-performance"}) ||
@@ -137,6 +141,8 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
   let selectedId=null, routeMesh=null, routeDisplay=[], walking=false, saved=null, free=nilWalk();
   let lastTime=0, movingPointer=null, pointerStart=null, lastPose=0;
   const stick={x:0,y:0}, keys=new Set(),projected=new THREE.Vector3();
+  let inputOff=false, runOn=false, gpsPos=null, rotated=false;
+  const gpsNode=document.createElement("div");gpsNode.className="yh-gps";gpsNode.hidden=true;labels.append(gpsNode);
   const raycaster=new THREE.Raycaster();
   function nilWalk() {return {x:0,z:0,yaw:0,pitch:0,up:0,vertical:0};}
   const bounds3d=volume.flatMap(b=>b.footprint.map(([x,z])=>new THREE.Vector3(x,b.base+b.height,z)));
@@ -230,15 +236,17 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
   }
   function leave() {
     if(!walking) return;
-    walking=false;controls.enabled=true;labels.hidden=false;scene.fog.density=.00023;keys.clear();stick.x=stick.y=0;
+    if(document.pointerLockElement===canvas)document.exitPointerLock?.();
+    walking=false;runOn=false;inputOff=false;controls.enabled=true;labels.hidden=false;scene.fog.density=.00023;keys.clear();stick.x=stick.y=0;
     camera.rotation.order="XYZ";camera.fov=saved.fov;camera.updateProjectionMatrix();
     camera.position.copy(saved.pos);controls.target.copy(saved.target);controls.update();schedule();
   }
   function advance(dt) {
-    const forward=+(keys.has("KeyW")||keys.has("ArrowUp"))-+(keys.has("KeyS")||keys.has("ArrowDown"))-stick.y;
-    const side=+keys.has("KeyD")-+keys.has("KeyA")+stick.x;
-    free.yaw+=(+keys.has("ArrowRight")-+keys.has("ArrowLeft"))*dt*1.55;
-    const speed=(keys.has("ShiftLeft")||keys.has("ShiftRight")?5.5:2.8)*dt/Math.max(1,Math.hypot(forward,side));
+    const k=inputOff?NO_KEYS:keys, st=inputOff?NO_STICK:stick;
+    const forward=+(k.has("KeyW")||k.has("ArrowUp"))-+(k.has("KeyS")||k.has("ArrowDown"))-st.y;
+    const side=+k.has("KeyD")-+k.has("KeyA")+st.x;
+    free.yaw+=(+k.has("ArrowRight")-+k.has("ArrowLeft"))*dt*1.55;
+    const speed=(k.has("ShiftLeft")||k.has("ShiftRight")||runOn?5.5:2.8)*dt/Math.max(1,Math.hypot(forward,side));
     const dx=(Math.sin(free.yaw)*forward+Math.cos(free.yaw)*side)*speed;
     const dz=(-Math.cos(free.yaw)*forward+Math.sin(free.yaw)*side)*speed;
     function pass(x,z) {return !walkBlocked(x,z) && Math.abs(floor(x,z)-floor(free.x,free.z))<.7;}
@@ -253,7 +261,7 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
     // or the jump height. The filter uses elapsed time, including after release.
     const lag=world.stepResponse?clamp((ground-free.eyeFloor)*Math.exp(-dt/world.stepResponse),-.19,.19):0;
     free.eyeFloor=ground-(Math.abs(lag)>.001?lag:0);
-    camera.position.set(free.x,free.eyeFloor+1.65+free.up,free.z);
+    camera.position.set(free.x,free.eyeFloor+(k.has("KeyC")?1.15:1.65)+free.up,free.z); // C でしゃがむ
     camera.rotation.set(free.pitch,-free.yaw,0,"YXZ");
   }
   function draw(now) {
@@ -268,6 +276,13 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
     if(!walking) {
       const azimuth=controls.getAzimuthalAngle();
       onBearing?.(Math.atan2(Math.sin(azimuth),Math.cos(azimuth)*Math.cos(controls.getPolarAngle())));
+      // 現在地の印（青い点。画面の上でいつも同じ大きさ）
+      if(gpsPos) {
+        projected.copy(gpsPos).project(camera);
+        const show=projected.z<1&&projected.z>0;
+        gpsNode.hidden=!show;
+        if(show){gpsNode.style.left=((projected.x+1)*host.clientWidth/2).toFixed(1)+"px";gpsNode.style.top=((1-projected.y)*host.clientHeight/2).toFixed(1)+"px";}
+      } else gpsNode.hidden=true;
       if(routeDisplay.length) {
         let d="",move=true;
         for(const point of routeDisplay) {
@@ -336,13 +351,25 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
   const listen=(el,type,fn)=>el.addEventListener(type,fn,{signal:abort.signal});
   listen(canvas,"pointerdown",e=>{
     if(walking) {
+      // PC（マウス）：クリックでマウスを捕まえて見回す（大岡山と同じ。Esc で離す）。捕まえられない環境はドラッグで見回す
+      if(e.pointerType==="mouse") {
+        if(e.button===0&&!inputOff&&document.pointerLockElement!==canvas&&canvas.requestPointerLock){try{canvas.requestPointerLock()?.catch?.(()=>{});}catch{/* ドラッグで */}}
+        if(document.pointerLockElement===canvas)return;
+      }
       if(movingPointer && movingPointer.id!==e.pointerId)return;
       movingPointer={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);
     }else if(e.isPrimary)pointerStart={x:e.clientX,y:e.clientY};else pointerStart=null;
   });
   listen(canvas,"pointermove",e=>{
+    if(walking&&document.pointerLockElement===canvas) {
+      if(inputOff)return;
+      free.yaw+=e.movementX*.0026;free.pitch=clamp(free.pitch-e.movementY*.0026,-1.32,1.32);schedule();return;
+    }
     if(!walking || movingPointer?.id!==e.pointerId)return;
-    free.yaw+=(e.clientX-movingPointer.x)*.004;free.pitch=clamp(free.pitch-(e.clientY-movingPointer.y)*.004,-1.32,1.32);
+    // 縦に持ったスマホで横に回して描いているとき（setRotated）は、画面の上の指の動きを絵の向きに直す
+    let ddx=e.clientX-movingPointer.x,ddy=e.clientY-movingPointer.y;
+    if(rotated){const s=ddx;ddx=ddy;ddy=-s;}
+    free.yaw+=ddx*.004;free.pitch=clamp(free.pitch-ddy*.004,-1.32,1.32);
     movingPointer.x=e.clientX;movingPointer.y=e.clientY;schedule();
   });
   listen(canvas,"pointerup",e=>{
@@ -350,22 +377,42 @@ export function createCampusScene(host, {onPick,onExit,onPose,onError,onBearing,
     pointerStart=null;if(movingPointer?.id===e.pointerId)movingPointer=null;
   });
   listen(canvas,"pointercancel",()=>{pointerStart=null;movingPointer=null;});
-  const walkKeys=["KeyW","KeyA","KeyS","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","ShiftLeft","ShiftRight","Space"];
+  listen(document,"pointerlockchange",()=>onLock?.(document.pointerLockElement===canvas));
+  listen(canvas,"contextmenu",e=>{if(walking)e.preventDefault();}); // 歩いているあいだの右クリックは「持ち物を使う」
+  const walkKeys=["KeyW","KeyA","KeyS","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","ShiftLeft","ShiftRight","Space","KeyC"];
   listen(window,"keydown",e=>{
     if(!walking || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName))return;
     if(e.code==="Escape"){onExit();return;}
-    if(!walkKeys.includes(e.code))return;
+    if(inputOff||!walkKeys.includes(e.code))return;
     e.preventDefault();keys.add(e.code);
     if(e.code==="Space" && !e.repeat && !free.up && !free.vertical)free.vertical=4.2;
     schedule();
   });
-  listen(window,"keyup",e=>keys.delete(e.code));
+  listen(window,"keyup",e=>{keys.delete(e.code);if(walking)schedule();});
   listen(window,"blur",()=>{keys.clear();stick.x=stick.y=0;movingPointer=null;});
   listen(canvas,"webglcontextlost",e=>{e.preventDefault();onError();});
   controls.addEventListener("change",schedule);
   const observer=new ResizeObserver(onResize);observer.observe(host);onResize();fit();
   return {fit,fitRoute,focus,zoom,northUp,walk,leave,setRoute,
-    move(x,y){stick.x=x;stick.y=y;schedule();},
+    move(x,y){if(inputOff)return;stick.x=x;stick.y=y;schedule();},
+    jump(){if(walking&&!inputOff&&!free.up&&!free.vertical){free.vertical=4.2;schedule();}},
+    setRun(on){runOn=!!on;},
+    setRotated(on){rotated=!!on;},
+    // メニュー・スマホ・持ち物の画面を開いているあいだは歩かない（マウスも離す）
+    setInputOff(on){inputOff=!!on;if(inputOff){keys.clear();stick.x=stick.y=0;movingPointer=null;if(document.pointerLockElement===canvas)document.exitPointerLock?.();}schedule();},
+    pose(){return walking?[free.x,free.z,free.yaw]:null;},
+    // 写真：いまの絵をその場で描いて JPEG に（描いた直後なら描画の中身が読める）
+    capture(){return new Promise(res=>{try{sky.position.copy(camera.position);renderer.render(scene,camera);canvas.toBlob(b=>res(b),"image/jpeg",.9);}catch{res(null);}});},
+    // 現在地：[x, z]（キャンパスの m）か null。focusPoint は上からの視点のままそこへ寄る
+    setGps(p){gpsPos=p?new THREE.Vector3(p[0],floor(p[0],p[1])+.6,p[1]):null;schedule();},
+    focusPoint(p){
+      if(walking||!p)return;
+      const off=camera.position.clone().sub(controls.target);
+      off.setLength(clamp(off.length(),90,260));
+      controls.target.set(p[0],floor(p[0],p[1]),p[1]);
+      camera.position.copy(controls.target).add(off);
+      controls.update();schedule();
+    },
     dispose(){disposed=true;cancelAnimationFrame(frame);abort.abort();observer.disconnect();controls.dispose();releaseReflections?.();release(scene);sun.shadow.dispose();renderer.dispose();renderer.forceContextLoss();canvas.remove();overlay.remove();labels.remove();},
   };
 }
