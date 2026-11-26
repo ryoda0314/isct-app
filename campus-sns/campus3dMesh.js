@@ -297,6 +297,10 @@ export class Mesh {
     return { pos: pos.slice(0, n * 3), nrm: nrm.slice(0, n * 3), col: this.packed ? new Uint8Array(c.buffer) : c, count: n };
   }
 }
+// 頂点を残さない入れ物（buildMesh の onlyInside）：形を作る手順はそのまま通るが、何も書かない（いつも空）
+class SinkMesh extends Mesh {
+  vert() {}
+}
 
 // 光のにじみ（足し算で重ねる。campus3dLayer.js の VS_GLOW）。いつも画面に向く丸（灯具・前照灯）と、地面に置く四角
 // （前照灯が線路に落とす光・窓あかり）。位置は描く座標（worldOf）と標高 m
@@ -5505,7 +5509,12 @@ function pilotisDaylight(features, groundAt) {
   };
 }
 
-export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceilings = [], digs = [], pal, dark, selectedId = null, accent = "#28c868", bldColor = null, clip = null, tone = null, trees = true, plantings = true }) {
+// inside（2026-11-26。スマホで歩いていると、しばらくして落ちた）：中（階 floor の中身）を描く建物（host の id の Set）。null は全部（PC）。
+//   描かない建物の階も features に入れたままにする：殻（detailShell）の形は階を見て決まる（となりの殻との壁・屋根の下の天井・地下の階）ので、
+//   どの建物の中を描くかで外の形が変わらないように。
+// onlyInside：inside の建物の中だけを作る（外の建物・地面・壁・平地などは作らない）。中を描かない形（inside が空の Set）にこれを足すと、
+//   inside で作った形と同じ三角形になる。スマホは近くの建物が変わるたびに、キャンパス全体（1 回 120〜150 MB）でなくこれだけを作り直す
+export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceilings = [], digs = [], pal, dark, selectedId = null, accent = "#28c868", bldColor = null, clip = null, tone = null, trees = true, plantings = true, inside = null, onlyInside = false }) {
   // いくつもの建物にまたがる階（hostRefs。2026-11-15 本館）の殻どうしが接する面：外がとなりの殻の中なら、となりの屋根の高さまでは
   // 描かない。隣棟が始まる点と終わる点で外壁を分割し、各区間で隣の屋根から上を残す。
   const peerOf = new Map();
@@ -5594,18 +5603,22 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
   autoPsd = [];
   autoEsc = [];
   autoClocks = [];
-  const m = new Mesh(pilotisDaylight(features,groundAt));
+  const daylight = pilotisDaylight(features, groundAt);
+  // onlyInside：階より前の形（平地の壁・デッキ）は、建物の中に要る値（ガラスの面の線 glazed など）を同じに求めるためだけに作るので、
+  // 頂点を残さない入れ物（SinkMesh）に書く。階の中は下で新しい入れ物に作る
+  const MeshFor = onlyInside ? SinkMesh : Mesh;
+  const m = new MeshFor(daylight);
   const finishes = new Map();
   const lightPlans = [];
   const bookRacks = [];
   const marketStock = marketStockCollection(worldOf);
-  const thin = new Mesh(); // 階段の手すり：奥行きを書かずに描く（ルートの線を支柱で途切れさせない）
-  const glassy = new Mesh(); // ガラスの手すりの板：ほかを描いたあとに半透明で重ねる（向こうの段や穴が透けて見える）
-  const screen = new Mesh(); // 穴あきの金属板（建物の panels の perforated）：ガラスより濃い半透明で重ねる
-  const haze = new Mesh(); // 金網の柵の網の面：ごく薄い半透明で重ねる（遠くで針金が見えなくても網の濃さが残る）
-  const veil = new Mesh(); // 詳細モードの建物の中の白い格子の手すり：半分ほど透ける
-  const cull = new Mesh(); // 詳細モードで歩いて見るときの建物の殻：外からは見えて、中からは見えない（裏の面を描かない）
-  const portal = new Mesh(); // 掘らない地下の階へのガラスの面：描く前にこの面の向こうの地形の奥行きを消す（色は描かない。addCovered）
+  const thin = new MeshFor(); // 階段の手すり：奥行きを書かずに描く（ルートの線を支柱で途切れさせない）
+  const glassy = new MeshFor(); // ガラスの手すりの板：ほかを描いたあとに半透明で重ねる（向こうの段や穴が透けて見える）
+  const screen = new MeshFor(); // 穴あきの金属板（建物の panels の perforated）：ガラスより濃い半透明で重ねる
+  const haze = new MeshFor(); // 金網の柵の網の面：ごく薄い半透明で重ねる（遠くで針金が見えなくても網の濃さが残る）
+  const veil = new MeshFor(); // 詳細モードの建物の中の白い格子の手すり：半分ほど透ける
+  const cull = new MeshFor(); // 詳細モードで歩いて見るときの建物の殻：外からは見えて、中からは見えない（裏の面を描かない）
+  const portal = new MeshFor(); // 掘らない地下の階へのガラスの面：描く前にこの面の向こうの地形の奥行きを消す（色は描かない。addCovered）
   // tone（時刻の見え方：(昼の色, 夜の色) → いまの色）があれば、昼と夜の色からいまの色に
   const cols = tone ? Object.fromEntries(Object.keys(COLORS.light).map((k) => [k, tone(COLORS.light[k], COLORS.dark[k])])) : dark ? COLORS.dark : COLORS.light;
   const acc = rgba(accent);
@@ -5629,7 +5642,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
   // 建物の壁の下の端：天井のある平地のふた（と、そのまわり 1.2m：平地を焼き込んだ地面のにじみ）の上では地面をふたの高さとして読む
   // （附属図書館 1 階のロビーの角が入口の踊り場のにじみにかかり、ガラスの壁が地下 1 階まで下りていた。2026-11-13）
   const bldGround = lids.size ? overLids(groundAt, [...lids.values()].map((L) => ({ ...L, poly: offsetRingBy(L.poly, L.poly.map(() => 1.2)) }))) : groundAt;
-  features.forEach((f) => {
+  if (!onlyInside) features.forEach((f) => {
     const tint = f.id === selectedId ? (c) => mix(c, acc, 0.45) : (c) => c;
     if (f.type === "wall" && f.kind === "hedge") {
       if (plantings) addHedge(m, f, wallAt, tint(rgba(cols.hedge)));
@@ -5800,7 +5813,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     finishes.get(finish).push({ area, uv: p.uv, z, highlight });
   };
   const graded = paints.filter(s => s.f.grade).map(s => preparePaving(s.f)).filter(Boolean);
-  for (const { f, ring } of paints) {
+  if (!onlyInside) for (const { f, ring } of paints) {
     if (!f.stoneLip) continue;
     const stones = f.stepping ? steppingStoneRings(ring, f.stepping) : [ring];
     const uv = pavingUV(f.paving, f.pavingBearing ?? 90), color = paintTone(surfaceColor(f));
@@ -5829,7 +5842,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     }
   }
   const surveyGround = prepareSurveyGround(graded);
-  for (const { f, ring, box } of paints) {
+  if (!onlyInside) for (const { f, ring, box } of paints) {
     if (!f.roadInset) continue;
     const nearby = graded.filter(g => g.box[0] <= box[2] && g.box[2] >= box[0] && g.box[1] <= box[3] && g.box[3] >= box[1]);
     if (f.roadInset === "resurfacing" || f.roadInset === "oxideAsphalt" || f.roadInset === "borderCourse") {
@@ -5853,7 +5866,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     };
     if (ring.every(p => Number.isFinite(height(p)))) drawRoadHardware(m, ring, f.roadInset, height, paintTone);
   }
-  for (const g of graded) {
+  if (!onlyInside) for (const g of graded) {
     const { f, ring } = g, color = paintTone(surfaceColor(f));
     const uv = f.paving && pavingUV(f.paving, f.boards?.[1] ?? f.pavingBearing ?? 90, f.boards?.[0]);
     const paint = { f, color, finish: isDeckPlank(f.paving) ? f.paving : "paving/" + f.paving, uv: uv && (p => uv(toLngLat(p))) };
@@ -5957,7 +5970,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
   // 「図書館の中から窓越しに明かり取りを見ると床が透明」）。色は路面（石・砂利など）の形ごと：平地の形の中だけに切って、その平地の高さに重ねる（上の順の路面ほど上）
   const under = new Mesh();
   const boxOfRing = (r) => [Math.min(...r.map((q) => q[0])), Math.min(...r.map((q) => q[1])), Math.max(...r.map((q) => q[0])), Math.max(...r.map((q) => q[1]))];
-  terraces.forEach((tr) => {
+  if (!onlyInside) terraces.forEach((tr) => {
     if (tr.side > 0 || tr.f.ceiling > 0 || lids.has(tr)) return;
     const c = tr.ring.reduce((s, p) => [s[0] + p[0] / tr.ring.length, s[1] + p[1] / tr.ring.length], [0, 0]);
     under.polygon([tr.ring], tr.elev + 0.004, [0, 0, 1], paintAt(c) || campusGround || lit(rgba(cols.wall)));
@@ -5977,14 +5990,14 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
         for (const pg of parts || []) under.polygon(pg, tr.elev + 0.007 + k * 0.002, [0, 0, 1], col);
       });
   });
-  slopes.forEach((sl) => {
+  if (!onlyInside) slopes.forEach((sl) => {
     const tint = sl.f.id === selectedId ? (c) => mix(c, acc, 0.45) : (c) => c;
     if (sl.f.type === "stairs") addStairs(m, thin, sl, groundAt, cols, tint, finishes, deckTint(sl.f.id));
     // 壁の色：坂は material（木の歩道の縁など）、ほかはコンクリート
     if (sl.f.side === 0 && sl.walls) addSlopeWalls(m, sl, groundAt, tint(rgba(cols[sl.f.wallMaterial && MATERIAL_COLOR[sl.f.wallMaterial] ? MATERIAL_COLOR[sl.f.wallMaterial] : sl.f.type === "slope" && sl.f.material ? stairsColorKey(sl.f) : "wall"])));
   });
   const cc = rgba(cols.ceiling);
-  ceilings.forEach(({ rings, z }) => m.polygon(rings.map((r) => r.map(toXY)), z, [0, 0, -1], cc));
+  if (!onlyInside) ceilings.forEach(({ rings, z }) => m.polygon(rings.map((r) => r.map(toXY)), z, [0, 0, -1], cc));
   // 浮いた建物（base。附属図書館の学習棟）の階の天井ふところ（天井と上の階の床のあいだ・船底と下の階の床のあいだの空洞）をふさぐ（2026-11-14
   // ユーザーの目印「二階の天井と三階の床の隙間が空いている空洞に、うめて」）：edgeBot＝外まわりの床の縁を下ろす先（下の階の天井と船底の高いほう）、
   // plenumTop＝天井の穴のふちの帯の上の端（上の階の床の下の面。そこが上の階の床の穴なら帯なし）、いちばん上の階は外まわりも屋根の下の天井まで
@@ -6025,9 +6038,20 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
   // 殻のある建物の階（外からは殻の窓ごしにしか見えない）の三角形の範囲（頂点の番号）。描く側（campus3dChunks）が遠い升目では描かない
   const interior = { m: [], glass: [], veil: [], cull: [] };
   const INSIDE_KEYS = ["m", "glass", "veil", "cull"];
+  // 階の中を書く入れ物：ふだんは上と同じ。onlyInside は新しい入れ物（上の捨てる入れ物には書かない）
+  const F = onlyInside
+    ? { m: new Mesh(daylight), glassy: new Mesh(), veil: new Mesh(), cull: new Mesh(), finishes: new Map(), lightPlans: [], bookRacks: [], marketStock: marketStockCollection(worldOf) }
+    : { m, glassy, veil, cull, finishes, lightPlans, bookRacks, marketStock };
+  if (onlyInside) {
+    autoDoors = [];
+    autoPsd = [];
+    autoEsc = [];
+    autoClocks = [];
+  }
   // 詳細モード：建物の階（切り取った階は、その階の壁の上の端より上を描かない）と、地下の階の下を掘ったふちの帯
   features.forEach((f) => {
     if (f.type !== "floor") return;
+    if (inside && !inside.has(f.host)) return; // 中を描かない建物の階（殻を決めるためだけに features に入っている）
     const selected = f.id === selectedId ? (c) => mix(c, acc, 0.45) : (c) => c;
     // The sales floor and its fixtures stay under the shop lights after sunset.
     const tint = f.lit ? (c) => { const [r,g,b] = selected(c); return [r,g,b,.5]; } : selected;
@@ -6035,7 +6059,7 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
     const g0 = floorG0(f, groundAt);
     if (!f.cut && f.ceiling && Number.isFinite(g0) && ["rubber", "studdedRubber", "cvs", "marketVinyl"].includes(f.finish)) {
       const plan = ceilingLightPlan(f, g0 + f.z, ll => worldOf(toXY(ll)));
-      if (plan) lightPlans.push(plan);
+      if (plan) F.lightPlans.push(plan);
     }
     // いくつもの建物にまたがる階（hostRefs。本館）：点の上の屋根の下の天井は、その点を含む建物から（どれにも入らなければ host）
     let ceilAt = host ? roofWallAt(host, groundAt) : null;
@@ -6057,14 +6081,16 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
       };
     }
     const highlight = f.id === selectedId ? [acc[0], acc[1], acc[2], 0.45] : [0, 0, 0, 0];
-    const shut = drawnShells.has(f.host), n0 = shut ? [m.s.n, glassy.s.n, veil.s.n, cull.s.n] : null;
-    addFloor({ m, finishes, glassy, veil, cull }, f, { groundAt, hostShell:drawnShells.has(f.host), tint, highlight, bookRacks, marketStock, plazaLights, deckTint: deckTint(f.id), paintAt, ceilAt, cutTop: f.cut && Number.isFinite(g0) ? g0 + f.z + f.height - f.slab + 0.05 : Infinity, glazed, doors: autoDoors, psd: autoPsd, esc: autoEsc, clocks: autoClocks, text: FLOOR_TEXT, ...(plenum.get(f.id) || {}) });
-    if (shut) [m, glassy, veil, cull].forEach((x, i) => { if (x.s.n > n0[i]) interior[INSIDE_KEYS[i]].push([n0[i], x.s.n]); });
+    const shut = drawnShells.has(f.host), n0 = shut ? [F.m.s.n, F.glassy.s.n, F.veil.s.n, F.cull.s.n] : null;
+    addFloor({ m: F.m, finishes: F.finishes, glassy: F.glassy, veil: F.veil, cull: F.cull }, f, { groundAt, hostShell:drawnShells.has(f.host), tint, highlight, bookRacks: F.bookRacks, marketStock: F.marketStock, plazaLights, deckTint: deckTint(f.id), paintAt, ceilAt, cutTop: f.cut && Number.isFinite(g0) ? g0 + f.z + f.height - f.slab + 0.05 : Infinity, glazed, doors: autoDoors, psd: autoPsd, esc: autoEsc, clocks: autoClocks, text: FLOOR_TEXT, ...(plenum.get(f.id) || {}) });
+    if (shut) [F.m, F.glassy, F.veil, F.cull].forEach((x, i) => { if (x.s.n > n0[i]) interior[INSIDE_KEYS[i]].push([n0[i], x.s.n]); });
   });
   // 掘らない地下の階に面したふちの帯は、その床から PASS_CLEAR m より上だけ（連絡通路の口。歩く当たり campus3dWalk と同じ形）
-  const cutFloors = cutFloorRegions(features, groundAt);
-  const digGround = pavingSubgrade(graded, groundAt);
-  digs.forEach((d) => addDigBand(m, d, digs, digGround, paintAt, campusGround, cutFloors));
+  if (!onlyInside) {
+    const cutFloors = cutFloorRegions(features, groundAt);
+    const digGround = pavingSubgrade(graded, groundAt);
+    digs.forEach((d) => addDigBand(m, d, digs, digGround, paintAt, campusGround, cutFloors));
+  }
   const doors = autoDoors;
   autoDoors = null;
   // ホームドアの戸の口（電車に合わせて開く。campus3dPsd.js が描く）
@@ -6076,6 +6102,10 @@ export function buildMesh(features, { groundAt, slopes = [], terraces = [], ceil
   // 計算式の時計の面（{ o, u, n, z0, w, h, d }。光る字は campus3dMathClock）
   const clocks = autoClocks;
   autoClocks = null;
+  if (onlyInside) {
+    const none = new Mesh().result();
+    return { ...F.m.result(), floors: buildFloorFinishes(F.finishes), lightPlans: F.lightPlans, marketStock: F.marketStock.result(), bookRacks: F.bookRacks.map(r => projectBookRack(r, worldOf)), thin: none, glass: F.glassy.result(), screen: none, haze: none, veil: F.veil.result(), cull: F.cull.result(), portal: none, under: none, doors, psd, esc, clocks, interior };
+  }
   return { ...m.result(), floors: buildFloorFinishes(finishes), lightPlans, marketStock: marketStock.result(), bookRacks: bookRacks.map(r => projectBookRack(r, worldOf)), thin: thin.result(), glass: glassy.result(), screen: screen.result(), haze: haze.result(), veil: veil.result(), cull: cull.result(), portal: portal.result(), under: under.result(), doors, psd, esc, clocks, interior };
 }
 

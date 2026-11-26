@@ -342,6 +342,13 @@ export function createExtrasLayer({ light, route, exaggeration = 1, skyColors })
   const readyStamps = new Map();
   const failedStamps = new Set();
   const buf = { mesh: null, floors: null, thin: null, glass: null, screen: null, haze: null, veil: null, cull: null, portal: null, under: null, rib: null };
+  // 建物の中だけの形（スマホ。2026-11-26）：近くの建物が変わったら、これだけを差しかえる（全体の形 buf はそのまま）。
+  // 同じ順の段（不透明 → 半透明）で全体の形のすぐあとに描くので、全体の形に中まで入れたときと同じ見え方
+  const bufIn = { mesh: null, floors: null, thin: null, glass: null, screen: null, haze: null, veil: null, cull: null };
+  let inside = null, insideSet = false;
+  let booksIn = null, hasBooksIn = false;
+  let marketIn = null, hasMarketIn = false;
+  let lightPlansIn = [];
   // 升目ごとに並べかえて、見えている升目だけ描く（campus3dChunks）。drawLimits は小さい三角形・建物の中を描く距離（m）
   let drawLimits = { mid: Infinity, small: Infinity, inside: Infinity };
   const KXY = Math.hypot(PER_M.e[0], PER_M.e[1]);
@@ -370,6 +377,38 @@ export function createExtrasLayer({ light, route, exaggeration = 1, skyColors })
     return out;
   };
   const free = (b, keys) => b && keys.forEach((k) => b[k] && gl.deleteBuffer(b[k]));
+  const freeInside = () => {
+    if (!gl) return;
+    free(bufIn.floors, ["pos", "uv", "col"]);
+    for (const k of ["mesh", "thin", "glass", "screen", "haze", "veil", "cull"]) free(bufIn[k], ["pos", "nrm", "col"]);
+    for (const k of Object.keys(bufIn)) bufIn[k] = null;
+  };
+  // 床の素材の絵（finish ごとに 1 枚。全体の形と建物の中の形で同じものを使う）
+  const floorTexturesFor = (batches) => {
+    gl.activeTexture(gl.TEXTURE0);
+    for (const { finish } of batches) {
+      if (floorTextures.has(finish) && !failedStamps.delete(finish)) continue;
+      const print = SURFACE_PRINT_IMAGES[finish];
+      const isMenu = finish === TSUBAME_ATLAS;
+      const paving = pavingStampName(finish);
+      if (isMenu || print || paving || finish === "terraceBoards") {
+        const initial = isMenu || print ? [239, 237, 229, 255] : finish === "terraceBoards" ? [167, 166, 164, 255] : [0, 0, 0, 0];
+        const texture = floorTextures.get(finish) || uploadFloorTexture(gl, 1, new Uint8Array(initial));
+        floorTextures.set(finish, texture);
+        const pixelsReady = isMenu ? tsubameMenuPixels() : print ? signPrintPixels(print) : deckStampPixels(paving || finish);
+        pixelsReady.then(pixels => {
+          if (floorTextures.get(finish) !== texture) return;
+          readyStamps.set(finish, pixels);
+          map?.triggerRepaint();
+        }).catch(() => {
+          if (floorTextures.get(finish) === texture) failedStamps.add(finish);
+        });
+      } else {
+        floorTextures.set(finish, createFloorTexture(gl, finish, interiorPalette));
+      }
+    }
+    gl.bindTexture(gl.TEXTURE_2D, null);
+  };
   const bindAttr = (prog, name, b, size) => {
     const a = prog.att(name);
     if (a < 0) return -1;
@@ -426,6 +465,13 @@ export function createExtrasLayer({ light, route, exaggeration = 1, skyColors })
       floorProg = compile(gl, VS_FLOOR, FS_FLOOR);
     },
     onRemove() {
+      freeInside();
+      booksIn?.remove();
+      booksIn = null;
+      hasBooksIn = false;
+      marketIn?.remove();
+      marketIn = null;
+      hasMarketIn = false;
       free(buf.mesh, ["pos", "nrm", "col"]);
       free(buf.floors, ["pos", "uv", "col"]);
       free(buf.thin, ["pos", "nrm", "col"]);
@@ -495,35 +541,43 @@ export function createExtrasLayer({ light, route, exaggeration = 1, skyColors })
         market?.set(mesh.marketStock);
         if (buf.floors) {
           buf.floors.batches = mesh.floors.batches;
-          gl.activeTexture(gl.TEXTURE0);
-          for (const { finish } of buf.floors.batches) {
-            if (floorTextures.has(finish) && !failedStamps.delete(finish)) continue;
-            const print = SURFACE_PRINT_IMAGES[finish];
-            const isMenu = finish === TSUBAME_ATLAS;
-            const paving = pavingStampName(finish);
-            if (isMenu || print || paving || finish === "terraceBoards") {
-              const initial = isMenu || print ? [239, 237, 229, 255] : finish === "terraceBoards" ? [167, 166, 164, 255] : [0, 0, 0, 0];
-              const texture = floorTextures.get(finish) || uploadFloorTexture(gl, 1, new Uint8Array(initial));
-              floorTextures.set(finish, texture);
-              const pixelsReady = isMenu ? tsubameMenuPixels() : print ? signPrintPixels(print) : deckStampPixels(paving || finish);
-              pixelsReady.then(pixels => {
-                if (floorTextures.get(finish) !== texture) return;
-                readyStamps.set(finish, pixels);
-                map?.triggerRepaint();
-              }).catch(() => {
-                if (floorTextures.get(finish) === texture) failedStamps.add(finish);
-              });
-            } else {
-              floorTextures.set(finish, createFloorTexture(gl, finish, interiorPalette));
-            }
-          }
-          gl.bindTexture(gl.TEXTURE_2D, null);
+          floorTexturesFor(buf.floors.batches);
         }
         buf.thin = mesh.thin?.count ? withChunks(mesh.thin, mesh.interior?.thin) : null;
         buf.glass = mesh.glass?.count ? withChunks(mesh.glass, mesh.interior?.glass) : null;
         buf.screen = mesh.screen?.count ? withChunks(mesh.screen, mesh.interior?.screen) : null;
         buf.haze = mesh.haze?.count ? withChunks(mesh.haze, mesh.interior?.haze) : null;
         mesh = null;
+      }
+      // 建物の中だけの形（setInside）：小さいので升目に分けずに送る（全部描く）
+      if (insideSet) {
+        freeInside();
+        const d = inside;
+        inside = null;
+        insideSet = false;
+        if (d) {
+          const keys = ["pos", "nrm", "col"];
+          bufIn.mesh = d.count ? upload(d, keys) : null;
+          bufIn.floors = d.floors?.count ? upload(d.floors, ["pos", "uv", "col"]) : null;
+          if (bufIn.floors) {
+            bufIn.floors.batches = d.floors.batches;
+            floorTexturesFor(bufIn.floors.batches);
+          }
+          for (const k of ["thin", "glass", "screen", "haze", "veil", "cull"]) bufIn[k] = d[k]?.count ? upload(d[k], keys) : null;
+          lightPlansIn = d.lightPlans || [];
+          hasBooksIn = Boolean(d.bookRacks?.length);
+          if (hasBooksIn && !booksIn) booksIn = createBookRenderer(gl, compile);
+          booksIn?.set(d.bookRacks || []);
+          hasMarketIn = Boolean(d.marketStock?.chunks.length);
+          if (hasMarketIn && !marketIn) marketIn = createMarketRenderer(gl, compile);
+          marketIn?.set(d.marketStock); // 品物のない中に変わったら、前の品物のバッファを返す
+        } else {
+          lightPlansIn = [];
+          hasBooksIn = false;
+          booksIn?.set([]);
+          hasMarketIn = false;
+          marketIn?.set(null);
+        }
       }
       if (rib) {
         free(buf.rib, ["pos", "off"]);
@@ -536,8 +590,11 @@ export function createExtrasLayer({ light, route, exaggeration = 1, skyColors })
       layer.matrix = M;
       for (const [finish, { size, data }] of readyStamps) uploadFloorTexture(gl, size, data, floorTextures.get(finish));
       readyStamps.clear();
-      if (!buf.mesh && !buf.floors && !buf.thin && !buf.glass && !buf.screen && !buf.haze && !buf.veil && !buf.cull && !buf.rib && !buf.under) return;
+      const anyIn = bufIn.mesh || bufIn.floors || bufIn.glass || bufIn.veil || bufIn.cull || hasBooksIn || hasMarketIn;
+      if (!buf.mesh && !buf.floors && !buf.thin && !buf.glass && !buf.screen && !buf.haze && !buf.veil && !buf.cull && !buf.rib && !buf.under && !anyIn) return;
       const enabled = [];
+      // 天井の明かりの映り込み：全体の形（PC は全部の建物）と建物の中の形（スマホの近くの建物）の両方から
+      const plans = lightPlansIn.length ? lightPlans.concat(lightPlansIn) : lightPlans;
 
       // 形（壁・段・橋）。手すり（thin）は奥行きを書かずに描く：段や壁には隠れるが、あとで描くルートの線を支柱で途切れさせない。
       // 穴あきの金属板（screen）・金網の網の面（haze）・ガラスの手すりの板（glass）は最後に半透明で重ねる（奥行きは書かない）
@@ -547,15 +604,20 @@ export function createExtrasLayer({ light, route, exaggeration = 1, skyColors })
       const lim = (typeof window !== "undefined" && window.__cbLimits) || drawLimits;
       if (buf.portal && map.terrain) punchPortals(buf.portal, M);
       // 天井のない平地の床（mesh.under）：地形を外しているとき（地面の下を歩くとき）だけ。ふだんは地形が床
-      [[map.terrain ? null : buf.under, true, 1], [buf.floors, true, 1], [buf.mesh, true, 1], [cam ? buf.cull : null, true, 1, true], [hasBooks ? books : null, true, 1], [hasMarket ? market : null, true, 1], [buf.thin, false, 1], [buf.screen, false, SCREEN_ALPHA], [buf.veil, false, VEIL_ALPHA], [buf.haze, false, HAZE_ALPHA], [buf.glass, false, GLASS_ALPHA]].forEach(([b, writeDepth, alpha, culled]) => {
+      // 建物の中だけの形（bufIn）は、それぞれの段で全体の形のすぐあと（全体の形に中まで入れたときと同じ順）
+      [[map.terrain ? null : buf.under, true, 1], [buf.floors, true, 1], [bufIn.floors, true, 1], [buf.mesh, true, 1], [bufIn.mesh, true, 1],
+        [cam ? buf.cull : null, true, 1, true], [cam ? bufIn.cull : null, true, 1, true], [hasBooks ? books : null, true, 1], [hasBooksIn ? booksIn : null, true, 1],
+        [hasMarket ? market : null, true, 1], [hasMarketIn ? marketIn : null, true, 1], [buf.thin, false, 1], [bufIn.thin, false, 1],
+        [buf.screen, false, SCREEN_ALPHA], [bufIn.screen, false, SCREEN_ALPHA], [buf.veil, false, VEIL_ALPHA], [bufIn.veil, false, VEIL_ALPHA],
+        [buf.haze, false, HAZE_ALPHA], [bufIn.haze, false, HAZE_ALPHA], [buf.glass, false, GLASS_ALPHA], [bufIn.glass, false, GLASS_ALPHA]].forEach(([b, writeDepth, alpha, culled]) => {
         if (!b) return;
-        if (b === books) { books.draw(M, cam); return; }
-        if (b === market) { market.draw(M, cam, skyColors?.()); return; }
-        if (b === buf.floors) {
+        if (b === books || b === booksIn) { b.draw(M, cam); return; }
+        if (b === market || b === marketIn) { b.draw(M, cam, skyColors?.()); return; }
+        if (b === buf.floors || b === bufIn.floors) {
           gl.useProgram(floorProg.p);
           gl.uniformMatrix4fv(floorProg.loc("u_matrix"), false, M);
           gl.uniform1i(floorProg.loc("u_finish"), 0);
-          const plan = cam && lightPlans.find(p => insideLightPlan(p,cam));
+          const plan = cam && plans.find(p => insideLightPlan(p,cam));
           gl.uniform1i(floorProg.loc("u_ceilingLights"), plan ? 1 : 0);
           if (plan) {
             gl.activeTexture(gl.TEXTURE1);
@@ -650,6 +712,12 @@ export function createExtrasLayer({ light, route, exaggeration = 1, skyColors })
   // 形を差し替える（GL への転送は次に描くとき）
   layer.setMesh = (m) => {
     mesh = m;
+    map?.triggerRepaint();
+  };
+  // 建物の中だけの形（buildMesh の onlyInside）を差し替える。null で消す（GL への転送は次に描くとき）
+  layer.setInside = (m) => {
+    inside = m;
+    insideSet = true;
     map?.triggerRepaint();
   };
   layer.setDrawLimits = (l) => {

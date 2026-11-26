@@ -3,7 +3,8 @@
 // ここでは：
 // ・地面の高さ（campusDem）は画面の側と同じタイル（送られてきたもの）と同じ焼き込みで作る（groundAt が同じになる）
 // ・できた形は升目ごとに並べかえて（campus3dChunks）、配列ごと渡す（写さない）
-// 受け取るもの：{ id, view?（features。変わったときだけ）, near（中を描く建物の host の並び。null なら全部）, demTiles?, burns, opts, bldColors, needClip }
+// 受け取るもの：{ id, view?（features。変わったときだけ）, inside（中を描く建物の host の並び。null なら全部）, only（inside の建物の中だけを作る。
+//   2026-11-26：スマホは近くの建物が変わるたびにキャンパス全体を作り直していた）, demTiles?, burns, opts, bldColors, needClip }
 import { buildMesh, setMeshPacking, worldOf } from "./campus3dMesh.js";
 import { dem } from "./campusDem.js";
 import { chunkTriangles } from "./campus3dChunks.js";
@@ -35,12 +36,13 @@ self.onmessage = async ({ data }) => {
     dem.setBurns(data.burns || []);
     if (data.needClip && !clip) await clipLoad;
     if (data.needClip && !clip) clip = await import("polygon-clipping").then((m) => m.default || m);
-    const near = data.near ? new Set(data.near) : null;
-    const drawn = near ? view.filter((f) => f.type !== "floor" || near.has(f.host)) : view;
     const colors = data.bldColors || null;
     const t0 = performance.now();
-    const res = buildMesh(drawn, {
+    // 階はいつも全部入れる（殻の形は階を見て決まる）。どの建物の中を描くかは inside で選ぶ
+    const res = buildMesh(view, {
       ...data.opts,
+      inside: data.inside ? new Set(data.inside) : null,
+      onlyInside: !!data.only,
       groundAt: (ll) => dem.groundAt(ll),
       slopes: dem.slopes,
       terraces: dem.terraces,
@@ -51,7 +53,8 @@ self.onmessage = async ({ data }) => {
       tone: data.toneF ? (d, n) => toneOf(data.toneF, d, n) : null,
     });
     const t1 = performance.now();
-    if (data.chunks) {
+    // 建物の中だけの形（only）は小さく、近くの建物だけなので升目に分けない（全部描く）
+    if (data.chunks && !data.only) {
       const ch = (d, inside) => (d?.count ? chunkTriangles(d, [["pos", 3], ["nrm", 3], ["col", 4]], { kxy: KXY, interior: inside || null }) : null);
       res.chunks = ch(res, res.interior?.m);
       for (const k of BUCKETS) if (res[k]) res[k].chunks = ch(res[k], res.interior?.[k]);

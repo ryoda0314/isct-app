@@ -61,7 +61,9 @@ setMeshPacking(true);
 //    ・歩いているときは、入っている・すぐそばの建物だけ（walkIn m で入れ walkOut m で外す）。歩きはじめて walkDelayMs は作り直さない
 //      （歩く世界・地図のタイルの読み込みと重ねない）
 //    ・詳細モードは今までどおり、地図の中心から in / out m
-const LITE_NEAR = { in: 100, out: 160, minZoom: 16.5, everyMs: 800, gapMs: 2500, walkIn: 8, walkOut: 25, walkDelayMs: 6000 };
+// 2026-11-26（ユーザー「最初は動くようになったがしばらく移動していたらまた落ちてしまった」）：近くの建物が変わったときに作り直すのは
+// 建物の中の形だけ（1〜30 MB。前はキャンパス全体の 120〜150 MB）になったので、歩きはじめに待つのは 3 秒に
+const LITE_NEAR = { in: 100, out: 160, minZoom: 16.5, everyMs: 800, gapMs: 2500, walkIn: 8, walkOut: 25, walkDelayMs: 3000 };
 // （MapLibre のタイルの細かさ setSourceTileLodParams は変えない：目の高さで試すと、値を変えてもタイルの数はほぼ同じ（1 つの source で
 // 22 枚ほど）か、小さくすると逆に何倍にもふえて、WebKit で 1 フレーム 4 万回描いて止まった。2026-11-26）
 // スマホで歩いているあいだに落ちたか（iPhone はメモリが足りないとタブを読み込み直す）：歩きはじめに印を置き、ふつうにやめたら消す。
@@ -850,6 +852,10 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const extrasRef = useRef(null); // 手で足した構造物を描くレイヤー（campus3dLayer.js）
   const bridgesRef = useRef([]); // prepareBridge 済みの橋
   const meshRef = useRef(null); // 構造物の三角形を作り直す関数（目的地が変わったら、置きかえた建物の色を変える）
+  // スマホ（lite）：近くの建物の中だけを作り直す関数（全体の形はそのまま。2026-11-26）と、全体の形・建物の中の形から取り出した
+  // 小さな物（扉・ホームドア・エスカレーター・時計。大きな配列は持たない）
+  const insideRef = useRef(null);
+  const partsRef = useRef({ base: null, inside: null });
   const bldHitRef = useRef([]); // 置きかえた建物の形とスポット [{ ring: xy, spot }]（タップで選ぶ）
   const onBridgeRef = useRef([]); // ルートのうち橋の上を通る部分 [[lng, lat, 床の標高]...]
   const gpsLiftRef = useRef(0); // 現在地が橋の上なら、地面からの高さ(m)
@@ -1610,6 +1616,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
   const liteRef = useRef(null);
   const meshSeqRef = useRef(0); // 形を頼んだ番号（Worker から遅れて届いた古い形は使わない）
   const meshShownRef = useRef(0); // いま出している形の番号（それより新しい形が届いたら、いちばん新しい頼みでなくてもすぐ出す）
+  const insideSeqRef = useRef(0); // 建物の中だけの形も同じ（スマホ）
+  const insideShownRef = useRef(0);
   // 形を作る Worker は、地図を読み込んでいるあいだに起こしておく（はじめの形を頼んでから起こすと、Worker を読み込む分だけ建物が遅れた。2026-11-25）
   useEffect(() => { meshWorkerReady(); }, []);
   const nearRef = useRef(null);
@@ -1647,7 +1655,10 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     nearRef.current = next;
     return true;
   };
-  const drawViewOf = (v) => (nearRef.current ? v.filter((f) => f.type !== "floor" || nearRef.current.has(f.host)) : v);
+  // 全体の形に中を入れる建物：PC は全部（null）。スマホ（lite）は入れない（空の Set）：近くの建物の中は別に作って足す（insideRef）。
+  // 2026-11-26（ユーザー「最初は動くようになったがしばらく移動していたらまた落ちてしまった」）：近くの建物が変わるたびにキャンパス全体
+  // （1 回 120〜150 MB）を作り直して GPU へ送り直し、歩いた 6 分で 34 回・4 GB になっていた。階は全部 features に入れたまま（殻の形は階で決まる）
+  const baseInside = () => (nearRef.current ? new Set() : null);
   // 試し：?fps で左上に fps を出す
   useEffect(() => {
     if (typeof window === "undefined" || !/[?&]fps\b/.test(window.location.search)) return undefined;
@@ -1793,12 +1804,26 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       if (!live()) return;
       // 形は Web Worker で作る（campus3dMeshClient。作るあいだ画面が止まらない。2026-11-24）。使えなければ、いままでどおりここで作る
       const meshOpts = () => ({ ceilings: cut.ceilings, pal: built.pal, dark, selectedId: selectedFeatureId, accent, trees: !vegRef.current, plantings: !vegRef.current });
-      const buildHere = () => buildMesh(drawViewOf(view), { ...meshOpts(), tone: lookRef.current?.tone, groundAt: ground, slopes: dem.slopes, terraces: dem.terraces, digs: dem.digs, bldColor, clip });
+      // inside：中を描く建物（null は全部）、only：その建物の中だけを作る（campus3dMesh の buildMesh）
+      const buildHere = (inside = baseInside(), only = false) => buildMesh(view, { ...meshOpts(), tone: lookRef.current?.tone, groundAt: ground, slopes: dem.slopes, terraces: dem.terraces, digs: dem.digs, bldColor, clip, inside, onlyInside: only });
       // release（スマホ）：作り終えたら Worker を止めて、作るあいだの一時的な配列をすぐ返す（campus3dMeshClient。2026-11-26）
-      const offExtra = () => ({ burns: built.burn ? slopes : [], bldColor, needClip: !!clip, dem, toneF: lookRef.current?.tone ? lookRef.current.f || null : null, release: !!liteRef.current });
+      const offExtra = (only = false) => ({ burns: built.burn ? slopes : [], bldColor, needClip: !!clip, dem, toneF: lookRef.current?.tone ? lookRef.current.f || null : null, release: !!liteRef.current, only });
+      const workerOk = () => !((typeof window !== "undefined" && window.__cbMeshHere) || (lookRef.current?.tone && !lookRef.current?.f));
+      // スマホ：近くの建物（nearRef）の中だけを作って、全体の形に足す。近くに建物がなければ消す。PC（nearRef が null）は全体の形に全部入っている
+      insideRef.current = () => {
+        const near = nearRef.current;
+        const seq = ++insideSeqRef.current;
+        if (!near || !near.size) { insideShownRef.current = seq; applyInside(null); return; }
+        const off = workerOk() ? buildMeshOff(view, near, meshOpts(), offExtra(true)) : null;
+        if (!off) { insideShownRef.current = seq; applyInside(buildHere(near, true)); return; }
+        off.then((res) => { if (res && seq > insideShownRef.current && live()) { insideShownRef.current = seq; applyInside(res); } }, (err) => {
+          console.warn("[3D map] mesh worker (inside):", err?.message || err);
+          if (seq === insideSeqRef.current && live()) { insideShownRef.current = seq; applyInside(buildHere(near, true)); }
+        });
+      };
       meshRef.current = () => {
         nearHosts(); // lite（スマホ）：中を描く建物を、いま見ている所で選ぶ
-        const viaWorker = !((typeof window !== "undefined" && window.__cbMeshHere) || (lookRef.current?.tone && !lookRef.current?.f));
+        const viaWorker = workerOk();
         // PC（建物の中を全部描く）で、まだ形を出していないときは、建物の中を抜いた形を先に作って出す（中まで作ると倍以上かかる。
         // 2026-11-25）。全部の形はそのすぐあとに作る（Worker は一度に 1 つずつ。先の形が出てから入れかわる）
         if (viaWorker && !meshShownRef.current && nearRef.current == null) {
@@ -1806,27 +1831,45 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
           buildMeshOff(view, new Set(), meshOpts(), offExtra())?.then((res) => { if (res && seq0 > meshShownRef.current && live()) { meshShownRef.current = seq0; applyMesh(res); } }, () => {});
         }
         const seq = ++meshSeqRef.current;
-        const off = viaWorker ? buildMeshOff(view, nearRef.current, meshOpts(), offExtra()) : null;
-        if (!off) { meshShownRef.current = seq; applyMesh(buildHere()); return; }
-        // 届いた形は、いま出ている形より新しければすぐ出す（2026-11-25：起動中に頼み直すと、先にできた形を捨てて、次ができるまで
-        // 建物が出なかった）。あとの頼みに追い越された頼みは Worker に送られず、null が返る
-        off.then((res) => { if (res && seq > meshShownRef.current && live()) { meshShownRef.current = seq; applyMesh(res); } }, (err) => {
-          console.warn("[3D map] mesh worker:", err?.message || err);
-          if (seq === meshSeqRef.current && live()) { meshShownRef.current = seq; applyMesh(buildHere()); }
-        });
+        const off = viaWorker ? buildMeshOff(view, baseInside(), meshOpts(), offExtra()) : null;
+        if (!off) { meshShownRef.current = seq; applyMesh(buildHere()); }
+        else {
+          // 届いた形は、いま出ている形より新しければすぐ出す（2026-11-25：起動中に頼み直すと、先にできた形を捨てて、次ができるまで
+          // 建物が出なかった）。あとの頼みに追い越された頼みは Worker に送られず、null が返る
+          off.then((res) => { if (res && seq > meshShownRef.current && live()) { meshShownRef.current = seq; applyMesh(res); } }, (err) => {
+            console.warn("[3D map] mesh worker:", err?.message || err);
+            if (seq === meshSeqRef.current && live()) { meshShownRef.current = seq; applyMesh(buildHere()); }
+          });
+        }
+        // 建物の中（スマホ）も同じ色・時刻で作り直す（Worker は全体の形を先に作る）
+        insideRef.current();
       };
+      // 全体の形と建物の中の形の、扉・ホームドア・エスカレーター・時計を合わせる。開いている扉は開いたまま（同じ扉の物は同じ）
+      function applyParts() {
+        const b = partsRef.current.base || {}, i = partsRef.current.inside || {};
+        const doorList = [...(b.doors || []), ...(i.doors || []), ...laneDoors(interactRef.current?.lanes || [])];
+        const prev = doorsRef.current;
+        doorsRef.current = { list: doorList, open: doorList.map((d) => { const k = prev.list.indexOf(d); return k >= 0 ? prev.open[k] : 0; }), leaves: null, dirty: true };
+        psdRef.current = { list: [...(b.psd || []), ...(i.psd || [])], prep: null, prepd: [], mesh: null, key: "" }; // ホームドアの口（電車の線には次のフレームで合わせる）
+        escRef.current = { geoms: prepareEscalators([...(b.esc || []), ...(i.esc || [])]) }; // エスカレーターの段
+        mclockRef.current = { list: [...(b.clocks || []), ...(i.clocks || [])], mesh: null, key: -1 }; // 計算式の時計の面
+      }
+      const partsOf = (res) => (res ? { doors: res.doors, psd: res.psd, esc: res.esc, clocks: res.clocks } : null); // 大きな配列は持たない
+      function applyInside(res) {
+        extrasRef.current?.setInside(res);
+        partsRef.current = { ...partsRef.current, inside: partsOf(res) };
+        applyParts();
+        mapRef.current?.triggerRepaint();
+      }
       function applyMesh(res) {
         if (debugRef.current) lastMeshRef.current = res;
         extrasRef.current?.setMesh(res);
         // 使える物（自販機・券売機・改札）。改札の羽は自動ドアの板として描き、歩くあいだは閉じた羽がふさぐ（campus3dInteract）
         const inter = collectInteract(view.filter((f) => f.type === "floor"), ground);
         interactRef.current = inter;
-        const doorList = [...(res.doors || []), ...laneDoors(inter.lanes)];
-        doorsRef.current = { list: doorList, open: doorList.map(() => 0), leaves: null, dirty: true };
-        psdRef.current = { list: res.psd || [], prep: null, prepd: [], mesh: null, key: "" }; // ホームドアの口（電車の線には次のフレームで合わせる）
-        escRef.current = { geoms: prepareEscalators(res.esc) }; // エスカレーターの段
+        partsRef.current = { ...partsRef.current, base: partsOf(res) };
+        applyParts();
         ledRef.current = { ...ledRef.current, boards: prepareDepartureBoards(view), mesh: null }; // 発車標の看板
-        mclockRef.current = { list: res.clocks || [], mesh: null, key: -1 }; // 計算式の時計の面
         // エレベーター：階の物 lift から台を作る。同じ場所の台は前の状態（かごの階・扉）を引きつぐ
         const old = liftsRef.current;
         const list = collectLifts(view.filter((f) => f.type === "floor"), ground, floorG0);
@@ -1876,17 +1919,17 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     };
   }, [walking]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // lite（スマホ）：見ている所が動いて、中を描く建物が変わったら形を作り直す（作り直しは重いので、続けては作らない）
+  // lite（スマホ）：見ている所が動いて、中を描く建物が変わったら、建物の中の形だけを作り直す（全体の形はそのまま。続けては作らない）
   useEffect(() => {
     if (!loaded) return undefined;
     let last = 0;
     const id = setInterval(() => {
-      if (liteRef.current === false || !meshRef.current) return;
+      if (liteRef.current === false || !insideRef.current) return;
       const now = performance.now();
       if (now - last < LITE_NEAR.gapMs) return;
       if (!nearHosts()) return;
       last = now;
-      meshRef.current();
+      insideRef.current();
     }, LITE_NEAR.everyMs);
     return () => clearInterval(id);
   }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -3859,6 +3902,8 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
     let raf = 0;
     let lightKey = "";
     let skyKey = "";
+    let meshTone = null;
+    let paintTone = null;
     const apply = (look) => {
       const map = mapRef.current;
       const built = builtRef.current;
@@ -3872,8 +3917,19 @@ export const CampusMap3D = forwardRef(function CampusMap3D(props, ref) {
       if (hazeRef.current) hazeRef.current.style.background = hazeBackground(look);
       lightsRef.current?.setGlow(look.lamp);
       showLampLight();
-      meshRef.current?.();
-      paintRef.current?.();
+      // 構造物の形の色は、時刻の色の割合（look.f の warm・twilight・night・gloom。campus3dSky の toneOf）だけで決まる。太陽が少し動いただけ
+      // （look.key は高さ 0.5° ごとに変わる）では作り直さない（2026-11-26：昼でも数分ごとにキャンパス全体の形を作り直していた。スマホで重い）
+      const tone = look.f ? ["warm", "twilight", "night", "gloom"].map((k) => Math.round((look.f[k] || 0) * 20)).join() : "";
+      if (tone !== meshTone) {
+        meshTone = tone;
+        meshRef.current?.();
+      }
+      // 地面の塗り（campus3dPaint）も同じ：色の割合と、濡れ・雪・芝生の季節（look.key の最後の 3 つ）が変わったときだけ塗り直す
+      const ground = `${tone}|${look.key.split("|").slice(-3).join("|")}`;
+      if (ground !== paintTone) {
+        paintTone = ground;
+        paintRef.current?.();
+      }
     };
     // 屋根の高さの地図（雨・雪をさえぎる）：手で足した構造物の範囲（＋60m、1.6km 四方まで）を 2m の升目で、少しずつ作る
     const ensureCover = (map) => {
